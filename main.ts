@@ -1,4 +1,5 @@
 import { App, Plugin, PluginSettingTab, Setting, WorkspaceLeaf, ItemView, Notice } from 'obsidian';
+
 class ModelSettingsView extends ItemView {
     plugin: MyPlugin;
 
@@ -31,7 +32,7 @@ class ModelSettingsView extends ItemView {
                     this.plugin.settings.systemMessage = value;
                     await this.plugin.saveSettings();
                 }));
-    
+
         new Setting(contentEl)
             .setName('Include Date with System Message')
             .setDesc('Add the current date to the system message')
@@ -41,6 +42,17 @@ class ModelSettingsView extends ItemView {
                     this.plugin.settings.includeDateWithSystemMessage = value;
                     await this.plugin.saveSettings();
                 }));
+
+        new Setting(contentEl)
+            .setName('Enable Streaming')
+            .setDesc('Enable or disable streaming for completions')
+            .addToggle(toggle => toggle
+                .setValue(this.plugin.settings.enableStreaming)
+                .onChange(async (value) => {
+                    this.plugin.settings.enableStreaming = value;
+                    await this.plugin.saveSettings();
+                }));
+
         new Setting(contentEl)
             .setName('Model')
             .setDesc('Choose the OpenAI model to use')
@@ -93,18 +105,20 @@ interface MyPluginSettings {
     temperature: number;
     maxTokens: number;
     availableModels: string[];
-    systemMessage: string; // Add this line
-    includeDateWithSystemMessage: boolean; // Add this line
+    systemMessage: string;
+    includeDateWithSystemMessage: boolean;
+    enableStreaming: boolean; // Added this line
 }
 
 const DEFAULT_SETTINGS: MyPluginSettings = {
     apiKey: '',
-    model: 'gpt-3.5-turbo',
+    model: 'gpt-4o',
     temperature: 0.7,
     maxTokens: 1000,
     availableModels: [],
-    systemMessage: 'You are a helpful assistant.', // Add this line
-    includeDateWithSystemMessage: false // Add this line
+    systemMessage: 'You are a helpful assistant.',
+    includeDateWithSystemMessage: false,
+    enableStreaming: true // Added this line
 }
 
 const VIEW_TYPE_MODEL_SETTINGS = 'model-settings-view';
@@ -189,16 +203,18 @@ export default class MyPlugin extends Plugin {
             editorCallback: async (editor, view) => {
                 let text;
                 let insertPosition;
-        
+
                 if (editor.somethingSelected()) {
                     text = editor.getSelection();
                     insertPosition = editor.getCursor('to');
                 } else {
                     const lineNumber = editor.getCursor().line;
-                    text = editor.getLine(lineNumber);
-                    insertPosition = { line: lineNumber, ch: text.length };
+                    const documentText = editor.getValue();
+                    const lines = documentText.split('\n').slice(0, lineNumber);
+                    text = lines.join('\n');
+                    insertPosition = { line: lineNumber + 1, ch: 0 }; // Insert after the current line
                 }
-        
+
                 const messages = parseSelection(text);
                 
                 editor.replaceRange('\n\n----\n\n', insertPosition);
@@ -206,20 +222,22 @@ export default class MyPlugin extends Plugin {
                     line: insertPosition.line + 3,
                     ch: 0
                 };
-        
+
                 this.activeStream = new AbortController();  // Create new AbortController
-        
+
                 await this.callOpenAI(messages, (chunk) => {
                     editor.replaceRange(chunk, currentPosition);
                     currentPosition = editor.offsetToPos(editor.posToOffset(currentPosition) + chunk.length);
                 }, this.activeStream);
-        
+
                 const newCursorPos = editor.offsetToPos(
                     editor.posToOffset(currentPosition) + 2
                 );
                 editor.setCursor(newCursorPos);
             }
         });
+
+        
         this.addCommand({
             id: 'end-openai-stream',
             name: 'End OpenAI Stream',
@@ -300,45 +318,46 @@ export default class MyPlugin extends Plugin {
                     ],
                     temperature: this.settings.temperature,
                     max_tokens: this.settings.maxTokens,
-                    stream: true
+                    stream: this.settings.enableStreaming // Use the streaming setting
                 }),
                 signal: abortController.signal
             });
-
-        if (!response.ok) {
-            throw new Error(`OpenAI API error: ${response.status} ${response.statusText}`);
-        }
-
-        const reader = response.body?.getReader();
-        const decoder = new TextDecoder('utf-8');
-
-        while (true) {
-            const { done, value } = await reader?.read() || { done: true, value: undefined };
-            if (done) break;
-
-            const chunk = decoder.decode(value);
-            const lines = chunk.split('\n');
-            for (const line of lines) {
-                if (line.startsWith('data: ') && line !== 'data: [DONE]') {
-                    const data = JSON.parse(line.slice(6));
-                    const content = data.choices[0]?.delta?.content;
-                    if (content) {
-                        callback(content);
+    
+            if (!response.ok) {
+                throw new Error(`OpenAI API error: ${response.status} ${response.statusText}`);
+            }
+    
+            const reader = response.body?.getReader();
+            const decoder = new TextDecoder('utf-8');
+    
+            while (true) {
+                const { done, value } = await reader?.read() || { done: true, value: undefined };
+                if (done) break;
+    
+                const chunk = decoder.decode(value);
+                const lines = chunk.split('\n');
+                for (const line of lines) {
+                    if (line.startsWith('data: ') && line !== 'data: [DONE]') {
+                        const data = JSON.parse(line.slice(6));
+                        const content = data.choices[0]?.delta?.content;
+                        if (content) {
+                            callback(content);
+                        }
                     }
                 }
             }
+        } catch (error) {
+            if (error.name === 'AbortError') {
+                console.log('Stream was aborted');
+            } else {
+                console.error('Error calling OpenAI:', error);
+                new Notice(`Error: Unable to get completion. ${error.message}`);
+                callback(`Error: Unable to get completion. ${error.message}`);
+            }
+        } finally {
+            this.activeStream = null;  // Reset the active stream
         }
-    } catch (error) {
-        if (error.name === 'AbortError') {
-            console.log('Stream was aborted');
-        } else {
-            console.error('Error calling OpenAI:', error);
-            callback(`Error: Unable to get completion. ${error.message}`);
-        }
-    } finally {
-        this.activeStream = null;  // Reset the active stream
     }
-}
 
     async populateSettingDefaults() {
         if (!this.settings.availableModels || this.settings.availableModels.length === 0) {
@@ -370,12 +389,17 @@ export default class MyPlugin extends Plugin {
         }
     }
     async refreshAvailableModels(): Promise<void> {
-        this.settings.availableModels = await fetchAvailableModels(this.settings.apiKey);
-        await this.saveSettings();
-        if (this.modelSettingsView) {
-            this.modelSettingsView.onOpen();
+        try {
+            this.settings.availableModels = await fetchAvailableModels(this.settings.apiKey);
+            await this.saveSettings();
+            if (this.modelSettingsView) {
+                this.modelSettingsView.onOpen();
+            }
+        } catch (error) {
+            new Notice('Error refreshing available models. Please try again later.');
         }
     }
+    
 }
 
 class MyPluginSettingTab extends PluginSettingTab {
