@@ -210,7 +210,7 @@ export default class MyPlugin extends Plugin {
                 } else {
                     const lineNumber = editor.getCursor().line;
                     const documentText = editor.getValue();
-                    const lines = documentText.split('\n').slice(0, lineNumber);
+                    const lines = documentText.split('\n').slice(0, lineNumber + 1); // Include the current line
                     text = lines.join('\n');
                     insertPosition = { line: lineNumber + 1, ch: 0 }; // Insert after the current line
                 }
