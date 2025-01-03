@@ -17,11 +17,11 @@ class ModelSettingsView extends ItemView {
     }
 
     async onOpen() {
-        const {contentEl} = this;
+        const { contentEl } = this;
         contentEl.empty();
 
         contentEl.createEl('h2', { text: 'OpenAI Model Settings' });
-        
+
         new Setting(contentEl)
             .setName('System Message')
             .setDesc('Set the system message for the AI')
@@ -180,22 +180,22 @@ export default class MyPlugin extends Plugin {
     async onload() {
         await this.loadSettings();
         await this.populateSettingDefaults();
-        
+
         this.addSettingTab(new MyPluginSettingTab(this.app, this));
-    
+
         this.registerView(
             VIEW_TYPE_MODEL_SETTINGS,
             (leaf) => new ModelSettingsView(leaf, this)
         );
-    
+
         this.addRibbonIcon('gear', 'Open Model Settings', () => {
             this.activateView();
         });
-    
+
         this.app.workspace.onLayoutReady(() => {
             this.activateView();
         });
-        
+
 
         this.addCommand({
             id: 'openai-completion',
@@ -216,7 +216,7 @@ export default class MyPlugin extends Plugin {
                 }
 
                 const messages = parseSelection(text);
-                
+
                 editor.replaceRange('\n\n----\n\n', insertPosition);
                 let currentPosition = {
                     line: insertPosition.line + 3,
@@ -237,7 +237,7 @@ export default class MyPlugin extends Plugin {
             }
         });
 
-        
+
         this.addCommand({
             id: 'end-openai-stream',
             name: 'End OpenAI Stream',
@@ -259,7 +259,7 @@ export default class MyPlugin extends Plugin {
             }
         });
 
-        
+
         this.registerInterval(
             window.setInterval(async () => {
                 if (this.settings.apiKey) {
@@ -270,14 +270,14 @@ export default class MyPlugin extends Plugin {
     }
     async activateView() {
         this.app.workspace.detachLeavesOfType(VIEW_TYPE_MODEL_SETTINGS);
-    
+
         let leaf = this.app.workspace.getRightLeaf(false);
         if (leaf) {
             await leaf.setViewState({
                 type: VIEW_TYPE_MODEL_SETTINGS,
                 active: true,
             });
-    
+
             this.app.workspace.revealLeaf(leaf);
         } else {
             // If we couldn't get a right leaf, try to create a new leaf
@@ -303,7 +303,7 @@ export default class MyPlugin extends Plugin {
                 const currentDate = new Date().toISOString().split('T')[0];
                 systemMessage = `${systemMessage} The current date is ${currentDate}.`;
             }
-    
+
             const response = await fetch('https://api.openai.com/v1/chat/completions', {
                 method: 'POST',
                 headers: {
@@ -322,18 +322,18 @@ export default class MyPlugin extends Plugin {
                 }),
                 signal: abortController.signal
             });
-    
+
             if (!response.ok) {
                 throw new Error(`OpenAI API error: ${response.status} ${response.statusText}`);
             }
-    
+
             const reader = response.body?.getReader();
             const decoder = new TextDecoder('utf-8');
-    
+
             while (true) {
                 const { done, value } = await reader?.read() || { done: true, value: undefined };
                 if (done) break;
-    
+
                 const chunk = decoder.decode(value);
                 const lines = chunk.split('\n');
                 for (const line of lines) {
@@ -368,7 +368,7 @@ export default class MyPlugin extends Plugin {
     ensureLeafExists(active: boolean = false): void {
         let { workspace } = this.app;
         let leaf = workspace.getLeavesOfType(VIEW_TYPE_MODEL_SETTINGS)[0];
-    
+
         if (leaf) {
             leaf.setViewState({
                 type: VIEW_TYPE_MODEL_SETTINGS,
@@ -382,8 +382,8 @@ export default class MyPlugin extends Plugin {
             console.warn('No right leaf available for model settings view');
             return;
         }
-    
-    
+
+
         if (active && leaf) {
             workspace.revealLeaf(leaf);
         }
@@ -399,7 +399,7 @@ export default class MyPlugin extends Plugin {
             new Notice('Error refreshing available models. Please try again later.');
         }
     }
-    
+
 }
 
 class MyPluginSettingTab extends PluginSettingTab {
@@ -411,7 +411,7 @@ class MyPluginSettingTab extends PluginSettingTab {
     }
 
     display(): void {
-        const {containerEl} = this;
+        const { containerEl } = this;
         containerEl.empty();
         new Setting(containerEl)
             .setName('Refresh Available Models')
@@ -423,16 +423,16 @@ class MyPluginSettingTab extends PluginSettingTab {
                     this.display(); // Redraw the settings tab
                 }));
         new Setting(containerEl)
-        .setName('System Message')
-        .setDesc('Set the system message for the AI')
-        .addTextArea(text => text
-            .setPlaceholder('You are a helpful assistant.')
-            .setValue(this.plugin.settings.systemMessage)
-            .onChange(async (value) => {
-                this.plugin.settings.systemMessage = value;
-                await this.plugin.saveSettings();
-            }));
-        
+            .setName('System Message')
+            .setDesc('Set the system message for the AI')
+            .addTextArea(text => text
+                .setPlaceholder('You are a helpful assistant.')
+                .setValue(this.plugin.settings.systemMessage)
+                .onChange(async (value) => {
+                    this.plugin.settings.systemMessage = value;
+                    await this.plugin.saveSettings();
+                }));
+
         new Setting(containerEl)
             .setName('Include Date with System Message')
             .setDesc('Add the current date to the system message')
@@ -461,10 +461,10 @@ class MyPluginSettingTab extends PluginSettingTab {
                     dropdown.addOption(model, model);
                 }
                 dropdown.setValue(this.plugin.settings.model)
-                .onChange(async (value) => {
-                    this.plugin.settings.model = value;
-                    await this.plugin.saveSettings();
-                });
+                    .onChange(async (value) => {
+                        this.plugin.settings.model = value;
+                        await this.plugin.saveSettings();
+                    });
             });
 
         new Setting(containerEl)
