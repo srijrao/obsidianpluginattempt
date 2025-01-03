@@ -1,5 +1,11 @@
 import { App, Plugin, PluginSettingTab, Setting, WorkspaceLeaf, ItemView, Notice } from 'obsidian';
 
+/**
+ * Represents a view for managing OpenAI model settings within the plugin.
+ * Extends the ItemView class to provide a user interface for configuring
+ * various settings related to the OpenAI model, such as system message,
+ * model selection, temperature, and token limits.
+ */
 class ModelSettingsView extends ItemView {
     plugin: MyPlugin;
 
@@ -122,7 +128,18 @@ const DEFAULT_SETTINGS: MyPluginSettings = {
 }
 
 const VIEW_TYPE_MODEL_SETTINGS = 'model-settings-view';
-
+/**
+ * Fetches the list of available OpenAI models using the provided API key.
+ * 
+ * This function sends a GET request to the OpenAI API to retrieve the list of models.
+ * It filters the models to include only those whose IDs start with 'gpt-'.
+ * 
+ * @param {string} apiKey - The API key used for authenticating the request to the OpenAI API.
+ * @returns {Promise<string[]>} A promise that resolves to an array of model IDs that start with 'gpt-'.
+ *                              If an error occurs during the fetch operation, the promise resolves to an empty array.
+ * 
+ * @throws Will log an error message to the console if the API request fails or if there is an error during the fetch operation.
+ */
 async function fetchAvailableModels(apiKey: string): Promise<string[]> {
     try {
         const response = await fetch('https://api.openai.com/v1/models', {
@@ -145,7 +162,18 @@ async function fetchAvailableModels(apiKey: string): Promise<string[]> {
         return [];
     }
 }
-
+/**
+ * Parses a given text selection into an array of message objects, each containing a role and content.
+ * The function interprets lines of text separated by '----' as boundaries between user and assistant messages.
+ * 
+ * @param {string} selection - The text selection to parse, expected to contain alternating user and assistant messages.
+ * @returns {Array<{ role: string; content: string }>} An array of message objects, where each object has a 'role' 
+ * indicating either 'user' or 'assistant', and 'content' containing the message text.
+ * 
+ * The function processes the input text line by line, switching roles whenever it encounters a line with '----'.
+ * It accumulates lines into the current message content until a boundary is reached, at which point it stores the 
+ * message and switches roles. The final message is added to the array if it contains any content.
+ */
 function parseSelection(selection: string): Array<{ role: string; content: string }> {
     const lines = selection.split('\n');
     let messages: Array<{ role: string; content: string }> = [];
@@ -172,6 +200,28 @@ function parseSelection(selection: string): Array<{ role: string; content: strin
 }
 
 
+/**
+ * MyPlugin is a class that extends the Plugin class to provide functionality for managing OpenAI model settings
+ * and interacting with the OpenAI API within the Obsidian application. It includes features such as loading and
+ * saving settings, activating a custom view for model settings, and handling commands for OpenAI completions.
+ * 
+ * Key Features:
+ * - Loads and saves plugin settings, including API key, model selection, and other configuration options.
+ * - Provides a custom view for managing OpenAI model settings, accessible via a ribbon icon and command.
+ * - Supports streaming of OpenAI completions with the ability to abort active streams.
+ * - Periodically refreshes the list of available OpenAI models using the provided API key.
+ * 
+ * Methods:
+ * - onload: Initializes the plugin by loading settings, adding a settings tab, registering views and commands,
+ *   and setting up periodic model refresh.
+ * - activateView: Activates the custom view for model settings, creating a new leaf if necessary.
+ * - loadSettings: Loads the plugin settings from storage, merging with default settings.
+ * - saveSettings: Saves the current plugin settings to storage.
+ * - callOpenAI: Sends a request to the OpenAI API for chat completions, handling streaming responses and errors.
+ * - populateSettingDefaults: Ensures default settings are populated, including fetching available models if needed.
+ * - ensureLeafExists: Ensures a leaf exists for the model settings view, activating it if specified.
+ * - refreshAvailableModels: Fetches the latest available OpenAI models and updates the settings.
+ */
 export default class MyPlugin extends Plugin {
     settings: MyPluginSettings;
     modelSettingsView: ModelSettingsView | null = null;
@@ -402,6 +452,27 @@ export default class MyPlugin extends Plugin {
 
 }
 
+/**
+ * MyPluginSettingTab is a class that extends PluginSettingTab to provide a user interface
+ * for configuring the settings of the MyPlugin within the Obsidian application.
+ * 
+ * This class is responsible for rendering the settings tab where users can adjust various
+ * configuration options related to the OpenAI model, such as API key, model selection,
+ * system message, and other parameters.
+ * 
+ * Key Features:
+ * - Provides a button to refresh the list of available OpenAI models.
+ * - Allows users to set a custom system message for the AI.
+ * - Includes an option to append the current date to the system message.
+ * - Enables users to input their OpenAI API key for authentication.
+ * - Offers a dropdown menu for selecting the desired OpenAI model from the available options.
+ * - Provides a slider to adjust the temperature, controlling the randomness of the model's output.
+ * - Allows users to specify the maximum number of tokens for the model's output.
+ * 
+ * Methods:
+ * - constructor: Initializes the setting tab with the given app and plugin instances.
+ * - display: Renders the settings UI, including all available configuration options and controls.
+ */
 class MyPluginSettingTab extends PluginSettingTab {
     plugin: MyPlugin;
 
