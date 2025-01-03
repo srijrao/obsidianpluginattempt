@@ -280,8 +280,10 @@ export default class MyPlugin extends Plugin {
                     currentPosition = editor.offsetToPos(editor.posToOffset(currentPosition) + chunk.length);
                 }, this.activeStream);
 
+                // Add "----" at the end of the OpenAI completion
+                editor.replaceRange('\n\n----\n\n', currentPosition);
                 const newCursorPos = editor.offsetToPos(
-                    editor.posToOffset(currentPosition) + 2
+                    editor.posToOffset(currentPosition) + 8 // Adjust for the length of "\n\n----"
                 );
                 editor.setCursor(newCursorPos);
             }
