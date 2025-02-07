@@ -582,11 +582,12 @@ export default class MyPlugin extends Plugin {
 
                 try {
                     const provider = createProvider(this.settings);
+                    const processedMessages = await this.processMessages([
+                        { role: 'system', content: this.getSystemMessage() },
+                        ...messages
+                    ]);
                     await provider.getCompletion(
-                        [
-                            { role: 'system', content: this.getSystemMessage() },
-                            ...messages
-                        ],
+                        processedMessages,
                         {
                             temperature: this.settings.temperature,
                             maxTokens: this.settings.maxTokens,
@@ -688,7 +689,33 @@ export default class MyPlugin extends Plugin {
      * @param content The message content to process
      * @returns The processed content with note contents included
      */
-    async processObsidianLinks(content: string): Promise<string> {
+    /**
+     * Process an array of messages to include Obsidian note contents
+     * 
+     * @param messages Array of messages to process
+     * @returns Promise resolving to processed messages
+     */
+    private async processMessages(messages: Message[]): Promise<Message[]> {
+        const processedMessages: Message[] = [];
+        
+        for (const message of messages) {
+            const processedContent = await this.processObsidianLinks(message.content);
+            processedMessages.push({
+                role: message.role,
+                content: processedContent
+            });
+        }
+        
+        return processedMessages;
+    }
+
+    /**
+     * Process a single message content to include Obsidian note contents
+     * 
+     * @param content The message content to process
+     * @returns Promise resolving to processed content
+     */
+    private async processObsidianLinks(content: string): Promise<string> {
         if (!this.settings.enableObsidianLinks) return content;
 
         const linkRegex = /\[\[(.*?)\]\]/g;
