@@ -1,17 +1,20 @@
 {
     "compilerOptions": {
         "baseUrl": ".",
-        "module": "ESNext", // Keep this as ESNext
-        "target": "ESNext", // Change this to ESNext
+        "module": "ESNext",
+        "target": "ESNext",
         "noImplicitAny": true,
         "moduleResolution": "node",
         "importHelpers": true,
         "isolatedModules": true,
         "strictNullChecks": true,
+        "skipLibCheck": true,
+        "outDir": "./dist",
         "lib": [
             "DOM",
-            "ESNext" // You can use ESNext for modern features
+            "ESNext"
         ]
     },
-    "include": ["**/*.ts"]
+    "include": ["**/*.ts"],
+    "exclude": ["node_modules"]
 }
