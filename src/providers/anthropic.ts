@@ -21,7 +21,7 @@ export class AnthropicProvider implements AIProvider {
     private baseUrl = 'https://api.anthropic.com/v1';
     private model: string;
 
-    constructor(apiKey: string, model: string = 'claude-2') {
+    constructor(apiKey: string, model: string = 'claude-3-sonnet-20240229') {
         this.apiKey = apiKey;
         this.model = model;
     }
@@ -36,26 +36,18 @@ export class AnthropicProvider implements AIProvider {
      */
     async getCompletion(messages: Message[], options: CompletionOptions): Promise<void> {
         try {
-            // Convert messages to Anthropic format
-            const prompt = messages.map(msg => {
-                if (msg.role === 'system') {
-                    return `System: ${msg.content}\n\n`;
-                }
-                return `${msg.role === 'user' ? 'Human' : 'Assistant'}: ${msg.content}\n\n`;
-            }).join('') + 'Assistant:';
-
-            const response = await fetch(`${this.baseUrl}/complete`, {
+            const response = await fetch(`${this.baseUrl}/messages`, {
                 method: 'POST',
                 headers: {
                     'x-api-key': this.apiKey,
-                    'anthropic-version': '2023-06-01',
+                    'anthropic-version': '2024-01-01',
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
                     model: this.model,
-                    prompt,
+                    messages,
                     temperature: options.temperature ?? 0.7,
-                    max_tokens_to_sample: options.maxTokens ?? 1000,
+                    max_tokens: options.maxTokens ?? 1000,
                     stream: true
                 }),
                 signal: options.abortController?.signal
@@ -78,7 +70,7 @@ export class AnthropicProvider implements AIProvider {
                 for (const line of lines) {
                     if (line.startsWith('data: ') && line !== 'data: [DONE]') {
                         const data = JSON.parse(line.slice(6));
-                        const content = data.completion;
+                        const content = data.delta?.text;
                         if (content && options.streamCallback) {
                             options.streamCallback(content);
                         }
@@ -105,10 +97,9 @@ export class AnthropicProvider implements AIProvider {
      */
     async getAvailableModels(): Promise<string[]> {
         return [
-            'claude-2',
-            'claude-instant-1',
-            'claude-1',
-            'claude-1-100k'
+            'claude-3-opus-20240229',
+            'claude-3-sonnet-20240229',
+            'claude-3-haiku-20240307'
         ];
     }
 
@@ -121,17 +112,17 @@ export class AnthropicProvider implements AIProvider {
      */
     async testConnection(): Promise<ConnectionTestResult> {
         try {
-            const response = await fetch(`${this.baseUrl}/complete`, {
+            const response = await fetch(`${this.baseUrl}/messages`, {
                 method: 'POST',
                 headers: {
                     'x-api-key': this.apiKey,
-                    'anthropic-version': '2023-06-01',
+                    'anthropic-version': '2024-01-01',
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
                     model: this.model,
-                    prompt: 'Human: Hi\n\nAssistant:',
-                    max_tokens_to_sample: 1
+                    messages: [{ role: 'user', content: 'Hi' }],
+                    max_tokens: 1
                 })
             });
 
