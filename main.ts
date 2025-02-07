@@ -1,4 +1,4 @@
-import { App, Plugin, PluginSettingTab, Setting, WorkspaceLeaf, ItemView, Notice } from 'obsidian';
+import { App, Plugin, PluginSettingTab, Setting, WorkspaceLeaf, ItemView, Notice, TFile } from 'obsidian';
 
 /**
  * Represents a view for managing OpenAI model settings within the plugin.
@@ -46,6 +46,26 @@ class ModelSettingsView extends ItemView {
                 .setValue(this.plugin.settings.includeDateWithSystemMessage)
                 .onChange(async (value) => {
                     this.plugin.settings.includeDateWithSystemMessage = value;
+                    await this.plugin.saveSettings();
+                }));
+
+        new Setting(contentEl)
+            .setName('Include Time with System Message')
+            .setDesc('Add the current time along with the date to the system message')
+            .addToggle(toggle => toggle
+                .setValue(this.plugin.settings.includeTimeWithSystemMessage)
+                .onChange(async (value) => {
+                    this.plugin.settings.includeTimeWithSystemMessage = value;
+                    await this.plugin.saveSettings();
+                }));
+
+        new Setting(contentEl)
+            .setName('Enable Obsidian Links')
+            .setDesc('Read Obsidian links in messages using [[filename]] syntax')
+            .addToggle(toggle => toggle
+                .setValue(this.plugin.settings.enableObsidianLinks)
+                .onChange(async (value) => {
+                    this.plugin.settings.enableObsidianLinks = value;
                     await this.plugin.saveSettings();
                 }));
 
@@ -113,7 +133,10 @@ interface MyPluginSettings {
     availableModels: string[];
     systemMessage: string;
     includeDateWithSystemMessage: boolean;
-    enableStreaming: boolean; // Added this line
+    includeTimeWithSystemMessage: boolean;
+    enableStreaming: boolean;
+    autoOpenModelSettings: boolean;
+    enableObsidianLinks: boolean;
 }
 
 const DEFAULT_SETTINGS: MyPluginSettings = {
@@ -124,7 +147,10 @@ const DEFAULT_SETTINGS: MyPluginSettings = {
     availableModels: [],
     systemMessage: 'You are a helpful assistant.',
     includeDateWithSystemMessage: false,
-    enableStreaming: true // Added this line
+    includeTimeWithSystemMessage: false,
+    enableStreaming: true,
+    autoOpenModelSettings: true,
+    enableObsidianLinks: true
 }
 
 const VIEW_TYPE_MODEL_SETTINGS = 'model-settings-view';
@@ -243,7 +269,9 @@ export default class MyPlugin extends Plugin {
         });
 
         this.app.workspace.onLayoutReady(() => {
-            this.activateView();
+            if (this.settings.autoOpenModelSettings) {
+                this.activateView();
+            }
         });
 
 
@@ -353,7 +381,21 @@ export default class MyPlugin extends Plugin {
             let systemMessage = this.settings.systemMessage;
             if (this.settings.includeDateWithSystemMessage) {
                 const currentDate = new Date().toISOString().split('T')[0];
-                systemMessage = `${systemMessage} The current date is ${currentDate}.`;
+                if (this.settings.includeTimeWithSystemMessage) {
+                    const currentTime = new Date().toLocaleTimeString();
+                    systemMessage = `${systemMessage} The current date and time is ${currentDate} ${currentTime}.`;
+                } else {
+                    systemMessage = `${systemMessage} The current date is ${currentDate}.`;
+                }
+            }
+            
+            // Process messages to include Obsidian note contents if enabled
+            let processedMessages = messages;
+            if (this.settings.enableObsidianLinks) {
+                processedMessages = await Promise.all(messages.map(async (msg) => {
+                    const processedContent = await this.processObsidianLinks(msg.content);
+                    return { ...msg, content: processedContent };
+                }));
             }
 
             const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -366,7 +408,7 @@ export default class MyPlugin extends Plugin {
                     model: this.settings.model,
                     messages: [
                         { role: "system", content: systemMessage },
-                        ...messages
+                        ...processedMessages
                     ],
                     temperature: this.settings.temperature,
                     max_tokens: this.settings.maxTokens,
@@ -440,6 +482,40 @@ export default class MyPlugin extends Plugin {
             workspace.revealLeaf(leaf);
         }
     }
+    /**
+     * Processes a message content to include the actual content of any Obsidian links.
+     * If a link is found, it retrieves the note content and appends it after the link.
+     * 
+     * @param content The message content to process
+     * @returns The processed content with note contents included
+     */
+    async processObsidianLinks(content: string): Promise<string> {
+        const linkRegex = /\[\[(.*?)\]\]/g;
+        let match;
+        let processedContent = content;
+        
+        while ((match = linkRegex.exec(content)) !== null) {
+            const fileName = match[1];
+            try {
+                // Try to find the note in the vault
+                const file = this.app.vault.getAbstractFileByPath(`${fileName}.md`);
+                if (file && file instanceof TFile) {
+                    // Get the note content
+                    const noteContent = await this.app.vault.cachedRead(file);
+                    // Replace the link with the link followed by the note content
+                    processedContent = processedContent.replace(
+                        match[0],
+                        `${match[0]}\n${fileName}:\n${noteContent}\n`
+                    );
+                }
+            } catch (error) {
+                console.error(`Error processing Obsidian link for ${fileName}:`, error);
+            }
+        }
+        
+        return processedContent;
+    }
+
     async refreshAvailableModels(): Promise<void> {
         try {
             this.settings.availableModels = await fetchAvailableModels(this.settings.apiKey);
@@ -496,6 +572,16 @@ class MyPluginSettingTab extends PluginSettingTab {
                     this.display(); // Redraw the settings tab
                 }));
         new Setting(containerEl)
+            .setName('Auto-open Model Settings')
+            .setDesc('Automatically open model settings when Obsidian starts')
+            .addToggle(toggle => toggle
+                .setValue(this.plugin.settings.autoOpenModelSettings)
+                .onChange(async (value) => {
+                    this.plugin.settings.autoOpenModelSettings = value;
+                    await this.plugin.saveSettings();
+                }));
+
+        new Setting(containerEl)
             .setName('System Message')
             .setDesc('Set the system message for the AI')
             .addTextArea(text => text
@@ -515,6 +601,27 @@ class MyPluginSettingTab extends PluginSettingTab {
                     this.plugin.settings.includeDateWithSystemMessage = value;
                     await this.plugin.saveSettings();
                 }));
+
+        new Setting(containerEl)
+            .setName('Include Time with System Message')
+            .setDesc('Add the current time along with the date to the system message')
+            .addToggle(toggle => toggle
+                .setValue(this.plugin.settings.includeTimeWithSystemMessage)
+                .onChange(async (value) => {
+                    this.plugin.settings.includeTimeWithSystemMessage = value;
+                    await this.plugin.saveSettings();
+                }));
+
+        new Setting(containerEl)
+            .setName('Enable Obsidian Links')
+            .setDesc('Read Obsidian links in messages using [[filename]] syntax')
+            .addToggle(toggle => toggle
+                .setValue(this.plugin.settings.enableObsidianLinks)
+                .onChange(async (value) => {
+                    this.plugin.settings.enableObsidianLinks = value;
+                    await this.plugin.saveSettings();
+                }));
+
         new Setting(containerEl)
             .setName('API Key')
             .setDesc('Enter your OpenAI API key')
@@ -567,4 +674,3 @@ class MyPluginSettingTab extends PluginSettingTab {
                 }));
     }
 }
-
