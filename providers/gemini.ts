@@ -2,34 +2,13 @@
  * Google Gemini Provider Implementation
  * 
  * This file contains the implementation of the Google Gemini provider,
- * which allows the plugin to interact with Google's Gemini API
+ * which allows the plugin to interact with Google's Gemini API using
+ * the official Google Generative AI SDK.
  */
 
 import { Message, CompletionOptions, ConnectionTestResult } from '../types';
-import { BaseProvider, ProviderError, ProviderErrorType } from './base';
-
-interface GeminiResponse {
-    candidates: Array<{
-        content: {
-            parts: Array<{
-                text: string;
-            }>;
-            role: string;
-        };
-        finishReason: string;
-        index: number;
-        safetyRatings: Array<{
-            category: string;
-            probability: string;
-        }>;
-    }>;
-    promptFeedback: {
-        safetyRatings: Array<{
-            category: string;
-            probability: string;
-        }>;
-    };
-}
+import { BaseProvider, ProviderError } from './base';
+import { GoogleGenerativeAI, GenerativeModel } from '@google/generative-ai';
 
 /**
  * Implements the Google Gemini provider functionality
@@ -42,13 +21,17 @@ interface GeminiResponse {
  */
 export class GeminiProvider extends BaseProvider {
     protected apiKey: string;
-    protected baseUrl = 'https://generativelanguage.googleapis.com/v1';
+    protected baseUrl: string = 'https://generativelanguage.googleapis.com/v1';
     protected model: string;
+    private genAI: GoogleGenerativeAI;
+    private modelInstance: GenerativeModel;
 
-    constructor(apiKey: string, model: string = 'gemini-pro') {
+    constructor(apiKey: string, model: string = 'gemini-1.5-pro') {
         super();
         this.apiKey = apiKey;
         this.model = model;
+        this.genAI = new GoogleGenerativeAI(this.apiKey);
+        this.modelInstance = this.genAI.getGenerativeModel({ model: this.model });
     }
 
     /**
@@ -74,55 +57,31 @@ export class GeminiProvider extends BaseProvider {
      */
     async getCompletion(messages: Message[], options: CompletionOptions): Promise<void> {
         try {
-            const contents = this.convertToGeminiFormat(messages);
-            const response = await fetch(
-                `${this.baseUrl}/models/${this.model}:streamGenerateContent?key=${this.apiKey}`,
-                {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        contents,
-                        generationConfig: {
-                            temperature: options.temperature ?? 0.7,
-                            maxOutputTokens: options.maxTokens ?? 1000,
-                            topP: 0.8,
-                            topK: 40
-                        }
-                    }),
-                    signal: options.abortController?.signal
+            const chat = this.modelInstance.startChat({
+                generationConfig: {
+                    temperature: options.temperature ?? 0.7,
+                    maxOutputTokens: options.maxTokens ?? 1000,
+                    topP: 0.8,
+                    topK: 40
                 }
-            );
+            });
 
-            if (!response.ok) {
-                throw this.handleHttpError(response);
+            // Convert messages to Gemini format and send history
+            const history = messages.slice(0, -1);
+            if (history.length > 0) {
+                for (const msg of history) {
+                    await chat.sendMessage(msg.content);
+                }
             }
 
-            const reader = response.body?.getReader();
-            const decoder = new TextDecoder('utf-8');
-            let buffer = '';
+            // Send the last message and stream the response
+            const lastMessage = messages[messages.length - 1];
+            const result = await chat.sendMessageStream(lastMessage.content);
 
-            while (true) {
-                const { done, value } = await reader?.read() || { done: true, value: undefined };
-                if (done) break;
-
-                buffer += decoder.decode(value, { stream: true });
-                const lines = buffer.split('\n');
-                buffer = lines.pop() || '';
-
-                for (const line of lines) {
-                    if (line.trim()) {
-                        try {
-                            const data: GeminiResponse = JSON.parse(line);
-                            const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
-                            if (content && options.streamCallback) {
-                                options.streamCallback(content);
-                            }
-                        } catch (e) {
-                            console.warn('Error parsing Gemini response chunk:', e);
-                        }
-                    }
+            for await (const chunk of result.stream) {
+                const text = chunk.text();
+                if (text && options.streamCallback) {
+                    options.streamCallback(text);
                 }
             }
         } catch (error) {
@@ -141,47 +100,32 @@ export class GeminiProvider extends BaseProvider {
     /**
      * Get available Gemini models
      * 
-     * Fetches the list of models from Gemini's API.
+     * Returns the list of supported Gemini models.
+     * These are the officially supported models from Google's documentation.
      * 
      * @returns List of available model names
      */
     async getAvailableModels(): Promise<string[]> {
-        try {
-            const response = await fetch(
-                `${this.baseUrl}/models?key=${this.apiKey}`
-            );
-
-            if (!response.ok) {
-                throw this.handleHttpError(response);
-            }
-
-            const data = await response.json();
-            return data.models
-                .map((model: any) => model.name)
-                .filter((name: string) => name.includes('gemini'));
-        } catch (error) {
-            console.error('Error fetching Gemini models:', error);
-            // Return known models as fallback
-            return ['gemini-pro', 'gemini-pro-vision'];
-        }
+        return [
+            'gemini-2.0-flash',
+            'gemini-2.0-flash-lite',
+            'gemini-1.5-flash',
+            'gemini-1.5-flash-8b',
+            'gemini-1.5-pro'
+        ];
     }
 
     /**
      * Test connection to Gemini
      * 
-     * Verifies the API key works by attempting to list models.
+     * Verifies the API key works by attempting a simple completion.
      * 
      * @returns Test results including success/failure
      */
     async testConnection(): Promise<ConnectionTestResult> {
         try {
-            const response = await fetch(
-                `${this.baseUrl}/models?key=${this.apiKey}`
-            );
-
-            if (!response.ok) {
-                throw this.handleHttpError(response);
-            }
+            const chat = this.modelInstance.startChat();
+            await chat.sendMessage("Hi");
 
             const models = await this.getAvailableModels();
             return {
