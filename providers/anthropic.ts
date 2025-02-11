@@ -56,8 +56,8 @@ export class AnthropicProvider extends BaseProvider {
             const response = await fetch(`${this.baseUrl}/messages`, {
                 method: 'POST',
                 headers: {
-                    'x-api-key': this.apiKey,
-                    'anthropic-version': '2023-06-01',
+                    'anthropic-api-key': this.apiKey,
+                    'anthropic-version': '2024-02-15',
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
@@ -144,8 +144,8 @@ export class AnthropicProvider extends BaseProvider {
             const response = await fetch(`${this.baseUrl}/messages`, {
                 method: 'POST',
                 headers: {
-                    'x-api-key': this.apiKey,
-                    'anthropic-version': '2023-06-01',
+                    'anthropic-api-key': this.apiKey,
+                    'anthropic-version': '2024-02-15',
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({

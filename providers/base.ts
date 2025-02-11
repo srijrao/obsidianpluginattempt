@@ -60,6 +60,47 @@ export abstract class BaseProvider implements AIProvider {
      * Handle common HTTP errors
      */
     protected handleHttpError(error: any): never {
+        // Handle Response objects from fetch API
+        if (error instanceof Response) {
+            const status = error.status;
+            switch (status) {
+                case 401:
+                    throw new ProviderError(
+                        ProviderErrorType.InvalidApiKey,
+                        'Invalid API key',
+                        status
+                    );
+                case 429:
+                    throw new ProviderError(
+                        ProviderErrorType.RateLimit,
+                        'Rate limit exceeded',
+                        status
+                    );
+                case 400:
+                    throw new ProviderError(
+                        ProviderErrorType.InvalidRequest,
+                        'Invalid request',
+                        status
+                    );
+                case 500:
+                case 502:
+                case 503:
+                case 504:
+                    throw new ProviderError(
+                        ProviderErrorType.ServerError,
+                        'Server error occurred',
+                        status
+                    );
+                default:
+                    throw new ProviderError(
+                        ProviderErrorType.ServerError,
+                        `Unknown error occurred: ${status}`,
+                        status
+                    );
+            }
+        }
+
+        // Handle error objects with response property (like Axios errors)
         if (!error.response) {
             throw new ProviderError(
                 ProviderErrorType.NetworkError,

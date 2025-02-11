@@ -64,9 +64,266 @@ var DEFAULT_SETTINGS = {
   enableObsidianLinks: true
 };
 
+// providers/base.ts
+var ProviderError = class extends Error {
+  constructor(type, message, statusCode) {
+    super(message);
+    __publicField(this, "type");
+    __publicField(this, "statusCode");
+    this.type = type;
+    this.statusCode = statusCode;
+    this.name = "ProviderError";
+  }
+};
+var BaseProvider = class {
+  /**
+   * Handle common HTTP errors
+   */
+  handleHttpError(error) {
+    if (error instanceof Response) {
+      const status2 = error.status;
+      switch (status2) {
+        case 401:
+          throw new ProviderError(
+            "invalid_api_key" /* InvalidApiKey */,
+            "Invalid API key",
+            status2
+          );
+        case 429:
+          throw new ProviderError(
+            "rate_limit" /* RateLimit */,
+            "Rate limit exceeded",
+            status2
+          );
+        case 400:
+          throw new ProviderError(
+            "invalid_request" /* InvalidRequest */,
+            "Invalid request",
+            status2
+          );
+        case 500:
+        case 502:
+        case 503:
+        case 504:
+          throw new ProviderError(
+            "server_error" /* ServerError */,
+            "Server error occurred",
+            status2
+          );
+        default:
+          throw new ProviderError(
+            "server_error" /* ServerError */,
+            `Unknown error occurred: ${status2}`,
+            status2
+          );
+      }
+    }
+    if (!error.response) {
+      throw new ProviderError(
+        "network_error" /* NetworkError */,
+        "Network error occurred"
+      );
+    }
+    const status = error.response.status;
+    switch (status) {
+      case 401:
+        throw new ProviderError(
+          "invalid_api_key" /* InvalidApiKey */,
+          "Invalid API key",
+          status
+        );
+      case 429:
+        throw new ProviderError(
+          "rate_limit" /* RateLimit */,
+          "Rate limit exceeded",
+          status
+        );
+      case 400:
+        throw new ProviderError(
+          "invalid_request" /* InvalidRequest */,
+          "Invalid request",
+          status
+        );
+      case 500:
+      case 502:
+      case 503:
+      case 504:
+        throw new ProviderError(
+          "server_error" /* ServerError */,
+          "Server error occurred",
+          status
+        );
+      default:
+        throw new ProviderError(
+          "server_error" /* ServerError */,
+          `Unknown error occurred: ${status}`,
+          status
+        );
+    }
+  }
+  /**
+   * Format error message for connection test results
+   */
+  formatErrorMessage(error) {
+    if (error instanceof ProviderError) {
+      switch (error.type) {
+        case "invalid_api_key" /* InvalidApiKey */:
+          return "Invalid API key. Please check your credentials.";
+        case "rate_limit" /* RateLimit */:
+          return "Rate limit exceeded. Please try again later.";
+        case "network_error" /* NetworkError */:
+          return "Network error. Please check your internet connection.";
+        default:
+          return error.message;
+      }
+    }
+    return error.message || "An unknown error occurred";
+  }
+  /**
+   * Create a standard error response for connection tests
+   */
+  createErrorResponse(error) {
+    return {
+      success: false,
+      message: this.formatErrorMessage(error)
+    };
+  }
+};
+
+// providers/anthropic.ts
+var AnthropicProvider = class extends BaseProvider {
+  constructor(apiKey, model = "claude-3-sonnet-20240229") {
+    super();
+    __publicField(this, "apiKey");
+    __publicField(this, "baseUrl", "https://api.anthropic.com/v1");
+    __publicField(this, "model");
+    this.apiKey = apiKey;
+    this.model = model;
+  }
+  /**
+   * Get a completion from Anthropic
+   * 
+   * Sends the conversation to Anthropic and streams back the response.
+   * 
+   * @param messages - The conversation history
+   * @param options - Settings for this completion
+   */
+  async getCompletion(messages, options) {
+    var _a, _b, _c, _d, _e;
+    try {
+      const response = await fetch(`${this.baseUrl}/messages`, {
+        method: "POST",
+        headers: {
+          "anthropic-api-key": this.apiKey,
+          "anthropic-version": "2024-02-15",
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          model: this.model,
+          messages: messages.map((msg) => ({
+            role: msg.role,
+            content: msg.content
+          })),
+          temperature: (_a = options.temperature) != null ? _a : 0.7,
+          max_tokens: (_b = options.maxTokens) != null ? _b : 1e3,
+          stream: true
+        }),
+        signal: (_c = options.abortController) == null ? void 0 : _c.signal
+      });
+      if (!response.ok) {
+        throw this.handleHttpError(response);
+      }
+      const reader = (_d = response.body) == null ? void 0 : _d.getReader();
+      const decoder = new TextDecoder("utf-8");
+      let buffer = "";
+      while (true) {
+        const { done, value } = await (reader == null ? void 0 : reader.read()) || { done: true, value: void 0 };
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+        for (const line of lines) {
+          if (line.startsWith("data: ") && line !== "data: [DONE]") {
+            try {
+              const data = JSON.parse(line.slice(6));
+              const content = (_e = data.content[0]) == null ? void 0 : _e.text;
+              if (content && options.streamCallback) {
+                options.streamCallback(content);
+              }
+            } catch (e) {
+              console.warn("Error parsing Anthropic response chunk:", e);
+            }
+          }
+        }
+      }
+    } catch (error) {
+      if (error instanceof ProviderError) {
+        throw error;
+      }
+      if (error.name === "AbortError") {
+        console.log("Anthropic stream was aborted");
+      } else {
+        console.error("Error calling Anthropic:", error);
+        throw error;
+      }
+    }
+  }
+  /**
+   * Get available Anthropic models
+   * 
+   * Returns the list of supported Claude models.
+   * Note: Anthropic doesn't have a models endpoint, so we return known models.
+   * 
+   * @returns List of available model names
+   */
+  async getAvailableModels() {
+    return [
+      "claude-3-opus-20240229",
+      "claude-3-sonnet-20240229",
+      "claude-3-haiku-20240307"
+    ];
+  }
+  /**
+   * Test connection to Anthropic
+   * 
+   * Verifies the API key works by attempting a simple completion.
+   * 
+   * @returns Test results including success/failure
+   */
+  async testConnection() {
+    try {
+      const response = await fetch(`${this.baseUrl}/messages`, {
+        method: "POST",
+        headers: {
+          "anthropic-api-key": this.apiKey,
+          "anthropic-version": "2024-02-15",
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          model: this.model,
+          messages: [{ role: "user", content: "Hi" }],
+          max_tokens: 1
+        })
+      });
+      if (!response.ok) {
+        throw this.handleHttpError(response);
+      }
+      const models = await this.getAvailableModels();
+      return {
+        success: true,
+        message: "Successfully connected to Anthropic!",
+        models
+      };
+    } catch (error) {
+      return this.createErrorResponse(error);
+    }
+  }
+};
+
 // providers/openai.ts
-var OpenAIProvider = class {
+var OpenAIProvider = class extends BaseProvider {
   constructor(apiKey, model = "gpt-4") {
+    super();
     __publicField(this, "apiKey");
     __publicField(this, "baseUrl", "https://api.openai.com/v1");
     __publicField(this, "model");
@@ -100,26 +357,35 @@ var OpenAIProvider = class {
         signal: (_c = options.abortController) == null ? void 0 : _c.signal
       });
       if (!response.ok) {
-        throw new Error(`OpenAI API error: ${response.status} ${response.statusText}`);
+        throw this.handleHttpError(response);
       }
       const reader = (_d = response.body) == null ? void 0 : _d.getReader();
       const decoder = new TextDecoder("utf-8");
+      let buffer = "";
       while (true) {
         const { done, value } = await (reader == null ? void 0 : reader.read()) || { done: true, value: void 0 };
         if (done) break;
-        const chunk = decoder.decode(value);
-        const lines = chunk.split("\n");
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
         for (const line of lines) {
           if (line.startsWith("data: ") && line !== "data: [DONE]") {
-            const data = JSON.parse(line.slice(6));
-            const content = (_f = (_e = data.choices[0]) == null ? void 0 : _e.delta) == null ? void 0 : _f.content;
-            if (content && options.streamCallback) {
-              options.streamCallback(content);
+            try {
+              const data = JSON.parse(line.slice(6));
+              const content = (_f = (_e = data.choices[0]) == null ? void 0 : _e.delta) == null ? void 0 : _f.content;
+              if (content && options.streamCallback) {
+                options.streamCallback(content);
+              }
+            } catch (e) {
+              console.warn("Error parsing OpenAI response chunk:", e);
             }
           }
         }
       }
     } catch (error) {
+      if (error instanceof ProviderError) {
+        throw error;
+      }
       if (error.name === "AbortError") {
         console.log("OpenAI stream was aborted");
       } else {
@@ -146,7 +412,7 @@ var OpenAIProvider = class {
         }
       });
       if (!response.ok) {
-        throw new Error(`OpenAI API error: ${response.status} ${response.statusText}`);
+        throw this.handleHttpError(response);
       }
       const data = await response.json();
       return data.data.map((model) => model.id).filter((id) => id.startsWith("gpt-"));
@@ -163,7 +429,6 @@ var OpenAIProvider = class {
    * @returns Test results including success/failure and available models
    */
   async testConnection() {
-    var _a, _b;
     try {
       const models = await this.getAvailableModels();
       return {
@@ -172,159 +437,32 @@ var OpenAIProvider = class {
         models
       };
     } catch (error) {
-      let message = "Connection failed: ";
-      if (((_a = error.response) == null ? void 0 : _a.status) === 401) {
-        message += "Invalid API key. Please check your OpenAI API key.";
-      } else if (((_b = error.response) == null ? void 0 : _b.status) === 429) {
-        message += "Rate limit exceeded. Please try again later.";
-      } else {
-        message += error.message;
-      }
-      return {
-        success: false,
-        message
-      };
-    }
-  }
-};
-
-// providers/anthropic.ts
-var AnthropicProvider = class {
-  constructor(apiKey, model = "claude-3-sonnet-20240229") {
-    __publicField(this, "apiKey");
-    __publicField(this, "baseUrl", "https://api.anthropic.com/v1");
-    __publicField(this, "model");
-    this.apiKey = apiKey;
-    this.model = model;
-  }
-  /**
-   * Get a completion from Anthropic
-   * 
-   * Sends the conversation to Anthropic and streams back the response.
-   * 
-   * @param messages - The conversation history
-   * @param options - Settings for this completion
-   */
-  async getCompletion(messages, options) {
-    var _a, _b, _c, _d, _e;
-    try {
-      const response = await fetch(`${this.baseUrl}/messages`, {
-        method: "POST",
-        headers: {
-          "x-api-key": this.apiKey,
-          "anthropic-version": "2024-01-01",
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          model: this.model,
-          messages,
-          temperature: (_a = options.temperature) != null ? _a : 0.7,
-          max_tokens: (_b = options.maxTokens) != null ? _b : 1e3,
-          stream: true
-        }),
-        signal: (_c = options.abortController) == null ? void 0 : _c.signal
-      });
-      if (!response.ok) {
-        throw new Error(`Anthropic API error: ${response.status} ${response.statusText}`);
-      }
-      const reader = (_d = response.body) == null ? void 0 : _d.getReader();
-      const decoder = new TextDecoder("utf-8");
-      while (true) {
-        const { done, value } = await (reader == null ? void 0 : reader.read()) || { done: true, value: void 0 };
-        if (done) break;
-        const chunk = decoder.decode(value);
-        const lines = chunk.split("\n");
-        for (const line of lines) {
-          if (line.startsWith("data: ") && line !== "data: [DONE]") {
-            const data = JSON.parse(line.slice(6));
-            const content = (_e = data.delta) == null ? void 0 : _e.text;
-            if (content && options.streamCallback) {
-              options.streamCallback(content);
-            }
-          }
-        }
-      }
-    } catch (error) {
-      if (error.name === "AbortError") {
-        console.log("Anthropic stream was aborted");
-      } else {
-        console.error("Error calling Anthropic:", error);
-        throw error;
-      }
-    }
-  }
-  /**
-   * Get available Anthropic models
-   * 
-   * Returns the list of supported Claude models.
-   * Note: Anthropic doesn't have a models endpoint, so we return known models.
-   * 
-   * @returns List of available model names
-   */
-  async getAvailableModels() {
-    return [
-      "claude-3-opus-20240229",
-      "claude-3-sonnet-20240229",
-      "claude-3-haiku-20240307"
-    ];
-  }
-  /**
-   * Test connection to Anthropic
-   * 
-   * Verifies the API key works by attempting a simple completion.
-   * 
-   * @returns Test results including success/failure
-   */
-  async testConnection() {
-    var _a, _b;
-    try {
-      const response = await fetch(`${this.baseUrl}/messages`, {
-        method: "POST",
-        headers: {
-          "x-api-key": this.apiKey,
-          "anthropic-version": "2024-01-01",
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          model: this.model,
-          messages: [{ role: "user", content: "Hi" }],
-          max_tokens: 1
-        })
-      });
-      if (!response.ok) {
-        throw new Error(`Status ${response.status}`);
-      }
-      const models = await this.getAvailableModels();
-      return {
-        success: true,
-        message: "Successfully connected to Anthropic!",
-        models
-      };
-    } catch (error) {
-      let message = "Connection failed: ";
-      if (((_a = error.response) == null ? void 0 : _a.status) === 401) {
-        message += "Invalid API key. Please check your Anthropic API key.";
-      } else if (((_b = error.response) == null ? void 0 : _b.status) === 429) {
-        message += "Rate limit exceeded. Please try again later.";
-      } else {
-        message += error.message;
-      }
-      return {
-        success: false,
-        message
-      };
+      return this.createErrorResponse(error);
     }
   }
 };
 
 // providers/gemini.ts
-var GeminiProvider = class {
+var GeminiProvider = class extends BaseProvider {
   constructor(apiKey, model = "gemini-pro") {
+    super();
     __publicField(this, "apiKey");
     __publicField(this, "baseUrl", "https://generativelanguage.googleapis.com/v1");
     __publicField(this, "model");
     this.apiKey = apiKey;
     this.model = model;
+  }
+  /**
+   * Convert messages to Gemini format
+   * 
+   * @param messages - Standard message format
+   * @returns Messages in Gemini format
+   */
+  convertToGeminiFormat(messages) {
+    return messages.map((msg) => ({
+      role: msg.role === "assistant" ? "model" : msg.role,
+      parts: [{ text: msg.content }]
+    }));
   }
   /**
    * Get a completion from Gemini
@@ -337,10 +475,7 @@ var GeminiProvider = class {
   async getCompletion(messages, options) {
     var _a, _b, _c, _d, _e, _f, _g, _h, _i;
     try {
-      const contents = messages.map((msg) => ({
-        role: msg.role === "assistant" ? "model" : msg.role,
-        parts: [{ text: msg.content }]
-      }));
+      const contents = this.convertToGeminiFormat(messages);
       const response = await fetch(
         `${this.baseUrl}/models/${this.model}:streamGenerateContent?key=${this.apiKey}`,
         {
@@ -361,15 +496,17 @@ var GeminiProvider = class {
         }
       );
       if (!response.ok) {
-        throw new Error(`Gemini API error: ${response.status} ${response.statusText}`);
+        throw this.handleHttpError(response);
       }
       const reader = (_d = response.body) == null ? void 0 : _d.getReader();
       const decoder = new TextDecoder("utf-8");
+      let buffer = "";
       while (true) {
         const { done, value } = await (reader == null ? void 0 : reader.read()) || { done: true, value: void 0 };
         if (done) break;
-        const chunk = decoder.decode(value);
-        const lines = chunk.split("\n");
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
         for (const line of lines) {
           if (line.trim()) {
             try {
@@ -385,6 +522,9 @@ var GeminiProvider = class {
         }
       }
     } catch (error) {
+      if (error instanceof ProviderError) {
+        throw error;
+      }
       if (error.name === "AbortError") {
         console.log("Gemini stream was aborted");
       } else {
@@ -396,8 +536,7 @@ var GeminiProvider = class {
   /**
    * Get available Gemini models
    * 
-   * Returns the list of supported Gemini models.
-   * Note: Gemini has a fixed set of models currently.
+   * Fetches the list of models from Gemini's API.
    * 
    * @returns List of available model names
    */
@@ -407,7 +546,7 @@ var GeminiProvider = class {
         `${this.baseUrl}/models?key=${this.apiKey}`
       );
       if (!response.ok) {
-        throw new Error(`Gemini API error: ${response.status} ${response.statusText}`);
+        throw this.handleHttpError(response);
       }
       const data = await response.json();
       return data.models.map((model) => model.name).filter((name) => name.includes("gemini"));
@@ -424,13 +563,12 @@ var GeminiProvider = class {
    * @returns Test results including success/failure
    */
   async testConnection() {
-    var _a, _b;
     try {
       const response = await fetch(
         `${this.baseUrl}/models?key=${this.apiKey}`
       );
       if (!response.ok) {
-        throw new Error(`Status ${response.status}`);
+        throw this.handleHttpError(response);
       }
       const models = await this.getAvailableModels();
       return {
@@ -439,29 +577,39 @@ var GeminiProvider = class {
         models
       };
     } catch (error) {
-      let message = "Connection failed: ";
-      if (((_a = error.response) == null ? void 0 : _a.status) === 401) {
-        message += "Invalid API key. Please check your Google API key.";
-      } else if (((_b = error.response) == null ? void 0 : _b.status) === 429) {
-        message += "Rate limit exceeded. Please try again later.";
-      } else {
-        message += error.message;
-      }
-      return {
-        success: false,
-        message
-      };
+      return this.createErrorResponse(error);
     }
   }
 };
 
 // providers/ollama.ts
-var OllamaProvider = class {
+var OllamaProvider = class extends BaseProvider {
   constructor(serverUrl = "http://localhost:11434", model = "llama2") {
-    __publicField(this, "serverUrl");
+    super();
+    __publicField(this, "apiKey", "");
+    // Not used for Ollama
+    __publicField(this, "baseUrl");
     __publicField(this, "model");
-    this.serverUrl = serverUrl.replace(/\/$/, "");
+    this.baseUrl = serverUrl.replace(/\/$/, "");
     this.model = model;
+  }
+  /**
+   * Convert messages to Ollama format
+   * 
+   * @param messages - Standard message format
+   * @returns Prompt string in Ollama format
+   */
+  convertToOllamaFormat(messages) {
+    return messages.map((msg) => {
+      if (msg.role === "system") {
+        return `System: ${msg.content}
+
+`;
+      }
+      return `${msg.role === "user" ? "Human" : "Assistant"}: ${msg.content}
+
+`;
+    }).join("") + "Assistant:";
   }
   /**
    * Get a completion from Ollama
@@ -474,17 +622,8 @@ var OllamaProvider = class {
   async getCompletion(messages, options) {
     var _a, _b, _c, _d;
     try {
-      const prompt = messages.map((msg) => {
-        if (msg.role === "system") {
-          return `System: ${msg.content}
-
-`;
-        }
-        return `${msg.role === "user" ? "Human" : "Assistant"}: ${msg.content}
-
-`;
-      }).join("") + "Assistant:";
-      const response = await fetch(`${this.serverUrl}/api/generate`, {
+      const prompt = this.convertToOllamaFormat(messages);
+      const response = await fetch(`${this.baseUrl}/api/generate`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
@@ -501,15 +640,17 @@ var OllamaProvider = class {
         signal: (_c = options.abortController) == null ? void 0 : _c.signal
       });
       if (!response.ok) {
-        throw new Error(`Ollama API error: ${response.status} ${response.statusText}`);
+        throw this.handleHttpError(response);
       }
       const reader = (_d = response.body) == null ? void 0 : _d.getReader();
       const decoder = new TextDecoder("utf-8");
+      let buffer = "";
       while (true) {
         const { done, value } = await (reader == null ? void 0 : reader.read()) || { done: true, value: void 0 };
         if (done) break;
-        const chunk = decoder.decode(value);
-        const lines = chunk.split("\n");
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
         for (const line of lines) {
           if (line.trim()) {
             try {
@@ -524,6 +665,9 @@ var OllamaProvider = class {
         }
       }
     } catch (error) {
+      if (error instanceof ProviderError) {
+        throw error;
+      }
       if (error.name === "AbortError") {
         console.log("Ollama stream was aborted");
       } else {
@@ -542,9 +686,9 @@ var OllamaProvider = class {
   async getAvailableModels() {
     var _a;
     try {
-      const response = await fetch(`${this.serverUrl}/api/tags`);
+      const response = await fetch(`${this.baseUrl}/api/tags`);
       if (!response.ok) {
-        throw new Error(`Ollama API error: ${response.status} ${response.statusText}`);
+        throw this.handleHttpError(response);
       }
       const data = await response.json();
       return ((_a = data.models) == null ? void 0 : _a.map((model) => model.name)) || [];
@@ -577,16 +721,7 @@ var OllamaProvider = class {
         models
       };
     } catch (error) {
-      let message = "Connection failed: ";
-      if (error.message.includes("fetch")) {
-        message += "Could not connect to Ollama server. Make sure Ollama is installed and running.";
-      } else {
-        message += error.message;
-      }
-      return {
-        success: false,
-        message
-      };
+      return this.createErrorResponse(error);
     }
   }
 };
@@ -615,7 +750,7 @@ function createProvider(settings) {
         settings.ollamaSettings.model
       );
     default:
-      throw new Error(`Unknown provider type: ${settings.provider}`);
+      throw new Error(`Invalid provider type: ${settings.provider}`);
   }
 }
 
@@ -694,10 +829,6 @@ var ModelSettingsView = class extends import_obsidian.ItemView {
   }
   renderOpenAISettings(containerEl) {
     const settings = this.plugin.settings.openaiSettings;
-    new import_obsidian.Setting(containerEl).setName("API Key").setDesc("Enter your OpenAI API key").addText((text) => text.setPlaceholder("Enter your API key").setValue(settings.apiKey).onChange(async (value) => {
-      settings.apiKey = value;
-      await this.plugin.saveSettings();
-    }));
     new import_obsidian.Setting(containerEl).setName("Test Connection").setDesc("Verify your API key and fetch available models").addButton((button) => button.setButtonText("Test").onClick(async () => {
       button.setButtonText("Testing...");
       button.setDisabled(true);
@@ -748,10 +879,6 @@ var ModelSettingsView = class extends import_obsidian.ItemView {
   }
   renderAnthropicSettings(containerEl) {
     const settings = this.plugin.settings.anthropicSettings;
-    new import_obsidian.Setting(containerEl).setName("API Key").setDesc("Enter your Anthropic API key").addText((text) => text.setPlaceholder("Enter your API key").setValue(settings.apiKey).onChange(async (value) => {
-      settings.apiKey = value;
-      await this.plugin.saveSettings();
-    }));
     new import_obsidian.Setting(containerEl).setName("Test Connection").setDesc("Verify your API key and fetch available models").addButton((button) => button.setButtonText("Test").onClick(async () => {
       button.setButtonText("Testing...");
       button.setDisabled(true);
@@ -802,10 +929,6 @@ var ModelSettingsView = class extends import_obsidian.ItemView {
   }
   renderGeminiSettings(containerEl) {
     const settings = this.plugin.settings.geminiSettings;
-    new import_obsidian.Setting(containerEl).setName("API Key").setDesc("Enter your Google API key").addText((text) => text.setPlaceholder("Enter your API key").setValue(settings.apiKey).onChange(async (value) => {
-      settings.apiKey = value;
-      await this.plugin.saveSettings();
-    }));
     new import_obsidian.Setting(containerEl).setName("Test Connection").setDesc("Verify your API key and fetch available models").addButton((button) => button.setButtonText("Test").onClick(async () => {
       button.setButtonText("Testing...");
       button.setDisabled(true);
@@ -856,10 +979,6 @@ var ModelSettingsView = class extends import_obsidian.ItemView {
   }
   renderOllamaSettings(containerEl) {
     const settings = this.plugin.settings.ollamaSettings;
-    new import_obsidian.Setting(containerEl).setName("Server URL").setDesc("Enter your Ollama server URL (default: http://localhost:11434)").addText((text) => text.setPlaceholder("http://localhost:11434").setValue(settings.serverUrl).onChange(async (value) => {
-      settings.serverUrl = value;
-      await this.plugin.saveSettings();
-    }));
     new import_obsidian.Setting(containerEl).setName("Test Connection").setDesc("Check server connection and fetch available models").addButton((button) => button.setButtonText("Test").onClick(async () => {
       button.setButtonText("Testing...");
       button.setDisabled(true);
@@ -1152,6 +1271,25 @@ var MyPluginSettingTab = class extends import_obsidian.PluginSettingTab {
   display() {
     const { containerEl } = this;
     containerEl.empty();
+    containerEl.createEl("h2", { text: "AI Assistant Settings" });
+    containerEl.createEl("h3", { text: "API Keys" });
+    new import_obsidian.Setting(containerEl).setName("OpenAI API Key").setDesc("Enter your OpenAI API key").addText((text) => text.setPlaceholder("Enter your API key").setValue(this.plugin.settings.openaiSettings.apiKey).onChange(async (value) => {
+      this.plugin.settings.openaiSettings.apiKey = value;
+      await this.plugin.saveSettings();
+    }));
+    new import_obsidian.Setting(containerEl).setName("Anthropic API Key").setDesc("Enter your Anthropic API key").addText((text) => text.setPlaceholder("Enter your API key").setValue(this.plugin.settings.anthropicSettings.apiKey).onChange(async (value) => {
+      this.plugin.settings.anthropicSettings.apiKey = value;
+      await this.plugin.saveSettings();
+    }));
+    new import_obsidian.Setting(containerEl).setName("Google API Key").setDesc("Enter your Google API key").addText((text) => text.setPlaceholder("Enter your API key").setValue(this.plugin.settings.geminiSettings.apiKey).onChange(async (value) => {
+      this.plugin.settings.geminiSettings.apiKey = value;
+      await this.plugin.saveSettings();
+    }));
+    new import_obsidian.Setting(containerEl).setName("Ollama Server URL").setDesc("Enter your Ollama server URL (default: http://localhost:11434)").addText((text) => text.setPlaceholder("http://localhost:11434").setValue(this.plugin.settings.ollamaSettings.serverUrl).onChange(async (value) => {
+      this.plugin.settings.ollamaSettings.serverUrl = value;
+      await this.plugin.saveSettings();
+    }));
+    containerEl.createEl("h3", { text: "Model Settings" });
     new import_obsidian.Setting(containerEl).setName("Auto-open Model Settings").setDesc("Automatically open model settings when Obsidian starts").addToggle((toggle) => toggle.setValue(this.plugin.settings.autoOpenModelSettings).onChange(async (value) => {
       this.plugin.settings.autoOpenModelSettings = value;
       await this.plugin.saveSettings();

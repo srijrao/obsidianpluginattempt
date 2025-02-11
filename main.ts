@@ -157,17 +157,6 @@ class ModelSettingsView extends ItemView {
         const settings = this.plugin.settings.openaiSettings;
 
         new Setting(containerEl)
-            .setName('API Key')
-            .setDesc('Enter your OpenAI API key')
-            .addText(text => text
-                .setPlaceholder('Enter your API key')
-                .setValue(settings.apiKey)
-                .onChange(async (value) => {
-                    settings.apiKey = value;
-                    await this.plugin.saveSettings();
-                }));
-
-        new Setting(containerEl)
             .setName('Test Connection')
             .setDesc('Verify your API key and fetch available models')
             .addButton(button => button
@@ -232,17 +221,6 @@ class ModelSettingsView extends ItemView {
 
     private renderAnthropicSettings(containerEl: HTMLElement) {
         const settings = this.plugin.settings.anthropicSettings;
-
-        new Setting(containerEl)
-            .setName('API Key')
-            .setDesc('Enter your Anthropic API key')
-            .addText(text => text
-                .setPlaceholder('Enter your API key')
-                .setValue(settings.apiKey)
-                .onChange(async (value) => {
-                    settings.apiKey = value;
-                    await this.plugin.saveSettings();
-                }));
 
         new Setting(containerEl)
             .setName('Test Connection')
@@ -311,17 +289,6 @@ class ModelSettingsView extends ItemView {
         const settings = this.plugin.settings.geminiSettings;
 
         new Setting(containerEl)
-            .setName('API Key')
-            .setDesc('Enter your Google API key')
-            .addText(text => text
-                .setPlaceholder('Enter your API key')
-                .setValue(settings.apiKey)
-                .onChange(async (value) => {
-                    settings.apiKey = value;
-                    await this.plugin.saveSettings();
-                }));
-
-        new Setting(containerEl)
             .setName('Test Connection')
             .setDesc('Verify your API key and fetch available models')
             .addButton(button => button
@@ -386,17 +353,6 @@ class ModelSettingsView extends ItemView {
 
     private renderOllamaSettings(containerEl: HTMLElement) {
         const settings = this.plugin.settings.ollamaSettings;
-
-        new Setting(containerEl)
-            .setName('Server URL')
-            .setDesc('Enter your Ollama server URL (default: http://localhost:11434)')
-            .addText(text => text
-                .setPlaceholder('http://localhost:11434')
-                .setValue(settings.serverUrl)
-                .onChange(async (value) => {
-                    settings.serverUrl = value;
-                    await this.plugin.saveSettings();
-                }));
 
         new Setting(containerEl)
             .setName('Test Connection')
@@ -765,6 +721,62 @@ class MyPluginSettingTab extends PluginSettingTab {
     display(): void {
         const { containerEl } = this;
         containerEl.empty();
+
+        containerEl.createEl('h2', { text: 'AI Assistant Settings' });
+
+        // API Keys Section
+        containerEl.createEl('h3', { text: 'API Keys' });
+
+        // OpenAI API Key
+        new Setting(containerEl)
+            .setName('OpenAI API Key')
+            .setDesc('Enter your OpenAI API key')
+            .addText(text => text
+                .setPlaceholder('Enter your API key')
+                .setValue(this.plugin.settings.openaiSettings.apiKey)
+                .onChange(async (value) => {
+                    this.plugin.settings.openaiSettings.apiKey = value;
+                    await this.plugin.saveSettings();
+                }));
+
+        // Anthropic API Key
+        new Setting(containerEl)
+            .setName('Anthropic API Key')
+            .setDesc('Enter your Anthropic API key')
+            .addText(text => text
+                .setPlaceholder('Enter your API key')
+                .setValue(this.plugin.settings.anthropicSettings.apiKey)
+                .onChange(async (value) => {
+                    this.plugin.settings.anthropicSettings.apiKey = value;
+                    await this.plugin.saveSettings();
+                }));
+
+        // Gemini API Key
+        new Setting(containerEl)
+            .setName('Google API Key')
+            .setDesc('Enter your Google API key')
+            .addText(text => text
+                .setPlaceholder('Enter your API key')
+                .setValue(this.plugin.settings.geminiSettings.apiKey)
+                .onChange(async (value) => {
+                    this.plugin.settings.geminiSettings.apiKey = value;
+                    await this.plugin.saveSettings();
+                }));
+
+        // Ollama Server URL
+        new Setting(containerEl)
+            .setName('Ollama Server URL')
+            .setDesc('Enter your Ollama server URL (default: http://localhost:11434)')
+            .addText(text => text
+                .setPlaceholder('http://localhost:11434')
+                .setValue(this.plugin.settings.ollamaSettings.serverUrl)
+                .onChange(async (value) => {
+                    this.plugin.settings.ollamaSettings.serverUrl = value;
+                    await this.plugin.saveSettings();
+                }));
+
+        // Model Settings Section
+        containerEl.createEl('h3', { text: 'Model Settings' });
 
         new Setting(containerEl)
             .setName('Auto-open Model Settings')
