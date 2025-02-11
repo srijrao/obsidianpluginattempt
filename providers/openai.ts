@@ -5,7 +5,29 @@
  * which allows the plugin to interact with OpenAI's API (GPT-3.5, GPT-4, etc.)
  */
 
-import { AIProvider, Message, CompletionOptions, ConnectionTestResult } from '../types';
+import { Message, CompletionOptions, ConnectionTestResult } from '../types';
+import { BaseProvider, ProviderError, ProviderErrorType } from './base';
+
+interface OpenAIResponse {
+    id: string;
+    object: string;
+    created: number;
+    model: string;
+    system_fingerprint: string;
+    choices: Array<{
+        index: number;
+        message: {
+            role: string;
+            content: string;
+        };
+        finish_reason: string;
+    }>;
+    usage: {
+        prompt_tokens: number;
+        completion_tokens: number;
+        total_tokens: number;
+    };
+}
 
 /**
  * Implements the OpenAI provider functionality
@@ -16,12 +38,13 @@ import { AIProvider, Message, CompletionOptions, ConnectionTestResult } from '..
  * - Connection testing
  * - Streaming responses
  */
-export class OpenAIProvider implements AIProvider {
-    private apiKey: string;
-    private baseUrl = 'https://api.openai.com/v1';
-    private model: string;
+export class OpenAIProvider extends BaseProvider {
+    protected apiKey: string;
+    protected baseUrl = 'https://api.openai.com/v1';
+    protected model: string;
 
     constructor(apiKey: string, model: string = 'gpt-4') {
+        super();
         this.apiKey = apiKey;
         this.model = model;
     }
@@ -53,30 +76,39 @@ export class OpenAIProvider implements AIProvider {
             });
 
             if (!response.ok) {
-                throw new Error(`OpenAI API error: ${response.status} ${response.statusText}`);
+                throw this.handleHttpError(response);
             }
 
             const reader = response.body?.getReader();
             const decoder = new TextDecoder('utf-8');
+            let buffer = '';
 
             while (true) {
                 const { done, value } = await reader?.read() || { done: true, value: undefined };
                 if (done) break;
 
-                const chunk = decoder.decode(value);
-                const lines = chunk.split('\n');
-                
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop() || '';
+
                 for (const line of lines) {
                     if (line.startsWith('data: ') && line !== 'data: [DONE]') {
-                        const data = JSON.parse(line.slice(6));
-                        const content = data.choices[0]?.delta?.content;
-                        if (content && options.streamCallback) {
-                            options.streamCallback(content);
+                        try {
+                            const data = JSON.parse(line.slice(6));
+                            const content = data.choices[0]?.delta?.content;
+                            if (content && options.streamCallback) {
+                                options.streamCallback(content);
+                            }
+                        } catch (e) {
+                            console.warn('Error parsing OpenAI response chunk:', e);
                         }
                     }
                 }
             }
         } catch (error) {
+            if (error instanceof ProviderError) {
+                throw error;
+            }
             if (error.name === 'AbortError') {
                 console.log('OpenAI stream was aborted');
             } else {
@@ -105,7 +137,7 @@ export class OpenAIProvider implements AIProvider {
             });
 
             if (!response.ok) {
-                throw new Error(`OpenAI API error: ${response.status} ${response.statusText}`);
+                throw this.handleHttpError(response);
             }
 
             const data = await response.json();
@@ -134,18 +166,7 @@ export class OpenAIProvider implements AIProvider {
                 models
             };
         } catch (error) {
-            let message = 'Connection failed: ';
-            if (error.response?.status === 401) {
-                message += 'Invalid API key. Please check your OpenAI API key.';
-            } else if (error.response?.status === 429) {
-                message += 'Rate limit exceeded. Please try again later.';
-            } else {
-                message += error.message;
-            }
-            return {
-                success: false,
-                message
-            };
+            return this.createErrorResponse(error);
         }
     }
 }

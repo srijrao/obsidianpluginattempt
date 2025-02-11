@@ -5,7 +5,23 @@
  * which allows the plugin to interact with Anthropic's API (Claude models)
  */
 
-import { AIProvider, Message, CompletionOptions, ConnectionTestResult } from '../types';
+import { Message, CompletionOptions, ConnectionTestResult } from '../types';
+import { BaseProvider, ProviderError, ProviderErrorType } from './base';
+
+interface AnthropicResponse {
+    content: Array<{
+        text: string;
+        type: string;
+    }>;
+    id: string;
+    model: string;
+    role: string;
+    stop_reason?: string;
+    usage: {
+        input_tokens: number;
+        output_tokens: number;
+    };
+}
 
 /**
  * Implements the Anthropic provider functionality
@@ -16,12 +32,13 @@ import { AIProvider, Message, CompletionOptions, ConnectionTestResult } from '..
  * - Connection testing
  * - Streaming responses
  */
-export class AnthropicProvider implements AIProvider {
-    private apiKey: string;
-    private baseUrl = 'https://api.anthropic.com/v1';
-    private model: string;
+export class AnthropicProvider extends BaseProvider {
+    protected apiKey: string;
+    protected baseUrl = 'https://api.anthropic.com/v1';
+    protected model: string;
 
     constructor(apiKey: string, model: string = 'claude-3-sonnet-20240229') {
+        super();
         this.apiKey = apiKey;
         this.model = model;
     }
@@ -40,12 +57,15 @@ export class AnthropicProvider implements AIProvider {
                 method: 'POST',
                 headers: {
                     'x-api-key': this.apiKey,
-                    'anthropic-version': '2024-01-01',
+                    'anthropic-version': '2023-06-01',
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
                     model: this.model,
-                    messages,
+                    messages: messages.map(msg => ({
+                        role: msg.role,
+                        content: msg.content
+                    })),
                     temperature: options.temperature ?? 0.7,
                     max_tokens: options.maxTokens ?? 1000,
                     stream: true
@@ -54,30 +74,39 @@ export class AnthropicProvider implements AIProvider {
             });
 
             if (!response.ok) {
-                throw new Error(`Anthropic API error: ${response.status} ${response.statusText}`);
+                throw this.handleHttpError(response);
             }
 
             const reader = response.body?.getReader();
             const decoder = new TextDecoder('utf-8');
+            let buffer = '';
 
             while (true) {
                 const { done, value } = await reader?.read() || { done: true, value: undefined };
                 if (done) break;
 
-                const chunk = decoder.decode(value);
-                const lines = chunk.split('\n');
-                
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop() || '';
+
                 for (const line of lines) {
                     if (line.startsWith('data: ') && line !== 'data: [DONE]') {
-                        const data = JSON.parse(line.slice(6));
-                        const content = data.delta?.text;
-                        if (content && options.streamCallback) {
-                            options.streamCallback(content);
+                        try {
+                            const data: AnthropicResponse = JSON.parse(line.slice(6));
+                            const content = data.content[0]?.text;
+                            if (content && options.streamCallback) {
+                                options.streamCallback(content);
+                            }
+                        } catch (e) {
+                            console.warn('Error parsing Anthropic response chunk:', e);
                         }
                     }
                 }
             }
         } catch (error) {
+            if (error instanceof ProviderError) {
+                throw error;
+            }
             if (error.name === 'AbortError') {
                 console.log('Anthropic stream was aborted');
             } else {
@@ -116,7 +145,7 @@ export class AnthropicProvider implements AIProvider {
                 method: 'POST',
                 headers: {
                     'x-api-key': this.apiKey,
-                    'anthropic-version': '2024-01-01',
+                    'anthropic-version': '2023-06-01',
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
@@ -127,7 +156,7 @@ export class AnthropicProvider implements AIProvider {
             });
 
             if (!response.ok) {
-                throw new Error(`Status ${response.status}`);
+                throw this.handleHttpError(response);
             }
 
             const models = await this.getAvailableModels();
@@ -137,18 +166,7 @@ export class AnthropicProvider implements AIProvider {
                 models
             };
         } catch (error) {
-            let message = 'Connection failed: ';
-            if (error.response?.status === 401) {
-                message += 'Invalid API key. Please check your Anthropic API key.';
-            } else if (error.response?.status === 429) {
-                message += 'Rate limit exceeded. Please try again later.';
-            } else {
-                message += error.message;
-            }
-            return {
-                success: false,
-                message
-            };
+            return this.createErrorResponse(error);
         }
     }
 }

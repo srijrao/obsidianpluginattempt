@@ -6,7 +6,34 @@
  * running AI models like Llama, Mistral, etc.
  */
 
-import { AIProvider, Message, CompletionOptions, ConnectionTestResult } from '../types';
+import { Message, CompletionOptions, ConnectionTestResult } from '../types';
+import { BaseProvider, ProviderError, ProviderErrorType } from './base';
+
+interface OllamaResponse {
+    model: string;
+    created_at: string;
+    response: string;
+    done: boolean;
+    context?: number[];
+    total_duration?: number;
+    load_duration?: number;
+    prompt_eval_duration?: number;
+    eval_duration?: number;
+    eval_count?: number;
+}
+
+interface OllamaModel {
+    name: string;
+    modified_at: string;
+    size: number;
+    digest: string;
+    details: {
+        format: string;
+        family: string;
+        parameter_size: string;
+        quantization_level: string;
+    };
+}
 
 /**
  * Implements the Ollama provider functionality
@@ -22,13 +49,30 @@ import { AIProvider, Message, CompletionOptions, ConnectionTestResult } from '..
  * 2. Start the Ollama server
  * 3. Pull your desired models using 'ollama pull model-name'
  */
-export class OllamaProvider implements AIProvider {
-    private serverUrl: string;
-    private model: string;
+export class OllamaProvider extends BaseProvider {
+    protected apiKey: string = ''; // Not used for Ollama
+    protected baseUrl: string;
+    protected model: string;
 
     constructor(serverUrl: string = 'http://localhost:11434', model: string = 'llama2') {
-        this.serverUrl = serverUrl.replace(/\/$/, ''); // Remove trailing slash if present
+        super();
+        this.baseUrl = serverUrl.replace(/\/$/, ''); // Remove trailing slash if present
         this.model = model;
+    }
+
+    /**
+     * Convert messages to Ollama format
+     * 
+     * @param messages - Standard message format
+     * @returns Prompt string in Ollama format
+     */
+    private convertToOllamaFormat(messages: Message[]): string {
+        return messages.map(msg => {
+            if (msg.role === 'system') {
+                return `System: ${msg.content}\n\n`;
+            }
+            return `${msg.role === 'user' ? 'Human' : 'Assistant'}: ${msg.content}\n\n`;
+        }).join('') + 'Assistant:';
     }
 
     /**
@@ -41,15 +85,8 @@ export class OllamaProvider implements AIProvider {
      */
     async getCompletion(messages: Message[], options: CompletionOptions): Promise<void> {
         try {
-            // Convert messages to Ollama format
-            const prompt = messages.map(msg => {
-                if (msg.role === 'system') {
-                    return `System: ${msg.content}\n\n`;
-                }
-                return `${msg.role === 'user' ? 'Human' : 'Assistant'}: ${msg.content}\n\n`;
-            }).join('') + 'Assistant:';
-
-            const response = await fetch(`${this.serverUrl}/api/generate`, {
+            const prompt = this.convertToOllamaFormat(messages);
+            const response = await fetch(`${this.baseUrl}/api/generate`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -67,23 +104,25 @@ export class OllamaProvider implements AIProvider {
             });
 
             if (!response.ok) {
-                throw new Error(`Ollama API error: ${response.status} ${response.statusText}`);
+                throw this.handleHttpError(response);
             }
 
             const reader = response.body?.getReader();
             const decoder = new TextDecoder('utf-8');
+            let buffer = '';
 
             while (true) {
                 const { done, value } = await reader?.read() || { done: true, value: undefined };
                 if (done) break;
 
-                const chunk = decoder.decode(value);
-                const lines = chunk.split('\n');
-                
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop() || '';
+
                 for (const line of lines) {
                     if (line.trim()) {
                         try {
-                            const data = JSON.parse(line);
+                            const data: OllamaResponse = JSON.parse(line);
                             if (data.response && options.streamCallback) {
                                 options.streamCallback(data.response);
                             }
@@ -94,6 +133,9 @@ export class OllamaProvider implements AIProvider {
                 }
             }
         } catch (error) {
+            if (error instanceof ProviderError) {
+                throw error;
+            }
             if (error.name === 'AbortError') {
                 console.log('Ollama stream was aborted');
             } else {
@@ -112,14 +154,14 @@ export class OllamaProvider implements AIProvider {
      */
     async getAvailableModels(): Promise<string[]> {
         try {
-            const response = await fetch(`${this.serverUrl}/api/tags`);
+            const response = await fetch(`${this.baseUrl}/api/tags`);
 
             if (!response.ok) {
-                throw new Error(`Ollama API error: ${response.status} ${response.statusText}`);
+                throw this.handleHttpError(response);
             }
 
             const data = await response.json();
-            return data.models?.map((model: any) => model.name) || [];
+            return (data.models as OllamaModel[])?.map(model => model.name) || [];
         } catch (error) {
             console.error('Error fetching Ollama models:', error);
             throw error;
@@ -152,16 +194,7 @@ export class OllamaProvider implements AIProvider {
                 models
             };
         } catch (error) {
-            let message = 'Connection failed: ';
-            if (error.message.includes('fetch')) {
-                message += 'Could not connect to Ollama server. Make sure Ollama is installed and running.';
-            } else {
-                message += error.message;
-            }
-            return {
-                success: false,
-                message
-            };
+            return this.createErrorResponse(error);
         }
     }
 }

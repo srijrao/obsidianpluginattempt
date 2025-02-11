@@ -5,7 +5,31 @@
  * which allows the plugin to interact with Google's Gemini API
  */
 
-import { AIProvider, Message, CompletionOptions, ConnectionTestResult } from '../types';
+import { Message, CompletionOptions, ConnectionTestResult } from '../types';
+import { BaseProvider, ProviderError, ProviderErrorType } from './base';
+
+interface GeminiResponse {
+    candidates: Array<{
+        content: {
+            parts: Array<{
+                text: string;
+            }>;
+            role: string;
+        };
+        finishReason: string;
+        index: number;
+        safetyRatings: Array<{
+            category: string;
+            probability: string;
+        }>;
+    }>;
+    promptFeedback: {
+        safetyRatings: Array<{
+            category: string;
+            probability: string;
+        }>;
+    };
+}
 
 /**
  * Implements the Google Gemini provider functionality
@@ -16,14 +40,28 @@ import { AIProvider, Message, CompletionOptions, ConnectionTestResult } from '..
  * - Connection testing
  * - Streaming responses
  */
-export class GeminiProvider implements AIProvider {
-    private apiKey: string;
-    private baseUrl = 'https://generativelanguage.googleapis.com/v1';
-    private model: string;
+export class GeminiProvider extends BaseProvider {
+    protected apiKey: string;
+    protected baseUrl = 'https://generativelanguage.googleapis.com/v1';
+    protected model: string;
 
     constructor(apiKey: string, model: string = 'gemini-pro') {
+        super();
         this.apiKey = apiKey;
         this.model = model;
+    }
+
+    /**
+     * Convert messages to Gemini format
+     * 
+     * @param messages - Standard message format
+     * @returns Messages in Gemini format
+     */
+    private convertToGeminiFormat(messages: Message[]) {
+        return messages.map(msg => ({
+            role: msg.role === 'assistant' ? 'model' : msg.role,
+            parts: [{ text: msg.content }]
+        }));
     }
 
     /**
@@ -36,12 +74,7 @@ export class GeminiProvider implements AIProvider {
      */
     async getCompletion(messages: Message[], options: CompletionOptions): Promise<void> {
         try {
-            // Convert messages to Gemini format
-            const contents = messages.map(msg => ({
-                role: msg.role === 'assistant' ? 'model' : msg.role,
-                parts: [{ text: msg.content }]
-            }));
-
+            const contents = this.convertToGeminiFormat(messages);
             const response = await fetch(
                 `${this.baseUrl}/models/${this.model}:streamGenerateContent?key=${this.apiKey}`,
                 {
@@ -63,23 +96,25 @@ export class GeminiProvider implements AIProvider {
             );
 
             if (!response.ok) {
-                throw new Error(`Gemini API error: ${response.status} ${response.statusText}`);
+                throw this.handleHttpError(response);
             }
 
             const reader = response.body?.getReader();
             const decoder = new TextDecoder('utf-8');
+            let buffer = '';
 
             while (true) {
                 const { done, value } = await reader?.read() || { done: true, value: undefined };
                 if (done) break;
 
-                const chunk = decoder.decode(value);
-                const lines = chunk.split('\n');
-                
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop() || '';
+
                 for (const line of lines) {
                     if (line.trim()) {
                         try {
-                            const data = JSON.parse(line);
+                            const data: GeminiResponse = JSON.parse(line);
                             const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
                             if (content && options.streamCallback) {
                                 options.streamCallback(content);
@@ -91,6 +126,9 @@ export class GeminiProvider implements AIProvider {
                 }
             }
         } catch (error) {
+            if (error instanceof ProviderError) {
+                throw error;
+            }
             if (error.name === 'AbortError') {
                 console.log('Gemini stream was aborted');
             } else {
@@ -103,8 +141,7 @@ export class GeminiProvider implements AIProvider {
     /**
      * Get available Gemini models
      * 
-     * Returns the list of supported Gemini models.
-     * Note: Gemini has a fixed set of models currently.
+     * Fetches the list of models from Gemini's API.
      * 
      * @returns List of available model names
      */
@@ -115,7 +152,7 @@ export class GeminiProvider implements AIProvider {
             );
 
             if (!response.ok) {
-                throw new Error(`Gemini API error: ${response.status} ${response.statusText}`);
+                throw this.handleHttpError(response);
             }
 
             const data = await response.json();
@@ -143,7 +180,7 @@ export class GeminiProvider implements AIProvider {
             );
 
             if (!response.ok) {
-                throw new Error(`Status ${response.status}`);
+                throw this.handleHttpError(response);
             }
 
             const models = await this.getAvailableModels();
@@ -153,18 +190,7 @@ export class GeminiProvider implements AIProvider {
                 models
             };
         } catch (error) {
-            let message = 'Connection failed: ';
-            if (error.response?.status === 401) {
-                message += 'Invalid API key. Please check your Google API key.';
-            } else if (error.response?.status === 429) {
-                message += 'Rate limit exceeded. Please try again later.';
-            } else {
-                message += error.message;
-            }
-            return {
-                success: false,
-                message
-            };
+            return this.createErrorResponse(error);
         }
     }
 }
