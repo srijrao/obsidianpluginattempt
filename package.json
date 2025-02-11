@@ -1,0 +1,24 @@
+{
+  "name": "ai-assistant-for-obsidian",
+  "version": "1.0.0",
+  "main": "main.js",
+  "scripts": {
+    "dev": "node esbuild.config.mjs",
+    "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
+    "version": "node version-bump.mjs && git add manifest.json versions.json"
+  },
+  "keywords": ["obsidian", "plugin", "ai", "assistant"],
+  "author": "Your Name",
+  "license": "MIT",
+  "description": "An AI assistant plugin for Obsidian using multiple providers (OpenAI, Anthropic, Gemini, Ollama)",
+  "devDependencies": {
+    "builtin-modules": "^3.3.0",
+    "esbuild": "^0.24.2",
+    "obsidian": "^1.6.6",
+    "typescript": "^5.5.4"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.24.3",
+    "openai": "^4.53.1"
+  }
+}
