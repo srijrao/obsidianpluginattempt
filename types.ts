@@ -158,7 +158,7 @@ export const DEFAULT_SETTINGS: MyPluginSettings = {
     },
     anthropicSettings: {
         apiKey: '',
-        model: 'claude-3-sonnet-20240229',
+        model: 'claude-3-5-sonnet-latest',
         availableModels: []
     },
     geminiSettings: {

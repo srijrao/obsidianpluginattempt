@@ -3624,10 +3624,10 @@ var GeminiProvider = class extends BaseProvider {
    * @param options - Settings for this completion
    */
   async getCompletion(messages, options) {
-    var _a2, _b, _c, _d, _e, _f, _g, _h;
+    var _a2, _b, _c, _d, _e, _f, _g, _h, _i;
     try {
       const formattedMessages = this.formatMessages(messages);
-      const url = `${this.baseUrl}/models/${this.model}:generateContent?key=${this.apiKey}`;
+      const url = `${this.baseUrl}/models/${this.model}:streamGenerateContent?key=${this.apiKey}`;
       const response = await fetch(url, {
         method: "POST",
         headers: {
@@ -3638,27 +3638,66 @@ var GeminiProvider = class extends BaseProvider {
           generationConfig: {
             temperature: (_a2 = options.temperature) != null ? _a2 : 0.7,
             maxOutputTokens: (_b = options.maxTokens) != null ? _b : 1e3
-          }
+          },
+          safetySettings: [
+            {
+              category: "HARM_CATEGORY_HARASSMENT",
+              threshold: "BLOCK_MEDIUM_AND_ABOVE"
+            },
+            {
+              category: "HARM_CATEGORY_HATE_SPEECH",
+              threshold: "BLOCK_MEDIUM_AND_ABOVE"
+            },
+            {
+              category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+              threshold: "BLOCK_MEDIUM_AND_ABOVE"
+            },
+            {
+              category: "HARM_CATEGORY_DANGEROUS_CONTENT",
+              threshold: "BLOCK_MEDIUM_AND_ABOVE"
+            }
+          ]
         }),
         signal: (_c = options.abortController) == null ? void 0 : _c.signal
       });
       if (!response.ok) {
         throw this.handleHttpError(response);
       }
-      const data = await response.json();
-      console.log("Gemini response:", JSON.stringify(data));
-      const text = (_h = (_g = (_f = (_e = (_d = data.candidates) == null ? void 0 : _d[0]) == null ? void 0 : _e.content) == null ? void 0 : _f.parts) == null ? void 0 : _g[0]) == null ? void 0 : _h.text;
-      if (text && options.streamCallback) {
-        options.streamCallback(text);
-      } else {
-        console.warn("No text found in Gemini response:", JSON.stringify(data));
+      const reader = (_d = response.body) == null ? void 0 : _d.getReader();
+      const decoder = new TextDecoder("utf-8");
+      if (!reader) {
+        throw new ProviderError(
+          "server_error" /* ServerError */,
+          "Failed to get response reader"
+        );
+      }
+      let buffer = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+        for (const line of lines) {
+          if (line.trim() && !line.startsWith("[")) {
+            try {
+              const data = JSON.parse(line);
+              const text = (_i = (_h = (_g = (_f = (_e = data.candidates) == null ? void 0 : _e[0]) == null ? void 0 : _f.content) == null ? void 0 : _g.parts) == null ? void 0 : _h[0]) == null ? void 0 : _i.text;
+              if (text && options.streamCallback) {
+                options.streamCallback(text);
+              }
+            } catch (e) {
+              console.warn("Error parsing Gemini response chunk:", e);
+            }
+          }
+        }
       }
     } catch (error) {
       if (error instanceof ProviderError) {
         throw error;
       }
       if (error.name === "AbortError") {
-        console.log("Gemini request was aborted");
+        console.log("Gemini stream was aborted");
       } else {
         console.error("Error calling Gemini:", error);
         throw error;
@@ -3719,23 +3758,23 @@ var GeminiProvider = class extends BaseProvider {
    * @returns Formatted messages for Gemini API
    */
   formatMessages(messages) {
-    const geminiMessages = [];
-    const systemMessages = messages.filter((msg) => msg.role === "system");
-    const nonSystemMessages = messages.filter((msg) => msg.role !== "system");
-    for (const message of systemMessages) {
-      geminiMessages.push({
-        role: "user",
-        parts: [{ text: message.content }]
-      });
+    const formattedMessages = [];
+    let currentRole = null;
+    let content = { parts: [{ text: "" }] };
+    for (const message of messages) {
+      const role = message.role === "system" ? "user" : message.role;
+      if (role !== currentRole && currentRole !== null) {
+        formattedMessages.push({ role: currentRole, parts: [{ text: content.parts[0].text }] });
+        content = { parts: [{ text: message.content }] };
+      } else {
+        content.parts[0].text += (content.parts[0].text ? "\n\n" : "") + message.content;
+      }
+      currentRole = role;
     }
-    for (const message of nonSystemMessages) {
-      const role = message.role === "assistant" ? "model" : "user";
-      geminiMessages.push({
-        role,
-        parts: [{ text: message.content }]
-      });
+    if (currentRole !== null) {
+      formattedMessages.push({ role: currentRole, parts: [{ text: content.parts[0].text }] });
     }
-    return geminiMessages;
+    return formattedMessages;
   }
 };
 

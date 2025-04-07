@@ -1,154 +1,198 @@
 /**
  * Google Gemini Provider Implementation
- *
+ * 
  * This file contains the implementation of the Google Gemini provider,
- * which allows the plugin to interact with Google's Gemini API
+ * which allows the plugin to interact with Google's Gemini API.
  */
-/**
- * Implements the Google Gemini provider functionality
- *
- * Handles communication with Google's Gemini API, including:
- * - Chat completions
- * - Model listing
- * - Connection testing
- * - Streaming responses
- */
-export class GeminiProvider {
-    apiKey;
-    baseUrl = 'https://generativelanguage.googleapis.com/v1';
-    model;
-    constructor(apiKey, model = 'gemini-pro') {
+import { BaseProvider, ProviderError } from './base';
+export class GeminiProvider extends BaseProvider {
+    constructor(apiKey, model = "gemini-pro") {
+        super();
         this.apiKey = apiKey;
+        this.baseUrl = "https://generativelanguage.googleapis.com/v1";
         this.model = model;
     }
     /**
-     * Get a completion from Gemini
-     *
+     * Get a completion from Google Gemini
+     * 
      * Sends the conversation to Gemini and streams back the response.
-     *
+     * 
      * @param messages - The conversation history
      * @param options - Settings for this completion
      */
     async getCompletion(messages, options) {
         try {
-            // Convert messages to Gemini format
-            const contents = messages.map(msg => ({
-                role: msg.role === 'assistant' ? 'model' : msg.role,
-                parts: [{ text: msg.content }]
-            }));
-            const response = await fetch(`${this.baseUrl}/models/${this.model}:streamGenerateContent?key=${this.apiKey}`, {
+            // Format messages for Gemini API
+            const formattedMessages = this.formatMessages(messages);
+            
+            // Build URL with API key
+            const url = `${this.baseUrl}/models/${this.model}:streamGenerateContent?key=${this.apiKey}`;
+            
+            const response = await fetch(url, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    contents,
+                    contents: formattedMessages,
                     generationConfig: {
                         temperature: options.temperature ?? 0.7,
-                        maxOutputTokens: options.maxTokens ?? 1000,
-                        topP: 0.8,
-                        topK: 40
-                    }
+                        maxOutputTokens: options.maxTokens ?? 1000
+                    },
+                    safetySettings: [
+                        {
+                            category: "HARM_CATEGORY_HARASSMENT",
+                            threshold: "BLOCK_MEDIUM_AND_ABOVE"
+                        },
+                        {
+                            category: "HARM_CATEGORY_HATE_SPEECH",
+                            threshold: "BLOCK_MEDIUM_AND_ABOVE"
+                        },
+                        {
+                            category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+                            threshold: "BLOCK_MEDIUM_AND_ABOVE"
+                        },
+                        {
+                            category: "HARM_CATEGORY_DANGEROUS_CONTENT",
+                            threshold: "BLOCK_MEDIUM_AND_ABOVE"
+                        }
+                    ]
                 }),
                 signal: options.abortController?.signal
             });
+
             if (!response.ok) {
-                throw new Error(`Gemini API error: ${response.status} ${response.statusText}`);
+                throw this.handleHttpError(response);
             }
+
             const reader = response.body?.getReader();
             const decoder = new TextDecoder('utf-8');
+            
+            if (!reader) {
+                throw new ProviderError(
+                    "server_error" /* ServerError */,
+                    'Failed to get response reader'
+                );
+            }
+
+            let buffer = '';
+            
             while (true) {
-                const { done, value } = await reader?.read() || { done: true, value: undefined };
-                if (done)
-                    break;
-                const chunk = decoder.decode(value);
-                const lines = chunk.split('\n');
+                const { done, value } = await reader.read();
+                if (done) break;
+                
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop() || '';
+                
                 for (const line of lines) {
-                    if (line.trim()) {
+                    if (line.trim() && !line.startsWith('[')) {
                         try {
                             const data = JSON.parse(line);
-                            const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
-                            if (content && options.streamCallback) {
-                                options.streamCallback(content);
+                            const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+                            if (text && options.streamCallback) {
+                                options.streamCallback(text);
                             }
-                        }
-                        catch (e) {
+                        } catch (e) {
                             console.warn('Error parsing Gemini response chunk:', e);
                         }
                     }
                 }
             }
-        }
-        catch (error) {
+        } catch (error) {
+            if (error instanceof ProviderError) {
+                throw error;
+            }
             if (error.name === 'AbortError') {
                 console.log('Gemini stream was aborted');
-            }
-            else {
+            } else {
                 console.error('Error calling Gemini:', error);
                 throw error;
             }
         }
     }
+
     /**
      * Get available Gemini models
-     *
-     * Returns the list of supported Gemini models.
-     * Note: Gemini has a fixed set of models currently.
-     *
+     * 
+     * Fetches the list of available models from Google's API.
+     * Filters to only include Gemini models.
+     * 
      * @returns List of available model names
      */
     async getAvailableModels() {
         try {
-            const response = await fetch(`${this.baseUrl}/models?key=${this.apiKey}`);
+            const response = await fetch(`${this.baseUrl}/models?key=${this.apiKey}`, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+
             if (!response.ok) {
-                throw new Error(`Gemini API error: ${response.status} ${response.statusText}`);
+                throw this.handleHttpError(response);
             }
+
             const data = await response.json();
             return data.models
-                .map((model) => model.name)
-                .filter((name) => name.includes('gemini'));
-        }
-        catch (error) {
+                .map(model => model.name.split('/').pop())
+                .filter(id => id.startsWith('gemini-'));
+        } catch (error) {
             console.error('Error fetching Gemini models:', error);
-            // Return known models as fallback
-            return ['gemini-pro', 'gemini-pro-vision'];
+            throw error;
         }
     }
+
     /**
      * Test connection to Gemini
-     *
+     * 
      * Verifies the API key works by attempting to list models.
-     *
-     * @returns Test results including success/failure
+     * 
+     * @returns Test results including success/failure and available models
      */
     async testConnection() {
         try {
-            const response = await fetch(`${this.baseUrl}/models?key=${this.apiKey}`);
-            if (!response.ok) {
-                throw new Error(`Status ${response.status}`);
-            }
             const models = await this.getAvailableModels();
             return {
                 success: true,
-                message: 'Successfully connected to Google Gemini!',
+                message: `Successfully connected to Google Gemini! Found ${models.length} available models.`,
                 models
             };
+        } catch (error) {
+            return this.createErrorResponse(error);
         }
-        catch (error) {
-            let message = 'Connection failed: ';
-            if (error.response?.status === 401) {
-                message += 'Invalid API key. Please check your Google API key.';
+    }
+
+    /**
+     * Format messages for Gemini API
+     * 
+     * Converts from the plugin's Message format to Gemini's expected format.
+     * 
+     * @param messages - Array of messages to format
+     * @returns Formatted messages for Gemini API
+     */
+    formatMessages(messages) {
+        const formattedMessages = [];
+        let currentRole = null;
+        let content = { parts: [{ text: '' }] };
+        
+        for (const message of messages) {
+            const role = message.role === 'system' ? 'user' : message.role;
+            
+            if (role !== currentRole && currentRole !== null) {
+                formattedMessages.push({ role: currentRole, parts: [{ text: content.parts[0].text }] });
+                content = { parts: [{ text: message.content }] };
+            } else {
+                content.parts[0].text += (content.parts[0].text ? '\n\n' : '') + message.content;
             }
-            else if (error.response?.status === 429) {
-                message += 'Rate limit exceeded. Please try again later.';
-            }
-            else {
-                message += error.message;
-            }
-            return {
-                success: false,
-                message
-            };
+            
+            currentRole = role;
         }
+        
+        if (currentRole !== null) {
+            formattedMessages.push({ role: currentRole, parts: [{ text: content.parts[0].text }] });
+        }
+        
+        return formattedMessages;
     }
 }
