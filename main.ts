@@ -99,6 +99,38 @@ class ModelSettingsView extends ItemView {
                 }));
 
         new Setting(contentEl)
+            .setName('Enable Context Notes')
+            .setDesc('Attach specified note content to chat messages')
+            .addToggle(toggle => toggle
+                .setValue(this.plugin.settings.enableContextNotes)
+                .onChange(async (value) => {
+                    this.plugin.settings.enableContextNotes = value;
+                    await this.plugin.saveSettings();
+                }));
+
+        const contextNotesContainer = contentEl.createDiv('context-notes-container');
+        contextNotesContainer.style.marginBottom = '24px';
+        
+        new Setting(contextNotesContainer)
+            .setName('Context Notes')
+            .setDesc('Notes to attach as context (supports [[filename]] and [[filename#header]] syntax)')
+            .addTextArea(text => {
+                text.setPlaceholder('[[Note Name]]\n[[Another Note#Header]]')
+                    .setValue(this.plugin.settings.contextNotes || '')
+                    .onChange(async (value) => {
+                        this.plugin.settings.contextNotes = value;
+                        await this.plugin.saveSettings();
+                    });
+                
+                // Enable larger text area
+                text.inputEl.rows = 4;
+                text.inputEl.style.width = '100%';
+                
+                // Add autocomplete functionality
+                this.setupNoteAutocomplete(text.inputEl);
+            });
+
+        new Setting(contentEl)
             .setName('Enable Streaming')
             .setDesc('Enable or disable streaming for completions')
             .addToggle(toggle => toggle
@@ -431,6 +463,236 @@ class ModelSettingsView extends ItemView {
     async onClose() {
         // Clean up any resources if needed
     }
+
+    /**
+     * Setup autocompletion for notes and headers
+     * 
+     * @param inputEl The input element to attach autocompletion to
+     */
+    private setupNoteAutocomplete(inputEl: HTMLTextAreaElement) {
+        // Current cursor position tracking
+        let currentStartPos = 0;
+        let currentEndPos = 0;
+        
+        // Track when the user is typing a link
+        let isTypingLink = false;
+        
+        inputEl.addEventListener('keydown', (e: KeyboardEvent) => {
+            if (e.key === '[' && inputEl.selectionStart === inputEl.selectionEnd) {
+                const prevChar = inputEl.value.charAt(inputEl.selectionStart - 1);
+                if (prevChar === '[') {
+                    isTypingLink = true;
+                    currentStartPos = inputEl.selectionStart;
+                }
+            } else if (e.key === ']' && isTypingLink && inputEl.selectionStart === inputEl.selectionEnd) {
+                const nextChar = inputEl.value.charAt(inputEl.selectionStart);
+                if (nextChar === ']') {
+                    isTypingLink = false;
+                    currentEndPos = inputEl.selectionStart;
+                    this.showNoteSuggestions(inputEl, currentStartPos, currentEndPos);
+                }
+            } else if (e.key === 'Escape' && isTypingLink) {
+                isTypingLink = false;
+                // Hide suggestions if there's a suggestion UI
+            }
+        });
+    }
+    
+    /**
+     * Display note and header suggestions
+     * 
+     * @param inputEl The input element
+     * @param startPos The start position of the link text
+     * @param endPos The end position of the link text
+     */
+    private showNoteSuggestions(inputEl: HTMLTextAreaElement, startPos: number, endPos: number) {
+        // Get the text being typed inside [[ ]]
+        const linkText = inputEl.value.substring(startPos, endPos);
+        
+        // Get all markdown files in the vault
+        const files = this.app.vault.getMarkdownFiles();
+        
+        // Find files matching the link text
+        const matchingFiles = files.filter(file => {
+            // Check if the file path or name matches the link text
+            return file.path.toLowerCase().includes(linkText.toLowerCase()) || 
+                   file.basename.toLowerCase().includes(linkText.toLowerCase());
+        });
+        
+        if (matchingFiles.length === 0) return;
+        
+        // Create suggestion element
+        const suggestionEl = document.createElement('div');
+        suggestionEl.className = 'note-autocomplete-suggestions';
+        suggestionEl.style.position = 'absolute';
+        suggestionEl.style.zIndex = '1000';
+        suggestionEl.style.background = 'var(--background-primary)';
+        suggestionEl.style.border = '1px solid var(--background-modifier-border)';
+        suggestionEl.style.borderRadius = '4px';
+        suggestionEl.style.boxShadow = '0 2px 8px var(--background-modifier-box-shadow)';
+        suggestionEl.style.maxHeight = '200px';
+        suggestionEl.style.overflow = 'auto';
+        
+        // Position the suggestion element
+        const rect = inputEl.getBoundingClientRect();
+        const lineHeight = parseInt(getComputedStyle(inputEl).lineHeight);
+        const coords = this.getCaretCoordinates(inputEl, endPos);
+        
+        suggestionEl.style.left = `${rect.left + coords.left}px`;
+        suggestionEl.style.top = `${rect.top + coords.top + lineHeight}px`;
+        
+        // Add matching files to suggestion element
+        matchingFiles.slice(0, 10).forEach(file => {
+            const item = document.createElement('div');
+            item.className = 'note-autocomplete-item';
+            item.textContent = file.basename;
+            item.style.padding = '8px 12px';
+            item.style.cursor = 'pointer';
+            
+            item.addEventListener('mouseenter', () => {
+                item.style.backgroundColor = 'var(--background-secondary)';
+            });
+            
+            item.addEventListener('mouseleave', () => {
+                item.style.backgroundColor = '';
+            });
+            
+            item.addEventListener('click', async () => {
+                // Insert the selected file name
+                const replacement = file.basename;
+                const newValue = 
+                    inputEl.value.substring(0, startPos - 2) + 
+                    '[[' + replacement + ']]' + 
+                    inputEl.value.substring(endPos + 2);
+                
+                inputEl.value = newValue;
+                
+                // Update plugin settings
+                this.plugin.settings.contextNotes = inputEl.value;
+                await this.plugin.saveSettings();
+                
+                // Remove suggestion element
+                document.body.removeChild(suggestionEl);
+                
+                // Set cursor position after the inserted text
+                const newPos = startPos - 2 + 2 + replacement.length + 2;
+                inputEl.setSelectionRange(newPos, newPos);
+                inputEl.focus();
+            });
+            
+            suggestionEl.appendChild(item);
+            
+            // Add headers from the file if available
+            this.addHeaderSuggestions(file, suggestionEl, startPos, endPos, inputEl);
+        });
+        
+        // Add suggestion element to the DOM
+        document.body.appendChild(suggestionEl);
+        
+        // Handle click outside to close suggestions
+        const handleClickOutside = (e: MouseEvent) => {
+            if (!suggestionEl.contains(e.target as Node) && e.target !== inputEl) {
+                document.body.removeChild(suggestionEl);
+                document.removeEventListener('click', handleClickOutside);
+            }
+        };
+        
+        document.addEventListener('click', handleClickOutside);
+    }
+    
+    /**
+     * Add header suggestions for a file
+     * 
+     * @param file The file to get headers from
+     * @param suggestionEl The suggestion container element
+     * @param startPos Start position in the input
+     * @param endPos End position in the input
+     * @param inputEl The input element
+     */
+    private async addHeaderSuggestions(
+        file: TFile, 
+        suggestionEl: HTMLElement, 
+        startPos: number, 
+        endPos: number, 
+        inputEl: HTMLTextAreaElement
+    ) {
+        // Get file cache to extract headers
+        const cache = this.app.metadataCache.getFileCache(file);
+        if (!cache || !cache.headings) return;
+        
+        // Add a separator
+        const separator = document.createElement('div');
+        separator.style.height = '1px';
+        separator.style.backgroundColor = 'var(--background-modifier-border)';
+        separator.style.margin = '4px 0';
+        suggestionEl.appendChild(separator);
+        
+        // Add headers as suggestions
+        cache.headings.forEach(heading => {
+            const item = document.createElement('div');
+            item.className = 'note-autocomplete-item';
+            
+            // Indent based on heading level
+            const indent = '&nbsp;'.repeat((heading.level - 1) * 2);
+            item.innerHTML = `${indent}# ${heading.heading}`;
+            
+            item.style.padding = '6px 12px';
+            item.style.cursor = 'pointer';
+            
+            item.addEventListener('mouseenter', () => {
+                item.style.backgroundColor = 'var(--background-secondary)';
+            });
+            
+            item.addEventListener('mouseleave', () => {
+                item.style.backgroundColor = '';
+            });
+            
+            item.addEventListener('click', async () => {
+                // Insert the selected file name with heading
+                const replacement = `${file.basename}#${heading.heading}`;
+                const newValue = 
+                    inputEl.value.substring(0, startPos - 2) + 
+                    '[[' + replacement + ']]' + 
+                    inputEl.value.substring(endPos + 2);
+                
+                inputEl.value = newValue;
+                
+                // Update plugin settings
+                this.plugin.settings.contextNotes = inputEl.value;
+                await this.plugin.saveSettings();
+                
+                // Remove suggestion element
+                document.body.removeChild(suggestionEl);
+                
+                // Set cursor position after the inserted text
+                const newPos = startPos - 2 + 2 + replacement.length + 2;
+                inputEl.setSelectionRange(newPos, newPos);
+                inputEl.focus();
+            });
+            
+            suggestionEl.appendChild(item);
+        });
+    }
+    
+    /**
+     * Get caret coordinates in a textarea
+     * Simplified version to get approximate position
+     */
+    private getCaretCoordinates(element: HTMLTextAreaElement, position: number) {
+        const text = element.value.substring(0, position);
+        const lines = text.split('\n');
+        const lineIndex = lines.length - 1;
+        const charIndex = lines[lineIndex].length;
+        
+        // Approximate position based on character and line index
+        const lineHeight = parseInt(getComputedStyle(element).lineHeight);
+        const charWidth = 8; // Approximate character width
+        
+        return {
+            top: lineIndex * lineHeight,
+            left: charIndex * charWidth,
+        };
+    }
 }
 
 /**
@@ -692,6 +954,28 @@ export default class MyPlugin extends Plugin {
     private async processMessages(messages: Message[]): Promise<Message[]> {
         const processedMessages: Message[] = [];
 
+        // Prepend context notes if enabled
+        if (this.settings.enableContextNotes && this.settings.contextNotes) {
+            const contextContent = await this.processContextNotes(this.settings.contextNotes);
+            
+            if (contextContent) {
+                // Add context as part of the system message or as a separate system message
+                if (messages.length > 0 && messages[0].role === 'system') {
+                    processedMessages.push({
+                        role: 'system',
+                        content: `${messages[0].content}\n\nHere is additional context:\n${contextContent}`
+                    });
+                    messages = messages.slice(1);
+                } else {
+                    processedMessages.push({
+                        role: 'system',
+                        content: `Here is context for our conversation:\n${contextContent}`
+                    });
+                }
+            }
+        }
+
+        // Process the rest of the messages with Obsidian links if enabled
         for (const message of messages) {
             const processedContent = await this.processObsidianLinks(message.content);
             processedMessages.push({
@@ -729,11 +1013,26 @@ export default class MyPlugin extends Plugin {
                         file = allFiles.find(f => f.name === fileName || f.name === `${fileName}.md`) || null;
                     }
 
+                    // Extract header if specified
+                    const headerMatch = fileName.match(/(.*?)#(.*)/);
+                    let extractedContent = "";
+                    
                     if (file && file instanceof TFile) {
                         const noteContent = await this.app.vault.cachedRead(file);
+                        
+                        if (headerMatch) {
+                            // Extract content under the specified header
+                            extractedContent = this.extractContentUnderHeader(
+                                noteContent, 
+                                headerMatch[2].trim()
+                            );
+                        } else {
+                            extractedContent = noteContent;
+                        }
+                        
                         processedContent = processedContent.replace(
                             match[0],
-                            `${match[0]}\n\n---\nNote Name: ${fileName}\nContent:\n${noteContent}\n---\n`
+                            `${match[0]}\n\n---\nNote Name: ${fileName}\nContent:\n${extractedContent}\n---\n`
                         );
                     } else {
                         new Notice(`File not found: ${fileName}. Ensure the file name and path are correct.`);
@@ -745,9 +1044,112 @@ export default class MyPlugin extends Plugin {
         }
         return processedContent;
     }
+
+    /**
+     * Extract content under a specific header in a note
+     * 
+     * @param content The note content
+     * @param headerText The header text to find
+     * @returns The content under the header until the next header or end of note
+     */
+    private extractContentUnderHeader(content: string, headerText: string): string {
+        const lines = content.split('\n');
+        let foundHeader = false;
+        let extractedContent = [];
+        let headerLevel = 0;
+        
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            
+            // Check if this line is a header
+            const headerMatch = line.match(/^(#+)\s+(.*?)$/);
+            
+            if (headerMatch) {
+                const currentHeaderLevel = headerMatch[1].length;
+                const currentHeaderText = headerMatch[2].trim();
+                
+                if (foundHeader) {
+                    // If we already found our target header and now found another header
+                    // at the same or higher level, stop extraction
+                    if (currentHeaderLevel <= headerLevel) {
+                        break;
+                    }
+                } else if (currentHeaderText.toLowerCase() === headerText.toLowerCase()) {
+                    // Found our target header
+                    foundHeader = true;
+                    headerLevel = currentHeaderLevel;
+                    extractedContent.push(line); // Include the header itself
+                    continue;
+                }
+            }
+            
+            if (foundHeader) {
+                extractedContent.push(line);
+            }
+        }
+        
+        return extractedContent.join('\n');
+    }
+
+    /**
+     * Process context notes specified in the settings
+     * 
+     * @param contextNotesText The context notes text with [[note]] syntax
+     * @returns The processed context text
+     */
+    private async processContextNotes(contextNotesText: string): Promise<string> {
+        const linkRegex = /\[\[(.*?)\]\]/g;
+        let match;
+        let contextContent = "";
+        
+        while ((match = linkRegex.exec(contextNotesText)) !== null) {
+            if (match && match[1]) {
+                const fileName = match[1].trim();
+                
+                try {
+                    // Check if there's a header specified
+                    const headerMatch = fileName.match(/(.*?)#(.*)/);
+                    const baseFileName = headerMatch ? headerMatch[1].trim() : fileName;
+                    const headerName = headerMatch ? headerMatch[2].trim() : null;
+                    
+                    // Find the file
+                    let file = this.app.vault.getAbstractFileByPath(baseFileName) || 
+                               this.app.vault.getAbstractFileByPath(`${baseFileName}.md`);
+                    
+                    if (!file) {
+                        const allFiles = this.app.vault.getFiles();
+                        file = allFiles.find(f => 
+                            f.basename.toLowerCase() === baseFileName.toLowerCase() || 
+                            f.name.toLowerCase() === `${baseFileName.toLowerCase()}.md`
+                        ) || null;
+                    }
+                    
+                    if (file && file instanceof TFile) {
+                        const noteContent = await this.app.vault.cachedRead(file);
+                        
+                        contextContent += `### From note: ${file.basename}\n\n`;
+                        
+                        if (headerName) {
+                            // Extract content under the specified header
+                            const headerContent = this.extractContentUnderHeader(noteContent, headerName);
+                            contextContent += headerContent;
+                        } else {
+                            contextContent += noteContent;
+                        }
+                        
+                        contextContent += '\n\n';
+                    } else {
+                        contextContent += `Note not found: ${fileName}\n\n`;
+                    }
+                } catch (error) {
+                    contextContent += `Error processing note ${fileName}: ${error.message}\n\n`;
+                }
+            }
+        }
+        
+        return contextContent;
+    }
 }
-
-
 
 /**
  * Plugin Settings Tab

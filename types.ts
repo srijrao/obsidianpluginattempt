@@ -150,6 +150,8 @@ export interface MyPluginSettings {
     chatStartString?: string;
     /** The string that ends chat messages in a note, if present */
     chatEndString?: string;
+    enableContextNotes: boolean;
+    contextNotes: string;
 }
 
 /**
@@ -187,5 +189,7 @@ export const DEFAULT_SETTINGS: MyPluginSettings = {
     enableObsidianLinks: true,
     chatSeparator: '----',
     chatStartString: undefined,
-    chatEndString: undefined
+    chatEndString: undefined,
+    enableContextNotes: false,
+    contextNotes: ''
 };

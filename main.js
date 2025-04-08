@@ -64,7 +64,9 @@ var DEFAULT_SETTINGS = {
   enableObsidianLinks: true,
   chatSeparator: "----",
   chatStartString: void 0,
-  chatEndString: void 0
+  chatEndString: void 0,
+  enableContextNotes: false,
+  contextNotes: ""
 };
 
 // providers/base.ts
@@ -3956,6 +3958,21 @@ var ModelSettingsView = class extends import_obsidian.ItemView {
       this.plugin.settings.enableObsidianLinks = value;
       await this.plugin.saveSettings();
     }));
+    new import_obsidian.Setting(contentEl).setName("Enable Context Notes").setDesc("Attach specified note content to chat messages").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableContextNotes).onChange(async (value) => {
+      this.plugin.settings.enableContextNotes = value;
+      await this.plugin.saveSettings();
+    }));
+    const contextNotesContainer = contentEl.createDiv("context-notes-container");
+    contextNotesContainer.style.marginBottom = "24px";
+    new import_obsidian.Setting(contextNotesContainer).setName("Context Notes").setDesc("Notes to attach as context (supports [[filename]] and [[filename#header]] syntax)").addTextArea((text) => {
+      text.setPlaceholder("[[Note Name]]\n[[Another Note#Header]]").setValue(this.plugin.settings.contextNotes || "").onChange(async (value) => {
+        this.plugin.settings.contextNotes = value;
+        await this.plugin.saveSettings();
+      });
+      text.inputEl.rows = 4;
+      text.inputEl.style.width = "100%";
+      this.setupNoteAutocomplete(text.inputEl);
+    });
     new import_obsidian.Setting(contentEl).setName("Enable Streaming").setDesc("Enable or disable streaming for completions").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableStreaming).onChange(async (value) => {
       this.plugin.settings.enableStreaming = value;
       await this.plugin.saveSettings();
@@ -4198,6 +4215,158 @@ var ModelSettingsView = class extends import_obsidian.ItemView {
   }
   async onClose() {
   }
+  /**
+   * Setup autocompletion for notes and headers
+   * 
+   * @param inputEl The input element to attach autocompletion to
+   */
+  setupNoteAutocomplete(inputEl) {
+    let currentStartPos = 0;
+    let currentEndPos = 0;
+    let isTypingLink = false;
+    inputEl.addEventListener("keydown", (e) => {
+      if (e.key === "[" && inputEl.selectionStart === inputEl.selectionEnd) {
+        const prevChar = inputEl.value.charAt(inputEl.selectionStart - 1);
+        if (prevChar === "[") {
+          isTypingLink = true;
+          currentStartPos = inputEl.selectionStart;
+        }
+      } else if (e.key === "]" && isTypingLink && inputEl.selectionStart === inputEl.selectionEnd) {
+        const nextChar = inputEl.value.charAt(inputEl.selectionStart);
+        if (nextChar === "]") {
+          isTypingLink = false;
+          currentEndPos = inputEl.selectionStart;
+          this.showNoteSuggestions(inputEl, currentStartPos, currentEndPos);
+        }
+      } else if (e.key === "Escape" && isTypingLink) {
+        isTypingLink = false;
+      }
+    });
+  }
+  /**
+   * Display note and header suggestions
+   * 
+   * @param inputEl The input element
+   * @param startPos The start position of the link text
+   * @param endPos The end position of the link text
+   */
+  showNoteSuggestions(inputEl, startPos, endPos) {
+    const linkText = inputEl.value.substring(startPos, endPos);
+    const files = this.app.vault.getMarkdownFiles();
+    const matchingFiles = files.filter((file) => {
+      return file.path.toLowerCase().includes(linkText.toLowerCase()) || file.basename.toLowerCase().includes(linkText.toLowerCase());
+    });
+    if (matchingFiles.length === 0) return;
+    const suggestionEl = document.createElement("div");
+    suggestionEl.className = "note-autocomplete-suggestions";
+    suggestionEl.style.position = "absolute";
+    suggestionEl.style.zIndex = "1000";
+    suggestionEl.style.background = "var(--background-primary)";
+    suggestionEl.style.border = "1px solid var(--background-modifier-border)";
+    suggestionEl.style.borderRadius = "4px";
+    suggestionEl.style.boxShadow = "0 2px 8px var(--background-modifier-box-shadow)";
+    suggestionEl.style.maxHeight = "200px";
+    suggestionEl.style.overflow = "auto";
+    const rect = inputEl.getBoundingClientRect();
+    const lineHeight = parseInt(getComputedStyle(inputEl).lineHeight);
+    const coords = this.getCaretCoordinates(inputEl, endPos);
+    suggestionEl.style.left = `${rect.left + coords.left}px`;
+    suggestionEl.style.top = `${rect.top + coords.top + lineHeight}px`;
+    matchingFiles.slice(0, 10).forEach((file) => {
+      const item = document.createElement("div");
+      item.className = "note-autocomplete-item";
+      item.textContent = file.basename;
+      item.style.padding = "8px 12px";
+      item.style.cursor = "pointer";
+      item.addEventListener("mouseenter", () => {
+        item.style.backgroundColor = "var(--background-secondary)";
+      });
+      item.addEventListener("mouseleave", () => {
+        item.style.backgroundColor = "";
+      });
+      item.addEventListener("click", async () => {
+        const replacement = file.basename;
+        const newValue = inputEl.value.substring(0, startPos - 2) + "[[" + replacement + "]]" + inputEl.value.substring(endPos + 2);
+        inputEl.value = newValue;
+        this.plugin.settings.contextNotes = inputEl.value;
+        await this.plugin.saveSettings();
+        document.body.removeChild(suggestionEl);
+        const newPos = startPos - 2 + 2 + replacement.length + 2;
+        inputEl.setSelectionRange(newPos, newPos);
+        inputEl.focus();
+      });
+      suggestionEl.appendChild(item);
+      this.addHeaderSuggestions(file, suggestionEl, startPos, endPos, inputEl);
+    });
+    document.body.appendChild(suggestionEl);
+    const handleClickOutside = (e) => {
+      if (!suggestionEl.contains(e.target) && e.target !== inputEl) {
+        document.body.removeChild(suggestionEl);
+        document.removeEventListener("click", handleClickOutside);
+      }
+    };
+    document.addEventListener("click", handleClickOutside);
+  }
+  /**
+   * Add header suggestions for a file
+   * 
+   * @param file The file to get headers from
+   * @param suggestionEl The suggestion container element
+   * @param startPos Start position in the input
+   * @param endPos End position in the input
+   * @param inputEl The input element
+   */
+  async addHeaderSuggestions(file, suggestionEl, startPos, endPos, inputEl) {
+    const cache = this.app.metadataCache.getFileCache(file);
+    if (!cache || !cache.headings) return;
+    const separator = document.createElement("div");
+    separator.style.height = "1px";
+    separator.style.backgroundColor = "var(--background-modifier-border)";
+    separator.style.margin = "4px 0";
+    suggestionEl.appendChild(separator);
+    cache.headings.forEach((heading) => {
+      const item = document.createElement("div");
+      item.className = "note-autocomplete-item";
+      const indent = "&nbsp;".repeat((heading.level - 1) * 2);
+      item.innerHTML = `${indent}# ${heading.heading}`;
+      item.style.padding = "6px 12px";
+      item.style.cursor = "pointer";
+      item.addEventListener("mouseenter", () => {
+        item.style.backgroundColor = "var(--background-secondary)";
+      });
+      item.addEventListener("mouseleave", () => {
+        item.style.backgroundColor = "";
+      });
+      item.addEventListener("click", async () => {
+        const replacement = `${file.basename}#${heading.heading}`;
+        const newValue = inputEl.value.substring(0, startPos - 2) + "[[" + replacement + "]]" + inputEl.value.substring(endPos + 2);
+        inputEl.value = newValue;
+        this.plugin.settings.contextNotes = inputEl.value;
+        await this.plugin.saveSettings();
+        document.body.removeChild(suggestionEl);
+        const newPos = startPos - 2 + 2 + replacement.length + 2;
+        inputEl.setSelectionRange(newPos, newPos);
+        inputEl.focus();
+      });
+      suggestionEl.appendChild(item);
+    });
+  }
+  /**
+   * Get caret coordinates in a textarea
+   * Simplified version to get approximate position
+   */
+  getCaretCoordinates(element, position) {
+    const text = element.value.substring(0, position);
+    const lines = text.split("\n");
+    const lineIndex = lines.length - 1;
+    const charIndex = lines[lineIndex].length;
+    const lineHeight = parseInt(getComputedStyle(element).lineHeight);
+    const charWidth = 8;
+    return {
+      top: lineIndex * lineHeight,
+      left: charIndex * charWidth
+    };
+  }
 };
 function parseSelection(selection, chatSeparator) {
   const lines = selection.split("\n");
@@ -4414,6 +4583,27 @@ The current time is ${currentTime} ${timeZoneString}.`;
    */
   async processMessages(messages) {
     const processedMessages = [];
+    if (this.settings.enableContextNotes && this.settings.contextNotes) {
+      const contextContent = await this.processContextNotes(this.settings.contextNotes);
+      if (contextContent) {
+        if (messages.length > 0 && messages[0].role === "system") {
+          processedMessages.push({
+            role: "system",
+            content: `${messages[0].content}
+
+Here is additional context:
+${contextContent}`
+          });
+          messages = messages.slice(1);
+        } else {
+          processedMessages.push({
+            role: "system",
+            content: `Here is context for our conversation:
+${contextContent}`
+          });
+        }
+      }
+    }
     for (const message of messages) {
       const processedContent = await this.processObsidianLinks(message.content);
       processedMessages.push({
@@ -4443,8 +4633,18 @@ The current time is ${currentTime} ${timeZoneString}.`;
             const allFiles = this.app.vault.getFiles();
             file = allFiles.find((f) => f.name === fileName || f.name === `${fileName}.md`) || null;
           }
+          const headerMatch = fileName.match(/(.*?)#(.*)/);
+          let extractedContent = "";
           if (file && file instanceof import_obsidian.TFile) {
             const noteContent = await this.app.vault.cachedRead(file);
+            if (headerMatch) {
+              extractedContent = this.extractContentUnderHeader(
+                noteContent,
+                headerMatch[2].trim()
+              );
+            } else {
+              extractedContent = noteContent;
+            }
             processedContent = processedContent.replace(
               match[0],
               `${match[0]}
@@ -4452,7 +4652,7 @@ The current time is ${currentTime} ${timeZoneString}.`;
 ---
 Note Name: ${fileName}
 Content:
-${noteContent}
+${extractedContent}
 ---
 `
             );
@@ -4465,6 +4665,91 @@ ${noteContent}
       }
     }
     return processedContent;
+  }
+  /**
+   * Extract content under a specific header in a note
+   * 
+   * @param content The note content
+   * @param headerText The header text to find
+   * @returns The content under the header until the next header or end of note
+   */
+  extractContentUnderHeader(content, headerText) {
+    const lines = content.split("\n");
+    let foundHeader = false;
+    let extractedContent = [];
+    let headerLevel = 0;
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const headerMatch = line.match(/^(#+)\s+(.*?)$/);
+      if (headerMatch) {
+        const currentHeaderLevel = headerMatch[1].length;
+        const currentHeaderText = headerMatch[2].trim();
+        if (foundHeader) {
+          if (currentHeaderLevel <= headerLevel) {
+            break;
+          }
+        } else if (currentHeaderText.toLowerCase() === headerText.toLowerCase()) {
+          foundHeader = true;
+          headerLevel = currentHeaderLevel;
+          extractedContent.push(line);
+          continue;
+        }
+      }
+      if (foundHeader) {
+        extractedContent.push(line);
+      }
+    }
+    return extractedContent.join("\n");
+  }
+  /**
+   * Process context notes specified in the settings
+   * 
+   * @param contextNotesText The context notes text with [[note]] syntax
+   * @returns The processed context text
+   */
+  async processContextNotes(contextNotesText) {
+    const linkRegex = /\[\[(.*?)\]\]/g;
+    let match;
+    let contextContent = "";
+    while ((match = linkRegex.exec(contextNotesText)) !== null) {
+      if (match && match[1]) {
+        const fileName = match[1].trim();
+        try {
+          const headerMatch = fileName.match(/(.*?)#(.*)/);
+          const baseFileName = headerMatch ? headerMatch[1].trim() : fileName;
+          const headerName = headerMatch ? headerMatch[2].trim() : null;
+          let file = this.app.vault.getAbstractFileByPath(baseFileName) || this.app.vault.getAbstractFileByPath(`${baseFileName}.md`);
+          if (!file) {
+            const allFiles = this.app.vault.getFiles();
+            file = allFiles.find(
+              (f) => f.basename.toLowerCase() === baseFileName.toLowerCase() || f.name.toLowerCase() === `${baseFileName.toLowerCase()}.md`
+            ) || null;
+          }
+          if (file && file instanceof import_obsidian.TFile) {
+            const noteContent = await this.app.vault.cachedRead(file);
+            contextContent += `### From note: ${file.basename}
+
+`;
+            if (headerName) {
+              const headerContent = this.extractContentUnderHeader(noteContent, headerName);
+              contextContent += headerContent;
+            } else {
+              contextContent += noteContent;
+            }
+            contextContent += "\n\n";
+          } else {
+            contextContent += `Note not found: ${fileName}
+
+`;
+          }
+        } catch (error) {
+          contextContent += `Error processing note ${fileName}: ${error.message}
+
+`;
+        }
+      }
+    }
+    return contextContent;
   }
 };
 var MyPluginSettingTab = class extends import_obsidian.PluginSettingTab {
