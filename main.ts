@@ -1,6 +1,7 @@
-import { App, Plugin, PluginSettingTab, Setting, WorkspaceLeaf, ItemView, Notice, TFile } from 'obsidian';
+import { App, Plugin, Setting, WorkspaceLeaf, ItemView, Notice, TFile } from 'obsidian';
 import { MyPluginSettings, Message, DEFAULT_SETTINGS } from './types';
 import { createProvider } from './providers';
+import { MyPluginSettingTab } from './settings';
 
 const VIEW_TYPE_MODEL_SETTINGS = 'model-settings-view';
 
@@ -476,24 +477,64 @@ class ModelSettingsView extends ItemView {
         
         // Track when the user is typing a link
         let isTypingLink = false;
+        let suggestionEl: HTMLElement | null = null;
         
-        inputEl.addEventListener('keydown', (e: KeyboardEvent) => {
-            if (e.key === '[' && inputEl.selectionStart === inputEl.selectionEnd) {
-                const prevChar = inputEl.value.charAt(inputEl.selectionStart - 1);
-                if (prevChar === '[') {
-                    isTypingLink = true;
-                    currentStartPos = inputEl.selectionStart;
+        const cleanupSuggestions = () => {
+            if (suggestionEl && document.body.contains(suggestionEl)) {
+                document.body.removeChild(suggestionEl);
+                suggestionEl = null;
+            }
+        };
+        
+        // Handle link detection with manual input tracking
+        inputEl.addEventListener('input', (e) => {
+            const cursorPos = inputEl.selectionStart;
+            const text = inputEl.value;
+            
+            // Check if we're potentially inside a link
+            const beforeCursor = text.substring(0, cursorPos);
+            const lastOpenBrackets = beforeCursor.lastIndexOf("[[");
+            const lastCloseBrackets = beforeCursor.lastIndexOf("]]");
+            
+            // If we have open brackets after the last close brackets
+            if (lastOpenBrackets > lastCloseBrackets && lastOpenBrackets !== -1) {
+                isTypingLink = true;
+                currentStartPos = lastOpenBrackets + 2; // Start after the [[
+                
+                // Check if we have matching ]] ahead
+                const afterCursor = text.substring(cursorPos);
+                const nextCloseBrackets = afterCursor.indexOf("]]");
+                
+                if (nextCloseBrackets !== -1) {
+                    currentEndPos = cursorPos;
+                    // Get the text being typed inside [[ ]]
+                    const linkText = text.substring(currentStartPos, currentEndPos);
+                    
+                    // Show suggestions if we have at least 1 character typed
+                    if (linkText.length > 0) {
+                        // Clean up previous suggestions
+                        cleanupSuggestions();
+                        this.showNoteSuggestions(inputEl, currentStartPos, currentEndPos);
+                    }
                 }
-            } else if (e.key === ']' && isTypingLink && inputEl.selectionStart === inputEl.selectionEnd) {
-                const nextChar = inputEl.value.charAt(inputEl.selectionStart);
-                if (nextChar === ']') {
-                    isTypingLink = false;
-                    currentEndPos = inputEl.selectionStart;
-                    this.showNoteSuggestions(inputEl, currentStartPos, currentEndPos);
-                }
-            } else if (e.key === 'Escape' && isTypingLink) {
+            } else {
                 isTypingLink = false;
-                // Hide suggestions if there's a suggestion UI
+                cleanupSuggestions();
+            }
+        });
+        
+        // Close suggestions on Escape key
+        inputEl.addEventListener('keydown', (e: KeyboardEvent) => {
+            if (e.key === 'Escape') {
+                isTypingLink = false;
+                cleanupSuggestions();
+            }
+        });
+        
+        // Close suggestions when clicking outside or focusing elsewhere
+        document.addEventListener('click', (e) => {
+            if (e.target !== inputEl && suggestionEl && !suggestionEl.contains(e.target as Node)) {
+                cleanupSuggestions();
             }
         });
     }
@@ -509,14 +550,15 @@ class ModelSettingsView extends ItemView {
         // Get the text being typed inside [[ ]]
         const linkText = inputEl.value.substring(startPos, endPos);
         
+        if (linkText.length === 0) return;
+        
         // Get all markdown files in the vault
         const files = this.app.vault.getMarkdownFiles();
         
         // Find files matching the link text
         const matchingFiles = files.filter(file => {
-            // Check if the file path or name matches the link text
-            return file.path.toLowerCase().includes(linkText.toLowerCase()) || 
-                   file.basename.toLowerCase().includes(linkText.toLowerCase());
+            return file.basename.toLowerCase().includes(linkText.toLowerCase()) || 
+                   file.path.toLowerCase().includes(linkText.toLowerCase());
         });
         
         if (matchingFiles.length === 0) return;
@@ -524,22 +566,38 @@ class ModelSettingsView extends ItemView {
         // Create suggestion element
         const suggestionEl = document.createElement('div');
         suggestionEl.className = 'note-autocomplete-suggestions';
-        suggestionEl.style.position = 'absolute';
+        suggestionEl.style.position = 'fixed'; // Use fixed positioning
         suggestionEl.style.zIndex = '1000';
         suggestionEl.style.background = 'var(--background-primary)';
         suggestionEl.style.border = '1px solid var(--background-modifier-border)';
         suggestionEl.style.borderRadius = '4px';
         suggestionEl.style.boxShadow = '0 2px 8px var(--background-modifier-box-shadow)';
         suggestionEl.style.maxHeight = '200px';
+        suggestionEl.style.width = '300px'; // Fixed width for better visibility
         suggestionEl.style.overflow = 'auto';
+        suggestionEl.style.padding = '8px';
         
-        // Position the suggestion element
+        // Debug information at the top
+        const debugInfo = document.createElement('div');
+        debugInfo.style.fontSize = '10px';
+        debugInfo.style.color = 'var(--text-muted)';
+        debugInfo.style.marginBottom = '4px';
+        debugInfo.style.borderBottom = '1px solid var(--background-modifier-border)';
+        debugInfo.textContent = `Searching for: "${linkText}" - Found ${matchingFiles.length} matches`;
+        suggestionEl.appendChild(debugInfo);
+        
+        // Position the element based on input coordinates
         const rect = inputEl.getBoundingClientRect();
-        const lineHeight = parseInt(getComputedStyle(inputEl).lineHeight);
-        const coords = this.getCaretCoordinates(inputEl, endPos);
+        const lineHeight = parseInt(getComputedStyle(inputEl).lineHeight) || 20;
         
-        suggestionEl.style.left = `${rect.left + coords.left}px`;
-        suggestionEl.style.top = `${rect.top + coords.top + lineHeight}px`;
+        // Get text up to cursor position to calculate vertical position
+        const textUpToCursor = inputEl.value.substring(0, endPos);
+        const lines = textUpToCursor.split('\n');
+        const lineNumber = lines.length - 1;
+        
+        // Position below the line where cursor is
+        suggestionEl.style.left = `${rect.left}px`;
+        suggestionEl.style.top = `${rect.top + (lineNumber + 1) * lineHeight}px`;
         
         // Add matching files to suggestion element
         matchingFiles.slice(0, 10).forEach(file => {
@@ -548,6 +606,7 @@ class ModelSettingsView extends ItemView {
             item.textContent = file.basename;
             item.style.padding = '8px 12px';
             item.style.cursor = 'pointer';
+            item.style.borderRadius = '4px';
             
             item.addEventListener('mouseenter', () => {
                 item.style.backgroundColor = 'var(--background-secondary)';
@@ -588,16 +647,6 @@ class ModelSettingsView extends ItemView {
         
         // Add suggestion element to the DOM
         document.body.appendChild(suggestionEl);
-        
-        // Handle click outside to close suggestions
-        const handleClickOutside = (e: MouseEvent) => {
-            if (!suggestionEl.contains(e.target as Node) && e.target !== inputEl) {
-                document.body.removeChild(suggestionEl);
-                document.removeEventListener('click', handleClickOutside);
-            }
-        };
-        
-        document.addEventListener('click', handleClickOutside);
     }
     
     /**
@@ -618,7 +667,7 @@ class ModelSettingsView extends ItemView {
     ) {
         // Get file cache to extract headers
         const cache = this.app.metadataCache.getFileCache(file);
-        if (!cache || !cache.headings) return;
+        if (!cache || !cache.headings || cache.headings.length === 0) return;
         
         // Add a separator
         const separator = document.createElement('div');
@@ -626,6 +675,14 @@ class ModelSettingsView extends ItemView {
         separator.style.backgroundColor = 'var(--background-modifier-border)';
         separator.style.margin = '4px 0';
         suggestionEl.appendChild(separator);
+        
+        // Add a label for headers
+        const headerLabel = document.createElement('div');
+        headerLabel.style.fontSize = '10px';
+        headerLabel.style.color = 'var(--text-muted)';
+        headerLabel.style.padding = '2px 12px';
+        headerLabel.textContent = 'Headers:';
+        suggestionEl.appendChild(headerLabel);
         
         // Add headers as suggestions
         cache.headings.forEach(heading => {
@@ -638,6 +695,7 @@ class ModelSettingsView extends ItemView {
             
             item.style.padding = '6px 12px';
             item.style.cursor = 'pointer';
+            item.style.borderRadius = '4px';
             
             item.addEventListener('mouseenter', () => {
                 item.style.backgroundColor = 'var(--background-secondary)';
@@ -672,26 +730,6 @@ class ModelSettingsView extends ItemView {
             
             suggestionEl.appendChild(item);
         });
-    }
-    
-    /**
-     * Get caret coordinates in a textarea
-     * Simplified version to get approximate position
-     */
-    private getCaretCoordinates(element: HTMLTextAreaElement, position: number) {
-        const text = element.value.substring(0, position);
-        const lines = text.split('\n');
-        const lineIndex = lines.length - 1;
-        const charIndex = lines[lineIndex].length;
-        
-        // Approximate position based on character and line index
-        const lineHeight = parseInt(getComputedStyle(element).lineHeight);
-        const charWidth = 8; // Approximate character width
-        
-        return {
-            top: lineIndex * lineHeight,
-            left: charIndex * charWidth,
-        };
     }
 }
 
@@ -1015,6 +1053,7 @@ export default class MyPlugin extends Plugin {
                     if (!file) {
                         const allFiles = this.app.vault.getFiles();
                         file = allFiles.find(f => f.name === filePath || f.name === `${filePath}.md` || 
+                                                 f.basename.toLowerCase() === filePath.toLowerCase() ||
                                                  f.path === filePath || f.path === `${filePath}.md`) || null;
                     }
 
@@ -1153,143 +1192,5 @@ export default class MyPlugin extends Plugin {
         }
         
         return contextContent;
-    }
-}
-
-/**
- * Plugin Settings Tab
- * 
- * This tab provides a user interface for configuring the plugin settings.
- * It automatically opens the model settings view when settings are changed.
- */
-class MyPluginSettingTab extends PluginSettingTab {
-    plugin: MyPlugin;
-
-    constructor(app: App, plugin: MyPlugin) {
-        super(app, plugin);
-        this.plugin = plugin;
-    }
-
-    /**
-     * Display the settings tab
-     * 
-     * Shows only the auto-open setting here since all other settings
-     * are managed in the model settings view for better organization.
-     */
-    display(): void {
-        const { containerEl } = this;
-        containerEl.empty();
-
-        containerEl.createEl('h2', { text: 'AI Assistant Settings' });
-
-        // API Keys Section
-        containerEl.createEl('h3', { text: 'API Keys' });
-
-        // OpenAI API Key
-        new Setting(containerEl)
-            .setName('OpenAI API Key')
-            .setDesc('Enter your OpenAI API key')
-            .addText(text => text
-                .setPlaceholder('Enter your API key')
-                .setValue(this.plugin.settings.openaiSettings.apiKey)
-                .onChange(async (value) => {
-                    this.plugin.settings.openaiSettings.apiKey = value;
-                    await this.plugin.saveSettings();
-                }));
-
-        // Anthropic API Key
-        new Setting(containerEl)
-            .setName('Anthropic API Key')
-            .setDesc('Enter your Anthropic API key')
-            .addText(text => text
-                .setPlaceholder('Enter your API key')
-                .setValue(this.plugin.settings.anthropicSettings.apiKey)
-                .onChange(async (value) => {
-                    this.plugin.settings.anthropicSettings.apiKey = value;
-                    await this.plugin.saveSettings();
-                }));
-
-        // Gemini API Key
-        new Setting(containerEl)
-            .setName('Google API Key')
-            .setDesc('Enter your Google API key')
-            .addText(text => text
-                .setPlaceholder('Enter your API key')
-                .setValue(this.plugin.settings.geminiSettings.apiKey)
-                .onChange(async (value) => {
-                    this.plugin.settings.geminiSettings.apiKey = value;
-                    await this.plugin.saveSettings();
-                }));
-
-        // Ollama Server URL
-        new Setting(containerEl)
-            .setName('Ollama Server URL')
-            .setDesc('Enter your Ollama server URL (default: http://localhost:11434)')
-            .addText(text => text
-                .setPlaceholder('http://localhost:11434')
-                .setValue(this.plugin.settings.ollamaSettings.serverUrl)
-                .onChange(async (value) => {
-                    this.plugin.settings.ollamaSettings.serverUrl = value;
-                    await this.plugin.saveSettings();
-                }));
-
-        // Model Settings Section
-        containerEl.createEl('h3', { text: 'Model Settings' });
-
-        new Setting(containerEl)
-            .setName('Auto-open Model Settings')
-            .setDesc('Automatically open model settings when Obsidian starts')
-            .addToggle(toggle => toggle
-                .setValue(this.plugin.settings.autoOpenModelSettings)
-                .onChange(async (value) => {
-                    this.plugin.settings.autoOpenModelSettings = value;
-                    await this.plugin.saveSettings();
-                }));
-
-        // Add a button to open model settings
-        new Setting(containerEl)
-            .setName('Open Model Settings')
-            .setDesc('Open the model settings view')
-            .addButton(button => button
-                .setButtonText('Open')
-                .onClick(() => {
-                    this.plugin.activateView();
-                }));
-
-        new Setting(containerEl)
-            .setName('Chat Separator')
-            .setDesc('The string used to separate chat messages.')
-            .addText(text => {
-                text.setPlaceholder('----')
-                    .setValue(this.plugin.settings.chatSeparator ?? '')
-                    .onChange(async (value: string) => {
-                        this.plugin.settings.chatSeparator = value;
-                        await this.plugin.saveSettings();
-                    });
-            });
-
-        new Setting(containerEl)
-            .setName('Chat Start String')
-            .setDesc('The string that indicates where to start taking the note for context.')
-            .addText(text => {
-                text.setPlaceholder('===START===')
-                    .setValue(this.plugin.settings.chatStartString ?? '')
-                    .onChange(async (value: string) => {
-                        this.plugin.settings.chatStartString = value;
-                        await this.plugin.saveSettings();
-                    });
-            });
-
-        new Setting(containerEl)
-            .setName('Chat End String')
-            .setDesc('The string that indicates where to end taking the note for context.')
-            .addText(text => {
-                text.setPlaceholder('===END===')
-                    .setValue(this.plugin.settings.chatEndString ?? '')
-                    .onChange(async (value: string) => {
-                        this.plugin.settings.chatEndString = value;
-                        await this.plugin.saveSettings();
-                    });
-            });
     }
 }
