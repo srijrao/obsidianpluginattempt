@@ -442,14 +442,16 @@ class ModelSettingsView extends ItemView {
  * @param selection - The text selection to parse
  * @returns Array of message objects with roles and content
  */
-function parseSelection(selection: string): Message[] {
+function parseSelection(selection: string, chatSeparator: string): Message[] {
     const lines = selection.split('\n');
     let messages: Message[] = [];
     let currentRole: 'user' | 'assistant' = 'user';
     let currentContent = '';
 
+
     for (const line of lines) {
-        if (line.trim() === '----') {
+        if (line.trim() === chatSeparator) {
+            // If we hit a separator, save the current message and switch roles
             if (currentContent.trim()) {
                 messages.push({ role: currentRole, content: currentContent.trim() });
             }
@@ -521,14 +523,30 @@ export default class MyPlugin extends Plugin {
                 } else {
                     const lineNumber = editor.getCursor().line;
                     const documentText = editor.getValue();
-                    const lines = documentText.split('\n').slice(0, lineNumber + 1);
-                    text = lines.join('\n');
+                    let startIndex = 0;
+                    let endIndex = editor.posToOffset({ line: lineNumber, ch: editor.getLine(lineNumber).length });
+
+                    if (this.settings.chatStartString) {
+                        const startStringIndex = documentText.indexOf(this.settings.chatStartString);
+                        if (startStringIndex !== -1) {
+                            startIndex = startStringIndex + this.settings.chatStartString.length;
+                        }
+                    }
+
+                    if (this.settings.chatEndString) {
+                        const endStringIndex = documentText.indexOf(this.settings.chatEndString);
+                        if (endStringIndex !== -1 && endStringIndex < endIndex) {
+                            endIndex = endStringIndex;
+                        }
+                    }
+
+                    text = documentText.substring(startIndex, endIndex);
                     insertPosition = { line: lineNumber + 1, ch: 0 };
                 }
 
-                const messages = parseSelection(text);
+                const messages = parseSelection(text, this.settings.chatSeparator);
 
-                editor.replaceRange('\n\n----\n\n', insertPosition);
+                editor.replaceRange(`\n\n${this.settings.chatSeparator}\n\n`, insertPosition);
                 let currentPosition = {
                     line: insertPosition.line + 3,
                     ch: 0
@@ -557,14 +575,14 @@ export default class MyPlugin extends Plugin {
                         }
                     );
 
-                    editor.replaceRange('\n\n----\n\n', currentPosition);
+                    editor.replaceRange(`\n\n${this.settings.chatSeparator}\n\n`, currentPosition);
                     const newCursorPos = editor.offsetToPos(
-                        editor.posToOffset(currentPosition) + 8
+                        editor.posToOffset(currentPosition) + this.settings.chatSeparator.length + 4
                     );
                     editor.setCursor(newCursorPos);
                 } catch (error) {
                     new Notice(`Error: ${error.message}`);
-                    editor.replaceRange(`Error: ${error.message}\n\n----\n\n`, currentPosition);
+                    editor.replaceRange(`Error: ${error.message}\n\n${this.settings.chatSeparator}\n\n`, currentPosition);
                 } finally {
                     this.activeStream = null;
                 }
@@ -797,5 +815,41 @@ class MyPluginSettingTab extends PluginSettingTab {
                 .onClick(() => {
                     this.plugin.activateView();
                 }));
+
+        new Setting(containerEl)
+            .setName('Chat Separator')
+            .setDesc('The string used to separate chat messages.')
+            .addText(text => {
+                text.setPlaceholder('----')
+                    .setValue(this.plugin.settings.chatSeparator ?? '')
+                    .onChange(async (value: string) => {
+                        this.plugin.settings.chatSeparator = value;
+                        await this.plugin.saveSettings();
+                    });
+            });
+
+        new Setting(containerEl)
+            .setName('Chat Start String')
+            .setDesc('The string that indicates where to start taking the note for context.')
+            .addText(text => {
+                text.setPlaceholder('===START===')
+                    .setValue(this.plugin.settings.chatStartString ?? '')
+                    .onChange(async (value: string) => {
+                        this.plugin.settings.chatStartString = value;
+                        await this.plugin.saveSettings();
+                    });
+            });
+
+        new Setting(containerEl)
+            .setName('Chat End String')
+            .setDesc('The string that indicates where to end taking the note for context.')
+            .addText(text => {
+                text.setPlaceholder('===END===')
+                    .setValue(this.plugin.settings.chatEndString ?? '')
+                    .onChange(async (value: string) => {
+                        this.plugin.settings.chatEndString = value;
+                        await this.plugin.saveSettings();
+                    });
+            });
     }
 }

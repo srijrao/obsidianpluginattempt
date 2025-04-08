@@ -36,7 +36,7 @@ var DEFAULT_SETTINGS = {
   provider: "openai",
   openaiSettings: {
     apiKey: "",
-    model: "gpt-4",
+    model: "gpt-4o-mini",
     availableModels: []
   },
   anthropicSettings: {
@@ -61,7 +61,10 @@ var DEFAULT_SETTINGS = {
   includeTimeWithSystemMessage: false,
   enableStreaming: true,
   autoOpenModelSettings: true,
-  enableObsidianLinks: true
+  enableObsidianLinks: true,
+  chatSeparator: "----",
+  chatStartString: void 0,
+  chatEndString: void 0
 };
 
 // providers/base.ts
@@ -4196,13 +4199,13 @@ var ModelSettingsView = class extends import_obsidian.ItemView {
   async onClose() {
   }
 };
-function parseSelection(selection) {
+function parseSelection(selection, chatSeparator) {
   const lines = selection.split("\n");
   let messages = [];
   let currentRole = "user";
   let currentContent = "";
   for (const line of lines) {
-    if (line.trim() === "----") {
+    if (line.trim() === chatSeparator) {
       if (currentContent.trim()) {
         messages.push({ role: currentRole, content: currentContent.trim() });
       }
@@ -4251,12 +4254,29 @@ var MyPlugin = class extends import_obsidian.Plugin {
         } else {
           const lineNumber = editor.getCursor().line;
           const documentText = editor.getValue();
-          const lines = documentText.split("\n").slice(0, lineNumber + 1);
-          text = lines.join("\n");
+          let startIndex = 0;
+          let endIndex = editor.posToOffset({ line: lineNumber, ch: editor.getLine(lineNumber).length });
+          if (this.settings.chatStartString) {
+            const startStringIndex = documentText.indexOf(this.settings.chatStartString);
+            if (startStringIndex !== -1) {
+              startIndex = startStringIndex + this.settings.chatStartString.length;
+            }
+          }
+          if (this.settings.chatEndString) {
+            const endStringIndex = documentText.indexOf(this.settings.chatEndString);
+            if (endStringIndex !== -1 && endStringIndex < endIndex) {
+              endIndex = endStringIndex;
+            }
+          }
+          text = documentText.substring(startIndex, endIndex);
           insertPosition = { line: lineNumber + 1, ch: 0 };
         }
-        const messages = parseSelection(text);
-        editor.replaceRange("\n\n----\n\n", insertPosition);
+        const messages = parseSelection(text, this.settings.chatSeparator);
+        editor.replaceRange(`
+
+${this.settings.chatSeparator}
+
+`, insertPosition);
         let currentPosition = {
           line: insertPosition.line + 3,
           ch: 0
@@ -4282,16 +4302,20 @@ var MyPlugin = class extends import_obsidian.Plugin {
               abortController: this.activeStream
             }
           );
-          editor.replaceRange("\n\n----\n\n", currentPosition);
+          editor.replaceRange(`
+
+${this.settings.chatSeparator}
+
+`, currentPosition);
           const newCursorPos = editor.offsetToPos(
-            editor.posToOffset(currentPosition) + 8
+            editor.posToOffset(currentPosition) + this.settings.chatSeparator.length + 4
           );
           editor.setCursor(newCursorPos);
         } catch (error) {
           new import_obsidian.Notice(`Error: ${error.message}`);
           editor.replaceRange(`Error: ${error.message}
 
-----
+${this.settings.chatSeparator}
 
 `, currentPosition);
         } finally {
@@ -4454,5 +4478,26 @@ var MyPluginSettingTab = class extends import_obsidian.PluginSettingTab {
     new import_obsidian.Setting(containerEl).setName("Open Model Settings").setDesc("Open the model settings view").addButton((button) => button.setButtonText("Open").onClick(() => {
       this.plugin.activateView();
     }));
+    new import_obsidian.Setting(containerEl).setName("Chat Separator").setDesc("The string used to separate chat messages.").addText((text) => {
+      var _a2;
+      text.setPlaceholder("----").setValue((_a2 = this.plugin.settings.chatSeparator) != null ? _a2 : "").onChange(async (value) => {
+        this.plugin.settings.chatSeparator = value;
+        await this.plugin.saveSettings();
+      });
+    });
+    new import_obsidian.Setting(containerEl).setName("Chat Start String").setDesc("The string that indicates where to start taking the note for context.").addText((text) => {
+      var _a2;
+      text.setPlaceholder("===START===").setValue((_a2 = this.plugin.settings.chatStartString) != null ? _a2 : "").onChange(async (value) => {
+        this.plugin.settings.chatStartString = value;
+        await this.plugin.saveSettings();
+      });
+    });
+    new import_obsidian.Setting(containerEl).setName("Chat End String").setDesc("The string that indicates where to end taking the note for context.").addText((text) => {
+      var _a2;
+      text.setPlaceholder("===END===").setValue((_a2 = this.plugin.settings.chatEndString) != null ? _a2 : "").onChange(async (value) => {
+        this.plugin.settings.chatEndString = value;
+        await this.plugin.saveSettings();
+      });
+    });
   }
 };

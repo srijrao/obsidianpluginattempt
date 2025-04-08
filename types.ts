@@ -144,6 +144,12 @@ export interface MyPluginSettings {
     enableStreaming: boolean;
     autoOpenModelSettings: boolean;
     enableObsidianLinks: boolean;
+    /** The string that separates chat messages */
+    chatSeparator: string;
+    /** The string that starts chat messages in a note, if present */
+    chatStartString?: string;
+    /** The string that ends chat messages in a note, if present */
+    chatEndString?: string;
 }
 
 /**
@@ -153,7 +159,7 @@ export const DEFAULT_SETTINGS: MyPluginSettings = {
     provider: 'openai',
     openaiSettings: {
         apiKey: '',
-        model: 'gpt-4',
+        model: 'gpt-4o-mini',
         availableModels: []
     },
     anthropicSettings: {
@@ -178,5 +184,8 @@ export const DEFAULT_SETTINGS: MyPluginSettings = {
     includeTimeWithSystemMessage: false,
     enableStreaming: true,
     autoOpenModelSettings: true,
-    enableObsidianLinks: true
+    enableObsidianLinks: true,
+    chatSeparator: '----',
+    chatStartString: undefined,
+    chatEndString: undefined
 };
