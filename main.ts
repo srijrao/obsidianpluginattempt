@@ -560,20 +560,33 @@ export default class MyPlugin extends Plugin {
                         { role: 'system', content: this.getSystemMessage() },
                         ...messages
                     ]);
+                    let bufferedChunk = ''; // Accumulate chunks
+                    const flushBuffer = () => {
+                        if (bufferedChunk) {
+                            editor.replaceRange(bufferedChunk, currentPosition);
+                            currentPosition = editor.offsetToPos(
+                                editor.posToOffset(currentPosition) + bufferedChunk.length
+                            );
+                            bufferedChunk = ''; // Clear buffer
+                        }
+                    };
+
                     await provider.getCompletion(
                         processedMessages,
                         {
                             temperature: this.settings.temperature,
                             maxTokens: this.settings.maxTokens,
                             streamCallback: (chunk: string) => {
-                                editor.replaceRange(chunk, currentPosition);
-                                currentPosition = editor.offsetToPos(
-                                    editor.posToOffset(currentPosition) + chunk.length
-                                );
+                                bufferedChunk += chunk; // Accumulate the chunk
+                                // Flush buffer every 100ms
+                                setTimeout(flushBuffer, 100);
                             },
                             abortController: this.activeStream
                         }
                     );
+
+                    // Final flush after completion
+                    flushBuffer();
 
                     editor.replaceRange(`\n\n${this.settings.chatSeparator}\n\n`, currentPosition);
                     const newCursorPos = editor.offsetToPos(
@@ -617,12 +630,19 @@ export default class MyPlugin extends Plugin {
         
         if (this.settings.includeDateWithSystemMessage) {
             const currentDate = new Date().toISOString().split('T')[0];
-            if (this.settings.includeTimeWithSystemMessage) {
-                const currentTime = new Date().toLocaleTimeString();
-                systemMessage = `${systemMessage} The current date and time is ${currentDate} ${currentTime}.`;
-            } else {
-                systemMessage = `${systemMessage} The current date is ${currentDate}.`;
-            }
+            systemMessage = `${systemMessage}\n\nThe current date is ${currentDate}.`;
+        }
+
+        if (this.settings.includeTimeWithSystemMessage) {
+            const now = new Date();
+            const timeZoneOffset = now.getTimezoneOffset();
+            const offsetHours = Math.abs(timeZoneOffset) / 60;
+            const offsetMinutes = Math.abs(timeZoneOffset) % 60;
+            const sign = timeZoneOffset > 0 ? '-' : '+';
+    
+            const currentTime = now.toLocaleTimeString();
+            const timeZoneString = `UTC${sign}${offsetHours.toString().padStart(2, '0')}:${offsetMinutes.toString().padStart(2, '0')}`;
+            systemMessage = `${systemMessage}\n\nThe current time is ${currentTime} ${timeZoneString}.`;
         }
 
         return systemMessage;
