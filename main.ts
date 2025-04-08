@@ -168,7 +168,7 @@ class ModelSettingsView extends ItemView {
                     try {
                         const provider = createProvider(this.plugin.settings);
                         const result = await provider.testConnection();
-                        
+
                         if (result.success && result.models) {
                             settings.availableModels = result.models;
                             await this.plugin.saveSettings();
@@ -234,7 +234,7 @@ class ModelSettingsView extends ItemView {
                     try {
                         const provider = createProvider(this.plugin.settings);
                         const result = await provider.testConnection();
-                        
+
                         if (result.success && result.models) {
                             settings.availableModels = result.models;
                             await this.plugin.saveSettings();
@@ -300,7 +300,7 @@ class ModelSettingsView extends ItemView {
                     try {
                         const provider = createProvider(this.plugin.settings);
                         const result = await provider.testConnection();
-                        
+
                         if (result.success && result.models) {
                             settings.availableModels = result.models;
                             await this.plugin.saveSettings();
@@ -366,7 +366,7 @@ class ModelSettingsView extends ItemView {
                     try {
                         const provider = createProvider(this.plugin.settings);
                         const result = await provider.testConnection();
-                        
+
                         if (result.success && result.models) {
                             settings.availableModels = result.models;
                             await this.plugin.saveSettings();
@@ -627,7 +627,7 @@ export default class MyPlugin extends Plugin {
 
     private getSystemMessage(): string {
         let systemMessage = this.settings.systemMessage;
-        
+
         if (this.settings.includeDateWithSystemMessage) {
             const currentDate = new Date().toISOString().split('T')[0];
             systemMessage = `${systemMessage}\n\nThe current date is ${currentDate}.`;
@@ -639,7 +639,7 @@ export default class MyPlugin extends Plugin {
             const offsetHours = Math.abs(timeZoneOffset) / 60;
             const offsetMinutes = Math.abs(timeZoneOffset) % 60;
             const sign = timeZoneOffset > 0 ? '-' : '+';
-    
+
             const currentTime = now.toLocaleTimeString();
             const timeZoneString = `UTC${sign}${offsetHours.toString().padStart(2, '0')}:${offsetMinutes.toString().padStart(2, '0')}`;
             systemMessage = `${systemMessage}\n\nThe current time is ${currentTime} ${timeZoneString}.`;
@@ -691,7 +691,7 @@ export default class MyPlugin extends Plugin {
      */
     private async processMessages(messages: Message[]): Promise<Message[]> {
         const processedMessages: Message[] = [];
-        
+
         for (const message of messages) {
             const processedContent = await this.processObsidianLinks(message.content);
             processedMessages.push({
@@ -699,7 +699,7 @@ export default class MyPlugin extends Plugin {
                 content: processedContent
             });
         }
-        
+
         return processedMessages;
     }
 
@@ -715,26 +715,39 @@ export default class MyPlugin extends Plugin {
         const linkRegex = /\[\[(.*?)\]\]/g;
         let match;
         let processedContent = content;
-        
+
         while ((match = linkRegex.exec(content)) !== null) {
-            const fileName = match[1];
-            try {
-                const file = this.app.vault.getAbstractFileByPath(`${fileName}.md`);
-                if (file && file instanceof TFile) {
-                    const noteContent = await this.app.vault.cachedRead(file);
-                    processedContent = processedContent.replace(
-                        match[0],
-                        `${match[0]}\n${fileName}:\n${noteContent}\n`
-                    );
+            if (match && match[0] && match[1]) {
+                const fileName = match[1].trim(); // Trim whitespace from the file name
+                try {
+                    // Attempt to retrieve the file by its relative path
+                    let file = this.app.vault.getAbstractFileByPath(fileName) || this.app.vault.getAbstractFileByPath(`${fileName}.md`);
+
+                    // If not found, search the entire vault for a matching file name
+                    if (!file) {
+                        const allFiles = this.app.vault.getFiles();
+                        file = allFiles.find(f => f.name === fileName || f.name === `${fileName}.md`) || null;
+                    }
+
+                    if (file && file instanceof TFile) {
+                        const noteContent = await this.app.vault.cachedRead(file);
+                        processedContent = processedContent.replace(
+                            match[0],
+                            `${match[0]}\n\n---\nNote Name: ${fileName}\nContent:\n${noteContent}\n---\n`
+                        );
+                    } else {
+                        new Notice(`File not found: ${fileName}. Ensure the file name and path are correct.`);
+                    }
+                } catch (error) {
+                    new Notice(`Error processing link for ${fileName}: ${error.message}`);
                 }
-            } catch (error) {
-                console.error(`Error processing Obsidian link for ${fileName}:`, error);
             }
         }
-        
         return processedContent;
     }
 }
+
+
 
 /**
  * Plugin Settings Tab

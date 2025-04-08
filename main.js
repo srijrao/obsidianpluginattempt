@@ -4435,21 +4435,33 @@ The current time is ${currentTime} ${timeZoneString}.`;
     let match;
     let processedContent = content;
     while ((match = linkRegex.exec(content)) !== null) {
-      const fileName = match[1];
-      try {
-        const file = this.app.vault.getAbstractFileByPath(`${fileName}.md`);
-        if (file && file instanceof import_obsidian.TFile) {
-          const noteContent = await this.app.vault.cachedRead(file);
-          processedContent = processedContent.replace(
-            match[0],
-            `${match[0]}
-${fileName}:
+      if (match && match[0] && match[1]) {
+        const fileName = match[1].trim();
+        try {
+          let file = this.app.vault.getAbstractFileByPath(fileName) || this.app.vault.getAbstractFileByPath(`${fileName}.md`);
+          if (!file) {
+            const allFiles = this.app.vault.getFiles();
+            file = allFiles.find((f) => f.name === fileName || f.name === `${fileName}.md`) || null;
+          }
+          if (file && file instanceof import_obsidian.TFile) {
+            const noteContent = await this.app.vault.cachedRead(file);
+            processedContent = processedContent.replace(
+              match[0],
+              `${match[0]}
+
+---
+Note Name: ${fileName}
+Content:
 ${noteContent}
+---
 `
-          );
+            );
+          } else {
+            new import_obsidian.Notice(`File not found: ${fileName}. Ensure the file name and path are correct.`);
+          }
+        } catch (error) {
+          new import_obsidian.Notice(`Error processing link for ${fileName}: ${error.message}`);
         }
-      } catch (error) {
-        console.error(`Error processing Obsidian link for ${fileName}:`, error);
       }
     }
     return processedContent;
