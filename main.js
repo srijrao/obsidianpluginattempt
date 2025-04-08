@@ -4626,14 +4626,16 @@ ${contextContent}`
     let processedContent = content;
     while ((match = linkRegex.exec(content)) !== null) {
       if (match && match[0] && match[1]) {
-        const fileName = match[1].trim();
+        const parts = match[1].split("|");
+        const filePath = parts[0].trim();
+        const displayText = parts.length > 1 ? parts[1].trim() : filePath;
         try {
-          let file = this.app.vault.getAbstractFileByPath(fileName) || this.app.vault.getAbstractFileByPath(`${fileName}.md`);
+          let file = this.app.vault.getAbstractFileByPath(filePath) || this.app.vault.getAbstractFileByPath(`${filePath}.md`);
           if (!file) {
             const allFiles = this.app.vault.getFiles();
-            file = allFiles.find((f) => f.name === fileName || f.name === `${fileName}.md`) || null;
+            file = allFiles.find((f) => f.name === filePath || f.name === `${filePath}.md` || f.path === filePath || f.path === `${filePath}.md`) || null;
           }
-          const headerMatch = fileName.match(/(.*?)#(.*)/);
+          const headerMatch = filePath.match(/(.*?)#(.*)/);
           let extractedContent = "";
           if (file && file instanceof import_obsidian.TFile) {
             const noteContent = await this.app.vault.cachedRead(file);
@@ -4650,17 +4652,17 @@ ${contextContent}`
               `${match[0]}
 
 ---
-Note Name: ${fileName}
+Note Name: ${filePath}
 Content:
 ${extractedContent}
 ---
 `
             );
           } else {
-            new import_obsidian.Notice(`File not found: ${fileName}. Ensure the file name and path are correct.`);
+            new import_obsidian.Notice(`File not found: ${filePath}. Ensure the file name and path are correct.`);
           }
         } catch (error) {
-          new import_obsidian.Notice(`Error processing link for ${fileName}: ${error.message}`);
+          new import_obsidian.Notice(`Error processing link for ${filePath}: ${error.message}`);
         }
       }
     }

@@ -1002,19 +1002,24 @@ export default class MyPlugin extends Plugin {
 
         while ((match = linkRegex.exec(content)) !== null) {
             if (match && match[0] && match[1]) {
-                const fileName = match[1].trim(); // Trim whitespace from the file name
+                // Split by pipe to handle [[path|display]] format
+                const parts = match[1].split('|');
+                const filePath = parts[0].trim(); // Get the path part (before pipe)
+                const displayText = parts.length > 1 ? parts[1].trim() : filePath; // Get display text if present
+                
                 try {
                     // Attempt to retrieve the file by its relative path
-                    let file = this.app.vault.getAbstractFileByPath(fileName) || this.app.vault.getAbstractFileByPath(`${fileName}.md`);
+                    let file = this.app.vault.getAbstractFileByPath(filePath) || this.app.vault.getAbstractFileByPath(`${filePath}.md`);
 
                     // If not found, search the entire vault for a matching file name
                     if (!file) {
                         const allFiles = this.app.vault.getFiles();
-                        file = allFiles.find(f => f.name === fileName || f.name === `${fileName}.md`) || null;
+                        file = allFiles.find(f => f.name === filePath || f.name === `${filePath}.md` || 
+                                                 f.path === filePath || f.path === `${filePath}.md`) || null;
                     }
 
                     // Extract header if specified
-                    const headerMatch = fileName.match(/(.*?)#(.*)/);
+                    const headerMatch = filePath.match(/(.*?)#(.*)/);
                     let extractedContent = "";
                     
                     if (file && file instanceof TFile) {
@@ -1032,13 +1037,13 @@ export default class MyPlugin extends Plugin {
                         
                         processedContent = processedContent.replace(
                             match[0],
-                            `${match[0]}\n\n---\nNote Name: ${fileName}\nContent:\n${extractedContent}\n---\n`
+                            `${match[0]}\n\n---\nNote Name: ${filePath}\nContent:\n${extractedContent}\n---\n`
                         );
                     } else {
-                        new Notice(`File not found: ${fileName}. Ensure the file name and path are correct.`);
+                        new Notice(`File not found: ${filePath}. Ensure the file name and path are correct.`);
                     }
                 } catch (error) {
-                    new Notice(`Error processing link for ${fileName}: ${error.message}`);
+                    new Notice(`Error processing link for ${filePath}: ${error.message}`);
                 }
             }
         }
