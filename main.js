@@ -4320,8 +4320,13 @@ var ChatView = class extends import_obsidian2.ItemView {
     return button;
   }
   async copyToClipboard(text) {
-    await navigator.clipboard.writeText(text);
-    new import_obsidian2.Notice("Copied to clipboard");
+    try {
+      await navigator.clipboard.writeText(text);
+      new import_obsidian2.Notice("Copied to clipboard");
+    } catch (error) {
+      new import_obsidian2.Notice("Failed to copy to clipboard");
+      console.error("Clipboard error:", error);
+    }
   }
   createMessageElement(role, content) {
     const messageEl = document.createElement("div");
@@ -4335,12 +4340,23 @@ var ChatView = class extends import_obsidian2.ItemView {
     contentEl.style.whiteSpace = "pre-wrap";
     contentEl.textContent = content;
     const actionsEl = messageContainer.createDiv("message-actions");
-    actionsEl.style.display = "flex";
+    actionsEl.style.display = "none";
+    messageEl.addEventListener("mouseenter", () => {
+      actionsEl.style.display = "flex";
+    });
+    messageEl.addEventListener("mouseleave", () => {
+      actionsEl.style.display = "none";
+    });
     actionsEl.style.flexWrap = "wrap";
     actionsEl.style.gap = "8px";
     actionsEl.style.marginTop = "8px";
     actionsEl.appendChild(this.createActionButton("copy", "Copy", "Copy message", () => {
-      this.copyToClipboard(content);
+      const contentToCopy = contentEl.textContent || "";
+      if (contentToCopy.trim() === "") {
+        new import_obsidian2.Notice("No content to copy");
+        return;
+      }
+      this.copyToClipboard(contentToCopy);
     }));
     actionsEl.appendChild(this.createActionButton("edit", "Edit", "Edit message", () => {
       const wasEditing = contentEl.hasClass("editing");

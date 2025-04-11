@@ -514,8 +514,13 @@ export class ChatView extends ItemView {
     }
 
     private async copyToClipboard(text: string): Promise<void> {
-        await navigator.clipboard.writeText(text);
-        new Notice('Copied to clipboard');
+        try {
+            await navigator.clipboard.writeText(text);
+            new Notice('Copied to clipboard');
+        } catch (error) {
+            new Notice('Failed to copy to clipboard');
+            console.error('Clipboard error:', error);
+        }
     }
 
     private createMessageElement(role: 'user' | 'assistant', content: string): HTMLElement {
@@ -538,14 +543,28 @@ export class ChatView extends ItemView {
 
         // Create actions container
         const actionsEl = messageContainer.createDiv('message-actions');
-        actionsEl.style.display = 'flex';
+        actionsEl.style.display = 'none'; // Hide by default
+
+        // Add hover behavior to the message element
+        messageEl.addEventListener('mouseenter', () => {
+            actionsEl.style.display = 'flex'; // Show actions on hover
+        });
+        messageEl.addEventListener('mouseleave', () => {
+            actionsEl.style.display = 'none'; // Hide actions when not hovering
+        });
+
         actionsEl.style.flexWrap = 'wrap'; // Allow buttons to wrap
         actionsEl.style.gap = '8px'; // Add spacing between buttons
         actionsEl.style.marginTop = '8px';
 
         // Add copy button
         actionsEl.appendChild(this.createActionButton('copy', 'Copy', 'Copy message', () => {
-            this.copyToClipboard(content);
+            const contentToCopy = contentEl.textContent || ''; // Ensure content is not null
+            if (contentToCopy.trim() === '') {
+                new Notice('No content to copy');
+                return;
+            }
+            this.copyToClipboard(contentToCopy);
         }));
 
         // Add edit button
