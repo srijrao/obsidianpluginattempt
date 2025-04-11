@@ -3986,6 +3986,162 @@ var MyPluginSettingTab = class extends import_obsidian.PluginSettingTab {
 // chat.ts
 var import_obsidian2 = require("obsidian");
 var VIEW_TYPE_CHAT = "chat-view";
+var SettingsModal = class extends import_obsidian2.Modal {
+  constructor(app, plugin) {
+    super(app);
+    __publicField(this, "plugin");
+    this.plugin = plugin;
+    this.titleEl.setText("AI Model Settings");
+  }
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.addClass("ai-settings-modal");
+    new import_obsidian2.Setting(contentEl).setName("AI Provider").setDesc("Choose which AI provider to use").addDropdown((dropdown) => {
+      dropdown.addOption("openai", "OpenAI (GPT-3.5, GPT-4)").addOption("anthropic", "Anthropic (Claude)").addOption("gemini", "Google (Gemini)").addOption("ollama", "Ollama (Local AI)").setValue(this.plugin.settings.provider).onChange(async (value) => {
+        this.plugin.settings.provider = value;
+        await this.plugin.saveSettings();
+        this.onOpen();
+      });
+    });
+    new import_obsidian2.Setting(contentEl).setName("System Message").setDesc("Set the system message for the AI").addTextArea((text) => text.setPlaceholder("You are a helpful assistant.").setValue(this.plugin.settings.systemMessage).onChange(async (value) => {
+      this.plugin.settings.systemMessage = value;
+      await this.plugin.saveSettings();
+    }));
+    new import_obsidian2.Setting(contentEl).setName("Include Date with System Message").setDesc("Add the current date to the system message").addToggle((toggle) => toggle.setValue(this.plugin.settings.includeDateWithSystemMessage).onChange(async (value) => {
+      this.plugin.settings.includeDateWithSystemMessage = value;
+      await this.plugin.saveSettings();
+    }));
+    new import_obsidian2.Setting(contentEl).setName("Include Time with System Message").setDesc("Add the current time along with the date to the system message").addToggle((toggle) => toggle.setValue(this.plugin.settings.includeTimeWithSystemMessage).onChange(async (value) => {
+      this.plugin.settings.includeTimeWithSystemMessage = value;
+      await this.plugin.saveSettings();
+    }));
+    new import_obsidian2.Setting(contentEl).setName("Enable Obsidian Links").setDesc("Read Obsidian links in messages using [[filename]] syntax").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableObsidianLinks).onChange(async (value) => {
+      this.plugin.settings.enableObsidianLinks = value;
+      await this.plugin.saveSettings();
+    }));
+    new import_obsidian2.Setting(contentEl).setName("Enable Context Notes").setDesc("Attach specified note content to chat messages").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableContextNotes).onChange(async (value) => {
+      this.plugin.settings.enableContextNotes = value;
+      await this.plugin.saveSettings();
+    }));
+    new import_obsidian2.Setting(contentEl).setName("Context Notes").setDesc("Notes to attach as context (supports [[filename]] and [[filename#header]] syntax)").addTextArea((text) => {
+      text.setPlaceholder("[[Note Name]]\n[[Another Note#Header]]").setValue(this.plugin.settings.contextNotes || "").onChange(async (value) => {
+        this.plugin.settings.contextNotes = value;
+        await this.plugin.saveSettings();
+      });
+      text.inputEl.rows = 4;
+    });
+    new import_obsidian2.Setting(contentEl).setName("Enable Streaming").setDesc("Enable or disable streaming for completions").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableStreaming).onChange(async (value) => {
+      this.plugin.settings.enableStreaming = value;
+      await this.plugin.saveSettings();
+    }));
+    new import_obsidian2.Setting(contentEl).setName("Temperature").setDesc("Set the randomness of the model's output (0-1)").addSlider((slider) => slider.setLimits(0, 1, 0.1).setValue(this.plugin.settings.temperature).setDynamicTooltip().onChange(async (value) => {
+      this.plugin.settings.temperature = value;
+      await this.plugin.saveSettings();
+    }));
+    new import_obsidian2.Setting(contentEl).setName("Max Tokens").setDesc("Set the maximum length of the model's output").addText((text) => text.setPlaceholder("4000").setValue(String(this.plugin.settings.maxTokens)).onChange(async (value) => {
+      const numValue = Number(value);
+      if (!isNaN(numValue)) {
+        this.plugin.settings.maxTokens = numValue;
+        await this.plugin.saveSettings();
+      }
+    }));
+    contentEl.createEl("h3", { text: `${this.plugin.settings.provider.toUpperCase()} Settings` });
+    switch (this.plugin.settings.provider) {
+      case "openai": {
+        const settings = this.plugin.settings.openaiSettings;
+        new import_obsidian2.Setting(contentEl).setName("Model").setDesc("Choose the OpenAI model to use").addDropdown((dropdown) => {
+          for (const model of settings.availableModels) {
+            dropdown.addOption(model, model);
+          }
+          dropdown.setValue(settings.model).onChange(async (value) => {
+            settings.model = value;
+            await this.plugin.saveSettings();
+          });
+        });
+        break;
+      }
+      case "anthropic": {
+        const settings = this.plugin.settings.anthropicSettings;
+        new import_obsidian2.Setting(contentEl).setName("Model").setDesc("Choose the Anthropic model to use").addDropdown((dropdown) => {
+          for (const model of settings.availableModels) {
+            dropdown.addOption(model, model);
+          }
+          dropdown.setValue(settings.model).onChange(async (value) => {
+            settings.model = value;
+            await this.plugin.saveSettings();
+          });
+        });
+        break;
+      }
+      case "gemini": {
+        const settings = this.plugin.settings.geminiSettings;
+        new import_obsidian2.Setting(contentEl).setName("Model").setDesc("Choose the Gemini model to use").addDropdown((dropdown) => {
+          for (const model of settings.availableModels) {
+            dropdown.addOption(model, model);
+          }
+          dropdown.setValue(settings.model).onChange(async (value) => {
+            settings.model = value;
+            await this.plugin.saveSettings();
+          });
+        });
+        break;
+      }
+      case "ollama": {
+        const settings = this.plugin.settings.ollamaSettings;
+        new import_obsidian2.Setting(contentEl).setName("Model").setDesc("Choose the Ollama model to use").addDropdown((dropdown) => {
+          for (const model of settings.availableModels) {
+            dropdown.addOption(model, model);
+          }
+          dropdown.setValue(settings.model).onChange(async (value) => {
+            settings.model = value;
+            await this.plugin.saveSettings();
+          });
+        });
+        break;
+      }
+    }
+  }
+  onClose() {
+    const { contentEl } = this;
+    contentEl.empty();
+  }
+};
+var ConfirmationModal = class extends import_obsidian2.Modal {
+  constructor(app, title, message, onConfirm) {
+    super(app);
+    __publicField(this, "onConfirm");
+    __publicField(this, "message");
+    this.titleEl.setText(title);
+    this.message = message;
+    this.onConfirm = onConfirm;
+  }
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.createEl("p", { text: this.message });
+    const buttonContainer = contentEl.createDiv("modal-button-container");
+    buttonContainer.style.display = "flex";
+    buttonContainer.style.justifyContent = "flex-end";
+    buttonContainer.style.gap = "8px";
+    buttonContainer.style.marginTop = "16px";
+    buttonContainer.createEl("button", { text: "Cancel" }).addEventListener("click", () => {
+      this.onConfirm(false);
+      this.close();
+    });
+    const confirmButton = buttonContainer.createEl("button", {
+      text: "Delete",
+      cls: "mod-warning"
+    });
+    confirmButton.addEventListener("click", () => {
+      this.onConfirm(true);
+      this.close();
+    });
+  }
+  onClose() {
+    const { contentEl } = this;
+    contentEl.empty();
+  }
+};
 var ChatView = class extends import_obsidian2.ItemView {
   constructor(leaf, plugin) {
     super(leaf);
@@ -3993,6 +4149,7 @@ var ChatView = class extends import_obsidian2.ItemView {
     __publicField(this, "messagesContainer");
     __publicField(this, "inputContainer");
     __publicField(this, "activeStream", null);
+    __publicField(this, "settingsContainer", null);
     this.plugin = plugin;
   }
   getViewType() {
@@ -4008,6 +4165,9 @@ var ChatView = class extends import_obsidian2.ItemView {
     const { contentEl } = this;
     contentEl.empty();
     contentEl.addClass("ai-chat-view");
+    const settingsButton = document.createElement("button");
+    settingsButton.setText("Settings");
+    settingsButton.setAttribute("aria-label", "Toggle model settings");
     this.messagesContainer = contentEl.createDiv("ai-chat-messages");
     this.messagesContainer.style.flex = "1";
     this.messagesContainer.style.overflow = "auto";
@@ -4042,6 +4202,22 @@ var ChatView = class extends import_obsidian2.ItemView {
       text: "Stop"
     });
     stopButton.style.display = "none";
+    const copyAllButton = buttonContainer.createEl("button", {
+      text: "Copy All"
+    });
+    copyAllButton.addEventListener("click", async () => {
+      const messages = this.messagesContainer.querySelectorAll(".ai-chat-message");
+      let chatContent = "";
+      messages.forEach((el, index) => {
+        var _a2;
+        const content = ((_a2 = el.querySelector(".message-content")) == null ? void 0 : _a2.textContent) || "";
+        chatContent += content;
+        if (index < messages.length - 1) {
+          chatContent += "\n\n" + this.plugin.settings.chatSeparator + "\n\n";
+        }
+      });
+      await this.copyToClipboard(chatContent);
+    });
     const clearButton = buttonContainer.createEl("button", {
       text: "Clear Chat"
     });
@@ -4119,7 +4295,33 @@ var ChatView = class extends import_obsidian2.ItemView {
     clearButton.addEventListener("click", () => {
       this.messagesContainer.empty();
     });
+    buttonContainer.insertBefore(settingsButton, clearButton);
+    settingsButton.addEventListener("click", () => {
+      const settingsModal = new SettingsModal(this.app, this.plugin);
+      settingsModal.open();
+    });
     this.addMessage("assistant", "Hello! How can I help you today?");
+  }
+  createActionButton(icon, label, tooltip, callback) {
+    const button = document.createElement("button");
+    button.addClass("ai-chat-action-button");
+    button.setAttribute("aria-label", tooltip);
+    button.style.display = "flex";
+    button.style.alignItems = "center";
+    button.style.gap = "4px";
+    const iconEl = document.createElement("svg");
+    iconEl.classList.add("lucide-icon");
+    iconEl.innerHTML = `<use href="#lucide-${icon}"></use>`;
+    button.appendChild(iconEl);
+    const labelEl = document.createElement("span");
+    labelEl.textContent = label;
+    button.appendChild(labelEl);
+    button.addEventListener("click", callback);
+    return button;
+  }
+  async copyToClipboard(text) {
+    await navigator.clipboard.writeText(text);
+    new import_obsidian2.Notice("Copied to clipboard");
   }
   createMessageElement(role, content) {
     const messageEl = document.createElement("div");
@@ -4128,9 +4330,57 @@ var ChatView = class extends import_obsidian2.ItemView {
     messageEl.style.padding = "12px";
     messageEl.style.borderRadius = "8px";
     messageEl.style.backgroundColor = role === "user" ? "var(--background-modifier-hover)" : "var(--background-secondary)";
-    const contentEl = messageEl.createDiv("message-content");
+    const messageContainer = messageEl.createDiv("message-container");
+    const contentEl = messageContainer.createDiv("message-content");
     contentEl.style.whiteSpace = "pre-wrap";
     contentEl.textContent = content;
+    const actionsEl = messageContainer.createDiv("message-actions");
+    actionsEl.style.display = "flex";
+    actionsEl.style.flexWrap = "wrap";
+    actionsEl.style.gap = "8px";
+    actionsEl.style.marginTop = "8px";
+    actionsEl.appendChild(this.createActionButton("copy", "Copy", "Copy message", () => {
+      this.copyToClipboard(content);
+    }));
+    actionsEl.appendChild(this.createActionButton("edit", "Edit", "Edit message", () => {
+      const wasEditing = contentEl.hasClass("editing");
+      if (!wasEditing) {
+        const textarea = document.createElement("textarea");
+        textarea.value = contentEl.textContent || "";
+        textarea.style.width = "100%";
+        textarea.style.height = `${contentEl.offsetHeight}px`;
+        textarea.style.minHeight = "100px";
+        contentEl.empty();
+        contentEl.appendChild(textarea);
+        textarea.focus();
+        contentEl.addClass("editing");
+      } else {
+        const textarea = contentEl.querySelector("textarea");
+        if (textarea) {
+          const newContent = textarea.value;
+          contentEl.textContent = newContent;
+          contentEl.removeClass("editing");
+        }
+      }
+    }));
+    actionsEl.appendChild(this.createActionButton("trash", "Delete", "Delete message", () => {
+      const modal = new ConfirmationModal(
+        this.app,
+        "Delete message",
+        "Are you sure you want to delete this message?",
+        async (confirmed) => {
+          if (confirmed) {
+            messageEl.remove();
+          }
+        }
+      );
+      modal.open();
+    }));
+    if (role === "assistant") {
+      actionsEl.appendChild(this.createActionButton("refresh-cw", "Regenerate", "Regenerate response", async () => {
+      }));
+    }
+    messageContainer.appendChild(actionsEl);
     return messageEl;
   }
   addMessage(role, content) {
@@ -4143,6 +4393,117 @@ var ChatView = class extends import_obsidian2.ItemView {
       this.activeStream.abort();
       this.activeStream = null;
     }
+  }
+  createSettingsPanel() {
+    const container = document.createElement("div");
+    container.addClass("ai-chat-settings-panel");
+    container.createEl("h3", { text: "AI Model Settings" });
+    const providerContainer = container.createDiv();
+    providerContainer.createEl("label", { text: "AI Provider" });
+    const providerSelect = providerContainer.createEl("select");
+    providerSelect.createEl("option", { value: "openai", text: "OpenAI (GPT-3.5, GPT-4)" });
+    providerSelect.createEl("option", { value: "anthropic", text: "Anthropic (Claude)" });
+    providerSelect.createEl("option", { value: "gemini", text: "Google (Gemini)" });
+    providerSelect.createEl("option", { value: "ollama", text: "Ollama (Local AI)" });
+    providerSelect.value = this.plugin.settings.provider;
+    providerSelect.addEventListener("change", async () => {
+      this.plugin.settings.provider = providerSelect.value;
+      await this.plugin.saveSettings();
+      if (this.settingsContainer) {
+        this.settingsContainer.replaceWith(this.createSettingsPanel());
+      }
+    });
+    const systemMessageContainer = container.createDiv();
+    systemMessageContainer.createEl("label", { text: "System Message" });
+    const systemMessageInput = systemMessageContainer.createEl("textarea");
+    systemMessageInput.value = this.plugin.settings.systemMessage;
+    systemMessageInput.addEventListener("change", async () => {
+      this.plugin.settings.systemMessage = systemMessageInput.value;
+      await this.plugin.saveSettings();
+    });
+    const temperatureContainer = container.createDiv();
+    temperatureContainer.createEl("label", { text: "Temperature" });
+    const temperatureInput = temperatureContainer.createEl("input", { type: "range" });
+    temperatureInput.min = "0";
+    temperatureInput.max = "1";
+    temperatureInput.step = "0.1";
+    temperatureInput.value = String(this.plugin.settings.temperature);
+    const temperatureValue = temperatureContainer.createSpan();
+    temperatureValue.textContent = String(this.plugin.settings.temperature);
+    temperatureInput.addEventListener("input", async () => {
+      const value = Number(temperatureInput.value);
+      temperatureValue.textContent = String(value);
+      this.plugin.settings.temperature = value;
+      await this.plugin.saveSettings();
+    });
+    const maxTokensContainer = container.createDiv();
+    maxTokensContainer.createEl("label", { text: "Max Tokens" });
+    const maxTokensInput = maxTokensContainer.createEl("input", { type: "number" });
+    maxTokensInput.value = String(this.plugin.settings.maxTokens);
+    maxTokensInput.addEventListener("change", async () => {
+      const value = Number(maxTokensInput.value);
+      if (!isNaN(value)) {
+        this.plugin.settings.maxTokens = value;
+        await this.plugin.saveSettings();
+      }
+    });
+    const providerSettings = container.createDiv();
+    providerSettings.createEl("h4", { text: `${this.plugin.settings.provider.toUpperCase()} Settings` });
+    switch (this.plugin.settings.provider) {
+      case "openai": {
+        const settings = this.plugin.settings.openaiSettings;
+        const modelSelect = providerSettings.createEl("select");
+        settings.availableModels.forEach((model) => {
+          modelSelect.createEl("option", { value: model, text: model });
+        });
+        modelSelect.value = settings.model;
+        modelSelect.addEventListener("change", async () => {
+          settings.model = modelSelect.value;
+          await this.plugin.saveSettings();
+        });
+        break;
+      }
+      case "anthropic": {
+        const settings = this.plugin.settings.anthropicSettings;
+        const modelSelect = providerSettings.createEl("select");
+        settings.availableModels.forEach((model) => {
+          modelSelect.createEl("option", { value: model, text: model });
+        });
+        modelSelect.value = settings.model;
+        modelSelect.addEventListener("change", async () => {
+          settings.model = modelSelect.value;
+          await this.plugin.saveSettings();
+        });
+        break;
+      }
+      case "gemini": {
+        const settings = this.plugin.settings.geminiSettings;
+        const modelSelect = providerSettings.createEl("select");
+        settings.availableModels.forEach((model) => {
+          modelSelect.createEl("option", { value: model, text: model });
+        });
+        modelSelect.value = settings.model;
+        modelSelect.addEventListener("change", async () => {
+          settings.model = modelSelect.value;
+          await this.plugin.saveSettings();
+        });
+        break;
+      }
+      case "ollama": {
+        const settings = this.plugin.settings.ollamaSettings;
+        const modelSelect = providerSettings.createEl("select");
+        settings.availableModels.forEach((model) => {
+          modelSelect.createEl("option", { value: model, text: model });
+        });
+        modelSelect.value = settings.model;
+        modelSelect.addEventListener("change", async () => {
+          settings.model = modelSelect.value;
+          await this.plugin.saveSettings();
+        });
+        break;
+      }
+    }
+    return container;
   }
 };
 

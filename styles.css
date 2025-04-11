@@ -1,39 +1,119 @@
 /* Chat View */
 .ai-chat-view {
+    /* Container for the entire chat view */
     display: flex;
     flex-direction: column;
     height: 100%;
 }
 
 .ai-chat-messages {
+    /* Scrollable container for chat messages */
     flex: 1;
     overflow-y: auto;
     padding: 16px;
 }
 
 .ai-chat-message {
+    /* Individual chat message styling */
     margin-bottom: 16px;
     padding: 12px;
     border-radius: 8px;
     white-space: pre-wrap;
+    position: relative;
 }
 
 .ai-chat-message.user {
+    /* Styling for user messages */
     background-color: var(--background-modifier-hover);
     margin-left: 20%;
 }
 
 .ai-chat-message.assistant {
+    /* Styling for assistant messages */
     background-color: var(--background-secondary);
     margin-right: 20%;
 }
 
+.message-container {
+    /* Wrapper for each message, used for positioning */
+    position: relative;
+}
+
+.message-content {
+    /* Content of the message, including text */
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.message-content.editing textarea {
+    /* Styling for editable message content */
+    width: 100%;
+    min-height: 100px;
+    resize: vertical;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 4px;
+    padding: 8px;
+    background-color: var(--background-primary);
+    color: var(--text-normal);
+    font-family: inherit;
+    font-size: inherit;
+    line-height: inherit;
+}
+
+.message-actions {
+    /* Action buttons (e.g., edit, delete) for messages */
+    /* Restrict the width to fit under the message */
+    width: calc(100% - 16px); /* Adjust based on the padding of the parent */
+    max-width: 100%; /* Ensure it doesn't overflow */
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    display: flex;
+    gap: 4px; /* Reduce gap between buttons */
+    padding: 4px; /* Adjust padding to reduce size */
+    border-radius: 4px;
+    background-color: var(--background-primary);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    z-index: 1;
+    border: 1px solid var(--background-modifier-border);
+}
+
+.ai-chat-action-button {
+    /* General styling for action buttons */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 10px;
+    height: 10px;
+    padding: 6px;
+    border: none;
+    border-radius: 4px;
+    background-color: var(--background-modifier-hover);
+    color: var(--text-normal);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.ai-chat-action-button:hover {
+    /* Hover effect for action buttons */
+    background-color: var(--background-modifier-hover);
+    color: var(--text-normal);
+}
+
+.ai-chat-action-button svg {
+    /* Icon styling inside action buttons */
+    width: 16px;
+    height: 16px;
+}
+
 .ai-chat-input-container {
+    /* Container for the input area at the bottom */
     border-top: 1px solid var(--background-modifier-border);
     padding: 16px;
 }
 
 .ai-chat-input {
+    /* Styling for the chat input field */
     width: 100%;
     resize: none;
     border: 1px solid var(--background-modifier-border);
@@ -44,8 +124,116 @@
 }
 
 .ai-chat-buttons {
+    /* Container for buttons below the input field */
     margin-top: 8px;
     display: flex;
     gap: 8px;
     justify-content: flex-end;
+}
+
+/* Modal styles */
+.modal-button-container {
+    /* Container for buttons in modals */
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 16px;
+}
+
+/* Settings Panel */
+.ai-chat-settings-toggle {
+    /* Button to toggle the settings panel */
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 32px;
+    height: 32px;
+    padding: 4px;
+    border: none;
+    border-radius: 4px;
+    background-color: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    z-index: 2;
+}
+
+.ai-chat-settings-toggle:hover,
+.ai-chat-settings-toggle.active {
+    /* Hover and active state for the settings toggle button */
+    background-color: var(--background-modifier-hover);
+    color: var(--text-normal);
+}
+
+.ai-chat-settings-toggle svg {
+    /* Icon styling inside the settings toggle button */
+    width: 20px;
+    height: 20px;
+}
+
+.ai-chat-settings-panel {
+    /* Styling for the settings panel */
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 300px;
+    height: 100%;
+    padding: 16px;
+    background-color: var(--background-primary);
+    border-left: 1px solid var(--background-modifier-border);
+    overflow-y: auto;
+    z-index: 1;
+    box-shadow: -2px 0 8px rgba(0, 0, 0, 0.1);
+}
+
+.ai-chat-settings-panel h3 {
+    /* Main heading inside the settings panel */
+    margin: 0 0 16px;
+    padding-top: 32px;
+}
+
+.ai-chat-settings-panel h4 {
+    /* Subheadings inside the settings panel */
+    margin: 16px 0 8px;
+}
+
+.ai-chat-settings-panel > div {
+    /* General container for sections in the settings panel */
+    margin-bottom: 16px;
+}
+
+.ai-chat-settings-panel label {
+    /* Labels for inputs in the settings panel */
+    display: block;
+    margin-bottom: 4px;
+    color: var(--text-muted);
+}
+
+.ai-chat-settings-panel select,
+.ai-chat-settings-panel input[type="number"],
+.ai-chat-settings-panel textarea {
+    /* Inputs and textareas in the settings panel */
+    width: 100%;
+    padding: 8px;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 4px;
+    background-color: var(--background-primary);
+    color: var(--text-normal);
+}
+
+.ai-chat-settings-panel textarea {
+    /* Specific styling for textareas in the settings panel */
+    min-height: 100px;
+    resize: vertical;
+}
+
+.ai-chat-settings-panel input[type="range"] {
+    /* Range slider styling in the settings panel */
+    width: calc(100% - 40px);
+    margin-right: 8px;
+}
+
+.ai-chat-settings-panel span {
+    /* Text styling for additional information in the settings panel */
+    color: var(--text-muted);
 }
