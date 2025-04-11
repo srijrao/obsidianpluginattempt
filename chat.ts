@@ -430,14 +430,17 @@ export class ChatView extends ItemView {
                             responseContent += chunk;
                             const contentEl = assistantContainer.querySelector('.message-content') as HTMLElement;
                             if (contentEl) {
+                                // Update the data attribute with the current content
+                                assistantContainer.dataset.rawContent = responseContent;
+                                
                                 // Render Markdown content dynamically
-                                contentEl.empty(); // Clear previous content
+                                contentEl.empty();
                                 await MarkdownRenderer.render(
-                                    this.app, // Reference to the app object
-                                    responseContent, // Updated Markdown content
-                                    contentEl, // Target container
-                                    '', // Source path (optional, can be empty)
-                                    this // Component instance for lifecycle management
+                                    this.app,
+                                    responseContent,
+                                    contentEl,
+                                    '',
+                                    this
                                 );
                                 this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
                             }
@@ -547,40 +550,46 @@ export class ChatView extends ItemView {
         // Create content element
         const contentEl = messageContainer.createDiv('message-content');
         contentEl.style.whiteSpace = 'pre-wrap';
+        
+        // Store the raw Markdown content as a data attribute
+        messageEl.dataset.rawContent = content;
 
         // Render Markdown content
         MarkdownRenderer.render(
-            this.app, // Reference to the app object
-            content, // Markdown content
-            contentEl, // Target container
-            '', // Source path (optional, can be empty)
-            this // Component instance for lifecycle management
-        );
+            this.app,
+            content,
+            contentEl,
+            '',
+            this
+        ).catch((error) => {
+            console.error('Markdown rendering error:', error);
+            contentEl.textContent = content;
+        });
 
         // Create actions container
         const actionsEl = messageContainer.createDiv('message-actions');
-        actionsEl.style.display = 'none'; // Hide by default
+        actionsEl.style.display = 'none';
 
         // Add hover behavior to the message element
         messageEl.addEventListener('mouseenter', () => {
-            actionsEl.style.display = 'flex'; // Show actions on hover
+            actionsEl.style.display = 'flex';
         });
         messageEl.addEventListener('mouseleave', () => {
-            actionsEl.style.display = 'none'; // Hide actions when not hovering
+            actionsEl.style.display = 'none';
         });
 
-        actionsEl.style.flexWrap = 'wrap'; // Allow buttons to wrap
-        actionsEl.style.gap = '8px'; // Add spacing between buttons
+        actionsEl.style.flexWrap = 'wrap';
+        actionsEl.style.gap = '8px';
         actionsEl.style.marginTop = '8px';
 
         // Add copy button
         actionsEl.appendChild(this.createActionButton('copy', 'Copy', 'Copy message', () => {
-            const contentToCopy = content; // Use the raw Markdown content
-            if (contentToCopy.trim() === '') {
+            const currentContent = messageEl.dataset.rawContent || '';
+            if (currentContent.trim() === '') {
                 new Notice('No content to copy');
                 return;
             }
-            this.copyToClipboard(contentToCopy);
+            this.copyToClipboard(currentContent);
         }));
 
         // Add edit button
@@ -590,7 +599,7 @@ export class ChatView extends ItemView {
             if (!wasEditing) {
                 // Switch to edit mode
                 const textarea = document.createElement('textarea');
-                textarea.value = content; // Use the raw Markdown content
+                textarea.value = messageEl.dataset.rawContent || '';
                 textarea.style.width = '100%';
                 textarea.style.height = `${contentEl.offsetHeight}px`;
                 textarea.style.minHeight = '100px';
@@ -602,9 +611,13 @@ export class ChatView extends ItemView {
                 // Save edits
                 const textarea = contentEl.querySelector('textarea');
                 if (textarea) {
-                    const newContent = textarea.value;
+                    // Update the data attribute with the new content
+                    messageEl.dataset.rawContent = textarea.value;
                     contentEl.empty();
-                    MarkdownRenderer.render(this.app, newContent, contentEl, '', this);
+                    MarkdownRenderer.render(this.app, textarea.value, contentEl, '', this).catch((error) => {
+                        console.error('Markdown rendering error:', error);
+                        contentEl.textContent = textarea.value;
+                    });
                     contentEl.removeClass('editing');
                 }
             }
