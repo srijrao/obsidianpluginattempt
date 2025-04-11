@@ -1,18 +1,57 @@
 # Changelog
 
+This CHANGELOG details any breaking changes to the API or new additions that require additional context. The versions listed below correspond to the versions of the Obsidian app. There may not be a corresponding package version for the version listed below.
+
+## [v1.7.2](<https://github.com/obsidianmd/obsidian-api/commit/6933c6227617897e031f30c734f61167cedafb7d>) (Insider)
+
+### Workspace changes
+
+- New function `Plugin#onUserEnable` gives you a place to performance one-time initialize after the user installs and enables your plugin. If your plugin has a custom view, this is a good place to initialize it rather than recreating the view in `Plugin#onload`.
+- `Workspace#ensureSideLeaf` is now public. This function is a shorthand way to create a leaf in the sidebar if one does not already exist.
+- Added `WorkspaceLeaf#isDeferred` and `WorkspaceLeaf#loadIfDeferred`. As of Obsidian v1.7.2, Obsidian will now defer tabs by default. We published [a guide on how to handle deferred views](<https://publish.obsidian.md/dev-docs-test/Plugins/Guides/Understanding+deferred+views>) in the developer docs.
+
+### Housekeeping
+
+We've updated the API to prefer `unknown` to `any`. Using `any` causes Typescript to disable typechecking entirely on the returned value, so this change could uncover some hidden typing issues.
+
+We also removed `prepareQuery`, `fuzzySearch`, and `PreparedQuery` from the API. If your plugin is using one of these functions, you should migrate to `prepareFuzzySearch`.
+
+```ts
+// Old
+let pq: PreparedQuery = prepareQuery(q);
+...
+fuzzySearch(pq, text);
+
+
+// New
+let fuzzy = prepareFuzzySearch(q);
+...
+fuzzy(text);
+```
+
+### Misc
+
+- New `Plugin#removeCommand` is now available if your plugin needs to dynamically remove commands (for example, if your plugin allows for user-created commands).
+- `SuggestModal#selectActiveSuggestion` is now public. This is useful to provide an alternative hotkey to your SuggestModal that still triggers the selected item.
+
+## v1.7.0 (Insider)
+
+- Fixed `FileSystemAdapter#rmdir(dirPath, false)` always throwing an error when attempting to delete an empty directory.
+- Added a `data-type` to the Markdown embed container using subpath type.
+
 ## v1.5.11
 
 - Fixed `revealLeaf` failing to focus the correct window.
 - If you are using the `SliderComponent` in your app, be aware, the behavior of the component has changed in 1.5.9. Now, instead of updating the value when the slider is dragged, it will only update the value when the slider is released. If your plugin was relying on the old behavior, you will need to update your plugin code to call `.setInstant(true)` on the slider.
   **Note:** Because `setInstant` is a new function, you'll also need to check to see if the function exists before calling it. This will ensure your plugin maintains backwards compatibility when being run on older versions of Obsidian.
 
-## v.1.5.7
+## v1.5.7
 
-### `Plugin.onExternalSettingsChange`
+### `Plugin#onExternalSettingsChange`
 
 There's a new callback function for plugins to react to when plugin settings (`data.json`) get changed on disk. This callback can be used to reload settings when they are updated by an external application or when the settings get synced using a file syncing service like Obsidian Sync.
 
-### New `Vault.getFileByPath` and `Vault.getFolderByPath` utility functions
+### New `Vault#getFileByPath` and `Vault#getFolderByPath` utility functions
 
 The `getAbstractFileByPath` has long been a point of confusion with plugin developers. More often than not,
 you are looking for either a file or a folder. And you know which you want at call-time. Instead of using
@@ -28,7 +67,7 @@ active and focused.
 
 There is now a canonical way to find the offsets of where the frontmatter ends and where the content starts in a file.
 
-### `FileManager.getAvailablePathForAttachment`
+### `FileManager#getAvailablePathForAttachment`
 
 If your plugin saves attachments to the vault, you should be using `getAvailablePathForAttachment`. It will generate a safe path for you to use that respects the user's settings for file attachments.
 
@@ -37,7 +76,7 @@ If your plugin saves attachments to the vault, you should be using `getAvailable
 
 We've exposed our helper function for setting tooltips on elements (`setTooltip`) as well as added a new progress bar component.
 
-The `FileManager.processFrontMatter` function now also exposes the DataWriteOptions argument to be consistent with the other `process` and `write` functions.
+The `FileManager#processFrontMatter` function now also exposes the DataWriteOptions argument to be consistent with the other `process` and `write` functions.
 
 ## v1.4.0
 
