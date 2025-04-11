@@ -2,6 +2,7 @@ import { App, Plugin, Setting, WorkspaceLeaf, ItemView, Notice, TFile } from 'ob
 import { MyPluginSettings, Message, DEFAULT_SETTINGS } from './types';
 import { createProvider } from './providers';
 import { MyPluginSettingTab } from './settings';
+import { ChatView, VIEW_TYPE_CHAT } from './chat';
 
 const VIEW_TYPE_MODEL_SETTINGS = 'model-settings-view';
 
@@ -795,13 +796,24 @@ export default class MyPlugin extends Plugin {
 
         this.addSettingTab(new MyPluginSettingTab(this.app, this));
 
+        // Register views
         this.registerView(
             VIEW_TYPE_MODEL_SETTINGS,
             (leaf) => new ModelSettingsView(leaf, this)
         );
 
+        this.registerView(
+            VIEW_TYPE_CHAT,
+            (leaf) => new ChatView(leaf, this)
+        );
+
+        // Add ribbon icons
         this.addRibbonIcon('gear', 'Open AI Settings', () => {
             this.activateView();
+        });
+
+        this.addRibbonIcon('message-square', 'Open AI Chat', () => {
+            this.activateChatView();
         });
 
         this.app.workspace.onLayoutReady(() => {
@@ -923,9 +935,17 @@ export default class MyPlugin extends Plugin {
                 this.activateView();
             }
         });
+
+        this.addCommand({
+            id: 'show-ai-chat',
+            name: 'Show AI Chat',
+            callback: () => {
+                this.activateChatView();
+            }
+        });
     }
 
-    private getSystemMessage(): string {
+    public getSystemMessage(): string {
         let systemMessage = this.settings.systemMessage;
 
         if (this.settings.includeDateWithSystemMessage) {
@@ -948,23 +968,27 @@ export default class MyPlugin extends Plugin {
         return systemMessage;
     }
 
-    async activateView() {
-        this.app.workspace.detachLeavesOfType(VIEW_TYPE_MODEL_SETTINGS);
+    async activateView(viewType: string = VIEW_TYPE_MODEL_SETTINGS) {
+        this.app.workspace.detachLeavesOfType(viewType);
 
         let leaf = this.app.workspace.getRightLeaf(false);
         if (leaf) {
             await leaf.setViewState({
-                type: VIEW_TYPE_MODEL_SETTINGS,
+                type: viewType,
                 active: true,
             });
             this.app.workspace.revealLeaf(leaf);
         } else {
             leaf = this.app.workspace.getLeaf(true);
             await leaf.setViewState({
-                type: VIEW_TYPE_MODEL_SETTINGS,
+                type: viewType,
                 active: true,
             });
         }
+    }
+
+    async activateChatView() {
+        await this.activateView(VIEW_TYPE_CHAT);
     }
 
     async loadSettings() {
