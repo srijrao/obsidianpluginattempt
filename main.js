@@ -4416,6 +4416,64 @@ var ChatView = class extends import_obsidian2.ItemView {
     }));
     if (role === "assistant") {
       actionsEl.appendChild(this.createActionButton("refresh-cw", "Regenerate", "Regenerate response", async () => {
+        const currentMessage = messageEl;
+        const textarea = this.inputContainer.querySelector("textarea");
+        if (textarea) textarea.disabled = true;
+        const allMessages = Array.from(this.messagesContainer.querySelectorAll(".ai-chat-message"));
+        const currentIndex = allMessages.indexOf(currentMessage);
+        const messages = [
+          { role: "system", content: this.plugin.getSystemMessage() }
+        ];
+        for (let i = 0; i < currentIndex; i++) {
+          const el = allMessages[i];
+          const role2 = el.classList.contains("user") ? "user" : "assistant";
+          const content2 = el.dataset.rawContent || "";
+          messages.push({ role: role2, content: content2 });
+        }
+        currentMessage.remove();
+        const assistantContainer = this.createMessageElement("assistant", "");
+        this.messagesContainer.appendChild(assistantContainer);
+        this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+        this.activeStream = new AbortController();
+        try {
+          const provider = createProvider(this.plugin.settings);
+          let responseContent = "";
+          await provider.getCompletion(
+            messages,
+            {
+              temperature: this.plugin.settings.temperature,
+              maxTokens: this.plugin.settings.maxTokens,
+              streamCallback: async (chunk) => {
+                responseContent += chunk;
+                const contentEl2 = assistantContainer.querySelector(".message-content");
+                if (contentEl2) {
+                  assistantContainer.dataset.rawContent = responseContent;
+                  contentEl2.empty();
+                  await import_obsidian2.MarkdownRenderer.render(
+                    this.app,
+                    responseContent,
+                    contentEl2,
+                    "",
+                    this
+                  );
+                  this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+                }
+              },
+              abortController: this.activeStream
+            }
+          );
+        } catch (error) {
+          if (error.name !== "AbortError") {
+            new import_obsidian2.Notice(`Error: ${error.message}`);
+            this.addMessage("assistant", `Error: ${error.message}`);
+          }
+        } finally {
+          if (textarea) {
+            textarea.disabled = false;
+            textarea.focus();
+          }
+          this.activeStream = null;
+        }
       }));
     }
     messageContainer.appendChild(actionsEl);

@@ -641,7 +641,83 @@ export class ChatView extends ItemView {
         // Add refresh button for assistant messages
         if (role === 'assistant') {
             actionsEl.appendChild(this.createActionButton('refresh-cw', 'Regenerate', 'Regenerate response', async () => {
-                // Regenerate logic here
+                // Find this message element
+                const currentMessage = messageEl;
+                
+                // Disable input during regeneration
+                const textarea = this.inputContainer.querySelector('textarea');
+                if (textarea) textarea.disabled = true;
+                
+                // Find all previous messages to maintain context
+                const allMessages = Array.from(this.messagesContainer.querySelectorAll('.ai-chat-message'));
+                const currentIndex = allMessages.indexOf(currentMessage);
+                
+                // Get system message and all previous messages up to current
+                const messages: Message[] = [
+                    { role: 'system', content: this.plugin.getSystemMessage() }
+                ];
+                
+                for (let i = 0; i < currentIndex; i++) {
+                    const el = allMessages[i];
+                    const role = el.classList.contains('user') ? 'user' : 'assistant';
+                    const content = (el as HTMLElement).dataset.rawContent || '';
+                    messages.push({ role, content });
+                }
+                
+                // Remove the current response
+                currentMessage.remove();
+                
+                // Create new assistant message for streaming
+                const assistantContainer = this.createMessageElement('assistant', '');
+                this.messagesContainer.appendChild(assistantContainer);
+                this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+                
+                // Create abort controller for streaming
+                this.activeStream = new AbortController();
+                
+                try {
+                    const provider = createProvider(this.plugin.settings);
+                    let responseContent = '';
+                    await provider.getCompletion(
+                        messages,
+                        {
+                            temperature: this.plugin.settings.temperature,
+                            maxTokens: this.plugin.settings.maxTokens,
+                            streamCallback: async (chunk: string) => {
+                                responseContent += chunk;
+                                const contentEl = assistantContainer.querySelector('.message-content') as HTMLElement;
+                                if (contentEl) {
+                                    // Update the data attribute with the current content
+                                    assistantContainer.dataset.rawContent = responseContent;
+                                    
+                                    // Render Markdown content dynamically
+                                    contentEl.empty();
+                                    await MarkdownRenderer.render(
+                                        this.app,
+                                        responseContent,
+                                        contentEl,
+                                        '',
+                                        this
+                                    );
+                                    this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+                                }
+                            },
+                            abortController: this.activeStream
+                        }
+                    );
+                } catch (error) {
+                    if (error.name !== 'AbortError') {
+                        new Notice(`Error: ${error.message}`);
+                        this.addMessage('assistant', `Error: ${error.message}`);
+                    }
+                } finally {
+                    // Re-enable input
+                    if (textarea) {
+                        textarea.disabled = false;
+                        textarea.focus();
+                    }
+                    this.activeStream = null;
+                }
             }));
         }
 
