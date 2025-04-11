@@ -1,4 +1,4 @@
-import { ItemView, WorkspaceLeaf, Notice, Modal, App, Setting } from 'obsidian';
+import { ItemView, WorkspaceLeaf, Notice, Modal, App, Setting, MarkdownRenderer } from 'obsidian';
 import MyPlugin from './main';
 import { Message } from './types';
 import { createProvider } from './providers';
@@ -426,11 +426,19 @@ export class ChatView extends ItemView {
                     {
                         temperature: this.plugin.settings.temperature,
                         maxTokens: this.plugin.settings.maxTokens,
-                        streamCallback: (chunk: string) => {
+                        streamCallback: async (chunk: string) => {
                             responseContent += chunk;
-                            const contentEl = assistantContainer.querySelector('.message-content');
+                            const contentEl = assistantContainer.querySelector('.message-content') as HTMLElement;
                             if (contentEl) {
-                                contentEl.textContent = responseContent;
+                                // Render Markdown content dynamically
+                                contentEl.empty(); // Clear previous content
+                                await MarkdownRenderer.render(
+                                    this.app, // Reference to the app object
+                                    responseContent, // Updated Markdown content
+                                    contentEl, // Target container
+                                    '', // Source path (optional, can be empty)
+                                    this // Component instance for lifecycle management
+                                );
                                 this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
                             }
                         },
@@ -539,7 +547,15 @@ export class ChatView extends ItemView {
         // Create content element
         const contentEl = messageContainer.createDiv('message-content');
         contentEl.style.whiteSpace = 'pre-wrap';
-        contentEl.textContent = content;
+
+        // Render Markdown content
+        MarkdownRenderer.render(
+            this.app, // Reference to the app object
+            content, // Markdown content
+            contentEl, // Target container
+            '', // Source path (optional, can be empty)
+            this // Component instance for lifecycle management
+        );
 
         // Create actions container
         const actionsEl = messageContainer.createDiv('message-actions');
@@ -559,7 +575,7 @@ export class ChatView extends ItemView {
 
         // Add copy button
         actionsEl.appendChild(this.createActionButton('copy', 'Copy', 'Copy message', () => {
-            const contentToCopy = contentEl.textContent || ''; // Ensure content is not null
+            const contentToCopy = content; // Use the raw Markdown content
             if (contentToCopy.trim() === '') {
                 new Notice('No content to copy');
                 return;
@@ -574,7 +590,7 @@ export class ChatView extends ItemView {
             if (!wasEditing) {
                 // Switch to edit mode
                 const textarea = document.createElement('textarea');
-                textarea.value = contentEl.textContent || '';
+                textarea.value = content; // Use the raw Markdown content
                 textarea.style.width = '100%';
                 textarea.style.height = `${contentEl.offsetHeight}px`;
                 textarea.style.minHeight = '100px';
@@ -587,7 +603,8 @@ export class ChatView extends ItemView {
                 const textarea = contentEl.querySelector('textarea');
                 if (textarea) {
                     const newContent = textarea.value;
-                    contentEl.textContent = newContent;
+                    contentEl.empty();
+                    MarkdownRenderer.render(this.app, newContent, contentEl, '', this);
                     contentEl.removeClass('editing');
                 }
             }

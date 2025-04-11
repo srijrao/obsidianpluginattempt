@@ -4251,11 +4251,23 @@ var ChatView = class extends import_obsidian2.ItemView {
           {
             temperature: this.plugin.settings.temperature,
             maxTokens: this.plugin.settings.maxTokens,
-            streamCallback: (chunk) => {
+            streamCallback: async (chunk) => {
               responseContent += chunk;
               const contentEl2 = assistantContainer.querySelector(".message-content");
               if (contentEl2) {
-                contentEl2.textContent = responseContent;
+                contentEl2.empty();
+                await import_obsidian2.MarkdownRenderer.render(
+                  this.app,
+                  // Reference to the app object
+                  responseContent,
+                  // Updated Markdown content
+                  contentEl2,
+                  // Target container
+                  "",
+                  // Source path (optional, can be empty)
+                  this
+                  // Component instance for lifecycle management
+                );
                 this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
               }
             },
@@ -4338,7 +4350,18 @@ var ChatView = class extends import_obsidian2.ItemView {
     const messageContainer = messageEl.createDiv("message-container");
     const contentEl = messageContainer.createDiv("message-content");
     contentEl.style.whiteSpace = "pre-wrap";
-    contentEl.textContent = content;
+    import_obsidian2.MarkdownRenderer.render(
+      this.app,
+      // Reference to the app object
+      content,
+      // Markdown content
+      contentEl,
+      // Target container
+      "",
+      // Source path (optional, can be empty)
+      this
+      // Component instance for lifecycle management
+    );
     const actionsEl = messageContainer.createDiv("message-actions");
     actionsEl.style.display = "none";
     messageEl.addEventListener("mouseenter", () => {
@@ -4351,7 +4374,7 @@ var ChatView = class extends import_obsidian2.ItemView {
     actionsEl.style.gap = "8px";
     actionsEl.style.marginTop = "8px";
     actionsEl.appendChild(this.createActionButton("copy", "Copy", "Copy message", () => {
-      const contentToCopy = contentEl.textContent || "";
+      const contentToCopy = content;
       if (contentToCopy.trim() === "") {
         new import_obsidian2.Notice("No content to copy");
         return;
@@ -4362,7 +4385,7 @@ var ChatView = class extends import_obsidian2.ItemView {
       const wasEditing = contentEl.hasClass("editing");
       if (!wasEditing) {
         const textarea = document.createElement("textarea");
-        textarea.value = contentEl.textContent || "";
+        textarea.value = content;
         textarea.style.width = "100%";
         textarea.style.height = `${contentEl.offsetHeight}px`;
         textarea.style.minHeight = "100px";
@@ -4374,7 +4397,8 @@ var ChatView = class extends import_obsidian2.ItemView {
         const textarea = contentEl.querySelector("textarea");
         if (textarea) {
           const newContent = textarea.value;
-          contentEl.textContent = newContent;
+          contentEl.empty();
+          import_obsidian2.MarkdownRenderer.render(this.app, newContent, contentEl, "", this);
           contentEl.removeClass("editing");
         }
       }
