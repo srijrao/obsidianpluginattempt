@@ -748,22 +748,22 @@ function parseSelection(
     chatSeparator: string,
     chatBoundaryString?: string
 ): Message[] {
+    // If no chatBoundaryString is provided, start parsing right away
+    let insideChat = !chatBoundaryString;
+
     const lines = selection.split('\n');
     let messages: Message[] = [];
     let currentRole: 'user' | 'assistant' = 'user';
     let currentContent = '';
-    let insideChat = false; // Track whether we're inside a chat
 
     for (const line of lines) {
         if (chatBoundaryString && line.trim() === chatBoundaryString) {
-            // Toggle the "insideChat" state
-            insideChat = !insideChat;
-
-            // If exiting a chat, save the last message
+            // If start and end boundaries are the same, toggle only once
             if (!insideChat && currentContent.trim()) {
                 messages.push({ role: currentRole, content: currentContent.trim() });
                 currentContent = '';
             }
+            insideChat = !insideChat;
             continue;
         }
 
@@ -845,18 +845,24 @@ export default class MyPlugin extends Plugin {
             id: 'ai-completion',
             name: 'Get AI Completion',
             editorCallback: async (editor) => {
-                let text;
+                let text: string;
                 let insertPosition;
 
                 if (editor.somethingSelected()) {
+                    // Use the selected text
                     text = editor.getSelection();
                     insertPosition = editor.getCursor('to');
                 } else {
-                    const lineNumber = editor.getCursor().line;
+                    // Fallback to extracting text up to the current cursor line
+                    const lineNumber = editor.getCursor().line + 1;
                     const documentText = editor.getValue();
                     let startIndex = 0;
-                    let endIndex = editor.posToOffset({ line: lineNumber, ch: editor.getLine(lineNumber).length });
+                    let endIndex = editor.posToOffset({
+                        line: lineNumber,
+                        ch: editor.getLine(lineNumber).length // Include the full cursor line
+                    });
 
+                    // Use chatStartString and chatEndString if defined
                     if (this.settings.chatStartString) {
                         const startStringIndex = documentText.indexOf(this.settings.chatStartString);
                         if (startStringIndex !== -1) {
@@ -865,18 +871,34 @@ export default class MyPlugin extends Plugin {
                     }
 
                     if (this.settings.chatEndString) {
-                        const endStringIndex = documentText.indexOf(this.settings.chatEndString);
+                        const endStringIndex = documentText.indexOf(this.settings.chatEndString, startIndex);
                         if (endStringIndex !== -1 && endStringIndex < endIndex) {
                             endIndex = endStringIndex;
                         }
                     }
 
-                    text = documentText.substring(startIndex, endIndex);
+                    // If no chatStartString or chatEndString is found, use the entire document up to the cursor line
+                    if (!this.settings.chatStartString && !this.settings.chatEndString) {
+                        endIndex = editor.posToOffset({ line: lineNumber, ch: 0 });
+                    }
+
+                    text = documentText.substring(startIndex, endIndex).trim();
                     insertPosition = { line: lineNumber + 1, ch: 0 };
                 }
 
+                // Debugging: Log the extracted text
+                console.log('Extracted text for completion:', text);
+
+                // Parse the selection into messages
                 const messages = parseSelection(text, this.settings.chatSeparator);
 
+                // Ensure there are messages to send
+                if (messages.length === 0) {
+                    new Notice('No valid messages found in the selection.');
+                    return;
+                }
+
+                // Insert a separator for the AI's response
                 editor.replaceRange(`\n\n${this.settings.chatSeparator}\n\n`, insertPosition);
                 let currentPosition = {
                     line: insertPosition.line + 3,
@@ -891,6 +913,7 @@ export default class MyPlugin extends Plugin {
                         { role: 'system', content: this.getSystemMessage() },
                         ...messages
                     ]);
+
                     let bufferedChunk = ''; // Accumulate chunks
                     const flushBuffer = () => {
                         if (bufferedChunk) {

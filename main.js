@@ -5077,18 +5077,18 @@ var ModelSettingsView = class extends import_obsidian3.ItemView {
   }
 };
 function parseSelection(selection, chatSeparator, chatBoundaryString) {
+  let insideChat = !chatBoundaryString;
   const lines = selection.split("\n");
   let messages = [];
   let currentRole = "user";
   let currentContent = "";
-  let insideChat = false;
   for (const line of lines) {
     if (chatBoundaryString && line.trim() === chatBoundaryString) {
-      insideChat = !insideChat;
       if (!insideChat && currentContent.trim()) {
         messages.push({ role: currentRole, content: currentContent.trim() });
         currentContent = "";
       }
+      insideChat = !insideChat;
       continue;
     }
     if (!insideChat) continue;
@@ -5146,10 +5146,14 @@ var MyPlugin = class extends import_obsidian3.Plugin {
           text = editor.getSelection();
           insertPosition = editor.getCursor("to");
         } else {
-          const lineNumber = editor.getCursor().line;
+          const lineNumber = editor.getCursor().line + 1;
           const documentText = editor.getValue();
           let startIndex = 0;
-          let endIndex = editor.posToOffset({ line: lineNumber, ch: editor.getLine(lineNumber).length });
+          let endIndex = editor.posToOffset({
+            line: lineNumber,
+            ch: editor.getLine(lineNumber).length
+            // Include the full cursor line
+          });
           if (this.settings.chatStartString) {
             const startStringIndex = documentText.indexOf(this.settings.chatStartString);
             if (startStringIndex !== -1) {
@@ -5157,15 +5161,23 @@ var MyPlugin = class extends import_obsidian3.Plugin {
             }
           }
           if (this.settings.chatEndString) {
-            const endStringIndex = documentText.indexOf(this.settings.chatEndString);
+            const endStringIndex = documentText.indexOf(this.settings.chatEndString, startIndex);
             if (endStringIndex !== -1 && endStringIndex < endIndex) {
               endIndex = endStringIndex;
             }
           }
-          text = documentText.substring(startIndex, endIndex);
+          if (!this.settings.chatStartString && !this.settings.chatEndString) {
+            endIndex = editor.posToOffset({ line: lineNumber, ch: 0 });
+          }
+          text = documentText.substring(startIndex, endIndex).trim();
           insertPosition = { line: lineNumber + 1, ch: 0 };
         }
+        console.log("Extracted text for completion:", text);
         const messages = parseSelection(text, this.settings.chatSeparator);
+        if (messages.length === 0) {
+          new import_obsidian3.Notice("No valid messages found in the selection.");
+          return;
+        }
         editor.replaceRange(`
 
 ${this.settings.chatSeparator}
