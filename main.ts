@@ -187,12 +187,10 @@ class ModelSettingsView extends ItemView {
         }
     }
 
-    private renderOpenAISettings(containerEl: HTMLElement) {
-        const settings = this.plugin.settings.openaiSettings;
-
+    private renderProviderSettings(containerEl: HTMLElement, settings: any, providerName: string, testConnectionCallback: () => Promise<void>) {
         new Setting(containerEl)
             .setName('Test Connection')
-            .setDesc('Verify your API key and fetch available models')
+            .setDesc(`Verify your API key and fetch available models for ${providerName}`)
             .addButton(button => button
                 .setButtonText('Test')
                 .onClick(async () => {
@@ -200,27 +198,7 @@ class ModelSettingsView extends ItemView {
                     button.setDisabled(true);
 
                     try {
-                        const provider = createProvider(this.plugin.settings);
-                        const result = await provider.testConnection();
-
-                        if (result.success && result.models) {
-                            settings.availableModels = result.models;
-                            await this.plugin.saveSettings();
-                            settings.lastTestResult = {
-                                timestamp: Date.now(),
-                                success: true,
-                                message: result.message
-                            };
-                            new Notice(result.message);
-                            this.onOpen(); // Refresh view
-                        } else {
-                            settings.lastTestResult = {
-                                timestamp: Date.now(),
-                                success: false,
-                                message: result.message
-                            };
-                            new Notice(result.message);
-                        }
+                        await testConnectionCallback();
                     } catch (error) {
                         new Notice(`Error: ${error.message}`);
                     } finally {
@@ -239,7 +217,7 @@ class ModelSettingsView extends ItemView {
 
         new Setting(containerEl)
             .setName('Model')
-            .setDesc('Choose the OpenAI model to use')
+            .setDesc(`Choose the ${providerName} model to use`)
             .addDropdown(dropdown => {
                 for (const model of settings.availableModels) {
                     dropdown.addOption(model, model);
@@ -251,204 +229,110 @@ class ModelSettingsView extends ItemView {
                         await this.plugin.saveSettings();
                     });
             });
+    }
+
+    private renderOpenAISettings(containerEl: HTMLElement) {
+        this.renderProviderSettings(containerEl, this.plugin.settings.openaiSettings, 'OpenAI', async () => {
+            const provider = createProvider(this.plugin.settings);
+            const result = await provider.testConnection();
+
+            if (result.success && result.models) {
+                this.plugin.settings.openaiSettings.availableModels = result.models;
+                await this.plugin.saveSettings();
+                this.plugin.settings.openaiSettings.lastTestResult = {
+                    timestamp: Date.now(),
+                    success: true,
+                    message: result.message
+                };
+                new Notice(result.message);
+                this.onOpen(); // Refresh view
+            } else {
+                this.plugin.settings.openaiSettings.lastTestResult = {
+                    timestamp: Date.now(),
+                    success: false,
+                    message: result.message
+                };
+                new Notice(result.message);
+            }
+        });
     }
 
     private renderAnthropicSettings(containerEl: HTMLElement) {
-        const settings = this.plugin.settings.anthropicSettings;
+        this.renderProviderSettings(containerEl, this.plugin.settings.anthropicSettings, 'Anthropic', async () => {
+            const provider = createProvider(this.plugin.settings);
+            const result = await provider.testConnection();
 
-        new Setting(containerEl)
-            .setName('Test Connection')
-            .setDesc('Verify your API key and fetch available models')
-            .addButton(button => button
-                .setButtonText('Test')
-                .onClick(async () => {
-                    button.setButtonText('Testing...');
-                    button.setDisabled(true);
-
-                    try {
-                        const provider = createProvider(this.plugin.settings);
-                        const result = await provider.testConnection();
-
-                        if (result.success && result.models) {
-                            settings.availableModels = result.models;
-                            await this.plugin.saveSettings();
-                            settings.lastTestResult = {
-                                timestamp: Date.now(),
-                                success: true,
-                                message: result.message
-                            };
-                            new Notice(result.message);
-                            this.onOpen(); // Refresh view
-                        } else {
-                            settings.lastTestResult = {
-                                timestamp: Date.now(),
-                                success: false,
-                                message: result.message
-                            };
-                            new Notice(result.message);
-                        }
-                    } catch (error) {
-                        new Notice(`Error: ${error.message}`);
-                    } finally {
-                        button.setButtonText('Test');
-                        button.setDisabled(false);
-                    }
-                }));
-
-        if (settings.lastTestResult) {
-            const date = new Date(settings.lastTestResult.timestamp);
-            containerEl.createEl('div', {
-                text: `Last test: ${date.toLocaleString()} - ${settings.lastTestResult.message}`,
-                cls: settings.lastTestResult.success ? 'success' : 'error'
-            });
-        }
-
-        new Setting(containerEl)
-            .setName('Model')
-            .setDesc('Choose the Anthropic model to use')
-            .addDropdown(dropdown => {
-                for (const model of settings.availableModels) {
-                    dropdown.addOption(model, model);
-                }
-                dropdown
-                    .setValue(settings.model)
-                    .onChange(async (value) => {
-                        settings.model = value;
-                        await this.plugin.saveSettings();
-                    });
-            });
+            if (result.success && result.models) {
+                this.plugin.settings.anthropicSettings.availableModels = result.models;
+                await this.plugin.saveSettings();
+                this.plugin.settings.anthropicSettings.lastTestResult = {
+                    timestamp: Date.now(),
+                    success: true,
+                    message: result.message
+                };
+                new Notice(result.message);
+                this.onOpen(); // Refresh view
+            } else {
+                this.plugin.settings.anthropicSettings.lastTestResult = {
+                    timestamp: Date.now(),
+                    success: false,
+                    message: result.message
+                };
+                new Notice(result.message);
+            }
+        });
     }
 
     private renderGeminiSettings(containerEl: HTMLElement) {
-        const settings = this.plugin.settings.geminiSettings;
+        this.renderProviderSettings(containerEl, this.plugin.settings.geminiSettings, 'Gemini', async () => {
+            const provider = createProvider(this.plugin.settings);
+            const result = await provider.testConnection();
 
-        new Setting(containerEl)
-            .setName('Test Connection')
-            .setDesc('Verify your API key and fetch available models')
-            .addButton(button => button
-                .setButtonText('Test')
-                .onClick(async () => {
-                    button.setButtonText('Testing...');
-                    button.setDisabled(true);
-
-                    try {
-                        const provider = createProvider(this.plugin.settings);
-                        const result = await provider.testConnection();
-
-                        if (result.success && result.models) {
-                            settings.availableModels = result.models;
-                            await this.plugin.saveSettings();
-                            settings.lastTestResult = {
-                                timestamp: Date.now(),
-                                success: true,
-                                message: result.message
-                            };
-                            new Notice(result.message);
-                            this.onOpen(); // Refresh view
-                        } else {
-                            settings.lastTestResult = {
-                                timestamp: Date.now(),
-                                success: false,
-                                message: result.message
-                            };
-                            new Notice(result.message);
-                        }
-                    } catch (error) {
-                        new Notice(`Error: ${error.message}`);
-                    } finally {
-                        button.setButtonText('Test');
-                        button.setDisabled(false);
-                    }
-                }));
-
-        if (settings.lastTestResult) {
-            const date = new Date(settings.lastTestResult.timestamp);
-            containerEl.createEl('div', {
-                text: `Last test: ${date.toLocaleString()} - ${settings.lastTestResult.message}`,
-                cls: settings.lastTestResult.success ? 'success' : 'error'
-            });
-        }
-
-        new Setting(containerEl)
-            .setName('Model')
-            .setDesc('Choose the Gemini model to use')
-            .addDropdown(dropdown => {
-                for (const model of settings.availableModels) {
-                    dropdown.addOption(model, model);
-                }
-                dropdown
-                    .setValue(settings.model)
-                    .onChange(async (value) => {
-                        settings.model = value;
-                        await this.plugin.saveSettings();
-                    });
-            });
+            if (result.success && result.models) {
+                this.plugin.settings.geminiSettings.availableModels = result.models;
+                await this.plugin.saveSettings();
+                this.plugin.settings.geminiSettings.lastTestResult = {
+                    timestamp: Date.now(),
+                    success: true,
+                    message: result.message
+                };
+                new Notice(result.message);
+                this.onOpen(); // Refresh view
+            } else {
+                this.plugin.settings.geminiSettings.lastTestResult = {
+                    timestamp: Date.now(),
+                    success: false,
+                    message: result.message
+                };
+                new Notice(result.message);
+            }
+        });
     }
 
     private renderOllamaSettings(containerEl: HTMLElement) {
-        const settings = this.plugin.settings.ollamaSettings;
+        this.renderProviderSettings(containerEl, this.plugin.settings.ollamaSettings, 'Ollama', async () => {
+            const provider = createProvider(this.plugin.settings);
+            const result = await provider.testConnection();
 
-        new Setting(containerEl)
-            .setName('Test Connection')
-            .setDesc('Check server connection and fetch available models')
-            .addButton(button => button
-                .setButtonText('Test')
-                .onClick(async () => {
-                    button.setButtonText('Testing...');
-                    button.setDisabled(true);
-
-                    try {
-                        const provider = createProvider(this.plugin.settings);
-                        const result = await provider.testConnection();
-
-                        if (result.success && result.models) {
-                            settings.availableModels = result.models;
-                            await this.plugin.saveSettings();
-                            settings.lastTestResult = {
-                                timestamp: Date.now(),
-                                success: true,
-                                message: result.message
-                            };
-                            new Notice(result.message);
-                            this.onOpen(); // Refresh view
-                        } else {
-                            settings.lastTestResult = {
-                                timestamp: Date.now(),
-                                success: false,
-                                message: result.message
-                            };
-                            new Notice(result.message);
-                        }
-                    } catch (error) {
-                        new Notice(`Error: ${error.message}`);
-                    } finally {
-                        button.setButtonText('Test');
-                        button.setDisabled(false);
-                    }
-                }));
-
-        if (settings.lastTestResult) {
-            const date = new Date(settings.lastTestResult.timestamp);
-            containerEl.createEl('div', {
-                text: `Last test: ${date.toLocaleString()} - ${settings.lastTestResult.message}`,
-                cls: settings.lastTestResult.success ? 'success' : 'error'
-            });
-        }
-
-        new Setting(containerEl)
-            .setName('Model')
-            .setDesc('Choose the Ollama model to use')
-            .addDropdown(dropdown => {
-                for (const model of settings.availableModels) {
-                    dropdown.addOption(model, model);
-                }
-                dropdown
-                    .setValue(settings.model)
-                    .onChange(async (value) => {
-                        settings.model = value;
-                        await this.plugin.saveSettings();
-                    });
-            });
+            if (result.success && result.models) {
+                this.plugin.settings.ollamaSettings.availableModels = result.models;
+                await this.plugin.saveSettings();
+                this.plugin.settings.ollamaSettings.lastTestResult = {
+                    timestamp: Date.now(),
+                    success: true,
+                    message: result.message
+                };
+                new Notice(result.message);
+                this.onOpen(); // Refresh view
+            } else {
+                this.plugin.settings.ollamaSettings.lastTestResult = {
+                    timestamp: Date.now(),
+                    success: false,
+                    message: result.message
+                };
+                new Notice(result.message);
+            }
+        });
 
         // Add help text for Ollama setup
         containerEl.createEl('div', {
