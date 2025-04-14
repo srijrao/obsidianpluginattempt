@@ -743,14 +743,32 @@ class ModelSettingsView extends ItemView {
  * @param selection - The text selection to parse
  * @returns Array of message objects with roles and content
  */
-function parseSelection(selection: string, chatSeparator: string): Message[] {
+function parseSelection(
+    selection: string,
+    chatSeparator: string,
+    chatBoundaryString?: string
+): Message[] {
     const lines = selection.split('\n');
     let messages: Message[] = [];
     let currentRole: 'user' | 'assistant' = 'user';
     let currentContent = '';
-
+    let insideChat = false; // Track whether we're inside a chat
 
     for (const line of lines) {
+        if (chatBoundaryString && line.trim() === chatBoundaryString) {
+            // Toggle the "insideChat" state
+            insideChat = !insideChat;
+
+            // If exiting a chat, save the last message
+            if (!insideChat && currentContent.trim()) {
+                messages.push({ role: currentRole, content: currentContent.trim() });
+                currentContent = '';
+            }
+            continue;
+        }
+
+        if (!insideChat) continue; // Ignore lines outside of a chat
+
         if (line.trim() === chatSeparator) {
             // If we hit a separator, save the current message and switch roles
             if (currentContent.trim()) {
@@ -763,6 +781,7 @@ function parseSelection(selection: string, chatSeparator: string): Message[] {
         }
     }
 
+    // Save any remaining content
     if (currentContent.trim()) {
         messages.push({ role: currentRole, content: currentContent.trim() });
     }

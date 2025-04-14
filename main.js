@@ -5076,12 +5076,22 @@ var ModelSettingsView = class extends import_obsidian3.ItemView {
     });
   }
 };
-function parseSelection(selection, chatSeparator) {
+function parseSelection(selection, chatSeparator, chatBoundaryString) {
   const lines = selection.split("\n");
   let messages = [];
   let currentRole = "user";
   let currentContent = "";
+  let insideChat = false;
   for (const line of lines) {
+    if (chatBoundaryString && line.trim() === chatBoundaryString) {
+      insideChat = !insideChat;
+      if (!insideChat && currentContent.trim()) {
+        messages.push({ role: currentRole, content: currentContent.trim() });
+        currentContent = "";
+      }
+      continue;
+    }
+    if (!insideChat) continue;
     if (line.trim() === chatSeparator) {
       if (currentContent.trim()) {
         messages.push({ role: currentRole, content: currentContent.trim() });
