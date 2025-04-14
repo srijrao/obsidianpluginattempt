@@ -86,6 +86,7 @@ export interface AIProvider {
 export interface MyPluginSettings {
     /** Which AI provider to use */
     provider: 'openai' | 'anthropic' | 'gemini' | 'ollama';
+    referenceCurrentNote: boolean;
 
     /** OpenAI-specific settings */
     openaiSettings: {
@@ -158,6 +159,7 @@ export interface MyPluginSettings {
  * Default settings used when initializing the plugin
  */
 export const DEFAULT_SETTINGS: MyPluginSettings = {
+    referenceCurrentNote: false,
     provider: 'openai',
     openaiSettings: {
         apiKey: '',

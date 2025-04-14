@@ -146,6 +146,17 @@ class SettingsModal extends Modal {
                     }
                 }));
     
+        // Add "Reference Current Note" toggle
+        new Setting(contentEl)
+            .setName('Reference Current Note')
+            .setDesc('Include the content of the current note in the chat context.')
+            .addToggle(toggle => toggle
+                .setValue(this.plugin.settings.referenceCurrentNote)
+                .onChange(async (value) => {
+                    this.plugin.settings.referenceCurrentNote = value;
+                    await this.plugin.saveSettings();
+                }));
+    
         // Provider-specific settings
         contentEl.createEl('h3', { text: `${this.plugin.settings.provider.toUpperCase()} Settings` });
     
@@ -406,6 +417,18 @@ export class ChatView extends ItemView {
                 const messages: Message[] = [
                     { role: 'system', content: this.plugin.getSystemMessage() }
                 ];
+
+                // Include the current note's content if the toggle is enabled
+                if (this.plugin.settings.referenceCurrentNote) {
+                    const currentFile = this.app.workspace.getActiveFile();
+                    if (currentFile) {
+                        const currentNoteContent = await this.app.vault.cachedRead(currentFile);
+                        messages.push({
+                            role: 'system',
+                            content: `Here is the content of the current note:\n\n${currentNoteContent}`
+                        });
+                    }
+                }
 
                 // Get all existing messages
                 const messageElements = this.messagesContainer.querySelectorAll('.ai-chat-message');
