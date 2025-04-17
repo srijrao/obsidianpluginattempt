@@ -5,30 +5,33 @@
  * and common error handling patterns.
  */
 
-import { AIProvider, Message, CompletionOptions, ConnectionTestResult } from '../types';
+import { Message, CompletionOptions, ConnectionTestResult } from '../types';
+import { APIHandler, APIError, StreamManager } from '../utils';
+import { debug } from '../settings';
 
 /**
  * Common error types across providers
  */
 export enum ProviderErrorType {
-    InvalidApiKey = 'invalid_api_key',
-    RateLimit = 'rate_limit',
-    InvalidRequest = 'invalid_request',
-    ServerError = 'server_error',
-    NetworkError = 'network_error'
+    INVALID_API_KEY = 'invalid_api_key',
+    RATE_LIMIT = 'rate_limit',
+    SERVER_ERROR = 'server_error',
+    INVALID_REQUEST = 'invalid_request',
+    CONTEXT_LENGTH = 'context_length',
+    CONTENT_FILTER = 'content_filter',
+    NETWORK_ERROR = 'network_error'
 }
 
 /**
  * Base error class for provider-specific errors
  */
 export class ProviderError extends Error {
-    type: ProviderErrorType;
-    statusCode?: number;
-
-    constructor(type: ProviderErrorType, message: string, statusCode?: number) {
+    constructor(
+        public type: ProviderErrorType,
+        message: string,
+        public statusCode?: number
+    ) {
         super(message);
-        this.type = type;
-        this.statusCode = statusCode;
         this.name = 'ProviderError';
     }
 }
@@ -36,142 +39,143 @@ export class ProviderError extends Error {
 /**
  * Base class for AI providers implementing common functionality
  */
-export abstract class BaseProvider implements AIProvider {
+export abstract class BaseProvider {
     protected abstract apiKey: string;
     protected abstract baseUrl: string;
     protected abstract model: string;
 
-    /**
-     * Get a completion from the AI model
-     */
-    abstract getCompletion(messages: Message[], options: CompletionOptions): Promise<void>;
+    protected async makeRequest(url: string, options: RequestInit): Promise<Response> {
+        return APIHandler.fetchWithRetry(url, options, {
+            maxRetries: 3,
+            baseDelay: 1000,
+            maxDelay: 10000
+        });
+    }
 
-    /**
-     * Get available models
-     */
-    abstract getAvailableModels(): Promise<string[]>;
-
-    /**
-     * Test connection to the provider
-     */
-    abstract testConnection(): Promise<ConnectionTestResult>;
-
-    /**
-     * Handle common HTTP errors
-     */
-    protected handleHttpError(error: any): never {
-        // Handle Response objects from fetch API
-        if (error instanceof Response) {
-            const status = error.status;
-            switch (status) {
-                case 401:
-                    throw new ProviderError(
-                        ProviderErrorType.InvalidApiKey,
-                        'Invalid API key',
-                        status
-                    );
-                case 429:
-                    throw new ProviderError(
-                        ProviderErrorType.RateLimit,
-                        'Rate limit exceeded',
-                        status
-                    );
-                case 400:
-                    throw new ProviderError(
-                        ProviderErrorType.InvalidRequest,
-                        'Invalid request',
-                        status
-                    );
-                case 500:
-                case 502:
-                case 503:
-                case 504:
-                    throw new ProviderError(
-                        ProviderErrorType.ServerError,
-                        'Server error occurred',
-                        status
-                    );
-                default:
-                    throw new ProviderError(
-                        ProviderErrorType.ServerError,
-                        `Unknown error occurred: ${status}`,
-                        status
-                    );
-            }
-        }
-
-        // Handle error objects with response property (like Axios errors)
-        if (!error.response) {
-            throw new ProviderError(
-                ProviderErrorType.NetworkError,
-                'Network error occurred'
-            );
-        }
-
-        const status = error.response.status;
+    protected handleHttpError(response: Response): ProviderError {
+        const status = response.status;
+        
         switch (status) {
             case 401:
-                throw new ProviderError(
-                    ProviderErrorType.InvalidApiKey,
+                return new ProviderError(
+                    ProviderErrorType.INVALID_API_KEY,
                     'Invalid API key',
                     status
                 );
             case 429:
-                throw new ProviderError(
-                    ProviderErrorType.RateLimit,
+                return new ProviderError(
+                    ProviderErrorType.RATE_LIMIT,
                     'Rate limit exceeded',
                     status
                 );
             case 400:
-                throw new ProviderError(
-                    ProviderErrorType.InvalidRequest,
-                    'Invalid request',
+                return new ProviderError(
+                    ProviderErrorType.INVALID_REQUEST,
+                    'Invalid request parameters',
                     status
                 );
-            case 500:
-            case 502:
-            case 503:
-            case 504:
-                throw new ProviderError(
-                    ProviderErrorType.ServerError,
-                    'Server error occurred',
+            case 413:
+                return new ProviderError(
+                    ProviderErrorType.CONTEXT_LENGTH,
+                    'Input too long',
                     status
                 );
             default:
-                throw new ProviderError(
-                    ProviderErrorType.ServerError,
-                    `Unknown error occurred: ${status}`,
+                if (status >= 500) {
+                    return new ProviderError(
+                        ProviderErrorType.SERVER_ERROR,
+                        `Server error (${status})`,
+                        status
+                    );
+                }
+                return new ProviderError(
+                    ProviderErrorType.SERVER_ERROR,
+                    `HTTP error ${status}`,
                     status
                 );
         }
     }
 
-    /**
-     * Format error message for connection test results
-     */
-    protected formatErrorMessage(error: any): string {
-        if (error instanceof ProviderError) {
-            switch (error.type) {
-                case ProviderErrorType.InvalidApiKey:
-                    return 'Invalid API key. Please check your credentials.';
-                case ProviderErrorType.RateLimit:
-                    return 'Rate limit exceeded. Please try again later.';
-                case ProviderErrorType.NetworkError:
-                    return 'Network error. Please check your internet connection.';
-                default:
-                    return error.message;
-            }
+    protected validateCompletionOptions(options: CompletionOptions): void {
+        if (options.temperature !== undefined && (options.temperature < 0 || options.temperature > 1)) {
+            throw new ProviderError(
+                ProviderErrorType.INVALID_REQUEST,
+                'Temperature must be between 0 and 1'
+            );
         }
-        return error.message || 'An unknown error occurred';
+
+        if (options.maxTokens !== undefined && options.maxTokens <= 0) {
+            throw new ProviderError(
+                ProviderErrorType.INVALID_REQUEST,
+                'Max tokens must be greater than 0'
+            );
+        }
     }
 
     /**
      * Create a standard error response for connection tests
      */
     protected createErrorResponse(error: any): ConnectionTestResult {
+        let message = 'Connection failed: ';
+
+        if (error instanceof ProviderError) {
+            switch (error.type) {
+                case ProviderErrorType.INVALID_API_KEY:
+                    message += 'Invalid API key. Please check your credentials.';
+                    break;
+                case ProviderErrorType.RATE_LIMIT:
+                    message += 'Rate limit exceeded. Please try again later.';
+                    break;
+                case ProviderErrorType.NETWORK_ERROR:
+                    message += 'Network error. Please check your internet connection.';
+                    break;
+                default:
+                    message += error.message;
+                    break;
+            }
+        } else if (error instanceof APIError) {
+            message += error.message;
+        } else if (error instanceof Error) {
+            message += error.message;
+        } else {
+            message += 'Unknown error occurred';
+        }
+
         return {
             success: false,
-            message: this.formatErrorMessage(error)
+            message
         };
+    }
+
+    abstract getCompletion(messages: Message[], options: CompletionOptions): Promise<void>;
+    abstract getAvailableModels(): Promise<string[]>;
+    abstract testConnection(): Promise<ConnectionTestResult>;
+
+    protected createStreamManager(options: CompletionOptions): StreamManager | undefined {
+        if (!options.streamCallback) return undefined;
+        
+        return new StreamManager(
+            options.streamCallback,
+            undefined,
+            (error) => {
+                debug('Stream error:', error);
+            }
+        );
+    }
+
+    protected logRequestStart(method: string, endpoint: string): void {
+        debug(`${method} ${endpoint} - Request started`);
+    }
+
+    protected logRequestEnd(method: string, endpoint: string, duration: number): void {
+        debug(`${method} ${endpoint} - Request completed in ${duration}ms`);
+    }
+
+    protected logError(error: Error): void {
+        if (error instanceof ProviderError) {
+            debug(`Provider error: ${error.type} - ${error.message}`);
+        } else {
+            debug('Unexpected error:', error);
+        }
     }
 }

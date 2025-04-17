@@ -7,10 +7,7 @@
  */
 
 /**
- * Represents a chat message in a conversation
- * 
- * @property role - Who sent the message ('system', 'user', or 'assistant')
- * @property content - The actual text content of the message
+ * Message format for chat conversations
  */
 export interface Message {
     role: 'system' | 'user' | 'assistant';
@@ -18,24 +15,17 @@ export interface Message {
 }
 
 /**
- * Options for generating AI completions
- * 
- * These settings control how the AI generates its response.
- * Not all options are supported by all providers.
+ * Options for generating completions
  */
 export interface CompletionOptions {
     temperature?: number;
     maxTokens?: number;
-    streamCallback?: (chunk: string) => void;
+    streamCallback?: ((chunk: string) => void) | ((chunk: string) => Promise<void>);
     abortController?: AbortController;
 }
 
 /**
- * Result of testing an AI provider connection
- * 
- * @property success - Whether the connection test passed
- * @property message - Human-readable result message
- * @property models - List of available models (if test successful)
+ * Result of testing a provider connection
  */
 export interface ConnectionTestResult {
     success: boolean;
@@ -78,53 +68,35 @@ export interface AIProvider {
 }
 
 /**
- * Plugin Settings
- * 
- * These settings control how the AI Assistant plugin works.
- * They are saved between sessions and can be configured in the settings tab.
+ * Chat state for managing UI state and interactions
+ */
+export type ChatState = 'idle' | 'streaming' | 'thinking' | 'error';
+
+/**
+ * Provider-specific settings
+ */
+interface ProviderSettings {
+    apiKey: string;
+    model: string;
+    availableModels: string[];
+    lastTestResult?: {
+        timestamp: number;
+        success: boolean;
+        message: string;
+    };
+}
+
+/**
+ * Plugin settings with improved type safety
  */
 export interface MyPluginSettings {
-    /** Which AI provider to use */
+    // Provider selection
     provider: 'openai' | 'anthropic' | 'gemini' | 'ollama';
-    referenceCurrentNote: boolean;
 
-    /** OpenAI-specific settings */
-    openaiSettings: {
-        apiKey: string;
-        model: string;
-        availableModels: string[];
-        lastTestResult?: {
-            timestamp: number;
-            success: boolean;
-            message: string;
-        };
-    };
-
-    /** Anthropic-specific settings */
-    anthropicSettings: {
-        apiKey: string;
-        model: string;
-        availableModels: string[];
-        lastTestResult?: {
-            timestamp: number;
-            success: boolean;
-            message: string;
-        };
-    };
-
-    /** Google Gemini-specific settings */
-    geminiSettings: {
-        apiKey: string;
-        model: string;
-        availableModels: string[];
-        lastTestResult?: {
-            timestamp: number;
-            success: boolean;
-            message: string;
-        };
-    };
-
-    /** Ollama-specific settings */
+    // Provider-specific settings
+    openaiSettings: ProviderSettings;
+    anthropicSettings: ProviderSettings;
+    geminiSettings: ProviderSettings;
     ollamaSettings: {
         serverUrl: string;
         model: string;
@@ -136,7 +108,7 @@ export interface MyPluginSettings {
         };
     };
 
-    /** Settings that apply to all providers */
+    // Common settings
     systemMessage: string;
     temperature: number;
     maxTokens: number;
@@ -145,36 +117,42 @@ export interface MyPluginSettings {
     enableStreaming: boolean;
     autoOpenModelSettings: boolean;
     enableObsidianLinks: boolean;
-    /** The string that separates chat messages */
-    chatSeparator: string;
-    /** The string that starts chat messages in a note, if present */
-    chatStartString?: string;
-    /** The string that ends chat messages in a note, if present */
-    chatEndString?: string;
     enableContextNotes: boolean;
     contextNotes: string;
+    referenceCurrentNote: boolean;
+
+    // Chat formatting
+    chatSeparator: string;
+    chatStartString?: string;
+    chatEndString?: string;
+
+    // Debug mode
+    debugMode: boolean;
 }
 
 /**
- * Default settings used when initializing the plugin
+ * Default settings
  */
 export const DEFAULT_SETTINGS: MyPluginSettings = {
-    referenceCurrentNote: false,
     provider: 'openai',
     openaiSettings: {
         apiKey: '',
-        model: 'gpt-4o-mini',
-        availableModels: []
+        model: 'gpt-4',
+        availableModels: ['gpt-4', 'gpt-4-turbo-preview', 'gpt-3.5-turbo']
     },
     anthropicSettings: {
         apiKey: '',
-        model: 'claude-3-5-sonnet-latest',
-        availableModels: []
+        model: 'claude-3-sonnet-20240229',
+        availableModels: [
+            'claude-3-opus-20240229',
+            'claude-3-sonnet-20240229',
+            'claude-3-haiku-20240307'
+        ]
     },
     geminiSettings: {
         apiKey: '',
         model: 'gemini-pro',
-        availableModels: []
+        availableModels: ['gemini-pro']
     },
     ollamaSettings: {
         serverUrl: 'http://localhost:11434',
@@ -183,15 +161,15 @@ export const DEFAULT_SETTINGS: MyPluginSettings = {
     },
     systemMessage: 'You are a helpful assistant.',
     temperature: 0.7,
-    maxTokens: 1000,
-    includeDateWithSystemMessage: false,
+    maxTokens: 2000,
+    includeDateWithSystemMessage: true,
     includeTimeWithSystemMessage: false,
     enableStreaming: true,
-    autoOpenModelSettings: true,
+    autoOpenModelSettings: false,
     enableObsidianLinks: true,
-    chatSeparator: '----',
-    chatStartString: undefined,
-    chatEndString: undefined,
     enableContextNotes: false,
-    contextNotes: ''
+    contextNotes: '',
+    referenceCurrentNote: false,
+    chatSeparator: '----',
+    debugMode: false
 };
