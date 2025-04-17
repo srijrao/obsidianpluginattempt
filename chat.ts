@@ -2,6 +2,7 @@ import { ItemView, WorkspaceLeaf, Notice, Modal, App, Setting, MarkdownRenderer 
 import MyPlugin from './main';
 import { Message } from './types';
 import { createProvider } from './providers';
+import { EventManager } from './utils';
 
 export const VIEW_TYPE_CHAT = 'chat-view';
 
@@ -25,7 +26,7 @@ class SettingsModal extends Modal {
             .setDesc('Choose which AI provider to use')
             .addDropdown(dropdown => {
                 dropdown
-                    .addOption('openai', 'OpenAI (GPT-3.5, GPT-4)')
+                    .addOption('openai', 'OpenAI')
                     .addOption('anthropic', 'Anthropic (Claude)')
                     .addOption('gemini', 'Google (Gemini)')
                     .addOption('ollama', 'Ollama (Local AI)')
@@ -286,15 +287,87 @@ class ConfirmationModal extends Modal {
     }
 }
 
+// State enum for chat UI
+export enum ChatUIState {
+    IDLE = 'idle',
+    LOADING = 'loading',
+    STREAMING = 'streaming',
+    ERROR = 'error'
+}
+
+// ChatService class to handle chat logic
+export class ChatService {
+    private eventManager: EventManager;
+    private activeStream: AbortController | null = null;
+
+    constructor(
+        private app: App,
+        private view: ChatView
+    ) {
+        this.eventManager = new EventManager();
+    }
+
+    public async sendMessage(content: string): Promise<void> {
+        if (!content.trim()) return;
+
+        try {
+            const userMessage = await this.createAndAppendMessage('user', content);
+            const assistantMessage = await this.createAndAppendMessage('assistant', '');
+            
+            await this.streamResponse(assistantMessage, content);
+        } catch (error) {
+            new Notice(`Error: ${error.message}`);
+        }
+    }
+
+    private async streamResponse(messageEl: HTMLElement, prompt: string): Promise<void> {
+        // Implementation
+    }
+
+    private async createAndAppendMessage(role: 'user' | 'assistant', content: string): Promise<HTMLElement> {
+        const messageEl = document.createElement('div');
+        messageEl.classList.add('chat-message', role);
+        
+        const contentEl = document.createElement('div');
+        contentEl.classList.add('message-content');
+        contentEl.innerHTML = content;
+        
+        messageEl.appendChild(contentEl);
+        return messageEl;
+    }
+
+    public stop(): void {
+        if (this.activeStream) {
+            this.activeStream.abort();
+            this.activeStream = null;
+        }
+    }
+
+    public destroy(): void {
+        this.stop();
+        this.eventManager.cleanup();
+    }
+}
+
 export class ChatView extends ItemView {
     plugin: MyPlugin;
-    messagesContainer: HTMLElement;
-    inputContainer: HTMLElement;
-    activeStream: AbortController | null = null;
+    private messagesContainer: HTMLElement;
+    private inputContainer: HTMLElement;
+    private eventManager: EventManager;
+    private chatService: ChatService;
+    private debouncedSendMessage: Function;
+    private messageHistory: Message[] = [];
+    private settingsContainer: HTMLElement | null = null;
+    private activeStream: AbortController | null = null;
 
     constructor(leaf: WorkspaceLeaf, plugin: MyPlugin) {
         super(leaf);
         this.plugin = plugin;
+        this.eventManager = new EventManager();
+        this.chatService = new ChatService(this.app, this); // Fix: Use this.app instead of plugin
+        this.debouncedSendMessage = this.debounce(this.chatService.sendMessage.bind(this.chatService), 400);
+        this.messagesContainer = createDiv('ai-chat-messages');
+        this.inputContainer = createDiv('ai-chat-input-container');
     }
 
     getViewType(): string {
@@ -309,219 +382,140 @@ export class ChatView extends ItemView {
         return 'message-square';
     }
 
-    private settingsContainer: HTMLElement | null = null;
-
     async onOpen() {
         const { contentEl } = this;
         contentEl.empty();
-
-        // Create main container with flex layout
         contentEl.addClass('ai-chat-view');
 
-        // Create settings button in the button container (will be added later)
-        const settingsButton = document.createElement('button');
-        settingsButton.setText('Settings');
-        settingsButton.setAttribute('aria-label', 'Toggle model settings');
-        
-        // We'll add this button to the button container later
-        
-        // Messages container
-        this.messagesContainer = contentEl.createDiv('ai-chat-messages');
+        // Create UI components
+        this.createMessagesContainer(contentEl);
+        this.createInputArea(contentEl);
+
+        // Register workspace events
+        this.registerEvent(
+            this.app.workspace.on('active-leaf-change', this.handleActiveLeafChange.bind(this))
+        );
+
+        // Initial greeting
+        await this.addMessage('assistant', 'Hello! How can I help you today?');
+    }
+
+    private createMessagesContainer(parentEl: HTMLElement) {
+        this.messagesContainer = parentEl.createDiv('ai-chat-messages');
         this.messagesContainer.style.flex = '1';
         this.messagesContainer.style.overflow = 'auto';
         this.messagesContainer.style.padding = '16px';
+    }
 
-        // Input container at bottom
-        this.inputContainer = contentEl.createDiv('ai-chat-input-container');
+    private createInputArea(parentEl: HTMLElement) {
+        this.inputContainer = parentEl.createDiv('ai-chat-input-container');
         this.inputContainer.style.borderTop = '1px solid var(--background-modifier-border)';
         this.inputContainer.style.padding = '16px';
 
-        // Textarea for input
-        const textarea = this.inputContainer.createEl('textarea', {
-            cls: 'ai-chat-input',
-            attr: {
-                placeholder: 'Type your message...',
-                rows: '3'
+        const textarea = this.createChatTextarea();
+        const buttonContainer = this.createButtonContainer();
+        
+        this.inputContainer.appendChild(textarea);
+        this.inputContainer.appendChild(buttonContainer);
+    }
+
+    private createChatTextarea(): HTMLTextAreaElement {
+        const textarea = document.createElement('textarea');
+        textarea.addClass('ai-chat-input');
+        textarea.placeholder = 'Type your message...';
+        textarea.rows = 3;
+        textarea.style.width = '100%';
+        textarea.style.resize = 'none';
+
+        // Register event listeners with cleanup
+        this.eventManager.addEventListener(textarea, 'keydown', (e: KeyboardEvent) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                this.debouncedSendMessage(textarea.value);
+                textarea.value = '';
             }
         });
 
-        // Style the textarea
-        textarea.style.width = '100%';
-        textarea.style.resize = 'none';
-        textarea.style.border = '1px solid var(--background-modifier-border)';
-        textarea.style.borderRadius = '4px';
-        textarea.style.padding = '8px';
-        textarea.style.backgroundColor = 'var(--background-primary)';
-        textarea.style.color = 'var(--text-normal)';
+        return textarea;
+    }
 
-        // Button container
-        const buttonContainer = this.inputContainer.createDiv('ai-chat-buttons');
-        buttonContainer.style.marginTop = '8px';
-        buttonContainer.style.display = 'flex';
-        buttonContainer.style.gap = '8px';
-        buttonContainer.style.justifyContent = 'flex-end';
+    private createButtonContainer(): HTMLElement {
+        const container = document.createElement('div');
+        container.addClass('ai-chat-buttons');
+        container.style.marginTop = '8px';
+        container.style.display = 'flex';
+        container.style.gap = '8px';
+        container.style.justifyContent = 'flex-end';
 
         // Send button
-        const sendButton = buttonContainer.createEl('button', {
-            text: 'Send',
-            cls: 'mod-cta'
+        const sendButton = this.createButton('Send', 'mod-cta');
+        this.eventManager.addEventListener(sendButton, 'click', () => {
+            const textarea = this.inputContainer.querySelector('textarea');
+            if (textarea) {
+                this.debouncedSendMessage(textarea.value);
+                textarea.value = '';
+            }
         });
 
-        // Stop button (hidden initially)
-        const stopButton = buttonContainer.createEl('button', {
-            text: 'Stop',
-        });
+        // Stop button
+        const stopButton = this.createButton('Stop');
         stopButton.style.display = 'none';
-
-        // Copy All button
-        const copyAllButton = buttonContainer.createEl('button', {
-            text: 'Copy All'
-        });
-        copyAllButton.addEventListener('click', async () => {
-            const messages = this.messagesContainer.querySelectorAll('.ai-chat-message');
-            let chatContent = '';
-            messages.forEach((el, index) => {
-                const content = el.querySelector('.message-content')?.textContent || '';
-                chatContent += content;
-                if (index < messages.length - 1) {
-                    chatContent += '\n\n' + this.plugin.settings.chatSeparator + '\n\n';
-                }
-            });
-            await this.copyToClipboard(chatContent);
+        this.eventManager.addEventListener(stopButton, 'click', () => {
+            this.chatService.stop();
         });
 
         // Clear button
-        const clearButton = buttonContainer.createEl('button', {
-            text: 'Clear Chat'
+        const clearButton = this.createButton('Clear Chat');
+        this.eventManager.addEventListener(clearButton, 'click', () => {
+            this.clearChat();
         });
 
-        // Handle send message
-        const sendMessage = async () => {
-            const content = textarea.value.trim();
-            if (!content) return;
+        // Settings button
+        const settingsButton = this.createButton('Settings');
+        this.eventManager.addEventListener(settingsButton, 'click', () => {
+            new SettingsModal(this.app, this.plugin).open();
+        });
 
-            // Disable input and show stop button
-            textarea.disabled = true;
-            sendButton.style.display = 'none';
-            stopButton.style.display = 'block';
+        container.appendChild(settingsButton);
+        container.appendChild(sendButton);
+        container.appendChild(stopButton);
+        container.appendChild(clearButton);
 
-            // Add user message
-            this.addMessage('user', content);
-            textarea.value = '';
+        return container;
+    }
 
-            // Create abort controller for streaming
-            this.activeStream = new AbortController();
+    private createButton(text: string, cls?: string): HTMLButtonElement {
+        const button = document.createElement('button');
+        button.setText(text);
+        if (cls) button.addClass(cls);
+        return button;
+    }
 
-            try {
-                const provider = createProvider(this.plugin.settings);
-                const messages: Message[] = [
-                    { role: 'system', content: this.plugin.getSystemMessage() }
-                ];
+    clearChat() {
+        this.messagesContainer.empty();
+        this.addMessage('assistant', 'Chat cleared. How can I help you?');
+    }
 
-                // Include the current note's content if the toggle is enabled
-                if (this.plugin.settings.referenceCurrentNote) {
-                    const currentFile = this.app.workspace.getActiveFile();
-                    if (currentFile) {
-                        const currentNoteContent = await this.app.vault.cachedRead(currentFile);
-                        messages.push({
-                            role: 'system',
-                            content: `Here is the content of the current note:\n\n${currentNoteContent}`
-                        });
-                    }
-                }
+    private updateUIState(state: ChatUIState) {
+        const textarea = this.inputContainer.querySelector('textarea');
+        const sendButton = this.inputContainer.querySelector('button.mod-cta') as HTMLButtonElement;
+        const stopButton = this.inputContainer.querySelector('button:nth-child(3)') as HTMLButtonElement;
 
-                // Get all existing messages
-                const messageElements = this.messagesContainer.querySelectorAll('.ai-chat-message');
-                messageElements.forEach(el => {
-                    const role = el.classList.contains('user') ? 'user' : 'assistant';
-                    const content = el.querySelector('.message-content')?.textContent || '';
-                    messages.push({ role, content });
-                });
-
-                // Create assistant message container for streaming
-                const assistantContainer = this.createMessageElement('assistant', '');
-                this.messagesContainer.appendChild(assistantContainer);
-                this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
-
-                let responseContent = '';
-                await provider.getCompletion(
-                    messages,
-                    {
-                        temperature: this.plugin.settings.temperature,
-                        maxTokens: this.plugin.settings.maxTokens,
-                        streamCallback: async (chunk: string) => {
-                            responseContent += chunk;
-                            const contentEl = assistantContainer.querySelector('.message-content') as HTMLElement;
-                            if (contentEl) {
-                                // Update the data attribute with the current content
-                                assistantContainer.dataset.rawContent = responseContent;
-                                
-                                // Render Markdown content dynamically
-                                contentEl.empty();
-                                await MarkdownRenderer.render(
-                                    this.app,
-                                    responseContent,
-                                    contentEl,
-                                    '',
-                                    this
-                                );
-                                this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
-                            }
-                        },
-                        abortController: this.activeStream
-                    }
-                );
-            } catch (error) {
-                if (error.name !== 'AbortError') {
-                    new Notice(`Error: ${error.message}`);
-                    this.addMessage('assistant', `Error: ${error.message}`);
-                }
-            } finally {
-                // Re-enable input and hide stop button
-                textarea.disabled = false;
-                textarea.focus();
+        if (state === ChatUIState.STREAMING) {
+            if (textarea) (textarea as HTMLTextAreaElement).disabled = true;
+            if (sendButton) sendButton.disabled = true;
+            if (stopButton) {
+                stopButton.style.display = 'block';
+                stopButton.disabled = false;
+            }
+        } else {
+            if (textarea) (textarea as HTMLTextAreaElement).disabled = false;
+            if (sendButton) sendButton.disabled = false;
+            if (stopButton) {
                 stopButton.style.display = 'none';
-                sendButton.style.display = 'block';
-                this.activeStream = null;
+                stopButton.disabled = true;
             }
-        };
-
-        // Event listeners
-        textarea.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                sendMessage();
-            }
-        });
-
-        sendButton.addEventListener('click', sendMessage);
-
-        stopButton.addEventListener('click', () => {
-            if (this.activeStream) {
-                this.activeStream.abort();
-                this.activeStream = null;
-                textarea.disabled = false;
-                textarea.focus();
-                stopButton.style.display = 'none';
-                sendButton.style.display = 'block';
-            }
-        });
-
-        clearButton.addEventListener('click', () => {
-            this.messagesContainer.empty();
-        });
-
-        // Add settings button to the button container
-        buttonContainer.insertBefore(settingsButton, clearButton);
-        
-        // Settings button click handler
-        settingsButton.addEventListener('click', () => {
-            const settingsModal = new SettingsModal(this.app, this.plugin);
-            settingsModal.open();
-        });
-
-        // Add initial system message
-        this.addMessage('assistant', 'Hello! How can I help you today?');
+        }
     }
 
     private createActionButton(icon: string, label: string, tooltip: string, callback: () => void): HTMLElement {
@@ -557,53 +551,47 @@ export class ChatView extends ItemView {
         }
     }
 
-    private createMessageElement(role: 'user' | 'assistant', content: string): HTMLElement {
+    public async createMessageElement(role: string, content: string): Promise<HTMLElement> {
         const messageEl = document.createElement('div');
-        messageEl.addClass('ai-chat-message', role);
-        messageEl.style.marginBottom = '16px';
-        messageEl.style.padding = '12px';
-        messageEl.style.borderRadius = '8px';
-        messageEl.style.backgroundColor = role === 'user' 
-            ? 'var(--background-modifier-hover)'
-            : 'var(--background-secondary)';
-
-        // Create message container with content and actions
-        const messageContainer = messageEl.createDiv('message-container');
-
-        // Create content element
-        const contentEl = messageContainer.createDiv('message-content');
-        contentEl.style.whiteSpace = 'pre-wrap';
-        
-        // Store the raw Markdown content as a data attribute
+        messageEl.addClass('chat-message', role);
         messageEl.dataset.rawContent = content;
+        
+        const contentEl = document.createElement('div');
+        contentEl.addClass('message-content');
+        
+        // Render markdown content
+        await MarkdownRenderer.render(this.app, content, contentEl, '', this);
+        messageEl.appendChild(contentEl);
+        
+        // Add message actions
+        const actionsEl = this.createMessageActions(messageEl, role);
+        messageEl.appendChild(actionsEl);
 
-        // Render Markdown content
-        MarkdownRenderer.render(
-            this.app,
-            content,
-            contentEl,
-            '',
-            this
-        ).catch((error) => {
-            console.error('Markdown rendering error:', error);
-            contentEl.textContent = content;
-        });
+        // Add to container and scroll
+        this.messagesContainer.appendChild(messageEl);
+        this.scrollToBottom();
+        
+        // Add to history
+        this.messageHistory.push({ role: role as 'user' | 'assistant', content });
 
-        // Create actions container
-        const actionsEl = messageContainer.createDiv('message-actions');
+        return messageEl;
+    }
+
+    private createMessageActions(messageEl: HTMLElement, role: string): HTMLElement {
+        const actionsEl = document.createElement('div');
+        actionsEl.addClass('message-actions');
         actionsEl.style.display = 'none';
+        actionsEl.style.flexWrap = 'wrap';
+        actionsEl.style.gap = '8px';
+        actionsEl.style.marginTop = '8px';
 
-        // Add hover behavior to the message element
+        // Add hover behavior
         messageEl.addEventListener('mouseenter', () => {
             actionsEl.style.display = 'flex';
         });
         messageEl.addEventListener('mouseleave', () => {
             actionsEl.style.display = 'none';
         });
-
-        actionsEl.style.flexWrap = 'wrap';
-        actionsEl.style.gap = '8px';
-        actionsEl.style.marginTop = '8px';
 
         // Add copy button
         actionsEl.appendChild(this.createActionButton('copy', 'Copy', 'Copy message', () => {
@@ -617,150 +605,166 @@ export class ChatView extends ItemView {
 
         // Add edit button
         actionsEl.appendChild(this.createActionButton('edit', 'Edit', 'Edit message', () => {
-            const wasEditing = contentEl.hasClass('editing');
-            
-            if (!wasEditing) {
-                // Switch to edit mode
-                const textarea = document.createElement('textarea');
-                textarea.value = messageEl.dataset.rawContent || '';
-                textarea.style.width = '100%';
-                textarea.style.height = `${contentEl.offsetHeight}px`;
-                textarea.style.minHeight = '100px';
-                contentEl.empty();
-                contentEl.appendChild(textarea);
-                textarea.focus();
-                contentEl.addClass('editing');
-            } else {
-                // Save edits
-                const textarea = contentEl.querySelector('textarea');
-                if (textarea) {
-                    // Update the data attribute with the new content
-                    messageEl.dataset.rawContent = textarea.value;
-                    contentEl.empty();
-                    MarkdownRenderer.render(this.app, textarea.value, contentEl, '', this).catch((error) => {
-                        console.error('Markdown rendering error:', error);
-                        contentEl.textContent = textarea.value;
-                    });
-                    contentEl.removeClass('editing');
-                }
-            }
+            this.handleMessageEdit(messageEl);
         }));
 
         // Add delete button
         actionsEl.appendChild(this.createActionButton('trash', 'Delete', 'Delete message', () => {
-            const modal = new ConfirmationModal(
-                this.app,
-                'Delete message',
-                'Are you sure you want to delete this message?',
-                async (confirmed) => {
-                    if (confirmed) {
-                        messageEl.remove();
-                    }
-                }
-            );
-            modal.open();
+            this.handleMessageDelete(messageEl);
         }));
 
         // Add refresh button for assistant messages
         if (role === 'assistant') {
-            actionsEl.appendChild(this.createActionButton('refresh-cw', 'Regenerate', 'Regenerate response', async () => {
-                // Find this message element
-                const currentMessage = messageEl;
-                
-                // Disable input during regeneration
-                const textarea = this.inputContainer.querySelector('textarea');
-                if (textarea) textarea.disabled = true;
-                
-                // Find all previous messages to maintain context
-                const allMessages = Array.from(this.messagesContainer.querySelectorAll('.ai-chat-message'));
-                const currentIndex = allMessages.indexOf(currentMessage);
-                
-                // Get system message and all previous messages up to current
-                const messages: Message[] = [
-                    { role: 'system', content: this.plugin.getSystemMessage() }
-                ];
-                
-                for (let i = 0; i < currentIndex; i++) {
-                    const el = allMessages[i];
-                    const role = el.classList.contains('user') ? 'user' : 'assistant';
-                    const content = (el as HTMLElement).dataset.rawContent || '';
-                    messages.push({ role, content });
-                }
-                
-                // Remove the current response
-                currentMessage.remove();
-                
-                // Create new assistant message for streaming
-                const assistantContainer = this.createMessageElement('assistant', '');
-                this.messagesContainer.appendChild(assistantContainer);
-                this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
-                
-                // Create abort controller for streaming
-                this.activeStream = new AbortController();
-                
-                try {
-                    const provider = createProvider(this.plugin.settings);
-                    let responseContent = '';
-                    await provider.getCompletion(
-                        messages,
-                        {
-                            temperature: this.plugin.settings.temperature,
-                            maxTokens: this.plugin.settings.maxTokens,
-                            streamCallback: async (chunk: string) => {
-                                responseContent += chunk;
-                                const contentEl = assistantContainer.querySelector('.message-content') as HTMLElement;
-                                if (contentEl) {
-                                    // Update the data attribute with the current content
-                                    assistantContainer.dataset.rawContent = responseContent;
-                                    
-                                    // Render Markdown content dynamically
-                                    contentEl.empty();
-                                    await MarkdownRenderer.render(
-                                        this.app,
-                                        responseContent,
-                                        contentEl,
-                                        '',
-                                        this
-                                    );
-                                    this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
-                                }
-                            },
-                            abortController: this.activeStream
-                        }
-                    );
-                } catch (error) {
-                    if (error.name !== 'AbortError') {
-                        new Notice(`Error: ${error.message}`);
-                        this.addMessage('assistant', `Error: ${error.message}`);
-                    }
-                } finally {
-                    // Re-enable input
-                    if (textarea) {
-                        textarea.disabled = false;
-                        textarea.focus();
-                    }
-                    this.activeStream = null;
-                }
+            actionsEl.appendChild(this.createActionButton('refresh-cw', 'Regenerate', 'Regenerate response', () => {
+                this.handleMessageRegenerate(messageEl);
             }));
         }
 
-        // Append actions container to message container
-        messageContainer.appendChild(actionsEl);
-
-        return messageEl;
+        return actionsEl;
     }
 
-    private addMessage(role: 'user' | 'assistant', content: string) {
-        const messageEl = this.createMessageElement(role, content);
+    private scrollToBottom(): void {
+        this.messagesContainer.scrollTo({
+            top: this.messagesContainer.scrollHeight,
+            behavior: 'smooth'
+        });
+    }
+
+    public getMessageHistory(): Message[] {
+        const messages: Message[] = [];
+        const messageElements = this.messagesContainer.querySelectorAll('.chat-message');
+        messageElements.forEach(el => {
+            const role = el.classList.contains('user') ? 'user' : 'assistant';
+            const content = (el as HTMLElement).dataset.rawContent || '';
+            messages.push({ role, content });
+        });
+        return messages;
+    }
+
+    private async addMessage(role: 'user' | 'assistant', content: string) {
+        const messageEl = await this.createMessageElement(role, content);
         this.messagesContainer.appendChild(messageEl);
-        this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+        this.scrollToBottom();
+        this.messageHistory.push({ role, content });
     }
 
     async onClose() {
+        this.chatService.destroy();
+        this.eventManager.cleanup();
+    }
+
+    private handleActiveLeafChange() {
+        // Update context when active file changes
+        if (this.plugin.settings.referenceCurrentNote) {
+            const currentFile = this.app.workspace.getActiveFile();
+            if (currentFile) {
+                // TODO: Implement context update
+                console.log('Context update not implemented yet');
+            }
+        }
+    }
+
+    private debounce(func: Function, wait: number) {
+        let timeout: NodeJS.Timeout;
+        return (...args: any[]) => {
+            clearTimeout(timeout);
+            timeout = setTimeout(() => func.apply(this, args), wait);
+        };
+    }
+
+    private async sendMessage(content: string) {
+        if (!content.trim()) return;
+        
+        // Update UI state to loading
+        this.updateUIState(ChatUIState.STREAMING);
+        
+        // Cancel any existing stream
         if (this.activeStream) {
             this.activeStream.abort();
             this.activeStream = null;
         }
+
+        // Create new abort controller for this request
+        this.activeStream = new AbortController();
+
+        // Get UI elements
+        const textarea = this.inputContainer.querySelector('textarea');
+        const sendButton = this.inputContainer.querySelector('button.mod-cta') as HTMLButtonElement;
+        if (textarea) (textarea as HTMLTextAreaElement).disabled = true;
+        if (sendButton) sendButton.disabled = true;
+
+        try {
+            const provider = createProvider(this.plugin.settings);
+            const messages = await this.getMessageContext();
+            
+            // Add user message
+            await this.addMessage('user', content);
+
+            // Create assistant message container for streaming
+            const assistantContainer = await this.createMessageElement('assistant', '');
+            this.messagesContainer.appendChild(assistantContainer);
+            
+            let responseContent = '';
+            await provider.getCompletion(messages, {
+                temperature: this.plugin.settings.temperature,
+                maxTokens: this.plugin.settings.maxTokens,
+                streamCallback: async (chunk: string) => {
+                    responseContent += chunk;
+                    const contentEl = assistantContainer.querySelector('.message-content') as HTMLElement;
+                    if (contentEl) {
+                        assistantContainer.dataset.rawContent = responseContent;
+                        contentEl.empty();
+                        await MarkdownRenderer.render(this.app, responseContent, contentEl, '', this);
+                        this.scrollToBottom();
+                    }
+                },
+                abortController: this.activeStream
+            });
+
+        } catch (error) {
+            if (error.name !== 'AbortError') {
+                new Notice(`Error: ${error.message}`);
+                await this.addMessage('assistant', `Error: ${error.message}`);
+            }
+        } finally {
+            // Reset UI state
+            this.updateUIState(ChatUIState.IDLE);
+            // Re-enable input
+            if (textarea) {
+                textarea.disabled = false;
+                textarea.focus();
+            }
+            if (sendButton) sendButton.disabled = false;
+            this.activeStream = null;
+        }
+    }
+
+    private async getMessageContext(): Promise<Message[]> {
+        const messages: Message[] = [
+            { role: 'system', content: this.plugin.getSystemMessage() }
+        ];
+
+        // Include current note context if enabled
+        if (this.plugin.settings.referenceCurrentNote) {
+            const currentFile = this.app.workspace.getActiveFile();
+            if (currentFile) {
+                const currentNoteContent = await this.app.vault.cachedRead(currentFile);
+                messages.push({
+                    role: 'system',
+                    content: `Current note content:\n\n${currentNoteContent}`
+                });
+            }
+        }
+
+        // Add existing conversation history
+        const messageElements = this.messagesContainer.querySelectorAll('.ai-chat-message');
+        messageElements.forEach(el => {
+            const role = el.classList.contains('user') ? 'user' : 'assistant';
+            const content = (el as HTMLElement).dataset.rawContent || '';
+            messages.push({ role, content });
+        });
+
+        return messages;
     }
 
     private createSettingsPanel(): HTMLElement {
@@ -774,7 +778,7 @@ export class ChatView extends ItemView {
         const providerContainer = container.createDiv();
         providerContainer.createEl('label', { text: 'AI Provider' });
         const providerSelect = providerContainer.createEl('select');
-        providerSelect.createEl('option', { value: 'openai', text: 'OpenAI (GPT-3.5, GPT-4)' });
+        providerSelect.createEl('option', { value: 'openai', text: 'OpenAI' });
         providerSelect.createEl('option', { value: 'anthropic', text: 'Anthropic (Claude)' });
         providerSelect.createEl('option', { value: 'gemini', text: 'Google (Gemini)' });
         providerSelect.createEl('option', { value: 'ollama', text: 'Ollama (Local AI)' });
@@ -888,5 +892,88 @@ export class ChatView extends ItemView {
         }
 
         return container;
+    }
+
+    private async handleMessageEdit(messageEl: HTMLElement) {
+        const currentContent = messageEl.dataset.rawContent || '';
+        const contentEl = messageEl.querySelector('.message-content') as HTMLElement;
+        if (!contentEl) return;
+
+        // Create textarea for editing
+        const textarea = document.createElement('textarea');
+        textarea.value = currentContent;
+        textarea.style.width = '100%';
+        textarea.style.minHeight = '100px';
+
+        // Replace content with textarea
+        contentEl.empty();
+        contentEl.appendChild(textarea);
+
+        // Add save and cancel buttons
+        const buttonContainer = document.createElement('div');
+        buttonContainer.style.display = 'flex';
+        buttonContainer.style.gap = '8px';
+        buttonContainer.style.marginTop = '8px';
+
+        const saveButton = this.createButton('Save', 'mod-cta');
+        const cancelButton = this.createButton('Cancel');
+
+        saveButton.addEventListener('click', async () => {
+            const newContent = textarea.value;
+            messageEl.dataset.rawContent = newContent;
+            contentEl.empty();
+            await MarkdownRenderer.render(this.app, newContent, contentEl, '', this);
+            buttonContainer.remove();
+        });
+
+        cancelButton.addEventListener('click', async () => {
+            contentEl.empty();
+            await MarkdownRenderer.render(this.app, currentContent, contentEl, '', this);
+            buttonContainer.remove();
+        });
+
+        buttonContainer.appendChild(saveButton);
+        buttonContainer.appendChild(cancelButton);
+        contentEl.appendChild(buttonContainer);
+        textarea.focus();
+    }
+
+    private handleMessageDelete(messageEl: HTMLElement) {
+        new ConfirmationModal(
+            this.app,
+            'Delete Message',
+            'Are you sure you want to delete this message?',
+            (confirmed: boolean) => {
+                if (confirmed) {
+                    messageEl.remove();
+                }
+            }
+        ).open();
+    }
+
+    private async handleMessageRegenerate(messageEl: HTMLElement) {
+        // Find the previous user message
+        let prevMessage = messageEl.previousElementSibling;
+        while (prevMessage && !prevMessage.classList.contains('user')) {
+            prevMessage = prevMessage.previousElementSibling;
+        }
+
+        if (!prevMessage) {
+            new Notice('No user message found to regenerate response');
+            return;
+        }
+
+        // Get the user's message content
+        const userContent = (prevMessage as HTMLElement).dataset.rawContent;
+        if (!userContent) {
+            new Notice('Cannot regenerate response: no user message content found');
+            return;
+        }
+
+        // Remove the current assistant message
+        messageEl.remove();
+
+        // Send the message again
+        await this.sendMessage(userContent);
     }
 }

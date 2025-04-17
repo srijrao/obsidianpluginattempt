@@ -1,8 +1,10 @@
-import { App, Plugin, Setting, WorkspaceLeaf, ItemView, Notice, TFile } from 'obsidian';
-import { MyPluginSettings, Message, DEFAULT_SETTINGS } from './types';
+import { App, Plugin, PluginSettingTab, WorkspaceLeaf, ItemView, Notice, TFile, Setting, DropdownComponent, TextAreaComponent, TextComponent, ButtonComponent, ToggleComponent, SliderComponent } from 'obsidian';
+import { MyPluginSettings, Message, DEFAULT_SETTINGS, ChatState } from './types';
 import { createProvider } from './providers';
 import { MyPluginSettingTab } from './settings';
 import { ChatView, VIEW_TYPE_CHAT } from './chat';
+import { EventManager } from './utils';
+import { debug } from './settings';
 
 const VIEW_TYPE_MODEL_SETTINGS = 'model-settings-view';
 
@@ -44,9 +46,9 @@ class ModelSettingsView extends ItemView {
         new Setting(contentEl)
             .setName('AI Provider')
             .setDesc('Choose which AI provider to use')
-            .addDropdown(dropdown => {
+            .addDropdown((dropdown: DropdownComponent) => {
                 dropdown
-                    .addOption('openai', 'OpenAI (GPT-3.5, GPT-4)')
+                    .addOption('openai', 'OpenAI')
                     .addOption('anthropic', 'Anthropic (Claude)')
                     .addOption('gemini', 'Google (Gemini)')
                     .addOption('ollama', 'Ollama (Local AI)')
@@ -61,8 +63,8 @@ class ModelSettingsView extends ItemView {
 
         new Setting(contentEl)
             .setName('System Message')
-            .setDesc('Set the system message for the AI')
-            .addTextArea(text => text
+            .setDesc('Message to give the AI context about its role')
+            .addTextArea((text: TextAreaComponent) => text
                 .setPlaceholder('You are a helpful assistant.')
                 .setValue(this.plugin.settings.systemMessage)
                 .onChange(async (value) => {
@@ -71,9 +73,9 @@ class ModelSettingsView extends ItemView {
                 }));
 
         new Setting(contentEl)
-            .setName('Include Date with System Message')
-            .setDesc('Add the current date to the system message')
-            .addToggle(toggle => toggle
+            .setName('Include Date')
+            .setDesc('Include current date in system message')
+            .addToggle((toggle: ToggleComponent) => toggle
                 .setValue(this.plugin.settings.includeDateWithSystemMessage)
                 .onChange(async (value) => {
                     this.plugin.settings.includeDateWithSystemMessage = value;
@@ -81,9 +83,9 @@ class ModelSettingsView extends ItemView {
                 }));
 
         new Setting(contentEl)
-            .setName('Include Time with System Message')
-            .setDesc('Add the current time along with the date to the system message')
-            .addToggle(toggle => toggle
+            .setName('Include Time')
+            .setDesc('Include current time in system message')
+            .addToggle((toggle: ToggleComponent) => toggle
                 .setValue(this.plugin.settings.includeTimeWithSystemMessage)
                 .onChange(async (value) => {
                     this.plugin.settings.includeTimeWithSystemMessage = value;
@@ -93,7 +95,7 @@ class ModelSettingsView extends ItemView {
         new Setting(contentEl)
             .setName('Enable Obsidian Links')
             .setDesc('Read Obsidian links in messages using [[filename]] syntax')
-            .addToggle(toggle => toggle
+            .addToggle((toggle: ToggleComponent) => toggle
                 .setValue(this.plugin.settings.enableObsidianLinks)
                 .onChange(async (value) => {
                     this.plugin.settings.enableObsidianLinks = value;
@@ -103,7 +105,7 @@ class ModelSettingsView extends ItemView {
         new Setting(contentEl)
             .setName('Enable Context Notes')
             .setDesc('Attach specified note content to chat messages')
-            .addToggle(toggle => toggle
+            .addToggle((toggle: ToggleComponent) => toggle
                 .setValue(this.plugin.settings.enableContextNotes)
                 .onChange(async (value) => {
                     this.plugin.settings.enableContextNotes = value;
@@ -116,7 +118,7 @@ class ModelSettingsView extends ItemView {
         new Setting(contextNotesContainer)
             .setName('Context Notes')
             .setDesc('Notes to attach as context (supports [[filename]] and [[filename#header]] syntax)')
-            .addTextArea(text => {
+            .addTextArea((text: TextAreaComponent) => {
                 text.setPlaceholder('[[Note Name]]\n[[Another Note#Header]]')
                     .setValue(this.plugin.settings.contextNotes || '')
                     .onChange(async (value) => {
@@ -135,7 +137,7 @@ class ModelSettingsView extends ItemView {
         new Setting(contentEl)
             .setName('Enable Streaming')
             .setDesc('Enable or disable streaming for completions')
-            .addToggle(toggle => toggle
+            .addToggle((toggle: ToggleComponent) => toggle
                 .setValue(this.plugin.settings.enableStreaming)
                 .onChange(async (value) => {
                     this.plugin.settings.enableStreaming = value;
@@ -145,7 +147,7 @@ class ModelSettingsView extends ItemView {
         new Setting(contentEl)
             .setName('Temperature')
             .setDesc('Set the randomness of the model\'s output (0-1)')
-            .addSlider(slider => slider
+            .addSlider((slider: SliderComponent) => slider
                 .setLimits(0, 1, 0.1)
                 .setValue(this.plugin.settings.temperature)
                 .setDynamicTooltip()
@@ -157,7 +159,7 @@ class ModelSettingsView extends ItemView {
         new Setting(contentEl)
             .setName('Max Tokens')
             .setDesc('Set the maximum length of the model\'s output')
-            .addText(text => text
+            .addText((text: TextComponent) => text
                 .setPlaceholder('4000')
                 .setValue(String(this.plugin.settings.maxTokens))
                 .onChange(async (value) => {
@@ -191,7 +193,7 @@ class ModelSettingsView extends ItemView {
         new Setting(containerEl)
             .setName('Test Connection')
             .setDesc(`Verify your API key and fetch available models for ${providerName}`)
-            .addButton(button => button
+            .addButton((button: ButtonComponent) => button
                 .setButtonText('Test')
                 .onClick(async () => {
                     button.setButtonText('Testing...');
@@ -218,7 +220,7 @@ class ModelSettingsView extends ItemView {
         new Setting(containerEl)
             .setName('Model')
             .setDesc(`Choose the ${providerName} model to use`)
-            .addDropdown(dropdown => {
+            .addDropdown((dropdown: DropdownComponent) => {
                 for (const model of settings.availableModels) {
                     dropdown.addOption(model, model);
                 }
@@ -677,7 +679,7 @@ function parseSelection(
  * AI Assistant Plugin
  * 
  * This plugin adds AI capabilities to Obsidian, supporting multiple providers:
- * - OpenAI (GPT-3.5, GPT-4)
+ * - OpenAI
  * - Anthropic (Claude)
  * - Google (Gemini)
  * - Ollama (Local AI)
@@ -692,11 +694,16 @@ function parseSelection(
 export default class MyPlugin extends Plugin {
     settings: MyPluginSettings;
     modelSettingsView: ModelSettingsView | null = null;
-    activeStream: AbortController | null = null;
+    private eventManager: EventManager;
+    private activeStream: AbortController | null = null;
+    private chatState: ChatState = 'idle';
 
     async onload() {
+        debug('Loading AI Assistant plugin');
+        this.eventManager = new EventManager();
         await this.loadSettings();
 
+        // Register settings tab
         this.addSettingTab(new MyPluginSettingTab(this.app, this));
 
         // Register views
@@ -710,7 +717,7 @@ export default class MyPlugin extends Plugin {
             (leaf) => new ChatView(leaf, this)
         );
 
-        // Add ribbon icons
+        // Add ribbon icons with safe event handling
         this.addRibbonIcon('gear', 'Open AI Settings', () => {
             this.activateView();
         });
@@ -719,124 +726,23 @@ export default class MyPlugin extends Plugin {
             this.activateChatView();
         });
 
-        this.app.workspace.onLayoutReady(() => {
-            if (this.settings.autoOpenModelSettings) {
-                this.activateView();
+        // Register workspace event handlers
+        this.eventManager.registerWorkspaceEvent(
+            this.app.workspace,
+            'layout-ready',
+            () => {
+                if (this.settings.autoOpenModelSettings) {
+                    this.activateView();
+                }
             }
-        });
+        );
 
+        // Register slash commands
         this.addCommand({
             id: 'ai-completion',
             name: 'Get AI Completion',
             editorCallback: async (editor) => {
-                let text: string;
-                let insertPosition;
-
-                if (editor.somethingSelected()) {
-                    // Use the selected text
-                    text = editor.getSelection();
-                    insertPosition = editor.getCursor('to');
-                } else {
-                    // Fallback to extracting text up to the current cursor line
-                    const lineNumber = editor.getCursor().line + 1;
-                    const documentText = editor.getValue();
-                    let startIndex = 0;
-                    let endIndex = editor.posToOffset({
-                        line: lineNumber,
-                        ch: editor.getLine(lineNumber).length // Include the full cursor line
-                    });
-
-                    // Use chatStartString and chatEndString if defined
-                    if (this.settings.chatStartString) {
-                        const startStringIndex = documentText.indexOf(this.settings.chatStartString);
-                        if (startStringIndex !== -1) {
-                            startIndex = startStringIndex + this.settings.chatStartString.length;
-                        }
-                    }
-
-                    if (this.settings.chatEndString) {
-                        const endStringIndex = documentText.indexOf(this.settings.chatEndString, startIndex);
-                        if (endStringIndex !== -1 && endStringIndex < endIndex) {
-                            endIndex = endStringIndex;
-                        }
-                    }
-
-                    // If no chatStartString or chatEndString is found, use the entire document up to the cursor line
-                    if (!this.settings.chatStartString && !this.settings.chatEndString) {
-                        endIndex = editor.posToOffset({ line: lineNumber, ch: 0 });
-                    }
-
-                    text = documentText.substring(startIndex, endIndex).trim();
-                    insertPosition = { line: lineNumber + 1, ch: 0 };
-                }
-
-                // Debugging: Log the extracted text
-                console.log('Extracted text for completion:', text);
-
-                // Parse the selection into messages
-                const messages = parseSelection(text, this.settings.chatSeparator);
-
-                // Ensure there are messages to send
-                if (messages.length === 0) {
-                    new Notice('No valid messages found in the selection.');
-                    return;
-                }
-
-                // Insert a separator for the AI's response
-                editor.replaceRange(`\n\n${this.settings.chatSeparator}\n\n`, insertPosition);
-                let currentPosition = {
-                    line: insertPosition.line + 3,
-                    ch: 0
-                };
-
-                this.activeStream = new AbortController();
-
-                try {
-                    const provider = createProvider(this.settings);
-                    const processedMessages = await this.processMessages([
-                        { role: 'system', content: this.getSystemMessage() },
-                        ...messages
-                    ]);
-
-                    let bufferedChunk = ''; // Accumulate chunks
-                    const flushBuffer = () => {
-                        if (bufferedChunk) {
-                            editor.replaceRange(bufferedChunk, currentPosition);
-                            currentPosition = editor.offsetToPos(
-                                editor.posToOffset(currentPosition) + bufferedChunk.length
-                            );
-                            bufferedChunk = ''; // Clear buffer
-                        }
-                    };
-
-                    await provider.getCompletion(
-                        processedMessages,
-                        {
-                            temperature: this.settings.temperature,
-                            maxTokens: this.settings.maxTokens,
-                            streamCallback: (chunk: string) => {
-                                bufferedChunk += chunk; // Accumulate the chunk
-                                // Flush buffer every 100ms
-                                setTimeout(flushBuffer, 100);
-                            },
-                            abortController: this.activeStream
-                        }
-                    );
-
-                    // Final flush after completion
-                    flushBuffer();
-
-                    editor.replaceRange(`\n\n${this.settings.chatSeparator}\n\n`, currentPosition);
-                    const newCursorPos = editor.offsetToPos(
-                        editor.posToOffset(currentPosition) + this.settings.chatSeparator.length + 4
-                    );
-                    editor.setCursor(newCursorPos);
-                } catch (error) {
-                    new Notice(`Error: ${error.message}`);
-                    editor.replaceRange(`Error: ${error.message}\n\n${this.settings.chatSeparator}\n\n`, currentPosition);
-                } finally {
-                    this.activeStream = null;
-                }
+                await this.handleEditorCompletion(editor);
             }
         });
 
@@ -844,13 +750,7 @@ export default class MyPlugin extends Plugin {
             id: 'end-ai-stream',
             name: 'End AI Stream',
             callback: () => {
-                if (this.activeStream) {
-                    this.activeStream.abort();
-                    this.activeStream = null;
-                    new Notice('AI stream ended');
-                } else {
-                    new Notice('No active AI stream to end');
-                }
+                this.stopActiveStream();
             }
         });
 
@@ -869,6 +769,159 @@ export default class MyPlugin extends Plugin {
                 this.activateChatView();
             }
         });
+
+        debug('AI Assistant plugin loaded');
+    }
+
+    onunload() {
+        debug('Unloading AI Assistant plugin');
+        this.stopActiveStream();
+        this.eventManager.cleanup();
+        this.app.workspace.detachLeavesOfType(VIEW_TYPE_MODEL_SETTINGS);
+        this.app.workspace.detachLeavesOfType(VIEW_TYPE_CHAT);
+        debug('AI Assistant plugin unloaded');
+    }
+
+    private stopActiveStream() {
+        if (this.activeStream) {
+            this.activeStream.abort();
+            this.activeStream = null;
+            this.chatState = 'idle';
+            new Notice('AI stream ended');
+        }
+    }
+
+    async activateView(viewType: string = VIEW_TYPE_MODEL_SETTINGS) {
+        this.app.workspace.detachLeavesOfType(viewType);
+
+        const leaf = this.app.workspace.getRightLeaf(false) || 
+                    this.app.workspace.getLeaf(true);
+                    
+        await leaf.setViewState({
+            type: viewType,
+            active: true,
+        });
+
+        this.app.workspace.revealLeaf(leaf);
+    }
+
+    async activateChatView() {
+        await this.activateView(VIEW_TYPE_CHAT);
+    }
+
+    private async handleEditorCompletion(editor: any) {
+        let text: string;
+        let insertPosition;
+
+        if (editor.somethingSelected()) {
+            text = editor.getSelection();
+            insertPosition = editor.getCursor('to');
+        } else {
+            const lineNumber = editor.getCursor().line + 1;
+            const documentText = editor.getValue();
+
+            // Extract text within chat boundaries if defined
+            let startIndex = 0;
+            let endIndex = editor.posToOffset({
+                line: lineNumber,
+                ch: editor.getLine(lineNumber).length
+            });
+
+            if (this.settings.chatStartString) {
+                const startStringIndex = documentText.indexOf(this.settings.chatStartString);
+                if (startStringIndex !== -1) {
+                    startIndex = startStringIndex + this.settings.chatStartString.length;
+                }
+            }
+
+            if (this.settings.chatEndString) {
+                const endStringIndex = documentText.indexOf(this.settings.chatEndString, startIndex);
+                if (endStringIndex !== -1 && endStringIndex < endIndex) {
+                    endIndex = endStringIndex;
+                }
+            }
+
+            text = documentText.substring(startIndex, endIndex).trim();
+            insertPosition = { line: lineNumber + 1, ch: 0 };
+        }
+
+        if (!text) {
+            new Notice('No text selected or found for completion');
+            return;
+        }
+
+        await this.processCompletion(editor, text, insertPosition);
+    }
+
+    private async processCompletion(editor: any, text: string, insertPosition: any) {
+        this.stopActiveStream();
+        this.activeStream = new AbortController();
+        this.chatState = 'streaming';
+
+        try {
+            const provider = createProvider(this.settings);
+            const messages = await this.processMessages([
+                { role: 'system', content: this.getSystemMessage() },
+                { role: 'user', content: text }
+            ]);
+
+            // Insert separator before response
+            editor.replaceRange(`\n\n${this.settings.chatSeparator}\n\n`, insertPosition);
+            let currentPosition = {
+                line: insertPosition.line + 3,
+                ch: 0
+            };
+
+            // Buffer for smoother text insertion
+            let buffer = '';
+            const flushBuffer = () => {
+                if (buffer) {
+                    editor.replaceRange(buffer, currentPosition);
+                    currentPosition = editor.offsetToPos(
+                        editor.posToOffset(currentPosition) + buffer.length
+                    );
+                    buffer = '';
+                }
+            };
+
+            await provider.getCompletion(messages, {
+                temperature: this.settings.temperature,
+                maxTokens: this.settings.maxTokens,
+                streamCallback: (chunk: string) => {
+                    buffer += chunk;
+                    // Flush buffer periodically
+                    setTimeout(flushBuffer, 100);
+                },
+                abortController: this.activeStream
+            });
+
+            // Final flush
+            flushBuffer();
+
+            // Add separator after response
+            editor.replaceRange(`\n\n${this.settings.chatSeparator}\n\n`, currentPosition);
+            const newCursorPos = editor.offsetToPos(
+                editor.posToOffset(currentPosition) + this.settings.chatSeparator.length + 4
+            );
+            editor.setCursor(newCursorPos);
+
+        } catch (error) {
+            if (error.name !== 'AbortError') {
+                new Notice(`Error: ${error.message}`);
+                editor.replaceRange(`Error: ${error.message}\n\n${this.settings.chatSeparator}\n\n`, insertPosition);
+            }
+        } finally {
+            this.activeStream = null;
+            this.chatState = 'idle';
+        }
+    }
+
+    async loadSettings() {
+        this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    }
+
+    async saveSettings() {
+        await this.saveData(this.settings);
     }
 
     public getSystemMessage(): string {
@@ -885,7 +938,6 @@ export default class MyPlugin extends Plugin {
             const offsetHours = Math.abs(timeZoneOffset) / 60;
             const offsetMinutes = Math.abs(timeZoneOffset) % 60;
             const sign = timeZoneOffset > 0 ? '-' : '+';
-
             const currentTime = now.toLocaleTimeString();
             const timeZoneString = `UTC${sign}${offsetHours.toString().padStart(2, '0')}:${offsetMinutes.toString().padStart(2, '0')}`;
             systemMessage = `${systemMessage}\n\nThe current time is ${currentTime} ${timeZoneString}.`;
@@ -894,61 +946,14 @@ export default class MyPlugin extends Plugin {
         return systemMessage;
     }
 
-    async activateView(viewType: string = VIEW_TYPE_MODEL_SETTINGS) {
-        this.app.workspace.detachLeavesOfType(viewType);
-
-        let leaf = this.app.workspace.getRightLeaf(false);
-        if (leaf) {
-            await leaf.setViewState({
-                type: viewType,
-                active: true,
-            });
-            this.app.workspace.revealLeaf(leaf);
-        } else {
-            leaf = this.app.workspace.getLeaf(true);
-            await leaf.setViewState({
-                type: viewType,
-                active: true,
-            });
-        }
-    }
-
-    async activateChatView() {
-        await this.activateView(VIEW_TYPE_CHAT);
-    }
-
-    async loadSettings() {
-        this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
-    }
-
-    async saveSettings() {
-        await this.saveData(this.settings);
-    }
-
-    /**
-     * Processes a message content to include Obsidian note contents
-     * 
-     * If a link is found, retrieves the note content and appends it after the link.
-     * 
-     * @param content The message content to process
-     * @returns The processed content with note contents included
-     */
-    /**
-     * Process an array of messages to include Obsidian note contents
-     * 
-     * @param messages Array of messages to process
-     * @returns Promise resolving to processed messages
-     */
     private async processMessages(messages: Message[]): Promise<Message[]> {
         const processedMessages: Message[] = [];
 
-        // Prepend context notes if enabled
+        // Handle context notes
         if (this.settings.enableContextNotes && this.settings.contextNotes) {
             const contextContent = await this.processContextNotes(this.settings.contextNotes);
-            
             if (contextContent) {
-                // Add context as part of the system message or as a separate system message
-                if (messages.length > 0 && messages[0].role === 'system') {
+                if (messages[0].role === 'system') {
                     processedMessages.push({
                         role: 'system',
                         content: `${messages[0].content}\n\nHere is additional context:\n${contextContent}`
@@ -963,9 +968,12 @@ export default class MyPlugin extends Plugin {
             }
         }
 
-        // Process the rest of the messages with Obsidian links if enabled
+        // Process remaining messages
         for (const message of messages) {
-            const processedContent = await this.processObsidianLinks(message.content);
+            const processedContent = this.settings.enableObsidianLinks ? 
+                await this.processObsidianLinks(message.content) : 
+                message.content;
+
             processedMessages.push({
                 role: message.role,
                 content: processedContent
@@ -975,12 +983,91 @@ export default class MyPlugin extends Plugin {
         return processedMessages;
     }
 
-    /**
-     * Process a single message content to include Obsidian note contents
-     * 
-     * @param content The message content to process
-     * @returns Promise resolving to processed content
-     */
+    private async processContextNotes(contextNotesText: string): Promise<string> {
+        const linkRegex = /\[\[(.*?)\]\]/g;
+        let match;
+        let contextContent = "";
+
+        while ((match = linkRegex.exec(contextNotesText)) !== null) {
+            if (match && match[1]) {
+                const fileName = match[1].trim();
+
+                try {
+                    // Check if there's a header specified
+                    const headerMatch = fileName.match(/(.*?)#(.*)/);
+                    const baseFileName = headerMatch ? headerMatch[1].trim() : fileName;
+                    const headerName = headerMatch ? headerMatch[2].trim() : null;
+
+                    // Find the file
+                    let file = this.app.vault.getAbstractFileByPath(baseFileName) ||
+                              this.app.vault.getAbstractFileByPath(`${baseFileName}.md`);
+
+                    if (!file) {
+                        const allFiles = this.app.vault.getFiles();
+                        file = allFiles.find(f => 
+                            f.basename.toLowerCase() === baseFileName.toLowerCase() || 
+                            f.name.toLowerCase() === `${baseFileName.toLowerCase()}.md`
+                        ) || null;
+                    }
+
+                    if (file && file instanceof TFile) {
+                        const noteContent = await this.app.vault.cachedRead(file);
+
+                        contextContent += `### From note: ${file.basename}\n\n`;
+
+                        if (headerName) {
+                            // Extract content under the specified header
+                            const headerContent = this.extractContentUnderHeader(noteContent, headerName);
+                            contextContent += headerContent;
+                        } else {
+                            contextContent += noteContent;
+                        }
+
+                        contextContent += '\n\n';
+                    } else {
+                        contextContent += `Note not found: ${fileName}\n\n`;
+                    }
+                } catch (error) {
+                    contextContent += `Error processing note ${fileName}: ${error.message}\n\n`;
+                }
+            }
+        }
+
+        return contextContent;
+    }
+
+    private extractContentUnderHeader(content: string, headerName: string): string {
+        const lines = content.split('\n');
+        let extractedContent = '';
+        let isUnderTargetHeader = false;
+        let currentHeaderLevel = 0;
+
+        for (const line of lines) {
+            const headerMatch = line.match(/^(#{1,6})\s+(.*)$/);
+
+            if (headerMatch) {
+                const level = headerMatch[1].length;
+                const title = headerMatch[2];
+
+                if (title.toLowerCase() === headerName.toLowerCase()) {
+                    isUnderTargetHeader = true;
+                    currentHeaderLevel = level;
+                    continue;
+                }
+
+                if (isUnderTargetHeader && level <= currentHeaderLevel) {
+                    break;
+                }
+            }
+
+            if (isUnderTargetHeader) {
+                extractedContent += line + '\n';
+            }
+        }
+
+        return extractedContent.trim();
+    }
+
     private async processObsidianLinks(content: string): Promise<string> {
         if (!this.settings.enableObsidianLinks) return content;
 
@@ -992,38 +1079,39 @@ export default class MyPlugin extends Plugin {
             if (match && match[0] && match[1]) {
                 // Split by pipe to handle [[path|display]] format
                 const parts = match[1].split('|');
-                const filePath = parts[0].trim(); // Get the path part (before pipe)
-                const displayText = parts.length > 1 ? parts[1].trim() : filePath; // Get display text if present
+                const filePath = parts[0].trim();
                 
                 try {
-                    // Attempt to retrieve the file by its relative path
-                    let file = this.app.vault.getAbstractFileByPath(filePath) || this.app.vault.getAbstractFileByPath(`${filePath}.md`);
+                    // Handle header references
+                    const headerMatch = filePath.match(/(.*?)#(.*)/);
+                    const baseFileName = headerMatch ? headerMatch[1].trim() : filePath;
+                    const headerName = headerMatch ? headerMatch[2].trim() : null;
 
-                    // If not found, search the entire vault for a matching file name
+                    // Find the file
+                    let file = this.app.vault.getAbstractFileByPath(baseFileName) ||
+                              this.app.vault.getAbstractFileByPath(`${baseFileName}.md`);
+
                     if (!file) {
                         const allFiles = this.app.vault.getFiles();
-                        file = allFiles.find(f => f.name === filePath || f.name === `${filePath}.md` || 
-                                                 f.basename.toLowerCase() === filePath.toLowerCase() ||
-                                                 f.path === filePath || f.path === `${filePath}.md`) || null;
+                        file = allFiles.find(f => 
+                            f.name === filePath || 
+                            f.name === `${filePath}.md` || 
+                            f.basename.toLowerCase() === filePath.toLowerCase() ||
+                            f.path === filePath || 
+                            f.path === `${filePath}.md`
+                        ) || null;
                     }
 
-                    // Extract header if specified
-                    const headerMatch = filePath.match(/(.*?)#(.*)/);
-                    let extractedContent = "";
-                    
                     if (file && file instanceof TFile) {
                         const noteContent = await this.app.vault.cachedRead(file);
-                        
-                        if (headerMatch) {
-                            // Extract content under the specified header
-                            extractedContent = this.extractContentUnderHeader(
-                                noteContent, 
-                                headerMatch[2].trim()
-                            );
+                        let extractedContent = '';
+
+                        if (headerName) {
+                            extractedContent = this.extractContentUnderHeader(noteContent, headerName);
                         } else {
                             extractedContent = noteContent;
                         }
-                        
+
                         processedContent = processedContent.replace(
                             match[0],
                             `${match[0]}\n\n---\nNote Name: ${filePath}\nContent:\n${extractedContent}\n---\n`
@@ -1036,111 +1124,7 @@ export default class MyPlugin extends Plugin {
                 }
             }
         }
+
         return processedContent;
-    }
-
-    /**
-     * Extract content under a specific header in a note
-     * 
-     * @param content The note content
-     * @param headerText The header text to find
-     * @returns The content under the header until the next header or end of note
-     */
-    private extractContentUnderHeader(content: string, headerText: string): string {
-        const lines = content.split('\n');
-        let foundHeader = false;
-        let extractedContent = [];
-        let headerLevel = 0;
-        
-        for (let i = 0; i < lines.length; i++) {
-            const line = lines[i];
-            
-            // Check if this line is a header
-            const headerMatch = line.match(/^(#+)\s+(.*?)$/);
-            
-            if (headerMatch) {
-                const currentHeaderLevel = headerMatch[1].length;
-                const currentHeaderText = headerMatch[2].trim();
-                
-                if (foundHeader) {
-                    // If we already found our target header and now found another header
-                    // at the same or higher level, stop extraction
-                    if (currentHeaderLevel <= headerLevel) {
-                        break;
-                    }
-                } else if (currentHeaderText.toLowerCase() === headerText.toLowerCase()) {
-                    // Found our target header
-                    foundHeader = true;
-                    headerLevel = currentHeaderLevel;
-                    extractedContent.push(line); // Include the header itself
-                    continue;
-                }
-            }
-            
-            if (foundHeader) {
-                extractedContent.push(line);
-            }
-        }
-        
-        return extractedContent.join('\n');
-    }
-
-    /**
-     * Process context notes specified in the settings
-     * 
-     * @param contextNotesText The context notes text with [[note]] syntax
-     * @returns The processed context text
-     */
-    private async processContextNotes(contextNotesText: string): Promise<string> {
-        const linkRegex = /\[\[(.*?)\]\]/g;
-        let match;
-        let contextContent = "";
-        
-        while ((match = linkRegex.exec(contextNotesText)) !== null) {
-            if (match && match[1]) {
-                const fileName = match[1].trim();
-                
-                try {
-                    // Check if there's a header specified
-                    const headerMatch = fileName.match(/(.*?)#(.*)/);
-                    const baseFileName = headerMatch ? headerMatch[1].trim() : fileName;
-                    const headerName = headerMatch ? headerMatch[2].trim() : null;
-                    
-                    // Find the file
-                    let file = this.app.vault.getAbstractFileByPath(baseFileName) || 
-                               this.app.vault.getAbstractFileByPath(`${baseFileName}.md`);
-                    
-                    if (!file) {
-                        const allFiles = this.app.vault.getFiles();
-                        file = allFiles.find(f => 
-                            f.basename.toLowerCase() === baseFileName.toLowerCase() || 
-                            f.name.toLowerCase() === `${baseFileName.toLowerCase()}.md`
-                        ) || null;
-                    }
-                    
-                    if (file && file instanceof TFile) {
-                        const noteContent = await this.app.vault.cachedRead(file);
-                        
-                        contextContent += `### From note: ${file.basename}\n\n`;
-                        
-                        if (headerName) {
-                            // Extract content under the specified header
-                            const headerContent = this.extractContentUnderHeader(noteContent, headerName);
-                            contextContent += headerContent;
-                        } else {
-                            contextContent += noteContent;
-                        }
-                        
-                        contextContent += '\n\n';
-                    } else {
-                        contextContent += `Note not found: ${fileName}\n\n`;
-                    }
-                } catch (error) {
-                    contextContent += `Error processing note ${fileName}: ${error.message}\n\n`;
-                }
-            }
-        }
-        
-        return contextContent;
     }
 }

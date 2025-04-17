@@ -1,6 +1,8 @@
 import { App, PluginSettingTab, Setting } from 'obsidian';
 import { MyPluginSettings } from './types';
 import MyPlugin from './main';
+import { Notice } from 'obsidian';
+import { createProvider } from './providers';
 
 /**
  * Plugin Settings Tab
@@ -102,6 +104,21 @@ export class MyPluginSettingTab extends PluginSettingTab {
                     this.plugin.activateView();
                 }));
 
+        // Debug Mode Setting
+        containerEl.createEl('h3', { text: 'Debugging' });
+        new Setting(containerEl)
+            .setName('Enable Debug Mode')
+            .setDesc('Log detailed information to the console for debugging purposes.')
+            .addToggle(toggle => toggle
+                .setValue(this.plugin.settings.debugMode)
+                .onChange(async (value) => {
+                    this.plugin.settings.debugMode = value;
+                    await this.plugin.saveSettings();
+                }));
+
+        // Chat Formatting Section
+        containerEl.createEl('h3', { text: 'Chat Formatting' });
+
         new Setting(containerEl)
             .setName('Chat Separator')
             .setDesc('The string used to separate chat messages.')
@@ -137,5 +154,80 @@ export class MyPluginSettingTab extends PluginSettingTab {
                         await this.plugin.saveSettings();
                     });
             });
+    }
+}
+
+export class SettingsValidator {
+    static validateSettings(settings: MyPluginSettings): boolean {
+        // Check temperature bounds
+        if (settings.temperature < 0 || settings.temperature > 1) {
+            new Notice('Temperature must be between 0 and 1');
+            return false;
+        }
+
+        // Check max tokens
+        if (settings.maxTokens <= 0) {
+            new Notice('Max tokens must be greater than 0');
+            return false;
+        }
+
+        // Validate provider-specific settings
+        switch (settings.provider) {
+            case 'openai':
+                if (!settings.openaiSettings.apiKey) {
+                    new Notice('OpenAI API key is required');
+                    return false;
+                }
+                break;
+            case 'anthropic':
+                if (!settings.anthropicSettings.apiKey) {
+                    new Notice('Anthropic API key is required');
+                    return false;
+                }
+                break;
+            case 'gemini':
+                if (!settings.geminiSettings.apiKey) {
+                    new Notice('Google API key is required');
+                    return false;
+                }
+                break;
+            case 'ollama':
+                // Validate Ollama server URL format
+                try {
+                    new URL(settings.ollamaSettings.serverUrl);
+                } catch {
+                    new Notice('Invalid Ollama server URL');
+                    return false;
+                }
+                break;
+        }
+
+        return true;
+    }
+
+    static async validateConnection(settings: MyPluginSettings): Promise<boolean> {
+        try {
+            const provider = createProvider(settings);
+            const result = await provider.testConnection();
+            if (!result.success) {
+                new Notice(`Connection test failed: ${result.message}`);
+                return false;
+            }
+            return true;
+        } catch (error) {
+            new Notice(`Connection error: ${error.message}`);
+            return false;
+        }
+    }
+}
+
+// Export utility functions
+export function getDebugFlag(): boolean {
+    return localStorage.getItem('ai_chat_debug') === 'true';
+}
+
+export function debug(...args: any[]): void {
+    if (getDebugFlag()) {
+        console.log('[AI Chat Debug]', ...args);
     }
 }
