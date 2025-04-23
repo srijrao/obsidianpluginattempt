@@ -219,6 +219,26 @@ export default class MyPlugin extends Plugin {
                 this.activateChatView();
             }
         });
+        
+        this.addCommand({
+            id: 'copy-active-note-name',
+            name: 'Copy Active Note Name',
+            callback: async () => {
+                const activeFile = this.app.workspace.getActiveFile();
+                if (activeFile) {
+                    const noteName = `[[${activeFile.basename}]]`;
+                    try {
+                        await navigator.clipboard.writeText(noteName);
+                        new Notice(`Copied to clipboard: ${noteName}`);
+                    } catch (error) {
+                        new Notice('Failed to copy to clipboard');
+                        console.error('Clipboard error:', error);
+                    }
+                } else {
+                    new Notice('No active note found');
+                }
+            }
+        });
     }
 
     public getSystemMessage(): string {

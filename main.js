@@ -5214,6 +5214,25 @@ ${this.settings.chatSeparator}
         this.activateChatView();
       }
     });
+    this.addCommand({
+      id: "copy-active-note-name",
+      name: "Copy Active Note Name",
+      callback: async () => {
+        const activeFile = this.app.workspace.getActiveFile();
+        if (activeFile) {
+          const noteName = `[[${activeFile.basename}]]`;
+          try {
+            await navigator.clipboard.writeText(noteName);
+            new import_obsidian4.Notice(`Copied to clipboard: ${noteName}`);
+          } catch (error) {
+            new import_obsidian4.Notice("Failed to copy to clipboard");
+            console.error("Clipboard error:", error);
+          }
+        } else {
+          new import_obsidian4.Notice("No active note found");
+        }
+      }
+    });
   }
   getSystemMessage() {
     let systemMessage = this.settings.systemMessage;
