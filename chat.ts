@@ -532,19 +532,10 @@ export class ChatView extends ItemView {
         this.addMessage('assistant', 'Hello! How can I help you today?');
     }
 
-    private createActionButton(icon: string, label: string, tooltip: string, callback: () => void): HTMLElement {
+    private createActionButton(label: string, tooltip: string, callback: () => void): HTMLElement {
         const button = document.createElement('button');
         button.addClass('ai-chat-action-button');
         button.setAttribute('aria-label', tooltip);
-        button.style.display = 'flex';
-        button.style.alignItems = 'center';
-        button.style.gap = '4px'; // Add spacing between icon and label
-
-        // Add icon
-        const iconEl = document.createElement('svg');
-        iconEl.classList.add('lucide-icon');
-        iconEl.innerHTML = `<use href="#lucide-${icon}"></use>`;
-        button.appendChild(iconEl);
 
         // Add label
         const labelEl = document.createElement('span');
@@ -614,7 +605,7 @@ export class ChatView extends ItemView {
         actionsEl.style.marginTop = '8px';
 
         // Add copy button
-        actionsEl.appendChild(this.createActionButton('copy', 'Copy', 'Copy message', () => {
+        actionsEl.appendChild(this.createActionButton('Copy', 'Copy message', () => {
             const currentContent = messageEl.dataset.rawContent || '';
             if (currentContent.trim() === '') {
                 new Notice('No content to copy');
@@ -624,7 +615,7 @@ export class ChatView extends ItemView {
         }));
 
         // Add edit button
-        actionsEl.appendChild(this.createActionButton('edit', 'Edit', 'Edit message', () => {
+        actionsEl.appendChild(this.createActionButton('Edit', 'Edit message', () => {
             const wasEditing = contentEl.hasClass('editing');
             
             if (!wasEditing) {
@@ -655,7 +646,7 @@ export class ChatView extends ItemView {
         }));
 
         // Add delete button
-        actionsEl.appendChild(this.createActionButton('trash', 'Delete', 'Delete message', () => {
+        actionsEl.appendChild(this.createActionButton('Delete', 'Delete message', () => {
             const modal = new ConfirmationModal(
                 this.app,
                 'Delete message',
@@ -671,7 +662,7 @@ export class ChatView extends ItemView {
 
         // Add refresh button for assistant messages
         if (role === 'assistant') {
-            actionsEl.appendChild(this.createActionButton('refresh-cw', 'Regenerate', 'Regenerate response', async () => {
+            actionsEl.appendChild(this.createActionButton('Regenerate', 'Regenerate response', async () => {
                 // Find this message element
                 const currentMessage = messageEl;
                 

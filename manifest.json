@@ -3,7 +3,7 @@
   "name": "AI Assistant for Obsidian",
   "version": "1.0.3",
   "minAppVersion": "0.15.0",
-  "description": "An AI assistant plugin for Obsidian using OpenAI API.",
+  "description": "An AI assistant plugin for Obsidian.",
   "author": "srijrao on Github",
   "authorUrl": "https://github.com/srijrao",
   "isDesktopOnly": false

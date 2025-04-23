@@ -475,7 +475,7 @@ export default class MyPlugin extends Plugin {
                     if (file && file instanceof TFile) {
                         const noteContent = await this.app.vault.cachedRead(file);
 
-                        contextContent += `### From note: ${file.basename}\n\n`;
+                        contextContent += `---\nFrom note: ${file.basename}\n\n`;
 
                         if (headerName) {
                             // Extract content under the specified header

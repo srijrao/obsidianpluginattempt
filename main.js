@@ -4335,17 +4335,10 @@ ${currentNoteContent}`
     });
     this.addMessage("assistant", "Hello! How can I help you today?");
   }
-  createActionButton(icon, label, tooltip, callback) {
+  createActionButton(label, tooltip, callback) {
     const button = document.createElement("button");
     button.addClass("ai-chat-action-button");
     button.setAttribute("aria-label", tooltip);
-    button.style.display = "flex";
-    button.style.alignItems = "center";
-    button.style.gap = "4px";
-    const iconEl = document.createElement("svg");
-    iconEl.classList.add("lucide-icon");
-    iconEl.innerHTML = `<use href="#lucide-${icon}"></use>`;
-    button.appendChild(iconEl);
     const labelEl = document.createElement("span");
     labelEl.textContent = label;
     button.appendChild(labelEl);
@@ -4393,7 +4386,7 @@ ${currentNoteContent}`
     actionsEl.style.flexWrap = "wrap";
     actionsEl.style.gap = "8px";
     actionsEl.style.marginTop = "8px";
-    actionsEl.appendChild(this.createActionButton("copy", "Copy", "Copy message", () => {
+    actionsEl.appendChild(this.createActionButton("Copy", "Copy message", () => {
       const currentContent = messageEl.dataset.rawContent || "";
       if (currentContent.trim() === "") {
         new import_obsidian2.Notice("No content to copy");
@@ -4401,7 +4394,7 @@ ${currentNoteContent}`
       }
       this.copyToClipboard(currentContent);
     }));
-    actionsEl.appendChild(this.createActionButton("edit", "Edit", "Edit message", () => {
+    actionsEl.appendChild(this.createActionButton("Edit", "Edit message", () => {
       const wasEditing = contentEl.hasClass("editing");
       if (!wasEditing) {
         const textarea = document.createElement("textarea");
@@ -4426,7 +4419,7 @@ ${currentNoteContent}`
         }
       }
     }));
-    actionsEl.appendChild(this.createActionButton("trash", "Delete", "Delete message", () => {
+    actionsEl.appendChild(this.createActionButton("Delete", "Delete message", () => {
       const modal = new ConfirmationModal(
         this.app,
         "Delete message",
@@ -4440,7 +4433,7 @@ ${currentNoteContent}`
       modal.open();
     }));
     if (role === "assistant") {
-      actionsEl.appendChild(this.createActionButton("refresh-cw", "Regenerate", "Regenerate response", async () => {
+      actionsEl.appendChild(this.createActionButton("Regenerate", "Regenerate response", async () => {
         const currentMessage = messageEl;
         const textarea = this.inputContainer.querySelector("textarea");
         if (textarea) textarea.disabled = true;
@@ -5435,7 +5428,8 @@ ${extractedContent}
           }
           if (file && file instanceof import_obsidian4.TFile) {
             const noteContent = await this.app.vault.cachedRead(file);
-            contextContent += `### From note: ${file.basename}
+            contextContent += `---
+From note: ${file.basename}
 
 `;
             if (headerName) {

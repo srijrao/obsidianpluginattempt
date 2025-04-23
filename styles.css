@@ -36,13 +36,15 @@
 
 .message-container {
     /* Wrapper for each message, used for positioning */
-    position: relative;
+    display: flex;
+    flex-direction: column; /* Stack content and actions vertically */
+    gap: 8px; /* Add spacing between the message content and buttons */
 }
 
 .message-content {
     /* Content of the message, including text */
-    white-space: pre-wrap;
-    word-break: break-word;
+    white-space: pre-wrap; /* Ensure text wraps properly */
+    word-break: break-word; /* Prevent long words from overflowing */
 }
 
 .message-content.editing textarea {
@@ -62,23 +64,22 @@
 
 .message-actions {
     /* Action buttons (e.g., edit, delete) for messages */
-    /* Restrict the width to fit under the message */
+    display: flex;
+    gap: 8px; /* Add spacing between buttons */
+    justify-content: flex-start; /* Align buttons to the left */
+    flex-wrap: wrap; /* Allow buttons to wrap if needed */
     width: calc(100% - 16px); /* Adjust based on the padding of the parent */
     max-width: 100%; /* Ensure it doesn't overflow */
-    position: absolute;
+    position: static; /* Position relative to the message container */
+    margin-top: 8px; /* Add spacing above the action buttons */
     top: 4px;
     right: 4px;
-    display: flex;
-    gap: 4px; /* Reduce gap between buttons */
     padding: 4px; /* Adjust padding to reduce size */
     border-radius: 4px;
     background-color: var(--background-primary);
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
     z-index: 1;
     border: 1px solid var(--background-modifier-border);
-    display: flex;
-    gap: 8px;
-    position: absolute;
     right: 16px;
     top: 8px;
     opacity: 0;
@@ -90,19 +91,18 @@
 }
 
 .ai-chat-action-button {
-    /* General styling for action buttons */
-    display: flex;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 10px;
-    height: 10px;
-    padding: 6px;
-    border: none;
-    border-radius: 4px;
-    background-color: var(--background-modifier-hover);
-    color: var(--text-normal);
+    padding: 4px 8px;
+    font-size: 0.8em;
+    white-space: nowrap; /* Prevent text wrapping */
+    min-width: fit-content; /* Ensure the button expands to fit the label */
+    border: 1px solid var(--background-modifier-border); /* Optional: Add a border */
+    border-radius: 4px; /* Optional: Round the corners */
+    background-color: var(--background-secondary); /* Optional: Add background color */
+    color: var(--text-normal); /* Optional: Set text color */
     cursor: pointer;
-    transition: all 0.2s ease;
 }
 
 .ai-chat-action-button:hover {
@@ -115,6 +115,12 @@
     /* Icon styling inside action buttons */
     width: 16px;
     height: 10px;
+}
+
+.ai-chat-action-button .lucide-icon {
+    width: 1em; /* Adjust icon size as needed */
+    height: 1em;
+    vertical-align: middle; /* Align icon vertically with text */
 }
 
 .ai-chat-input-container {
