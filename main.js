@@ -29,7 +29,7 @@ __export(main_exports, {
   default: () => MyPlugin
 });
 module.exports = __toCommonJS(main_exports);
-var import_obsidian3 = require("obsidian");
+var import_obsidian4 = require("obsidian");
 
 // types.ts
 var DEFAULT_SETTINGS = {
@@ -4653,7 +4653,8 @@ function parseSelection(selection, chatSeparator, chatBoundaryString) {
   return messages;
 }
 
-// main.ts
+// ModelSettingsView.ts
+var import_obsidian3 = require("obsidian");
 var VIEW_TYPE_MODEL_SETTINGS = "model-settings-view";
 var ModelSettingsView = class extends import_obsidian3.ItemView {
   constructor(leaf, plugin) {
@@ -4880,7 +4881,7 @@ var ModelSettingsView = class extends import_obsidian3.ItemView {
   }
   /**
    * Setup autocompletion for notes and headers
-   * 
+   *
    * @param inputEl The input element to attach autocompletion to
    */
   setupNoteAutocomplete(inputEl) {
@@ -4932,7 +4933,7 @@ var ModelSettingsView = class extends import_obsidian3.ItemView {
   }
   /**
    * Display note and header suggestions
-   * 
+   *
    * @param inputEl The input element
    * @param startPos The start position of the link text
    * @param endPos The end position of the link text
@@ -5002,7 +5003,7 @@ var ModelSettingsView = class extends import_obsidian3.ItemView {
   }
   /**
    * Add header suggestions for a file
-   * 
+   *
    * @param file The file to get headers from
    * @param suggestionEl The suggestion container element
    * @param startPos Start position in the input
@@ -5052,7 +5053,10 @@ var ModelSettingsView = class extends import_obsidian3.ItemView {
     });
   }
 };
-var MyPlugin = class extends import_obsidian3.Plugin {
+
+// main.ts
+var VIEW_TYPE_MODEL_SETTINGS2 = "model-settings-view";
+var MyPlugin = class extends import_obsidian4.Plugin {
   constructor() {
     super(...arguments);
     __publicField(this, "settings");
@@ -5063,7 +5067,7 @@ var MyPlugin = class extends import_obsidian3.Plugin {
     await this.loadSettings();
     this.addSettingTab(new MyPluginSettingTab(this.app, this));
     this.registerView(
-      VIEW_TYPE_MODEL_SETTINGS,
+      VIEW_TYPE_MODEL_SETTINGS2,
       (leaf) => new ModelSettingsView(leaf, this)
     );
     this.registerView(
@@ -5120,13 +5124,12 @@ var MyPlugin = class extends import_obsidian3.Plugin {
         console.log("Extracted text for completion:", text);
         const messages = parseSelection(text, this.settings.chatSeparator);
         if (messages.length === 0) {
-          new import_obsidian3.Notice("No valid messages found in the selection.");
+          new import_obsidian4.Notice("No valid messages found in the selection.");
           return;
         }
         editor.replaceRange(`
 
 ${this.settings.chatSeparator}
-
 `, insertPosition);
         let currentPosition = {
           line: insertPosition.line + 3,
@@ -5172,7 +5175,7 @@ ${this.settings.chatSeparator}
           );
           editor.setCursor(newCursorPos);
         } catch (error) {
-          new import_obsidian3.Notice(`Error: ${error.message}`);
+          new import_obsidian4.Notice(`Error: ${error.message}`);
           editor.replaceRange(`Error: ${error.message}
 
 ${this.settings.chatSeparator}
@@ -5190,9 +5193,9 @@ ${this.settings.chatSeparator}
         if (this.activeStream) {
           this.activeStream.abort();
           this.activeStream = null;
-          new import_obsidian3.Notice("AI stream ended");
+          new import_obsidian4.Notice("AI stream ended");
         } else {
-          new import_obsidian3.Notice("No active AI stream to end");
+          new import_obsidian4.Notice("No active AI stream to end");
         }
       }
     });
@@ -5233,7 +5236,7 @@ The current time is ${currentTime} ${timeZoneString}.`;
     }
     return systemMessage;
   }
-  async activateView(viewType = VIEW_TYPE_MODEL_SETTINGS) {
+  async activateView(viewType = VIEW_TYPE_MODEL_SETTINGS2) {
     this.app.workspace.detachLeavesOfType(viewType);
     let leaf = this.app.workspace.getRightLeaf(false);
     if (leaf) {
@@ -5329,7 +5332,7 @@ ${contextContent}`
           }
           const headerMatch = filePath.match(/(.*?)#(.*)/);
           let extractedContent = "";
-          if (file && file instanceof import_obsidian3.TFile) {
+          if (file && file instanceof import_obsidian4.TFile) {
             const noteContent = await this.app.vault.cachedRead(file);
             if (headerMatch) {
               extractedContent = this.extractContentUnderHeader(
@@ -5351,10 +5354,10 @@ ${extractedContent}
 `
             );
           } else {
-            new import_obsidian3.Notice(`File not found: ${filePath}. Ensure the file name and path are correct.`);
+            new import_obsidian4.Notice(`File not found: ${filePath}. Ensure the file name and path are correct.`);
           }
         } catch (error) {
-          new import_obsidian3.Notice(`Error processing link for ${filePath}: ${error.message}`);
+          new import_obsidian4.Notice(`Error processing link for ${filePath}: ${error.message}`);
         }
       }
     }
@@ -5419,7 +5422,7 @@ ${extractedContent}
               (f) => f.basename.toLowerCase() === baseFileName.toLowerCase() || f.name.toLowerCase() === `${baseFileName.toLowerCase()}.md`
             ) || null;
           }
-          if (file && file instanceof import_obsidian3.TFile) {
+          if (file && file instanceof import_obsidian4.TFile) {
             const noteContent = await this.app.vault.cachedRead(file);
             contextContent += `### From note: ${file.basename}
 

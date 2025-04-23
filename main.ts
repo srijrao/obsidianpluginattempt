@@ -133,7 +133,7 @@ export default class MyPlugin extends Plugin {
                 }
 
                 // Insert a separator for the AI's response
-                editor.replaceRange(`\n\n${this.settings.chatSeparator}\n\n`, insertPosition);
+                editor.replaceRange(`\n\n${this.settings.chatSeparator}\n`, insertPosition);
                 let currentPosition = {
                     line: insertPosition.line + 3,
                     ch: 0
