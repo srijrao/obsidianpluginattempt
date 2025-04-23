@@ -27,7 +27,7 @@ function debounce<T extends (...args: any[]) => any>(func: T, wait: number): (..
  * AI Assistant Plugin
  * 
  * This plugin adds AI capabilities to Obsidian, supporting multiple providers:
- * - OpenAI (GPT-3.5, GPT-4)
+ * - OpenAI (ChatGPT)
  * - Anthropic (Claude)
  * - Google (Gemini)
  * - Ollama (Local AI)
@@ -219,7 +219,7 @@ export default class MyPlugin extends Plugin {
                 this.activateChatView();
             }
         });
-        
+
         this.addCommand({
             id: 'copy-active-note-name',
             name: 'Copy Active Note Name',

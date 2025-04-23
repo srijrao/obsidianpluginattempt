@@ -25,7 +25,7 @@ class SettingsModal extends Modal {
             .setDesc('Choose which AI provider to use')
             .addDropdown(dropdown => {
                 dropdown
-                    .addOption('openai', 'OpenAI (GPT-3.5, GPT-4)')
+                    .addOption('openai', 'OpenAI (ChatGPT)')
                     .addOption('anthropic', 'Anthropic (Claude)')
                     .addOption('gemini', 'Google (Gemini)')
                     .addOption('ollama', 'Ollama (Local AI)')
@@ -773,7 +773,7 @@ export class ChatView extends ItemView {
         const providerContainer = container.createDiv();
         providerContainer.createEl('label', { text: 'AI Provider' });
         const providerSelect = providerContainer.createEl('select');
-        providerSelect.createEl('option', { value: 'openai', text: 'OpenAI (GPT-3.5, GPT-4)' });
+        providerSelect.createEl('option', { value: 'openai', text: 'OpenAI (ChatGPT)' });
         providerSelect.createEl('option', { value: 'anthropic', text: 'Anthropic (Claude)' });
         providerSelect.createEl('option', { value: 'gemini', text: 'Google (Gemini)' });
         providerSelect.createEl('option', { value: 'ollama', text: 'Ollama (Local AI)' });

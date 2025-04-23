@@ -44,7 +44,7 @@ export class ModelSettingsView extends ItemView {
             .setDesc('Choose which AI provider to use')
             .addDropdown(dropdown => {
                 dropdown
-                    .addOption('openai', 'OpenAI (GPT-3.5, GPT-4)')
+                    .addOption('openai', 'OpenAI (ChatGPT)')
                     .addOption('anthropic', 'Anthropic (Claude)')
                     .addOption('gemini', 'Google (Gemini)')
                     .addOption('ollama', 'Ollama (Local AI)')
