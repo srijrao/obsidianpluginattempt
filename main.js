@@ -4409,13 +4409,93 @@ ${currentNoteContent}`
       } else {
         const textarea = contentEl.querySelector("textarea");
         if (textarea) {
-          messageEl.dataset.rawContent = textarea.value;
+          const oldContent = messageEl.dataset.rawContent;
+          const newContent = textarea.value;
+          messageEl.dataset.rawContent = newContent;
           contentEl.empty();
-          import_obsidian2.MarkdownRenderer.render(this.app, textarea.value, contentEl, "", this).catch((error) => {
+          import_obsidian2.MarkdownRenderer.render(this.app, newContent, contentEl, "", this).catch((error) => {
             console.error("Markdown rendering error:", error);
-            contentEl.textContent = textarea.value;
+            contentEl.textContent = newContent;
           });
           contentEl.removeClass("editing");
+          if (role === "user" && oldContent !== newContent) {
+            const existingContainer = messageEl.querySelector(".regenerate-container");
+            if (existingContainer) existingContainer.remove();
+            const regenerateContainer = messageEl.createDiv("regenerate-container");
+            regenerateContainer.style.textAlign = "right";
+            regenerateContainer.style.marginTop = "8px";
+            const regenerateButton = this.createActionButton("Regenerate Response", "Regenerate AI response", async () => {
+              const nextMessage = messageEl.nextElementSibling;
+              if (nextMessage && nextMessage.classList.contains("ai-chat-message")) {
+                const textarea2 = this.inputContainer.querySelector("textarea");
+                if (textarea2) textarea2.disabled = true;
+                const messages = [
+                  { role: "system", content: this.plugin.getSystemMessage() }
+                ];
+                if (this.plugin.settings.enableContextNotes && this.plugin.settings.contextNotes) {
+                  const contextContent = await this.plugin.getContextNotesContent(this.plugin.settings.contextNotes);
+                  messages[0].content += `
+
+Context Notes:
+${contextContent}`;
+                }
+                const allMessages = Array.from(this.messagesContainer.querySelectorAll(".ai-chat-message"));
+                const currentIndex = allMessages.indexOf(messageEl);
+                for (let i = 0; i <= currentIndex; i++) {
+                  const el = allMessages[i];
+                  const msgRole = el.classList.contains("user") ? "user" : "assistant";
+                  const content2 = el.dataset.rawContent || "";
+                  messages.push({ role: msgRole, content: content2 });
+                }
+                nextMessage.remove();
+                regenerateContainer.remove();
+                const provider = createProvider(this.plugin.settings);
+                const assistantContainer = this.createMessageElement("assistant", "");
+                this.messagesContainer.insertBefore(assistantContainer, messageEl.nextSibling);
+                let responseContent = "";
+                this.activeStream = new AbortController();
+                try {
+                  await provider.getCompletion(
+                    messages,
+                    {
+                      temperature: this.plugin.settings.temperature,
+                      maxTokens: this.plugin.settings.maxTokens,
+                      streamCallback: async (chunk) => {
+                        responseContent += chunk;
+                        const contentEl2 = assistantContainer.querySelector(".message-content");
+                        if (contentEl2) {
+                          assistantContainer.dataset.rawContent = responseContent;
+                          contentEl2.empty();
+                          await import_obsidian2.MarkdownRenderer.render(
+                            this.app,
+                            responseContent,
+                            contentEl2,
+                            "",
+                            this
+                          );
+                          this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+                        }
+                      },
+                      abortController: this.activeStream
+                    }
+                  );
+                } catch (error) {
+                  if (error.name !== "AbortError") {
+                    new import_obsidian2.Notice(`Error: ${error.message}`);
+                    assistantContainer.remove();
+                  }
+                } finally {
+                  if (textarea2) {
+                    textarea2.disabled = false;
+                    textarea2.focus();
+                  }
+                  this.activeStream = null;
+                }
+              }
+            });
+            regenerateContainer.appendChild(regenerateButton);
+            messageEl.appendChild(regenerateContainer);
+          }
         }
       }
     }));
