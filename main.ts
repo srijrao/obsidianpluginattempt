@@ -3,8 +3,24 @@ import { MyPluginSettings, Message, DEFAULT_SETTINGS } from './types';
 import { createProvider } from './providers';
 import { MyPluginSettingTab } from './settings';
 import { ChatView, VIEW_TYPE_CHAT } from './chat';
+import { parseSelection } from './parseSelection';
 
 const VIEW_TYPE_MODEL_SETTINGS = 'model-settings-view';
+
+/**
+ * Creates a debounced version of a function that delays invoking func until after wait milliseconds
+ * have elapsed since the last time the debounced function was invoked.
+ * 
+ * @param func The function to debounce
+ * @param wait The number of milliseconds to delay
+ */
+function debounce<T extends (...args: any[]) => any>(func: T, wait: number): (...args: Parameters<T>) => void {
+    let timeout: NodeJS.Timeout;
+    return (...args: Parameters<T>) => {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => func(...args), wait);
+    };
+}
 
 /**
  * AI Model Settings View
@@ -616,61 +632,6 @@ class ModelSettingsView extends ItemView {
             suggestionEl.appendChild(item);
         });
     }
-}
-
-/**
- * Parses a given text selection into an array of message objects
- * 
- * The function interprets lines of text separated by '----' as boundaries
- * between user and assistant messages.
- * 
- * @param selection - The text selection to parse
- * @returns Array of message objects with roles and content
- */
-function parseSelection(
-    selection: string,
-    chatSeparator: string,
-    chatBoundaryString?: string
-): Message[] {
-    // If no chatBoundaryString is provided, start parsing right away
-    let insideChat = !chatBoundaryString;
-
-    const lines = selection.split('\n');
-    let messages: Message[] = [];
-    let currentRole: 'user' | 'assistant' = 'user';
-    let currentContent = '';
-
-    for (const line of lines) {
-        if (chatBoundaryString && line.trim() === chatBoundaryString) {
-            // If start and end boundaries are the same, toggle only once
-            if (!insideChat && currentContent.trim()) {
-                messages.push({ role: currentRole, content: currentContent.trim() });
-                currentContent = '';
-            }
-            insideChat = !insideChat;
-            continue;
-        }
-
-        if (!insideChat) continue; // Ignore lines outside of a chat
-
-        if (line.trim() === chatSeparator) {
-            // If we hit a separator, save the current message and switch roles
-            if (currentContent.trim()) {
-                messages.push({ role: currentRole, content: currentContent.trim() });
-            }
-            currentRole = currentRole === 'user' ? 'assistant' : 'user';
-            currentContent = '';
-        } else {
-            currentContent += line + '\n';
-        }
-    }
-
-    // Save any remaining content
-    if (currentContent.trim()) {
-        messages.push({ role: currentRole, content: currentContent.trim() });
-    }
-
-    return messages;
 }
 
 /**
