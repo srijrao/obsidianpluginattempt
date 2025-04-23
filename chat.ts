@@ -645,103 +645,6 @@ export class ChatView extends ItemView {
                     });
                     contentEl.removeClass('editing');
 
-                    // If content changed and this is a user message, add regenerate button
-                    if (role === 'user' && oldContent !== newContent) {
-                        // Remove any existing regenerate containers
-                        const existingContainer = messageEl.querySelector('.regenerate-container');
-                        if (existingContainer) existingContainer.remove();
-
-                        // Create regenerate button container
-                        const regenerateContainer = messageEl.createDiv('regenerate-container');
-                        regenerateContainer.style.textAlign = 'right';
-                        regenerateContainer.style.marginTop = '8px';
-
-                        // Add regenerate button
-                        const regenerateButton = this.createActionButton('Regenerate Response', 'Regenerate AI response', async () => {
-                            // Get the next message (AI response)
-                            const nextMessage = messageEl.nextElementSibling;
-                            if (nextMessage && nextMessage.classList.contains('ai-chat-message')) {
-                                // Disable input during regeneration
-                                const textarea = this.inputContainer.querySelector('textarea');
-                                if (textarea) textarea.disabled = true;
-
-                                // Get all messages up to this point
-                                const messages: Message[] = [
-                                    { role: 'system', content: this.plugin.getSystemMessage() }
-                                ];
-
-                                // Get context notes if enabled
-                                if (this.plugin.settings.enableContextNotes && this.plugin.settings.contextNotes) {
-                                    const contextContent = await this.plugin.getContextNotesContent(this.plugin.settings.contextNotes);
-                                    messages[0].content += `\n\nContext Notes:\n${contextContent}`;
-                                }
-
-                                // Get all messages up to current
-                                const allMessages = Array.from(this.messagesContainer.querySelectorAll('.ai-chat-message'));
-                                const currentIndex = allMessages.indexOf(messageEl);
-
-                                for (let i = 0; i <= currentIndex; i++) {
-                                    const el = allMessages[i];
-                                    const msgRole = el.classList.contains('user') ? 'user' : 'assistant';
-                                    const content = (el as HTMLElement).dataset.rawContent || '';
-                                    messages.push({ role: msgRole, content });
-                                }
-
-                                // Remove the next message and regenerate container
-                                nextMessage.remove();
-                                regenerateContainer.remove();
-
-                                // Generate new response
-                                const provider = createProvider(this.plugin.settings);
-                                const assistantContainer = this.createMessageElement('assistant', '');
-                                this.messagesContainer.insertBefore(assistantContainer, messageEl.nextSibling);
-
-                                let responseContent = '';
-                                this.activeStream = new AbortController();
-
-                                try {
-                                    await provider.getCompletion(
-                                        messages,
-                                        {
-                                            temperature: this.plugin.settings.temperature,
-                                            maxTokens: this.plugin.settings.maxTokens,
-                                            streamCallback: async (chunk: string) => {
-                                                responseContent += chunk;
-                                                const contentEl = assistantContainer.querySelector('.message-content') as HTMLElement;
-                                                if (contentEl) {
-                                                    assistantContainer.dataset.rawContent = responseContent;
-                                                    contentEl.empty();
-                                                    await MarkdownRenderer.render(
-                                                        this.app,
-                                                        responseContent,
-                                                        contentEl,
-                                                        '',
-                                                        this
-                                                    );
-                                                    this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
-                                                }
-                                            },
-                                            abortController: this.activeStream
-                                        }
-                                    );
-                                } catch (error) {
-                                    if (error.name !== 'AbortError') {
-                                        new Notice(`Error: ${error.message}`);
-                                        assistantContainer.remove();
-                                    }
-                                } finally {
-                                    if (textarea) {
-                                        textarea.disabled = false;
-                                        textarea.focus();
-                                    }
-                                    this.activeStream = null;
-                                }
-                            }
-                        });
-
-                        regenerateContainer.appendChild(regenerateButton);
-                        messageEl.appendChild(regenerateContainer);
-                    }
                 }
             }
         }));
@@ -761,88 +664,12 @@ export class ChatView extends ItemView {
             modal.open();
         }));
 
-        // Add refresh button for assistant messages
-        if (role === 'assistant') {
-            actionsEl.appendChild(this.createActionButton('Regenerate', 'Regenerate response', async () => {
-                // Find this message element
-                const currentMessage = messageEl;
-                
-                // Disable input during regeneration
-                const textarea = this.inputContainer.querySelector('textarea');
-                if (textarea) textarea.disabled = true;
-                
-                // Find all previous messages to maintain context
-                const allMessages = Array.from(this.messagesContainer.querySelectorAll('.ai-chat-message'));
-                const currentIndex = allMessages.indexOf(currentMessage);
-                
-                // Get system message and all previous messages up to current
-                const messages: Message[] = [
-                    { role: 'system', content: this.plugin.getSystemMessage() }
-                ];
-                
-                for (let i = 0; i < currentIndex; i++) {
-                    const el = allMessages[i];
-                    const role = el.classList.contains('user') ? 'user' : 'assistant';
-                    const content = (el as HTMLElement).dataset.rawContent || '';
-                    messages.push({ role, content });
-                }
-                
-                // Remove the current response
-                currentMessage.remove();
-                
-                // Create new assistant message for streaming
-                const assistantContainer = this.createMessageElement('assistant', '');
-                this.messagesContainer.appendChild(assistantContainer);
-                this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
-                
-                // Create abort controller for streaming
-                this.activeStream = new AbortController();
-                
-                try {
-                    const provider = createProvider(this.plugin.settings);
-                    let responseContent = '';
-                    await provider.getCompletion(
-                        messages,
-                        {
-                            temperature: this.plugin.settings.temperature,
-                            maxTokens: this.plugin.settings.maxTokens,
-                            streamCallback: async (chunk: string) => {
-                                responseContent += chunk;
-                                const contentEl = assistantContainer.querySelector('.message-content') as HTMLElement;
-                                if (contentEl) {
-                                    // Update the data attribute with the current content
-                                    assistantContainer.dataset.rawContent = responseContent;
-                                    
-                                    // Render Markdown content dynamically
-                                    contentEl.empty();
-                                    await MarkdownRenderer.render(
-                                        this.app,
-                                        responseContent,
-                                        contentEl,
-                                        '',
-                                        this
-                                    );
-                                    this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
-                                }
-                            },
-                            abortController: this.activeStream
-                        }
-                    );
-                } catch (error) {
-                    if (error.name !== 'AbortError') {
-                        new Notice(`Error: ${error.message}`);
-                        this.addMessage('assistant', `Error: ${error.message}`);
-                    }
-                } finally {
-                    // Re-enable input
-                    if (textarea) {
-                        textarea.disabled = false;
-                        textarea.focus();
-                    }
-                    this.activeStream = null;
-                }
-            }));
-        }
+        // Add a single regenerate button with context-aware label
+        const regenerateLabel = role === 'assistant' ? 'Regenerate' : 'Regenerate Response';
+        const regenerateTooltip = role === 'assistant' ? 'Regenerate this response' : 'Regenerate AI response';
+        actionsEl.appendChild(this.createActionButton(regenerateLabel, regenerateTooltip, () => {
+            this.regenerateResponse(messageEl);
+        }));
 
         // Append actions container to message container
         messageContainer.appendChild(actionsEl);
@@ -988,5 +815,100 @@ export class ChatView extends ItemView {
         }
 
         return container;
+    }
+
+    private async regenerateResponse(messageEl: HTMLElement) {
+        // Disable input during regeneration
+        const textarea = this.inputContainer.querySelector('textarea');
+        if (textarea) textarea.disabled = true;
+    
+        // Get all messages up to this point for context
+        const messages: Message[] = [
+            { role: 'system', content: this.plugin.getSystemMessage() }
+        ];
+    
+        // Add context notes if enabled
+        if (this.plugin.settings.enableContextNotes && this.plugin.settings.contextNotes) {
+            const contextContent = await this.plugin.getContextNotesContent(this.plugin.settings.contextNotes);
+            messages[0].content += `\n\nContext Notes:\n${contextContent}`;
+        }
+    
+        const allMessages = Array.from(this.messagesContainer.querySelectorAll('.ai-chat-message'));
+        const currentIndex = allMessages.indexOf(messageEl);
+    
+        // Get all messages up to current message
+        for (let i = 0; i <= currentIndex; i++) {
+            const el = allMessages[i];
+            const role = el.classList.contains('user') ? 'user' : 'assistant';
+            const content = (el as HTMLElement).dataset.rawContent || '';
+            messages.push({ role, content });
+        }
+    
+        // Determine which message to replace
+        let messageToReplace: HTMLElement;
+        if (messageEl.classList.contains('assistant')) {
+            messageToReplace = messageEl;
+        } else {
+            // For user messages, replace the next assistant message if it exists
+            messageToReplace = messageEl.nextElementSibling as HTMLElement;
+            if (!messageToReplace?.classList.contains('assistant')) {
+                return; // No assistant message to replace
+            }
+        }
+    
+        // Remove the message to be replaced
+        messageToReplace.remove();
+    
+        // Create new assistant message container
+        const assistantContainer = this.createMessageElement('assistant', '');
+        if (messageEl.classList.contains('assistant')) {
+            this.messagesContainer.insertBefore(assistantContainer, messageEl.nextSibling);
+        } else {
+            this.messagesContainer.insertBefore(assistantContainer, messageToReplace?.nextSibling || null);
+        }
+        this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+    
+        // Generate new response
+        this.activeStream = new AbortController();
+        let responseContent = '';
+    
+        try {
+            const provider = createProvider(this.plugin.settings);
+            await provider.getCompletion(
+                messages,
+                {
+                    temperature: this.plugin.settings.temperature,
+                    maxTokens: this.plugin.settings.maxTokens,
+                    streamCallback: async (chunk: string) => {
+                        responseContent += chunk;
+                        const contentEl = assistantContainer.querySelector('.message-content') as HTMLElement;
+                        if (contentEl) {
+                            assistantContainer.dataset.rawContent = responseContent;
+                            contentEl.empty();
+                            await MarkdownRenderer.render(
+                                this.app,
+                                responseContent,
+                                contentEl,
+                                '',
+                                this
+                            );
+                            this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+                        }
+                    },
+                    abortController: this.activeStream
+                }
+            );
+        } catch (error) {
+            if (error.name !== 'AbortError') {
+                new Notice(`Error: ${error.message}`);
+                assistantContainer.remove();
+            }
+        } finally {
+            if (textarea) {
+                textarea.disabled = false;
+                textarea.focus();
+            }
+            this.activeStream = null;
+        }
     }
 }
