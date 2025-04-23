@@ -61,7 +61,7 @@ export default class MyPlugin extends Plugin {
         );
 
         // Add ribbon icons
-        this.addRibbonIcon('gear', 'Open AI Settings', () => {
+        this.addRibbonIcon('file-sliders', 'Open AI Settings', () => {
             this.activateView();
         });
 

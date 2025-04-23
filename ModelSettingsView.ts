@@ -30,32 +30,16 @@ export class ModelSettingsView extends ItemView {
         return 'AI Model Settings';
     }
 
+    getIcon(): string {
+        return 'file-sliders';
+    }
+
     async onOpen() {
         const { contentEl } = this;
         contentEl.empty();
 
+        // Settings Section
         contentEl.createEl('h2', { text: 'AI Model Settings' });
-
-        // Common Settings Section
-        contentEl.createEl('h3', { text: 'Common Settings' });
-
-        new Setting(contentEl)
-            .setName('AI Provider')
-            .setDesc('Choose which AI provider to use')
-            .addDropdown(dropdown => {
-                dropdown
-                    .addOption('openai', 'OpenAI (ChatGPT)')
-                    .addOption('anthropic', 'Anthropic (Claude)')
-                    .addOption('gemini', 'Google (Gemini)')
-                    .addOption('ollama', 'Ollama (Local AI)')
-                    .setValue(this.plugin.settings.provider)
-                    .onChange(async (value: 'openai' | 'anthropic' | 'gemini' | 'ollama') => {
-                        this.plugin.settings.provider = value;
-                        await this.plugin.saveSettings();
-                        // Refresh view to show provider-specific settings
-                        this.onOpen();
-                    });
-            });
 
         new Setting(contentEl)
             .setName('System Message')
@@ -67,6 +51,44 @@ export class ModelSettingsView extends ItemView {
                     this.plugin.settings.systemMessage = value;
                     await this.plugin.saveSettings();
                 }));
+
+        new Setting(contentEl)
+            .setName('Enable Streaming')
+            .setDesc('Enable or disable streaming for completions')
+            .addToggle(toggle => toggle
+                .setValue(this.plugin.settings.enableStreaming)
+                .onChange(async (value) => {
+                    this.plugin.settings.enableStreaming = value;
+                    await this.plugin.saveSettings();
+                }));
+
+        new Setting(contentEl)
+            .setName('Temperature')
+            .setDesc('Set the randomness of the model\'s output (0-1)')
+            .addSlider(slider => slider
+                .setLimits(0, 1, 0.1)
+                .setValue(this.plugin.settings.temperature)
+                .setDynamicTooltip()
+                .onChange(async (value) => {
+                    this.plugin.settings.temperature = value;
+                    await this.plugin.saveSettings();
+                }));
+
+        new Setting(contentEl)
+            .setName('Max Tokens')
+            .setDesc('Set the maximum length of the model\'s output')
+            .addText(text => text
+                .setPlaceholder('4000')
+                .setValue(String(this.plugin.settings.maxTokens))
+                .onChange(async (value) => {
+                    const numValue = Number(value);
+                    if (!isNaN(numValue)) {
+                        this.plugin.settings.maxTokens = numValue;
+                        await this.plugin.saveSettings();
+                    }
+                }));
+        // Date Settings Section
+        contentEl.createEl('h4', { text: 'Date Settings' });
 
         new Setting(contentEl)
             .setName('Include Date with System Message')
@@ -87,7 +109,8 @@ export class ModelSettingsView extends ItemView {
                     this.plugin.settings.includeTimeWithSystemMessage = value;
                     await this.plugin.saveSettings();
                 }));
-
+        // Note Reference Settings Section
+        contentEl.createEl('h4', { text: 'Note Reference Settings' });
         new Setting(contentEl)
             .setName('Enable Obsidian Links')
             .setDesc('Read Obsidian links in messages using [[filename]] syntax')
@@ -130,45 +153,25 @@ export class ModelSettingsView extends ItemView {
                 this.setupNoteAutocomplete(text.inputEl);
             });
 
-        new Setting(contentEl)
-            .setName('Enable Streaming')
-            .setDesc('Enable or disable streaming for completions')
-            .addToggle(toggle => toggle
-                .setValue(this.plugin.settings.enableStreaming)
-                .onChange(async (value) => {
-                    this.plugin.settings.enableStreaming = value;
-                    await this.plugin.saveSettings();
-                }));
-
-        new Setting(contentEl)
-            .setName('Temperature')
-            .setDesc('Set the randomness of the model\'s output (0-1)')
-            .addSlider(slider => slider
-                .setLimits(0, 1, 0.1)
-                .setValue(this.plugin.settings.temperature)
-                .setDynamicTooltip()
-                .onChange(async (value) => {
-                    this.plugin.settings.temperature = value;
-                    await this.plugin.saveSettings();
-                }));
-
-        new Setting(contentEl)
-            .setName('Max Tokens')
-            .setDesc('Set the maximum length of the model\'s output')
-            .addText(text => text
-                .setPlaceholder('4000')
-                .setValue(String(this.plugin.settings.maxTokens))
-                .onChange(async (value) => {
-                    const numValue = Number(value);
-                    if (!isNaN(numValue)) {
-                        this.plugin.settings.maxTokens = numValue;
-                        await this.plugin.saveSettings();
-                    }
-                }));
-
         // Provider-specific settings section
-        contentEl.createEl('h3', { text: `${this.plugin.settings.provider.toUpperCase()} Settings` });
-
+        contentEl.createEl('h2', { text: 'Provider Settings' });
+        new Setting(contentEl)
+            .setName('AI Provider')
+            .setDesc('Choose which AI provider to use')
+            .addDropdown(dropdown => {
+                dropdown
+                    .addOption('openai', 'OpenAI (ChatGPT)')
+                    .addOption('anthropic', 'Anthropic (Claude)')
+                    .addOption('gemini', 'Google (Gemini)')
+                    .addOption('ollama', 'Ollama (Local AI)')
+                    .setValue(this.plugin.settings.provider)
+                    .onChange(async (value: 'openai' | 'anthropic' | 'gemini' | 'ollama') => {
+                        this.plugin.settings.provider = value;
+                        await this.plugin.saveSettings();
+                        // Refresh view to show provider-specific settings
+                        this.onOpen();
+                    });
+            });
         switch (this.plugin.settings.provider) {
             case 'openai':
                 this.renderOpenAISettings(contentEl);

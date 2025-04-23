@@ -4669,22 +4669,33 @@ var ModelSettingsView = class extends import_obsidian3.ItemView {
   getDisplayText() {
     return "AI Model Settings";
   }
+  getIcon() {
+    return "file-sliders";
+  }
   async onOpen() {
     const { contentEl } = this;
     contentEl.empty();
     contentEl.createEl("h2", { text: "AI Model Settings" });
-    contentEl.createEl("h3", { text: "Common Settings" });
-    new import_obsidian3.Setting(contentEl).setName("AI Provider").setDesc("Choose which AI provider to use").addDropdown((dropdown) => {
-      dropdown.addOption("openai", "OpenAI (ChatGPT)").addOption("anthropic", "Anthropic (Claude)").addOption("gemini", "Google (Gemini)").addOption("ollama", "Ollama (Local AI)").setValue(this.plugin.settings.provider).onChange(async (value) => {
-        this.plugin.settings.provider = value;
-        await this.plugin.saveSettings();
-        this.onOpen();
-      });
-    });
     new import_obsidian3.Setting(contentEl).setName("System Message").setDesc("Set the system message for the AI").addTextArea((text) => text.setPlaceholder("You are a helpful assistant.").setValue(this.plugin.settings.systemMessage).onChange(async (value) => {
       this.plugin.settings.systemMessage = value;
       await this.plugin.saveSettings();
     }));
+    new import_obsidian3.Setting(contentEl).setName("Enable Streaming").setDesc("Enable or disable streaming for completions").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableStreaming).onChange(async (value) => {
+      this.plugin.settings.enableStreaming = value;
+      await this.plugin.saveSettings();
+    }));
+    new import_obsidian3.Setting(contentEl).setName("Temperature").setDesc("Set the randomness of the model's output (0-1)").addSlider((slider) => slider.setLimits(0, 1, 0.1).setValue(this.plugin.settings.temperature).setDynamicTooltip().onChange(async (value) => {
+      this.plugin.settings.temperature = value;
+      await this.plugin.saveSettings();
+    }));
+    new import_obsidian3.Setting(contentEl).setName("Max Tokens").setDesc("Set the maximum length of the model's output").addText((text) => text.setPlaceholder("4000").setValue(String(this.plugin.settings.maxTokens)).onChange(async (value) => {
+      const numValue = Number(value);
+      if (!isNaN(numValue)) {
+        this.plugin.settings.maxTokens = numValue;
+        await this.plugin.saveSettings();
+      }
+    }));
+    contentEl.createEl("h4", { text: "Date Settings" });
     new import_obsidian3.Setting(contentEl).setName("Include Date with System Message").setDesc("Add the current date to the system message").addToggle((toggle) => toggle.setValue(this.plugin.settings.includeDateWithSystemMessage).onChange(async (value) => {
       this.plugin.settings.includeDateWithSystemMessage = value;
       await this.plugin.saveSettings();
@@ -4693,6 +4704,7 @@ var ModelSettingsView = class extends import_obsidian3.ItemView {
       this.plugin.settings.includeTimeWithSystemMessage = value;
       await this.plugin.saveSettings();
     }));
+    contentEl.createEl("h4", { text: "Note Reference Settings" });
     new import_obsidian3.Setting(contentEl).setName("Enable Obsidian Links").setDesc("Read Obsidian links in messages using [[filename]] syntax").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableObsidianLinks).onChange(async (value) => {
       this.plugin.settings.enableObsidianLinks = value;
       await this.plugin.saveSettings();
@@ -4712,22 +4724,14 @@ var ModelSettingsView = class extends import_obsidian3.ItemView {
       text.inputEl.style.width = "100%";
       this.setupNoteAutocomplete(text.inputEl);
     });
-    new import_obsidian3.Setting(contentEl).setName("Enable Streaming").setDesc("Enable or disable streaming for completions").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableStreaming).onChange(async (value) => {
-      this.plugin.settings.enableStreaming = value;
-      await this.plugin.saveSettings();
-    }));
-    new import_obsidian3.Setting(contentEl).setName("Temperature").setDesc("Set the randomness of the model's output (0-1)").addSlider((slider) => slider.setLimits(0, 1, 0.1).setValue(this.plugin.settings.temperature).setDynamicTooltip().onChange(async (value) => {
-      this.plugin.settings.temperature = value;
-      await this.plugin.saveSettings();
-    }));
-    new import_obsidian3.Setting(contentEl).setName("Max Tokens").setDesc("Set the maximum length of the model's output").addText((text) => text.setPlaceholder("4000").setValue(String(this.plugin.settings.maxTokens)).onChange(async (value) => {
-      const numValue = Number(value);
-      if (!isNaN(numValue)) {
-        this.plugin.settings.maxTokens = numValue;
+    contentEl.createEl("h2", { text: "Provider Settings" });
+    new import_obsidian3.Setting(contentEl).setName("AI Provider").setDesc("Choose which AI provider to use").addDropdown((dropdown) => {
+      dropdown.addOption("openai", "OpenAI (ChatGPT)").addOption("anthropic", "Anthropic (Claude)").addOption("gemini", "Google (Gemini)").addOption("ollama", "Ollama (Local AI)").setValue(this.plugin.settings.provider).onChange(async (value) => {
+        this.plugin.settings.provider = value;
         await this.plugin.saveSettings();
-      }
-    }));
-    contentEl.createEl("h3", { text: `${this.plugin.settings.provider.toUpperCase()} Settings` });
+        this.onOpen();
+      });
+    });
     switch (this.plugin.settings.provider) {
       case "openai":
         this.renderOpenAISettings(contentEl);
@@ -5075,7 +5079,7 @@ var MyPlugin = class extends import_obsidian4.Plugin {
       VIEW_TYPE_CHAT,
       (leaf) => new ChatView(leaf, this)
     );
-    this.addRibbonIcon("gear", "Open AI Settings", () => {
+    this.addRibbonIcon("file-sliders", "Open AI Settings", () => {
       this.activateView();
     });
     this.addRibbonIcon("message-square", "Open AI Chat", () => {
