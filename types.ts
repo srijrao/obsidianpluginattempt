@@ -153,6 +153,12 @@ export interface MyPluginSettings {
     chatEndString?: string;
     enableContextNotes: boolean;
     contextNotes: string;
+
+    /** Chat history settings */
+    maxSessions: number;
+    autoSaveSessions: boolean;
+    sessions: ChatSession[];
+    activeSessionId?: string;
 }
 
 /**
@@ -193,5 +199,27 @@ export const DEFAULT_SETTINGS: MyPluginSettings = {
     chatStartString: undefined,
     chatEndString: undefined,
     enableContextNotes: false,
-    contextNotes: ''
+    contextNotes: '',
+
+    maxSessions: 10,
+    autoSaveSessions: true,
+    sessions: [],
+    activeSessionId: undefined
 };
+
+/**
+ * Represents a chat session
+ * 
+ * @property id - Unique identifier for the session
+ * @property name - Human-readable name for the session
+ * @property created - Timestamp when the session was created
+ * @property lastUpdated - Timestamp when the session was last updated
+ * @property messages - List of messages in the session
+ */
+export interface ChatSession {
+    id: string;
+    name: string;
+    created: number;
+    lastUpdated: number;
+    messages: Message[];
+}

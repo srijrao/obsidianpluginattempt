@@ -67,7 +67,11 @@ var DEFAULT_SETTINGS = {
   chatStartString: void 0,
   chatEndString: void 0,
   enableContextNotes: false,
-  contextNotes: ""
+  contextNotes: "",
+  maxSessions: 10,
+  autoSaveSessions: true,
+  sessions: [],
+  activeSessionId: void 0
 };
 
 // providers/base.ts
@@ -3998,6 +4002,18 @@ var SettingsModal = class extends import_obsidian2.Modal {
     const { contentEl } = this;
     contentEl.empty();
     contentEl.addClass("ai-settings-modal");
+    contentEl.createEl("h3", { text: "Session Management" });
+    new import_obsidian2.Setting(contentEl).setName("Auto-save Sessions").setDesc("Automatically save chat messages to sessions").addToggle((toggle) => toggle.setValue(this.plugin.settings.autoSaveSessions).onChange(async (value) => {
+      this.plugin.settings.autoSaveSessions = value;
+      await this.plugin.saveSettings();
+    }));
+    new import_obsidian2.Setting(contentEl).setName("Maximum Sessions").setDesc("Maximum number of chat sessions to keep (oldest will be removed)").addSlider((slider) => slider.setLimits(1, 50, 1).setValue(this.plugin.settings.maxSessions).setDynamicTooltip().onChange(async (value) => {
+      this.plugin.settings.maxSessions = value;
+      if (this.plugin.settings.sessions.length > value) {
+        this.plugin.settings.sessions = this.plugin.settings.sessions.sort((a, b) => b.lastUpdated - a.lastUpdated).slice(0, value);
+      }
+      await this.plugin.saveSettings();
+    }));
     new import_obsidian2.Setting(contentEl).setName("AI Provider").setDesc("Choose which AI provider to use").addDropdown((dropdown) => {
       dropdown.addOption("openai", "OpenAI (ChatGPT)").addOption("anthropic", "Anthropic (Claude)").addOption("gemini", "Google (Gemini)").addOption("ollama", "Ollama (Local AI)").setValue(this.plugin.settings.provider).onChange(async (value) => {
         this.plugin.settings.provider = value;

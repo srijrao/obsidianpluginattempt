@@ -18,7 +18,38 @@ class SettingsModal extends Modal {
         const { contentEl } = this;
         contentEl.empty();
         contentEl.addClass('ai-settings-modal');
-    
+
+        // Session Management Settings
+        contentEl.createEl('h3', { text: 'Session Management' });
+        
+        new Setting(contentEl)
+            .setName('Auto-save Sessions')
+            .setDesc('Automatically save chat messages to sessions')
+            .addToggle(toggle => toggle
+                .setValue(this.plugin.settings.autoSaveSessions)
+                .onChange(async (value) => {
+                    this.plugin.settings.autoSaveSessions = value;
+                    await this.plugin.saveSettings();
+                }));
+
+        new Setting(contentEl)
+            .setName('Maximum Sessions')
+            .setDesc('Maximum number of chat sessions to keep (oldest will be removed)')
+            .addSlider(slider => slider
+                .setLimits(1, 50, 1)
+                .setValue(this.plugin.settings.maxSessions)
+                .setDynamicTooltip()
+                .onChange(async (value) => {
+                    this.plugin.settings.maxSessions = value;
+                    // Remove oldest sessions if we're over the limit
+                    if (this.plugin.settings.sessions.length > value) {
+                        this.plugin.settings.sessions = this.plugin.settings.sessions
+                            .sort((a, b) => b.lastUpdated - a.lastUpdated)
+                            .slice(0, value);
+                    }
+                    await this.plugin.saveSettings();
+                }));
+
         // Provider selection
         new Setting(contentEl)
             .setName('AI Provider')
