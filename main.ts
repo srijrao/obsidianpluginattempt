@@ -435,6 +435,10 @@ export default class MyPlugin extends Plugin {
         return extractedContent.join('\n');
     }
 
+    public async getContextNotesContent(contextNotesText: string): Promise<string> {
+        return this.processContextNotes(contextNotesText);
+    }
+
     /**
      * Process context notes specified in the settings
      * 

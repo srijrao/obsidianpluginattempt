@@ -414,8 +414,16 @@ export class ChatView extends ItemView {
 
             try {
                 const provider = createProvider(this.plugin.settings);
+                let systemMessage = this.plugin.getSystemMessage();
+        
+                // Process context notes to get the latest version
+                if (this.plugin.settings.enableContextNotes && this.plugin.settings.contextNotes) {
+                    const contextContent = await this.plugin.getContextNotesContent(this.plugin.settings.contextNotes);
+                    systemMessage += `\n\nContext Notes:\n${contextContent}`;
+                }
+        
                 const messages: Message[] = [
-                    { role: 'system', content: this.plugin.getSystemMessage() }
+                    { role: 'system', content: systemMessage }
                 ];
 
                 // Include the current note's content if the toggle is enabled

@@ -4237,8 +4237,16 @@ var ChatView = class extends import_obsidian2.ItemView {
       this.activeStream = new AbortController();
       try {
         const provider = createProvider(this.plugin.settings);
+        let systemMessage = this.plugin.getSystemMessage();
+        if (this.plugin.settings.enableContextNotes && this.plugin.settings.contextNotes) {
+          const contextContent = await this.plugin.getContextNotesContent(this.plugin.settings.contextNotes);
+          systemMessage += `
+
+Context Notes:
+${contextContent}`;
+        }
         const messages = [
-          { role: "system", content: this.plugin.getSystemMessage() }
+          { role: "system", content: systemMessage }
         ];
         if (this.plugin.settings.referenceCurrentNote) {
           const currentFile = this.app.workspace.getActiveFile();
@@ -5397,6 +5405,9 @@ ${extractedContent}
       }
     }
     return extractedContent.join("\n");
+  }
+  async getContextNotesContent(contextNotesText) {
+    return this.processContextNotes(contextNotesText);
   }
   /**
    * Process context notes specified in the settings
