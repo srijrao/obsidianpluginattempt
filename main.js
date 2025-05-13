@@ -5393,38 +5393,17 @@ var MyPlugin = class extends import_obsidian5.Plugin {
       id: "ai-completion",
       name: "Get AI Completion",
       editorCallback: async (editor) => {
-        var _a2, _b, _c, _d;
+        var _a2, _b, _c;
         let text;
         let insertPosition;
         if (editor.somethingSelected()) {
           text = editor.getSelection();
           insertPosition = editor.getCursor("to");
         } else {
-          const lineNumber = editor.getCursor().line + 1;
-          const documentText = editor.getValue();
-          let startIndex = 0;
-          let endIndex = editor.posToOffset({
-            line: lineNumber,
-            ch: editor.getLine(lineNumber).length
-            // Include the full cursor line
-          });
-          if (this.settings.chatStartString) {
-            const startStringIndex = documentText.indexOf(this.settings.chatStartString);
-            if (startStringIndex !== -1) {
-              startIndex = startStringIndex + this.settings.chatStartString.length;
-            }
-          }
-          if (this.settings.chatEndString) {
-            const endStringIndex = documentText.indexOf(this.settings.chatEndString, startIndex);
-            if (endStringIndex !== -1 && endStringIndex < endIndex) {
-              endIndex = endStringIndex;
-            }
-          }
-          if (!this.settings.chatStartString && !this.settings.chatEndString) {
-            endIndex = editor.posToOffset({ line: lineNumber, ch: 0 });
-          }
-          text = documentText.substring(startIndex, endIndex).trim();
-          insertPosition = { line: lineNumber + 1, ch: 0 };
+          const currentLineNumber = editor.getCursor().line;
+          const currentLine = editor.getLine(currentLineNumber);
+          text = currentLine;
+          insertPosition = { line: currentLineNumber + 1, ch: 0 };
         }
         console.log("Extracted text for completion:", text);
         const messages = parseSelection(text, this.settings.chatSeparator);
@@ -5437,15 +5416,11 @@ var MyPlugin = class extends import_obsidian5.Plugin {
         if (lineContent.trim() !== "") {
           prefix = "\n";
         }
-        const nextLineContent = (_b = editor.getLine(insertPosition.line + 1)) != null ? _b : "";
-        let suffix = "";
-        if (nextLineContent.trim() !== "" && !nextLineContent.trim().startsWith("#")) {
-          suffix = "\n";
-        }
-        editor.replaceRange(`${prefix}${this.settings.chatSeparator}
-${suffix}`, insertPosition);
+        editor.replaceRange(`${prefix}
+${this.settings.chatSeparator}
+`, insertPosition);
         let currentPosition = {
-          line: insertPosition.line + (prefix ? 1 : 0) + 1 + (suffix ? 1 : 0),
+          line: insertPosition.line + (prefix ? 1 : 0) + 2,
           ch: 0
         };
         this.activeStream = new AbortController();
@@ -5478,26 +5453,30 @@ ${suffix}`, insertPosition);
             }
           );
           flushBuffer();
-          const endLineContent = (_c = editor.getLine(currentPosition.line)) != null ? _c : "";
+          const endLineContent = (_b = editor.getLine(currentPosition.line)) != null ? _b : "";
           let endPrefix = "";
           if (endLineContent.trim() !== "") {
             endPrefix = "\n";
           }
-          editor.replaceRange(`${endPrefix}${this.settings.chatSeparator}
+          editor.replaceRange(`${endPrefix}
+${this.settings.chatSeparator}
+
 `, currentPosition);
           const newCursorPos = editor.offsetToPos(
-            editor.posToOffset(currentPosition) + this.settings.chatSeparator.length + (endPrefix ? 1 : 0) + 1
+            editor.posToOffset(currentPosition) + (endPrefix ? 1 : 0) + 1 + this.settings.chatSeparator.length + 1
           );
           editor.setCursor(newCursorPos);
         } catch (error) {
           new import_obsidian5.Notice(`Error: ${error.message}`);
-          const errLineContent = (_d = editor.getLine(currentPosition.line)) != null ? _d : "";
+          const errLineContent = (_c = editor.getLine(currentPosition.line)) != null ? _c : "";
           let errPrefix = "";
           if (errLineContent.trim() !== "") {
             errPrefix = "\n";
           }
           editor.replaceRange(`Error: ${error.message}
-${errPrefix}${this.settings.chatSeparator}
+${errPrefix}
+${this.settings.chatSeparator}
+
 `, currentPosition);
         } finally {
           this.activeStream = null;

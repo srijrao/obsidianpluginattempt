@@ -75,37 +75,15 @@ export default class MyPlugin extends Plugin {
                     text = editor.getSelection();
                     insertPosition = editor.getCursor('to');
                 } else {
-                    // Fallback to extracting text up to the current cursor line
-                    const lineNumber = editor.getCursor().line + 1;
-                    const documentText = editor.getValue();
-                    let startIndex = 0;
-                    let endIndex = editor.posToOffset({
-                        line: lineNumber,
-                        ch: editor.getLine(lineNumber).length // Include the full cursor line
-                    });
-
-                    // Use chatStartString and chatEndString if defined
-                    if (this.settings.chatStartString) {
-                        const startStringIndex = documentText.indexOf(this.settings.chatStartString);
-                        if (startStringIndex !== -1) {
-                            startIndex = startStringIndex + this.settings.chatStartString.length;
-                        }
-                    }
-
-                    if (this.settings.chatEndString) {
-                        const endStringIndex = documentText.indexOf(this.settings.chatEndString, startIndex);
-                        if (endStringIndex !== -1 && endStringIndex < endIndex) {
-                            endIndex = endStringIndex;
-                        }
-                    }
-
-                    // If no chatStartString or chatEndString is found, use the entire document up to the cursor line
-                    if (!this.settings.chatStartString && !this.settings.chatEndString) {
-                        endIndex = editor.posToOffset({ line: lineNumber, ch: 0 });
-                    }
-
-                    text = documentText.substring(startIndex, endIndex).trim();
-                    insertPosition = { line: lineNumber + 1, ch: 0 };
+                    // Use the current cursor line as the request
+                    const currentLineNumber = editor.getCursor().line;
+                    const currentLine = editor.getLine(currentLineNumber);
+                    
+                    // Use the current line as the request text
+                    text = currentLine;
+                    
+                    // Set insertion point to be immediately after the current line
+                    insertPosition = { line: currentLineNumber + 1, ch: 0 };
                 }
 
                 // Debugging: Log the extracted text
@@ -120,7 +98,7 @@ export default class MyPlugin extends Plugin {
                     return;
                 }
 
-                // Ensure correct spacing before inserting the separator for the AI's response
+                // Ensure there's a clear separation between user request and AI response
                 
                 // Get the content of the line where we want to insert the separator
                 const lineContent = editor.getLine(insertPosition.line) ?? '';
@@ -133,27 +111,15 @@ export default class MyPlugin extends Plugin {
                     prefix = '\n';
                 }
                 
-                // Get the content of the line after the insertion point
-                const nextLineContent = editor.getLine(insertPosition.line + 1) ?? '';
-                
-                // This variable will hold a newline character if we need to add one after the separator
-                let suffix = '';
-                
-                // If the next line is not empty and does NOT start with a header (doesn't start with '#'),
-                // add a newline after the separator to keep things tidy
-                if (nextLineContent.trim() !== '' && !nextLineContent.trim().startsWith('#')) {
-                    suffix = '\n';
-                }
-                
-                // Insert the separator into the editor, with newlines before and/or after as needed
-                editor.replaceRange(`${prefix}${this.settings.chatSeparator}\n${suffix}`, insertPosition);
+                // Insert the separator with a single blank line before and after
+                editor.replaceRange(`${prefix}\n${this.settings.chatSeparator}\n`, insertPosition);
                 
                 // Calculate the new position for the cursor after inserting the separator
                 // - If we added a prefix, move down one line
-                // - Always move down one line for the separator itself
-                // - If we added a suffix, move down one more line
+                // - Move down one line for the newline before separator
+                // - Move down one line for the separator itself
                 let currentPosition = {
-                    line: insertPosition.line + (prefix ? 1 : 0) + 1 + (suffix ? 1 : 0),
+                    line: insertPosition.line + (prefix ? 1 : 0) + 2,
                     ch: 0
                 };
 
@@ -194,15 +160,15 @@ export default class MyPlugin extends Plugin {
                     // Final flush after completion
                     flushBuffer();
 
-                    // Insert the ending separator with correct spacing
+                    // Insert the separator after the AI response with correct spacing
                     const endLineContent = editor.getLine(currentPosition.line) ?? '';
                     let endPrefix = '';
                     if (endLineContent.trim() !== '') {
                         endPrefix = '\n';
                     }
-                    editor.replaceRange(`${endPrefix}${this.settings.chatSeparator}\n`, currentPosition);
+                    editor.replaceRange(`${endPrefix}\n${this.settings.chatSeparator}\n\n`, currentPosition);
                     const newCursorPos = editor.offsetToPos(
-                        editor.posToOffset(currentPosition) + this.settings.chatSeparator.length + (endPrefix ? 1 : 0) + 1
+                        editor.posToOffset(currentPosition) + (endPrefix ? 1 : 0) + 1 + this.settings.chatSeparator.length + 1
                     );
                     editor.setCursor(newCursorPos);
                 } catch (error) {
@@ -213,7 +179,7 @@ export default class MyPlugin extends Plugin {
                     if (errLineContent.trim() !== '') {
                         errPrefix = '\n';
                     }
-                    editor.replaceRange(`Error: ${error.message}\n${errPrefix}${this.settings.chatSeparator}\n`, currentPosition);
+                    editor.replaceRange(`Error: ${error.message}\n${errPrefix}\n${this.settings.chatSeparator}\n\n`, currentPosition);
                 } finally {
                     this.activeStream = null;
                 }
