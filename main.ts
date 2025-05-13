@@ -132,10 +132,22 @@ export default class MyPlugin extends Plugin {
                     return;
                 }
 
-                // Insert a separator for the AI's response
-                editor.replaceRange(`\n\n${this.settings.chatSeparator}\n`, insertPosition);
+                // Ensure correct spacing before inserting the separator for the AI's response
+                // Only add a newline if the current line is not empty
+                const lineContent = editor.getLine(insertPosition.line) ?? '';
+                let prefix = '';
+                if (lineContent.trim() !== '') {
+                    prefix = '\n';
+                }
+                // Check if the next line is a header or not blank, avoid extra newlines
+                const nextLineContent = editor.getLine(insertPosition.line + 1) ?? '';
+                let suffix = '';
+                if (nextLineContent.trim() !== '' && !nextLineContent.trim().startsWith('#')) {
+                    suffix = '\n';
+                }
+                editor.replaceRange(`${prefix}${this.settings.chatSeparator}\n${suffix}`, insertPosition);
                 let currentPosition = {
-                    line: insertPosition.line + 3,
+                    line: insertPosition.line + (prefix ? 1 : 0) + 1 + (suffix ? 1 : 0),
                     ch: 0
                 };
 
@@ -176,14 +188,26 @@ export default class MyPlugin extends Plugin {
                     // Final flush after completion
                     flushBuffer();
 
-                    editor.replaceRange(`\n\n${this.settings.chatSeparator}\n\n`, currentPosition);
+                    // Insert the ending separator with correct spacing
+                    const endLineContent = editor.getLine(currentPosition.line) ?? '';
+                    let endPrefix = '';
+                    if (endLineContent.trim() !== '') {
+                        endPrefix = '\n';
+                    }
+                    editor.replaceRange(`${endPrefix}${this.settings.chatSeparator}\n`, currentPosition);
                     const newCursorPos = editor.offsetToPos(
-                        editor.posToOffset(currentPosition) + this.settings.chatSeparator.length + 4
+                        editor.posToOffset(currentPosition) + this.settings.chatSeparator.length + (endPrefix ? 1 : 0) + 1
                     );
                     editor.setCursor(newCursorPos);
                 } catch (error) {
                     new Notice(`Error: ${error.message}`);
-                    editor.replaceRange(`Error: ${error.message}\n\n${this.settings.chatSeparator}\n\n`, currentPosition);
+                    // Insert error with correct spacing
+                    const errLineContent = editor.getLine(currentPosition.line) ?? '';
+                    let errPrefix = '';
+                    if (errLineContent.trim() !== '') {
+                        errPrefix = '\n';
+                    }
+                    editor.replaceRange(`Error: ${error.message}\n${errPrefix}${this.settings.chatSeparator}\n`, currentPosition);
                 } finally {
                     this.activeStream = null;
                 }
