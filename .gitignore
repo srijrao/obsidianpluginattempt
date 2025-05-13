@@ -1,2 +1,10 @@
 data.json
 src_reference/
+.DS_Store
+
+# Ignore intermediate JS files but keep main.js
+providers/**/*.js
+**/*.js
+!main.js
+!esbuild.config.mjs
+!version-bump.mjs

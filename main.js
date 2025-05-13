@@ -29,7 +29,7 @@ __export(main_exports, {
   default: () => MyPlugin
 });
 module.exports = __toCommonJS(main_exports);
-var import_obsidian4 = require("obsidian");
+var import_obsidian5 = require("obsidian");
 
 // types.ts
 var DEFAULT_SETTINGS = {
@@ -5099,9 +5099,190 @@ var ModelSettingsView = class extends import_obsidian3.ItemView {
   }
 };
 
+// noteUtils.ts
+var import_obsidian4 = require("obsidian");
+function extractContentUnderHeader(content, headerText) {
+  const lines = content.split("\n");
+  let foundHeader = false;
+  let extractedContent = [];
+  let headerLevel = 0;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const headerMatch = line.match(/^(#+)\s+(.*?)$/);
+    if (headerMatch) {
+      const currentHeaderLevel = headerMatch[1].length;
+      const currentHeaderText = headerMatch[2].trim();
+      if (foundHeader) {
+        if (currentHeaderLevel <= headerLevel) {
+          break;
+        }
+      } else if (currentHeaderText.toLowerCase() === headerText.toLowerCase()) {
+        foundHeader = true;
+        headerLevel = currentHeaderLevel;
+        extractedContent.push(line);
+        continue;
+      }
+    }
+    if (foundHeader) {
+      extractedContent.push(line);
+    }
+  }
+  return extractedContent.join("\n");
+}
+async function processObsidianLinks(content, app, settings) {
+  if (!settings.enableObsidianLinks) return content;
+  const linkRegex = /\[\[(.*?)\]\]/g;
+  let match;
+  let processedContent = content;
+  while ((match = linkRegex.exec(content)) !== null) {
+    if (match && match[0] && match[1]) {
+      const parts = match[1].split("|");
+      const filePath = parts[0].trim();
+      const displayText = parts.length > 1 ? parts[1].trim() : filePath;
+      try {
+        let file = app.vault.getAbstractFileByPath(filePath) || app.vault.getAbstractFileByPath(`${filePath}.md`);
+        if (!file) {
+          const allFiles = app.vault.getFiles();
+          file = allFiles.find((f) => f.name === filePath || f.name === `${filePath}.md` || f.basename.toLowerCase() === filePath.toLowerCase() || f.path === filePath || f.path === `${filePath}.md`) || null;
+        }
+        const headerMatch = filePath.match(/(.*?)#(.*)/);
+        let extractedContent = "";
+        if (file && file instanceof import_obsidian4.TFile) {
+          const noteContent = await app.vault.cachedRead(file);
+          if (headerMatch) {
+            extractedContent = extractContentUnderHeader(noteContent, headerMatch[2].trim());
+          } else {
+            extractedContent = noteContent;
+          }
+          processedContent = processedContent.replace(
+            match[0],
+            `${match[0]}
+
+---
+Note Name: ${filePath}
+Content:
+${extractedContent}
+---
+`
+          );
+        } else {
+          new import_obsidian4.Notice(`File not found: ${filePath}. Ensure the file name and path are correct.`);
+        }
+      } catch (error) {
+        new import_obsidian4.Notice(`Error processing link for ${filePath}: ${error.message}`);
+      }
+    }
+  }
+  return processedContent;
+}
+async function processContextNotes(contextNotesText, app) {
+  const linkRegex = /\[\[(.*?)\]\]/g;
+  let match;
+  let contextContent = "";
+  while ((match = linkRegex.exec(contextNotesText)) !== null) {
+    if (match && match[1]) {
+      const fileName = match[1].trim();
+      try {
+        const headerMatch = fileName.match(/(.*?)#(.*)/);
+        const baseFileName = headerMatch ? headerMatch[1].trim() : fileName;
+        const headerName = headerMatch ? headerMatch[2].trim() : null;
+        let file = app.vault.getAbstractFileByPath(baseFileName) || app.vault.getAbstractFileByPath(`${baseFileName}.md`);
+        if (!file) {
+          const allFiles = app.vault.getFiles();
+          file = allFiles.find(
+            (f) => f.basename.toLowerCase() === baseFileName.toLowerCase() || f.name.toLowerCase() === `${baseFileName.toLowerCase()}.md`
+          ) || null;
+        }
+        if (file && file instanceof import_obsidian4.TFile) {
+          const noteContent = await app.vault.cachedRead(file);
+          contextContent += `---
+From note: ${file.basename}
+
+`;
+          if (headerName) {
+            const headerContent = extractContentUnderHeader(noteContent, headerName);
+            contextContent += headerContent;
+          } else {
+            contextContent += noteContent;
+          }
+          contextContent += "\n\n";
+        } else {
+          contextContent += `Note not found: ${fileName}
+
+`;
+        }
+      } catch (error) {
+        contextContent += `Error processing note ${fileName}: ${error.message}
+
+`;
+      }
+    }
+  }
+  return contextContent;
+}
+async function processMessages(messages, app, settings) {
+  const processedMessages = [];
+  if (settings.enableContextNotes && settings.contextNotes) {
+    const contextContent = await processContextNotes(settings.contextNotes, app);
+    if (contextContent) {
+      if (messages.length > 0 && messages[0].role === "system") {
+        processedMessages.push({
+          role: "system",
+          content: `${messages[0].content}
+
+Here is additional context:
+${contextContent}`
+        });
+        messages = messages.slice(1);
+      } else {
+        processedMessages.push({
+          role: "system",
+          content: `Here is context for our conversation:
+${contextContent}`
+        });
+      }
+    }
+  }
+  for (const message of messages) {
+    const processedContent = await processObsidianLinks(message.content, app, settings);
+    processedMessages.push({
+      role: message.role,
+      content: processedContent
+    });
+  }
+  return processedMessages;
+}
+async function getContextNotesContent(contextNotesText, app) {
+  return processContextNotes(contextNotesText, app);
+}
+
+// systemMessage.ts
+function getSystemMessage(settings) {
+  let systemMessage = settings.systemMessage;
+  if (settings.includeDateWithSystemMessage) {
+    const currentDate = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
+    systemMessage = `${systemMessage}
+
+The current date is ${currentDate}.`;
+  }
+  if (settings.includeTimeWithSystemMessage) {
+    const now = /* @__PURE__ */ new Date();
+    const timeZoneOffset = now.getTimezoneOffset();
+    const offsetHours = Math.abs(timeZoneOffset) / 60;
+    const offsetMinutes = Math.abs(timeZoneOffset) % 60;
+    const sign = timeZoneOffset > 0 ? "-" : "+";
+    const currentTime = now.toLocaleTimeString();
+    const timeZoneString = `UTC${sign}${offsetHours.toString().padStart(2, "0")}:${offsetMinutes.toString().padStart(2, "0")}`;
+    systemMessage = `${systemMessage}
+
+The current time is ${currentTime} ${timeZoneString}.`;
+  }
+  return systemMessage;
+}
+
 // main.ts
 var VIEW_TYPE_MODEL_SETTINGS2 = "model-settings-view";
-var MyPlugin = class extends import_obsidian4.Plugin {
+var MyPlugin = class extends import_obsidian5.Plugin {
   constructor() {
     super(...arguments);
     __publicField(this, "settings");
@@ -5134,6 +5315,7 @@ var MyPlugin = class extends import_obsidian4.Plugin {
       id: "ai-completion",
       name: "Get AI Completion",
       editorCallback: async (editor) => {
+        var _a2, _b, _c, _d;
         let text;
         let insertPosition;
         if (editor.somethingSelected()) {
@@ -5169,15 +5351,23 @@ var MyPlugin = class extends import_obsidian4.Plugin {
         console.log("Extracted text for completion:", text);
         const messages = parseSelection(text, this.settings.chatSeparator);
         if (messages.length === 0) {
-          new import_obsidian4.Notice("No valid messages found in the selection.");
+          new import_obsidian5.Notice("No valid messages found in the selection.");
           return;
         }
-        editor.replaceRange(`
-
-${this.settings.chatSeparator}
-`, insertPosition);
+        const lineContent = (_a2 = editor.getLine(insertPosition.line)) != null ? _a2 : "";
+        let prefix = "";
+        if (lineContent.trim() !== "") {
+          prefix = "\n";
+        }
+        const nextLineContent = (_b = editor.getLine(insertPosition.line + 1)) != null ? _b : "";
+        let suffix = "";
+        if (nextLineContent.trim() !== "" && !nextLineContent.trim().startsWith("#")) {
+          suffix = "\n";
+        }
+        editor.replaceRange(`${prefix}${this.settings.chatSeparator}
+${suffix}`, insertPosition);
         let currentPosition = {
-          line: insertPosition.line + 3,
+          line: insertPosition.line + (prefix ? 1 : 0) + 1 + (suffix ? 1 : 0),
           ch: 0
         };
         this.activeStream = new AbortController();
@@ -5210,21 +5400,26 @@ ${this.settings.chatSeparator}
             }
           );
           flushBuffer();
-          editor.replaceRange(`
-
-${this.settings.chatSeparator}
-
+          const endLineContent = (_c = editor.getLine(currentPosition.line)) != null ? _c : "";
+          let endPrefix = "";
+          if (endLineContent.trim() !== "") {
+            endPrefix = "\n";
+          }
+          editor.replaceRange(`${endPrefix}${this.settings.chatSeparator}
 `, currentPosition);
           const newCursorPos = editor.offsetToPos(
-            editor.posToOffset(currentPosition) + this.settings.chatSeparator.length + 4
+            editor.posToOffset(currentPosition) + this.settings.chatSeparator.length + (endPrefix ? 1 : 0) + 1
           );
           editor.setCursor(newCursorPos);
         } catch (error) {
-          new import_obsidian4.Notice(`Error: ${error.message}`);
+          new import_obsidian5.Notice(`Error: ${error.message}`);
+          const errLineContent = (_d = editor.getLine(currentPosition.line)) != null ? _d : "";
+          let errPrefix = "";
+          if (errLineContent.trim() !== "") {
+            errPrefix = "\n";
+          }
           editor.replaceRange(`Error: ${error.message}
-
-${this.settings.chatSeparator}
-
+${errPrefix}${this.settings.chatSeparator}
 `, currentPosition);
         } finally {
           this.activeStream = null;
@@ -5238,9 +5433,9 @@ ${this.settings.chatSeparator}
         if (this.activeStream) {
           this.activeStream.abort();
           this.activeStream = null;
-          new import_obsidian4.Notice("AI stream ended");
+          new import_obsidian5.Notice("AI stream ended");
         } else {
-          new import_obsidian4.Notice("No active AI stream to end");
+          new import_obsidian5.Notice("No active AI stream to end");
         }
       }
     });
@@ -5267,38 +5462,19 @@ ${this.settings.chatSeparator}
           const noteName = `[[${activeFile.basename}]]`;
           try {
             await navigator.clipboard.writeText(noteName);
-            new import_obsidian4.Notice(`Copied to clipboard: ${noteName}`);
+            new import_obsidian5.Notice(`Copied to clipboard: ${noteName}`);
           } catch (error) {
-            new import_obsidian4.Notice("Failed to copy to clipboard");
+            new import_obsidian5.Notice("Failed to copy to clipboard");
             console.error("Clipboard error:", error);
           }
         } else {
-          new import_obsidian4.Notice("No active note found");
+          new import_obsidian5.Notice("No active note found");
         }
       }
     });
   }
   getSystemMessage() {
-    let systemMessage = this.settings.systemMessage;
-    if (this.settings.includeDateWithSystemMessage) {
-      const currentDate = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
-      systemMessage = `${systemMessage}
-
-The current date is ${currentDate}.`;
-    }
-    if (this.settings.includeTimeWithSystemMessage) {
-      const now = /* @__PURE__ */ new Date();
-      const timeZoneOffset = now.getTimezoneOffset();
-      const offsetHours = Math.abs(timeZoneOffset) / 60;
-      const offsetMinutes = Math.abs(timeZoneOffset) % 60;
-      const sign = timeZoneOffset > 0 ? "-" : "+";
-      const currentTime = now.toLocaleTimeString();
-      const timeZoneString = `UTC${sign}${offsetHours.toString().padStart(2, "0")}:${offsetMinutes.toString().padStart(2, "0")}`;
-      systemMessage = `${systemMessage}
-
-The current time is ${currentTime} ${timeZoneString}.`;
-    }
-    return systemMessage;
+    return getSystemMessage(this.settings);
   }
   async activateView(viewType = VIEW_TYPE_MODEL_SETTINGS2) {
     this.app.workspace.detachLeavesOfType(viewType);
@@ -5326,194 +5502,10 @@ The current time is ${currentTime} ${timeZoneString}.`;
   async saveSettings() {
     await this.saveData(this.settings);
   }
-  /**
-   * Processes a message content to include Obsidian note contents
-   * 
-   * If a link is found, retrieves the note content and appends it after the link.
-   * 
-   * @param content The message content to process
-   * @returns The processed content with note contents included
-   */
-  /**
-   * Process an array of messages to include Obsidian note contents
-   * 
-   * @param messages Array of messages to process
-   * @returns Promise resolving to processed messages
-   */
   async processMessages(messages) {
-    const processedMessages = [];
-    if (this.settings.enableContextNotes && this.settings.contextNotes) {
-      const contextContent = await this.processContextNotes(this.settings.contextNotes);
-      if (contextContent) {
-        if (messages.length > 0 && messages[0].role === "system") {
-          processedMessages.push({
-            role: "system",
-            content: `${messages[0].content}
-
-Here is additional context:
-${contextContent}`
-          });
-          messages = messages.slice(1);
-        } else {
-          processedMessages.push({
-            role: "system",
-            content: `Here is context for our conversation:
-${contextContent}`
-          });
-        }
-      }
-    }
-    for (const message of messages) {
-      const processedContent = await this.processObsidianLinks(message.content);
-      processedMessages.push({
-        role: message.role,
-        content: processedContent
-      });
-    }
-    return processedMessages;
-  }
-  /**
-   * Process a single message content to include Obsidian note contents
-   * 
-   * @param content The message content to process
-   * @returns Promise resolving to processed content
-   */
-  async processObsidianLinks(content) {
-    if (!this.settings.enableObsidianLinks) return content;
-    const linkRegex = /\[\[(.*?)\]\]/g;
-    let match;
-    let processedContent = content;
-    while ((match = linkRegex.exec(content)) !== null) {
-      if (match && match[0] && match[1]) {
-        const parts = match[1].split("|");
-        const filePath = parts[0].trim();
-        const displayText = parts.length > 1 ? parts[1].trim() : filePath;
-        try {
-          let file = this.app.vault.getAbstractFileByPath(filePath) || this.app.vault.getAbstractFileByPath(`${filePath}.md`);
-          if (!file) {
-            const allFiles = this.app.vault.getFiles();
-            file = allFiles.find((f) => f.name === filePath || f.name === `${filePath}.md` || f.basename.toLowerCase() === filePath.toLowerCase() || f.path === filePath || f.path === `${filePath}.md`) || null;
-          }
-          const headerMatch = filePath.match(/(.*?)#(.*)/);
-          let extractedContent = "";
-          if (file && file instanceof import_obsidian4.TFile) {
-            const noteContent = await this.app.vault.cachedRead(file);
-            if (headerMatch) {
-              extractedContent = this.extractContentUnderHeader(
-                noteContent,
-                headerMatch[2].trim()
-              );
-            } else {
-              extractedContent = noteContent;
-            }
-            processedContent = processedContent.replace(
-              match[0],
-              `${match[0]}
-
----
-Note Name: ${filePath}
-Content:
-${extractedContent}
----
-`
-            );
-          } else {
-            new import_obsidian4.Notice(`File not found: ${filePath}. Ensure the file name and path are correct.`);
-          }
-        } catch (error) {
-          new import_obsidian4.Notice(`Error processing link for ${filePath}: ${error.message}`);
-        }
-      }
-    }
-    return processedContent;
-  }
-  /**
-   * Extract content under a specific header in a note
-   * 
-   * @param content The note content
-   * @param headerText The header text to find
-   * @returns The content under the header until the next header or end of note
-   */
-  extractContentUnderHeader(content, headerText) {
-    const lines = content.split("\n");
-    let foundHeader = false;
-    let extractedContent = [];
-    let headerLevel = 0;
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      const headerMatch = line.match(/^(#+)\s+(.*?)$/);
-      if (headerMatch) {
-        const currentHeaderLevel = headerMatch[1].length;
-        const currentHeaderText = headerMatch[2].trim();
-        if (foundHeader) {
-          if (currentHeaderLevel <= headerLevel) {
-            break;
-          }
-        } else if (currentHeaderText.toLowerCase() === headerText.toLowerCase()) {
-          foundHeader = true;
-          headerLevel = currentHeaderLevel;
-          extractedContent.push(line);
-          continue;
-        }
-      }
-      if (foundHeader) {
-        extractedContent.push(line);
-      }
-    }
-    return extractedContent.join("\n");
+    return processMessages(messages, this.app, this.settings);
   }
   async getContextNotesContent(contextNotesText) {
-    return this.processContextNotes(contextNotesText);
-  }
-  /**
-   * Process context notes specified in the settings
-   * 
-   * @param contextNotesText The context notes text with [[note]] syntax
-   * @returns The processed context text
-   */
-  async processContextNotes(contextNotesText) {
-    const linkRegex = /\[\[(.*?)\]\]/g;
-    let match;
-    let contextContent = "";
-    while ((match = linkRegex.exec(contextNotesText)) !== null) {
-      if (match && match[1]) {
-        const fileName = match[1].trim();
-        try {
-          const headerMatch = fileName.match(/(.*?)#(.*)/);
-          const baseFileName = headerMatch ? headerMatch[1].trim() : fileName;
-          const headerName = headerMatch ? headerMatch[2].trim() : null;
-          let file = this.app.vault.getAbstractFileByPath(baseFileName) || this.app.vault.getAbstractFileByPath(`${baseFileName}.md`);
-          if (!file) {
-            const allFiles = this.app.vault.getFiles();
-            file = allFiles.find(
-              (f) => f.basename.toLowerCase() === baseFileName.toLowerCase() || f.name.toLowerCase() === `${baseFileName.toLowerCase()}.md`
-            ) || null;
-          }
-          if (file && file instanceof import_obsidian4.TFile) {
-            const noteContent = await this.app.vault.cachedRead(file);
-            contextContent += `---
-From note: ${file.basename}
-
-`;
-            if (headerName) {
-              const headerContent = this.extractContentUnderHeader(noteContent, headerName);
-              contextContent += headerContent;
-            } else {
-              contextContent += noteContent;
-            }
-            contextContent += "\n\n";
-          } else {
-            contextContent += `Note not found: ${fileName}
-
-`;
-          }
-        } catch (error) {
-          contextContent += `Error processing note ${fileName}: ${error.message}
-
-`;
-        }
-      }
-    }
-    return contextContent;
+    return getContextNotesContent(contextNotesText, this.app);
   }
 };
