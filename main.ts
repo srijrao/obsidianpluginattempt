@@ -133,19 +133,37 @@ export default class MyPlugin extends Plugin {
                 }
 
                 // Ensure correct spacing before inserting the separator for the AI's response
-                // Only add a newline if the current line is not empty
+                
+                // Get the content of the line where we want to insert the separator
                 const lineContent = editor.getLine(insertPosition.line) ?? '';
+                
+                // This variable will hold a newline character if we need to add one before the separator
                 let prefix = '';
+                
+                // If the current line is not empty (has text), add a newline before the separator
                 if (lineContent.trim() !== '') {
                     prefix = '\n';
                 }
-                // Check if the next line is a header or not blank, avoid extra newlines
+                
+                // Get the content of the line after the insertion point
                 const nextLineContent = editor.getLine(insertPosition.line + 1) ?? '';
+                
+                // This variable will hold a newline character if we need to add one after the separator
                 let suffix = '';
+                
+                // If the next line is not empty and does NOT start with a header (doesn't start with '#'),
+                // add a newline after the separator to keep things tidy
                 if (nextLineContent.trim() !== '' && !nextLineContent.trim().startsWith('#')) {
                     suffix = '\n';
                 }
+                
+                // Insert the separator into the editor, with newlines before and/or after as needed
                 editor.replaceRange(`${prefix}${this.settings.chatSeparator}\n${suffix}`, insertPosition);
+                
+                // Calculate the new position for the cursor after inserting the separator
+                // - If we added a prefix, move down one line
+                // - Always move down one line for the separator itself
+                // - If we added a suffix, move down one more line
                 let currentPosition = {
                     line: insertPosition.line + (prefix ? 1 : 0) + 1 + (suffix ? 1 : 0),
                     ch: 0
