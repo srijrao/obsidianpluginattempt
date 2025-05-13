@@ -3,7 +3,7 @@ import { Message } from './types';
 /**
  * Parses a given text selection into an array of message objects
  * 
- * The function interprets lines of text separated by '----' as boundaries
+ * The function interprets lines of text separated by chatBoundaryString (defaults to '----') as boundaries
  * between user and assistant messages.
  * 
  * @param selection - The text selection to parse
