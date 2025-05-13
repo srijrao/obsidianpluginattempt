@@ -3398,6 +3398,18 @@ var { HUMAN_PROMPT, AI_PROMPT } = Anthropic;
 var sdk_default = Anthropic;
 
 // providers/anthropic.ts
+var MODEL_CONTEXT_WINDOWS = {
+  "claude-3-opus-20240229": 2e5,
+  "claude-3-sonnet-20240229": 2e5,
+  "claude-3-haiku-20240307": 2e5
+};
+function estimateTokenCount(messages) {
+  const CHARS_PER_TOKEN = 4;
+  const totalChars = messages.reduce((total, msg) => {
+    return total + msg.content.length;
+  }, 0);
+  return Math.ceil(totalChars / CHARS_PER_TOKEN);
+}
 var AnthropicProvider = class extends BaseProvider {
   constructor(apiKey, model = "claude-3-sonnet-20240229") {
     super();
@@ -3419,26 +3431,71 @@ var AnthropicProvider = class extends BaseProvider {
    * Sends the conversation to Anthropic and streams back the response
    * using the official SDK's streaming support.
    * 
+   * Automatically adjusts max_tokens if the request would exceed the model's context window.
+   * 
    * @param messages - The conversation history
    * @param options - Settings for this completion
    */
   async getCompletion(messages, options) {
-    var _a2, _b, _c;
+    var _a2, _b, _c, _d;
     try {
-      const stream = await this.client.messages.create({
-        model: this.model,
-        messages: messages.map((msg) => ({
-          role: msg.role === "system" ? "user" : msg.role,
-          content: msg.content
-        })),
-        temperature: (_a2 = options.temperature) != null ? _a2 : 0.7,
-        max_tokens: (_b = options.maxTokens) != null ? _b : 1e3,
-        stream: true
-      });
-      for await (const chunk of stream) {
-        if (chunk.type === "content_block_delta" && ((_c = chunk.delta) == null ? void 0 : _c.type) === "text_delta" && options.streamCallback) {
-          options.streamCallback(chunk.delta.text);
+      const contextWindow = (_a2 = MODEL_CONTEXT_WINDOWS[this.model]) != null ? _a2 : 2e5;
+      const inputTokens = estimateTokenCount(messages);
+      let maxTokens = (_b = options.maxTokens) != null ? _b : 1e3;
+      if (inputTokens + maxTokens > contextWindow) {
+        const adjustedMaxTokens = contextWindow - inputTokens;
+        if (adjustedMaxTokens <= 0) {
+          throw new ProviderError(
+            "invalid_request" /* InvalidRequest */,
+            `Input is too long for ${this.model}'s context window. Estimated input tokens: ${inputTokens}, context window: ${contextWindow}`
+          );
         }
+        console.log(
+          `Adjusting max_tokens from ${maxTokens} to ${adjustedMaxTokens} to fit within ${this.model}'s context window`
+        );
+        maxTokens = adjustedMaxTokens;
+      }
+      const { systemPrompt, anthropicMessages } = this.formatMessages(messages);
+      const requestParams = {
+        model: this.model,
+        messages: anthropicMessages,
+        temperature: (_c = options.temperature) != null ? _c : 0.7,
+        max_tokens: maxTokens,
+        stream: true
+      };
+      if (systemPrompt) {
+        requestParams.system = systemPrompt;
+      }
+      const stream = await this.client.messages.create(requestParams);
+      try {
+        if (stream && typeof stream === "object") {
+          if (stream.on && typeof stream.on === "function") {
+            await new Promise((resolve, reject) => {
+              stream.on("content_block_delta", (chunk) => {
+                var _a3;
+                if (((_a3 = chunk.delta) == null ? void 0 : _a3.type) === "text_delta" && options.streamCallback) {
+                  options.streamCallback(chunk.delta.text);
+                }
+              });
+              stream.on("end", resolve);
+              stream.on("error", reject);
+            });
+          } else if (Symbol.asyncIterator in stream) {
+            for await (const chunk of stream) {
+              if (chunk.type === "content_block_delta" && ((_d = chunk.delta) == null ? void 0 : _d.type) === "text_delta" && options.streamCallback) {
+                options.streamCallback(chunk.delta.text);
+              }
+            }
+          } else if (options.streamCallback) {
+            console.warn("Anthropic response is not a stream, handling as regular response");
+            if ("content" in stream && typeof stream.content === "string") {
+              options.streamCallback(stream.content);
+            }
+          }
+        }
+      } catch (streamError) {
+        console.error("Error processing Anthropic stream:", streamError);
+        throw streamError;
       }
     } catch (error) {
       if (error instanceof ProviderError) {
@@ -3457,15 +3514,36 @@ var AnthropicProvider = class extends BaseProvider {
    * 
    * Returns the list of supported Claude models.
    * Note: Anthropic doesn't have a models endpoint, so we return known models.
+   * This list is based on the models defined in MODEL_CONTEXT_WINDOWS.
    * 
    * @returns List of available model names
    */
   async getAvailableModels() {
-    return [
-      "claude-3-opus-20240229",
-      "claude-3-sonnet-20240229",
-      "claude-3-haiku-20240307"
-    ];
+    try {
+      return Object.keys(MODEL_CONTEXT_WINDOWS);
+    } catch (error) {
+      console.error("Error getting Anthropic models:", error);
+      throw error;
+    }
+  }
+  /**
+   * Format messages for Anthropic API
+   * 
+   * Converts from the plugin's Message format to Anthropic's expected format.
+   * Handles system messages specially as Anthropic has a different format.
+   * 
+   * @param messages - Array of messages to format
+   * @returns Formatted messages and system prompt for Anthropic API
+   */
+  formatMessages(messages) {
+    const systemMessages = messages.filter((msg) => msg.role === "system");
+    const nonSystemMessages = messages.filter((msg) => msg.role !== "system");
+    const systemPrompt = systemMessages.length > 0 ? systemMessages.map((msg) => msg.content).join("\n\n") : void 0;
+    const anthropicMessages = nonSystemMessages.map((msg) => {
+      const role = msg.role === "user" || msg.role === "assistant" ? msg.role : "user";
+      return { role, content: msg.content };
+    });
+    return { systemPrompt, anthropicMessages };
   }
   /**
    * Test connection to Anthropic
