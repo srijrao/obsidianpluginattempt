@@ -18,8 +18,8 @@
     margin-bottom: 16px;
     padding: 12px;
     border-radius: 8px;
-    white-space: pre-wrap;
     position: relative;
+    word-break: break-word;
 }
 
 .ai-chat-message.user {
@@ -45,6 +45,7 @@
     /* Content of the message, including text */
     white-space: pre-wrap; /* Ensure text wraps properly */
     word-break: break-word; /* Prevent long words from overflowing */
+    user-select: text;
 }
 
 .message-content.editing textarea {
