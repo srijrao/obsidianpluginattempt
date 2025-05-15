@@ -77,11 +77,24 @@ export default class MyPlugin extends Plugin {
                 } else {
                     // Use the current cursor line as the request
                     const currentLineNumber = editor.getCursor().line;
-                    const currentLine = editor.getLine(currentLineNumber);
-                    
-                    // Use the current line as the request text
-                    text = currentLine;
-                    
+                    // Get all lines from the top of the file up to and including the current line
+                    let lines: string[] = [];
+                    for (let i = 0; i <= currentLineNumber; i++) {
+                        lines.push(editor.getLine(i));
+                    }
+
+                    // Check for chatStartString in the lines and slice if found
+                    const chatStartString = this.settings.chatStartString;
+                    if (chatStartString) {
+                        const startIdx = lines.findIndex(line => line.trim() === chatStartString.trim());
+                        if (startIdx !== -1) {
+                            // Exclude the chatStartString line itself from the context
+                            lines = lines.slice(startIdx + 1);
+                        }
+                    }
+
+                    text = lines.join('\n');
+
                     // Set insertion point to be immediately after the current line
                     insertPosition = { line: currentLineNumber + 1, ch: 0 };
                 }

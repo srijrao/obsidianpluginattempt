@@ -5227,8 +5227,18 @@ var MyPlugin = class extends import_obsidian5.Plugin {
           insertPosition = editor.getCursor("to");
         } else {
           const currentLineNumber = editor.getCursor().line;
-          const currentLine = editor.getLine(currentLineNumber);
-          text = currentLine;
+          let lines = [];
+          for (let i = 0; i <= currentLineNumber; i++) {
+            lines.push(editor.getLine(i));
+          }
+          const chatStartString = this.settings.chatStartString;
+          if (chatStartString) {
+            const startIdx = lines.findIndex((line) => line.trim() === chatStartString.trim());
+            if (startIdx !== -1) {
+              lines = lines.slice(startIdx + 1);
+            }
+          }
+          text = lines.join("\n");
           insertPosition = { line: currentLineNumber + 1, ch: 0 };
         }
         console.log("Extracted text for completion:", text);
