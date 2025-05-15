@@ -5,7 +5,7 @@
  * which allows the plugin to interact with Google's Gemini API.
  */
 
-import { Message, CompletionOptions, ConnectionTestResult } from '../types';
+import { Message, CompletionOptions, ConnectionTestResult } from '../src/types';
 import { BaseProvider, ProviderError, ProviderErrorType } from './base';
 
 interface GeminiResponse {

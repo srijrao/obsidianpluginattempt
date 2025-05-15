@@ -1,13 +1,13 @@
 import { App, Plugin, Setting, WorkspaceLeaf, ItemView, Notice, TFile } from 'obsidian';
 import { MyPluginSettings, Message, DEFAULT_SETTINGS } from './types';
-import { createProvider } from './providers';
+import { createProvider } from '../providers';
 import { MyPluginSettingTab } from './settings';
-import { ChatView, VIEW_TYPE_CHAT } from './chat';
-import { parseSelection } from './parseSelection';
-import { ModelSettingsView } from './ModelSettingsView';
-import { processMessages, getContextNotesContent } from './noteUtils';
-import { debounce } from './utils';
-import { getSystemMessage } from './systemMessage';
+import { ChatView, VIEW_TYPE_CHAT } from './components/chat';
+import { parseSelection } from './components/parseSelection';
+import { ModelSettingsView } from './components/ModelSettingsView';
+import { processMessages, getContextNotesContent } from './components/noteUtils';
+import { debounce } from './components/utils';
+import { getSystemMessage } from './components/systemMessage';
 
 const VIEW_TYPE_MODEL_SETTINGS = 'model-settings-view';
 

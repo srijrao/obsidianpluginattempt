@@ -1,6 +1,6 @@
 import { App, WorkspaceLeaf, ItemView, Setting, Notice, TFile } from 'obsidian';
-import MyPlugin from './main'; // Import MyPlugin
-import { createProvider } from './providers';
+import MyPlugin from '../main'; // Import MyPlugin
+import { createProvider } from '../../providers';
 
 const VIEW_TYPE_MODEL_SETTINGS = 'model-settings-view';
 

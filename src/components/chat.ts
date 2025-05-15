@@ -1,7 +1,7 @@
 import { ItemView, WorkspaceLeaf, Notice, Modal, App, Setting, MarkdownRenderer } from 'obsidian';
-import MyPlugin from './main';
-import { Message } from './types';
-import { createProvider } from './providers';
+import MyPlugin from '../main';
+import { Message } from '../types';
+import { createProvider } from '../../providers';
 
 export const VIEW_TYPE_CHAT = 'chat-view';
 

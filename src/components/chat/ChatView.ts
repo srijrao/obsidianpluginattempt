@@ -1,6 +1,6 @@
 import { ItemView, WorkspaceLeaf, Notice, Modal, App, Setting, MarkdownRenderer, Menu, TFile } from 'obsidian';
-import MyPlugin from '../../../main';
-import { Message, ChatSession } from '../../../types';
+import MyPlugin from '../../main';
+import { Message, ChatSession } from '../../types';
 import { createProvider } from '../../../providers';
 import { SettingsModal } from './SettingsModal';
 import { SessionModal } from './SessionModal';

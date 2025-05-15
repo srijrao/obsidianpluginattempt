@@ -5,7 +5,7 @@
  * and common error handling patterns.
  */
 
-import { AIProvider, Message, CompletionOptions, ConnectionTestResult } from '../types';
+import { AIProvider, Message, CompletionOptions, ConnectionTestResult } from '../src/types';
 
 /**
  * Common error types across providers

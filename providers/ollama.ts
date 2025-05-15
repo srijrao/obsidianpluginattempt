@@ -6,7 +6,7 @@
  * running AI models like Llama, Mistral, etc.
  */
 
-import { Message, CompletionOptions, ConnectionTestResult } from '../types';
+import { Message, CompletionOptions, ConnectionTestResult } from '../src/types';
 import { BaseProvider, ProviderError, ProviderErrorType } from './base';
 
 interface OllamaResponse {

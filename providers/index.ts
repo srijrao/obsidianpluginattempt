@@ -5,7 +5,7 @@
  * Import providers from this file rather than directly from their modules.
  */
 
-import { MyPluginSettings } from '../types';
+import { MyPluginSettings } from '../src/types';
 import { BaseProvider, ProviderError, ProviderErrorType } from './base';
 import { AnthropicProvider } from './anthropic';
 import { OpenAIProvider } from './openai';

@@ -23,7 +23,7 @@ var __copyProps = (to, from, except, desc) => {
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
 
-// main.ts
+// src/main.ts
 var main_exports = {};
 __export(main_exports, {
   default: () => MyPlugin
@@ -31,7 +31,7 @@ __export(main_exports, {
 module.exports = __toCommonJS(main_exports);
 var import_obsidian5 = require("obsidian");
 
-// types.ts
+// src/types.ts
 var DEFAULT_SETTINGS = {
   referenceCurrentNote: false,
   provider: "openai",
@@ -3999,7 +3999,7 @@ function createProvider(settings) {
   }
 }
 
-// settings.ts
+// src/settings.ts
 var import_obsidian = require("obsidian");
 var MyPluginSettingTab = class extends import_obsidian.PluginSettingTab {
   constructor(app, plugin) {
@@ -4066,7 +4066,7 @@ var MyPluginSettingTab = class extends import_obsidian.PluginSettingTab {
   }
 };
 
-// chat.ts
+// src/components/chat.ts
 var import_obsidian2 = require("obsidian");
 var VIEW_TYPE_CHAT = "chat-view";
 var SettingsModal = class extends import_obsidian2.Modal {
@@ -4739,7 +4739,7 @@ ${contextContent}`;
   }
 };
 
-// parseSelection.ts
+// src/components/parseSelection.ts
 function parseSelection(selection, chatSeparator, chatBoundaryString) {
   let insideChat = !chatBoundaryString;
   const lines = selection.split("\n");
@@ -4772,7 +4772,7 @@ function parseSelection(selection, chatSeparator, chatBoundaryString) {
   return messages;
 }
 
-// ModelSettingsView.ts
+// src/components/ModelSettingsView.ts
 var import_obsidian3 = require("obsidian");
 var VIEW_TYPE_MODEL_SETTINGS = "model-settings-view";
 var ModelSettingsView = class extends import_obsidian3.ItemView {
@@ -5003,7 +5003,7 @@ var ModelSettingsView = class extends import_obsidian3.ItemView {
   }
 };
 
-// noteUtils.ts
+// src/components/noteUtils.ts
 var import_obsidian4 = require("obsidian");
 function extractContentUnderHeader(content, headerText) {
   const lines = content.split("\n");
@@ -5160,7 +5160,7 @@ async function getContextNotesContent(contextNotesText, app) {
   return processContextNotes(contextNotesText, app);
 }
 
-// systemMessage.ts
+// src/components/systemMessage.ts
 function getSystemMessage(settings) {
   let systemMessage = settings.systemMessage;
   if (settings.includeDateWithSystemMessage) {
@@ -5184,7 +5184,7 @@ The current time is ${currentTime} ${timeZoneString}.`;
   return systemMessage;
 }
 
-// main.ts
+// src/main.ts
 var VIEW_TYPE_MODEL_SETTINGS2 = "model-settings-view";
 var MyPlugin = class extends import_obsidian5.Plugin {
   constructor() {

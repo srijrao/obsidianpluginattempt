@@ -1,5 +1,5 @@
 import { App, MarkdownRenderer, Notice, Component } from 'obsidian';
-import { Message as MessageType } from '../../../types';
+import { Message as MessageType } from '../../types';
 
 /**
  * Base Message interface for chat messages

@@ -9,7 +9,7 @@
  * This implementation handles token counting and context window management.
  */
 
-import { Message, CompletionOptions, ConnectionTestResult } from '../types';
+import { Message, CompletionOptions, ConnectionTestResult } from '../src/types';
 import { BaseProvider, ProviderError, ProviderErrorType } from './base';
 import Anthropic from '@anthropic-ai/sdk';
 

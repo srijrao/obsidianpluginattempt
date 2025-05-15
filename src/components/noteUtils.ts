@@ -1,5 +1,5 @@
 import { Notice, TFile, App } from 'obsidian';
-import { Message, MyPluginSettings } from './types';
+import { Message, MyPluginSettings } from '../types';
 
 /**
  * Extract content under a specific header in a note

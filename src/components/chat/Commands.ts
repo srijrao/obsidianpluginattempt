@@ -1,7 +1,7 @@
 import { Component, Notice, App } from 'obsidian';
-import { Message } from '../../../types';
+import { Message } from '../../types';
 import { createProvider } from '../../../providers';
-import MyPlugin from '../../../main';
+import MyPlugin from '../../main';
 import { BotMessage } from './BotMessage';
 import { UserMessage } from './UserMessage';
 

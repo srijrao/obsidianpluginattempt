@@ -1,4 +1,4 @@
-import { Message } from './types';
+import { Message } from '../types';
 
 /**
  * Parses a given text selection into an array of message objects

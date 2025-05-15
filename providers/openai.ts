@@ -5,7 +5,7 @@
  * which allows the plugin to interact with OpenAI's API (GPT-3.5, GPT-4, etc.)
  */
 
-import { Message, CompletionOptions, ConnectionTestResult } from '../types';
+import { Message, CompletionOptions, ConnectionTestResult } from '../src/types';
 import { BaseProvider, ProviderError, ProviderErrorType } from './base';
 
 interface OpenAIResponse {

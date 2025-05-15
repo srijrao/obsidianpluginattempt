@@ -1,5 +1,5 @@
 import { App, Modal, Setting } from 'obsidian';
-import MyPlugin from '../../../main';
+import MyPlugin from '../../main';
 
 /**
  * Modal for configuring AI model settings

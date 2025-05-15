@@ -1,4 +1,4 @@
-import { MyPluginSettings } from './types';
+import { MyPluginSettings } from '../types';
 
 /**
  * Generate the system message with optional date and time information

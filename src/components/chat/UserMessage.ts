@@ -1,5 +1,5 @@
 import { App, Component, MarkdownRenderer } from 'obsidian';
-import MyPlugin from '../../../main';
+import MyPlugin from '../../main';
 import { Buttons } from './Buttons';
 
 export class UserMessage extends Component {
