@@ -5365,6 +5365,32 @@ ${this.settings.chatSeparator}
         }
       }
     });
+    this.addCommand({
+      id: "insert-chat-start-string",
+      name: "Insert Chat Start String",
+      editorCallback: (editor) => {
+        var _a2;
+        const chatStartString = (_a2 = this.settings.chatStartString) != null ? _a2 : "";
+        if (!chatStartString) {
+          new import_obsidian5.Notice("chatStartString is not set in settings.");
+          return;
+        }
+        const cursor = editor.getCursor();
+        editor.replaceRange(chatStartString, cursor);
+        const lines = chatStartString.split("\n");
+        if (lines.length === 1) {
+          editor.setCursor({
+            line: cursor.line,
+            ch: cursor.ch + chatStartString.length
+          });
+        } else {
+          editor.setCursor({
+            line: cursor.line + lines.length - 1,
+            ch: lines[lines.length - 1].length
+          });
+        }
+      }
+    });
   }
   getSystemMessage() {
     return getSystemMessage(this.settings);

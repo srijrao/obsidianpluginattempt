@@ -248,6 +248,36 @@ export default class MyPlugin extends Plugin {
                 }
             }
         });
+
+        this.addCommand({
+            id: 'insert-chat-start-string',
+            name: 'Insert Chat Start String',
+            editorCallback: (editor) => {
+                const chatStartString = this.settings.chatStartString ?? '';
+                if (!chatStartString) {
+                    new Notice('chatStartString is not set in settings.');
+                    return;
+                }
+                const cursor = editor.getCursor();
+                editor.replaceRange(chatStartString, cursor);
+
+                // Move cursor to the end of the inserted chatStartString
+                const lines = chatStartString.split('\n');
+                if (lines.length === 1) {
+                    // Single line insert
+                    editor.setCursor({
+                        line: cursor.line,
+                        ch: cursor.ch + chatStartString.length
+                    });
+                } else {
+                    // Multi-line insert
+                    editor.setCursor({
+                        line: cursor.line + lines.length - 1,
+                        ch: lines[lines.length - 1].length
+                    });
+                }
+            }
+        });
     }    public getSystemMessage(): string {
         return getSystemMessage(this.settings);
     }
