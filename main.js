@@ -8,6 +8,9 @@ var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
 var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+var __esm = (fn, res) => function __init() {
+  return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
+};
 var __export = (target, all) => {
   for (var name in all)
     __defProp(target, name, { get: all[name], enumerable: true });
@@ -23,201 +26,146 @@ var __copyProps = (to, from, except, desc) => {
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
 
-// src/main.ts
-var main_exports = {};
-__export(main_exports, {
-  default: () => MyPlugin
-});
-module.exports = __toCommonJS(main_exports);
-var import_obsidian5 = require("obsidian");
-
-// src/types.ts
-var DEFAULT_SETTINGS = {
-  referenceCurrentNote: false,
-  provider: "openai",
-  openaiSettings: {
-    apiKey: "",
-    model: "gpt-4o-mini",
-    availableModels: []
-  },
-  anthropicSettings: {
-    apiKey: "",
-    model: "claude-3-5-sonnet-latest",
-    availableModels: []
-  },
-  geminiSettings: {
-    apiKey: "",
-    model: "gemini-pro",
-    availableModels: []
-  },
-  ollamaSettings: {
-    serverUrl: "http://localhost:11434",
-    model: "llama2",
-    availableModels: []
-  },
-  systemMessage: "You are a helpful assistant.",
-  temperature: 0.7,
-  maxTokens: 1e3,
-  includeDateWithSystemMessage: false,
-  includeTimeWithSystemMessage: false,
-  enableStreaming: true,
-  autoOpenModelSettings: true,
-  enableObsidianLinks: true,
-  chatSeparator: "----",
-  chatStartString: void 0,
-  chatEndString: void 0,
-  enableContextNotes: false,
-  contextNotes: "",
-  maxSessions: 10,
-  autoSaveSessions: true,
-  sessions: [],
-  activeSessionId: void 0
-};
-
 // providers/base.ts
-var ProviderError = class extends Error {
-  constructor(type, message, statusCode) {
-    super(message);
-    __publicField(this, "type");
-    __publicField(this, "statusCode");
-    this.type = type;
-    this.statusCode = statusCode;
-    this.name = "ProviderError";
-  }
-};
-var BaseProvider = class {
-  /**
-   * Handle common HTTP errors
-   */
-  handleHttpError(error) {
-    if (error instanceof Response) {
-      const status2 = error.status;
-      switch (status2) {
-        case 401:
-          throw new ProviderError(
-            "invalid_api_key" /* InvalidApiKey */,
-            "Invalid API key",
-            status2
-          );
-        case 429:
-          throw new ProviderError(
-            "rate_limit" /* RateLimit */,
-            "Rate limit exceeded",
-            status2
-          );
-        case 400:
-          throw new ProviderError(
-            "invalid_request" /* InvalidRequest */,
-            "Invalid request",
-            status2
-          );
-        case 500:
-        case 502:
-        case 503:
-        case 504:
-          throw new ProviderError(
-            "server_error" /* ServerError */,
-            "Server error occurred",
-            status2
-          );
-        default:
-          throw new ProviderError(
-            "server_error" /* ServerError */,
-            `Unknown error occurred: ${status2}`,
-            status2
-          );
+var ProviderError, BaseProvider;
+var init_base = __esm({
+  "providers/base.ts"() {
+    ProviderError = class extends Error {
+      constructor(type, message, statusCode) {
+        super(message);
+        __publicField(this, "type");
+        __publicField(this, "statusCode");
+        this.type = type;
+        this.statusCode = statusCode;
+        this.name = "ProviderError";
       }
-    }
-    if (!error.response) {
-      throw new ProviderError(
-        "network_error" /* NetworkError */,
-        "Network error occurred"
-      );
-    }
-    const status = error.response.status;
-    switch (status) {
-      case 401:
-        throw new ProviderError(
-          "invalid_api_key" /* InvalidApiKey */,
-          "Invalid API key",
-          status
-        );
-      case 429:
-        throw new ProviderError(
-          "rate_limit" /* RateLimit */,
-          "Rate limit exceeded",
-          status
-        );
-      case 400:
-        throw new ProviderError(
-          "invalid_request" /* InvalidRequest */,
-          "Invalid request",
-          status
-        );
-      case 500:
-      case 502:
-      case 503:
-      case 504:
-        throw new ProviderError(
-          "server_error" /* ServerError */,
-          "Server error occurred",
-          status
-        );
-      default:
-        throw new ProviderError(
-          "server_error" /* ServerError */,
-          `Unknown error occurred: ${status}`,
-          status
-        );
-    }
-  }
-  /**
-   * Format error message for connection test results
-   */
-  formatErrorMessage(error) {
-    if (error instanceof ProviderError) {
-      switch (error.type) {
-        case "invalid_api_key" /* InvalidApiKey */:
-          return "Invalid API key. Please check your credentials.";
-        case "rate_limit" /* RateLimit */:
-          return "Rate limit exceeded. Please try again later.";
-        case "network_error" /* NetworkError */:
-          return "Network error. Please check your internet connection.";
-        default:
-          return error.message;
+    };
+    BaseProvider = class {
+      /**
+       * Handle common HTTP errors
+       */
+      handleHttpError(error) {
+        if (error instanceof Response) {
+          const status2 = error.status;
+          switch (status2) {
+            case 401:
+              throw new ProviderError(
+                "invalid_api_key" /* InvalidApiKey */,
+                "Invalid API key",
+                status2
+              );
+            case 429:
+              throw new ProviderError(
+                "rate_limit" /* RateLimit */,
+                "Rate limit exceeded",
+                status2
+              );
+            case 400:
+              throw new ProviderError(
+                "invalid_request" /* InvalidRequest */,
+                "Invalid request",
+                status2
+              );
+            case 500:
+            case 502:
+            case 503:
+            case 504:
+              throw new ProviderError(
+                "server_error" /* ServerError */,
+                "Server error occurred",
+                status2
+              );
+            default:
+              throw new ProviderError(
+                "server_error" /* ServerError */,
+                `Unknown error occurred: ${status2}`,
+                status2
+              );
+          }
+        }
+        if (!error.response) {
+          throw new ProviderError(
+            "network_error" /* NetworkError */,
+            "Network error occurred"
+          );
+        }
+        const status = error.response.status;
+        switch (status) {
+          case 401:
+            throw new ProviderError(
+              "invalid_api_key" /* InvalidApiKey */,
+              "Invalid API key",
+              status
+            );
+          case 429:
+            throw new ProviderError(
+              "rate_limit" /* RateLimit */,
+              "Rate limit exceeded",
+              status
+            );
+          case 400:
+            throw new ProviderError(
+              "invalid_request" /* InvalidRequest */,
+              "Invalid request",
+              status
+            );
+          case 500:
+          case 502:
+          case 503:
+          case 504:
+            throw new ProviderError(
+              "server_error" /* ServerError */,
+              "Server error occurred",
+              status
+            );
+          default:
+            throw new ProviderError(
+              "server_error" /* ServerError */,
+              `Unknown error occurred: ${status}`,
+              status
+            );
+        }
       }
-    }
-    return error.message || "An unknown error occurred";
-  }
-  /**
-   * Create a standard error response for connection tests
-   */
-  createErrorResponse(error) {
-    return {
-      success: false,
-      message: this.formatErrorMessage(error)
+      /**
+       * Format error message for connection test results
+       */
+      formatErrorMessage(error) {
+        if (error instanceof ProviderError) {
+          switch (error.type) {
+            case "invalid_api_key" /* InvalidApiKey */:
+              return "Invalid API key. Please check your credentials.";
+            case "rate_limit" /* RateLimit */:
+              return "Rate limit exceeded. Please try again later.";
+            case "network_error" /* NetworkError */:
+              return "Network error. Please check your internet connection.";
+            default:
+              return error.message;
+          }
+        }
+        return error.message || "An unknown error occurred";
+      }
+      /**
+       * Create a standard error response for connection tests
+       */
+      createErrorResponse(error) {
+        return {
+          success: false,
+          message: this.formatErrorMessage(error)
+        };
+      }
     };
   }
-};
+});
 
 // node_modules/@anthropic-ai/sdk/version.mjs
-var VERSION = "0.36.3";
+var VERSION;
+var init_version = __esm({
+  "node_modules/@anthropic-ai/sdk/version.mjs"() {
+    VERSION = "0.36.3";
+  }
+});
 
 // node_modules/@anthropic-ai/sdk/_shims/registry.mjs
-var auto = false;
-var kind = void 0;
-var fetch2 = void 0;
-var Request2 = void 0;
-var Response2 = void 0;
-var Headers2 = void 0;
-var FormData2 = void 0;
-var Blob2 = void 0;
-var File2 = void 0;
-var ReadableStream2 = void 0;
-var getMultipartRequestOptions = void 0;
-var getDefaultAgent = void 0;
-var fileFromPath = void 0;
-var isFsReadStream = void 0;
 function setShims(shims, options = { auto: false }) {
   if (auto) {
     throw new Error(`you must \`import '@anthropic-ai/sdk/shims/${shims.kind}'\` before importing anything else from @anthropic-ai/sdk`);
@@ -240,16 +188,40 @@ function setShims(shims, options = { auto: false }) {
   fileFromPath = shims.fileFromPath;
   isFsReadStream = shims.isFsReadStream;
 }
+var auto, kind, fetch2, Request2, Response2, Headers2, FormData2, Blob2, File2, ReadableStream2, getMultipartRequestOptions, getDefaultAgent, fileFromPath, isFsReadStream;
+var init_registry = __esm({
+  "node_modules/@anthropic-ai/sdk/_shims/registry.mjs"() {
+    auto = false;
+    kind = void 0;
+    fetch2 = void 0;
+    Request2 = void 0;
+    Response2 = void 0;
+    Headers2 = void 0;
+    FormData2 = void 0;
+    Blob2 = void 0;
+    File2 = void 0;
+    ReadableStream2 = void 0;
+    getMultipartRequestOptions = void 0;
+    getDefaultAgent = void 0;
+    fileFromPath = void 0;
+    isFsReadStream = void 0;
+  }
+});
 
 // node_modules/@anthropic-ai/sdk/_shims/MultipartBody.mjs
-var MultipartBody = class {
-  constructor(body) {
-    this.body = body;
+var MultipartBody;
+var init_MultipartBody = __esm({
+  "node_modules/@anthropic-ai/sdk/_shims/MultipartBody.mjs"() {
+    MultipartBody = class {
+      constructor(body) {
+        this.body = body;
+      }
+      get [Symbol.toStringTag]() {
+        return "MultipartBody";
+      }
+    };
   }
-  get [Symbol.toStringTag]() {
-    return "MultipartBody";
-  }
-};
+});
 
 // node_modules/@anthropic-ai/sdk/_shims/web-runtime.mjs
 function getRuntime({ manuallyImported } = {}) {
@@ -315,173 +287,204 @@ function getRuntime({ manuallyImported } = {}) {
     isFsReadStream: (value) => false
   };
 }
+var init_web_runtime = __esm({
+  "node_modules/@anthropic-ai/sdk/_shims/web-runtime.mjs"() {
+    init_MultipartBody();
+  }
+});
+
+// node_modules/@anthropic-ai/sdk/_shims/auto/runtime.mjs
+var init_runtime = __esm({
+  "node_modules/@anthropic-ai/sdk/_shims/auto/runtime.mjs"() {
+    init_web_runtime();
+  }
+});
 
 // node_modules/@anthropic-ai/sdk/_shims/index.mjs
-if (!kind) setShims(getRuntime(), { auto: true });
+var init_shims = __esm({
+  "node_modules/@anthropic-ai/sdk/_shims/index.mjs"() {
+    init_registry();
+    init_runtime();
+    init_registry();
+    if (!kind) setShims(getRuntime(), { auto: true });
+  }
+});
 
 // node_modules/@anthropic-ai/sdk/error.mjs
-var AnthropicError = class extends Error {
-};
-var APIError = class _APIError extends AnthropicError {
-  constructor(status, error, message, headers) {
-    super(`${_APIError.makeMessage(status, error, message)}`);
-    this.status = status;
-    this.headers = headers;
-    this.request_id = headers == null ? void 0 : headers["request-id"];
-    this.error = error;
+var AnthropicError, APIError, APIUserAbortError, APIConnectionError, APIConnectionTimeoutError, BadRequestError, AuthenticationError, PermissionDeniedError, NotFoundError, ConflictError, UnprocessableEntityError, RateLimitError, InternalServerError;
+var init_error = __esm({
+  "node_modules/@anthropic-ai/sdk/error.mjs"() {
+    init_core();
+    AnthropicError = class extends Error {
+    };
+    APIError = class _APIError extends AnthropicError {
+      constructor(status, error, message, headers) {
+        super(`${_APIError.makeMessage(status, error, message)}`);
+        this.status = status;
+        this.headers = headers;
+        this.request_id = headers == null ? void 0 : headers["request-id"];
+        this.error = error;
+      }
+      static makeMessage(status, error, message) {
+        const msg = (error == null ? void 0 : error.message) ? typeof error.message === "string" ? error.message : JSON.stringify(error.message) : error ? JSON.stringify(error) : message;
+        if (status && msg) {
+          return `${status} ${msg}`;
+        }
+        if (status) {
+          return `${status} status code (no body)`;
+        }
+        if (msg) {
+          return msg;
+        }
+        return "(no status code or body)";
+      }
+      static generate(status, errorResponse, message, headers) {
+        if (!status || !headers) {
+          return new APIConnectionError({ message, cause: castToError(errorResponse) });
+        }
+        const error = errorResponse;
+        if (status === 400) {
+          return new BadRequestError(status, error, message, headers);
+        }
+        if (status === 401) {
+          return new AuthenticationError(status, error, message, headers);
+        }
+        if (status === 403) {
+          return new PermissionDeniedError(status, error, message, headers);
+        }
+        if (status === 404) {
+          return new NotFoundError(status, error, message, headers);
+        }
+        if (status === 409) {
+          return new ConflictError(status, error, message, headers);
+        }
+        if (status === 422) {
+          return new UnprocessableEntityError(status, error, message, headers);
+        }
+        if (status === 429) {
+          return new RateLimitError(status, error, message, headers);
+        }
+        if (status >= 500) {
+          return new InternalServerError(status, error, message, headers);
+        }
+        return new _APIError(status, error, message, headers);
+      }
+    };
+    APIUserAbortError = class extends APIError {
+      constructor({ message } = {}) {
+        super(void 0, void 0, message || "Request was aborted.", void 0);
+      }
+    };
+    APIConnectionError = class extends APIError {
+      constructor({ message, cause }) {
+        super(void 0, void 0, message || "Connection error.", void 0);
+        if (cause)
+          this.cause = cause;
+      }
+    };
+    APIConnectionTimeoutError = class extends APIConnectionError {
+      constructor({ message } = {}) {
+        super({ message: message != null ? message : "Request timed out." });
+      }
+    };
+    BadRequestError = class extends APIError {
+    };
+    AuthenticationError = class extends APIError {
+    };
+    PermissionDeniedError = class extends APIError {
+    };
+    NotFoundError = class extends APIError {
+    };
+    ConflictError = class extends APIError {
+    };
+    UnprocessableEntityError = class extends APIError {
+    };
+    RateLimitError = class extends APIError {
+    };
+    InternalServerError = class extends APIError {
+    };
   }
-  static makeMessage(status, error, message) {
-    const msg = (error == null ? void 0 : error.message) ? typeof error.message === "string" ? error.message : JSON.stringify(error.message) : error ? JSON.stringify(error) : message;
-    if (status && msg) {
-      return `${status} ${msg}`;
-    }
-    if (status) {
-      return `${status} status code (no body)`;
-    }
-    if (msg) {
-      return msg;
-    }
-    return "(no status code or body)";
-  }
-  static generate(status, errorResponse, message, headers) {
-    if (!status || !headers) {
-      return new APIConnectionError({ message, cause: castToError(errorResponse) });
-    }
-    const error = errorResponse;
-    if (status === 400) {
-      return new BadRequestError(status, error, message, headers);
-    }
-    if (status === 401) {
-      return new AuthenticationError(status, error, message, headers);
-    }
-    if (status === 403) {
-      return new PermissionDeniedError(status, error, message, headers);
-    }
-    if (status === 404) {
-      return new NotFoundError(status, error, message, headers);
-    }
-    if (status === 409) {
-      return new ConflictError(status, error, message, headers);
-    }
-    if (status === 422) {
-      return new UnprocessableEntityError(status, error, message, headers);
-    }
-    if (status === 429) {
-      return new RateLimitError(status, error, message, headers);
-    }
-    if (status >= 500) {
-      return new InternalServerError(status, error, message, headers);
-    }
-    return new _APIError(status, error, message, headers);
-  }
-};
-var APIUserAbortError = class extends APIError {
-  constructor({ message } = {}) {
-    super(void 0, void 0, message || "Request was aborted.", void 0);
-  }
-};
-var APIConnectionError = class extends APIError {
-  constructor({ message, cause }) {
-    super(void 0, void 0, message || "Connection error.", void 0);
-    if (cause)
-      this.cause = cause;
-  }
-};
-var APIConnectionTimeoutError = class extends APIConnectionError {
-  constructor({ message } = {}) {
-    super({ message: message != null ? message : "Request timed out." });
-  }
-};
-var BadRequestError = class extends APIError {
-};
-var AuthenticationError = class extends APIError {
-};
-var PermissionDeniedError = class extends APIError {
-};
-var NotFoundError = class extends APIError {
-};
-var ConflictError = class extends APIError {
-};
-var UnprocessableEntityError = class extends APIError {
-};
-var RateLimitError = class extends APIError {
-};
-var InternalServerError = class extends APIError {
-};
+});
 
 // node_modules/@anthropic-ai/sdk/internal/decoders/line.mjs
-var LineDecoder = class _LineDecoder {
-  constructor() {
-    this.buffer = [];
-    this.trailingCR = false;
-  }
-  decode(chunk) {
-    let text = this.decodeText(chunk);
-    if (this.trailingCR) {
-      text = "\r" + text;
-      this.trailingCR = false;
-    }
-    if (text.endsWith("\r")) {
-      this.trailingCR = true;
-      text = text.slice(0, -1);
-    }
-    if (!text) {
-      return [];
-    }
-    const trailingNewline = _LineDecoder.NEWLINE_CHARS.has(text[text.length - 1] || "");
-    let lines = text.split(_LineDecoder.NEWLINE_REGEXP);
-    if (trailingNewline) {
-      lines.pop();
-    }
-    if (lines.length === 1 && !trailingNewline) {
-      this.buffer.push(lines[0]);
-      return [];
-    }
-    if (this.buffer.length > 0) {
-      lines = [this.buffer.join("") + lines[0], ...lines.slice(1)];
-      this.buffer = [];
-    }
-    if (!trailingNewline) {
-      this.buffer = [lines.pop() || ""];
-    }
-    return lines;
-  }
-  decodeText(bytes) {
-    var _a2;
-    if (bytes == null)
-      return "";
-    if (typeof bytes === "string")
-      return bytes;
-    if (typeof Buffer !== "undefined") {
-      if (bytes instanceof Buffer) {
-        return bytes.toString();
+var LineDecoder;
+var init_line = __esm({
+  "node_modules/@anthropic-ai/sdk/internal/decoders/line.mjs"() {
+    init_error();
+    LineDecoder = class _LineDecoder {
+      constructor() {
+        this.buffer = [];
+        this.trailingCR = false;
       }
-      if (bytes instanceof Uint8Array) {
-        return Buffer.from(bytes).toString();
+      decode(chunk) {
+        let text = this.decodeText(chunk);
+        if (this.trailingCR) {
+          text = "\r" + text;
+          this.trailingCR = false;
+        }
+        if (text.endsWith("\r")) {
+          this.trailingCR = true;
+          text = text.slice(0, -1);
+        }
+        if (!text) {
+          return [];
+        }
+        const trailingNewline = _LineDecoder.NEWLINE_CHARS.has(text[text.length - 1] || "");
+        let lines = text.split(_LineDecoder.NEWLINE_REGEXP);
+        if (trailingNewline) {
+          lines.pop();
+        }
+        if (lines.length === 1 && !trailingNewline) {
+          this.buffer.push(lines[0]);
+          return [];
+        }
+        if (this.buffer.length > 0) {
+          lines = [this.buffer.join("") + lines[0], ...lines.slice(1)];
+          this.buffer = [];
+        }
+        if (!trailingNewline) {
+          this.buffer = [lines.pop() || ""];
+        }
+        return lines;
       }
-      throw new AnthropicError(`Unexpected: received non-Uint8Array (${bytes.constructor.name}) stream chunk in an environment with a global "Buffer" defined, which this library assumes to be Node. Please report this error.`);
-    }
-    if (typeof TextDecoder !== "undefined") {
-      if (bytes instanceof Uint8Array || bytes instanceof ArrayBuffer) {
-        (_a2 = this.textDecoder) != null ? _a2 : this.textDecoder = new TextDecoder("utf8");
-        return this.textDecoder.decode(bytes);
+      decodeText(bytes) {
+        var _a2;
+        if (bytes == null)
+          return "";
+        if (typeof bytes === "string")
+          return bytes;
+        if (typeof Buffer !== "undefined") {
+          if (bytes instanceof Buffer) {
+            return bytes.toString();
+          }
+          if (bytes instanceof Uint8Array) {
+            return Buffer.from(bytes).toString();
+          }
+          throw new AnthropicError(`Unexpected: received non-Uint8Array (${bytes.constructor.name}) stream chunk in an environment with a global "Buffer" defined, which this library assumes to be Node. Please report this error.`);
+        }
+        if (typeof TextDecoder !== "undefined") {
+          if (bytes instanceof Uint8Array || bytes instanceof ArrayBuffer) {
+            (_a2 = this.textDecoder) != null ? _a2 : this.textDecoder = new TextDecoder("utf8");
+            return this.textDecoder.decode(bytes);
+          }
+          throw new AnthropicError(`Unexpected: received non-Uint8Array/ArrayBuffer (${bytes.constructor.name}) in a web platform. Please report this error.`);
+        }
+        throw new AnthropicError(`Unexpected: neither Buffer nor TextDecoder are available as globals. Please report this error.`);
       }
-      throw new AnthropicError(`Unexpected: received non-Uint8Array/ArrayBuffer (${bytes.constructor.name}) in a web platform. Please report this error.`);
-    }
-    throw new AnthropicError(`Unexpected: neither Buffer nor TextDecoder are available as globals. Please report this error.`);
+      flush() {
+        if (!this.buffer.length && !this.trailingCR) {
+          return [];
+        }
+        const lines = [this.buffer.join("")];
+        this.buffer = [];
+        this.trailingCR = false;
+        return lines;
+      }
+    };
+    LineDecoder.NEWLINE_CHARS = /* @__PURE__ */ new Set(["\n", "\r"]);
+    LineDecoder.NEWLINE_REGEXP = /\r\n|[\n\r]/g;
   }
-  flush() {
-    if (!this.buffer.length && !this.trailingCR) {
-      return [];
-    }
-    const lines = [this.buffer.join("")];
-    this.buffer = [];
-    this.trailingCR = false;
-    return lines;
-  }
-};
-LineDecoder.NEWLINE_CHARS = /* @__PURE__ */ new Set(["\n", "\r"]);
-LineDecoder.NEWLINE_REGEXP = /\r\n|[\n\r]/g;
+});
 
 // node_modules/@anthropic-ai/sdk/internal/stream-utils.mjs
 function ReadableStreamToAsyncIterable(stream) {
@@ -511,162 +514,12 @@ function ReadableStreamToAsyncIterable(stream) {
     }
   };
 }
+var init_stream_utils = __esm({
+  "node_modules/@anthropic-ai/sdk/internal/stream-utils.mjs"() {
+  }
+});
 
 // node_modules/@anthropic-ai/sdk/streaming.mjs
-var Stream = class _Stream {
-  constructor(iterator, controller) {
-    this.iterator = iterator;
-    this.controller = controller;
-  }
-  static fromSSEResponse(response, controller) {
-    let consumed = false;
-    async function* iterator() {
-      if (consumed) {
-        throw new Error("Cannot iterate over a consumed stream, use `.tee()` to split the stream.");
-      }
-      consumed = true;
-      let done = false;
-      try {
-        for await (const sse of _iterSSEMessages(response, controller)) {
-          if (sse.event === "completion") {
-            try {
-              yield JSON.parse(sse.data);
-            } catch (e) {
-              console.error(`Could not parse message into JSON:`, sse.data);
-              console.error(`From chunk:`, sse.raw);
-              throw e;
-            }
-          }
-          if (sse.event === "message_start" || sse.event === "message_delta" || sse.event === "message_stop" || sse.event === "content_block_start" || sse.event === "content_block_delta" || sse.event === "content_block_stop") {
-            try {
-              yield JSON.parse(sse.data);
-            } catch (e) {
-              console.error(`Could not parse message into JSON:`, sse.data);
-              console.error(`From chunk:`, sse.raw);
-              throw e;
-            }
-          }
-          if (sse.event === "ping") {
-            continue;
-          }
-          if (sse.event === "error") {
-            throw APIError.generate(void 0, `SSE Error: ${sse.data}`, sse.data, createResponseHeaders(response.headers));
-          }
-        }
-        done = true;
-      } catch (e) {
-        if (e instanceof Error && e.name === "AbortError")
-          return;
-        throw e;
-      } finally {
-        if (!done)
-          controller.abort();
-      }
-    }
-    return new _Stream(iterator, controller);
-  }
-  /**
-   * Generates a Stream from a newline-separated ReadableStream
-   * where each item is a JSON value.
-   */
-  static fromReadableStream(readableStream, controller) {
-    let consumed = false;
-    async function* iterLines() {
-      const lineDecoder = new LineDecoder();
-      const iter = ReadableStreamToAsyncIterable(readableStream);
-      for await (const chunk of iter) {
-        for (const line of lineDecoder.decode(chunk)) {
-          yield line;
-        }
-      }
-      for (const line of lineDecoder.flush()) {
-        yield line;
-      }
-    }
-    async function* iterator() {
-      if (consumed) {
-        throw new Error("Cannot iterate over a consumed stream, use `.tee()` to split the stream.");
-      }
-      consumed = true;
-      let done = false;
-      try {
-        for await (const line of iterLines()) {
-          if (done)
-            continue;
-          if (line)
-            yield JSON.parse(line);
-        }
-        done = true;
-      } catch (e) {
-        if (e instanceof Error && e.name === "AbortError")
-          return;
-        throw e;
-      } finally {
-        if (!done)
-          controller.abort();
-      }
-    }
-    return new _Stream(iterator, controller);
-  }
-  [Symbol.asyncIterator]() {
-    return this.iterator();
-  }
-  /**
-   * Splits the stream into two streams which can be
-   * independently read from at different speeds.
-   */
-  tee() {
-    const left = [];
-    const right = [];
-    const iterator = this.iterator();
-    const teeIterator = (queue) => {
-      return {
-        next: () => {
-          if (queue.length === 0) {
-            const result = iterator.next();
-            left.push(result);
-            right.push(result);
-          }
-          return queue.shift();
-        }
-      };
-    };
-    return [
-      new _Stream(() => teeIterator(left), this.controller),
-      new _Stream(() => teeIterator(right), this.controller)
-    ];
-  }
-  /**
-   * Converts this stream to a newline-separated ReadableStream of
-   * JSON stringified values in the stream
-   * which can be turned back into a Stream with `Stream.fromReadableStream()`.
-   */
-  toReadableStream() {
-    const self = this;
-    let iter;
-    const encoder = new TextEncoder();
-    return new ReadableStream2({
-      async start() {
-        iter = self[Symbol.asyncIterator]();
-      },
-      async pull(ctrl) {
-        try {
-          const { value, done } = await iter.next();
-          if (done)
-            return ctrl.close();
-          const bytes = encoder.encode(JSON.stringify(value) + "\n");
-          ctrl.enqueue(bytes);
-        } catch (err) {
-          ctrl.error(err);
-        }
-      },
-      async cancel() {
-        var _a2;
-        await ((_a2 = iter.return) == null ? void 0 : _a2.call(iter));
-      }
-    });
-  }
-};
 async function* _iterSSEMessages(response, controller) {
   if (!response.body) {
     controller.abort();
@@ -725,45 +578,6 @@ function findDoubleNewlineIndex(buffer) {
   }
   return -1;
 }
-var SSEDecoder = class {
-  constructor() {
-    this.event = null;
-    this.data = [];
-    this.chunks = [];
-  }
-  decode(line) {
-    if (line.endsWith("\r")) {
-      line = line.substring(0, line.length - 1);
-    }
-    if (!line) {
-      if (!this.event && !this.data.length)
-        return null;
-      const sse = {
-        event: this.event,
-        data: this.data.join("\n"),
-        raw: this.chunks
-      };
-      this.event = null;
-      this.data = [];
-      this.chunks = [];
-      return sse;
-    }
-    this.chunks.push(line);
-    if (line.startsWith(":")) {
-      return null;
-    }
-    let [fieldname, _, value] = partition(line, ":");
-    if (value.startsWith(" ")) {
-      value = value.substring(1);
-    }
-    if (fieldname === "event") {
-      this.event = value;
-    } else if (fieldname === "data") {
-      this.data.push(value);
-    }
-    return null;
-  }
-};
 function partition(str, delimiter) {
   const index = str.indexOf(delimiter);
   if (index !== -1) {
@@ -771,11 +585,212 @@ function partition(str, delimiter) {
   }
   return [str, "", ""];
 }
+var Stream, SSEDecoder;
+var init_streaming = __esm({
+  "node_modules/@anthropic-ai/sdk/streaming.mjs"() {
+    init_shims();
+    init_error();
+    init_line();
+    init_stream_utils();
+    init_core();
+    init_error();
+    Stream = class _Stream {
+      constructor(iterator, controller) {
+        this.iterator = iterator;
+        this.controller = controller;
+      }
+      static fromSSEResponse(response, controller) {
+        let consumed = false;
+        async function* iterator() {
+          if (consumed) {
+            throw new Error("Cannot iterate over a consumed stream, use `.tee()` to split the stream.");
+          }
+          consumed = true;
+          let done = false;
+          try {
+            for await (const sse of _iterSSEMessages(response, controller)) {
+              if (sse.event === "completion") {
+                try {
+                  yield JSON.parse(sse.data);
+                } catch (e) {
+                  console.error(`Could not parse message into JSON:`, sse.data);
+                  console.error(`From chunk:`, sse.raw);
+                  throw e;
+                }
+              }
+              if (sse.event === "message_start" || sse.event === "message_delta" || sse.event === "message_stop" || sse.event === "content_block_start" || sse.event === "content_block_delta" || sse.event === "content_block_stop") {
+                try {
+                  yield JSON.parse(sse.data);
+                } catch (e) {
+                  console.error(`Could not parse message into JSON:`, sse.data);
+                  console.error(`From chunk:`, sse.raw);
+                  throw e;
+                }
+              }
+              if (sse.event === "ping") {
+                continue;
+              }
+              if (sse.event === "error") {
+                throw APIError.generate(void 0, `SSE Error: ${sse.data}`, sse.data, createResponseHeaders(response.headers));
+              }
+            }
+            done = true;
+          } catch (e) {
+            if (e instanceof Error && e.name === "AbortError")
+              return;
+            throw e;
+          } finally {
+            if (!done)
+              controller.abort();
+          }
+        }
+        return new _Stream(iterator, controller);
+      }
+      /**
+       * Generates a Stream from a newline-separated ReadableStream
+       * where each item is a JSON value.
+       */
+      static fromReadableStream(readableStream, controller) {
+        let consumed = false;
+        async function* iterLines() {
+          const lineDecoder = new LineDecoder();
+          const iter = ReadableStreamToAsyncIterable(readableStream);
+          for await (const chunk of iter) {
+            for (const line of lineDecoder.decode(chunk)) {
+              yield line;
+            }
+          }
+          for (const line of lineDecoder.flush()) {
+            yield line;
+          }
+        }
+        async function* iterator() {
+          if (consumed) {
+            throw new Error("Cannot iterate over a consumed stream, use `.tee()` to split the stream.");
+          }
+          consumed = true;
+          let done = false;
+          try {
+            for await (const line of iterLines()) {
+              if (done)
+                continue;
+              if (line)
+                yield JSON.parse(line);
+            }
+            done = true;
+          } catch (e) {
+            if (e instanceof Error && e.name === "AbortError")
+              return;
+            throw e;
+          } finally {
+            if (!done)
+              controller.abort();
+          }
+        }
+        return new _Stream(iterator, controller);
+      }
+      [Symbol.asyncIterator]() {
+        return this.iterator();
+      }
+      /**
+       * Splits the stream into two streams which can be
+       * independently read from at different speeds.
+       */
+      tee() {
+        const left = [];
+        const right = [];
+        const iterator = this.iterator();
+        const teeIterator = (queue) => {
+          return {
+            next: () => {
+              if (queue.length === 0) {
+                const result = iterator.next();
+                left.push(result);
+                right.push(result);
+              }
+              return queue.shift();
+            }
+          };
+        };
+        return [
+          new _Stream(() => teeIterator(left), this.controller),
+          new _Stream(() => teeIterator(right), this.controller)
+        ];
+      }
+      /**
+       * Converts this stream to a newline-separated ReadableStream of
+       * JSON stringified values in the stream
+       * which can be turned back into a Stream with `Stream.fromReadableStream()`.
+       */
+      toReadableStream() {
+        const self = this;
+        let iter;
+        const encoder = new TextEncoder();
+        return new ReadableStream2({
+          async start() {
+            iter = self[Symbol.asyncIterator]();
+          },
+          async pull(ctrl) {
+            try {
+              const { value, done } = await iter.next();
+              if (done)
+                return ctrl.close();
+              const bytes = encoder.encode(JSON.stringify(value) + "\n");
+              ctrl.enqueue(bytes);
+            } catch (err) {
+              ctrl.error(err);
+            }
+          },
+          async cancel() {
+            var _a2;
+            await ((_a2 = iter.return) == null ? void 0 : _a2.call(iter));
+          }
+        });
+      }
+    };
+    SSEDecoder = class {
+      constructor() {
+        this.event = null;
+        this.data = [];
+        this.chunks = [];
+      }
+      decode(line) {
+        if (line.endsWith("\r")) {
+          line = line.substring(0, line.length - 1);
+        }
+        if (!line) {
+          if (!this.event && !this.data.length)
+            return null;
+          const sse = {
+            event: this.event,
+            data: this.data.join("\n"),
+            raw: this.chunks
+          };
+          this.event = null;
+          this.data = [];
+          this.chunks = [];
+          return sse;
+        }
+        this.chunks.push(line);
+        if (line.startsWith(":")) {
+          return null;
+        }
+        let [fieldname, _, value] = partition(line, ":");
+        if (value.startsWith(" ")) {
+          value = value.substring(1);
+        }
+        if (fieldname === "event") {
+          this.event = value;
+        } else if (fieldname === "data") {
+          this.data.push(value);
+        }
+        return null;
+      }
+    };
+  }
+});
 
 // node_modules/@anthropic-ai/sdk/uploads.mjs
-var isResponseLike = (value) => value != null && typeof value === "object" && typeof value.url === "string" && typeof value.blob === "function";
-var isFileLike = (value) => value != null && typeof value === "object" && typeof value.name === "string" && typeof value.lastModified === "number" && isBlobLike(value);
-var isBlobLike = (value) => value != null && typeof value === "object" && typeof value.size === "number" && typeof value.type === "string" && typeof value.text === "function" && typeof value.slice === "function" && typeof value.arrayBuffer === "function";
 async function toFile(value, name, options) {
   var _a2, _b, _c;
   value = await value;
@@ -824,29 +839,27 @@ function getName(value) {
   return getStringFromMaybeBuffer(value.name) || getStringFromMaybeBuffer(value.filename) || // For fs.ReadStream
   ((_a2 = getStringFromMaybeBuffer(value.path)) == null ? void 0 : _a2.split(/[\\/]/).pop());
 }
-var getStringFromMaybeBuffer = (x) => {
-  if (typeof x === "string")
-    return x;
-  if (typeof Buffer !== "undefined" && x instanceof Buffer)
-    return String(x);
-  return void 0;
-};
-var isAsyncIterableIterator = (value) => value != null && typeof value === "object" && typeof value[Symbol.asyncIterator] === "function";
-var isMultipartBody = (body) => body && typeof body === "object" && body.body && body[Symbol.toStringTag] === "MultipartBody";
+var isResponseLike, isFileLike, isBlobLike, getStringFromMaybeBuffer, isAsyncIterableIterator, isMultipartBody;
+var init_uploads = __esm({
+  "node_modules/@anthropic-ai/sdk/uploads.mjs"() {
+    init_shims();
+    init_shims();
+    isResponseLike = (value) => value != null && typeof value === "object" && typeof value.url === "string" && typeof value.blob === "function";
+    isFileLike = (value) => value != null && typeof value === "object" && typeof value.name === "string" && typeof value.lastModified === "number" && isBlobLike(value);
+    isBlobLike = (value) => value != null && typeof value === "object" && typeof value.size === "number" && typeof value.type === "string" && typeof value.text === "function" && typeof value.slice === "function" && typeof value.arrayBuffer === "function";
+    getStringFromMaybeBuffer = (x) => {
+      if (typeof x === "string")
+        return x;
+      if (typeof Buffer !== "undefined" && x instanceof Buffer)
+        return String(x);
+      return void 0;
+    };
+    isAsyncIterableIterator = (value) => value != null && typeof value === "object" && typeof value[Symbol.asyncIterator] === "function";
+    isMultipartBody = (body) => body && typeof body === "object" && body.body && body[Symbol.toStringTag] === "MultipartBody";
+  }
+});
 
 // node_modules/@anthropic-ai/sdk/core.mjs
-var __classPrivateFieldSet = function(receiver, state, value, kind2, f) {
-  if (kind2 === "m") throw new TypeError("Private method is not writable");
-  if (kind2 === "a" && !f) throw new TypeError("Private accessor was defined without a setter");
-  if (typeof state === "function" ? receiver !== state || !f : !state.has(receiver)) throw new TypeError("Cannot write private member to an object whose class did not declare it");
-  return kind2 === "a" ? f.call(receiver, value) : f ? f.value = value : state.set(receiver, value), value;
-};
-var __classPrivateFieldGet = function(receiver, state, kind2, f) {
-  if (kind2 === "a" && !f) throw new TypeError("Private accessor was defined without a getter");
-  if (typeof state === "function" ? receiver !== state || !f : !state.has(receiver)) throw new TypeError("Cannot read private member from an object whose class did not declare it");
-  return kind2 === "m" ? f : kind2 === "a" ? f.call(receiver) : f ? f.value : state.get(receiver);
-};
-var _AbstractPage_client;
 async function defaultParseResponse(props) {
   const { response } = props;
   if (props.options.stream) {
@@ -882,511 +895,6 @@ function _addRequestID(value, response) {
     enumerable: false
   });
 }
-var APIPromise = class _APIPromise extends Promise {
-  constructor(responsePromise, parseResponse = defaultParseResponse) {
-    super((resolve) => {
-      resolve(null);
-    });
-    this.responsePromise = responsePromise;
-    this.parseResponse = parseResponse;
-  }
-  _thenUnwrap(transform) {
-    return new _APIPromise(this.responsePromise, async (props) => _addRequestID(transform(await this.parseResponse(props), props), props.response));
-  }
-  /**
-   * Gets the raw `Response` instance instead of parsing the response
-   * data.
-   *
-   * If you want to parse the response body but still get the `Response`
-   * instance, you can use {@link withResponse()}.
-   *
-   * 👋 Getting the wrong TypeScript type for `Response`?
-   * Try setting `"moduleResolution": "NodeNext"` if you can,
-   * or add one of these imports before your first `import … from '@anthropic-ai/sdk'`:
-   * - `import '@anthropic-ai/sdk/shims/node'` (if you're running on Node)
-   * - `import '@anthropic-ai/sdk/shims/web'` (otherwise)
-   */
-  asResponse() {
-    return this.responsePromise.then((p) => p.response);
-  }
-  /**
-   * Gets the parsed response data, the raw `Response` instance and the ID of the request,
-   * returned vie the `request-id` header which is useful for debugging requests and resporting
-   * issues to Anthropic.
-   *
-   * If you just want to get the raw `Response` instance without parsing it,
-   * you can use {@link asResponse()}.
-   *
-   * 👋 Getting the wrong TypeScript type for `Response`?
-   * Try setting `"moduleResolution": "NodeNext"` if you can,
-   * or add one of these imports before your first `import … from '@anthropic-ai/sdk'`:
-   * - `import '@anthropic-ai/sdk/shims/node'` (if you're running on Node)
-   * - `import '@anthropic-ai/sdk/shims/web'` (otherwise)
-   */
-  async withResponse() {
-    const [data, response] = await Promise.all([this.parse(), this.asResponse()]);
-    return { data, response, request_id: response.headers.get("request-id") };
-  }
-  parse() {
-    if (!this.parsedPromise) {
-      this.parsedPromise = this.responsePromise.then(this.parseResponse);
-    }
-    return this.parsedPromise;
-  }
-  then(onfulfilled, onrejected) {
-    return this.parse().then(onfulfilled, onrejected);
-  }
-  catch(onrejected) {
-    return this.parse().catch(onrejected);
-  }
-  finally(onfinally) {
-    return this.parse().finally(onfinally);
-  }
-};
-var APIClient = class {
-  constructor({
-    baseURL,
-    maxRetries = 2,
-    timeout = 6e5,
-    // 10 minutes
-    httpAgent,
-    fetch: overriddenFetch
-  }) {
-    this.baseURL = baseURL;
-    this.maxRetries = validatePositiveInteger("maxRetries", maxRetries);
-    this.timeout = validatePositiveInteger("timeout", timeout);
-    this.httpAgent = httpAgent;
-    this.fetch = overriddenFetch != null ? overriddenFetch : fetch2;
-  }
-  authHeaders(opts) {
-    return {};
-  }
-  /**
-   * Override this to add your own default headers, for example:
-   *
-   *  {
-   *    ...super.defaultHeaders(),
-   *    Authorization: 'Bearer 123',
-   *  }
-   */
-  defaultHeaders(opts) {
-    return {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-      "User-Agent": this.getUserAgent(),
-      ...getPlatformHeaders(),
-      ...this.authHeaders(opts)
-    };
-  }
-  /**
-   * Override this to add your own headers validation:
-   */
-  validateHeaders(headers, customHeaders) {
-  }
-  defaultIdempotencyKey() {
-    return `stainless-node-retry-${uuid4()}`;
-  }
-  get(path, opts) {
-    return this.methodRequest("get", path, opts);
-  }
-  post(path, opts) {
-    return this.methodRequest("post", path, opts);
-  }
-  patch(path, opts) {
-    return this.methodRequest("patch", path, opts);
-  }
-  put(path, opts) {
-    return this.methodRequest("put", path, opts);
-  }
-  delete(path, opts) {
-    return this.methodRequest("delete", path, opts);
-  }
-  methodRequest(method, path, opts) {
-    return this.request(Promise.resolve(opts).then(async (opts2) => {
-      const body = opts2 && isBlobLike(opts2 == null ? void 0 : opts2.body) ? new DataView(await opts2.body.arrayBuffer()) : (opts2 == null ? void 0 : opts2.body) instanceof DataView ? opts2.body : (opts2 == null ? void 0 : opts2.body) instanceof ArrayBuffer ? new DataView(opts2.body) : opts2 && ArrayBuffer.isView(opts2 == null ? void 0 : opts2.body) ? new DataView(opts2.body.buffer) : opts2 == null ? void 0 : opts2.body;
-      return { method, path, ...opts2, body };
-    }));
-  }
-  getAPIList(path, Page2, opts) {
-    return this.requestAPIList(Page2, { method: "get", path, ...opts });
-  }
-  calculateContentLength(body) {
-    if (typeof body === "string") {
-      if (typeof Buffer !== "undefined") {
-        return Buffer.byteLength(body, "utf8").toString();
-      }
-      if (typeof TextEncoder !== "undefined") {
-        const encoder = new TextEncoder();
-        const encoded = encoder.encode(body);
-        return encoded.length.toString();
-      }
-    } else if (ArrayBuffer.isView(body)) {
-      return body.byteLength.toString();
-    }
-    return null;
-  }
-  buildRequest(options, { retryCount = 0 } = {}) {
-    var _a2, _b, _c, _d, _e, _f;
-    const { method, path, query, headers = {} } = options;
-    const body = ArrayBuffer.isView(options.body) || options.__binaryRequest && typeof options.body === "string" ? options.body : isMultipartBody(options.body) ? options.body.body : options.body ? JSON.stringify(options.body, null, 2) : null;
-    const contentLength = this.calculateContentLength(body);
-    const url = this.buildURL(path, query);
-    if ("timeout" in options)
-      validatePositiveInteger("timeout", options.timeout);
-    const timeout = (_a2 = options.timeout) != null ? _a2 : this.timeout;
-    const httpAgent = (_c = (_b = options.httpAgent) != null ? _b : this.httpAgent) != null ? _c : getDefaultAgent(url);
-    const minAgentTimeout = timeout + 1e3;
-    if (typeof ((_d = httpAgent == null ? void 0 : httpAgent.options) == null ? void 0 : _d.timeout) === "number" && minAgentTimeout > ((_e = httpAgent.options.timeout) != null ? _e : 0)) {
-      httpAgent.options.timeout = minAgentTimeout;
-    }
-    if (this.idempotencyHeader && method !== "get") {
-      if (!options.idempotencyKey)
-        options.idempotencyKey = this.defaultIdempotencyKey();
-      headers[this.idempotencyHeader] = options.idempotencyKey;
-    }
-    const reqHeaders = this.buildHeaders({ options, headers, contentLength, retryCount });
-    const req = {
-      method,
-      ...body && { body },
-      headers: reqHeaders,
-      ...httpAgent && { agent: httpAgent },
-      // @ts-ignore node-fetch uses a custom AbortSignal type that is
-      // not compatible with standard web types
-      signal: (_f = options.signal) != null ? _f : null
-    };
-    return { req, url, timeout };
-  }
-  buildHeaders({ options, headers, contentLength, retryCount }) {
-    const reqHeaders = {};
-    if (contentLength) {
-      reqHeaders["content-length"] = contentLength;
-    }
-    const defaultHeaders = this.defaultHeaders(options);
-    applyHeadersMut(reqHeaders, defaultHeaders);
-    applyHeadersMut(reqHeaders, headers);
-    if (isMultipartBody(options.body) && kind !== "node") {
-      delete reqHeaders["content-type"];
-    }
-    if (getHeader(defaultHeaders, "x-stainless-retry-count") === void 0 && getHeader(headers, "x-stainless-retry-count") === void 0) {
-      reqHeaders["x-stainless-retry-count"] = String(retryCount);
-    }
-    this.validateHeaders(reqHeaders, headers);
-    return reqHeaders;
-  }
-  /**
-   * Used as a callback for mutating the given `FinalRequestOptions` object.
-   */
-  async prepareOptions(options) {
-  }
-  /**
-   * Used as a callback for mutating the given `RequestInit` object.
-   *
-   * This is useful for cases where you want to add certain headers based off of
-   * the request properties, e.g. `method` or `url`.
-   */
-  async prepareRequest(request, { url, options }) {
-  }
-  parseHeaders(headers) {
-    return !headers ? {} : Symbol.iterator in headers ? Object.fromEntries(Array.from(headers).map((header) => [...header])) : { ...headers };
-  }
-  makeStatusError(status, error, message, headers) {
-    return APIError.generate(status, error, message, headers);
-  }
-  request(options, remainingRetries = null) {
-    return new APIPromise(this.makeRequest(options, remainingRetries));
-  }
-  async makeRequest(optionsInput, retriesRemaining) {
-    var _a2, _b, _c;
-    const options = await optionsInput;
-    const maxRetries = (_a2 = options.maxRetries) != null ? _a2 : this.maxRetries;
-    if (retriesRemaining == null) {
-      retriesRemaining = maxRetries;
-    }
-    await this.prepareOptions(options);
-    const { req, url, timeout } = this.buildRequest(options, { retryCount: maxRetries - retriesRemaining });
-    await this.prepareRequest(req, { url, options });
-    debug("request", url, options, req.headers);
-    if ((_b = options.signal) == null ? void 0 : _b.aborted) {
-      throw new APIUserAbortError();
-    }
-    const controller = new AbortController();
-    const response = await this.fetchWithTimeout(url, req, timeout, controller).catch(castToError);
-    if (response instanceof Error) {
-      if ((_c = options.signal) == null ? void 0 : _c.aborted) {
-        throw new APIUserAbortError();
-      }
-      if (retriesRemaining) {
-        return this.retryRequest(options, retriesRemaining);
-      }
-      if (response.name === "AbortError") {
-        throw new APIConnectionTimeoutError();
-      }
-      throw new APIConnectionError({ cause: response });
-    }
-    const responseHeaders = createResponseHeaders(response.headers);
-    if (!response.ok) {
-      if (retriesRemaining && this.shouldRetry(response)) {
-        const retryMessage2 = `retrying, ${retriesRemaining} attempts remaining`;
-        debug(`response (error; ${retryMessage2})`, response.status, url, responseHeaders);
-        return this.retryRequest(options, retriesRemaining, responseHeaders);
-      }
-      const errText = await response.text().catch((e) => castToError(e).message);
-      const errJSON = safeJSON(errText);
-      const errMessage = errJSON ? void 0 : errText;
-      const retryMessage = retriesRemaining ? `(error; no more retries left)` : `(error; not retryable)`;
-      debug(`response (error; ${retryMessage})`, response.status, url, responseHeaders, errMessage);
-      const err = this.makeStatusError(response.status, errJSON, errMessage, responseHeaders);
-      throw err;
-    }
-    return { response, options, controller };
-  }
-  requestAPIList(Page2, options) {
-    const request = this.makeRequest(options, null);
-    return new PagePromise(this, request, Page2);
-  }
-  buildURL(path, query) {
-    const url = isAbsoluteURL(path) ? new URL(path) : new URL(this.baseURL + (this.baseURL.endsWith("/") && path.startsWith("/") ? path.slice(1) : path));
-    const defaultQuery = this.defaultQuery();
-    if (!isEmptyObj(defaultQuery)) {
-      query = { ...defaultQuery, ...query };
-    }
-    if (typeof query === "object" && query && !Array.isArray(query)) {
-      url.search = this.stringifyQuery(query);
-    }
-    return url.toString();
-  }
-  stringifyQuery(query) {
-    return Object.entries(query).filter(([_, value]) => typeof value !== "undefined").map(([key, value]) => {
-      if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
-        return `${encodeURIComponent(key)}=${encodeURIComponent(value)}`;
-      }
-      if (value === null) {
-        return `${encodeURIComponent(key)}=`;
-      }
-      throw new AnthropicError(`Cannot stringify type ${typeof value}; Expected string, number, boolean, or null. If you need to pass nested query parameters, you can manually encode them, e.g. { query: { 'foo[key1]': value1, 'foo[key2]': value2 } }, and please open a GitHub issue requesting better support for your use case.`);
-    }).join("&");
-  }
-  async fetchWithTimeout(url, init, ms, controller) {
-    const { signal, ...options } = init || {};
-    if (signal)
-      signal.addEventListener("abort", () => controller.abort());
-    const timeout = setTimeout(() => controller.abort(), ms);
-    const fetchOptions = {
-      signal: controller.signal,
-      ...options
-    };
-    if (fetchOptions.method) {
-      fetchOptions.method = fetchOptions.method.toUpperCase();
-    }
-    return (
-      // use undefined this binding; fetch errors if bound to something else in browser/cloudflare
-      this.fetch.call(void 0, url, fetchOptions).finally(() => {
-        clearTimeout(timeout);
-      })
-    );
-  }
-  shouldRetry(response) {
-    const shouldRetryHeader = response.headers.get("x-should-retry");
-    if (shouldRetryHeader === "true")
-      return true;
-    if (shouldRetryHeader === "false")
-      return false;
-    if (response.status === 408)
-      return true;
-    if (response.status === 409)
-      return true;
-    if (response.status === 429)
-      return true;
-    if (response.status >= 500)
-      return true;
-    return false;
-  }
-  async retryRequest(options, retriesRemaining, responseHeaders) {
-    var _a2;
-    let timeoutMillis;
-    const retryAfterMillisHeader = responseHeaders == null ? void 0 : responseHeaders["retry-after-ms"];
-    if (retryAfterMillisHeader) {
-      const timeoutMs = parseFloat(retryAfterMillisHeader);
-      if (!Number.isNaN(timeoutMs)) {
-        timeoutMillis = timeoutMs;
-      }
-    }
-    const retryAfterHeader = responseHeaders == null ? void 0 : responseHeaders["retry-after"];
-    if (retryAfterHeader && !timeoutMillis) {
-      const timeoutSeconds = parseFloat(retryAfterHeader);
-      if (!Number.isNaN(timeoutSeconds)) {
-        timeoutMillis = timeoutSeconds * 1e3;
-      } else {
-        timeoutMillis = Date.parse(retryAfterHeader) - Date.now();
-      }
-    }
-    if (!(timeoutMillis && 0 <= timeoutMillis && timeoutMillis < 60 * 1e3)) {
-      const maxRetries = (_a2 = options.maxRetries) != null ? _a2 : this.maxRetries;
-      timeoutMillis = this.calculateDefaultRetryTimeoutMillis(retriesRemaining, maxRetries);
-    }
-    await sleep(timeoutMillis);
-    return this.makeRequest(options, retriesRemaining - 1);
-  }
-  calculateDefaultRetryTimeoutMillis(retriesRemaining, maxRetries) {
-    const initialRetryDelay = 0.5;
-    const maxRetryDelay = 8;
-    const numRetries = maxRetries - retriesRemaining;
-    const sleepSeconds = Math.min(initialRetryDelay * Math.pow(2, numRetries), maxRetryDelay);
-    const jitter = 1 - Math.random() * 0.25;
-    return sleepSeconds * jitter * 1e3;
-  }
-  getUserAgent() {
-    return `${this.constructor.name}/JS ${VERSION}`;
-  }
-};
-var AbstractPage = class {
-  constructor(client, response, body, options) {
-    _AbstractPage_client.set(this, void 0);
-    __classPrivateFieldSet(this, _AbstractPage_client, client, "f");
-    this.options = options;
-    this.response = response;
-    this.body = body;
-  }
-  hasNextPage() {
-    const items = this.getPaginatedItems();
-    if (!items.length)
-      return false;
-    return this.nextPageInfo() != null;
-  }
-  async getNextPage() {
-    const nextInfo = this.nextPageInfo();
-    if (!nextInfo) {
-      throw new AnthropicError("No next page expected; please check `.hasNextPage()` before calling `.getNextPage()`.");
-    }
-    const nextOptions = { ...this.options };
-    if ("params" in nextInfo && typeof nextOptions.query === "object") {
-      nextOptions.query = { ...nextOptions.query, ...nextInfo.params };
-    } else if ("url" in nextInfo) {
-      const params = [...Object.entries(nextOptions.query || {}), ...nextInfo.url.searchParams.entries()];
-      for (const [key, value] of params) {
-        nextInfo.url.searchParams.set(key, value);
-      }
-      nextOptions.query = void 0;
-      nextOptions.path = nextInfo.url.toString();
-    }
-    return await __classPrivateFieldGet(this, _AbstractPage_client, "f").requestAPIList(this.constructor, nextOptions);
-  }
-  async *iterPages() {
-    let page = this;
-    yield page;
-    while (page.hasNextPage()) {
-      page = await page.getNextPage();
-      yield page;
-    }
-  }
-  async *[(_AbstractPage_client = /* @__PURE__ */ new WeakMap(), Symbol.asyncIterator)]() {
-    for await (const page of this.iterPages()) {
-      for (const item of page.getPaginatedItems()) {
-        yield item;
-      }
-    }
-  }
-};
-var PagePromise = class extends APIPromise {
-  constructor(client, request, Page2) {
-    super(request, async (props) => new Page2(client, props.response, await defaultParseResponse(props), props.options));
-  }
-  /**
-   * Allow auto-paginating iteration on an unawaited list call, eg:
-   *
-   *    for await (const item of client.items.list()) {
-   *      console.log(item)
-   *    }
-   */
-  async *[Symbol.asyncIterator]() {
-    const page = await this;
-    for await (const item of page) {
-      yield item;
-    }
-  }
-};
-var createResponseHeaders = (headers) => {
-  return new Proxy(Object.fromEntries(
-    // @ts-ignore
-    headers.entries()
-  ), {
-    get(target, name) {
-      const key = name.toString();
-      return target[key.toLowerCase()] || target[key];
-    }
-  });
-};
-var requestOptionsKeys = {
-  method: true,
-  path: true,
-  query: true,
-  body: true,
-  headers: true,
-  maxRetries: true,
-  stream: true,
-  timeout: true,
-  httpAgent: true,
-  signal: true,
-  idempotencyKey: true,
-  __binaryRequest: true,
-  __binaryResponse: true,
-  __streamClass: true
-};
-var isRequestOptions = (obj) => {
-  return typeof obj === "object" && obj !== null && !isEmptyObj(obj) && Object.keys(obj).every((k) => hasOwn(requestOptionsKeys, k));
-};
-var getPlatformProperties = () => {
-  var _a2, _b;
-  if (typeof Deno !== "undefined" && Deno.build != null) {
-    return {
-      "X-Stainless-Lang": "js",
-      "X-Stainless-Package-Version": VERSION,
-      "X-Stainless-OS": normalizePlatform(Deno.build.os),
-      "X-Stainless-Arch": normalizeArch(Deno.build.arch),
-      "X-Stainless-Runtime": "deno",
-      "X-Stainless-Runtime-Version": typeof Deno.version === "string" ? Deno.version : (_b = (_a2 = Deno.version) == null ? void 0 : _a2.deno) != null ? _b : "unknown"
-    };
-  }
-  if (typeof EdgeRuntime !== "undefined") {
-    return {
-      "X-Stainless-Lang": "js",
-      "X-Stainless-Package-Version": VERSION,
-      "X-Stainless-OS": "Unknown",
-      "X-Stainless-Arch": `other:${EdgeRuntime}`,
-      "X-Stainless-Runtime": "edge",
-      "X-Stainless-Runtime-Version": process.version
-    };
-  }
-  if (Object.prototype.toString.call(typeof process !== "undefined" ? process : 0) === "[object process]") {
-    return {
-      "X-Stainless-Lang": "js",
-      "X-Stainless-Package-Version": VERSION,
-      "X-Stainless-OS": normalizePlatform(process.platform),
-      "X-Stainless-Arch": normalizeArch(process.arch),
-      "X-Stainless-Runtime": "node",
-      "X-Stainless-Runtime-Version": process.version
-    };
-  }
-  const browserInfo = getBrowserInfo();
-  if (browserInfo) {
-    return {
-      "X-Stainless-Lang": "js",
-      "X-Stainless-Package-Version": VERSION,
-      "X-Stainless-OS": "Unknown",
-      "X-Stainless-Arch": "unknown",
-      "X-Stainless-Runtime": `browser:${browserInfo.browser}`,
-      "X-Stainless-Runtime-Version": browserInfo.version
-    };
-  }
-  return {
-    "X-Stainless-Lang": "js",
-    "X-Stainless-Package-Version": VERSION,
-    "X-Stainless-OS": "Unknown",
-    "X-Stainless-Arch": "unknown",
-    "X-Stainless-Runtime": "unknown",
-    "X-Stainless-Runtime-Version": "unknown"
-  };
-};
 function getBrowserInfo() {
   if (typeof navigator === "undefined" || !navigator) {
     return null;
@@ -1410,85 +918,6 @@ function getBrowserInfo() {
   }
   return null;
 }
-var normalizeArch = (arch) => {
-  if (arch === "x32")
-    return "x32";
-  if (arch === "x86_64" || arch === "x64")
-    return "x64";
-  if (arch === "arm")
-    return "arm";
-  if (arch === "aarch64" || arch === "arm64")
-    return "arm64";
-  if (arch)
-    return `other:${arch}`;
-  return "unknown";
-};
-var normalizePlatform = (platform) => {
-  platform = platform.toLowerCase();
-  if (platform.includes("ios"))
-    return "iOS";
-  if (platform === "android")
-    return "Android";
-  if (platform === "darwin")
-    return "MacOS";
-  if (platform === "win32")
-    return "Windows";
-  if (platform === "freebsd")
-    return "FreeBSD";
-  if (platform === "openbsd")
-    return "OpenBSD";
-  if (platform === "linux")
-    return "Linux";
-  if (platform)
-    return `Other:${platform}`;
-  return "Unknown";
-};
-var _platformHeaders;
-var getPlatformHeaders = () => {
-  return _platformHeaders != null ? _platformHeaders : _platformHeaders = getPlatformProperties();
-};
-var safeJSON = (text) => {
-  try {
-    return JSON.parse(text);
-  } catch (err) {
-    return void 0;
-  }
-};
-var startsWithSchemeRegexp = /^[a-z][a-z0-9+.-]*:/i;
-var isAbsoluteURL = (url) => {
-  return startsWithSchemeRegexp.test(url);
-};
-var sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-var validatePositiveInteger = (name, n) => {
-  if (typeof n !== "number" || !Number.isInteger(n)) {
-    throw new AnthropicError(`${name} must be an integer`);
-  }
-  if (n < 0) {
-    throw new AnthropicError(`${name} must be a positive integer`);
-  }
-  return n;
-};
-var castToError = (err) => {
-  if (err instanceof Error)
-    return err;
-  if (typeof err === "object" && err !== null) {
-    try {
-      return new Error(JSON.stringify(err));
-    } catch (e) {
-    }
-  }
-  return new Error(String(err));
-};
-var readEnv = (env) => {
-  var _a2, _b, _c, _d, _e, _f;
-  if (typeof process !== "undefined") {
-    return (_c = (_b = (_a2 = process.env) == null ? void 0 : _a2[env]) == null ? void 0 : _b.trim()) != null ? _c : void 0;
-  }
-  if (typeof Deno !== "undefined") {
-    return (_f = (_e = (_d = Deno.env) == null ? void 0 : _d.get) == null ? void 0 : _e.call(_d, env)) == null ? void 0 : _f.trim();
-  }
-  return void 0;
-};
 function isEmptyObj(obj) {
   if (!obj)
     return true;
@@ -1520,1904 +949,2583 @@ function debug(action, ...args) {
     console.log(`Anthropic:DEBUG:${action}`, ...args);
   }
 }
-var uuid4 = () => {
-  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
-    const r = Math.random() * 16 | 0;
-    const v = c === "x" ? r : r & 3 | 8;
-    return v.toString(16);
-  });
-};
-var isRunningInBrowser = () => {
-  return (
-    // @ts-ignore
-    typeof window !== "undefined" && // @ts-ignore
-    typeof window.document !== "undefined" && // @ts-ignore
-    typeof navigator !== "undefined"
-  );
-};
-var isHeadersProtocol = (headers) => {
-  return typeof (headers == null ? void 0 : headers.get) === "function";
-};
-var getHeader = (headers, header) => {
-  var _a2;
-  const lowerCasedHeader = header.toLowerCase();
-  if (isHeadersProtocol(headers)) {
-    const intercapsHeader = ((_a2 = header[0]) == null ? void 0 : _a2.toUpperCase()) + header.substring(1).replace(/([^\w])(\w)/g, (_m, g1, g2) => g1 + g2.toUpperCase());
-    for (const key of [header, lowerCasedHeader, header.toUpperCase(), intercapsHeader]) {
-      const value = headers.get(key);
-      if (value) {
-        return value;
+var __classPrivateFieldSet, __classPrivateFieldGet, _AbstractPage_client, APIPromise, APIClient, AbstractPage, PagePromise, createResponseHeaders, requestOptionsKeys, isRequestOptions, getPlatformProperties, normalizeArch, normalizePlatform, _platformHeaders, getPlatformHeaders, safeJSON, startsWithSchemeRegexp, isAbsoluteURL, sleep, validatePositiveInteger, castToError, readEnv, uuid4, isRunningInBrowser, isHeadersProtocol, getHeader;
+var init_core = __esm({
+  "node_modules/@anthropic-ai/sdk/core.mjs"() {
+    init_version();
+    init_streaming();
+    init_error();
+    init_shims();
+    init_uploads();
+    __classPrivateFieldSet = function(receiver, state, value, kind2, f) {
+      if (kind2 === "m") throw new TypeError("Private method is not writable");
+      if (kind2 === "a" && !f) throw new TypeError("Private accessor was defined without a setter");
+      if (typeof state === "function" ? receiver !== state || !f : !state.has(receiver)) throw new TypeError("Cannot write private member to an object whose class did not declare it");
+      return kind2 === "a" ? f.call(receiver, value) : f ? f.value = value : state.set(receiver, value), value;
+    };
+    __classPrivateFieldGet = function(receiver, state, kind2, f) {
+      if (kind2 === "a" && !f) throw new TypeError("Private accessor was defined without a getter");
+      if (typeof state === "function" ? receiver !== state || !f : !state.has(receiver)) throw new TypeError("Cannot read private member from an object whose class did not declare it");
+      return kind2 === "m" ? f : kind2 === "a" ? f.call(receiver) : f ? f.value : state.get(receiver);
+    };
+    APIPromise = class _APIPromise extends Promise {
+      constructor(responsePromise, parseResponse = defaultParseResponse) {
+        super((resolve) => {
+          resolve(null);
+        });
+        this.responsePromise = responsePromise;
+        this.parseResponse = parseResponse;
       }
-    }
-  }
-  for (const [key, value] of Object.entries(headers)) {
-    if (key.toLowerCase() === lowerCasedHeader) {
-      if (Array.isArray(value)) {
-        if (value.length <= 1)
-          return value[0];
-        console.warn(`Received ${value.length} entries for the ${header} header, using the first entry.`);
-        return value[0];
+      _thenUnwrap(transform) {
+        return new _APIPromise(this.responsePromise, async (props) => _addRequestID(transform(await this.parseResponse(props), props), props.response));
       }
-      return value;
-    }
-  }
-  return void 0;
-};
-
-// node_modules/@anthropic-ai/sdk/pagination.mjs
-var Page = class extends AbstractPage {
-  constructor(client, response, body, options) {
-    super(client, response, body, options);
-    this.data = body.data || [];
-    this.has_more = body.has_more || false;
-    this.first_id = body.first_id || null;
-    this.last_id = body.last_id || null;
-  }
-  getPaginatedItems() {
-    var _a2;
-    return (_a2 = this.data) != null ? _a2 : [];
-  }
-  // @deprecated Please use `nextPageInfo()` instead
-  nextPageParams() {
-    const info = this.nextPageInfo();
-    if (!info)
-      return null;
-    if ("params" in info)
-      return info.params;
-    const params = Object.fromEntries(info.url.searchParams);
-    if (!Object.keys(params).length)
-      return null;
-    return params;
-  }
-  nextPageInfo() {
-    var _a2;
-    if ((_a2 = this.options.query) == null ? void 0 : _a2["before_id"]) {
-      const firstId = this.first_id;
-      if (!firstId) {
+      /**
+       * Gets the raw `Response` instance instead of parsing the response
+       * data.
+       *
+       * If you want to parse the response body but still get the `Response`
+       * instance, you can use {@link withResponse()}.
+       *
+       * 👋 Getting the wrong TypeScript type for `Response`?
+       * Try setting `"moduleResolution": "NodeNext"` if you can,
+       * or add one of these imports before your first `import … from '@anthropic-ai/sdk'`:
+       * - `import '@anthropic-ai/sdk/shims/node'` (if you're running on Node)
+       * - `import '@anthropic-ai/sdk/shims/web'` (otherwise)
+       */
+      asResponse() {
+        return this.responsePromise.then((p) => p.response);
+      }
+      /**
+       * Gets the parsed response data, the raw `Response` instance and the ID of the request,
+       * returned vie the `request-id` header which is useful for debugging requests and resporting
+       * issues to Anthropic.
+       *
+       * If you just want to get the raw `Response` instance without parsing it,
+       * you can use {@link asResponse()}.
+       *
+       * 👋 Getting the wrong TypeScript type for `Response`?
+       * Try setting `"moduleResolution": "NodeNext"` if you can,
+       * or add one of these imports before your first `import … from '@anthropic-ai/sdk'`:
+       * - `import '@anthropic-ai/sdk/shims/node'` (if you're running on Node)
+       * - `import '@anthropic-ai/sdk/shims/web'` (otherwise)
+       */
+      async withResponse() {
+        const [data, response] = await Promise.all([this.parse(), this.asResponse()]);
+        return { data, response, request_id: response.headers.get("request-id") };
+      }
+      parse() {
+        if (!this.parsedPromise) {
+          this.parsedPromise = this.responsePromise.then(this.parseResponse);
+        }
+        return this.parsedPromise;
+      }
+      then(onfulfilled, onrejected) {
+        return this.parse().then(onfulfilled, onrejected);
+      }
+      catch(onrejected) {
+        return this.parse().catch(onrejected);
+      }
+      finally(onfinally) {
+        return this.parse().finally(onfinally);
+      }
+    };
+    APIClient = class {
+      constructor({
+        baseURL,
+        maxRetries = 2,
+        timeout = 6e5,
+        // 10 minutes
+        httpAgent,
+        fetch: overriddenFetch
+      }) {
+        this.baseURL = baseURL;
+        this.maxRetries = validatePositiveInteger("maxRetries", maxRetries);
+        this.timeout = validatePositiveInteger("timeout", timeout);
+        this.httpAgent = httpAgent;
+        this.fetch = overriddenFetch != null ? overriddenFetch : fetch2;
+      }
+      authHeaders(opts) {
+        return {};
+      }
+      /**
+       * Override this to add your own default headers, for example:
+       *
+       *  {
+       *    ...super.defaultHeaders(),
+       *    Authorization: 'Bearer 123',
+       *  }
+       */
+      defaultHeaders(opts) {
+        return {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          "User-Agent": this.getUserAgent(),
+          ...getPlatformHeaders(),
+          ...this.authHeaders(opts)
+        };
+      }
+      /**
+       * Override this to add your own headers validation:
+       */
+      validateHeaders(headers, customHeaders) {
+      }
+      defaultIdempotencyKey() {
+        return `stainless-node-retry-${uuid4()}`;
+      }
+      get(path, opts) {
+        return this.methodRequest("get", path, opts);
+      }
+      post(path, opts) {
+        return this.methodRequest("post", path, opts);
+      }
+      patch(path, opts) {
+        return this.methodRequest("patch", path, opts);
+      }
+      put(path, opts) {
+        return this.methodRequest("put", path, opts);
+      }
+      delete(path, opts) {
+        return this.methodRequest("delete", path, opts);
+      }
+      methodRequest(method, path, opts) {
+        return this.request(Promise.resolve(opts).then(async (opts2) => {
+          const body = opts2 && isBlobLike(opts2 == null ? void 0 : opts2.body) ? new DataView(await opts2.body.arrayBuffer()) : (opts2 == null ? void 0 : opts2.body) instanceof DataView ? opts2.body : (opts2 == null ? void 0 : opts2.body) instanceof ArrayBuffer ? new DataView(opts2.body) : opts2 && ArrayBuffer.isView(opts2 == null ? void 0 : opts2.body) ? new DataView(opts2.body.buffer) : opts2 == null ? void 0 : opts2.body;
+          return { method, path, ...opts2, body };
+        }));
+      }
+      getAPIList(path, Page2, opts) {
+        return this.requestAPIList(Page2, { method: "get", path, ...opts });
+      }
+      calculateContentLength(body) {
+        if (typeof body === "string") {
+          if (typeof Buffer !== "undefined") {
+            return Buffer.byteLength(body, "utf8").toString();
+          }
+          if (typeof TextEncoder !== "undefined") {
+            const encoder = new TextEncoder();
+            const encoded = encoder.encode(body);
+            return encoded.length.toString();
+          }
+        } else if (ArrayBuffer.isView(body)) {
+          return body.byteLength.toString();
+        }
         return null;
       }
-      return {
-        params: {
-          before_id: firstId
+      buildRequest(options, { retryCount = 0 } = {}) {
+        var _a2, _b, _c, _d, _e, _f;
+        const { method, path, query, headers = {} } = options;
+        const body = ArrayBuffer.isView(options.body) || options.__binaryRequest && typeof options.body === "string" ? options.body : isMultipartBody(options.body) ? options.body.body : options.body ? JSON.stringify(options.body, null, 2) : null;
+        const contentLength = this.calculateContentLength(body);
+        const url = this.buildURL(path, query);
+        if ("timeout" in options)
+          validatePositiveInteger("timeout", options.timeout);
+        const timeout = (_a2 = options.timeout) != null ? _a2 : this.timeout;
+        const httpAgent = (_c = (_b = options.httpAgent) != null ? _b : this.httpAgent) != null ? _c : getDefaultAgent(url);
+        const minAgentTimeout = timeout + 1e3;
+        if (typeof ((_d = httpAgent == null ? void 0 : httpAgent.options) == null ? void 0 : _d.timeout) === "number" && minAgentTimeout > ((_e = httpAgent.options.timeout) != null ? _e : 0)) {
+          httpAgent.options.timeout = minAgentTimeout;
         }
+        if (this.idempotencyHeader && method !== "get") {
+          if (!options.idempotencyKey)
+            options.idempotencyKey = this.defaultIdempotencyKey();
+          headers[this.idempotencyHeader] = options.idempotencyKey;
+        }
+        const reqHeaders = this.buildHeaders({ options, headers, contentLength, retryCount });
+        const req = {
+          method,
+          ...body && { body },
+          headers: reqHeaders,
+          ...httpAgent && { agent: httpAgent },
+          // @ts-ignore node-fetch uses a custom AbortSignal type that is
+          // not compatible with standard web types
+          signal: (_f = options.signal) != null ? _f : null
+        };
+        return { req, url, timeout };
+      }
+      buildHeaders({ options, headers, contentLength, retryCount }) {
+        const reqHeaders = {};
+        if (contentLength) {
+          reqHeaders["content-length"] = contentLength;
+        }
+        const defaultHeaders = this.defaultHeaders(options);
+        applyHeadersMut(reqHeaders, defaultHeaders);
+        applyHeadersMut(reqHeaders, headers);
+        if (isMultipartBody(options.body) && kind !== "node") {
+          delete reqHeaders["content-type"];
+        }
+        if (getHeader(defaultHeaders, "x-stainless-retry-count") === void 0 && getHeader(headers, "x-stainless-retry-count") === void 0) {
+          reqHeaders["x-stainless-retry-count"] = String(retryCount);
+        }
+        this.validateHeaders(reqHeaders, headers);
+        return reqHeaders;
+      }
+      /**
+       * Used as a callback for mutating the given `FinalRequestOptions` object.
+       */
+      async prepareOptions(options) {
+      }
+      /**
+       * Used as a callback for mutating the given `RequestInit` object.
+       *
+       * This is useful for cases where you want to add certain headers based off of
+       * the request properties, e.g. `method` or `url`.
+       */
+      async prepareRequest(request, { url, options }) {
+      }
+      parseHeaders(headers) {
+        return !headers ? {} : Symbol.iterator in headers ? Object.fromEntries(Array.from(headers).map((header) => [...header])) : { ...headers };
+      }
+      makeStatusError(status, error, message, headers) {
+        return APIError.generate(status, error, message, headers);
+      }
+      request(options, remainingRetries = null) {
+        return new APIPromise(this.makeRequest(options, remainingRetries));
+      }
+      async makeRequest(optionsInput, retriesRemaining) {
+        var _a2, _b, _c;
+        const options = await optionsInput;
+        const maxRetries = (_a2 = options.maxRetries) != null ? _a2 : this.maxRetries;
+        if (retriesRemaining == null) {
+          retriesRemaining = maxRetries;
+        }
+        await this.prepareOptions(options);
+        const { req, url, timeout } = this.buildRequest(options, { retryCount: maxRetries - retriesRemaining });
+        await this.prepareRequest(req, { url, options });
+        debug("request", url, options, req.headers);
+        if ((_b = options.signal) == null ? void 0 : _b.aborted) {
+          throw new APIUserAbortError();
+        }
+        const controller = new AbortController();
+        const response = await this.fetchWithTimeout(url, req, timeout, controller).catch(castToError);
+        if (response instanceof Error) {
+          if ((_c = options.signal) == null ? void 0 : _c.aborted) {
+            throw new APIUserAbortError();
+          }
+          if (retriesRemaining) {
+            return this.retryRequest(options, retriesRemaining);
+          }
+          if (response.name === "AbortError") {
+            throw new APIConnectionTimeoutError();
+          }
+          throw new APIConnectionError({ cause: response });
+        }
+        const responseHeaders = createResponseHeaders(response.headers);
+        if (!response.ok) {
+          if (retriesRemaining && this.shouldRetry(response)) {
+            const retryMessage2 = `retrying, ${retriesRemaining} attempts remaining`;
+            debug(`response (error; ${retryMessage2})`, response.status, url, responseHeaders);
+            return this.retryRequest(options, retriesRemaining, responseHeaders);
+          }
+          const errText = await response.text().catch((e) => castToError(e).message);
+          const errJSON = safeJSON(errText);
+          const errMessage = errJSON ? void 0 : errText;
+          const retryMessage = retriesRemaining ? `(error; no more retries left)` : `(error; not retryable)`;
+          debug(`response (error; ${retryMessage})`, response.status, url, responseHeaders, errMessage);
+          const err = this.makeStatusError(response.status, errJSON, errMessage, responseHeaders);
+          throw err;
+        }
+        return { response, options, controller };
+      }
+      requestAPIList(Page2, options) {
+        const request = this.makeRequest(options, null);
+        return new PagePromise(this, request, Page2);
+      }
+      buildURL(path, query) {
+        const url = isAbsoluteURL(path) ? new URL(path) : new URL(this.baseURL + (this.baseURL.endsWith("/") && path.startsWith("/") ? path.slice(1) : path));
+        const defaultQuery = this.defaultQuery();
+        if (!isEmptyObj(defaultQuery)) {
+          query = { ...defaultQuery, ...query };
+        }
+        if (typeof query === "object" && query && !Array.isArray(query)) {
+          url.search = this.stringifyQuery(query);
+        }
+        return url.toString();
+      }
+      stringifyQuery(query) {
+        return Object.entries(query).filter(([_, value]) => typeof value !== "undefined").map(([key, value]) => {
+          if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+            return `${encodeURIComponent(key)}=${encodeURIComponent(value)}`;
+          }
+          if (value === null) {
+            return `${encodeURIComponent(key)}=`;
+          }
+          throw new AnthropicError(`Cannot stringify type ${typeof value}; Expected string, number, boolean, or null. If you need to pass nested query parameters, you can manually encode them, e.g. { query: { 'foo[key1]': value1, 'foo[key2]': value2 } }, and please open a GitHub issue requesting better support for your use case.`);
+        }).join("&");
+      }
+      async fetchWithTimeout(url, init, ms, controller) {
+        const { signal, ...options } = init || {};
+        if (signal)
+          signal.addEventListener("abort", () => controller.abort());
+        const timeout = setTimeout(() => controller.abort(), ms);
+        const fetchOptions = {
+          signal: controller.signal,
+          ...options
+        };
+        if (fetchOptions.method) {
+          fetchOptions.method = fetchOptions.method.toUpperCase();
+        }
+        return (
+          // use undefined this binding; fetch errors if bound to something else in browser/cloudflare
+          this.fetch.call(void 0, url, fetchOptions).finally(() => {
+            clearTimeout(timeout);
+          })
+        );
+      }
+      shouldRetry(response) {
+        const shouldRetryHeader = response.headers.get("x-should-retry");
+        if (shouldRetryHeader === "true")
+          return true;
+        if (shouldRetryHeader === "false")
+          return false;
+        if (response.status === 408)
+          return true;
+        if (response.status === 409)
+          return true;
+        if (response.status === 429)
+          return true;
+        if (response.status >= 500)
+          return true;
+        return false;
+      }
+      async retryRequest(options, retriesRemaining, responseHeaders) {
+        var _a2;
+        let timeoutMillis;
+        const retryAfterMillisHeader = responseHeaders == null ? void 0 : responseHeaders["retry-after-ms"];
+        if (retryAfterMillisHeader) {
+          const timeoutMs = parseFloat(retryAfterMillisHeader);
+          if (!Number.isNaN(timeoutMs)) {
+            timeoutMillis = timeoutMs;
+          }
+        }
+        const retryAfterHeader = responseHeaders == null ? void 0 : responseHeaders["retry-after"];
+        if (retryAfterHeader && !timeoutMillis) {
+          const timeoutSeconds = parseFloat(retryAfterHeader);
+          if (!Number.isNaN(timeoutSeconds)) {
+            timeoutMillis = timeoutSeconds * 1e3;
+          } else {
+            timeoutMillis = Date.parse(retryAfterHeader) - Date.now();
+          }
+        }
+        if (!(timeoutMillis && 0 <= timeoutMillis && timeoutMillis < 60 * 1e3)) {
+          const maxRetries = (_a2 = options.maxRetries) != null ? _a2 : this.maxRetries;
+          timeoutMillis = this.calculateDefaultRetryTimeoutMillis(retriesRemaining, maxRetries);
+        }
+        await sleep(timeoutMillis);
+        return this.makeRequest(options, retriesRemaining - 1);
+      }
+      calculateDefaultRetryTimeoutMillis(retriesRemaining, maxRetries) {
+        const initialRetryDelay = 0.5;
+        const maxRetryDelay = 8;
+        const numRetries = maxRetries - retriesRemaining;
+        const sleepSeconds = Math.min(initialRetryDelay * Math.pow(2, numRetries), maxRetryDelay);
+        const jitter = 1 - Math.random() * 0.25;
+        return sleepSeconds * jitter * 1e3;
+      }
+      getUserAgent() {
+        return `${this.constructor.name}/JS ${VERSION}`;
+      }
+    };
+    AbstractPage = class {
+      constructor(client, response, body, options) {
+        _AbstractPage_client.set(this, void 0);
+        __classPrivateFieldSet(this, _AbstractPage_client, client, "f");
+        this.options = options;
+        this.response = response;
+        this.body = body;
+      }
+      hasNextPage() {
+        const items = this.getPaginatedItems();
+        if (!items.length)
+          return false;
+        return this.nextPageInfo() != null;
+      }
+      async getNextPage() {
+        const nextInfo = this.nextPageInfo();
+        if (!nextInfo) {
+          throw new AnthropicError("No next page expected; please check `.hasNextPage()` before calling `.getNextPage()`.");
+        }
+        const nextOptions = { ...this.options };
+        if ("params" in nextInfo && typeof nextOptions.query === "object") {
+          nextOptions.query = { ...nextOptions.query, ...nextInfo.params };
+        } else if ("url" in nextInfo) {
+          const params = [...Object.entries(nextOptions.query || {}), ...nextInfo.url.searchParams.entries()];
+          for (const [key, value] of params) {
+            nextInfo.url.searchParams.set(key, value);
+          }
+          nextOptions.query = void 0;
+          nextOptions.path = nextInfo.url.toString();
+        }
+        return await __classPrivateFieldGet(this, _AbstractPage_client, "f").requestAPIList(this.constructor, nextOptions);
+      }
+      async *iterPages() {
+        let page = this;
+        yield page;
+        while (page.hasNextPage()) {
+          page = await page.getNextPage();
+          yield page;
+        }
+      }
+      async *[(_AbstractPage_client = /* @__PURE__ */ new WeakMap(), Symbol.asyncIterator)]() {
+        for await (const page of this.iterPages()) {
+          for (const item of page.getPaginatedItems()) {
+            yield item;
+          }
+        }
+      }
+    };
+    PagePromise = class extends APIPromise {
+      constructor(client, request, Page2) {
+        super(request, async (props) => new Page2(client, props.response, await defaultParseResponse(props), props.options));
+      }
+      /**
+       * Allow auto-paginating iteration on an unawaited list call, eg:
+       *
+       *    for await (const item of client.items.list()) {
+       *      console.log(item)
+       *    }
+       */
+      async *[Symbol.asyncIterator]() {
+        const page = await this;
+        for await (const item of page) {
+          yield item;
+        }
+      }
+    };
+    createResponseHeaders = (headers) => {
+      return new Proxy(Object.fromEntries(
+        // @ts-ignore
+        headers.entries()
+      ), {
+        get(target, name) {
+          const key = name.toString();
+          return target[key.toLowerCase()] || target[key];
+        }
+      });
+    };
+    requestOptionsKeys = {
+      method: true,
+      path: true,
+      query: true,
+      body: true,
+      headers: true,
+      maxRetries: true,
+      stream: true,
+      timeout: true,
+      httpAgent: true,
+      signal: true,
+      idempotencyKey: true,
+      __binaryRequest: true,
+      __binaryResponse: true,
+      __streamClass: true
+    };
+    isRequestOptions = (obj) => {
+      return typeof obj === "object" && obj !== null && !isEmptyObj(obj) && Object.keys(obj).every((k) => hasOwn(requestOptionsKeys, k));
+    };
+    getPlatformProperties = () => {
+      var _a2, _b;
+      if (typeof Deno !== "undefined" && Deno.build != null) {
+        return {
+          "X-Stainless-Lang": "js",
+          "X-Stainless-Package-Version": VERSION,
+          "X-Stainless-OS": normalizePlatform(Deno.build.os),
+          "X-Stainless-Arch": normalizeArch(Deno.build.arch),
+          "X-Stainless-Runtime": "deno",
+          "X-Stainless-Runtime-Version": typeof Deno.version === "string" ? Deno.version : (_b = (_a2 = Deno.version) == null ? void 0 : _a2.deno) != null ? _b : "unknown"
+        };
+      }
+      if (typeof EdgeRuntime !== "undefined") {
+        return {
+          "X-Stainless-Lang": "js",
+          "X-Stainless-Package-Version": VERSION,
+          "X-Stainless-OS": "Unknown",
+          "X-Stainless-Arch": `other:${EdgeRuntime}`,
+          "X-Stainless-Runtime": "edge",
+          "X-Stainless-Runtime-Version": process.version
+        };
+      }
+      if (Object.prototype.toString.call(typeof process !== "undefined" ? process : 0) === "[object process]") {
+        return {
+          "X-Stainless-Lang": "js",
+          "X-Stainless-Package-Version": VERSION,
+          "X-Stainless-OS": normalizePlatform(process.platform),
+          "X-Stainless-Arch": normalizeArch(process.arch),
+          "X-Stainless-Runtime": "node",
+          "X-Stainless-Runtime-Version": process.version
+        };
+      }
+      const browserInfo = getBrowserInfo();
+      if (browserInfo) {
+        return {
+          "X-Stainless-Lang": "js",
+          "X-Stainless-Package-Version": VERSION,
+          "X-Stainless-OS": "Unknown",
+          "X-Stainless-Arch": "unknown",
+          "X-Stainless-Runtime": `browser:${browserInfo.browser}`,
+          "X-Stainless-Runtime-Version": browserInfo.version
+        };
+      }
+      return {
+        "X-Stainless-Lang": "js",
+        "X-Stainless-Package-Version": VERSION,
+        "X-Stainless-OS": "Unknown",
+        "X-Stainless-Arch": "unknown",
+        "X-Stainless-Runtime": "unknown",
+        "X-Stainless-Runtime-Version": "unknown"
       };
-    }
-    const cursor = this.last_id;
-    if (!cursor) {
-      return null;
-    }
-    return {
-      params: {
-        after_id: cursor
+    };
+    normalizeArch = (arch) => {
+      if (arch === "x32")
+        return "x32";
+      if (arch === "x86_64" || arch === "x64")
+        return "x64";
+      if (arch === "arm")
+        return "arm";
+      if (arch === "aarch64" || arch === "arm64")
+        return "arm64";
+      if (arch)
+        return `other:${arch}`;
+      return "unknown";
+    };
+    normalizePlatform = (platform) => {
+      platform = platform.toLowerCase();
+      if (platform.includes("ios"))
+        return "iOS";
+      if (platform === "android")
+        return "Android";
+      if (platform === "darwin")
+        return "MacOS";
+      if (platform === "win32")
+        return "Windows";
+      if (platform === "freebsd")
+        return "FreeBSD";
+      if (platform === "openbsd")
+        return "OpenBSD";
+      if (platform === "linux")
+        return "Linux";
+      if (platform)
+        return `Other:${platform}`;
+      return "Unknown";
+    };
+    getPlatformHeaders = () => {
+      return _platformHeaders != null ? _platformHeaders : _platformHeaders = getPlatformProperties();
+    };
+    safeJSON = (text) => {
+      try {
+        return JSON.parse(text);
+      } catch (err) {
+        return void 0;
+      }
+    };
+    startsWithSchemeRegexp = /^[a-z][a-z0-9+.-]*:/i;
+    isAbsoluteURL = (url) => {
+      return startsWithSchemeRegexp.test(url);
+    };
+    sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    validatePositiveInteger = (name, n) => {
+      if (typeof n !== "number" || !Number.isInteger(n)) {
+        throw new AnthropicError(`${name} must be an integer`);
+      }
+      if (n < 0) {
+        throw new AnthropicError(`${name} must be a positive integer`);
+      }
+      return n;
+    };
+    castToError = (err) => {
+      if (err instanceof Error)
+        return err;
+      if (typeof err === "object" && err !== null) {
+        try {
+          return new Error(JSON.stringify(err));
+        } catch (e) {
+        }
+      }
+      return new Error(String(err));
+    };
+    readEnv = (env) => {
+      var _a2, _b, _c, _d, _e, _f;
+      if (typeof process !== "undefined") {
+        return (_c = (_b = (_a2 = process.env) == null ? void 0 : _a2[env]) == null ? void 0 : _b.trim()) != null ? _c : void 0;
+      }
+      if (typeof Deno !== "undefined") {
+        return (_f = (_e = (_d = Deno.env) == null ? void 0 : _d.get) == null ? void 0 : _e.call(_d, env)) == null ? void 0 : _f.trim();
+      }
+      return void 0;
+    };
+    uuid4 = () => {
+      return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+        const r = Math.random() * 16 | 0;
+        const v = c === "x" ? r : r & 3 | 8;
+        return v.toString(16);
+      });
+    };
+    isRunningInBrowser = () => {
+      return (
+        // @ts-ignore
+        typeof window !== "undefined" && // @ts-ignore
+        typeof window.document !== "undefined" && // @ts-ignore
+        typeof navigator !== "undefined"
+      );
+    };
+    isHeadersProtocol = (headers) => {
+      return typeof (headers == null ? void 0 : headers.get) === "function";
+    };
+    getHeader = (headers, header) => {
+      var _a2;
+      const lowerCasedHeader = header.toLowerCase();
+      if (isHeadersProtocol(headers)) {
+        const intercapsHeader = ((_a2 = header[0]) == null ? void 0 : _a2.toUpperCase()) + header.substring(1).replace(/([^\w])(\w)/g, (_m, g1, g2) => g1 + g2.toUpperCase());
+        for (const key of [header, lowerCasedHeader, header.toUpperCase(), intercapsHeader]) {
+          const value = headers.get(key);
+          if (value) {
+            return value;
+          }
+        }
+      }
+      for (const [key, value] of Object.entries(headers)) {
+        if (key.toLowerCase() === lowerCasedHeader) {
+          if (Array.isArray(value)) {
+            if (value.length <= 1)
+              return value[0];
+            console.warn(`Received ${value.length} entries for the ${header} header, using the first entry.`);
+            return value[0];
+          }
+          return value;
+        }
+      }
+      return void 0;
+    };
+  }
+});
+
+// node_modules/@anthropic-ai/sdk/pagination.mjs
+var Page;
+var init_pagination = __esm({
+  "node_modules/@anthropic-ai/sdk/pagination.mjs"() {
+    init_core();
+    Page = class extends AbstractPage {
+      constructor(client, response, body, options) {
+        super(client, response, body, options);
+        this.data = body.data || [];
+        this.has_more = body.has_more || false;
+        this.first_id = body.first_id || null;
+        this.last_id = body.last_id || null;
+      }
+      getPaginatedItems() {
+        var _a2;
+        return (_a2 = this.data) != null ? _a2 : [];
+      }
+      // @deprecated Please use `nextPageInfo()` instead
+      nextPageParams() {
+        const info = this.nextPageInfo();
+        if (!info)
+          return null;
+        if ("params" in info)
+          return info.params;
+        const params = Object.fromEntries(info.url.searchParams);
+        if (!Object.keys(params).length)
+          return null;
+        return params;
+      }
+      nextPageInfo() {
+        var _a2;
+        if ((_a2 = this.options.query) == null ? void 0 : _a2["before_id"]) {
+          const firstId = this.first_id;
+          if (!firstId) {
+            return null;
+          }
+          return {
+            params: {
+              before_id: firstId
+            }
+          };
+        }
+        const cursor = this.last_id;
+        if (!cursor) {
+          return null;
+        }
+        return {
+          params: {
+            after_id: cursor
+          }
+        };
       }
     };
   }
-};
+});
+
+// node_modules/@anthropic-ai/sdk/resources/shared.mjs
+var init_shared = __esm({
+  "node_modules/@anthropic-ai/sdk/resources/shared.mjs"() {
+  }
+});
 
 // node_modules/@anthropic-ai/sdk/resource.mjs
-var APIResource = class {
-  constructor(client) {
-    this._client = client;
+var APIResource;
+var init_resource = __esm({
+  "node_modules/@anthropic-ai/sdk/resource.mjs"() {
+    APIResource = class {
+      constructor(client) {
+        this._client = client;
+      }
+    };
   }
-};
+});
 
 // node_modules/@anthropic-ai/sdk/resources/beta/models.mjs
-var Models = class extends APIResource {
-  /**
-   * Get a specific model.
-   *
-   * The Models API response can be used to determine information about a specific
-   * model or resolve a model alias to a model ID.
-   */
-  retrieve(modelId, options) {
-    return this._client.get(`/v1/models/${modelId}?beta=true`, options);
+var Models, BetaModelInfosPage;
+var init_models = __esm({
+  "node_modules/@anthropic-ai/sdk/resources/beta/models.mjs"() {
+    init_resource();
+    init_core();
+    init_pagination();
+    Models = class extends APIResource {
+      /**
+       * Get a specific model.
+       *
+       * The Models API response can be used to determine information about a specific
+       * model or resolve a model alias to a model ID.
+       */
+      retrieve(modelId, options) {
+        return this._client.get(`/v1/models/${modelId}?beta=true`, options);
+      }
+      list(query = {}, options) {
+        if (isRequestOptions(query)) {
+          return this.list({}, query);
+        }
+        return this._client.getAPIList("/v1/models?beta=true", BetaModelInfosPage, { query, ...options });
+      }
+    };
+    BetaModelInfosPage = class extends Page {
+    };
+    Models.BetaModelInfosPage = BetaModelInfosPage;
   }
-  list(query = {}, options) {
-    if (isRequestOptions(query)) {
-      return this.list({}, query);
-    }
-    return this._client.getAPIList("/v1/models?beta=true", BetaModelInfosPage, { query, ...options });
-  }
-};
-var BetaModelInfosPage = class extends Page {
-};
-Models.BetaModelInfosPage = BetaModelInfosPage;
+});
 
 // node_modules/@anthropic-ai/sdk/internal/decoders/jsonl.mjs
-var JSONLDecoder = class _JSONLDecoder {
-  constructor(iterator, controller) {
-    this.iterator = iterator;
-    this.controller = controller;
-  }
-  async *decoder() {
-    const lineDecoder = new LineDecoder();
-    for await (const chunk of this.iterator) {
-      for (const line of lineDecoder.decode(chunk)) {
-        yield JSON.parse(line);
+var JSONLDecoder;
+var init_jsonl = __esm({
+  "node_modules/@anthropic-ai/sdk/internal/decoders/jsonl.mjs"() {
+    init_error();
+    init_stream_utils();
+    init_line();
+    JSONLDecoder = class _JSONLDecoder {
+      constructor(iterator, controller) {
+        this.iterator = iterator;
+        this.controller = controller;
       }
-    }
-    for (const line of lineDecoder.flush()) {
-      yield JSON.parse(line);
-    }
+      async *decoder() {
+        const lineDecoder = new LineDecoder();
+        for await (const chunk of this.iterator) {
+          for (const line of lineDecoder.decode(chunk)) {
+            yield JSON.parse(line);
+          }
+        }
+        for (const line of lineDecoder.flush()) {
+          yield JSON.parse(line);
+        }
+      }
+      [Symbol.asyncIterator]() {
+        return this.decoder();
+      }
+      static fromResponse(response, controller) {
+        if (!response.body) {
+          controller.abort();
+          throw new AnthropicError(`Attempted to iterate over a response with no body`);
+        }
+        return new _JSONLDecoder(ReadableStreamToAsyncIterable(response.body), controller);
+      }
+    };
   }
-  [Symbol.asyncIterator]() {
-    return this.decoder();
-  }
-  static fromResponse(response, controller) {
-    if (!response.body) {
-      controller.abort();
-      throw new AnthropicError(`Attempted to iterate over a response with no body`);
-    }
-    return new _JSONLDecoder(ReadableStreamToAsyncIterable(response.body), controller);
-  }
-};
+});
 
 // node_modules/@anthropic-ai/sdk/resources/beta/messages/batches.mjs
-var Batches = class extends APIResource {
-  /**
-   * Send a batch of Message creation requests.
-   *
-   * The Message Batches API can be used to process multiple Messages API requests at
-   * once. Once a Message Batch is created, it begins processing immediately. Batches
-   * can take up to 24 hours to complete.
-   */
-  create(params, options) {
-    const { betas, ...body } = params;
-    return this._client.post("/v1/messages/batches?beta=true", {
-      body,
-      ...options,
-      headers: {
-        "anthropic-beta": [...betas != null ? betas : [], "message-batches-2024-09-24"].toString(),
-        ...options == null ? void 0 : options.headers
+var Batches, BetaMessageBatchesPage;
+var init_batches = __esm({
+  "node_modules/@anthropic-ai/sdk/resources/beta/messages/batches.mjs"() {
+    init_resource();
+    init_core();
+    init_pagination();
+    init_jsonl();
+    init_error();
+    Batches = class extends APIResource {
+      /**
+       * Send a batch of Message creation requests.
+       *
+       * The Message Batches API can be used to process multiple Messages API requests at
+       * once. Once a Message Batch is created, it begins processing immediately. Batches
+       * can take up to 24 hours to complete.
+       */
+      create(params, options) {
+        const { betas, ...body } = params;
+        return this._client.post("/v1/messages/batches?beta=true", {
+          body,
+          ...options,
+          headers: {
+            "anthropic-beta": [...betas != null ? betas : [], "message-batches-2024-09-24"].toString(),
+            ...options == null ? void 0 : options.headers
+          }
+        });
       }
-    });
-  }
-  retrieve(messageBatchId, params = {}, options) {
-    if (isRequestOptions(params)) {
-      return this.retrieve(messageBatchId, {}, params);
-    }
-    const { betas } = params;
-    return this._client.get(`/v1/messages/batches/${messageBatchId}?beta=true`, {
-      ...options,
-      headers: {
-        "anthropic-beta": [...betas != null ? betas : [], "message-batches-2024-09-24"].toString(),
-        ...options == null ? void 0 : options.headers
+      retrieve(messageBatchId, params = {}, options) {
+        if (isRequestOptions(params)) {
+          return this.retrieve(messageBatchId, {}, params);
+        }
+        const { betas } = params;
+        return this._client.get(`/v1/messages/batches/${messageBatchId}?beta=true`, {
+          ...options,
+          headers: {
+            "anthropic-beta": [...betas != null ? betas : [], "message-batches-2024-09-24"].toString(),
+            ...options == null ? void 0 : options.headers
+          }
+        });
       }
-    });
-  }
-  list(params = {}, options) {
-    if (isRequestOptions(params)) {
-      return this.list({}, params);
-    }
-    const { betas, ...query } = params;
-    return this._client.getAPIList("/v1/messages/batches?beta=true", BetaMessageBatchesPage, {
-      query,
-      ...options,
-      headers: {
-        "anthropic-beta": [...betas != null ? betas : [], "message-batches-2024-09-24"].toString(),
-        ...options == null ? void 0 : options.headers
+      list(params = {}, options) {
+        if (isRequestOptions(params)) {
+          return this.list({}, params);
+        }
+        const { betas, ...query } = params;
+        return this._client.getAPIList("/v1/messages/batches?beta=true", BetaMessageBatchesPage, {
+          query,
+          ...options,
+          headers: {
+            "anthropic-beta": [...betas != null ? betas : [], "message-batches-2024-09-24"].toString(),
+            ...options == null ? void 0 : options.headers
+          }
+        });
       }
-    });
-  }
-  delete(messageBatchId, params = {}, options) {
-    if (isRequestOptions(params)) {
-      return this.delete(messageBatchId, {}, params);
-    }
-    const { betas } = params;
-    return this._client.delete(`/v1/messages/batches/${messageBatchId}?beta=true`, {
-      ...options,
-      headers: {
-        "anthropic-beta": [...betas != null ? betas : [], "message-batches-2024-09-24"].toString(),
-        ...options == null ? void 0 : options.headers
+      delete(messageBatchId, params = {}, options) {
+        if (isRequestOptions(params)) {
+          return this.delete(messageBatchId, {}, params);
+        }
+        const { betas } = params;
+        return this._client.delete(`/v1/messages/batches/${messageBatchId}?beta=true`, {
+          ...options,
+          headers: {
+            "anthropic-beta": [...betas != null ? betas : [], "message-batches-2024-09-24"].toString(),
+            ...options == null ? void 0 : options.headers
+          }
+        });
       }
-    });
-  }
-  cancel(messageBatchId, params = {}, options) {
-    if (isRequestOptions(params)) {
-      return this.cancel(messageBatchId, {}, params);
-    }
-    const { betas } = params;
-    return this._client.post(`/v1/messages/batches/${messageBatchId}/cancel?beta=true`, {
-      ...options,
-      headers: {
-        "anthropic-beta": [...betas != null ? betas : [], "message-batches-2024-09-24"].toString(),
-        ...options == null ? void 0 : options.headers
+      cancel(messageBatchId, params = {}, options) {
+        if (isRequestOptions(params)) {
+          return this.cancel(messageBatchId, {}, params);
+        }
+        const { betas } = params;
+        return this._client.post(`/v1/messages/batches/${messageBatchId}/cancel?beta=true`, {
+          ...options,
+          headers: {
+            "anthropic-beta": [...betas != null ? betas : [], "message-batches-2024-09-24"].toString(),
+            ...options == null ? void 0 : options.headers
+          }
+        });
       }
-    });
+      async results(messageBatchId, params = {}, options) {
+        if (isRequestOptions(params)) {
+          return this.results(messageBatchId, {}, params);
+        }
+        const batch = await this.retrieve(messageBatchId);
+        if (!batch.results_url) {
+          throw new AnthropicError(`No batch \`results_url\`; Has it finished processing? ${batch.processing_status} - ${batch.id}`);
+        }
+        const { betas } = params;
+        return this._client.get(batch.results_url, {
+          ...options,
+          headers: {
+            "anthropic-beta": [...betas != null ? betas : [], "message-batches-2024-09-24"].toString(),
+            Accept: "application/binary",
+            ...options == null ? void 0 : options.headers
+          },
+          __binaryResponse: true
+        })._thenUnwrap((_, props) => JSONLDecoder.fromResponse(props.response, props.controller));
+      }
+    };
+    BetaMessageBatchesPage = class extends Page {
+    };
+    Batches.BetaMessageBatchesPage = BetaMessageBatchesPage;
   }
-  async results(messageBatchId, params = {}, options) {
-    if (isRequestOptions(params)) {
-      return this.results(messageBatchId, {}, params);
-    }
-    const batch = await this.retrieve(messageBatchId);
-    if (!batch.results_url) {
-      throw new AnthropicError(`No batch \`results_url\`; Has it finished processing? ${batch.processing_status} - ${batch.id}`);
-    }
-    const { betas } = params;
-    return this._client.get(batch.results_url, {
-      ...options,
-      headers: {
-        "anthropic-beta": [...betas != null ? betas : [], "message-batches-2024-09-24"].toString(),
-        Accept: "application/binary",
-        ...options == null ? void 0 : options.headers
-      },
-      __binaryResponse: true
-    })._thenUnwrap((_, props) => JSONLDecoder.fromResponse(props.response, props.controller));
-  }
-};
-var BetaMessageBatchesPage = class extends Page {
-};
-Batches.BetaMessageBatchesPage = BetaMessageBatchesPage;
+});
 
 // node_modules/@anthropic-ai/sdk/_vendor/partial-json-parser/parser.mjs
-var tokenize = (input) => {
-  let current = 0;
-  let tokens = [];
-  while (current < input.length) {
-    let char = input[current];
-    if (char === "\\") {
-      current++;
-      continue;
-    }
-    if (char === "{") {
-      tokens.push({
-        type: "brace",
-        value: "{"
-      });
-      current++;
-      continue;
-    }
-    if (char === "}") {
-      tokens.push({
-        type: "brace",
-        value: "}"
-      });
-      current++;
-      continue;
-    }
-    if (char === "[") {
-      tokens.push({
-        type: "paren",
-        value: "["
-      });
-      current++;
-      continue;
-    }
-    if (char === "]") {
-      tokens.push({
-        type: "paren",
-        value: "]"
-      });
-      current++;
-      continue;
-    }
-    if (char === ":") {
-      tokens.push({
-        type: "separator",
-        value: ":"
-      });
-      current++;
-      continue;
-    }
-    if (char === ",") {
-      tokens.push({
-        type: "delimiter",
-        value: ","
-      });
-      current++;
-      continue;
-    }
-    if (char === '"') {
-      let value = "";
-      let danglingQuote = false;
-      char = input[++current];
-      while (char !== '"') {
-        if (current === input.length) {
-          danglingQuote = true;
-          break;
-        }
+var tokenize, strip, unstrip, generate, partialParse;
+var init_parser = __esm({
+  "node_modules/@anthropic-ai/sdk/_vendor/partial-json-parser/parser.mjs"() {
+    tokenize = (input) => {
+      let current = 0;
+      let tokens = [];
+      while (current < input.length) {
+        let char = input[current];
         if (char === "\\") {
           current++;
-          if (current === input.length) {
-            danglingQuote = true;
-            break;
+          continue;
+        }
+        if (char === "{") {
+          tokens.push({
+            type: "brace",
+            value: "{"
+          });
+          current++;
+          continue;
+        }
+        if (char === "}") {
+          tokens.push({
+            type: "brace",
+            value: "}"
+          });
+          current++;
+          continue;
+        }
+        if (char === "[") {
+          tokens.push({
+            type: "paren",
+            value: "["
+          });
+          current++;
+          continue;
+        }
+        if (char === "]") {
+          tokens.push({
+            type: "paren",
+            value: "]"
+          });
+          current++;
+          continue;
+        }
+        if (char === ":") {
+          tokens.push({
+            type: "separator",
+            value: ":"
+          });
+          current++;
+          continue;
+        }
+        if (char === ",") {
+          tokens.push({
+            type: "delimiter",
+            value: ","
+          });
+          current++;
+          continue;
+        }
+        if (char === '"') {
+          let value = "";
+          let danglingQuote = false;
+          char = input[++current];
+          while (char !== '"') {
+            if (current === input.length) {
+              danglingQuote = true;
+              break;
+            }
+            if (char === "\\") {
+              current++;
+              if (current === input.length) {
+                danglingQuote = true;
+                break;
+              }
+              value += char + input[current];
+              char = input[++current];
+            } else {
+              value += char;
+              char = input[++current];
+            }
           }
-          value += char + input[current];
           char = input[++current];
-        } else {
-          value += char;
-          char = input[++current];
+          if (!danglingQuote) {
+            tokens.push({
+              type: "string",
+              value
+            });
+          }
+          continue;
         }
-      }
-      char = input[++current];
-      if (!danglingQuote) {
-        tokens.push({
-          type: "string",
-          value
-        });
-      }
-      continue;
-    }
-    let WHITESPACE = /\s/;
-    if (char && WHITESPACE.test(char)) {
-      current++;
-      continue;
-    }
-    let NUMBERS = /[0-9]/;
-    if (char && NUMBERS.test(char) || char === "-" || char === ".") {
-      let value = "";
-      if (char === "-") {
-        value += char;
-        char = input[++current];
-      }
-      while (char && NUMBERS.test(char) || char === ".") {
-        value += char;
-        char = input[++current];
-      }
-      tokens.push({
-        type: "number",
-        value
-      });
-      continue;
-    }
-    let LETTERS = /[a-z]/i;
-    if (char && LETTERS.test(char)) {
-      let value = "";
-      while (char && LETTERS.test(char)) {
-        if (current === input.length) {
-          break;
+        let WHITESPACE = /\s/;
+        if (char && WHITESPACE.test(char)) {
+          current++;
+          continue;
         }
-        value += char;
-        char = input[++current];
-      }
-      if (value == "true" || value == "false" || value === "null") {
-        tokens.push({
-          type: "name",
-          value
-        });
-      } else {
+        let NUMBERS = /[0-9]/;
+        if (char && NUMBERS.test(char) || char === "-" || char === ".") {
+          let value = "";
+          if (char === "-") {
+            value += char;
+            char = input[++current];
+          }
+          while (char && NUMBERS.test(char) || char === ".") {
+            value += char;
+            char = input[++current];
+          }
+          tokens.push({
+            type: "number",
+            value
+          });
+          continue;
+        }
+        let LETTERS = /[a-z]/i;
+        if (char && LETTERS.test(char)) {
+          let value = "";
+          while (char && LETTERS.test(char)) {
+            if (current === input.length) {
+              break;
+            }
+            value += char;
+            char = input[++current];
+          }
+          if (value == "true" || value == "false" || value === "null") {
+            tokens.push({
+              type: "name",
+              value
+            });
+          } else {
+            current++;
+            continue;
+          }
+          continue;
+        }
         current++;
-        continue;
       }
-      continue;
-    }
-    current++;
-  }
-  return tokens;
-};
-var strip = (tokens) => {
-  if (tokens.length === 0) {
-    return tokens;
-  }
-  let lastToken = tokens[tokens.length - 1];
-  switch (lastToken.type) {
-    case "separator":
-      tokens = tokens.slice(0, tokens.length - 1);
-      return strip(tokens);
-      break;
-    case "number":
-      let lastCharacterOfLastToken = lastToken.value[lastToken.value.length - 1];
-      if (lastCharacterOfLastToken === "." || lastCharacterOfLastToken === "-") {
-        tokens = tokens.slice(0, tokens.length - 1);
-        return strip(tokens);
+      return tokens;
+    };
+    strip = (tokens) => {
+      if (tokens.length === 0) {
+        return tokens;
       }
-    case "string":
-      let tokenBeforeTheLastToken = tokens[tokens.length - 2];
-      if ((tokenBeforeTheLastToken == null ? void 0 : tokenBeforeTheLastToken.type) === "delimiter") {
-        tokens = tokens.slice(0, tokens.length - 1);
-        return strip(tokens);
-      } else if ((tokenBeforeTheLastToken == null ? void 0 : tokenBeforeTheLastToken.type) === "brace" && tokenBeforeTheLastToken.value === "{") {
-        tokens = tokens.slice(0, tokens.length - 1);
-        return strip(tokens);
+      let lastToken = tokens[tokens.length - 1];
+      switch (lastToken.type) {
+        case "separator":
+          tokens = tokens.slice(0, tokens.length - 1);
+          return strip(tokens);
+          break;
+        case "number":
+          let lastCharacterOfLastToken = lastToken.value[lastToken.value.length - 1];
+          if (lastCharacterOfLastToken === "." || lastCharacterOfLastToken === "-") {
+            tokens = tokens.slice(0, tokens.length - 1);
+            return strip(tokens);
+          }
+        case "string":
+          let tokenBeforeTheLastToken = tokens[tokens.length - 2];
+          if ((tokenBeforeTheLastToken == null ? void 0 : tokenBeforeTheLastToken.type) === "delimiter") {
+            tokens = tokens.slice(0, tokens.length - 1);
+            return strip(tokens);
+          } else if ((tokenBeforeTheLastToken == null ? void 0 : tokenBeforeTheLastToken.type) === "brace" && tokenBeforeTheLastToken.value === "{") {
+            tokens = tokens.slice(0, tokens.length - 1);
+            return strip(tokens);
+          }
+          break;
+        case "delimiter":
+          tokens = tokens.slice(0, tokens.length - 1);
+          return strip(tokens);
+          break;
       }
-      break;
-    case "delimiter":
-      tokens = tokens.slice(0, tokens.length - 1);
-      return strip(tokens);
-      break;
-  }
-  return tokens;
-};
-var unstrip = (tokens) => {
-  let tail = [];
-  tokens.map((token) => {
-    if (token.type === "brace") {
-      if (token.value === "{") {
-        tail.push("}");
-      } else {
-        tail.splice(tail.lastIndexOf("}"), 1);
-      }
-    }
-    if (token.type === "paren") {
-      if (token.value === "[") {
-        tail.push("]");
-      } else {
-        tail.splice(tail.lastIndexOf("]"), 1);
-      }
-    }
-  });
-  if (tail.length > 0) {
-    tail.reverse().map((item) => {
-      if (item === "}") {
-        tokens.push({
-          type: "brace",
-          value: "}"
-        });
-      } else if (item === "]") {
-        tokens.push({
-          type: "paren",
-          value: "]"
+      return tokens;
+    };
+    unstrip = (tokens) => {
+      let tail = [];
+      tokens.map((token) => {
+        if (token.type === "brace") {
+          if (token.value === "{") {
+            tail.push("}");
+          } else {
+            tail.splice(tail.lastIndexOf("}"), 1);
+          }
+        }
+        if (token.type === "paren") {
+          if (token.value === "[") {
+            tail.push("]");
+          } else {
+            tail.splice(tail.lastIndexOf("]"), 1);
+          }
+        }
+      });
+      if (tail.length > 0) {
+        tail.reverse().map((item) => {
+          if (item === "}") {
+            tokens.push({
+              type: "brace",
+              value: "}"
+            });
+          } else if (item === "]") {
+            tokens.push({
+              type: "paren",
+              value: "]"
+            });
+          }
         });
       }
-    });
+      return tokens;
+    };
+    generate = (tokens) => {
+      let output = "";
+      tokens.map((token) => {
+        switch (token.type) {
+          case "string":
+            output += '"' + token.value + '"';
+            break;
+          default:
+            output += token.value;
+            break;
+        }
+      });
+      return output;
+    };
+    partialParse = (input) => JSON.parse(generate(unstrip(strip(tokenize(input)))));
   }
-  return tokens;
-};
-var generate = (tokens) => {
-  let output = "";
-  tokens.map((token) => {
-    switch (token.type) {
-      case "string":
-        output += '"' + token.value + '"';
-        break;
-      default:
-        output += token.value;
-        break;
-    }
-  });
-  return output;
-};
-var partialParse = (input) => JSON.parse(generate(unstrip(strip(tokenize(input)))));
+});
 
 // node_modules/@anthropic-ai/sdk/lib/BetaMessageStream.mjs
-var __classPrivateFieldSet2 = function(receiver, state, value, kind2, f) {
-  if (kind2 === "m") throw new TypeError("Private method is not writable");
-  if (kind2 === "a" && !f) throw new TypeError("Private accessor was defined without a setter");
-  if (typeof state === "function" ? receiver !== state || !f : !state.has(receiver)) throw new TypeError("Cannot write private member to an object whose class did not declare it");
-  return kind2 === "a" ? f.call(receiver, value) : f ? f.value = value : state.set(receiver, value), value;
-};
-var __classPrivateFieldGet2 = function(receiver, state, kind2, f) {
-  if (kind2 === "a" && !f) throw new TypeError("Private accessor was defined without a getter");
-  if (typeof state === "function" ? receiver !== state || !f : !state.has(receiver)) throw new TypeError("Cannot read private member from an object whose class did not declare it");
-  return kind2 === "m" ? f : kind2 === "a" ? f.call(receiver) : f ? f.value : state.get(receiver);
-};
-var _BetaMessageStream_instances;
-var _BetaMessageStream_currentMessageSnapshot;
-var _BetaMessageStream_connectedPromise;
-var _BetaMessageStream_resolveConnectedPromise;
-var _BetaMessageStream_rejectConnectedPromise;
-var _BetaMessageStream_endPromise;
-var _BetaMessageStream_resolveEndPromise;
-var _BetaMessageStream_rejectEndPromise;
-var _BetaMessageStream_listeners;
-var _BetaMessageStream_ended;
-var _BetaMessageStream_errored;
-var _BetaMessageStream_aborted;
-var _BetaMessageStream_catchingPromiseCreated;
-var _BetaMessageStream_response;
-var _BetaMessageStream_request_id;
-var _BetaMessageStream_getFinalMessage;
-var _BetaMessageStream_getFinalText;
-var _BetaMessageStream_handleError;
-var _BetaMessageStream_beginRequest;
-var _BetaMessageStream_addStreamEvent;
-var _BetaMessageStream_endRequest;
-var _BetaMessageStream_accumulateMessage;
-var JSON_BUF_PROPERTY = "__json_buf";
-var BetaMessageStream = class _BetaMessageStream {
-  constructor() {
-    _BetaMessageStream_instances.add(this);
-    this.messages = [];
-    this.receivedMessages = [];
-    _BetaMessageStream_currentMessageSnapshot.set(this, void 0);
-    this.controller = new AbortController();
-    _BetaMessageStream_connectedPromise.set(this, void 0);
-    _BetaMessageStream_resolveConnectedPromise.set(this, () => {
-    });
-    _BetaMessageStream_rejectConnectedPromise.set(this, () => {
-    });
-    _BetaMessageStream_endPromise.set(this, void 0);
-    _BetaMessageStream_resolveEndPromise.set(this, () => {
-    });
-    _BetaMessageStream_rejectEndPromise.set(this, () => {
-    });
-    _BetaMessageStream_listeners.set(this, {});
-    _BetaMessageStream_ended.set(this, false);
-    _BetaMessageStream_errored.set(this, false);
-    _BetaMessageStream_aborted.set(this, false);
-    _BetaMessageStream_catchingPromiseCreated.set(this, false);
-    _BetaMessageStream_response.set(this, void 0);
-    _BetaMessageStream_request_id.set(this, void 0);
-    _BetaMessageStream_handleError.set(this, (error) => {
-      __classPrivateFieldSet2(this, _BetaMessageStream_errored, true, "f");
-      if (error instanceof Error && error.name === "AbortError") {
-        error = new APIUserAbortError();
-      }
-      if (error instanceof APIUserAbortError) {
-        __classPrivateFieldSet2(this, _BetaMessageStream_aborted, true, "f");
-        return this._emit("abort", error);
-      }
-      if (error instanceof AnthropicError) {
-        return this._emit("error", error);
-      }
-      if (error instanceof Error) {
-        const anthropicError = new AnthropicError(error.message);
-        anthropicError.cause = error;
-        return this._emit("error", anthropicError);
-      }
-      return this._emit("error", new AnthropicError(String(error)));
-    });
-    __classPrivateFieldSet2(this, _BetaMessageStream_connectedPromise, new Promise((resolve, reject) => {
-      __classPrivateFieldSet2(this, _BetaMessageStream_resolveConnectedPromise, resolve, "f");
-      __classPrivateFieldSet2(this, _BetaMessageStream_rejectConnectedPromise, reject, "f");
-    }), "f");
-    __classPrivateFieldSet2(this, _BetaMessageStream_endPromise, new Promise((resolve, reject) => {
-      __classPrivateFieldSet2(this, _BetaMessageStream_resolveEndPromise, resolve, "f");
-      __classPrivateFieldSet2(this, _BetaMessageStream_rejectEndPromise, reject, "f");
-    }), "f");
-    __classPrivateFieldGet2(this, _BetaMessageStream_connectedPromise, "f").catch(() => {
-    });
-    __classPrivateFieldGet2(this, _BetaMessageStream_endPromise, "f").catch(() => {
-    });
-  }
-  get response() {
-    return __classPrivateFieldGet2(this, _BetaMessageStream_response, "f");
-  }
-  get request_id() {
-    return __classPrivateFieldGet2(this, _BetaMessageStream_request_id, "f");
-  }
-  /**
-   * Returns the `MessageStream` data, the raw `Response` instance and the ID of the request,
-   * returned vie the `request-id` header which is useful for debugging requests and resporting
-   * issues to Anthropic.
-   *
-   * This is the same as the `APIPromise.withResponse()` method.
-   *
-   * This method will raise an error if you created the stream using `MessageStream.fromReadableStream`
-   * as no `Response` is available.
-   */
-  async withResponse() {
-    const response = await __classPrivateFieldGet2(this, _BetaMessageStream_connectedPromise, "f");
-    if (!response) {
-      throw new Error("Could not resolve a `Response` object");
-    }
-    return {
-      data: this,
-      response,
-      request_id: response.headers.get("request-id")
-    };
-  }
-  /**
-   * Intended for use on the frontend, consuming a stream produced with
-   * `.toReadableStream()` on the backend.
-   *
-   * Note that messages sent to the model do not appear in `.on('message')`
-   * in this context.
-   */
-  static fromReadableStream(stream) {
-    const runner = new _BetaMessageStream();
-    runner._run(() => runner._fromReadableStream(stream));
-    return runner;
-  }
-  static createMessage(messages, params, options) {
-    const runner = new _BetaMessageStream();
-    for (const message of params.messages) {
-      runner._addMessageParam(message);
-    }
-    runner._run(() => runner._createMessage(messages, { ...params, stream: true }, { ...options, headers: { ...options == null ? void 0 : options.headers, "X-Stainless-Helper-Method": "stream" } }));
-    return runner;
-  }
-  _run(executor) {
-    executor().then(() => {
-      this._emitFinal();
-      this._emit("end");
-    }, __classPrivateFieldGet2(this, _BetaMessageStream_handleError, "f"));
-  }
-  _addMessageParam(message) {
-    this.messages.push(message);
-  }
-  _addMessage(message, emit = true) {
-    this.receivedMessages.push(message);
-    if (emit) {
-      this._emit("message", message);
-    }
-  }
-  async _createMessage(messages, params, options) {
-    var _a2;
-    const signal = options == null ? void 0 : options.signal;
-    if (signal) {
-      if (signal.aborted)
-        this.controller.abort();
-      signal.addEventListener("abort", () => this.controller.abort());
-    }
-    __classPrivateFieldGet2(this, _BetaMessageStream_instances, "m", _BetaMessageStream_beginRequest).call(this);
-    const { response, data: stream } = await messages.create({ ...params, stream: true }, { ...options, signal: this.controller.signal }).withResponse();
-    this._connected(response);
-    for await (const event of stream) {
-      __classPrivateFieldGet2(this, _BetaMessageStream_instances, "m", _BetaMessageStream_addStreamEvent).call(this, event);
-    }
-    if ((_a2 = stream.controller.signal) == null ? void 0 : _a2.aborted) {
-      throw new APIUserAbortError();
-    }
-    __classPrivateFieldGet2(this, _BetaMessageStream_instances, "m", _BetaMessageStream_endRequest).call(this);
-  }
-  _connected(response) {
-    if (this.ended)
-      return;
-    __classPrivateFieldSet2(this, _BetaMessageStream_response, response, "f");
-    __classPrivateFieldSet2(this, _BetaMessageStream_request_id, response == null ? void 0 : response.headers.get("request-id"), "f");
-    __classPrivateFieldGet2(this, _BetaMessageStream_resolveConnectedPromise, "f").call(this, response);
-    this._emit("connect");
-  }
-  get ended() {
-    return __classPrivateFieldGet2(this, _BetaMessageStream_ended, "f");
-  }
-  get errored() {
-    return __classPrivateFieldGet2(this, _BetaMessageStream_errored, "f");
-  }
-  get aborted() {
-    return __classPrivateFieldGet2(this, _BetaMessageStream_aborted, "f");
-  }
-  abort() {
-    this.controller.abort();
-  }
-  /**
-   * Adds the listener function to the end of the listeners array for the event.
-   * No checks are made to see if the listener has already been added. Multiple calls passing
-   * the same combination of event and listener will result in the listener being added, and
-   * called, multiple times.
-   * @returns this MessageStream, so that calls can be chained
-   */
-  on(event, listener) {
-    const listeners = __classPrivateFieldGet2(this, _BetaMessageStream_listeners, "f")[event] || (__classPrivateFieldGet2(this, _BetaMessageStream_listeners, "f")[event] = []);
-    listeners.push({ listener });
-    return this;
-  }
-  /**
-   * Removes the specified listener from the listener array for the event.
-   * off() will remove, at most, one instance of a listener from the listener array. If any single
-   * listener has been added multiple times to the listener array for the specified event, then
-   * off() must be called multiple times to remove each instance.
-   * @returns this MessageStream, so that calls can be chained
-   */
-  off(event, listener) {
-    const listeners = __classPrivateFieldGet2(this, _BetaMessageStream_listeners, "f")[event];
-    if (!listeners)
-      return this;
-    const index = listeners.findIndex((l) => l.listener === listener);
-    if (index >= 0)
-      listeners.splice(index, 1);
-    return this;
-  }
-  /**
-   * Adds a one-time listener function for the event. The next time the event is triggered,
-   * this listener is removed and then invoked.
-   * @returns this MessageStream, so that calls can be chained
-   */
-  once(event, listener) {
-    const listeners = __classPrivateFieldGet2(this, _BetaMessageStream_listeners, "f")[event] || (__classPrivateFieldGet2(this, _BetaMessageStream_listeners, "f")[event] = []);
-    listeners.push({ listener, once: true });
-    return this;
-  }
-  /**
-   * This is similar to `.once()`, but returns a Promise that resolves the next time
-   * the event is triggered, instead of calling a listener callback.
-   * @returns a Promise that resolves the next time given event is triggered,
-   * or rejects if an error is emitted.  (If you request the 'error' event,
-   * returns a promise that resolves with the error).
-   *
-   * Example:
-   *
-   *   const message = await stream.emitted('message') // rejects if the stream errors
-   */
-  emitted(event) {
-    return new Promise((resolve, reject) => {
-      __classPrivateFieldSet2(this, _BetaMessageStream_catchingPromiseCreated, true, "f");
-      if (event !== "error")
-        this.once("error", reject);
-      this.once(event, resolve);
-    });
-  }
-  async done() {
-    __classPrivateFieldSet2(this, _BetaMessageStream_catchingPromiseCreated, true, "f");
-    await __classPrivateFieldGet2(this, _BetaMessageStream_endPromise, "f");
-  }
-  get currentMessage() {
-    return __classPrivateFieldGet2(this, _BetaMessageStream_currentMessageSnapshot, "f");
-  }
-  /**
-   * @returns a promise that resolves with the the final assistant Message response,
-   * or rejects if an error occurred or the stream ended prematurely without producing a Message.
-   */
-  async finalMessage() {
-    await this.done();
-    return __classPrivateFieldGet2(this, _BetaMessageStream_instances, "m", _BetaMessageStream_getFinalMessage).call(this);
-  }
-  /**
-   * @returns a promise that resolves with the the final assistant Message's text response, concatenated
-   * together if there are more than one text blocks.
-   * Rejects if an error occurred or the stream ended prematurely without producing a Message.
-   */
-  async finalText() {
-    await this.done();
-    return __classPrivateFieldGet2(this, _BetaMessageStream_instances, "m", _BetaMessageStream_getFinalText).call(this);
-  }
-  _emit(event, ...args) {
-    if (__classPrivateFieldGet2(this, _BetaMessageStream_ended, "f"))
-      return;
-    if (event === "end") {
-      __classPrivateFieldSet2(this, _BetaMessageStream_ended, true, "f");
-      __classPrivateFieldGet2(this, _BetaMessageStream_resolveEndPromise, "f").call(this);
-    }
-    const listeners = __classPrivateFieldGet2(this, _BetaMessageStream_listeners, "f")[event];
-    if (listeners) {
-      __classPrivateFieldGet2(this, _BetaMessageStream_listeners, "f")[event] = listeners.filter((l) => !l.once);
-      listeners.forEach(({ listener }) => listener(...args));
-    }
-    if (event === "abort") {
-      const error = args[0];
-      if (!__classPrivateFieldGet2(this, _BetaMessageStream_catchingPromiseCreated, "f") && !(listeners == null ? void 0 : listeners.length)) {
-        Promise.reject(error);
-      }
-      __classPrivateFieldGet2(this, _BetaMessageStream_rejectConnectedPromise, "f").call(this, error);
-      __classPrivateFieldGet2(this, _BetaMessageStream_rejectEndPromise, "f").call(this, error);
-      this._emit("end");
-      return;
-    }
-    if (event === "error") {
-      const error = args[0];
-      if (!__classPrivateFieldGet2(this, _BetaMessageStream_catchingPromiseCreated, "f") && !(listeners == null ? void 0 : listeners.length)) {
-        Promise.reject(error);
-      }
-      __classPrivateFieldGet2(this, _BetaMessageStream_rejectConnectedPromise, "f").call(this, error);
-      __classPrivateFieldGet2(this, _BetaMessageStream_rejectEndPromise, "f").call(this, error);
-      this._emit("end");
-    }
-  }
-  _emitFinal() {
-    const finalMessage = this.receivedMessages.at(-1);
-    if (finalMessage) {
-      this._emit("finalMessage", __classPrivateFieldGet2(this, _BetaMessageStream_instances, "m", _BetaMessageStream_getFinalMessage).call(this));
-    }
-  }
-  async _fromReadableStream(readableStream, options) {
-    var _a2;
-    const signal = options == null ? void 0 : options.signal;
-    if (signal) {
-      if (signal.aborted)
-        this.controller.abort();
-      signal.addEventListener("abort", () => this.controller.abort());
-    }
-    __classPrivateFieldGet2(this, _BetaMessageStream_instances, "m", _BetaMessageStream_beginRequest).call(this);
-    this._connected(null);
-    const stream = Stream.fromReadableStream(readableStream, this.controller);
-    for await (const event of stream) {
-      __classPrivateFieldGet2(this, _BetaMessageStream_instances, "m", _BetaMessageStream_addStreamEvent).call(this, event);
-    }
-    if ((_a2 = stream.controller.signal) == null ? void 0 : _a2.aborted) {
-      throw new APIUserAbortError();
-    }
-    __classPrivateFieldGet2(this, _BetaMessageStream_instances, "m", _BetaMessageStream_endRequest).call(this);
-  }
-  [(_BetaMessageStream_currentMessageSnapshot = /* @__PURE__ */ new WeakMap(), _BetaMessageStream_connectedPromise = /* @__PURE__ */ new WeakMap(), _BetaMessageStream_resolveConnectedPromise = /* @__PURE__ */ new WeakMap(), _BetaMessageStream_rejectConnectedPromise = /* @__PURE__ */ new WeakMap(), _BetaMessageStream_endPromise = /* @__PURE__ */ new WeakMap(), _BetaMessageStream_resolveEndPromise = /* @__PURE__ */ new WeakMap(), _BetaMessageStream_rejectEndPromise = /* @__PURE__ */ new WeakMap(), _BetaMessageStream_listeners = /* @__PURE__ */ new WeakMap(), _BetaMessageStream_ended = /* @__PURE__ */ new WeakMap(), _BetaMessageStream_errored = /* @__PURE__ */ new WeakMap(), _BetaMessageStream_aborted = /* @__PURE__ */ new WeakMap(), _BetaMessageStream_catchingPromiseCreated = /* @__PURE__ */ new WeakMap(), _BetaMessageStream_response = /* @__PURE__ */ new WeakMap(), _BetaMessageStream_request_id = /* @__PURE__ */ new WeakMap(), _BetaMessageStream_handleError = /* @__PURE__ */ new WeakMap(), _BetaMessageStream_instances = /* @__PURE__ */ new WeakSet(), _BetaMessageStream_getFinalMessage = function _BetaMessageStream_getFinalMessage2() {
-    if (this.receivedMessages.length === 0) {
-      throw new AnthropicError("stream ended without producing a Message with role=assistant");
-    }
-    return this.receivedMessages.at(-1);
-  }, _BetaMessageStream_getFinalText = function _BetaMessageStream_getFinalText2() {
-    if (this.receivedMessages.length === 0) {
-      throw new AnthropicError("stream ended without producing a Message with role=assistant");
-    }
-    const textBlocks = this.receivedMessages.at(-1).content.filter((block) => block.type === "text").map((block) => block.text);
-    if (textBlocks.length === 0) {
-      throw new AnthropicError("stream ended without producing a content block with type=text");
-    }
-    return textBlocks.join(" ");
-  }, _BetaMessageStream_beginRequest = function _BetaMessageStream_beginRequest2() {
-    if (this.ended)
-      return;
-    __classPrivateFieldSet2(this, _BetaMessageStream_currentMessageSnapshot, void 0, "f");
-  }, _BetaMessageStream_addStreamEvent = function _BetaMessageStream_addStreamEvent2(event) {
-    var _a2;
-    if (this.ended)
-      return;
-    const messageSnapshot = __classPrivateFieldGet2(this, _BetaMessageStream_instances, "m", _BetaMessageStream_accumulateMessage).call(this, event);
-    this._emit("streamEvent", event, messageSnapshot);
-    switch (event.type) {
-      case "content_block_delta": {
-        const content = messageSnapshot.content.at(-1);
-        switch (event.delta.type) {
-          case "text_delta": {
-            if (content.type === "text") {
-              this._emit("text", event.delta.text, content.text || "");
-            }
-            break;
-          }
-          case "citations_delta": {
-            if (content.type === "text") {
-              this._emit("citation", event.delta.citation, (_a2 = content.citations) != null ? _a2 : []);
-            }
-            break;
-          }
-          case "input_json_delta": {
-            if (content.type === "tool_use" && content.input) {
-              this._emit("inputJson", event.delta.partial_json, content.input);
-            }
-            break;
-          }
-          default:
-            checkNever(event.delta);
-        }
-        break;
-      }
-      case "message_stop": {
-        this._addMessageParam(messageSnapshot);
-        this._addMessage(messageSnapshot, true);
-        break;
-      }
-      case "content_block_stop": {
-        this._emit("contentBlock", messageSnapshot.content.at(-1));
-        break;
-      }
-      case "message_start": {
-        __classPrivateFieldSet2(this, _BetaMessageStream_currentMessageSnapshot, messageSnapshot, "f");
-        break;
-      }
-      case "content_block_start":
-      case "message_delta":
-        break;
-    }
-  }, _BetaMessageStream_endRequest = function _BetaMessageStream_endRequest2() {
-    if (this.ended) {
-      throw new AnthropicError(`stream has ended, this shouldn't happen`);
-    }
-    const snapshot = __classPrivateFieldGet2(this, _BetaMessageStream_currentMessageSnapshot, "f");
-    if (!snapshot) {
-      throw new AnthropicError(`request ended without sending any chunks`);
-    }
-    __classPrivateFieldSet2(this, _BetaMessageStream_currentMessageSnapshot, void 0, "f");
-    return snapshot;
-  }, _BetaMessageStream_accumulateMessage = function _BetaMessageStream_accumulateMessage2(event) {
-    var _a2;
-    let snapshot = __classPrivateFieldGet2(this, _BetaMessageStream_currentMessageSnapshot, "f");
-    if (event.type === "message_start") {
-      if (snapshot) {
-        throw new AnthropicError(`Unexpected event order, got ${event.type} before receiving "message_stop"`);
-      }
-      return event.message;
-    }
-    if (!snapshot) {
-      throw new AnthropicError(`Unexpected event order, got ${event.type} before "message_start"`);
-    }
-    switch (event.type) {
-      case "message_stop":
-        return snapshot;
-      case "message_delta":
-        snapshot.stop_reason = event.delta.stop_reason;
-        snapshot.stop_sequence = event.delta.stop_sequence;
-        snapshot.usage.output_tokens = event.usage.output_tokens;
-        return snapshot;
-      case "content_block_start":
-        snapshot.content.push(event.content_block);
-        return snapshot;
-      case "content_block_delta": {
-        const snapshotContent = snapshot.content.at(event.index);
-        switch (event.delta.type) {
-          case "text_delta": {
-            if ((snapshotContent == null ? void 0 : snapshotContent.type) === "text") {
-              snapshotContent.text += event.delta.text;
-            }
-            break;
-          }
-          case "citations_delta": {
-            if ((snapshotContent == null ? void 0 : snapshotContent.type) === "text") {
-              (_a2 = snapshotContent.citations) != null ? _a2 : snapshotContent.citations = [];
-              snapshotContent.citations.push(event.delta.citation);
-            }
-            break;
-          }
-          case "input_json_delta": {
-            if ((snapshotContent == null ? void 0 : snapshotContent.type) === "tool_use") {
-              let jsonBuf = snapshotContent[JSON_BUF_PROPERTY] || "";
-              jsonBuf += event.delta.partial_json;
-              Object.defineProperty(snapshotContent, JSON_BUF_PROPERTY, {
-                value: jsonBuf,
-                enumerable: false,
-                writable: true
-              });
-              if (jsonBuf) {
-                snapshotContent.input = partialParse(jsonBuf);
-              }
-            }
-            break;
-          }
-          default:
-            checkNever(event.delta);
-        }
-        return snapshot;
-      }
-      case "content_block_stop":
-        return snapshot;
-    }
-  }, Symbol.asyncIterator)]() {
-    const pushQueue = [];
-    const readQueue = [];
-    let done = false;
-    this.on("streamEvent", (event) => {
-      const reader = readQueue.shift();
-      if (reader) {
-        reader.resolve(event);
-      } else {
-        pushQueue.push(event);
-      }
-    });
-    this.on("end", () => {
-      done = true;
-      for (const reader of readQueue) {
-        reader.resolve(void 0);
-      }
-      readQueue.length = 0;
-    });
-    this.on("abort", (err) => {
-      done = true;
-      for (const reader of readQueue) {
-        reader.reject(err);
-      }
-      readQueue.length = 0;
-    });
-    this.on("error", (err) => {
-      done = true;
-      for (const reader of readQueue) {
-        reader.reject(err);
-      }
-      readQueue.length = 0;
-    });
-    return {
-      next: async () => {
-        if (!pushQueue.length) {
-          if (done) {
-            return { value: void 0, done: true };
-          }
-          return new Promise((resolve, reject) => readQueue.push({ resolve, reject })).then((chunk2) => chunk2 ? { value: chunk2, done: false } : { value: void 0, done: true });
-        }
-        const chunk = pushQueue.shift();
-        return { value: chunk, done: false };
-      },
-      return: async () => {
-        this.abort();
-        return { value: void 0, done: true };
-      }
-    };
-  }
-  toReadableStream() {
-    const stream = new Stream(this[Symbol.asyncIterator].bind(this), this.controller);
-    return stream.toReadableStream();
-  }
-};
 function checkNever(x) {
 }
-
-// node_modules/@anthropic-ai/sdk/resources/beta/messages/messages.mjs
-var DEPRECATED_MODELS = {
-  "claude-1.3": "November 6th, 2024",
-  "claude-1.3-100k": "November 6th, 2024",
-  "claude-instant-1.1": "November 6th, 2024",
-  "claude-instant-1.1-100k": "November 6th, 2024",
-  "claude-instant-1.2": "November 6th, 2024",
-  "claude-3-sonnet-20240229": "July 21st, 2025",
-  "claude-2.1": "July 21st, 2025",
-  "claude-2.0": "July 21st, 2025"
-};
-var Messages = class extends APIResource {
-  constructor() {
-    super(...arguments);
-    this.batches = new Batches(this._client);
-  }
-  create(params, options) {
-    var _a2, _b;
-    const { betas, ...body } = params;
-    if (body.model in DEPRECATED_MODELS) {
-      console.warn(`The model '${body.model}' is deprecated and will reach end-of-life on ${DEPRECATED_MODELS[body.model]}
-Please migrate to a newer model. Visit https://docs.anthropic.com/en/docs/resources/model-deprecations for more information.`);
-    }
-    return this._client.post("/v1/messages?beta=true", {
-      body,
-      timeout: (_a2 = this._client._options.timeout) != null ? _a2 : 6e5,
-      ...options,
-      headers: {
-        ...(betas == null ? void 0 : betas.toString()) != null ? { "anthropic-beta": betas == null ? void 0 : betas.toString() } : void 0,
-        ...options == null ? void 0 : options.headers
-      },
-      stream: (_b = params.stream) != null ? _b : false
-    });
-  }
-  /**
-   * Create a Message stream
-   */
-  stream(body, options) {
-    return BetaMessageStream.createMessage(this, body, options);
-  }
-  /**
-   * Count the number of tokens in a Message.
-   *
-   * The Token Count API can be used to count the number of tokens in a Message,
-   * including tools, images, and documents, without creating it.
-   */
-  countTokens(params, options) {
-    const { betas, ...body } = params;
-    return this._client.post("/v1/messages/count_tokens?beta=true", {
-      body,
-      ...options,
-      headers: {
-        "anthropic-beta": [...betas != null ? betas : [], "token-counting-2024-11-01"].toString(),
-        ...options == null ? void 0 : options.headers
-      }
-    });
-  }
-};
-Messages.Batches = Batches;
-Messages.BetaMessageBatchesPage = BetaMessageBatchesPage;
-
-// node_modules/@anthropic-ai/sdk/resources/beta/beta.mjs
-var Beta = class extends APIResource {
-  constructor() {
-    super(...arguments);
-    this.models = new Models(this._client);
-    this.messages = new Messages(this._client);
-  }
-};
-Beta.Models = Models;
-Beta.BetaModelInfosPage = BetaModelInfosPage;
-Beta.Messages = Messages;
-
-// node_modules/@anthropic-ai/sdk/resources/completions.mjs
-var Completions = class extends APIResource {
-  create(body, options) {
-    var _a2, _b;
-    return this._client.post("/v1/complete", {
-      body,
-      timeout: (_a2 = this._client._options.timeout) != null ? _a2 : 6e5,
-      ...options,
-      stream: (_b = body.stream) != null ? _b : false
-    });
-  }
-};
-
-// node_modules/@anthropic-ai/sdk/resources/messages/batches.mjs
-var Batches2 = class extends APIResource {
-  /**
-   * Send a batch of Message creation requests.
-   *
-   * The Message Batches API can be used to process multiple Messages API requests at
-   * once. Once a Message Batch is created, it begins processing immediately. Batches
-   * can take up to 24 hours to complete.
-   */
-  create(body, options) {
-    return this._client.post("/v1/messages/batches", { body, ...options });
-  }
-  /**
-   * This endpoint is idempotent and can be used to poll for Message Batch
-   * completion. To access the results of a Message Batch, make a request to the
-   * `results_url` field in the response.
-   */
-  retrieve(messageBatchId, options) {
-    return this._client.get(`/v1/messages/batches/${messageBatchId}`, options);
-  }
-  list(query = {}, options) {
-    if (isRequestOptions(query)) {
-      return this.list({}, query);
-    }
-    return this._client.getAPIList("/v1/messages/batches", MessageBatchesPage, { query, ...options });
-  }
-  /**
-   * Delete a Message Batch.
-   *
-   * Message Batches can only be deleted once they've finished processing. If you'd
-   * like to delete an in-progress batch, you must first cancel it.
-   */
-  delete(messageBatchId, options) {
-    return this._client.delete(`/v1/messages/batches/${messageBatchId}`, options);
-  }
-  /**
-   * Batches may be canceled any time before processing ends. Once cancellation is
-   * initiated, the batch enters a `canceling` state, at which time the system may
-   * complete any in-progress, non-interruptible requests before finalizing
-   * cancellation.
-   *
-   * The number of canceled requests is specified in `request_counts`. To determine
-   * which requests were canceled, check the individual results within the batch.
-   * Note that cancellation may not result in any canceled requests if they were
-   * non-interruptible.
-   */
-  cancel(messageBatchId, options) {
-    return this._client.post(`/v1/messages/batches/${messageBatchId}/cancel`, options);
-  }
-  /**
-   * Streams the results of a Message Batch as a `.jsonl` file.
-   *
-   * Each line in the file is a JSON object containing the result of a single request
-   * in the Message Batch. Results are not guaranteed to be in the same order as
-   * requests. Use the `custom_id` field to match results to requests.
-   */
-  async results(messageBatchId, options) {
-    const batch = await this.retrieve(messageBatchId);
-    if (!batch.results_url) {
-      throw new AnthropicError(`No batch \`results_url\`; Has it finished processing? ${batch.processing_status} - ${batch.id}`);
-    }
-    return this._client.get(batch.results_url, {
-      ...options,
-      headers: {
-        Accept: "application/binary",
-        ...options == null ? void 0 : options.headers
-      },
-      __binaryResponse: true
-    })._thenUnwrap((_, props) => JSONLDecoder.fromResponse(props.response, props.controller));
-  }
-};
-var MessageBatchesPage = class extends Page {
-};
-Batches2.MessageBatchesPage = MessageBatchesPage;
-
-// node_modules/@anthropic-ai/sdk/lib/MessageStream.mjs
-var __classPrivateFieldSet3 = function(receiver, state, value, kind2, f) {
-  if (kind2 === "m") throw new TypeError("Private method is not writable");
-  if (kind2 === "a" && !f) throw new TypeError("Private accessor was defined without a setter");
-  if (typeof state === "function" ? receiver !== state || !f : !state.has(receiver)) throw new TypeError("Cannot write private member to an object whose class did not declare it");
-  return kind2 === "a" ? f.call(receiver, value) : f ? f.value = value : state.set(receiver, value), value;
-};
-var __classPrivateFieldGet3 = function(receiver, state, kind2, f) {
-  if (kind2 === "a" && !f) throw new TypeError("Private accessor was defined without a getter");
-  if (typeof state === "function" ? receiver !== state || !f : !state.has(receiver)) throw new TypeError("Cannot read private member from an object whose class did not declare it");
-  return kind2 === "m" ? f : kind2 === "a" ? f.call(receiver) : f ? f.value : state.get(receiver);
-};
-var _MessageStream_instances;
-var _MessageStream_currentMessageSnapshot;
-var _MessageStream_connectedPromise;
-var _MessageStream_resolveConnectedPromise;
-var _MessageStream_rejectConnectedPromise;
-var _MessageStream_endPromise;
-var _MessageStream_resolveEndPromise;
-var _MessageStream_rejectEndPromise;
-var _MessageStream_listeners;
-var _MessageStream_ended;
-var _MessageStream_errored;
-var _MessageStream_aborted;
-var _MessageStream_catchingPromiseCreated;
-var _MessageStream_response;
-var _MessageStream_request_id;
-var _MessageStream_getFinalMessage;
-var _MessageStream_getFinalText;
-var _MessageStream_handleError;
-var _MessageStream_beginRequest;
-var _MessageStream_addStreamEvent;
-var _MessageStream_endRequest;
-var _MessageStream_accumulateMessage;
-var JSON_BUF_PROPERTY2 = "__json_buf";
-var MessageStream = class _MessageStream {
-  constructor() {
-    _MessageStream_instances.add(this);
-    this.messages = [];
-    this.receivedMessages = [];
-    _MessageStream_currentMessageSnapshot.set(this, void 0);
-    this.controller = new AbortController();
-    _MessageStream_connectedPromise.set(this, void 0);
-    _MessageStream_resolveConnectedPromise.set(this, () => {
-    });
-    _MessageStream_rejectConnectedPromise.set(this, () => {
-    });
-    _MessageStream_endPromise.set(this, void 0);
-    _MessageStream_resolveEndPromise.set(this, () => {
-    });
-    _MessageStream_rejectEndPromise.set(this, () => {
-    });
-    _MessageStream_listeners.set(this, {});
-    _MessageStream_ended.set(this, false);
-    _MessageStream_errored.set(this, false);
-    _MessageStream_aborted.set(this, false);
-    _MessageStream_catchingPromiseCreated.set(this, false);
-    _MessageStream_response.set(this, void 0);
-    _MessageStream_request_id.set(this, void 0);
-    _MessageStream_handleError.set(this, (error) => {
-      __classPrivateFieldSet3(this, _MessageStream_errored, true, "f");
-      if (error instanceof Error && error.name === "AbortError") {
-        error = new APIUserAbortError();
-      }
-      if (error instanceof APIUserAbortError) {
-        __classPrivateFieldSet3(this, _MessageStream_aborted, true, "f");
-        return this._emit("abort", error);
-      }
-      if (error instanceof AnthropicError) {
-        return this._emit("error", error);
-      }
-      if (error instanceof Error) {
-        const anthropicError = new AnthropicError(error.message);
-        anthropicError.cause = error;
-        return this._emit("error", anthropicError);
-      }
-      return this._emit("error", new AnthropicError(String(error)));
-    });
-    __classPrivateFieldSet3(this, _MessageStream_connectedPromise, new Promise((resolve, reject) => {
-      __classPrivateFieldSet3(this, _MessageStream_resolveConnectedPromise, resolve, "f");
-      __classPrivateFieldSet3(this, _MessageStream_rejectConnectedPromise, reject, "f");
-    }), "f");
-    __classPrivateFieldSet3(this, _MessageStream_endPromise, new Promise((resolve, reject) => {
-      __classPrivateFieldSet3(this, _MessageStream_resolveEndPromise, resolve, "f");
-      __classPrivateFieldSet3(this, _MessageStream_rejectEndPromise, reject, "f");
-    }), "f");
-    __classPrivateFieldGet3(this, _MessageStream_connectedPromise, "f").catch(() => {
-    });
-    __classPrivateFieldGet3(this, _MessageStream_endPromise, "f").catch(() => {
-    });
-  }
-  get response() {
-    return __classPrivateFieldGet3(this, _MessageStream_response, "f");
-  }
-  get request_id() {
-    return __classPrivateFieldGet3(this, _MessageStream_request_id, "f");
-  }
-  /**
-   * Returns the `MessageStream` data, the raw `Response` instance and the ID of the request,
-   * returned vie the `request-id` header which is useful for debugging requests and resporting
-   * issues to Anthropic.
-   *
-   * This is the same as the `APIPromise.withResponse()` method.
-   *
-   * This method will raise an error if you created the stream using `MessageStream.fromReadableStream`
-   * as no `Response` is available.
-   */
-  async withResponse() {
-    const response = await __classPrivateFieldGet3(this, _MessageStream_connectedPromise, "f");
-    if (!response) {
-      throw new Error("Could not resolve a `Response` object");
-    }
-    return {
-      data: this,
-      response,
-      request_id: response.headers.get("request-id")
+var __classPrivateFieldSet2, __classPrivateFieldGet2, _BetaMessageStream_instances, _BetaMessageStream_currentMessageSnapshot, _BetaMessageStream_connectedPromise, _BetaMessageStream_resolveConnectedPromise, _BetaMessageStream_rejectConnectedPromise, _BetaMessageStream_endPromise, _BetaMessageStream_resolveEndPromise, _BetaMessageStream_rejectEndPromise, _BetaMessageStream_listeners, _BetaMessageStream_ended, _BetaMessageStream_errored, _BetaMessageStream_aborted, _BetaMessageStream_catchingPromiseCreated, _BetaMessageStream_response, _BetaMessageStream_request_id, _BetaMessageStream_getFinalMessage, _BetaMessageStream_getFinalText, _BetaMessageStream_handleError, _BetaMessageStream_beginRequest, _BetaMessageStream_addStreamEvent, _BetaMessageStream_endRequest, _BetaMessageStream_accumulateMessage, JSON_BUF_PROPERTY, BetaMessageStream;
+var init_BetaMessageStream = __esm({
+  "node_modules/@anthropic-ai/sdk/lib/BetaMessageStream.mjs"() {
+    init_error();
+    init_streaming();
+    init_parser();
+    __classPrivateFieldSet2 = function(receiver, state, value, kind2, f) {
+      if (kind2 === "m") throw new TypeError("Private method is not writable");
+      if (kind2 === "a" && !f) throw new TypeError("Private accessor was defined without a setter");
+      if (typeof state === "function" ? receiver !== state || !f : !state.has(receiver)) throw new TypeError("Cannot write private member to an object whose class did not declare it");
+      return kind2 === "a" ? f.call(receiver, value) : f ? f.value = value : state.set(receiver, value), value;
     };
-  }
-  /**
-   * Intended for use on the frontend, consuming a stream produced with
-   * `.toReadableStream()` on the backend.
-   *
-   * Note that messages sent to the model do not appear in `.on('message')`
-   * in this context.
-   */
-  static fromReadableStream(stream) {
-    const runner = new _MessageStream();
-    runner._run(() => runner._fromReadableStream(stream));
-    return runner;
-  }
-  static createMessage(messages, params, options) {
-    const runner = new _MessageStream();
-    for (const message of params.messages) {
-      runner._addMessageParam(message);
-    }
-    runner._run(() => runner._createMessage(messages, { ...params, stream: true }, { ...options, headers: { ...options == null ? void 0 : options.headers, "X-Stainless-Helper-Method": "stream" } }));
-    return runner;
-  }
-  _run(executor) {
-    executor().then(() => {
-      this._emitFinal();
-      this._emit("end");
-    }, __classPrivateFieldGet3(this, _MessageStream_handleError, "f"));
-  }
-  _addMessageParam(message) {
-    this.messages.push(message);
-  }
-  _addMessage(message, emit = true) {
-    this.receivedMessages.push(message);
-    if (emit) {
-      this._emit("message", message);
-    }
-  }
-  async _createMessage(messages, params, options) {
-    var _a2;
-    const signal = options == null ? void 0 : options.signal;
-    if (signal) {
-      if (signal.aborted)
-        this.controller.abort();
-      signal.addEventListener("abort", () => this.controller.abort());
-    }
-    __classPrivateFieldGet3(this, _MessageStream_instances, "m", _MessageStream_beginRequest).call(this);
-    const { response, data: stream } = await messages.create({ ...params, stream: true }, { ...options, signal: this.controller.signal }).withResponse();
-    this._connected(response);
-    for await (const event of stream) {
-      __classPrivateFieldGet3(this, _MessageStream_instances, "m", _MessageStream_addStreamEvent).call(this, event);
-    }
-    if ((_a2 = stream.controller.signal) == null ? void 0 : _a2.aborted) {
-      throw new APIUserAbortError();
-    }
-    __classPrivateFieldGet3(this, _MessageStream_instances, "m", _MessageStream_endRequest).call(this);
-  }
-  _connected(response) {
-    if (this.ended)
-      return;
-    __classPrivateFieldSet3(this, _MessageStream_response, response, "f");
-    __classPrivateFieldSet3(this, _MessageStream_request_id, response == null ? void 0 : response.headers.get("request-id"), "f");
-    __classPrivateFieldGet3(this, _MessageStream_resolveConnectedPromise, "f").call(this, response);
-    this._emit("connect");
-  }
-  get ended() {
-    return __classPrivateFieldGet3(this, _MessageStream_ended, "f");
-  }
-  get errored() {
-    return __classPrivateFieldGet3(this, _MessageStream_errored, "f");
-  }
-  get aborted() {
-    return __classPrivateFieldGet3(this, _MessageStream_aborted, "f");
-  }
-  abort() {
-    this.controller.abort();
-  }
-  /**
-   * Adds the listener function to the end of the listeners array for the event.
-   * No checks are made to see if the listener has already been added. Multiple calls passing
-   * the same combination of event and listener will result in the listener being added, and
-   * called, multiple times.
-   * @returns this MessageStream, so that calls can be chained
-   */
-  on(event, listener) {
-    const listeners = __classPrivateFieldGet3(this, _MessageStream_listeners, "f")[event] || (__classPrivateFieldGet3(this, _MessageStream_listeners, "f")[event] = []);
-    listeners.push({ listener });
-    return this;
-  }
-  /**
-   * Removes the specified listener from the listener array for the event.
-   * off() will remove, at most, one instance of a listener from the listener array. If any single
-   * listener has been added multiple times to the listener array for the specified event, then
-   * off() must be called multiple times to remove each instance.
-   * @returns this MessageStream, so that calls can be chained
-   */
-  off(event, listener) {
-    const listeners = __classPrivateFieldGet3(this, _MessageStream_listeners, "f")[event];
-    if (!listeners)
-      return this;
-    const index = listeners.findIndex((l) => l.listener === listener);
-    if (index >= 0)
-      listeners.splice(index, 1);
-    return this;
-  }
-  /**
-   * Adds a one-time listener function for the event. The next time the event is triggered,
-   * this listener is removed and then invoked.
-   * @returns this MessageStream, so that calls can be chained
-   */
-  once(event, listener) {
-    const listeners = __classPrivateFieldGet3(this, _MessageStream_listeners, "f")[event] || (__classPrivateFieldGet3(this, _MessageStream_listeners, "f")[event] = []);
-    listeners.push({ listener, once: true });
-    return this;
-  }
-  /**
-   * This is similar to `.once()`, but returns a Promise that resolves the next time
-   * the event is triggered, instead of calling a listener callback.
-   * @returns a Promise that resolves the next time given event is triggered,
-   * or rejects if an error is emitted.  (If you request the 'error' event,
-   * returns a promise that resolves with the error).
-   *
-   * Example:
-   *
-   *   const message = await stream.emitted('message') // rejects if the stream errors
-   */
-  emitted(event) {
-    return new Promise((resolve, reject) => {
-      __classPrivateFieldSet3(this, _MessageStream_catchingPromiseCreated, true, "f");
-      if (event !== "error")
-        this.once("error", reject);
-      this.once(event, resolve);
-    });
-  }
-  async done() {
-    __classPrivateFieldSet3(this, _MessageStream_catchingPromiseCreated, true, "f");
-    await __classPrivateFieldGet3(this, _MessageStream_endPromise, "f");
-  }
-  get currentMessage() {
-    return __classPrivateFieldGet3(this, _MessageStream_currentMessageSnapshot, "f");
-  }
-  /**
-   * @returns a promise that resolves with the the final assistant Message response,
-   * or rejects if an error occurred or the stream ended prematurely without producing a Message.
-   */
-  async finalMessage() {
-    await this.done();
-    return __classPrivateFieldGet3(this, _MessageStream_instances, "m", _MessageStream_getFinalMessage).call(this);
-  }
-  /**
-   * @returns a promise that resolves with the the final assistant Message's text response, concatenated
-   * together if there are more than one text blocks.
-   * Rejects if an error occurred or the stream ended prematurely without producing a Message.
-   */
-  async finalText() {
-    await this.done();
-    return __classPrivateFieldGet3(this, _MessageStream_instances, "m", _MessageStream_getFinalText).call(this);
-  }
-  _emit(event, ...args) {
-    if (__classPrivateFieldGet3(this, _MessageStream_ended, "f"))
-      return;
-    if (event === "end") {
-      __classPrivateFieldSet3(this, _MessageStream_ended, true, "f");
-      __classPrivateFieldGet3(this, _MessageStream_resolveEndPromise, "f").call(this);
-    }
-    const listeners = __classPrivateFieldGet3(this, _MessageStream_listeners, "f")[event];
-    if (listeners) {
-      __classPrivateFieldGet3(this, _MessageStream_listeners, "f")[event] = listeners.filter((l) => !l.once);
-      listeners.forEach(({ listener }) => listener(...args));
-    }
-    if (event === "abort") {
-      const error = args[0];
-      if (!__classPrivateFieldGet3(this, _MessageStream_catchingPromiseCreated, "f") && !(listeners == null ? void 0 : listeners.length)) {
-        Promise.reject(error);
+    __classPrivateFieldGet2 = function(receiver, state, kind2, f) {
+      if (kind2 === "a" && !f) throw new TypeError("Private accessor was defined without a getter");
+      if (typeof state === "function" ? receiver !== state || !f : !state.has(receiver)) throw new TypeError("Cannot read private member from an object whose class did not declare it");
+      return kind2 === "m" ? f : kind2 === "a" ? f.call(receiver) : f ? f.value : state.get(receiver);
+    };
+    JSON_BUF_PROPERTY = "__json_buf";
+    BetaMessageStream = class _BetaMessageStream {
+      constructor() {
+        _BetaMessageStream_instances.add(this);
+        this.messages = [];
+        this.receivedMessages = [];
+        _BetaMessageStream_currentMessageSnapshot.set(this, void 0);
+        this.controller = new AbortController();
+        _BetaMessageStream_connectedPromise.set(this, void 0);
+        _BetaMessageStream_resolveConnectedPromise.set(this, () => {
+        });
+        _BetaMessageStream_rejectConnectedPromise.set(this, () => {
+        });
+        _BetaMessageStream_endPromise.set(this, void 0);
+        _BetaMessageStream_resolveEndPromise.set(this, () => {
+        });
+        _BetaMessageStream_rejectEndPromise.set(this, () => {
+        });
+        _BetaMessageStream_listeners.set(this, {});
+        _BetaMessageStream_ended.set(this, false);
+        _BetaMessageStream_errored.set(this, false);
+        _BetaMessageStream_aborted.set(this, false);
+        _BetaMessageStream_catchingPromiseCreated.set(this, false);
+        _BetaMessageStream_response.set(this, void 0);
+        _BetaMessageStream_request_id.set(this, void 0);
+        _BetaMessageStream_handleError.set(this, (error) => {
+          __classPrivateFieldSet2(this, _BetaMessageStream_errored, true, "f");
+          if (error instanceof Error && error.name === "AbortError") {
+            error = new APIUserAbortError();
+          }
+          if (error instanceof APIUserAbortError) {
+            __classPrivateFieldSet2(this, _BetaMessageStream_aborted, true, "f");
+            return this._emit("abort", error);
+          }
+          if (error instanceof AnthropicError) {
+            return this._emit("error", error);
+          }
+          if (error instanceof Error) {
+            const anthropicError = new AnthropicError(error.message);
+            anthropicError.cause = error;
+            return this._emit("error", anthropicError);
+          }
+          return this._emit("error", new AnthropicError(String(error)));
+        });
+        __classPrivateFieldSet2(this, _BetaMessageStream_connectedPromise, new Promise((resolve, reject) => {
+          __classPrivateFieldSet2(this, _BetaMessageStream_resolveConnectedPromise, resolve, "f");
+          __classPrivateFieldSet2(this, _BetaMessageStream_rejectConnectedPromise, reject, "f");
+        }), "f");
+        __classPrivateFieldSet2(this, _BetaMessageStream_endPromise, new Promise((resolve, reject) => {
+          __classPrivateFieldSet2(this, _BetaMessageStream_resolveEndPromise, resolve, "f");
+          __classPrivateFieldSet2(this, _BetaMessageStream_rejectEndPromise, reject, "f");
+        }), "f");
+        __classPrivateFieldGet2(this, _BetaMessageStream_connectedPromise, "f").catch(() => {
+        });
+        __classPrivateFieldGet2(this, _BetaMessageStream_endPromise, "f").catch(() => {
+        });
       }
-      __classPrivateFieldGet3(this, _MessageStream_rejectConnectedPromise, "f").call(this, error);
-      __classPrivateFieldGet3(this, _MessageStream_rejectEndPromise, "f").call(this, error);
-      this._emit("end");
-      return;
-    }
-    if (event === "error") {
-      const error = args[0];
-      if (!__classPrivateFieldGet3(this, _MessageStream_catchingPromiseCreated, "f") && !(listeners == null ? void 0 : listeners.length)) {
-        Promise.reject(error);
+      get response() {
+        return __classPrivateFieldGet2(this, _BetaMessageStream_response, "f");
       }
-      __classPrivateFieldGet3(this, _MessageStream_rejectConnectedPromise, "f").call(this, error);
-      __classPrivateFieldGet3(this, _MessageStream_rejectEndPromise, "f").call(this, error);
-      this._emit("end");
-    }
-  }
-  _emitFinal() {
-    const finalMessage = this.receivedMessages.at(-1);
-    if (finalMessage) {
-      this._emit("finalMessage", __classPrivateFieldGet3(this, _MessageStream_instances, "m", _MessageStream_getFinalMessage).call(this));
-    }
-  }
-  async _fromReadableStream(readableStream, options) {
-    var _a2;
-    const signal = options == null ? void 0 : options.signal;
-    if (signal) {
-      if (signal.aborted)
-        this.controller.abort();
-      signal.addEventListener("abort", () => this.controller.abort());
-    }
-    __classPrivateFieldGet3(this, _MessageStream_instances, "m", _MessageStream_beginRequest).call(this);
-    this._connected(null);
-    const stream = Stream.fromReadableStream(readableStream, this.controller);
-    for await (const event of stream) {
-      __classPrivateFieldGet3(this, _MessageStream_instances, "m", _MessageStream_addStreamEvent).call(this, event);
-    }
-    if ((_a2 = stream.controller.signal) == null ? void 0 : _a2.aborted) {
-      throw new APIUserAbortError();
-    }
-    __classPrivateFieldGet3(this, _MessageStream_instances, "m", _MessageStream_endRequest).call(this);
-  }
-  [(_MessageStream_currentMessageSnapshot = /* @__PURE__ */ new WeakMap(), _MessageStream_connectedPromise = /* @__PURE__ */ new WeakMap(), _MessageStream_resolveConnectedPromise = /* @__PURE__ */ new WeakMap(), _MessageStream_rejectConnectedPromise = /* @__PURE__ */ new WeakMap(), _MessageStream_endPromise = /* @__PURE__ */ new WeakMap(), _MessageStream_resolveEndPromise = /* @__PURE__ */ new WeakMap(), _MessageStream_rejectEndPromise = /* @__PURE__ */ new WeakMap(), _MessageStream_listeners = /* @__PURE__ */ new WeakMap(), _MessageStream_ended = /* @__PURE__ */ new WeakMap(), _MessageStream_errored = /* @__PURE__ */ new WeakMap(), _MessageStream_aborted = /* @__PURE__ */ new WeakMap(), _MessageStream_catchingPromiseCreated = /* @__PURE__ */ new WeakMap(), _MessageStream_response = /* @__PURE__ */ new WeakMap(), _MessageStream_request_id = /* @__PURE__ */ new WeakMap(), _MessageStream_handleError = /* @__PURE__ */ new WeakMap(), _MessageStream_instances = /* @__PURE__ */ new WeakSet(), _MessageStream_getFinalMessage = function _MessageStream_getFinalMessage2() {
-    if (this.receivedMessages.length === 0) {
-      throw new AnthropicError("stream ended without producing a Message with role=assistant");
-    }
-    return this.receivedMessages.at(-1);
-  }, _MessageStream_getFinalText = function _MessageStream_getFinalText2() {
-    if (this.receivedMessages.length === 0) {
-      throw new AnthropicError("stream ended without producing a Message with role=assistant");
-    }
-    const textBlocks = this.receivedMessages.at(-1).content.filter((block) => block.type === "text").map((block) => block.text);
-    if (textBlocks.length === 0) {
-      throw new AnthropicError("stream ended without producing a content block with type=text");
-    }
-    return textBlocks.join(" ");
-  }, _MessageStream_beginRequest = function _MessageStream_beginRequest2() {
-    if (this.ended)
-      return;
-    __classPrivateFieldSet3(this, _MessageStream_currentMessageSnapshot, void 0, "f");
-  }, _MessageStream_addStreamEvent = function _MessageStream_addStreamEvent2(event) {
-    var _a2;
-    if (this.ended)
-      return;
-    const messageSnapshot = __classPrivateFieldGet3(this, _MessageStream_instances, "m", _MessageStream_accumulateMessage).call(this, event);
-    this._emit("streamEvent", event, messageSnapshot);
-    switch (event.type) {
-      case "content_block_delta": {
-        const content = messageSnapshot.content.at(-1);
-        switch (event.delta.type) {
-          case "text_delta": {
-            if (content.type === "text") {
-              this._emit("text", event.delta.text, content.text || "");
-            }
-            break;
-          }
-          case "citations_delta": {
-            if (content.type === "text") {
-              this._emit("citation", event.delta.citation, (_a2 = content.citations) != null ? _a2 : []);
-            }
-            break;
-          }
-          case "input_json_delta": {
-            if (content.type === "tool_use" && content.input) {
-              this._emit("inputJson", event.delta.partial_json, content.input);
-            }
-            break;
-          }
-          default:
-            checkNever2(event.delta);
+      get request_id() {
+        return __classPrivateFieldGet2(this, _BetaMessageStream_request_id, "f");
+      }
+      /**
+       * Returns the `MessageStream` data, the raw `Response` instance and the ID of the request,
+       * returned vie the `request-id` header which is useful for debugging requests and resporting
+       * issues to Anthropic.
+       *
+       * This is the same as the `APIPromise.withResponse()` method.
+       *
+       * This method will raise an error if you created the stream using `MessageStream.fromReadableStream`
+       * as no `Response` is available.
+       */
+      async withResponse() {
+        const response = await __classPrivateFieldGet2(this, _BetaMessageStream_connectedPromise, "f");
+        if (!response) {
+          throw new Error("Could not resolve a `Response` object");
         }
-        break;
+        return {
+          data: this,
+          response,
+          request_id: response.headers.get("request-id")
+        };
       }
-      case "message_stop": {
-        this._addMessageParam(messageSnapshot);
-        this._addMessage(messageSnapshot, true);
-        break;
+      /**
+       * Intended for use on the frontend, consuming a stream produced with
+       * `.toReadableStream()` on the backend.
+       *
+       * Note that messages sent to the model do not appear in `.on('message')`
+       * in this context.
+       */
+      static fromReadableStream(stream) {
+        const runner = new _BetaMessageStream();
+        runner._run(() => runner._fromReadableStream(stream));
+        return runner;
       }
-      case "content_block_stop": {
-        this._emit("contentBlock", messageSnapshot.content.at(-1));
-        break;
+      static createMessage(messages, params, options) {
+        const runner = new _BetaMessageStream();
+        for (const message of params.messages) {
+          runner._addMessageParam(message);
+        }
+        runner._run(() => runner._createMessage(messages, { ...params, stream: true }, { ...options, headers: { ...options == null ? void 0 : options.headers, "X-Stainless-Helper-Method": "stream" } }));
+        return runner;
       }
-      case "message_start": {
-        __classPrivateFieldSet3(this, _MessageStream_currentMessageSnapshot, messageSnapshot, "f");
-        break;
+      _run(executor) {
+        executor().then(() => {
+          this._emitFinal();
+          this._emit("end");
+        }, __classPrivateFieldGet2(this, _BetaMessageStream_handleError, "f"));
       }
-      case "content_block_start":
-      case "message_delta":
-        break;
-    }
-  }, _MessageStream_endRequest = function _MessageStream_endRequest2() {
-    if (this.ended) {
-      throw new AnthropicError(`stream has ended, this shouldn't happen`);
-    }
-    const snapshot = __classPrivateFieldGet3(this, _MessageStream_currentMessageSnapshot, "f");
-    if (!snapshot) {
-      throw new AnthropicError(`request ended without sending any chunks`);
-    }
-    __classPrivateFieldSet3(this, _MessageStream_currentMessageSnapshot, void 0, "f");
-    return snapshot;
-  }, _MessageStream_accumulateMessage = function _MessageStream_accumulateMessage2(event) {
-    var _a2;
-    let snapshot = __classPrivateFieldGet3(this, _MessageStream_currentMessageSnapshot, "f");
-    if (event.type === "message_start") {
-      if (snapshot) {
-        throw new AnthropicError(`Unexpected event order, got ${event.type} before receiving "message_stop"`);
+      _addMessageParam(message) {
+        this.messages.push(message);
       }
-      return event.message;
-    }
-    if (!snapshot) {
-      throw new AnthropicError(`Unexpected event order, got ${event.type} before "message_start"`);
-    }
-    switch (event.type) {
-      case "message_stop":
-        return snapshot;
-      case "message_delta":
-        snapshot.stop_reason = event.delta.stop_reason;
-        snapshot.stop_sequence = event.delta.stop_sequence;
-        snapshot.usage.output_tokens = event.usage.output_tokens;
-        return snapshot;
-      case "content_block_start":
-        snapshot.content.push(event.content_block);
-        return snapshot;
-      case "content_block_delta": {
-        const snapshotContent = snapshot.content.at(event.index);
-        switch (event.delta.type) {
-          case "text_delta": {
-            if ((snapshotContent == null ? void 0 : snapshotContent.type) === "text") {
-              snapshotContent.text += event.delta.text;
-            }
-            break;
+      _addMessage(message, emit = true) {
+        this.receivedMessages.push(message);
+        if (emit) {
+          this._emit("message", message);
+        }
+      }
+      async _createMessage(messages, params, options) {
+        var _a2;
+        const signal = options == null ? void 0 : options.signal;
+        if (signal) {
+          if (signal.aborted)
+            this.controller.abort();
+          signal.addEventListener("abort", () => this.controller.abort());
+        }
+        __classPrivateFieldGet2(this, _BetaMessageStream_instances, "m", _BetaMessageStream_beginRequest).call(this);
+        const { response, data: stream } = await messages.create({ ...params, stream: true }, { ...options, signal: this.controller.signal }).withResponse();
+        this._connected(response);
+        for await (const event of stream) {
+          __classPrivateFieldGet2(this, _BetaMessageStream_instances, "m", _BetaMessageStream_addStreamEvent).call(this, event);
+        }
+        if ((_a2 = stream.controller.signal) == null ? void 0 : _a2.aborted) {
+          throw new APIUserAbortError();
+        }
+        __classPrivateFieldGet2(this, _BetaMessageStream_instances, "m", _BetaMessageStream_endRequest).call(this);
+      }
+      _connected(response) {
+        if (this.ended)
+          return;
+        __classPrivateFieldSet2(this, _BetaMessageStream_response, response, "f");
+        __classPrivateFieldSet2(this, _BetaMessageStream_request_id, response == null ? void 0 : response.headers.get("request-id"), "f");
+        __classPrivateFieldGet2(this, _BetaMessageStream_resolveConnectedPromise, "f").call(this, response);
+        this._emit("connect");
+      }
+      get ended() {
+        return __classPrivateFieldGet2(this, _BetaMessageStream_ended, "f");
+      }
+      get errored() {
+        return __classPrivateFieldGet2(this, _BetaMessageStream_errored, "f");
+      }
+      get aborted() {
+        return __classPrivateFieldGet2(this, _BetaMessageStream_aborted, "f");
+      }
+      abort() {
+        this.controller.abort();
+      }
+      /**
+       * Adds the listener function to the end of the listeners array for the event.
+       * No checks are made to see if the listener has already been added. Multiple calls passing
+       * the same combination of event and listener will result in the listener being added, and
+       * called, multiple times.
+       * @returns this MessageStream, so that calls can be chained
+       */
+      on(event, listener) {
+        const listeners = __classPrivateFieldGet2(this, _BetaMessageStream_listeners, "f")[event] || (__classPrivateFieldGet2(this, _BetaMessageStream_listeners, "f")[event] = []);
+        listeners.push({ listener });
+        return this;
+      }
+      /**
+       * Removes the specified listener from the listener array for the event.
+       * off() will remove, at most, one instance of a listener from the listener array. If any single
+       * listener has been added multiple times to the listener array for the specified event, then
+       * off() must be called multiple times to remove each instance.
+       * @returns this MessageStream, so that calls can be chained
+       */
+      off(event, listener) {
+        const listeners = __classPrivateFieldGet2(this, _BetaMessageStream_listeners, "f")[event];
+        if (!listeners)
+          return this;
+        const index = listeners.findIndex((l) => l.listener === listener);
+        if (index >= 0)
+          listeners.splice(index, 1);
+        return this;
+      }
+      /**
+       * Adds a one-time listener function for the event. The next time the event is triggered,
+       * this listener is removed and then invoked.
+       * @returns this MessageStream, so that calls can be chained
+       */
+      once(event, listener) {
+        const listeners = __classPrivateFieldGet2(this, _BetaMessageStream_listeners, "f")[event] || (__classPrivateFieldGet2(this, _BetaMessageStream_listeners, "f")[event] = []);
+        listeners.push({ listener, once: true });
+        return this;
+      }
+      /**
+       * This is similar to `.once()`, but returns a Promise that resolves the next time
+       * the event is triggered, instead of calling a listener callback.
+       * @returns a Promise that resolves the next time given event is triggered,
+       * or rejects if an error is emitted.  (If you request the 'error' event,
+       * returns a promise that resolves with the error).
+       *
+       * Example:
+       *
+       *   const message = await stream.emitted('message') // rejects if the stream errors
+       */
+      emitted(event) {
+        return new Promise((resolve, reject) => {
+          __classPrivateFieldSet2(this, _BetaMessageStream_catchingPromiseCreated, true, "f");
+          if (event !== "error")
+            this.once("error", reject);
+          this.once(event, resolve);
+        });
+      }
+      async done() {
+        __classPrivateFieldSet2(this, _BetaMessageStream_catchingPromiseCreated, true, "f");
+        await __classPrivateFieldGet2(this, _BetaMessageStream_endPromise, "f");
+      }
+      get currentMessage() {
+        return __classPrivateFieldGet2(this, _BetaMessageStream_currentMessageSnapshot, "f");
+      }
+      /**
+       * @returns a promise that resolves with the the final assistant Message response,
+       * or rejects if an error occurred or the stream ended prematurely without producing a Message.
+       */
+      async finalMessage() {
+        await this.done();
+        return __classPrivateFieldGet2(this, _BetaMessageStream_instances, "m", _BetaMessageStream_getFinalMessage).call(this);
+      }
+      /**
+       * @returns a promise that resolves with the the final assistant Message's text response, concatenated
+       * together if there are more than one text blocks.
+       * Rejects if an error occurred or the stream ended prematurely without producing a Message.
+       */
+      async finalText() {
+        await this.done();
+        return __classPrivateFieldGet2(this, _BetaMessageStream_instances, "m", _BetaMessageStream_getFinalText).call(this);
+      }
+      _emit(event, ...args) {
+        if (__classPrivateFieldGet2(this, _BetaMessageStream_ended, "f"))
+          return;
+        if (event === "end") {
+          __classPrivateFieldSet2(this, _BetaMessageStream_ended, true, "f");
+          __classPrivateFieldGet2(this, _BetaMessageStream_resolveEndPromise, "f").call(this);
+        }
+        const listeners = __classPrivateFieldGet2(this, _BetaMessageStream_listeners, "f")[event];
+        if (listeners) {
+          __classPrivateFieldGet2(this, _BetaMessageStream_listeners, "f")[event] = listeners.filter((l) => !l.once);
+          listeners.forEach(({ listener }) => listener(...args));
+        }
+        if (event === "abort") {
+          const error = args[0];
+          if (!__classPrivateFieldGet2(this, _BetaMessageStream_catchingPromiseCreated, "f") && !(listeners == null ? void 0 : listeners.length)) {
+            Promise.reject(error);
           }
-          case "citations_delta": {
-            if ((snapshotContent == null ? void 0 : snapshotContent.type) === "text") {
-              (_a2 = snapshotContent.citations) != null ? _a2 : snapshotContent.citations = [];
-              snapshotContent.citations.push(event.delta.citation);
-            }
-            break;
+          __classPrivateFieldGet2(this, _BetaMessageStream_rejectConnectedPromise, "f").call(this, error);
+          __classPrivateFieldGet2(this, _BetaMessageStream_rejectEndPromise, "f").call(this, error);
+          this._emit("end");
+          return;
+        }
+        if (event === "error") {
+          const error = args[0];
+          if (!__classPrivateFieldGet2(this, _BetaMessageStream_catchingPromiseCreated, "f") && !(listeners == null ? void 0 : listeners.length)) {
+            Promise.reject(error);
           }
-          case "input_json_delta": {
-            if ((snapshotContent == null ? void 0 : snapshotContent.type) === "tool_use") {
-              let jsonBuf = snapshotContent[JSON_BUF_PROPERTY2] || "";
-              jsonBuf += event.delta.partial_json;
-              Object.defineProperty(snapshotContent, JSON_BUF_PROPERTY2, {
-                value: jsonBuf,
-                enumerable: false,
-                writable: true
-              });
-              if (jsonBuf) {
-                snapshotContent.input = partialParse(jsonBuf);
+          __classPrivateFieldGet2(this, _BetaMessageStream_rejectConnectedPromise, "f").call(this, error);
+          __classPrivateFieldGet2(this, _BetaMessageStream_rejectEndPromise, "f").call(this, error);
+          this._emit("end");
+        }
+      }
+      _emitFinal() {
+        const finalMessage = this.receivedMessages.at(-1);
+        if (finalMessage) {
+          this._emit("finalMessage", __classPrivateFieldGet2(this, _BetaMessageStream_instances, "m", _BetaMessageStream_getFinalMessage).call(this));
+        }
+      }
+      async _fromReadableStream(readableStream, options) {
+        var _a2;
+        const signal = options == null ? void 0 : options.signal;
+        if (signal) {
+          if (signal.aborted)
+            this.controller.abort();
+          signal.addEventListener("abort", () => this.controller.abort());
+        }
+        __classPrivateFieldGet2(this, _BetaMessageStream_instances, "m", _BetaMessageStream_beginRequest).call(this);
+        this._connected(null);
+        const stream = Stream.fromReadableStream(readableStream, this.controller);
+        for await (const event of stream) {
+          __classPrivateFieldGet2(this, _BetaMessageStream_instances, "m", _BetaMessageStream_addStreamEvent).call(this, event);
+        }
+        if ((_a2 = stream.controller.signal) == null ? void 0 : _a2.aborted) {
+          throw new APIUserAbortError();
+        }
+        __classPrivateFieldGet2(this, _BetaMessageStream_instances, "m", _BetaMessageStream_endRequest).call(this);
+      }
+      [(_BetaMessageStream_currentMessageSnapshot = /* @__PURE__ */ new WeakMap(), _BetaMessageStream_connectedPromise = /* @__PURE__ */ new WeakMap(), _BetaMessageStream_resolveConnectedPromise = /* @__PURE__ */ new WeakMap(), _BetaMessageStream_rejectConnectedPromise = /* @__PURE__ */ new WeakMap(), _BetaMessageStream_endPromise = /* @__PURE__ */ new WeakMap(), _BetaMessageStream_resolveEndPromise = /* @__PURE__ */ new WeakMap(), _BetaMessageStream_rejectEndPromise = /* @__PURE__ */ new WeakMap(), _BetaMessageStream_listeners = /* @__PURE__ */ new WeakMap(), _BetaMessageStream_ended = /* @__PURE__ */ new WeakMap(), _BetaMessageStream_errored = /* @__PURE__ */ new WeakMap(), _BetaMessageStream_aborted = /* @__PURE__ */ new WeakMap(), _BetaMessageStream_catchingPromiseCreated = /* @__PURE__ */ new WeakMap(), _BetaMessageStream_response = /* @__PURE__ */ new WeakMap(), _BetaMessageStream_request_id = /* @__PURE__ */ new WeakMap(), _BetaMessageStream_handleError = /* @__PURE__ */ new WeakMap(), _BetaMessageStream_instances = /* @__PURE__ */ new WeakSet(), _BetaMessageStream_getFinalMessage = function _BetaMessageStream_getFinalMessage2() {
+        if (this.receivedMessages.length === 0) {
+          throw new AnthropicError("stream ended without producing a Message with role=assistant");
+        }
+        return this.receivedMessages.at(-1);
+      }, _BetaMessageStream_getFinalText = function _BetaMessageStream_getFinalText2() {
+        if (this.receivedMessages.length === 0) {
+          throw new AnthropicError("stream ended without producing a Message with role=assistant");
+        }
+        const textBlocks = this.receivedMessages.at(-1).content.filter((block) => block.type === "text").map((block) => block.text);
+        if (textBlocks.length === 0) {
+          throw new AnthropicError("stream ended without producing a content block with type=text");
+        }
+        return textBlocks.join(" ");
+      }, _BetaMessageStream_beginRequest = function _BetaMessageStream_beginRequest2() {
+        if (this.ended)
+          return;
+        __classPrivateFieldSet2(this, _BetaMessageStream_currentMessageSnapshot, void 0, "f");
+      }, _BetaMessageStream_addStreamEvent = function _BetaMessageStream_addStreamEvent2(event) {
+        var _a2;
+        if (this.ended)
+          return;
+        const messageSnapshot = __classPrivateFieldGet2(this, _BetaMessageStream_instances, "m", _BetaMessageStream_accumulateMessage).call(this, event);
+        this._emit("streamEvent", event, messageSnapshot);
+        switch (event.type) {
+          case "content_block_delta": {
+            const content = messageSnapshot.content.at(-1);
+            switch (event.delta.type) {
+              case "text_delta": {
+                if (content.type === "text") {
+                  this._emit("text", event.delta.text, content.text || "");
+                }
+                break;
               }
+              case "citations_delta": {
+                if (content.type === "text") {
+                  this._emit("citation", event.delta.citation, (_a2 = content.citations) != null ? _a2 : []);
+                }
+                break;
+              }
+              case "input_json_delta": {
+                if (content.type === "tool_use" && content.input) {
+                  this._emit("inputJson", event.delta.partial_json, content.input);
+                }
+                break;
+              }
+              default:
+                checkNever(event.delta);
             }
             break;
           }
-          default:
-            checkNever2(event.delta);
+          case "message_stop": {
+            this._addMessageParam(messageSnapshot);
+            this._addMessage(messageSnapshot, true);
+            break;
+          }
+          case "content_block_stop": {
+            this._emit("contentBlock", messageSnapshot.content.at(-1));
+            break;
+          }
+          case "message_start": {
+            __classPrivateFieldSet2(this, _BetaMessageStream_currentMessageSnapshot, messageSnapshot, "f");
+            break;
+          }
+          case "content_block_start":
+          case "message_delta":
+            break;
         }
+      }, _BetaMessageStream_endRequest = function _BetaMessageStream_endRequest2() {
+        if (this.ended) {
+          throw new AnthropicError(`stream has ended, this shouldn't happen`);
+        }
+        const snapshot = __classPrivateFieldGet2(this, _BetaMessageStream_currentMessageSnapshot, "f");
+        if (!snapshot) {
+          throw new AnthropicError(`request ended without sending any chunks`);
+        }
+        __classPrivateFieldSet2(this, _BetaMessageStream_currentMessageSnapshot, void 0, "f");
         return snapshot;
-      }
-      case "content_block_stop":
-        return snapshot;
-    }
-  }, Symbol.asyncIterator)]() {
-    const pushQueue = [];
-    const readQueue = [];
-    let done = false;
-    this.on("streamEvent", (event) => {
-      const reader = readQueue.shift();
-      if (reader) {
-        reader.resolve(event);
-      } else {
-        pushQueue.push(event);
-      }
-    });
-    this.on("end", () => {
-      done = true;
-      for (const reader of readQueue) {
-        reader.resolve(void 0);
-      }
-      readQueue.length = 0;
-    });
-    this.on("abort", (err) => {
-      done = true;
-      for (const reader of readQueue) {
-        reader.reject(err);
-      }
-      readQueue.length = 0;
-    });
-    this.on("error", (err) => {
-      done = true;
-      for (const reader of readQueue) {
-        reader.reject(err);
-      }
-      readQueue.length = 0;
-    });
-    return {
-      next: async () => {
-        if (!pushQueue.length) {
-          if (done) {
+      }, _BetaMessageStream_accumulateMessage = function _BetaMessageStream_accumulateMessage2(event) {
+        var _a2;
+        let snapshot = __classPrivateFieldGet2(this, _BetaMessageStream_currentMessageSnapshot, "f");
+        if (event.type === "message_start") {
+          if (snapshot) {
+            throw new AnthropicError(`Unexpected event order, got ${event.type} before receiving "message_stop"`);
+          }
+          return event.message;
+        }
+        if (!snapshot) {
+          throw new AnthropicError(`Unexpected event order, got ${event.type} before "message_start"`);
+        }
+        switch (event.type) {
+          case "message_stop":
+            return snapshot;
+          case "message_delta":
+            snapshot.stop_reason = event.delta.stop_reason;
+            snapshot.stop_sequence = event.delta.stop_sequence;
+            snapshot.usage.output_tokens = event.usage.output_tokens;
+            return snapshot;
+          case "content_block_start":
+            snapshot.content.push(event.content_block);
+            return snapshot;
+          case "content_block_delta": {
+            const snapshotContent = snapshot.content.at(event.index);
+            switch (event.delta.type) {
+              case "text_delta": {
+                if ((snapshotContent == null ? void 0 : snapshotContent.type) === "text") {
+                  snapshotContent.text += event.delta.text;
+                }
+                break;
+              }
+              case "citations_delta": {
+                if ((snapshotContent == null ? void 0 : snapshotContent.type) === "text") {
+                  (_a2 = snapshotContent.citations) != null ? _a2 : snapshotContent.citations = [];
+                  snapshotContent.citations.push(event.delta.citation);
+                }
+                break;
+              }
+              case "input_json_delta": {
+                if ((snapshotContent == null ? void 0 : snapshotContent.type) === "tool_use") {
+                  let jsonBuf = snapshotContent[JSON_BUF_PROPERTY] || "";
+                  jsonBuf += event.delta.partial_json;
+                  Object.defineProperty(snapshotContent, JSON_BUF_PROPERTY, {
+                    value: jsonBuf,
+                    enumerable: false,
+                    writable: true
+                  });
+                  if (jsonBuf) {
+                    snapshotContent.input = partialParse(jsonBuf);
+                  }
+                }
+                break;
+              }
+              default:
+                checkNever(event.delta);
+            }
+            return snapshot;
+          }
+          case "content_block_stop":
+            return snapshot;
+        }
+      }, Symbol.asyncIterator)]() {
+        const pushQueue = [];
+        const readQueue = [];
+        let done = false;
+        this.on("streamEvent", (event) => {
+          const reader = readQueue.shift();
+          if (reader) {
+            reader.resolve(event);
+          } else {
+            pushQueue.push(event);
+          }
+        });
+        this.on("end", () => {
+          done = true;
+          for (const reader of readQueue) {
+            reader.resolve(void 0);
+          }
+          readQueue.length = 0;
+        });
+        this.on("abort", (err) => {
+          done = true;
+          for (const reader of readQueue) {
+            reader.reject(err);
+          }
+          readQueue.length = 0;
+        });
+        this.on("error", (err) => {
+          done = true;
+          for (const reader of readQueue) {
+            reader.reject(err);
+          }
+          readQueue.length = 0;
+        });
+        return {
+          next: async () => {
+            if (!pushQueue.length) {
+              if (done) {
+                return { value: void 0, done: true };
+              }
+              return new Promise((resolve, reject) => readQueue.push({ resolve, reject })).then((chunk2) => chunk2 ? { value: chunk2, done: false } : { value: void 0, done: true });
+            }
+            const chunk = pushQueue.shift();
+            return { value: chunk, done: false };
+          },
+          return: async () => {
+            this.abort();
             return { value: void 0, done: true };
           }
-          return new Promise((resolve, reject) => readQueue.push({ resolve, reject })).then((chunk2) => chunk2 ? { value: chunk2, done: false } : { value: void 0, done: true });
-        }
-        const chunk = pushQueue.shift();
-        return { value: chunk, done: false };
-      },
-      return: async () => {
-        this.abort();
-        return { value: void 0, done: true };
+        };
+      }
+      toReadableStream() {
+        const stream = new Stream(this[Symbol.asyncIterator].bind(this), this.controller);
+        return stream.toReadableStream();
       }
     };
   }
-  toReadableStream() {
-    const stream = new Stream(this[Symbol.asyncIterator].bind(this), this.controller);
-    return stream.toReadableStream();
+});
+
+// node_modules/@anthropic-ai/sdk/resources/beta/messages/messages.mjs
+var DEPRECATED_MODELS, Messages;
+var init_messages = __esm({
+  "node_modules/@anthropic-ai/sdk/resources/beta/messages/messages.mjs"() {
+    init_resource();
+    init_batches();
+    init_batches();
+    init_BetaMessageStream();
+    DEPRECATED_MODELS = {
+      "claude-1.3": "November 6th, 2024",
+      "claude-1.3-100k": "November 6th, 2024",
+      "claude-instant-1.1": "November 6th, 2024",
+      "claude-instant-1.1-100k": "November 6th, 2024",
+      "claude-instant-1.2": "November 6th, 2024",
+      "claude-3-sonnet-20240229": "July 21st, 2025",
+      "claude-2.1": "July 21st, 2025",
+      "claude-2.0": "July 21st, 2025"
+    };
+    Messages = class extends APIResource {
+      constructor() {
+        super(...arguments);
+        this.batches = new Batches(this._client);
+      }
+      create(params, options) {
+        var _a2, _b;
+        const { betas, ...body } = params;
+        if (body.model in DEPRECATED_MODELS) {
+          console.warn(`The model '${body.model}' is deprecated and will reach end-of-life on ${DEPRECATED_MODELS[body.model]}
+Please migrate to a newer model. Visit https://docs.anthropic.com/en/docs/resources/model-deprecations for more information.`);
+        }
+        return this._client.post("/v1/messages?beta=true", {
+          body,
+          timeout: (_a2 = this._client._options.timeout) != null ? _a2 : 6e5,
+          ...options,
+          headers: {
+            ...(betas == null ? void 0 : betas.toString()) != null ? { "anthropic-beta": betas == null ? void 0 : betas.toString() } : void 0,
+            ...options == null ? void 0 : options.headers
+          },
+          stream: (_b = params.stream) != null ? _b : false
+        });
+      }
+      /**
+       * Create a Message stream
+       */
+      stream(body, options) {
+        return BetaMessageStream.createMessage(this, body, options);
+      }
+      /**
+       * Count the number of tokens in a Message.
+       *
+       * The Token Count API can be used to count the number of tokens in a Message,
+       * including tools, images, and documents, without creating it.
+       */
+      countTokens(params, options) {
+        const { betas, ...body } = params;
+        return this._client.post("/v1/messages/count_tokens?beta=true", {
+          body,
+          ...options,
+          headers: {
+            "anthropic-beta": [...betas != null ? betas : [], "token-counting-2024-11-01"].toString(),
+            ...options == null ? void 0 : options.headers
+          }
+        });
+      }
+    };
+    Messages.Batches = Batches;
+    Messages.BetaMessageBatchesPage = BetaMessageBatchesPage;
   }
-};
+});
+
+// node_modules/@anthropic-ai/sdk/resources/beta/beta.mjs
+var Beta;
+var init_beta = __esm({
+  "node_modules/@anthropic-ai/sdk/resources/beta/beta.mjs"() {
+    init_resource();
+    init_models();
+    init_models();
+    init_messages();
+    init_messages();
+    Beta = class extends APIResource {
+      constructor() {
+        super(...arguments);
+        this.models = new Models(this._client);
+        this.messages = new Messages(this._client);
+      }
+    };
+    Beta.Models = Models;
+    Beta.BetaModelInfosPage = BetaModelInfosPage;
+    Beta.Messages = Messages;
+  }
+});
+
+// node_modules/@anthropic-ai/sdk/resources/completions.mjs
+var Completions;
+var init_completions = __esm({
+  "node_modules/@anthropic-ai/sdk/resources/completions.mjs"() {
+    init_resource();
+    Completions = class extends APIResource {
+      create(body, options) {
+        var _a2, _b;
+        return this._client.post("/v1/complete", {
+          body,
+          timeout: (_a2 = this._client._options.timeout) != null ? _a2 : 6e5,
+          ...options,
+          stream: (_b = body.stream) != null ? _b : false
+        });
+      }
+    };
+  }
+});
+
+// node_modules/@anthropic-ai/sdk/resources/messages/batches.mjs
+var Batches2, MessageBatchesPage;
+var init_batches2 = __esm({
+  "node_modules/@anthropic-ai/sdk/resources/messages/batches.mjs"() {
+    init_resource();
+    init_core();
+    init_pagination();
+    init_jsonl();
+    init_error();
+    Batches2 = class extends APIResource {
+      /**
+       * Send a batch of Message creation requests.
+       *
+       * The Message Batches API can be used to process multiple Messages API requests at
+       * once. Once a Message Batch is created, it begins processing immediately. Batches
+       * can take up to 24 hours to complete.
+       */
+      create(body, options) {
+        return this._client.post("/v1/messages/batches", { body, ...options });
+      }
+      /**
+       * This endpoint is idempotent and can be used to poll for Message Batch
+       * completion. To access the results of a Message Batch, make a request to the
+       * `results_url` field in the response.
+       */
+      retrieve(messageBatchId, options) {
+        return this._client.get(`/v1/messages/batches/${messageBatchId}`, options);
+      }
+      list(query = {}, options) {
+        if (isRequestOptions(query)) {
+          return this.list({}, query);
+        }
+        return this._client.getAPIList("/v1/messages/batches", MessageBatchesPage, { query, ...options });
+      }
+      /**
+       * Delete a Message Batch.
+       *
+       * Message Batches can only be deleted once they've finished processing. If you'd
+       * like to delete an in-progress batch, you must first cancel it.
+       */
+      delete(messageBatchId, options) {
+        return this._client.delete(`/v1/messages/batches/${messageBatchId}`, options);
+      }
+      /**
+       * Batches may be canceled any time before processing ends. Once cancellation is
+       * initiated, the batch enters a `canceling` state, at which time the system may
+       * complete any in-progress, non-interruptible requests before finalizing
+       * cancellation.
+       *
+       * The number of canceled requests is specified in `request_counts`. To determine
+       * which requests were canceled, check the individual results within the batch.
+       * Note that cancellation may not result in any canceled requests if they were
+       * non-interruptible.
+       */
+      cancel(messageBatchId, options) {
+        return this._client.post(`/v1/messages/batches/${messageBatchId}/cancel`, options);
+      }
+      /**
+       * Streams the results of a Message Batch as a `.jsonl` file.
+       *
+       * Each line in the file is a JSON object containing the result of a single request
+       * in the Message Batch. Results are not guaranteed to be in the same order as
+       * requests. Use the `custom_id` field to match results to requests.
+       */
+      async results(messageBatchId, options) {
+        const batch = await this.retrieve(messageBatchId);
+        if (!batch.results_url) {
+          throw new AnthropicError(`No batch \`results_url\`; Has it finished processing? ${batch.processing_status} - ${batch.id}`);
+        }
+        return this._client.get(batch.results_url, {
+          ...options,
+          headers: {
+            Accept: "application/binary",
+            ...options == null ? void 0 : options.headers
+          },
+          __binaryResponse: true
+        })._thenUnwrap((_, props) => JSONLDecoder.fromResponse(props.response, props.controller));
+      }
+    };
+    MessageBatchesPage = class extends Page {
+    };
+    Batches2.MessageBatchesPage = MessageBatchesPage;
+  }
+});
+
+// node_modules/@anthropic-ai/sdk/lib/MessageStream.mjs
 function checkNever2(x) {
 }
+var __classPrivateFieldSet3, __classPrivateFieldGet3, _MessageStream_instances, _MessageStream_currentMessageSnapshot, _MessageStream_connectedPromise, _MessageStream_resolveConnectedPromise, _MessageStream_rejectConnectedPromise, _MessageStream_endPromise, _MessageStream_resolveEndPromise, _MessageStream_rejectEndPromise, _MessageStream_listeners, _MessageStream_ended, _MessageStream_errored, _MessageStream_aborted, _MessageStream_catchingPromiseCreated, _MessageStream_response, _MessageStream_request_id, _MessageStream_getFinalMessage, _MessageStream_getFinalText, _MessageStream_handleError, _MessageStream_beginRequest, _MessageStream_addStreamEvent, _MessageStream_endRequest, _MessageStream_accumulateMessage, JSON_BUF_PROPERTY2, MessageStream;
+var init_MessageStream = __esm({
+  "node_modules/@anthropic-ai/sdk/lib/MessageStream.mjs"() {
+    init_error();
+    init_streaming();
+    init_parser();
+    __classPrivateFieldSet3 = function(receiver, state, value, kind2, f) {
+      if (kind2 === "m") throw new TypeError("Private method is not writable");
+      if (kind2 === "a" && !f) throw new TypeError("Private accessor was defined without a setter");
+      if (typeof state === "function" ? receiver !== state || !f : !state.has(receiver)) throw new TypeError("Cannot write private member to an object whose class did not declare it");
+      return kind2 === "a" ? f.call(receiver, value) : f ? f.value = value : state.set(receiver, value), value;
+    };
+    __classPrivateFieldGet3 = function(receiver, state, kind2, f) {
+      if (kind2 === "a" && !f) throw new TypeError("Private accessor was defined without a getter");
+      if (typeof state === "function" ? receiver !== state || !f : !state.has(receiver)) throw new TypeError("Cannot read private member from an object whose class did not declare it");
+      return kind2 === "m" ? f : kind2 === "a" ? f.call(receiver) : f ? f.value : state.get(receiver);
+    };
+    JSON_BUF_PROPERTY2 = "__json_buf";
+    MessageStream = class _MessageStream {
+      constructor() {
+        _MessageStream_instances.add(this);
+        this.messages = [];
+        this.receivedMessages = [];
+        _MessageStream_currentMessageSnapshot.set(this, void 0);
+        this.controller = new AbortController();
+        _MessageStream_connectedPromise.set(this, void 0);
+        _MessageStream_resolveConnectedPromise.set(this, () => {
+        });
+        _MessageStream_rejectConnectedPromise.set(this, () => {
+        });
+        _MessageStream_endPromise.set(this, void 0);
+        _MessageStream_resolveEndPromise.set(this, () => {
+        });
+        _MessageStream_rejectEndPromise.set(this, () => {
+        });
+        _MessageStream_listeners.set(this, {});
+        _MessageStream_ended.set(this, false);
+        _MessageStream_errored.set(this, false);
+        _MessageStream_aborted.set(this, false);
+        _MessageStream_catchingPromiseCreated.set(this, false);
+        _MessageStream_response.set(this, void 0);
+        _MessageStream_request_id.set(this, void 0);
+        _MessageStream_handleError.set(this, (error) => {
+          __classPrivateFieldSet3(this, _MessageStream_errored, true, "f");
+          if (error instanceof Error && error.name === "AbortError") {
+            error = new APIUserAbortError();
+          }
+          if (error instanceof APIUserAbortError) {
+            __classPrivateFieldSet3(this, _MessageStream_aborted, true, "f");
+            return this._emit("abort", error);
+          }
+          if (error instanceof AnthropicError) {
+            return this._emit("error", error);
+          }
+          if (error instanceof Error) {
+            const anthropicError = new AnthropicError(error.message);
+            anthropicError.cause = error;
+            return this._emit("error", anthropicError);
+          }
+          return this._emit("error", new AnthropicError(String(error)));
+        });
+        __classPrivateFieldSet3(this, _MessageStream_connectedPromise, new Promise((resolve, reject) => {
+          __classPrivateFieldSet3(this, _MessageStream_resolveConnectedPromise, resolve, "f");
+          __classPrivateFieldSet3(this, _MessageStream_rejectConnectedPromise, reject, "f");
+        }), "f");
+        __classPrivateFieldSet3(this, _MessageStream_endPromise, new Promise((resolve, reject) => {
+          __classPrivateFieldSet3(this, _MessageStream_resolveEndPromise, resolve, "f");
+          __classPrivateFieldSet3(this, _MessageStream_rejectEndPromise, reject, "f");
+        }), "f");
+        __classPrivateFieldGet3(this, _MessageStream_connectedPromise, "f").catch(() => {
+        });
+        __classPrivateFieldGet3(this, _MessageStream_endPromise, "f").catch(() => {
+        });
+      }
+      get response() {
+        return __classPrivateFieldGet3(this, _MessageStream_response, "f");
+      }
+      get request_id() {
+        return __classPrivateFieldGet3(this, _MessageStream_request_id, "f");
+      }
+      /**
+       * Returns the `MessageStream` data, the raw `Response` instance and the ID of the request,
+       * returned vie the `request-id` header which is useful for debugging requests and resporting
+       * issues to Anthropic.
+       *
+       * This is the same as the `APIPromise.withResponse()` method.
+       *
+       * This method will raise an error if you created the stream using `MessageStream.fromReadableStream`
+       * as no `Response` is available.
+       */
+      async withResponse() {
+        const response = await __classPrivateFieldGet3(this, _MessageStream_connectedPromise, "f");
+        if (!response) {
+          throw new Error("Could not resolve a `Response` object");
+        }
+        return {
+          data: this,
+          response,
+          request_id: response.headers.get("request-id")
+        };
+      }
+      /**
+       * Intended for use on the frontend, consuming a stream produced with
+       * `.toReadableStream()` on the backend.
+       *
+       * Note that messages sent to the model do not appear in `.on('message')`
+       * in this context.
+       */
+      static fromReadableStream(stream) {
+        const runner = new _MessageStream();
+        runner._run(() => runner._fromReadableStream(stream));
+        return runner;
+      }
+      static createMessage(messages, params, options) {
+        const runner = new _MessageStream();
+        for (const message of params.messages) {
+          runner._addMessageParam(message);
+        }
+        runner._run(() => runner._createMessage(messages, { ...params, stream: true }, { ...options, headers: { ...options == null ? void 0 : options.headers, "X-Stainless-Helper-Method": "stream" } }));
+        return runner;
+      }
+      _run(executor) {
+        executor().then(() => {
+          this._emitFinal();
+          this._emit("end");
+        }, __classPrivateFieldGet3(this, _MessageStream_handleError, "f"));
+      }
+      _addMessageParam(message) {
+        this.messages.push(message);
+      }
+      _addMessage(message, emit = true) {
+        this.receivedMessages.push(message);
+        if (emit) {
+          this._emit("message", message);
+        }
+      }
+      async _createMessage(messages, params, options) {
+        var _a2;
+        const signal = options == null ? void 0 : options.signal;
+        if (signal) {
+          if (signal.aborted)
+            this.controller.abort();
+          signal.addEventListener("abort", () => this.controller.abort());
+        }
+        __classPrivateFieldGet3(this, _MessageStream_instances, "m", _MessageStream_beginRequest).call(this);
+        const { response, data: stream } = await messages.create({ ...params, stream: true }, { ...options, signal: this.controller.signal }).withResponse();
+        this._connected(response);
+        for await (const event of stream) {
+          __classPrivateFieldGet3(this, _MessageStream_instances, "m", _MessageStream_addStreamEvent).call(this, event);
+        }
+        if ((_a2 = stream.controller.signal) == null ? void 0 : _a2.aborted) {
+          throw new APIUserAbortError();
+        }
+        __classPrivateFieldGet3(this, _MessageStream_instances, "m", _MessageStream_endRequest).call(this);
+      }
+      _connected(response) {
+        if (this.ended)
+          return;
+        __classPrivateFieldSet3(this, _MessageStream_response, response, "f");
+        __classPrivateFieldSet3(this, _MessageStream_request_id, response == null ? void 0 : response.headers.get("request-id"), "f");
+        __classPrivateFieldGet3(this, _MessageStream_resolveConnectedPromise, "f").call(this, response);
+        this._emit("connect");
+      }
+      get ended() {
+        return __classPrivateFieldGet3(this, _MessageStream_ended, "f");
+      }
+      get errored() {
+        return __classPrivateFieldGet3(this, _MessageStream_errored, "f");
+      }
+      get aborted() {
+        return __classPrivateFieldGet3(this, _MessageStream_aborted, "f");
+      }
+      abort() {
+        this.controller.abort();
+      }
+      /**
+       * Adds the listener function to the end of the listeners array for the event.
+       * No checks are made to see if the listener has already been added. Multiple calls passing
+       * the same combination of event and listener will result in the listener being added, and
+       * called, multiple times.
+       * @returns this MessageStream, so that calls can be chained
+       */
+      on(event, listener) {
+        const listeners = __classPrivateFieldGet3(this, _MessageStream_listeners, "f")[event] || (__classPrivateFieldGet3(this, _MessageStream_listeners, "f")[event] = []);
+        listeners.push({ listener });
+        return this;
+      }
+      /**
+       * Removes the specified listener from the listener array for the event.
+       * off() will remove, at most, one instance of a listener from the listener array. If any single
+       * listener has been added multiple times to the listener array for the specified event, then
+       * off() must be called multiple times to remove each instance.
+       * @returns this MessageStream, so that calls can be chained
+       */
+      off(event, listener) {
+        const listeners = __classPrivateFieldGet3(this, _MessageStream_listeners, "f")[event];
+        if (!listeners)
+          return this;
+        const index = listeners.findIndex((l) => l.listener === listener);
+        if (index >= 0)
+          listeners.splice(index, 1);
+        return this;
+      }
+      /**
+       * Adds a one-time listener function for the event. The next time the event is triggered,
+       * this listener is removed and then invoked.
+       * @returns this MessageStream, so that calls can be chained
+       */
+      once(event, listener) {
+        const listeners = __classPrivateFieldGet3(this, _MessageStream_listeners, "f")[event] || (__classPrivateFieldGet3(this, _MessageStream_listeners, "f")[event] = []);
+        listeners.push({ listener, once: true });
+        return this;
+      }
+      /**
+       * This is similar to `.once()`, but returns a Promise that resolves the next time
+       * the event is triggered, instead of calling a listener callback.
+       * @returns a Promise that resolves the next time given event is triggered,
+       * or rejects if an error is emitted.  (If you request the 'error' event,
+       * returns a promise that resolves with the error).
+       *
+       * Example:
+       *
+       *   const message = await stream.emitted('message') // rejects if the stream errors
+       */
+      emitted(event) {
+        return new Promise((resolve, reject) => {
+          __classPrivateFieldSet3(this, _MessageStream_catchingPromiseCreated, true, "f");
+          if (event !== "error")
+            this.once("error", reject);
+          this.once(event, resolve);
+        });
+      }
+      async done() {
+        __classPrivateFieldSet3(this, _MessageStream_catchingPromiseCreated, true, "f");
+        await __classPrivateFieldGet3(this, _MessageStream_endPromise, "f");
+      }
+      get currentMessage() {
+        return __classPrivateFieldGet3(this, _MessageStream_currentMessageSnapshot, "f");
+      }
+      /**
+       * @returns a promise that resolves with the the final assistant Message response,
+       * or rejects if an error occurred or the stream ended prematurely without producing a Message.
+       */
+      async finalMessage() {
+        await this.done();
+        return __classPrivateFieldGet3(this, _MessageStream_instances, "m", _MessageStream_getFinalMessage).call(this);
+      }
+      /**
+       * @returns a promise that resolves with the the final assistant Message's text response, concatenated
+       * together if there are more than one text blocks.
+       * Rejects if an error occurred or the stream ended prematurely without producing a Message.
+       */
+      async finalText() {
+        await this.done();
+        return __classPrivateFieldGet3(this, _MessageStream_instances, "m", _MessageStream_getFinalText).call(this);
+      }
+      _emit(event, ...args) {
+        if (__classPrivateFieldGet3(this, _MessageStream_ended, "f"))
+          return;
+        if (event === "end") {
+          __classPrivateFieldSet3(this, _MessageStream_ended, true, "f");
+          __classPrivateFieldGet3(this, _MessageStream_resolveEndPromise, "f").call(this);
+        }
+        const listeners = __classPrivateFieldGet3(this, _MessageStream_listeners, "f")[event];
+        if (listeners) {
+          __classPrivateFieldGet3(this, _MessageStream_listeners, "f")[event] = listeners.filter((l) => !l.once);
+          listeners.forEach(({ listener }) => listener(...args));
+        }
+        if (event === "abort") {
+          const error = args[0];
+          if (!__classPrivateFieldGet3(this, _MessageStream_catchingPromiseCreated, "f") && !(listeners == null ? void 0 : listeners.length)) {
+            Promise.reject(error);
+          }
+          __classPrivateFieldGet3(this, _MessageStream_rejectConnectedPromise, "f").call(this, error);
+          __classPrivateFieldGet3(this, _MessageStream_rejectEndPromise, "f").call(this, error);
+          this._emit("end");
+          return;
+        }
+        if (event === "error") {
+          const error = args[0];
+          if (!__classPrivateFieldGet3(this, _MessageStream_catchingPromiseCreated, "f") && !(listeners == null ? void 0 : listeners.length)) {
+            Promise.reject(error);
+          }
+          __classPrivateFieldGet3(this, _MessageStream_rejectConnectedPromise, "f").call(this, error);
+          __classPrivateFieldGet3(this, _MessageStream_rejectEndPromise, "f").call(this, error);
+          this._emit("end");
+        }
+      }
+      _emitFinal() {
+        const finalMessage = this.receivedMessages.at(-1);
+        if (finalMessage) {
+          this._emit("finalMessage", __classPrivateFieldGet3(this, _MessageStream_instances, "m", _MessageStream_getFinalMessage).call(this));
+        }
+      }
+      async _fromReadableStream(readableStream, options) {
+        var _a2;
+        const signal = options == null ? void 0 : options.signal;
+        if (signal) {
+          if (signal.aborted)
+            this.controller.abort();
+          signal.addEventListener("abort", () => this.controller.abort());
+        }
+        __classPrivateFieldGet3(this, _MessageStream_instances, "m", _MessageStream_beginRequest).call(this);
+        this._connected(null);
+        const stream = Stream.fromReadableStream(readableStream, this.controller);
+        for await (const event of stream) {
+          __classPrivateFieldGet3(this, _MessageStream_instances, "m", _MessageStream_addStreamEvent).call(this, event);
+        }
+        if ((_a2 = stream.controller.signal) == null ? void 0 : _a2.aborted) {
+          throw new APIUserAbortError();
+        }
+        __classPrivateFieldGet3(this, _MessageStream_instances, "m", _MessageStream_endRequest).call(this);
+      }
+      [(_MessageStream_currentMessageSnapshot = /* @__PURE__ */ new WeakMap(), _MessageStream_connectedPromise = /* @__PURE__ */ new WeakMap(), _MessageStream_resolveConnectedPromise = /* @__PURE__ */ new WeakMap(), _MessageStream_rejectConnectedPromise = /* @__PURE__ */ new WeakMap(), _MessageStream_endPromise = /* @__PURE__ */ new WeakMap(), _MessageStream_resolveEndPromise = /* @__PURE__ */ new WeakMap(), _MessageStream_rejectEndPromise = /* @__PURE__ */ new WeakMap(), _MessageStream_listeners = /* @__PURE__ */ new WeakMap(), _MessageStream_ended = /* @__PURE__ */ new WeakMap(), _MessageStream_errored = /* @__PURE__ */ new WeakMap(), _MessageStream_aborted = /* @__PURE__ */ new WeakMap(), _MessageStream_catchingPromiseCreated = /* @__PURE__ */ new WeakMap(), _MessageStream_response = /* @__PURE__ */ new WeakMap(), _MessageStream_request_id = /* @__PURE__ */ new WeakMap(), _MessageStream_handleError = /* @__PURE__ */ new WeakMap(), _MessageStream_instances = /* @__PURE__ */ new WeakSet(), _MessageStream_getFinalMessage = function _MessageStream_getFinalMessage2() {
+        if (this.receivedMessages.length === 0) {
+          throw new AnthropicError("stream ended without producing a Message with role=assistant");
+        }
+        return this.receivedMessages.at(-1);
+      }, _MessageStream_getFinalText = function _MessageStream_getFinalText2() {
+        if (this.receivedMessages.length === 0) {
+          throw new AnthropicError("stream ended without producing a Message with role=assistant");
+        }
+        const textBlocks = this.receivedMessages.at(-1).content.filter((block) => block.type === "text").map((block) => block.text);
+        if (textBlocks.length === 0) {
+          throw new AnthropicError("stream ended without producing a content block with type=text");
+        }
+        return textBlocks.join(" ");
+      }, _MessageStream_beginRequest = function _MessageStream_beginRequest2() {
+        if (this.ended)
+          return;
+        __classPrivateFieldSet3(this, _MessageStream_currentMessageSnapshot, void 0, "f");
+      }, _MessageStream_addStreamEvent = function _MessageStream_addStreamEvent2(event) {
+        var _a2;
+        if (this.ended)
+          return;
+        const messageSnapshot = __classPrivateFieldGet3(this, _MessageStream_instances, "m", _MessageStream_accumulateMessage).call(this, event);
+        this._emit("streamEvent", event, messageSnapshot);
+        switch (event.type) {
+          case "content_block_delta": {
+            const content = messageSnapshot.content.at(-1);
+            switch (event.delta.type) {
+              case "text_delta": {
+                if (content.type === "text") {
+                  this._emit("text", event.delta.text, content.text || "");
+                }
+                break;
+              }
+              case "citations_delta": {
+                if (content.type === "text") {
+                  this._emit("citation", event.delta.citation, (_a2 = content.citations) != null ? _a2 : []);
+                }
+                break;
+              }
+              case "input_json_delta": {
+                if (content.type === "tool_use" && content.input) {
+                  this._emit("inputJson", event.delta.partial_json, content.input);
+                }
+                break;
+              }
+              default:
+                checkNever2(event.delta);
+            }
+            break;
+          }
+          case "message_stop": {
+            this._addMessageParam(messageSnapshot);
+            this._addMessage(messageSnapshot, true);
+            break;
+          }
+          case "content_block_stop": {
+            this._emit("contentBlock", messageSnapshot.content.at(-1));
+            break;
+          }
+          case "message_start": {
+            __classPrivateFieldSet3(this, _MessageStream_currentMessageSnapshot, messageSnapshot, "f");
+            break;
+          }
+          case "content_block_start":
+          case "message_delta":
+            break;
+        }
+      }, _MessageStream_endRequest = function _MessageStream_endRequest2() {
+        if (this.ended) {
+          throw new AnthropicError(`stream has ended, this shouldn't happen`);
+        }
+        const snapshot = __classPrivateFieldGet3(this, _MessageStream_currentMessageSnapshot, "f");
+        if (!snapshot) {
+          throw new AnthropicError(`request ended without sending any chunks`);
+        }
+        __classPrivateFieldSet3(this, _MessageStream_currentMessageSnapshot, void 0, "f");
+        return snapshot;
+      }, _MessageStream_accumulateMessage = function _MessageStream_accumulateMessage2(event) {
+        var _a2;
+        let snapshot = __classPrivateFieldGet3(this, _MessageStream_currentMessageSnapshot, "f");
+        if (event.type === "message_start") {
+          if (snapshot) {
+            throw new AnthropicError(`Unexpected event order, got ${event.type} before receiving "message_stop"`);
+          }
+          return event.message;
+        }
+        if (!snapshot) {
+          throw new AnthropicError(`Unexpected event order, got ${event.type} before "message_start"`);
+        }
+        switch (event.type) {
+          case "message_stop":
+            return snapshot;
+          case "message_delta":
+            snapshot.stop_reason = event.delta.stop_reason;
+            snapshot.stop_sequence = event.delta.stop_sequence;
+            snapshot.usage.output_tokens = event.usage.output_tokens;
+            return snapshot;
+          case "content_block_start":
+            snapshot.content.push(event.content_block);
+            return snapshot;
+          case "content_block_delta": {
+            const snapshotContent = snapshot.content.at(event.index);
+            switch (event.delta.type) {
+              case "text_delta": {
+                if ((snapshotContent == null ? void 0 : snapshotContent.type) === "text") {
+                  snapshotContent.text += event.delta.text;
+                }
+                break;
+              }
+              case "citations_delta": {
+                if ((snapshotContent == null ? void 0 : snapshotContent.type) === "text") {
+                  (_a2 = snapshotContent.citations) != null ? _a2 : snapshotContent.citations = [];
+                  snapshotContent.citations.push(event.delta.citation);
+                }
+                break;
+              }
+              case "input_json_delta": {
+                if ((snapshotContent == null ? void 0 : snapshotContent.type) === "tool_use") {
+                  let jsonBuf = snapshotContent[JSON_BUF_PROPERTY2] || "";
+                  jsonBuf += event.delta.partial_json;
+                  Object.defineProperty(snapshotContent, JSON_BUF_PROPERTY2, {
+                    value: jsonBuf,
+                    enumerable: false,
+                    writable: true
+                  });
+                  if (jsonBuf) {
+                    snapshotContent.input = partialParse(jsonBuf);
+                  }
+                }
+                break;
+              }
+              default:
+                checkNever2(event.delta);
+            }
+            return snapshot;
+          }
+          case "content_block_stop":
+            return snapshot;
+        }
+      }, Symbol.asyncIterator)]() {
+        const pushQueue = [];
+        const readQueue = [];
+        let done = false;
+        this.on("streamEvent", (event) => {
+          const reader = readQueue.shift();
+          if (reader) {
+            reader.resolve(event);
+          } else {
+            pushQueue.push(event);
+          }
+        });
+        this.on("end", () => {
+          done = true;
+          for (const reader of readQueue) {
+            reader.resolve(void 0);
+          }
+          readQueue.length = 0;
+        });
+        this.on("abort", (err) => {
+          done = true;
+          for (const reader of readQueue) {
+            reader.reject(err);
+          }
+          readQueue.length = 0;
+        });
+        this.on("error", (err) => {
+          done = true;
+          for (const reader of readQueue) {
+            reader.reject(err);
+          }
+          readQueue.length = 0;
+        });
+        return {
+          next: async () => {
+            if (!pushQueue.length) {
+              if (done) {
+                return { value: void 0, done: true };
+              }
+              return new Promise((resolve, reject) => readQueue.push({ resolve, reject })).then((chunk2) => chunk2 ? { value: chunk2, done: false } : { value: void 0, done: true });
+            }
+            const chunk = pushQueue.shift();
+            return { value: chunk, done: false };
+          },
+          return: async () => {
+            this.abort();
+            return { value: void 0, done: true };
+          }
+        };
+      }
+      toReadableStream() {
+        const stream = new Stream(this[Symbol.asyncIterator].bind(this), this.controller);
+        return stream.toReadableStream();
+      }
+    };
+  }
+});
 
 // node_modules/@anthropic-ai/sdk/resources/messages/messages.mjs
-var Messages2 = class extends APIResource {
-  constructor() {
-    super(...arguments);
-    this.batches = new Batches2(this._client);
-  }
-  create(body, options) {
-    var _a2, _b;
-    if (body.model in DEPRECATED_MODELS2) {
-      console.warn(`The model '${body.model}' is deprecated and will reach end-of-life on ${DEPRECATED_MODELS2[body.model]}
+var Messages2, DEPRECATED_MODELS2;
+var init_messages2 = __esm({
+  "node_modules/@anthropic-ai/sdk/resources/messages/messages.mjs"() {
+    init_resource();
+    init_batches2();
+    init_batches2();
+    init_MessageStream();
+    Messages2 = class extends APIResource {
+      constructor() {
+        super(...arguments);
+        this.batches = new Batches2(this._client);
+      }
+      create(body, options) {
+        var _a2, _b;
+        if (body.model in DEPRECATED_MODELS2) {
+          console.warn(`The model '${body.model}' is deprecated and will reach end-of-life on ${DEPRECATED_MODELS2[body.model]}
 Please migrate to a newer model. Visit https://docs.anthropic.com/en/docs/resources/model-deprecations for more information.`);
-    }
-    return this._client.post("/v1/messages", {
-      body,
-      timeout: (_a2 = this._client._options.timeout) != null ? _a2 : 6e5,
-      ...options,
-      stream: (_b = body.stream) != null ? _b : false
-    });
+        }
+        return this._client.post("/v1/messages", {
+          body,
+          timeout: (_a2 = this._client._options.timeout) != null ? _a2 : 6e5,
+          ...options,
+          stream: (_b = body.stream) != null ? _b : false
+        });
+      }
+      /**
+       * Create a Message stream
+       */
+      stream(body, options) {
+        return MessageStream.createMessage(this, body, options);
+      }
+      /**
+       * Count the number of tokens in a Message.
+       *
+       * The Token Count API can be used to count the number of tokens in a Message,
+       * including tools, images, and documents, without creating it.
+       */
+      countTokens(body, options) {
+        return this._client.post("/v1/messages/count_tokens", { body, ...options });
+      }
+    };
+    DEPRECATED_MODELS2 = {
+      "claude-1.3": "November 6th, 2024",
+      "claude-1.3-100k": "November 6th, 2024",
+      "claude-instant-1.1": "November 6th, 2024",
+      "claude-instant-1.1-100k": "November 6th, 2024",
+      "claude-instant-1.2": "November 6th, 2024",
+      "claude-3-sonnet-20240229": "July 21st, 2025",
+      "claude-2.1": "July 21st, 2025",
+      "claude-2.0": "July 21st, 2025"
+    };
+    Messages2.Batches = Batches2;
+    Messages2.MessageBatchesPage = MessageBatchesPage;
   }
-  /**
-   * Create a Message stream
-   */
-  stream(body, options) {
-    return MessageStream.createMessage(this, body, options);
-  }
-  /**
-   * Count the number of tokens in a Message.
-   *
-   * The Token Count API can be used to count the number of tokens in a Message,
-   * including tools, images, and documents, without creating it.
-   */
-  countTokens(body, options) {
-    return this._client.post("/v1/messages/count_tokens", { body, ...options });
-  }
-};
-var DEPRECATED_MODELS2 = {
-  "claude-1.3": "November 6th, 2024",
-  "claude-1.3-100k": "November 6th, 2024",
-  "claude-instant-1.1": "November 6th, 2024",
-  "claude-instant-1.1-100k": "November 6th, 2024",
-  "claude-instant-1.2": "November 6th, 2024",
-  "claude-3-sonnet-20240229": "July 21st, 2025",
-  "claude-2.1": "July 21st, 2025",
-  "claude-2.0": "July 21st, 2025"
-};
-Messages2.Batches = Batches2;
-Messages2.MessageBatchesPage = MessageBatchesPage;
+});
 
 // node_modules/@anthropic-ai/sdk/resources/models.mjs
-var Models2 = class extends APIResource {
-  /**
-   * Get a specific model.
-   *
-   * The Models API response can be used to determine information about a specific
-   * model or resolve a model alias to a model ID.
-   */
-  retrieve(modelId, options) {
-    return this._client.get(`/v1/models/${modelId}`, options);
+var Models2, ModelInfosPage;
+var init_models2 = __esm({
+  "node_modules/@anthropic-ai/sdk/resources/models.mjs"() {
+    init_resource();
+    init_core();
+    init_pagination();
+    Models2 = class extends APIResource {
+      /**
+       * Get a specific model.
+       *
+       * The Models API response can be used to determine information about a specific
+       * model or resolve a model alias to a model ID.
+       */
+      retrieve(modelId, options) {
+        return this._client.get(`/v1/models/${modelId}`, options);
+      }
+      list(query = {}, options) {
+        if (isRequestOptions(query)) {
+          return this.list({}, query);
+        }
+        return this._client.getAPIList("/v1/models", ModelInfosPage, { query, ...options });
+      }
+    };
+    ModelInfosPage = class extends Page {
+    };
+    Models2.ModelInfosPage = ModelInfosPage;
   }
-  list(query = {}, options) {
-    if (isRequestOptions(query)) {
-      return this.list({}, query);
-    }
-    return this._client.getAPIList("/v1/models", ModelInfosPage, { query, ...options });
+});
+
+// node_modules/@anthropic-ai/sdk/resources/index.mjs
+var init_resources = __esm({
+  "node_modules/@anthropic-ai/sdk/resources/index.mjs"() {
+    init_shared();
+    init_beta();
+    init_completions();
+    init_messages2();
+    init_models2();
   }
-};
-var ModelInfosPage = class extends Page {
-};
-Models2.ModelInfosPage = ModelInfosPage;
+});
 
 // node_modules/@anthropic-ai/sdk/index.mjs
-var _a;
-var Anthropic = class extends APIClient {
-  /**
-   * API Client for interfacing with the Anthropic API.
-   *
-   * @param {string | null | undefined} [opts.apiKey=process.env['ANTHROPIC_API_KEY'] ?? null]
-   * @param {string | null | undefined} [opts.authToken=process.env['ANTHROPIC_AUTH_TOKEN'] ?? null]
-   * @param {string} [opts.baseURL=process.env['ANTHROPIC_BASE_URL'] ?? https://api.anthropic.com] - Override the default base URL for the API.
-   * @param {number} [opts.timeout=10 minutes] - The maximum amount of time (in milliseconds) the client will wait for a response before timing out.
-   * @param {number} [opts.httpAgent] - An HTTP agent used to manage HTTP(s) connections.
-   * @param {Core.Fetch} [opts.fetch] - Specify a custom `fetch` function implementation.
-   * @param {number} [opts.maxRetries=2] - The maximum number of times the client will retry a request.
-   * @param {Core.Headers} opts.defaultHeaders - Default headers to include with every request to the API.
-   * @param {Core.DefaultQuery} opts.defaultQuery - Default query parameters to include with every request to the API.
-   * @param {boolean} [opts.dangerouslyAllowBrowser=false] - By default, client-side use of this library is not allowed, as it risks exposing your secret API credentials to attackers.
-   */
-  constructor({ baseURL = readEnv("ANTHROPIC_BASE_URL"), apiKey = ((_a2) => (_a2 = readEnv("ANTHROPIC_API_KEY")) != null ? _a2 : null)(), authToken = ((_b) => (_b = readEnv("ANTHROPIC_AUTH_TOKEN")) != null ? _b : null)(), ...opts } = {}) {
-    var _a3;
-    const options = {
-      apiKey,
-      authToken,
-      ...opts,
-      baseURL: baseURL || `https://api.anthropic.com`
+var _a, Anthropic, HUMAN_PROMPT, AI_PROMPT, sdk_default;
+var init_sdk = __esm({
+  "node_modules/@anthropic-ai/sdk/index.mjs"() {
+    init_core();
+    init_error();
+    init_uploads();
+    init_resources();
+    init_completions();
+    init_models2();
+    init_beta();
+    init_messages2();
+    Anthropic = class extends APIClient {
+      /**
+       * API Client for interfacing with the Anthropic API.
+       *
+       * @param {string | null | undefined} [opts.apiKey=process.env['ANTHROPIC_API_KEY'] ?? null]
+       * @param {string | null | undefined} [opts.authToken=process.env['ANTHROPIC_AUTH_TOKEN'] ?? null]
+       * @param {string} [opts.baseURL=process.env['ANTHROPIC_BASE_URL'] ?? https://api.anthropic.com] - Override the default base URL for the API.
+       * @param {number} [opts.timeout=10 minutes] - The maximum amount of time (in milliseconds) the client will wait for a response before timing out.
+       * @param {number} [opts.httpAgent] - An HTTP agent used to manage HTTP(s) connections.
+       * @param {Core.Fetch} [opts.fetch] - Specify a custom `fetch` function implementation.
+       * @param {number} [opts.maxRetries=2] - The maximum number of times the client will retry a request.
+       * @param {Core.Headers} opts.defaultHeaders - Default headers to include with every request to the API.
+       * @param {Core.DefaultQuery} opts.defaultQuery - Default query parameters to include with every request to the API.
+       * @param {boolean} [opts.dangerouslyAllowBrowser=false] - By default, client-side use of this library is not allowed, as it risks exposing your secret API credentials to attackers.
+       */
+      constructor({ baseURL = readEnv("ANTHROPIC_BASE_URL"), apiKey = ((_a2) => (_a2 = readEnv("ANTHROPIC_API_KEY")) != null ? _a2 : null)(), authToken = ((_b) => (_b = readEnv("ANTHROPIC_AUTH_TOKEN")) != null ? _b : null)(), ...opts } = {}) {
+        var _a3;
+        const options = {
+          apiKey,
+          authToken,
+          ...opts,
+          baseURL: baseURL || `https://api.anthropic.com`
+        };
+        if (!options.dangerouslyAllowBrowser && isRunningInBrowser()) {
+          throw new AnthropicError("It looks like you're running in a browser-like environment.\n\nThis is disabled by default, as it risks exposing your secret API credentials to attackers.\nIf you understand the risks and have appropriate mitigations in place,\nyou can set the `dangerouslyAllowBrowser` option to `true`, e.g.,\n\nnew Anthropic({ apiKey, dangerouslyAllowBrowser: true });\n");
+        }
+        super({
+          baseURL: options.baseURL,
+          timeout: (_a3 = options.timeout) != null ? _a3 : 6e5,
+          httpAgent: options.httpAgent,
+          maxRetries: options.maxRetries,
+          fetch: options.fetch
+        });
+        this.completions = new Completions(this);
+        this.messages = new Messages2(this);
+        this.models = new Models2(this);
+        this.beta = new Beta(this);
+        this._options = options;
+        this.apiKey = apiKey;
+        this.authToken = authToken;
+      }
+      defaultQuery() {
+        return this._options.defaultQuery;
+      }
+      defaultHeaders(opts) {
+        return {
+          ...super.defaultHeaders(opts),
+          ...this._options.dangerouslyAllowBrowser ? { "anthropic-dangerous-direct-browser-access": "true" } : void 0,
+          "anthropic-version": "2023-06-01",
+          ...this._options.defaultHeaders
+        };
+      }
+      validateHeaders(headers, customHeaders) {
+        if (this.apiKey && headers["x-api-key"]) {
+          return;
+        }
+        if (customHeaders["x-api-key"] === null) {
+          return;
+        }
+        if (this.authToken && headers["authorization"]) {
+          return;
+        }
+        if (customHeaders["authorization"] === null) {
+          return;
+        }
+        throw new Error('Could not resolve authentication method. Expected either apiKey or authToken to be set. Or for one of the "X-Api-Key" or "Authorization" headers to be explicitly omitted');
+      }
+      authHeaders(opts) {
+        const apiKeyAuth = this.apiKeyAuth(opts);
+        const bearerAuth = this.bearerAuth(opts);
+        if (apiKeyAuth != null && !isEmptyObj(apiKeyAuth)) {
+          return apiKeyAuth;
+        }
+        if (bearerAuth != null && !isEmptyObj(bearerAuth)) {
+          return bearerAuth;
+        }
+        return {};
+      }
+      apiKeyAuth(opts) {
+        if (this.apiKey == null) {
+          return {};
+        }
+        return { "X-Api-Key": this.apiKey };
+      }
+      bearerAuth(opts) {
+        if (this.authToken == null) {
+          return {};
+        }
+        return { Authorization: `Bearer ${this.authToken}` };
+      }
     };
-    if (!options.dangerouslyAllowBrowser && isRunningInBrowser()) {
-      throw new AnthropicError("It looks like you're running in a browser-like environment.\n\nThis is disabled by default, as it risks exposing your secret API credentials to attackers.\nIf you understand the risks and have appropriate mitigations in place,\nyou can set the `dangerouslyAllowBrowser` option to `true`, e.g.,\n\nnew Anthropic({ apiKey, dangerouslyAllowBrowser: true });\n");
-    }
-    super({
-      baseURL: options.baseURL,
-      timeout: (_a3 = options.timeout) != null ? _a3 : 6e5,
-      httpAgent: options.httpAgent,
-      maxRetries: options.maxRetries,
-      fetch: options.fetch
-    });
-    this.completions = new Completions(this);
-    this.messages = new Messages2(this);
-    this.models = new Models2(this);
-    this.beta = new Beta(this);
-    this._options = options;
-    this.apiKey = apiKey;
-    this.authToken = authToken;
+    _a = Anthropic;
+    Anthropic.Anthropic = _a;
+    Anthropic.HUMAN_PROMPT = "\n\nHuman:";
+    Anthropic.AI_PROMPT = "\n\nAssistant:";
+    Anthropic.DEFAULT_TIMEOUT = 6e5;
+    Anthropic.AnthropicError = AnthropicError;
+    Anthropic.APIError = APIError;
+    Anthropic.APIConnectionError = APIConnectionError;
+    Anthropic.APIConnectionTimeoutError = APIConnectionTimeoutError;
+    Anthropic.APIUserAbortError = APIUserAbortError;
+    Anthropic.NotFoundError = NotFoundError;
+    Anthropic.ConflictError = ConflictError;
+    Anthropic.RateLimitError = RateLimitError;
+    Anthropic.BadRequestError = BadRequestError;
+    Anthropic.AuthenticationError = AuthenticationError;
+    Anthropic.InternalServerError = InternalServerError;
+    Anthropic.PermissionDeniedError = PermissionDeniedError;
+    Anthropic.UnprocessableEntityError = UnprocessableEntityError;
+    Anthropic.toFile = toFile;
+    Anthropic.fileFromPath = fileFromPath;
+    Anthropic.Completions = Completions;
+    Anthropic.Messages = Messages2;
+    Anthropic.Models = Models2;
+    Anthropic.ModelInfosPage = ModelInfosPage;
+    Anthropic.Beta = Beta;
+    ({ HUMAN_PROMPT, AI_PROMPT } = Anthropic);
+    sdk_default = Anthropic;
   }
-  defaultQuery() {
-    return this._options.defaultQuery;
-  }
-  defaultHeaders(opts) {
-    return {
-      ...super.defaultHeaders(opts),
-      ...this._options.dangerouslyAllowBrowser ? { "anthropic-dangerous-direct-browser-access": "true" } : void 0,
-      "anthropic-version": "2023-06-01",
-      ...this._options.defaultHeaders
-    };
-  }
-  validateHeaders(headers, customHeaders) {
-    if (this.apiKey && headers["x-api-key"]) {
-      return;
-    }
-    if (customHeaders["x-api-key"] === null) {
-      return;
-    }
-    if (this.authToken && headers["authorization"]) {
-      return;
-    }
-    if (customHeaders["authorization"] === null) {
-      return;
-    }
-    throw new Error('Could not resolve authentication method. Expected either apiKey or authToken to be set. Or for one of the "X-Api-Key" or "Authorization" headers to be explicitly omitted');
-  }
-  authHeaders(opts) {
-    const apiKeyAuth = this.apiKeyAuth(opts);
-    const bearerAuth = this.bearerAuth(opts);
-    if (apiKeyAuth != null && !isEmptyObj(apiKeyAuth)) {
-      return apiKeyAuth;
-    }
-    if (bearerAuth != null && !isEmptyObj(bearerAuth)) {
-      return bearerAuth;
-    }
-    return {};
-  }
-  apiKeyAuth(opts) {
-    if (this.apiKey == null) {
-      return {};
-    }
-    return { "X-Api-Key": this.apiKey };
-  }
-  bearerAuth(opts) {
-    if (this.authToken == null) {
-      return {};
-    }
-    return { Authorization: `Bearer ${this.authToken}` };
-  }
-};
-_a = Anthropic;
-Anthropic.Anthropic = _a;
-Anthropic.HUMAN_PROMPT = "\n\nHuman:";
-Anthropic.AI_PROMPT = "\n\nAssistant:";
-Anthropic.DEFAULT_TIMEOUT = 6e5;
-Anthropic.AnthropicError = AnthropicError;
-Anthropic.APIError = APIError;
-Anthropic.APIConnectionError = APIConnectionError;
-Anthropic.APIConnectionTimeoutError = APIConnectionTimeoutError;
-Anthropic.APIUserAbortError = APIUserAbortError;
-Anthropic.NotFoundError = NotFoundError;
-Anthropic.ConflictError = ConflictError;
-Anthropic.RateLimitError = RateLimitError;
-Anthropic.BadRequestError = BadRequestError;
-Anthropic.AuthenticationError = AuthenticationError;
-Anthropic.InternalServerError = InternalServerError;
-Anthropic.PermissionDeniedError = PermissionDeniedError;
-Anthropic.UnprocessableEntityError = UnprocessableEntityError;
-Anthropic.toFile = toFile;
-Anthropic.fileFromPath = fileFromPath;
-Anthropic.Completions = Completions;
-Anthropic.Messages = Messages2;
-Anthropic.Models = Models2;
-Anthropic.ModelInfosPage = ModelInfosPage;
-Anthropic.Beta = Beta;
-var { HUMAN_PROMPT, AI_PROMPT } = Anthropic;
-var sdk_default = Anthropic;
+});
 
 // providers/anthropic.ts
-var MODEL_CONTEXT_WINDOWS = {
-  "claude-3-opus-20240229": 2e5,
-  "claude-3-sonnet-20240229": 2e5,
-  "claude-3-haiku-20240307": 2e5,
-  "claude-3-7-sonnet-20250219": 2e5,
-  "claude-3-5-sonnet-20241022": 2e5,
-  "claude-3-5-sonnet-20240620": 2e5,
-  "claude-3-5-haiku-20241022": 2e5
-};
-var MODEL_OUTPUT_TOKEN_LIMITS = {
-  "claude-3-7-sonnet-20250219": 64e3,
-  "claude-3-5-sonnet-20241022": 8192,
-  "claude-3-5-sonnet-20240620": 8192,
-  "claude-3-5-haiku-20241022": 8192,
-  "claude-3-opus-20240229": 4096,
-  "claude-3-sonnet-20240229": 8192,
-  // fallback for older sonnet
-  "claude-3-haiku-20240307": 4096
-  // fallback for older haiku
-};
 function estimateTokenCount(messages) {
   const CHARS_PER_TOKEN = 4;
   const totalChars = messages.reduce((total, msg) => {
@@ -3425,573 +3533,618 @@ function estimateTokenCount(messages) {
   }, 0);
   return Math.ceil(totalChars / CHARS_PER_TOKEN);
 }
-var AnthropicProvider = class extends BaseProvider {
-  constructor(apiKey, model = "claude-3-sonnet-20240229") {
-    super();
-    __publicField(this, "apiKey");
-    __publicField(this, "baseUrl", "https://api.anthropic.com/v1");
-    __publicField(this, "model");
-    __publicField(this, "client");
-    this.apiKey = apiKey;
-    this.model = model;
-    this.client = new sdk_default({
-      apiKey: this.apiKey,
-      dangerouslyAllowBrowser: true
-      // Required for browser environments
-    });
-  }
-  /**
-   * Get a completion from Anthropic
-   * 
-   * Sends the conversation to Anthropic and streams back the response
-   * using the official SDK's streaming support.
-   * 
-   * Automatically adjusts max_tokens if the request would exceed the model's context window.
-   * 
-   * @param messages - The conversation history
-   * @param options - Settings for this completion
-   */
-  async getCompletion(messages, options) {
-    var _a2, _b, _c, _d;
-    try {
-      const contextWindow = (_a2 = MODEL_CONTEXT_WINDOWS[this.model]) != null ? _a2 : 2e5;
-      const outputTokenLimit = MODEL_OUTPUT_TOKEN_LIMITS[this.model];
-      const inputTokens = estimateTokenCount(messages);
-      let maxTokens = (_b = options.maxTokens) != null ? _b : 1e3;
-      if (inputTokens + maxTokens > contextWindow) {
-        const adjustedMaxTokens = contextWindow - inputTokens;
-        if (adjustedMaxTokens <= 0) {
-          throw new ProviderError(
-            "invalid_request" /* InvalidRequest */,
-            `Input is too long for ${this.model}'s context window. Estimated input tokens: ${inputTokens}, context window: ${contextWindow}`
-          );
-        }
-        console.log(
-          `Adjusting max_tokens from ${maxTokens} to ${adjustedMaxTokens} to fit within ${this.model}'s context window`
-        );
-        maxTokens = adjustedMaxTokens;
+var MODEL_CONTEXT_WINDOWS, MODEL_OUTPUT_TOKEN_LIMITS, AnthropicProvider;
+var init_anthropic = __esm({
+  "providers/anthropic.ts"() {
+    init_base();
+    init_sdk();
+    MODEL_CONTEXT_WINDOWS = {
+      "claude-3-opus-20240229": 2e5,
+      "claude-3-sonnet-20240229": 2e5,
+      "claude-3-haiku-20240307": 2e5,
+      "claude-3-7-sonnet-20250219": 2e5,
+      "claude-3-5-sonnet-20241022": 2e5,
+      "claude-3-5-sonnet-20240620": 2e5,
+      "claude-3-5-haiku-20241022": 2e5
+    };
+    MODEL_OUTPUT_TOKEN_LIMITS = {
+      "claude-3-7-sonnet-20250219": 64e3,
+      "claude-3-5-sonnet-20241022": 8192,
+      "claude-3-5-sonnet-20240620": 8192,
+      "claude-3-5-haiku-20241022": 8192,
+      "claude-3-opus-20240229": 4096,
+      "claude-3-sonnet-20240229": 8192,
+      // fallback for older sonnet
+      "claude-3-haiku-20240307": 4096
+      // fallback for older haiku
+    };
+    AnthropicProvider = class extends BaseProvider {
+      constructor(apiKey, model = "claude-3-sonnet-20240229") {
+        super();
+        __publicField(this, "apiKey");
+        __publicField(this, "baseUrl", "https://api.anthropic.com/v1");
+        __publicField(this, "model");
+        __publicField(this, "client");
+        this.apiKey = apiKey;
+        this.model = model;
+        this.client = new sdk_default({
+          apiKey: this.apiKey,
+          dangerouslyAllowBrowser: true
+          // Required for browser environments
+        });
       }
-      if (outputTokenLimit && maxTokens > outputTokenLimit) {
-        console.log(
-          `Capping max_tokens from ${maxTokens} to model output limit ${outputTokenLimit} for ${this.model}`
-        );
-        maxTokens = outputTokenLimit;
-      }
-      const { systemPrompt, anthropicMessages } = this.formatMessages(messages);
-      const requestParams = {
-        model: this.model,
-        messages: anthropicMessages,
-        temperature: (_c = options.temperature) != null ? _c : 0.7,
-        max_tokens: maxTokens,
-        stream: true
-      };
-      if (systemPrompt) {
-        requestParams.system = systemPrompt;
-      }
-      const stream = await this.client.messages.create(requestParams);
-      try {
-        if (stream && typeof stream === "object") {
-          if (stream.on && typeof stream.on === "function") {
-            await new Promise((resolve, reject) => {
-              stream.on("content_block_delta", (chunk) => {
-                var _a3;
-                if (((_a3 = chunk.delta) == null ? void 0 : _a3.type) === "text_delta" && options.streamCallback) {
-                  options.streamCallback(chunk.delta.text);
+      /**
+       * Get a completion from Anthropic
+       * 
+       * Sends the conversation to Anthropic and streams back the response
+       * using the official SDK's streaming support.
+       * 
+       * Automatically adjusts max_tokens if the request would exceed the model's context window.
+       * 
+       * @param messages - The conversation history
+       * @param options - Settings for this completion
+       */
+      async getCompletion(messages, options) {
+        var _a2, _b, _c, _d;
+        try {
+          const contextWindow = (_a2 = MODEL_CONTEXT_WINDOWS[this.model]) != null ? _a2 : 2e5;
+          const outputTokenLimit = MODEL_OUTPUT_TOKEN_LIMITS[this.model];
+          const inputTokens = estimateTokenCount(messages);
+          let maxTokens = (_b = options.maxTokens) != null ? _b : 1e3;
+          if (inputTokens + maxTokens > contextWindow) {
+            const adjustedMaxTokens = contextWindow - inputTokens;
+            if (adjustedMaxTokens <= 0) {
+              throw new ProviderError(
+                "invalid_request" /* InvalidRequest */,
+                `Input is too long for ${this.model}'s context window. Estimated input tokens: ${inputTokens}, context window: ${contextWindow}`
+              );
+            }
+            console.log(
+              `Adjusting max_tokens from ${maxTokens} to ${adjustedMaxTokens} to fit within ${this.model}'s context window`
+            );
+            maxTokens = adjustedMaxTokens;
+          }
+          if (outputTokenLimit && maxTokens > outputTokenLimit) {
+            console.log(
+              `Capping max_tokens from ${maxTokens} to model output limit ${outputTokenLimit} for ${this.model}`
+            );
+            maxTokens = outputTokenLimit;
+          }
+          const { systemPrompt, anthropicMessages } = this.formatMessages(messages);
+          const requestParams = {
+            model: this.model,
+            messages: anthropicMessages,
+            temperature: (_c = options.temperature) != null ? _c : 0.7,
+            max_tokens: maxTokens,
+            stream: true
+          };
+          if (systemPrompt) {
+            requestParams.system = systemPrompt;
+          }
+          const stream = await this.client.messages.create(requestParams);
+          try {
+            if (stream && typeof stream === "object") {
+              if (stream.on && typeof stream.on === "function") {
+                await new Promise((resolve, reject) => {
+                  stream.on("content_block_delta", (chunk) => {
+                    var _a3;
+                    if (((_a3 = chunk.delta) == null ? void 0 : _a3.type) === "text_delta" && options.streamCallback) {
+                      options.streamCallback(chunk.delta.text);
+                    }
+                  });
+                  stream.on("end", resolve);
+                  stream.on("error", reject);
+                });
+              } else if (Symbol.asyncIterator in stream) {
+                for await (const chunk of stream) {
+                  if (chunk.type === "content_block_delta" && ((_d = chunk.delta) == null ? void 0 : _d.type) === "text_delta" && options.streamCallback) {
+                    options.streamCallback(chunk.delta.text);
+                  }
                 }
-              });
-              stream.on("end", resolve);
-              stream.on("error", reject);
-            });
-          } else if (Symbol.asyncIterator in stream) {
-            for await (const chunk of stream) {
-              if (chunk.type === "content_block_delta" && ((_d = chunk.delta) == null ? void 0 : _d.type) === "text_delta" && options.streamCallback) {
-                options.streamCallback(chunk.delta.text);
+              } else if (options.streamCallback) {
+                console.warn("Anthropic response is not a stream, handling as regular response");
+                if ("content" in stream && typeof stream.content === "string") {
+                  options.streamCallback(stream.content);
+                }
               }
             }
-          } else if (options.streamCallback) {
-            console.warn("Anthropic response is not a stream, handling as regular response");
-            if ("content" in stream && typeof stream.content === "string") {
-              options.streamCallback(stream.content);
-            }
+          } catch (streamError) {
+            console.error("Error processing Anthropic stream:", streamError);
+            throw streamError;
+          }
+        } catch (error) {
+          if (error instanceof ProviderError) {
+            throw error;
+          }
+          if (error.name === "AbortError") {
+            console.log("Anthropic stream was aborted");
+          } else {
+            console.error("Error calling Anthropic:", error);
+            throw error;
           }
         }
-      } catch (streamError) {
-        console.error("Error processing Anthropic stream:", streamError);
-        throw streamError;
       }
-    } catch (error) {
-      if (error instanceof ProviderError) {
-        throw error;
+      /**
+       * Get available Anthropic models
+       * 
+       * Returns the list of supported Claude models.
+       * Note: Anthropic doesn't have a models endpoint, so we return known models.
+       * This list is based on the models defined in MODEL_CONTEXT_WINDOWS.
+       * 
+       * @returns List of available model names
+       */
+      async getAvailableModels() {
+        try {
+          return Object.keys(MODEL_CONTEXT_WINDOWS);
+        } catch (error) {
+          console.error("Error getting Anthropic models:", error);
+          throw error;
+        }
       }
-      if (error.name === "AbortError") {
-        console.log("Anthropic stream was aborted");
-      } else {
-        console.error("Error calling Anthropic:", error);
-        throw error;
+      /**
+       * Format messages for Anthropic API
+       * 
+       * Converts from the plugin's Message format to Anthropic's expected format.
+       * Handles system messages specially as Anthropic has a different format.
+       * 
+       * @param messages - Array of messages to format
+       * @returns Formatted messages and system prompt for Anthropic API
+       */
+      formatMessages(messages) {
+        const systemMessages = messages.filter((msg) => msg.role === "system");
+        const nonSystemMessages = messages.filter((msg) => msg.role !== "system");
+        const systemPrompt = systemMessages.length > 0 ? systemMessages.map((msg) => msg.content).join("\n\n") : void 0;
+        const anthropicMessages = nonSystemMessages.map((msg) => {
+          const role = msg.role === "user" || msg.role === "assistant" ? msg.role : "user";
+          return { role, content: msg.content };
+        });
+        return { systemPrompt, anthropicMessages };
       }
-    }
+      /**
+       * Test connection to Anthropic
+       * 
+       * Verifies the API key works by attempting a simple completion.
+       * 
+       * @returns Test results including success/failure
+       */
+      async testConnection() {
+        try {
+          await this.client.messages.create({
+            model: this.model,
+            messages: [{ role: "user", content: "Hi" }],
+            max_tokens: 1
+          });
+          const models = await this.getAvailableModels();
+          return {
+            success: true,
+            message: "Successfully connected to Anthropic!",
+            models
+          };
+        } catch (error) {
+          return this.createErrorResponse(error);
+        }
+      }
+    };
   }
-  /**
-   * Get available Anthropic models
-   * 
-   * Returns the list of supported Claude models.
-   * Note: Anthropic doesn't have a models endpoint, so we return known models.
-   * This list is based on the models defined in MODEL_CONTEXT_WINDOWS.
-   * 
-   * @returns List of available model names
-   */
-  async getAvailableModels() {
-    try {
-      return Object.keys(MODEL_CONTEXT_WINDOWS);
-    } catch (error) {
-      console.error("Error getting Anthropic models:", error);
-      throw error;
-    }
-  }
-  /**
-   * Format messages for Anthropic API
-   * 
-   * Converts from the plugin's Message format to Anthropic's expected format.
-   * Handles system messages specially as Anthropic has a different format.
-   * 
-   * @param messages - Array of messages to format
-   * @returns Formatted messages and system prompt for Anthropic API
-   */
-  formatMessages(messages) {
-    const systemMessages = messages.filter((msg) => msg.role === "system");
-    const nonSystemMessages = messages.filter((msg) => msg.role !== "system");
-    const systemPrompt = systemMessages.length > 0 ? systemMessages.map((msg) => msg.content).join("\n\n") : void 0;
-    const anthropicMessages = nonSystemMessages.map((msg) => {
-      const role = msg.role === "user" || msg.role === "assistant" ? msg.role : "user";
-      return { role, content: msg.content };
-    });
-    return { systemPrompt, anthropicMessages };
-  }
-  /**
-   * Test connection to Anthropic
-   * 
-   * Verifies the API key works by attempting a simple completion.
-   * 
-   * @returns Test results including success/failure
-   */
-  async testConnection() {
-    try {
-      await this.client.messages.create({
-        model: this.model,
-        messages: [{ role: "user", content: "Hi" }],
-        max_tokens: 1
-      });
-      const models = await this.getAvailableModels();
-      return {
-        success: true,
-        message: "Successfully connected to Anthropic!",
-        models
-      };
-    } catch (error) {
-      return this.createErrorResponse(error);
-    }
-  }
-};
+});
 
 // providers/openai.ts
-var OpenAIProvider = class extends BaseProvider {
-  constructor(apiKey, model = "gpt-4") {
-    super();
-    __publicField(this, "apiKey");
-    __publicField(this, "baseUrl", "https://api.openai.com/v1");
-    __publicField(this, "model");
-    this.apiKey = apiKey;
-    this.model = model;
-  }
-  /**
-   * Get a completion from OpenAI
-   * 
-   * Sends the conversation to OpenAI and streams back the response.
-   * 
-   * @param messages - The conversation history
-   * @param options - Settings for this completion
-   */
-  async getCompletion(messages, options) {
-    var _a2, _b, _c, _d, _e, _f;
-    try {
-      const response = await fetch(`${this.baseUrl}/chat/completions`, {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${this.apiKey}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          model: this.model,
-          messages,
-          temperature: (_a2 = options.temperature) != null ? _a2 : 0.7,
-          max_tokens: (_b = options.maxTokens) != null ? _b : 1e3,
-          stream: true
-        }),
-        signal: (_c = options.abortController) == null ? void 0 : _c.signal
-      });
-      if (!response.ok) {
-        throw this.handleHttpError(response);
+var OpenAIProvider;
+var init_openai = __esm({
+  "providers/openai.ts"() {
+    init_base();
+    OpenAIProvider = class extends BaseProvider {
+      constructor(apiKey, model = "gpt-4") {
+        super();
+        __publicField(this, "apiKey");
+        __publicField(this, "baseUrl", "https://api.openai.com/v1");
+        __publicField(this, "model");
+        this.apiKey = apiKey;
+        this.model = model;
       }
-      const reader = (_d = response.body) == null ? void 0 : _d.getReader();
-      const decoder = new TextDecoder("utf-8");
-      let buffer = "";
-      while (true) {
-        const { done, value } = await (reader == null ? void 0 : reader.read()) || { done: true, value: void 0 };
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || "";
-        for (const line of lines) {
-          if (line.startsWith("data: ") && line !== "data: [DONE]") {
-            try {
-              const data = JSON.parse(line.slice(6));
-              const content = (_f = (_e = data.choices[0]) == null ? void 0 : _e.delta) == null ? void 0 : _f.content;
-              if (content && options.streamCallback) {
-                options.streamCallback(content);
+      /**
+       * Get a completion from OpenAI
+       * 
+       * Sends the conversation to OpenAI and streams back the response.
+       * 
+       * @param messages - The conversation history
+       * @param options - Settings for this completion
+       */
+      async getCompletion(messages, options) {
+        var _a2, _b, _c, _d, _e, _f;
+        try {
+          const response = await fetch(`${this.baseUrl}/chat/completions`, {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${this.apiKey}`,
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              model: this.model,
+              messages,
+              temperature: (_a2 = options.temperature) != null ? _a2 : 0.7,
+              max_tokens: (_b = options.maxTokens) != null ? _b : 1e3,
+              stream: true
+            }),
+            signal: (_c = options.abortController) == null ? void 0 : _c.signal
+          });
+          if (!response.ok) {
+            throw this.handleHttpError(response);
+          }
+          const reader = (_d = response.body) == null ? void 0 : _d.getReader();
+          const decoder = new TextDecoder("utf-8");
+          let buffer = "";
+          while (true) {
+            const { done, value } = await (reader == null ? void 0 : reader.read()) || { done: true, value: void 0 };
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split("\n");
+            buffer = lines.pop() || "";
+            for (const line of lines) {
+              if (line.startsWith("data: ") && line !== "data: [DONE]") {
+                try {
+                  const data = JSON.parse(line.slice(6));
+                  const content = (_f = (_e = data.choices[0]) == null ? void 0 : _e.delta) == null ? void 0 : _f.content;
+                  if (content && options.streamCallback) {
+                    options.streamCallback(content);
+                  }
+                } catch (e) {
+                  console.warn("Error parsing OpenAI response chunk:", e);
+                }
               }
-            } catch (e) {
-              console.warn("Error parsing OpenAI response chunk:", e);
             }
+          }
+        } catch (error) {
+          if (error instanceof ProviderError) {
+            throw error;
+          }
+          if (error.name === "AbortError") {
+            console.log("OpenAI stream was aborted");
+          } else {
+            console.error("Error calling OpenAI:", error);
+            throw error;
           }
         }
       }
-    } catch (error) {
-      if (error instanceof ProviderError) {
-        throw error;
-      }
-      if (error.name === "AbortError") {
-        console.log("OpenAI stream was aborted");
-      } else {
-        console.error("Error calling OpenAI:", error);
-        throw error;
-      }
-    }
-  }
-  /**
-   * Get available OpenAI models
-   * 
-   * Fetches the list of models from OpenAI's API.
-   * Filters to only include chat models (GPT-3.5, GPT-4, etc.)
-   * 
-   * @returns List of available model names
-   */
-  async getAvailableModels() {
-    try {
-      const response = await fetch(`${this.baseUrl}/models`, {
-        method: "GET",
-        headers: {
-          "Authorization": `Bearer ${this.apiKey}`,
-          "Content-Type": "application/json"
+      /**
+       * Get available OpenAI models
+       * 
+       * Fetches the list of models from OpenAI's API.
+       * Filters to only include chat models (GPT-3.5, GPT-4, etc.)
+       * 
+       * @returns List of available model names
+       */
+      async getAvailableModels() {
+        try {
+          const response = await fetch(`${this.baseUrl}/models`, {
+            method: "GET",
+            headers: {
+              "Authorization": `Bearer ${this.apiKey}`,
+              "Content-Type": "application/json"
+            }
+          });
+          if (!response.ok) {
+            throw this.handleHttpError(response);
+          }
+          const data = await response.json();
+          return data.data.map((model) => model.id).filter((id) => id.startsWith("gpt-"));
+        } catch (error) {
+          console.error("Error fetching OpenAI models:", error);
+          throw error;
         }
-      });
-      if (!response.ok) {
-        throw this.handleHttpError(response);
       }
-      const data = await response.json();
-      return data.data.map((model) => model.id).filter((id) => id.startsWith("gpt-"));
-    } catch (error) {
-      console.error("Error fetching OpenAI models:", error);
-      throw error;
-    }
+      /**
+       * Test connection to OpenAI
+       * 
+       * Verifies the API key works by attempting to list models.
+       * 
+       * @returns Test results including success/failure and available models
+       */
+      async testConnection() {
+        try {
+          const models = await this.getAvailableModels();
+          return {
+            success: true,
+            message: `Successfully connected to OpenAI! Found ${models.length} available models.`,
+            models
+          };
+        } catch (error) {
+          return this.createErrorResponse(error);
+        }
+      }
+    };
   }
-  /**
-   * Test connection to OpenAI
-   * 
-   * Verifies the API key works by attempting to list models.
-   * 
-   * @returns Test results including success/failure and available models
-   */
-  async testConnection() {
-    try {
-      const models = await this.getAvailableModels();
-      return {
-        success: true,
-        message: `Successfully connected to OpenAI! Found ${models.length} available models.`,
-        models
-      };
-    } catch (error) {
-      return this.createErrorResponse(error);
-    }
-  }
-};
+});
 
 // providers/gemini.ts
-var GeminiProvider = class extends BaseProvider {
-  constructor(apiKey, model = "gemini-pro") {
-    super();
-    __publicField(this, "apiKey");
-    __publicField(this, "baseUrl", "https://generativelanguage.googleapis.com/v1");
-    __publicField(this, "model");
-    this.apiKey = apiKey;
-    this.model = model;
-  }
-  /**
-   * Get a completion from Google Gemini
-   * 
-   * Sends the conversation to Gemini and streams back the response.
-   * 
-   * @param messages - The conversation history
-   * @param options - Settings for this completion
-   */
-  async getCompletion(messages, options) {
-    var _a2, _b, _c, _d, _e, _f, _g, _h;
-    try {
-      const formattedMessages = this.formatMessages(messages);
-      const url = `${this.baseUrl}/models/${this.model}:generateContent?key=${this.apiKey}`;
-      const response = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          contents: formattedMessages,
-          generationConfig: {
-            temperature: (_a2 = options.temperature) != null ? _a2 : 0.7,
-            maxOutputTokens: (_b = options.maxTokens) != null ? _b : 1e3
+var GeminiProvider;
+var init_gemini = __esm({
+  "providers/gemini.ts"() {
+    init_base();
+    GeminiProvider = class extends BaseProvider {
+      constructor(apiKey, model = "gemini-pro") {
+        super();
+        __publicField(this, "apiKey");
+        __publicField(this, "baseUrl", "https://generativelanguage.googleapis.com/v1");
+        __publicField(this, "model");
+        this.apiKey = apiKey;
+        this.model = model;
+      }
+      /**
+       * Get a completion from Google Gemini
+       * 
+       * Sends the conversation to Gemini and streams back the response.
+       * 
+       * @param messages - The conversation history
+       * @param options - Settings for this completion
+       */
+      async getCompletion(messages, options) {
+        var _a2, _b, _c, _d, _e, _f, _g, _h;
+        try {
+          const formattedMessages = this.formatMessages(messages);
+          const url = `${this.baseUrl}/models/${this.model}:generateContent?key=${this.apiKey}`;
+          const response = await fetch(url, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              contents: formattedMessages,
+              generationConfig: {
+                temperature: (_a2 = options.temperature) != null ? _a2 : 0.7,
+                maxOutputTokens: (_b = options.maxTokens) != null ? _b : 1e3
+              }
+            }),
+            signal: (_c = options.abortController) == null ? void 0 : _c.signal
+          });
+          if (!response.ok) {
+            throw this.handleHttpError(response);
           }
-        }),
-        signal: (_c = options.abortController) == null ? void 0 : _c.signal
-      });
-      if (!response.ok) {
-        throw this.handleHttpError(response);
-      }
-      const data = await response.json();
-      console.log("Gemini response:", JSON.stringify(data));
-      const text = (_h = (_g = (_f = (_e = (_d = data.candidates) == null ? void 0 : _d[0]) == null ? void 0 : _e.content) == null ? void 0 : _f.parts) == null ? void 0 : _g[0]) == null ? void 0 : _h.text;
-      if (text && options.streamCallback) {
-        options.streamCallback(text);
-      } else {
-        console.warn("No text found in Gemini response:", JSON.stringify(data));
-      }
-    } catch (error) {
-      if (error instanceof ProviderError) {
-        throw error;
-      }
-      if (error.name === "AbortError") {
-        console.log("Gemini request was aborted");
-      } else {
-        console.error("Error calling Gemini:", error);
-        throw error;
-      }
-    }
-  }
-  /**
-   * Get available Gemini models
-   * 
-   * Fetches the list of available models from Google's API.
-   * Filters to only include Gemini models.
-   * 
-   * @returns List of available model names
-   */
-  async getAvailableModels() {
-    try {
-      const response = await fetch(`${this.baseUrl}/models?key=${this.apiKey}`, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json"
+          const data = await response.json();
+          console.log("Gemini response:", JSON.stringify(data));
+          const text = (_h = (_g = (_f = (_e = (_d = data.candidates) == null ? void 0 : _d[0]) == null ? void 0 : _e.content) == null ? void 0 : _f.parts) == null ? void 0 : _g[0]) == null ? void 0 : _h.text;
+          if (text && options.streamCallback) {
+            options.streamCallback(text);
+          } else {
+            console.warn("No text found in Gemini response:", JSON.stringify(data));
+          }
+        } catch (error) {
+          if (error instanceof ProviderError) {
+            throw error;
+          }
+          if (error.name === "AbortError") {
+            console.log("Gemini request was aborted");
+          } else {
+            console.error("Error calling Gemini:", error);
+            throw error;
+          }
         }
-      });
-      if (!response.ok) {
-        throw this.handleHttpError(response);
       }
-      const data = await response.json();
-      return data.models.map((model) => model.name.split("/").pop()).filter((id) => id.startsWith("gemini-"));
-    } catch (error) {
-      console.error("Error fetching Gemini models:", error);
-      throw error;
-    }
+      /**
+       * Get available Gemini models
+       * 
+       * Fetches the list of available models from Google's API.
+       * Filters to only include Gemini models.
+       * 
+       * @returns List of available model names
+       */
+      async getAvailableModels() {
+        try {
+          const response = await fetch(`${this.baseUrl}/models?key=${this.apiKey}`, {
+            method: "GET",
+            headers: {
+              "Content-Type": "application/json"
+            }
+          });
+          if (!response.ok) {
+            throw this.handleHttpError(response);
+          }
+          const data = await response.json();
+          return data.models.map((model) => model.name.split("/").pop()).filter((id) => id.startsWith("gemini-"));
+        } catch (error) {
+          console.error("Error fetching Gemini models:", error);
+          throw error;
+        }
+      }
+      /**
+       * Test connection to Gemini
+       * 
+       * Verifies the API key works by attempting to list models.
+       * 
+       * @returns Test results including success/failure and available models
+       */
+      async testConnection() {
+        try {
+          const models = await this.getAvailableModels();
+          return {
+            success: true,
+            message: `Successfully connected to Google Gemini! Found ${models.length} available models.`,
+            models
+          };
+        } catch (error) {
+          return this.createErrorResponse(error);
+        }
+      }
+      /**
+       * Format messages for Gemini API
+       * 
+       * Converts from the plugin's Message format to Gemini's expected format.
+       * 
+       * @param messages - Array of messages to format
+       * @returns Formatted messages for Gemini API
+       */
+      formatMessages(messages) {
+        const geminiMessages = [];
+        const systemMessages = messages.filter((msg) => msg.role === "system");
+        const nonSystemMessages = messages.filter((msg) => msg.role !== "system");
+        for (const message of systemMessages) {
+          geminiMessages.push({
+            role: "user",
+            parts: [{ text: message.content }]
+          });
+        }
+        for (const message of nonSystemMessages) {
+          const role = message.role === "assistant" ? "model" : "user";
+          geminiMessages.push({
+            role,
+            parts: [{ text: message.content }]
+          });
+        }
+        return geminiMessages;
+      }
+    };
   }
-  /**
-   * Test connection to Gemini
-   * 
-   * Verifies the API key works by attempting to list models.
-   * 
-   * @returns Test results including success/failure and available models
-   */
-  async testConnection() {
-    try {
-      const models = await this.getAvailableModels();
-      return {
-        success: true,
-        message: `Successfully connected to Google Gemini! Found ${models.length} available models.`,
-        models
-      };
-    } catch (error) {
-      return this.createErrorResponse(error);
-    }
-  }
-  /**
-   * Format messages for Gemini API
-   * 
-   * Converts from the plugin's Message format to Gemini's expected format.
-   * 
-   * @param messages - Array of messages to format
-   * @returns Formatted messages for Gemini API
-   */
-  formatMessages(messages) {
-    const geminiMessages = [];
-    const systemMessages = messages.filter((msg) => msg.role === "system");
-    const nonSystemMessages = messages.filter((msg) => msg.role !== "system");
-    for (const message of systemMessages) {
-      geminiMessages.push({
-        role: "user",
-        parts: [{ text: message.content }]
-      });
-    }
-    for (const message of nonSystemMessages) {
-      const role = message.role === "assistant" ? "model" : "user";
-      geminiMessages.push({
-        role,
-        parts: [{ text: message.content }]
-      });
-    }
-    return geminiMessages;
-  }
-};
+});
 
 // providers/ollama.ts
-var OllamaProvider = class extends BaseProvider {
-  constructor(serverUrl = "http://localhost:11434", model = "llama2") {
-    super();
-    __publicField(this, "apiKey", "");
-    // Not used for Ollama
-    __publicField(this, "baseUrl");
-    __publicField(this, "model");
-    this.baseUrl = serverUrl.replace(/\/$/, "");
-    this.model = model;
-  }
-  /**
-   * Convert messages to Ollama format
-   * 
-   * @param messages - Standard message format
-   * @returns Prompt string in Ollama format
-   */
-  convertToOllamaFormat(messages) {
-    return messages.map((msg) => {
-      if (msg.role === "system") {
-        return `System: ${msg.content}
-
-`;
+var OllamaProvider;
+var init_ollama = __esm({
+  "providers/ollama.ts"() {
+    init_base();
+    OllamaProvider = class extends BaseProvider {
+      constructor(serverUrl = "http://localhost:11434", model = "llama2") {
+        super();
+        __publicField(this, "apiKey", "");
+        // Not used for Ollama
+        __publicField(this, "baseUrl");
+        __publicField(this, "model");
+        this.baseUrl = serverUrl.replace(/\/$/, "");
+        this.model = model;
       }
-      return `${msg.role === "user" ? "Human" : "Assistant"}: ${msg.content}
+      /**
+       * Convert messages to Ollama format
+       * 
+       * @param messages - Standard message format
+       * @returns Prompt string in Ollama format
+       */
+      convertToOllamaFormat(messages) {
+        return messages.map((msg) => {
+          if (msg.role === "system") {
+            return `System: ${msg.content}
 
 `;
-    }).join("") + "Assistant:";
-  }
-  /**
-   * Get a completion from Ollama
-   * 
-   * Sends the conversation to the local Ollama server and streams back the response.
-   * 
-   * @param messages - The conversation history
-   * @param options - Settings for this completion
-   */
-  async getCompletion(messages, options) {
-    var _a2, _b, _c, _d;
-    try {
-      const prompt = this.convertToOllamaFormat(messages);
-      const response = await fetch(`${this.baseUrl}/api/generate`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          model: this.model,
-          prompt,
-          stream: true,
-          options: {
-            temperature: (_a2 = options.temperature) != null ? _a2 : 0.7,
-            num_predict: (_b = options.maxTokens) != null ? _b : 1e3
           }
-        }),
-        signal: (_c = options.abortController) == null ? void 0 : _c.signal
-      });
-      if (!response.ok) {
-        throw this.handleHttpError(response);
+          return `${msg.role === "user" ? "Human" : "Assistant"}: ${msg.content}
+
+`;
+        }).join("") + "Assistant:";
       }
-      const reader = (_d = response.body) == null ? void 0 : _d.getReader();
-      const decoder = new TextDecoder("utf-8");
-      let buffer = "";
-      while (true) {
-        const { done, value } = await (reader == null ? void 0 : reader.read()) || { done: true, value: void 0 };
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || "";
-        for (const line of lines) {
-          if (line.trim()) {
-            try {
-              const data = JSON.parse(line);
-              if (data.response && options.streamCallback) {
-                options.streamCallback(data.response);
+      /**
+       * Get a completion from Ollama
+       * 
+       * Sends the conversation to the local Ollama server and streams back the response.
+       * 
+       * @param messages - The conversation history
+       * @param options - Settings for this completion
+       */
+      async getCompletion(messages, options) {
+        var _a2, _b, _c, _d;
+        try {
+          const prompt = this.convertToOllamaFormat(messages);
+          const response = await fetch(`${this.baseUrl}/api/generate`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              model: this.model,
+              prompt,
+              stream: true,
+              options: {
+                temperature: (_a2 = options.temperature) != null ? _a2 : 0.7,
+                num_predict: (_b = options.maxTokens) != null ? _b : 1e3
               }
-            } catch (e) {
-              console.warn("Error parsing Ollama response chunk:", e);
+            }),
+            signal: (_c = options.abortController) == null ? void 0 : _c.signal
+          });
+          if (!response.ok) {
+            throw this.handleHttpError(response);
+          }
+          const reader = (_d = response.body) == null ? void 0 : _d.getReader();
+          const decoder = new TextDecoder("utf-8");
+          let buffer = "";
+          while (true) {
+            const { done, value } = await (reader == null ? void 0 : reader.read()) || { done: true, value: void 0 };
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split("\n");
+            buffer = lines.pop() || "";
+            for (const line of lines) {
+              if (line.trim()) {
+                try {
+                  const data = JSON.parse(line);
+                  if (data.response && options.streamCallback) {
+                    options.streamCallback(data.response);
+                  }
+                } catch (e) {
+                  console.warn("Error parsing Ollama response chunk:", e);
+                }
+              }
             }
+          }
+        } catch (error) {
+          if (error instanceof ProviderError) {
+            throw error;
+          }
+          if (error.name === "AbortError") {
+            console.log("Ollama stream was aborted");
+          } else {
+            console.error("Error calling Ollama:", error);
+            throw error;
           }
         }
       }
-    } catch (error) {
-      if (error instanceof ProviderError) {
-        throw error;
+      /**
+       * Get available Ollama models
+       * 
+       * Fetches the list of models installed on the local Ollama server.
+       * 
+       * @returns List of available model names
+       */
+      async getAvailableModels() {
+        var _a2;
+        try {
+          const response = await fetch(`${this.baseUrl}/api/tags`);
+          if (!response.ok) {
+            throw this.handleHttpError(response);
+          }
+          const data = await response.json();
+          return ((_a2 = data.models) == null ? void 0 : _a2.map((model) => model.name)) || [];
+        } catch (error) {
+          console.error("Error fetching Ollama models:", error);
+          throw error;
+        }
       }
-      if (error.name === "AbortError") {
-        console.log("Ollama stream was aborted");
-      } else {
-        console.error("Error calling Ollama:", error);
-        throw error;
+      /**
+       * Test connection to Ollama
+       * 
+       * Verifies the Ollama server is running and accessible.
+       * Also checks if any models are installed.
+       * 
+       * @returns Test results including success/failure and available models
+       */
+      async testConnection() {
+        try {
+          const models = await this.getAvailableModels();
+          if (models.length === 0) {
+            return {
+              success: false,
+              message: 'Connected to Ollama server, but no models are installed. Use "ollama pull model-name" to install models.',
+              models: []
+            };
+          }
+          return {
+            success: true,
+            message: `Successfully connected to Ollama! Found ${models.length} installed models.`,
+            models
+          };
+        } catch (error) {
+          return this.createErrorResponse(error);
+        }
       }
-    }
+    };
   }
-  /**
-   * Get available Ollama models
-   * 
-   * Fetches the list of models installed on the local Ollama server.
-   * 
-   * @returns List of available model names
-   */
-  async getAvailableModels() {
-    var _a2;
-    try {
-      const response = await fetch(`${this.baseUrl}/api/tags`);
-      if (!response.ok) {
-        throw this.handleHttpError(response);
-      }
-      const data = await response.json();
-      return ((_a2 = data.models) == null ? void 0 : _a2.map((model) => model.name)) || [];
-    } catch (error) {
-      console.error("Error fetching Ollama models:", error);
-      throw error;
-    }
-  }
-  /**
-   * Test connection to Ollama
-   * 
-   * Verifies the Ollama server is running and accessible.
-   * Also checks if any models are installed.
-   * 
-   * @returns Test results including success/failure and available models
-   */
-  async testConnection() {
-    try {
-      const models = await this.getAvailableModels();
-      if (models.length === 0) {
-        return {
-          success: false,
-          message: 'Connected to Ollama server, but no models are installed. Use "ollama pull model-name" to install models.',
-          models: []
-        };
-      }
-      return {
-        success: true,
-        message: `Successfully connected to Ollama! Found ${models.length} installed models.`,
-        models
-      };
-    } catch (error) {
-      return this.createErrorResponse(error);
-    }
-  }
-};
+});
 
 // providers/index.ts
 function createProvider(settings) {
@@ -4020,6 +4173,254 @@ function createProvider(settings) {
       throw new Error(`Invalid provider type: ${settings.provider}`);
   }
 }
+var init_providers = __esm({
+  "providers/index.ts"() {
+    init_base();
+    init_anthropic();
+    init_openai();
+    init_gemini();
+    init_ollama();
+  }
+});
+
+// src/filechanger.ts
+var filechanger_exports = {};
+__export(filechanger_exports, {
+  generateNoteSummary: () => generateNoteSummary,
+  generateNoteTitle: () => generateNoteTitle
+});
+function generateTableOfContents(noteContent) {
+  const headerLines = noteContent.split("\n").filter((line) => /^#{1,6}\s+.+/.test(line));
+  if (headerLines.length === 0) return "";
+  return headerLines.map((line) => {
+    const match = line.match(/^(#{1,6})\s+(.+)/);
+    if (!match) return "";
+    const level = match[1].length;
+    const title = match[2].trim();
+    return `${"  ".repeat(level - 1)}- ${title}`;
+  }).join("\n");
+}
+async function generateNoteTitle(app, settings, processMessages2) {
+  var _a2, _b;
+  const activeFile = app.workspace.getActiveFile();
+  if (!activeFile) {
+    new import_obsidian5.Notice("No active note found.");
+    return;
+  }
+  let noteContent = await app.vault.cachedRead(activeFile);
+  noteContent = noteContent.slice(0, 15e3);
+  const toc = generateTableOfContents(noteContent);
+  let prompt = "You are a title generator. You will give succinct titles that does not contain backslashes, forward slashes, or colons. Only generate a title as your response for:\n\n";
+  if (toc && toc.trim().length > 0) {
+    prompt += "Table of Contents:\n" + toc + "\n\n";
+  }
+  prompt += noteContent;
+  try {
+    const provider = createProvider(settings);
+    const messages = [{ role: "system", content: prompt }];
+    const processedMessages = await processMessages2(messages);
+    const result = await provider.getCompletion(processedMessages, {
+      temperature: 0
+    });
+    let title = "";
+    if (typeof result === "string") {
+      title = result.trim();
+    } else if (result && typeof result === "object" && typeof result.content === "string") {
+      title = result.content.trim();
+    }
+    title = title.replace(/[\\/:]/g, "").trim();
+    if (title && typeof title === "string" && title.length > 0) {
+      const outputMode = (_a2 = settings.titleOutputMode) != null ? _a2 : "clipboard";
+      if (outputMode === "replace-filename") {
+        const file = app.workspace.getActiveFile();
+        if (file) {
+          const ext = file.extension ? "." + file.extension : "";
+          const sanitized = title;
+          const parentPath = file.parent ? file.parent.path : "";
+          const newPath = parentPath ? parentPath + "/" + sanitized + ext : sanitized + ext;
+          if (file.path !== newPath) {
+            await app.fileManager.renameFile(file, newPath);
+            new import_obsidian5.Notice(`Note renamed to: ${sanitized}${ext}`);
+          } else {
+            new import_obsidian5.Notice(`Note title is already: ${sanitized}${ext}`);
+          }
+        }
+      } else if (outputMode === "metadata") {
+        const file = app.workspace.getActiveFile();
+        if (file) {
+          let content = await app.vault.read(file);
+          if (/^---\n[\s\S]*?\n---/.test(content)) {
+            content = content.replace(
+              /^---\n([\s\S]*?)\n---/,
+              (match, yaml) => {
+                if (/^title:/m.test(yaml)) {
+                  return "---\n" + yaml.replace(/^title:.*$/m, `title: ${title}`) + "\n---";
+                } else {
+                  return `---
+title: ${title}
+` + yaml + "\n---";
+                }
+              }
+            );
+          } else {
+            content = `---
+title: ${title}
+---
+` + content;
+          }
+          await app.vault.modify(file, content);
+          new import_obsidian5.Notice(`Inserted title into metadata: ${title}`);
+        }
+      } else {
+        try {
+          await navigator.clipboard.writeText(title);
+          new import_obsidian5.Notice(`Generated title (copied): ${title}`);
+        } catch (e) {
+          new import_obsidian5.Notice(`Generated title: ${title}`);
+        }
+      }
+    } else {
+      new import_obsidian5.Notice("No title generated.");
+    }
+  } catch (err) {
+    new import_obsidian5.Notice("Error generating title: " + ((_b = err == null ? void 0 : err.message) != null ? _b : err));
+  }
+}
+async function generateNoteSummary(app, settings, processMessages2) {
+  var _a2, _b;
+  const activeFile = app.workspace.getActiveFile();
+  if (!activeFile) {
+    new import_obsidian5.Notice("No active note found.");
+    return;
+  }
+  let noteContent = await app.vault.cachedRead(activeFile);
+  noteContent = noteContent.slice(0, 15e3);
+  const toc = generateTableOfContents(noteContent);
+  let prompt = "You are a note summarizer. Read the note content and generate a concise summary (2\u20134 sentences) that captures the main ideas and purpose of the note. Do not include backslashes, forward slashes, or colons. Only output the summary as your response.\n\n";
+  if (toc && toc.trim().length > 0) {
+    prompt += "Table of Contents:\n" + toc + "\n\n";
+  }
+  prompt += noteContent;
+  try {
+    const provider = createProvider(settings);
+    const messages = [{ role: "system", content: prompt }];
+    const processedMessages = await processMessages2(messages);
+    const result = await provider.getCompletion(processedMessages, {
+      temperature: 0
+    });
+    let summary = "";
+    if (typeof result === "string") {
+      summary = result.trim();
+    } else if (result && typeof result === "object" && typeof result.content === "string") {
+      summary = result.content.trim();
+    }
+    summary = summary.replace(/[\\/:]/g, "").trim();
+    if (summary && typeof summary === "string" && summary.length > 0) {
+      const outputMode = (_a2 = settings.summaryOutputMode) != null ? _a2 : "clipboard";
+      if (outputMode === "metadata") {
+        const file = app.workspace.getActiveFile();
+        if (file) {
+          let content = await app.vault.read(file);
+          if (/^---\n[\s\S]*?\n---/.test(content)) {
+            content = content.replace(
+              /^---\n([\s\S]*?)\n---/,
+              (match, yaml) => {
+                if (/^summary:/m.test(yaml)) {
+                  return "---\n" + yaml.replace(/^summary:.*$/m, `summary: ${summary}`) + "\n---";
+                } else {
+                  return `---
+summary: ${summary}
+` + yaml + "\n---";
+                }
+              }
+            );
+          } else {
+            content = `---
+summary: ${summary}
+---
+` + content;
+          }
+          await app.vault.modify(file, content);
+          new import_obsidian5.Notice(`Inserted summary into metadata: ${summary}`);
+        }
+      } else {
+        try {
+          await navigator.clipboard.writeText(summary);
+          new import_obsidian5.Notice(`Generated summary (copied): ${summary}`);
+        } catch (e) {
+          new import_obsidian5.Notice(`Generated summary: ${summary}`);
+        }
+      }
+    } else {
+      new import_obsidian5.Notice("No summary generated.");
+    }
+  } catch (err) {
+    new import_obsidian5.Notice("Error generating summary: " + ((_b = err == null ? void 0 : err.message) != null ? _b : err));
+  }
+}
+var import_obsidian5;
+var init_filechanger = __esm({
+  "src/filechanger.ts"() {
+    import_obsidian5 = require("obsidian");
+    init_providers();
+  }
+});
+
+// src/main.ts
+var main_exports = {};
+__export(main_exports, {
+  default: () => MyPlugin
+});
+module.exports = __toCommonJS(main_exports);
+var import_obsidian6 = require("obsidian");
+
+// src/types.ts
+var DEFAULT_SETTINGS = {
+  referenceCurrentNote: false,
+  provider: "openai",
+  openaiSettings: {
+    apiKey: "",
+    model: "gpt-4o-mini",
+    availableModels: []
+  },
+  anthropicSettings: {
+    apiKey: "",
+    model: "claude-3-5-sonnet-latest",
+    availableModels: []
+  },
+  geminiSettings: {
+    apiKey: "",
+    model: "gemini-pro",
+    availableModels: []
+  },
+  ollamaSettings: {
+    serverUrl: "http://localhost:11434",
+    model: "llama2",
+    availableModels: []
+  },
+  systemMessage: "You are a helpful assistant.",
+  temperature: 0.7,
+  maxTokens: 1e3,
+  includeDateWithSystemMessage: false,
+  includeTimeWithSystemMessage: false,
+  enableStreaming: true,
+  autoOpenModelSettings: true,
+  enableObsidianLinks: true,
+  titleOutputMode: "clipboard",
+  summaryOutputMode: "clipboard",
+  chatSeparator: "----",
+  chatStartString: void 0,
+  chatEndString: void 0,
+  enableContextNotes: false,
+  contextNotes: "",
+  maxSessions: 10,
+  autoSaveSessions: true,
+  sessions: [],
+  activeSessionId: void 0
+};
+
+// src/main.ts
+init_providers();
 
 // src/settings.ts
 var import_obsidian = require("obsidian");
@@ -4085,11 +4486,33 @@ var MyPluginSettingTab = class extends import_obsidian.PluginSettingTab {
         await this.plugin.saveSettings();
       });
     });
+    new import_obsidian.Setting(containerEl).setName("Title Output Mode").setDesc("Choose what to do with the generated note title.").addDropdown((drop) => {
+      var _a2;
+      drop.addOption("clipboard", "Copy to clipboard");
+      drop.addOption("replace-filename", "Replace note filename");
+      drop.addOption("metadata", "Insert into metadata");
+      drop.setValue((_a2 = this.plugin.settings.titleOutputMode) != null ? _a2 : "clipboard");
+      drop.onChange(async (value) => {
+        this.plugin.settings.titleOutputMode = value;
+        await this.plugin.saveSettings();
+      });
+    });
+    new import_obsidian.Setting(containerEl).setName("Summary Output Mode").setDesc("Choose what to do with the generated note summary.").addDropdown((drop) => {
+      var _a2;
+      drop.addOption("clipboard", "Copy to clipboard");
+      drop.addOption("metadata", "Insert into metadata");
+      drop.setValue((_a2 = this.plugin.settings.summaryOutputMode) != null ? _a2 : "clipboard");
+      drop.onChange(async (value) => {
+        this.plugin.settings.summaryOutputMode = value;
+        await this.plugin.saveSettings();
+      });
+    });
   }
 };
 
 // src/components/chat.ts
 var import_obsidian2 = require("obsidian");
+init_providers();
 var VIEW_TYPE_CHAT = "chat-view";
 var SettingsModal = class extends import_obsidian2.Modal {
   constructor(app, plugin) {
@@ -4778,6 +5201,7 @@ function parseSelection(selection, chatSeparator, chatBoundaryString) {
 
 // src/components/ModelSettingsView.ts
 var import_obsidian3 = require("obsidian");
+init_providers();
 var VIEW_TYPE_MODEL_SETTINGS = "model-settings-view";
 var ModelSettingsView = class extends import_obsidian3.ItemView {
   constructor(leaf, plugin) {
@@ -5183,7 +5607,7 @@ The current time is ${currentTime} ${timeZoneString}.`;
 
 // src/main.ts
 var VIEW_TYPE_MODEL_SETTINGS2 = "model-settings-view";
-var MyPlugin = class extends import_obsidian5.Plugin {
+var MyPlugin = class extends import_obsidian6.Plugin {
   constructor() {
     super(...arguments);
     __publicField(this, "settings");
@@ -5241,7 +5665,7 @@ var MyPlugin = class extends import_obsidian5.Plugin {
         console.log("Extracted text for completion:", text);
         const messages = parseSelection(text, this.settings.chatSeparator);
         if (messages.length === 0) {
-          new import_obsidian5.Notice("No valid messages found in the selection.");
+          new import_obsidian6.Notice("No valid messages found in the selection.");
           return;
         }
         const lineContent = (_a2 = editor.getLine(insertPosition.line)) != null ? _a2 : "";
@@ -5300,7 +5724,7 @@ ${this.settings.chatSeparator}
           );
           editor.setCursor(newCursorPos);
         } catch (error) {
-          new import_obsidian5.Notice(`Error: ${error.message}`);
+          new import_obsidian6.Notice(`Error: ${error.message}`);
           const errLineContent = (_c = editor.getLine(currentPosition.line)) != null ? _c : "";
           let errPrefix = "";
           if (errLineContent.trim() !== "") {
@@ -5323,9 +5747,9 @@ ${this.settings.chatSeparator}
         if (this.activeStream) {
           this.activeStream.abort();
           this.activeStream = null;
-          new import_obsidian5.Notice("AI stream ended");
+          new import_obsidian6.Notice("AI stream ended");
         } else {
-          new import_obsidian5.Notice("No active AI stream to end");
+          new import_obsidian6.Notice("No active AI stream to end");
         }
       }
     });
@@ -5352,13 +5776,13 @@ ${this.settings.chatSeparator}
           const noteName = `[[${activeFile.basename}]]`;
           try {
             await navigator.clipboard.writeText(noteName);
-            new import_obsidian5.Notice(`Copied to clipboard: ${noteName}`);
+            new import_obsidian6.Notice(`Copied to clipboard: ${noteName}`);
           } catch (error) {
-            new import_obsidian5.Notice("Failed to copy to clipboard");
+            new import_obsidian6.Notice("Failed to copy to clipboard");
             console.error("Clipboard error:", error);
           }
         } else {
-          new import_obsidian5.Notice("No active note found");
+          new import_obsidian6.Notice("No active note found");
         }
       }
     });
@@ -5369,7 +5793,7 @@ ${this.settings.chatSeparator}
         var _a2;
         const chatStartString = (_a2 = this.settings.chatStartString) != null ? _a2 : "";
         if (!chatStartString) {
-          new import_obsidian5.Notice("chatStartString is not set in settings.");
+          new import_obsidian6.Notice("chatStartString is not set in settings.");
           return;
         }
         const cursor = editor.getCursor();
@@ -5386,6 +5810,30 @@ ${this.settings.chatSeparator}
             ch: lines[lines.length - 1].length
           });
         }
+      }
+    });
+    this.addCommand({
+      id: "generate-note-title",
+      name: "Generate Note Title",
+      callback: async () => {
+        const { generateNoteTitle: generateNoteTitle2 } = await Promise.resolve().then(() => (init_filechanger(), filechanger_exports));
+        await generateNoteTitle2(
+          this.app,
+          this.settings,
+          (messages) => this.processMessages(messages)
+        );
+      }
+    });
+    this.addCommand({
+      id: "generate-note-summary",
+      name: "Generate Note Summary",
+      callback: async () => {
+        const { generateNoteSummary: generateNoteSummary2 } = await Promise.resolve().then(() => (init_filechanger(), filechanger_exports));
+        await generateNoteSummary2(
+          this.app,
+          this.settings,
+          (messages) => this.processMessages(messages)
+        );
       }
     });
   }

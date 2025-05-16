@@ -145,6 +145,10 @@ export interface MyPluginSettings {
     enableStreaming: boolean;
     autoOpenModelSettings: boolean;
     enableObsidianLinks: boolean;
+    /** Output mode for generated note title: clipboard, replace-filename, or metadata */
+    titleOutputMode?: "clipboard" | "replace-filename" | "metadata";
+    /** Output mode for generated note summary: clipboard or metadata */
+    summaryOutputMode?: "clipboard" | "metadata";
     /** The string that separates chat messages */
     chatSeparator: string;
     /** The string that starts chat messages in a note, if present */
@@ -195,6 +199,8 @@ export const DEFAULT_SETTINGS: MyPluginSettings = {
     enableStreaming: true,
     autoOpenModelSettings: true,
     enableObsidianLinks: true,
+    titleOutputMode: "clipboard",
+    summaryOutputMode: "clipboard",
     chatSeparator: '----',
     chatStartString: undefined,
     chatEndString: undefined,

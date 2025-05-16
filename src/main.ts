@@ -278,6 +278,35 @@ export default class MyPlugin extends Plugin {
                 }
             }
         });
+
+        // Generate Note Title Command
+        this.addCommand({
+            id: 'generate-note-title',
+            name: 'Generate Note Title',
+            callback: async () => {
+                // Import here to avoid circular dependency issues if any
+                const { generateNoteTitle } = await import("./filechanger");
+                await generateNoteTitle(
+                    this.app,
+                    this.settings,
+                    (messages) => this.processMessages(messages)
+                );
+            }
+        });
+
+        // Generate Note Summary Command
+        this.addCommand({
+            id: 'generate-note-summary',
+            name: 'Generate Note Summary',
+            callback: async () => {
+                const { generateNoteSummary } = await import("./filechanger");
+                await generateNoteSummary(
+                    this.app,
+                    this.settings,
+                    (messages) => this.processMessages(messages)
+                );
+            }
+        });
     }    public getSystemMessage(): string {
         return getSystemMessage(this.settings);
     }

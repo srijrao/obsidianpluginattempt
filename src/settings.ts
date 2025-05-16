@@ -137,5 +137,34 @@ export class MyPluginSettingTab extends PluginSettingTab {
                         await this.plugin.saveSettings();
                     });
             });
+
+        // Title Output Mode
+        new Setting(containerEl)
+            .setName('Title Output Mode')
+            .setDesc('Choose what to do with the generated note title.')
+            .addDropdown(drop => {
+                drop.addOption('clipboard', 'Copy to clipboard');
+                drop.addOption('replace-filename', 'Replace note filename');
+                drop.addOption('metadata', 'Insert into metadata');
+                drop.setValue(this.plugin.settings.titleOutputMode ?? 'clipboard');
+                drop.onChange(async (value: string) => {
+                    this.plugin.settings.titleOutputMode = value as any;
+                    await this.plugin.saveSettings();
+                });
+            });
+
+        // Summary Output Mode
+        new Setting(containerEl)
+            .setName('Summary Output Mode')
+            .setDesc('Choose what to do with the generated note summary.')
+            .addDropdown(drop => {
+                drop.addOption('clipboard', 'Copy to clipboard');
+                drop.addOption('metadata', 'Insert into metadata');
+                drop.setValue(this.plugin.settings.summaryOutputMode ?? 'clipboard');
+                drop.onChange(async (value: string) => {
+                    this.plugin.settings.summaryOutputMode = value as any;
+                    await this.plugin.saveSettings();
+                });
+            });
     }
 }
