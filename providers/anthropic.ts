@@ -38,6 +38,23 @@ const MODEL_CONTEXT_WINDOWS: Record<string, number> = {
     'claude-3-opus-20240229': 200000,
     'claude-3-sonnet-20240229': 200000,
     'claude-3-haiku-20240307': 200000,
+    'claude-3-7-sonnet-20250219': 200000,
+    'claude-3-5-sonnet-20241022': 200000,
+    'claude-3-5-sonnet-20240620': 200000,
+    'claude-3-5-haiku-20241022': 200000,
+};
+
+/**
+ * Maximum output tokens per Anthropic model
+ */
+const MODEL_OUTPUT_TOKEN_LIMITS: Record<string, number> = {
+    'claude-3-7-sonnet-20250219': 64000,
+    'claude-3-5-sonnet-20241022': 8192,
+    'claude-3-5-sonnet-20240620': 8192,
+    'claude-3-5-haiku-20241022': 8192,
+    'claude-3-opus-20240229': 4096,
+    'claude-3-sonnet-20240229': 8192, // fallback for older sonnet
+    'claude-3-haiku-20240307': 4096,  // fallback for older haiku
 };
 
 /**
@@ -102,18 +119,19 @@ export class AnthropicProvider extends BaseProvider {
         try {
             // Get the context window size for the current model
             const contextWindow = MODEL_CONTEXT_WINDOWS[this.model] ?? 200000;
-            
+            const outputTokenLimit = MODEL_OUTPUT_TOKEN_LIMITS[this.model];
+
             // Estimate token count for input messages
             const inputTokens = estimateTokenCount(messages);
-            
+
             // Calculate safe max_tokens value
             let maxTokens = options.maxTokens ?? 1000;
-            
+
             // If the combined input + output tokens would exceed the context window,
             // automatically adjust max_tokens to fit
             if (inputTokens + maxTokens > contextWindow) {
                 const adjustedMaxTokens = contextWindow - inputTokens;
-                
+
                 if (adjustedMaxTokens <= 0) {
                     throw new ProviderError(
                         ProviderErrorType.InvalidRequest,
@@ -121,13 +139,21 @@ export class AnthropicProvider extends BaseProvider {
                         `Estimated input tokens: ${inputTokens}, context window: ${contextWindow}`
                     );
                 }
-                
+
                 console.log(
                     `Adjusting max_tokens from ${maxTokens} to ${adjustedMaxTokens} ` +
                     `to fit within ${this.model}'s context window`
                 );
-                
+
                 maxTokens = adjustedMaxTokens;
+            }
+
+            // Enforce model output token limit
+            if (outputTokenLimit && maxTokens > outputTokenLimit) {
+                console.log(
+                    `Capping max_tokens from ${maxTokens} to model output limit ${outputTokenLimit} for ${this.model}`
+                );
+                maxTokens = outputTokenLimit;
             }
             
             // Format messages for Anthropic API

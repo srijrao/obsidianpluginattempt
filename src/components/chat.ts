@@ -162,20 +162,6 @@ class SettingsModal extends Modal {
                     await this.plugin.saveSettings();
                 }));
     
-        // Max tokens
-        new Setting(contentEl)
-            .setName('Max Tokens')
-            .setDesc('Set the maximum length of the model\'s output')
-            .addText(text => text
-                .setPlaceholder('4000')
-                .setValue(String(this.plugin.settings.maxTokens))
-                .onChange(async (value) => {
-                    const numValue = Number(value);
-                    if (!isNaN(numValue)) {
-                        this.plugin.settings.maxTokens = numValue;
-                        await this.plugin.saveSettings();
-                    }
-                }));
     
         // Add "Reference Current Note" toggle
         new Setting(contentEl)
@@ -773,18 +759,6 @@ export class ChatView extends ItemView {
             await this.plugin.saveSettings();
         });
 
-        // Max tokens
-        const maxTokensContainer = container.createDiv();
-        maxTokensContainer.createEl('label', { text: 'Max Tokens' });
-        const maxTokensInput = maxTokensContainer.createEl('input', { type: 'number' });
-        maxTokensInput.value = String(this.plugin.settings.maxTokens);
-        maxTokensInput.addEventListener('change', async () => {
-            const value = Number(maxTokensInput.value);
-            if (!isNaN(value)) {
-                this.plugin.settings.maxTokens = value;
-                await this.plugin.saveSettings();
-            }
-        });
 
         // Provider-specific settings
         const providerSettings = container.createDiv();

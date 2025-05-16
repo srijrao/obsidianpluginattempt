@@ -74,19 +74,6 @@ export class ModelSettingsView extends ItemView {
                     await this.plugin.saveSettings();
                 }));
 
-        new Setting(contentEl)
-            .setName('Max Tokens')
-            .setDesc('Set the maximum length of the model\'s output')
-            .addText(text => text
-                .setPlaceholder('4000')
-                .setValue(String(this.plugin.settings.maxTokens))
-                .onChange(async (value) => {
-                    const numValue = Number(value);
-                    if (!isNaN(numValue)) {
-                        this.plugin.settings.maxTokens = numValue;
-                        await this.plugin.saveSettings();
-                    }
-                }));
         // Date Settings Section
         contentEl.createEl('h4', { text: 'Date Settings' });
 
