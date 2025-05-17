@@ -155,34 +155,10 @@ export async function generateNoteTitle(
                         }
                     }
                 } else if (outputMode === "metadata") {
-                    // Insert or update title in YAML frontmatter
+                    // Insert or update title in YAML frontmatter using helper
                     const file = app.workspace.getActiveFile();
                     if (file) {
-                        let content = await app.vault.read(file);
-                        // Check for YAML frontmatter
-                        if (/^---\n[\s\S]*?\n---/.test(content)) {
-                            // Update or add title field
-                            content = content.replace(
-                                /^---\n([\s\S]*?)\n---/,
-                                (match, yaml) => {
-                                    if (/^title:/m.test(yaml)) {
-                                        // Replace existing title
-                                        return (
-                                            "---\n" +
-                                            yaml.replace(/^title:.*$/m, `title: ${title}`) +
-                                            "\n---"
-                                        );
-                                    } else {
-                                        // Add title field
-                                        return "---\n" + `title: ${title}\n` + yaml + "\n---";
-                                    }
-                                }
-                            );
-                        } else {
-                            // No frontmatter, add it
-                            content = `---\ntitle: ${title}\n---\n` + content;
-                        }
-                        await app.vault.modify(file, content);
+                        await upsertYamlField(app, file, "title", title);
                         new Notice(`Inserted title into metadata: ${title}`);
                     }
                 } else {
@@ -288,34 +264,10 @@ export async function generateNoteSummary(
                 const outputMode = settings.summaryOutputMode ?? "clipboard";
                 debug("Output mode:", outputMode);
                 if (outputMode === "metadata") {
-                    // Insert or update summary in YAML frontmatter
+                    // Insert or update summary in YAML frontmatter using helper
                     const file = app.workspace.getActiveFile();
                     if (file) {
-                        let content = await app.vault.read(file);
-                        // Check for YAML frontmatter
-                        if (/^---\n[\s\S]*?\n---/.test(content)) {
-                            // Update or add summary field
-                            content = content.replace(
-                                /^---\n([\s\S]*?)\n---/,
-                                (match, yaml) => {
-                                    if (/^summary:/m.test(yaml)) {
-                                        // Replace existing summary
-                                        return (
-                                            "---\n" +
-                                            yaml.replace(/^summary:.*$/m, `summary: ${summary}`) +
-                                            "\n---"
-                                        );
-                                    } else {
-                                        // Add summary field
-                                        return "---\n" + `summary: ${summary}\n` + yaml + "\n---";
-                                    }
-                                }
-                            );
-                        } else {
-                            // No frontmatter, add it
-                            content = `---\nsummary: ${summary}\n---\n` + content;
-                        }
-                        await app.vault.modify(file, content);
+                        await upsertYamlField(app, file, "summary", summary);
                         new Notice(`Inserted summary into metadata: ${summary}`);
                     }
                 } else {
@@ -339,4 +291,29 @@ export async function generateNoteSummary(
     } catch (err) {
         new Notice("Error generating summary: " + (err?.message ?? err));
     }
+}
+
+/**
+ * Insert or update a field in the YAML frontmatter of a note.
+ * If the field exists, it is updated. If not, it is added.
+ * If no frontmatter exists, it is created.
+ */
+export async function upsertYamlField(app: App, file: TFile, field: string, value: string) {
+    let content = await app.vault.read(file);
+    if (/^---\n[\s\S]*?\n---/.test(content)) {
+        // Update or add field (replace all occurrences to avoid duplicates)
+        content = content.replace(
+            /^---\n([\s\S]*?)\n---/,
+            (match, yaml) => {
+                // Remove all existing field lines
+                const cleanedYaml = yaml.replace(new RegExp(`^${field}:.*$`, "gm"), "").replace(/^\s*\n/gm, "");
+                // Add the field at the top
+                return "---\n" + `${field}: ${value}\n` + cleanedYaml.trimEnd() + "\n---";
+            }
+        );
+    } else {
+        // No frontmatter, add it
+        content = `---\n${field}: ${value}\n---\n` + content;
+    }
+    await app.vault.modify(file, content);
 }

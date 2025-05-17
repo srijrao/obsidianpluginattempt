@@ -4187,7 +4187,8 @@ var init_providers = __esm({
 var filechanger_exports = {};
 __export(filechanger_exports, {
   generateNoteSummary: () => generateNoteSummary,
-  generateNoteTitle: () => generateNoteTitle
+  generateNoteTitle: () => generateNoteTitle,
+  upsertYamlField: () => upsertYamlField
 });
 function generateTableOfContents(noteContent) {
   const headerLines = noteContent.split("\n").filter((line) => /^#{1,6}\s+.+/.test(line));
@@ -4274,27 +4275,7 @@ async function generateNoteTitle(app, settings, processMessages2) {
         } else if (outputMode === "metadata") {
           const file = app.workspace.getActiveFile();
           if (file) {
-            let content = await app.vault.read(file);
-            if (/^---\n[\s\S]*?\n---/.test(content)) {
-              content = content.replace(
-                /^---\n([\s\S]*?)\n---/,
-                (match, yaml) => {
-                  if (/^title:/m.test(yaml)) {
-                    return "---\n" + yaml.replace(/^title:.*$/m, `title: ${title}`) + "\n---";
-                  } else {
-                    return `---
-title: ${title}
-` + yaml + "\n---";
-                  }
-                }
-              );
-            } else {
-              content = `---
-title: ${title}
----
-` + content;
-            }
-            await app.vault.modify(file, content);
+            await upsertYamlField(app, file, "title", title);
             new import_obsidian5.Notice(`Inserted title into metadata: ${title}`);
           }
         } else {
@@ -4373,27 +4354,7 @@ async function generateNoteSummary(app, settings, processMessages2) {
         if (outputMode === "metadata") {
           const file = app.workspace.getActiveFile();
           if (file) {
-            let content = await app.vault.read(file);
-            if (/^---\n[\s\S]*?\n---/.test(content)) {
-              content = content.replace(
-                /^---\n([\s\S]*?)\n---/,
-                (match, yaml) => {
-                  if (/^summary:/m.test(yaml)) {
-                    return "---\n" + yaml.replace(/^summary:.*$/m, `summary: ${summary}`) + "\n---";
-                  } else {
-                    return `---
-summary: ${summary}
-` + yaml + "\n---";
-                  }
-                }
-              );
-            } else {
-              content = `---
-summary: ${summary}
----
-` + content;
-            }
-            await app.vault.modify(file, content);
+            await upsertYamlField(app, file, "summary", summary);
             new import_obsidian5.Notice(`Inserted summary into metadata: ${summary}`);
           }
         } else {
@@ -4416,6 +4377,26 @@ summary: ${summary}
   } catch (err) {
     new import_obsidian5.Notice("Error generating summary: " + ((_b = err == null ? void 0 : err.message) != null ? _b : err));
   }
+}
+async function upsertYamlField(app, file, field, value) {
+  let content = await app.vault.read(file);
+  if (/^---\n[\s\S]*?\n---/.test(content)) {
+    content = content.replace(
+      /^---\n([\s\S]*?)\n---/,
+      (match, yaml) => {
+        const cleanedYaml = yaml.replace(new RegExp(`^${field}:.*$`, "gm"), "").replace(/^\s*\n/gm, "");
+        return `---
+${field}: ${value}
+` + cleanedYaml.trimEnd() + "\n---";
+      }
+    );
+  } else {
+    content = `---
+${field}: ${value}
+---
+` + content;
+  }
+  await app.vault.modify(file, content);
 }
 var import_obsidian5, DEBUG;
 var init_filechanger = __esm({
