@@ -4200,8 +4200,14 @@ function generateTableOfContents(noteContent) {
     return `${"  ".repeat(level - 1)}- ${title}`;
   }).join("\n");
 }
+function debug2(...args) {
+  if (DEBUG) {
+    console.log("[DEBUG]", ...args);
+  }
+}
 async function generateNoteTitle(app, settings, processMessages2) {
   var _a2, _b;
+  debug2("Starting generateNoteTitle");
   const activeFile = app.workspace.getActiveFile();
   if (!activeFile) {
     new import_obsidian5.Notice("No active note found.");
@@ -4216,71 +4222,97 @@ async function generateNoteTitle(app, settings, processMessages2) {
   }
   prompt += noteContent;
   try {
+    debug2("Provider:", settings.provider);
     const provider = createProvider(settings);
-    const messages = [{ role: "system", content: prompt }];
-    const processedMessages = await processMessages2(messages);
-    const result = await provider.getCompletion(processedMessages, {
-      temperature: 0
-    });
-    let title = "";
-    if (typeof result === "string") {
-      title = result.trim();
-    } else if (result && typeof result === "object" && typeof result.content === "string") {
-      title = result.content.trim();
-    }
-    title = title.replace(/[\\/:]/g, "").trim();
-    if (title && typeof title === "string" && title.length > 0) {
-      const outputMode = (_a2 = settings.titleOutputMode) != null ? _a2 : "clipboard";
-      if (outputMode === "replace-filename") {
-        const file = app.workspace.getActiveFile();
-        if (file) {
-          const ext = file.extension ? "." + file.extension : "";
-          const sanitized = title;
-          const parentPath = file.parent ? file.parent.path : "";
-          const newPath = parentPath ? parentPath + "/" + sanitized + ext : sanitized + ext;
-          if (file.path !== newPath) {
-            await app.fileManager.renameFile(file, newPath);
-            new import_obsidian5.Notice(`Note renamed to: ${sanitized}${ext}`);
-          } else {
-            new import_obsidian5.Notice(`Note title is already: ${sanitized}${ext}`);
-          }
+    const messages = [
+      { role: "system", content: "You are a title generator. You will give succinct titles that does not contain backslashes, forward slashes, or colons. Only generate a title as your response." },
+      { role: "user", content: (toc && toc.trim().length > 0 ? "Table of Contents:\n" + toc + "\n\n" : "") + noteContent }
+    ];
+    debug2("Original messages:", JSON.stringify(messages));
+    const originalEnableContextNotes = settings.enableContextNotes;
+    debug2("Original enableContextNotes:", originalEnableContextNotes);
+    settings.enableContextNotes = false;
+    try {
+      const processedMessages = await processMessages2(messages);
+      debug2("Processed messages:", JSON.stringify(processedMessages));
+      settings.enableContextNotes = originalEnableContextNotes;
+      if (!processedMessages || processedMessages.length === 0) {
+        debug2("No processed messages!");
+        new import_obsidian5.Notice("No valid messages to send to the model. Please check your note content.");
+        return;
+      }
+      debug2("Calling provider.getCompletion");
+      let resultBuffer = "";
+      await provider.getCompletion(processedMessages, {
+        temperature: 0,
+        streamCallback: (chunk) => {
+          resultBuffer += chunk;
         }
-      } else if (outputMode === "metadata") {
-        const file = app.workspace.getActiveFile();
-        if (file) {
-          let content = await app.vault.read(file);
-          if (/^---\n[\s\S]*?\n---/.test(content)) {
-            content = content.replace(
-              /^---\n([\s\S]*?)\n---/,
-              (match, yaml) => {
-                if (/^title:/m.test(yaml)) {
-                  return "---\n" + yaml.replace(/^title:.*$/m, `title: ${title}`) + "\n---";
-                } else {
-                  return `---
+      });
+      debug2("Result from provider (buffered):", resultBuffer);
+      let title = resultBuffer.trim();
+      debug2("Extracted title before sanitization:", title);
+      title = title.replace(/[\\/:]/g, "").trim();
+      debug2("Sanitized title:", title);
+      if (title && typeof title === "string" && title.length > 0) {
+        const outputMode = (_a2 = settings.titleOutputMode) != null ? _a2 : "clipboard";
+        debug2("Output mode:", outputMode);
+        if (outputMode === "replace-filename") {
+          const file = app.workspace.getActiveFile();
+          if (file) {
+            const ext = file.extension ? "." + file.extension : "";
+            const sanitized = title;
+            const parentPath = file.parent ? file.parent.path : "";
+            const newPath = parentPath ? parentPath + "/" + sanitized + ext : sanitized + ext;
+            if (file.path !== newPath) {
+              await app.fileManager.renameFile(file, newPath);
+              new import_obsidian5.Notice(`Note renamed to: ${sanitized}${ext}`);
+            } else {
+              new import_obsidian5.Notice(`Note title is already: ${sanitized}${ext}`);
+            }
+          }
+        } else if (outputMode === "metadata") {
+          const file = app.workspace.getActiveFile();
+          if (file) {
+            let content = await app.vault.read(file);
+            if (/^---\n[\s\S]*?\n---/.test(content)) {
+              content = content.replace(
+                /^---\n([\s\S]*?)\n---/,
+                (match, yaml) => {
+                  if (/^title:/m.test(yaml)) {
+                    return "---\n" + yaml.replace(/^title:.*$/m, `title: ${title}`) + "\n---";
+                  } else {
+                    return `---
 title: ${title}
 ` + yaml + "\n---";
+                  }
                 }
-              }
-            );
-          } else {
-            content = `---
+              );
+            } else {
+              content = `---
 title: ${title}
 ---
 ` + content;
+            }
+            await app.vault.modify(file, content);
+            new import_obsidian5.Notice(`Inserted title into metadata: ${title}`);
           }
-          await app.vault.modify(file, content);
-          new import_obsidian5.Notice(`Inserted title into metadata: ${title}`);
+        } else {
+          try {
+            await navigator.clipboard.writeText(title);
+            new import_obsidian5.Notice(`Generated title (copied): ${title}`);
+          } catch (e) {
+            new import_obsidian5.Notice(`Generated title: ${title}`);
+          }
         }
       } else {
-        try {
-          await navigator.clipboard.writeText(title);
-          new import_obsidian5.Notice(`Generated title (copied): ${title}`);
-        } catch (e) {
-          new import_obsidian5.Notice(`Generated title: ${title}`);
-        }
+        debug2("No title generated after sanitization.");
+        new import_obsidian5.Notice("No title generated.");
       }
-    } else {
-      new import_obsidian5.Notice("No title generated.");
+    } catch (processError) {
+      debug2("Error in processMessages or provider.getCompletion:", processError);
+      settings.enableContextNotes = originalEnableContextNotes;
+      throw processError;
     }
   } catch (err) {
     new import_obsidian5.Notice("Error generating title: " + ((_b = err == null ? void 0 : err.message) != null ? _b : err));
@@ -4288,6 +4320,7 @@ title: ${title}
 }
 async function generateNoteSummary(app, settings, processMessages2) {
   var _a2, _b;
+  debug2("Starting generateNoteSummary");
   const activeFile = app.workspace.getActiveFile();
   if (!activeFile) {
     new import_obsidian5.Notice("No active note found.");
@@ -4302,67 +4335,94 @@ async function generateNoteSummary(app, settings, processMessages2) {
   }
   prompt += noteContent;
   try {
+    debug2("Provider:", settings.provider);
     const provider = createProvider(settings);
-    const messages = [{ role: "system", content: prompt }];
-    const processedMessages = await processMessages2(messages);
-    const result = await provider.getCompletion(processedMessages, {
-      temperature: 0
-    });
-    let summary = "";
-    if (typeof result === "string") {
-      summary = result.trim();
-    } else if (result && typeof result === "object" && typeof result.content === "string") {
-      summary = result.content.trim();
-    }
-    summary = summary.replace(/[\\/:]/g, "").trim();
-    if (summary && typeof summary === "string" && summary.length > 0) {
-      const outputMode = (_a2 = settings.summaryOutputMode) != null ? _a2 : "clipboard";
-      if (outputMode === "metadata") {
-        const file = app.workspace.getActiveFile();
-        if (file) {
-          let content = await app.vault.read(file);
-          if (/^---\n[\s\S]*?\n---/.test(content)) {
-            content = content.replace(
-              /^---\n([\s\S]*?)\n---/,
-              (match, yaml) => {
-                if (/^summary:/m.test(yaml)) {
-                  return "---\n" + yaml.replace(/^summary:.*$/m, `summary: ${summary}`) + "\n---";
-                } else {
-                  return `---
+    const messages = [
+      { role: "system", content: "You are a note summarizer. Read the note content and generate a concise summary (2\u20134 sentences) that captures the main ideas and purpose of the note. Do not include backslashes, forward slashes, or colons. Only output the summary as your response." },
+      { role: "user", content: (toc && toc.trim().length > 0 ? "Table of Contents:\n" + toc + "\n\n" : "") + noteContent }
+    ];
+    debug2("Original messages:", JSON.stringify(messages));
+    const originalEnableContextNotes = settings.enableContextNotes;
+    debug2("Original enableContextNotes:", originalEnableContextNotes);
+    settings.enableContextNotes = false;
+    try {
+      const processedMessages = await processMessages2(messages);
+      debug2("Processed messages:", JSON.stringify(processedMessages));
+      settings.enableContextNotes = originalEnableContextNotes;
+      if (!processedMessages || processedMessages.length === 0) {
+        debug2("No processed messages!");
+        new import_obsidian5.Notice("No valid messages to send to the model. Please check your note content.");
+        return;
+      }
+      debug2("Calling provider.getCompletion");
+      let resultBuffer = "";
+      await provider.getCompletion(processedMessages, {
+        temperature: 0,
+        streamCallback: (chunk) => {
+          resultBuffer += chunk;
+        }
+      });
+      debug2("Result from provider (buffered):", resultBuffer);
+      let summary = resultBuffer.trim();
+      debug2("Extracted summary before sanitization:", summary);
+      summary = summary.replace(/[\\/:]/g, "").trim();
+      debug2("Sanitized summary:", summary);
+      if (summary && typeof summary === "string" && summary.length > 0) {
+        const outputMode = (_a2 = settings.summaryOutputMode) != null ? _a2 : "clipboard";
+        debug2("Output mode:", outputMode);
+        if (outputMode === "metadata") {
+          const file = app.workspace.getActiveFile();
+          if (file) {
+            let content = await app.vault.read(file);
+            if (/^---\n[\s\S]*?\n---/.test(content)) {
+              content = content.replace(
+                /^---\n([\s\S]*?)\n---/,
+                (match, yaml) => {
+                  if (/^summary:/m.test(yaml)) {
+                    return "---\n" + yaml.replace(/^summary:.*$/m, `summary: ${summary}`) + "\n---";
+                  } else {
+                    return `---
 summary: ${summary}
 ` + yaml + "\n---";
+                  }
                 }
-              }
-            );
-          } else {
-            content = `---
+              );
+            } else {
+              content = `---
 summary: ${summary}
 ---
 ` + content;
+            }
+            await app.vault.modify(file, content);
+            new import_obsidian5.Notice(`Inserted summary into metadata: ${summary}`);
           }
-          await app.vault.modify(file, content);
-          new import_obsidian5.Notice(`Inserted summary into metadata: ${summary}`);
+        } else {
+          try {
+            await navigator.clipboard.writeText(summary);
+            new import_obsidian5.Notice(`Generated summary (copied): ${summary}`);
+          } catch (e) {
+            new import_obsidian5.Notice(`Generated summary: ${summary}`);
+          }
         }
       } else {
-        try {
-          await navigator.clipboard.writeText(summary);
-          new import_obsidian5.Notice(`Generated summary (copied): ${summary}`);
-        } catch (e) {
-          new import_obsidian5.Notice(`Generated summary: ${summary}`);
-        }
+        debug2("No summary generated after sanitization.");
+        new import_obsidian5.Notice("No summary generated.");
       }
-    } else {
-      new import_obsidian5.Notice("No summary generated.");
+    } catch (processError) {
+      debug2("Error in processMessages or provider.getCompletion:", processError);
+      settings.enableContextNotes = originalEnableContextNotes;
+      throw processError;
     }
   } catch (err) {
     new import_obsidian5.Notice("Error generating summary: " + ((_b = err == null ? void 0 : err.message) != null ? _b : err));
   }
 }
-var import_obsidian5;
+var import_obsidian5, DEBUG;
 var init_filechanger = __esm({
   "src/filechanger.ts"() {
     import_obsidian5 = require("obsidian");
     init_providers();
+    DEBUG = true;
   }
 });
 

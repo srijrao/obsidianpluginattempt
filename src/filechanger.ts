@@ -55,11 +55,21 @@ generateNoteSummary(app, settings, processMessages): Promise<void>
  * Generate a succinct title for the active note using the LLM provider.
  * Copies the result to clipboard and shows a Notice.
  */
+// Enable this for verbose debugging
+const DEBUG = true;
+
+function debug(...args: any[]) {
+    if (DEBUG) {
+        console.log("[DEBUG]", ...args);
+    }
+}
+
 export async function generateNoteTitle(
     app: App,
     settings: MyPluginSettings,
     processMessages: (messages: Message[]) => Promise<Message[]>
 ) {
+    debug("Starting generateNoteTitle");
     const activeFile = app.workspace.getActiveFile();
     if (!activeFile) {
         new Notice("No active note found.");
@@ -82,85 +92,116 @@ export async function generateNoteTitle(
 
     // Use the provider system
     try {
+        debug("Provider:", settings.provider);
         const provider = createProvider(settings);
-        const messages: Message[] = [{ role: "system", content: prompt }];
-        // Use the same message processing as other commands
-        const processedMessages = await processMessages(messages);
+        // Compose messages: system = instruction, user = note content (with TOC)
+        const messages: Message[] = [
+            { role: "system", content: "You are a title generator. You will give succinct titles that does not contain backslashes, forward slashes, or colons. Only generate a title as your response." },
+            { role: "user", content: (toc && toc.trim().length > 0 ? "Table of Contents:\n" + toc + "\n\n" : "") + noteContent }
+        ];
 
-        // Get completion (no streaming needed)
-        const result: any = await provider.getCompletion(processedMessages, {
-            temperature: 0,
-        });
+        // Use processMessages for Obsidian link expansion, but skip context notes
+        debug("Original messages:", JSON.stringify(messages));
+        const originalEnableContextNotes = settings.enableContextNotes;
+        debug("Original enableContextNotes:", originalEnableContextNotes);
+        (settings as any).enableContextNotes = false;
+        
+        try {
+            const processedMessages = await processMessages(messages);
+            debug("Processed messages:", JSON.stringify(processedMessages));
+            (settings as any).enableContextNotes = originalEnableContextNotes;
 
-        let title = "";
-        if (typeof result === "string") {
-            title = result.trim();
-        } else if (result && typeof result === "object" && typeof result.content === "string") {
-            title = result.content.trim();
-        }
+            // Ensure there are messages to send
+            if (!processedMessages || processedMessages.length === 0) {
+                debug("No processed messages!");
+                new Notice("No valid messages to send to the model. Please check your note content.");
+                return;
+            }
 
-        // Remove forbidden characters: backslashes, forward slashes, colons
-        title = title.replace(/[\\/:]/g, "").trim();
-
-        if (title && typeof title === "string" && title.length > 0) {
-            const outputMode = settings.titleOutputMode ?? "clipboard";
-            if (outputMode === "replace-filename") {
-                // Rename the note file (preserve extension)
-                const file = app.workspace.getActiveFile();
-                if (file) {
-                    const ext = file.extension ? "." + file.extension : "";
-                    const sanitized = title;
-                    const parentPath = file.parent ? file.parent.path : "";
-                    const newPath = parentPath ? (parentPath + "/" + sanitized + ext) : (sanitized + ext);
-                    if (file.path !== newPath) {
-                        await app.fileManager.renameFile(file, newPath);
-                        new Notice(`Note renamed to: ${sanitized}${ext}`);
-                    } else {
-                        new Notice(`Note title is already: ${sanitized}${ext}`);
-                    }
+            // Get completion (buffer streamed output)
+            debug("Calling provider.getCompletion");
+            let resultBuffer = "";
+            await provider.getCompletion(processedMessages, {
+                temperature: 0,
+                streamCallback: (chunk: string) => {
+                    resultBuffer += chunk;
                 }
-            } else if (outputMode === "metadata") {
-                // Insert or update title in YAML frontmatter
-                const file = app.workspace.getActiveFile();
-                if (file) {
-                    let content = await app.vault.read(file);
-                    // Check for YAML frontmatter
-                    if (/^---\n[\s\S]*?\n---/.test(content)) {
-                        // Update or add title field
-                        content = content.replace(
-                            /^---\n([\s\S]*?)\n---/,
-                            (match, yaml) => {
-                                if (/^title:/m.test(yaml)) {
-                                    // Replace existing title
-                                    return (
-                                        "---\n" +
-                                        yaml.replace(/^title:.*$/m, `title: ${title}`) +
-                                        "\n---"
-                                    );
-                                } else {
-                                    // Add title field
-                                    return "---\n" + `title: ${title}\n` + yaml + "\n---";
-                                }
-                            }
-                        );
-                    } else {
-                        // No frontmatter, add it
-                        content = `---\ntitle: ${title}\n---\n` + content;
+            });
+            debug("Result from provider (buffered):", resultBuffer);
+
+            let title = resultBuffer.trim();
+            debug("Extracted title before sanitization:", title);
+
+            // Remove forbidden characters: backslashes, forward slashes, colons
+            title = title.replace(/[\\/:]/g, "").trim();
+            debug("Sanitized title:", title);
+
+            if (title && typeof title === "string" && title.length > 0) {
+                const outputMode = settings.titleOutputMode ?? "clipboard";
+                debug("Output mode:", outputMode);
+                if (outputMode === "replace-filename") {
+                    // Rename the note file (preserve extension)
+                    const file = app.workspace.getActiveFile();
+                    if (file) {
+                        const ext = file.extension ? "." + file.extension : "";
+                        const sanitized = title;
+                        const parentPath = file.parent ? file.parent.path : "";
+                        const newPath = parentPath ? (parentPath + "/" + sanitized + ext) : (sanitized + ext);
+                        if (file.path !== newPath) {
+                            await app.fileManager.renameFile(file, newPath);
+                            new Notice(`Note renamed to: ${sanitized}${ext}`);
+                        } else {
+                            new Notice(`Note title is already: ${sanitized}${ext}`);
+                        }
                     }
-                    await app.vault.modify(file, content);
-                    new Notice(`Inserted title into metadata: ${title}`);
+                } else if (outputMode === "metadata") {
+                    // Insert or update title in YAML frontmatter
+                    const file = app.workspace.getActiveFile();
+                    if (file) {
+                        let content = await app.vault.read(file);
+                        // Check for YAML frontmatter
+                        if (/^---\n[\s\S]*?\n---/.test(content)) {
+                            // Update or add title field
+                            content = content.replace(
+                                /^---\n([\s\S]*?)\n---/,
+                                (match, yaml) => {
+                                    if (/^title:/m.test(yaml)) {
+                                        // Replace existing title
+                                        return (
+                                            "---\n" +
+                                            yaml.replace(/^title:.*$/m, `title: ${title}`) +
+                                            "\n---"
+                                        );
+                                    } else {
+                                        // Add title field
+                                        return "---\n" + `title: ${title}\n` + yaml + "\n---";
+                                    }
+                                }
+                            );
+                        } else {
+                            // No frontmatter, add it
+                            content = `---\ntitle: ${title}\n---\n` + content;
+                        }
+                        await app.vault.modify(file, content);
+                        new Notice(`Inserted title into metadata: ${title}`);
+                    }
+                } else {
+                    // Clipboard (default)
+                    try {
+                        await navigator.clipboard.writeText(title);
+                        new Notice(`Generated title (copied): ${title}`);
+                    } catch (e) {
+                        new Notice(`Generated title: ${title}`);
+                    }
                 }
             } else {
-                // Clipboard (default)
-                try {
-                    await navigator.clipboard.writeText(title);
-                    new Notice(`Generated title (copied): ${title}`);
-                } catch (e) {
-                    new Notice(`Generated title: ${title}`);
-                }
+                debug("No title generated after sanitization.");
+                new Notice("No title generated.");
             }
-        } else {
-            new Notice("No title generated.");
+        } catch (processError) {
+            debug("Error in processMessages or provider.getCompletion:", processError);
+            (settings as any).enableContextNotes = originalEnableContextNotes;
+            throw processError;
         }
     } catch (err) {
         new Notice("Error generating title: " + (err?.message ?? err));
@@ -177,6 +218,7 @@ export async function generateNoteSummary(
     settings: MyPluginSettings,
     processMessages: (messages: Message[]) => Promise<Message[]>
 ) {
+    debug("Starting generateNoteSummary");
     const activeFile = app.workspace.getActiveFile();
     if (!activeFile) {
         new Notice("No active note found.");
@@ -198,68 +240,101 @@ export async function generateNoteSummary(
 
     // Use the provider system
     try {
+        debug("Provider:", settings.provider);
         const provider = createProvider(settings);
-        const messages: Message[] = [{ role: "system", content: prompt }];
-        const processedMessages = await processMessages(messages);
+        // Compose messages: system = instruction, user = note content (with TOC)
+        const messages: Message[] = [
+            { role: "system", content: "You are a note summarizer. Read the note content and generate a concise summary (2–4 sentences) that captures the main ideas and purpose of the note. Do not include backslashes, forward slashes, or colons. Only output the summary as your response." },
+            { role: "user", content: (toc && toc.trim().length > 0 ? "Table of Contents:\n" + toc + "\n\n" : "") + noteContent }
+        ];
 
-        const result: any = await provider.getCompletion(processedMessages, {
-            temperature: 0,
-        });
+        // Use processMessages for Obsidian link expansion, but skip context notes
+        debug("Original messages:", JSON.stringify(messages));
+        const originalEnableContextNotes = settings.enableContextNotes;
+        debug("Original enableContextNotes:", originalEnableContextNotes);
+        (settings as any).enableContextNotes = false;
+        
+        try {
+            const processedMessages = await processMessages(messages);
+            debug("Processed messages:", JSON.stringify(processedMessages));
+            (settings as any).enableContextNotes = originalEnableContextNotes;
 
-        let summary = "";
-        if (typeof result === "string") {
-            summary = result.trim();
-        } else if (result && typeof result === "object" && typeof result.content === "string") {
-            summary = result.content.trim();
-        }
+            // Ensure there are messages to send
+            if (!processedMessages || processedMessages.length === 0) {
+                debug("No processed messages!");
+                new Notice("No valid messages to send to the model. Please check your note content.");
+                return;
+            }
 
-        // Remove forbidden characters: backslashes, forward slashes, colons
-        summary = summary.replace(/[\\/:]/g, "").trim();
+            // Get completion (buffer streamed output)
+            debug("Calling provider.getCompletion");
+            let resultBuffer = "";
+            await provider.getCompletion(processedMessages, {
+                temperature: 0,
+                streamCallback: (chunk: string) => {
+                    resultBuffer += chunk;
+                }
+            });
+            debug("Result from provider (buffered):", resultBuffer);
 
-        if (summary && typeof summary === "string" && summary.length > 0) {
-            const outputMode = settings.summaryOutputMode ?? "clipboard";
-            if (outputMode === "metadata") {
-                // Insert or update summary in YAML frontmatter
-                const file = app.workspace.getActiveFile();
-                if (file) {
-                    let content = await app.vault.read(file);
-                    // Check for YAML frontmatter
-                    if (/^---\n[\s\S]*?\n---/.test(content)) {
-                        // Update or add summary field
-                        content = content.replace(
-                            /^---\n([\s\S]*?)\n---/,
-                            (match, yaml) => {
-                                if (/^summary:/m.test(yaml)) {
-                                    // Replace existing summary
-                                    return (
-                                        "---\n" +
-                                        yaml.replace(/^summary:.*$/m, `summary: ${summary}`) +
-                                        "\n---"
-                                    );
-                                } else {
-                                    // Add summary field
-                                    return "---\n" + `summary: ${summary}\n` + yaml + "\n---";
+            let summary = resultBuffer.trim();
+            debug("Extracted summary before sanitization:", summary);
+
+            // Remove forbidden characters: backslashes, forward slashes, colons
+            summary = summary.replace(/[\\/:]/g, "").trim();
+            debug("Sanitized summary:", summary);
+
+            if (summary && typeof summary === "string" && summary.length > 0) {
+                const outputMode = settings.summaryOutputMode ?? "clipboard";
+                debug("Output mode:", outputMode);
+                if (outputMode === "metadata") {
+                    // Insert or update summary in YAML frontmatter
+                    const file = app.workspace.getActiveFile();
+                    if (file) {
+                        let content = await app.vault.read(file);
+                        // Check for YAML frontmatter
+                        if (/^---\n[\s\S]*?\n---/.test(content)) {
+                            // Update or add summary field
+                            content = content.replace(
+                                /^---\n([\s\S]*?)\n---/,
+                                (match, yaml) => {
+                                    if (/^summary:/m.test(yaml)) {
+                                        // Replace existing summary
+                                        return (
+                                            "---\n" +
+                                            yaml.replace(/^summary:.*$/m, `summary: ${summary}`) +
+                                            "\n---"
+                                        );
+                                    } else {
+                                        // Add summary field
+                                        return "---\n" + `summary: ${summary}\n` + yaml + "\n---";
+                                    }
                                 }
-                            }
-                        );
-                    } else {
-                        // No frontmatter, add it
-                        content = `---\nsummary: ${summary}\n---\n` + content;
+                            );
+                        } else {
+                            // No frontmatter, add it
+                            content = `---\nsummary: ${summary}\n---\n` + content;
+                        }
+                        await app.vault.modify(file, content);
+                        new Notice(`Inserted summary into metadata: ${summary}`);
                     }
-                    await app.vault.modify(file, content);
-                    new Notice(`Inserted summary into metadata: ${summary}`);
+                } else {
+                    // Clipboard (default)
+                    try {
+                        await navigator.clipboard.writeText(summary);
+                        new Notice(`Generated summary (copied): ${summary}`);
+                    } catch (e) {
+                        new Notice(`Generated summary: ${summary}`);
+                    }
                 }
             } else {
-                // Clipboard (default)
-                try {
-                    await navigator.clipboard.writeText(summary);
-                    new Notice(`Generated summary (copied): ${summary}`);
-                } catch (e) {
-                    new Notice(`Generated summary: ${summary}`);
-                }
+                debug("No summary generated after sanitization.");
+                new Notice("No summary generated.");
             }
-        } else {
-            new Notice("No summary generated.");
+        } catch (processError) {
+            debug("Error in processMessages or provider.getCompletion:", processError);
+            (settings as any).enableContextNotes = originalEnableContextNotes;
+            throw processError;
         }
     } catch (err) {
         new Notice("Error generating summary: " + (err?.message ?? err));
