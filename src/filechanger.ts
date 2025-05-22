@@ -1,6 +1,7 @@
 import { Notice, TFile, App } from "obsidian";
 import { createProvider } from "../providers";
 import { Message, MyPluginSettings } from "./types";
+import { DEFAULT_TITLE_PROMPT, DEFAULT_SUMMARY_PROMPT } from "./prompts";
 
 /**
  * Generate a Table of Contents from all headers in the note.
@@ -83,8 +84,7 @@ export async function generateNoteTitle(
     const toc = generateTableOfContents(noteContent);
 
     // Compose the prompt
-    let prompt =
-        "You are a title generator. You will give succinct titles that does not contain backslashes, forward slashes, or colons. Only generate a title as your response for:\n\n";
+    let prompt = DEFAULT_TITLE_PROMPT + " for:\n\n";
     if (toc && toc.trim().length > 0) {
         prompt += "Table of Contents:\n" + toc + "\n\n";
     }
@@ -96,7 +96,7 @@ export async function generateNoteTitle(
         const provider = createProvider(settings);
         // Compose messages: system = instruction, user = note content (with TOC)
         const messages: Message[] = [
-            { role: "system", content: "You are a title generator. You will give succinct titles that does not contain backslashes, forward slashes, or colons. Only generate a title as your response." },
+            { role: "system", content: DEFAULT_TITLE_PROMPT },
             { role: "user", content: (toc && toc.trim().length > 0 ? "Table of Contents:\n" + toc + "\n\n" : "") + noteContent }
         ];
 
@@ -207,8 +207,7 @@ export async function generateNoteSummary(
     const toc = generateTableOfContents(noteContent);
 
     // Compose the prompt
-    let prompt =
-        "You are a note summarizer. Read the note content and generate a concise summary (2–4 sentences) that captures the main ideas and purpose of the note. Do not include backslashes, forward slashes, or colons. Only output the summary as your response.\n\n";
+    let prompt = DEFAULT_SUMMARY_PROMPT + "\n\n";
     if (toc && toc.trim().length > 0) {
         prompt += "Table of Contents:\n" + toc + "\n\n";
     }
@@ -220,7 +219,7 @@ export async function generateNoteSummary(
         const provider = createProvider(settings);
         // Compose messages: system = instruction, user = note content (with TOC)
         const messages: Message[] = [
-            { role: "system", content: "You are a note summarizer. Read the note content and generate a concise summary (2–4 sentences) that captures the main ideas and purpose of the note. Do not include backslashes, forward slashes, or colons. Only output the summary as your response." },
+            { role: "system", content: DEFAULT_SUMMARY_PROMPT },
             { role: "user", content: (toc && toc.trim().length > 0 ? "Table of Contents:\n" + toc + "\n\n" : "") + noteContent }
         ];
 
@@ -267,7 +266,7 @@ export async function generateNoteSummary(
                     // Insert or update summary in YAML frontmatter using helper
                     const file = app.workspace.getActiveFile();
                     if (file) {
-                        await upsertYamlField(app, file, "summary", summary);
+                        await upsertYamlField(app, file, "abstract", summary);
                         new Notice(`Inserted summary into metadata: ${summary}`);
                     }
                 } else {

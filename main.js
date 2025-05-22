@@ -4183,6 +4183,15 @@ var init_providers = __esm({
   }
 });
 
+// src/prompts.ts
+var DEFAULT_TITLE_PROMPT, DEFAULT_SUMMARY_PROMPT;
+var init_prompts = __esm({
+  "src/prompts.ts"() {
+    DEFAULT_TITLE_PROMPT = "You are a title generator. You will give succinct titles that does not contain backslashes, forward slashes, or colons. Only generate a title as your response.";
+    DEFAULT_SUMMARY_PROMPT = "You are a note summarizer. Read the note content and generate a concise summary (2 sentences at most) that captures the main ideas and purpose of the note. Do not include backslashes, forward slashes, or colons. Only output the summary as your response.";
+  }
+});
+
 // src/filechanger.ts
 var filechanger_exports = {};
 __export(filechanger_exports, {
@@ -4217,7 +4226,7 @@ async function generateNoteTitle(app, settings, processMessages2) {
   let noteContent = await app.vault.cachedRead(activeFile);
   noteContent = noteContent.slice(0, 15e3);
   const toc = generateTableOfContents(noteContent);
-  let prompt = "You are a title generator. You will give succinct titles that does not contain backslashes, forward slashes, or colons. Only generate a title as your response for:\n\n";
+  let prompt = DEFAULT_TITLE_PROMPT + " for:\n\n";
   if (toc && toc.trim().length > 0) {
     prompt += "Table of Contents:\n" + toc + "\n\n";
   }
@@ -4226,7 +4235,7 @@ async function generateNoteTitle(app, settings, processMessages2) {
     debug2("Provider:", settings.provider);
     const provider = createProvider(settings);
     const messages = [
-      { role: "system", content: "You are a title generator. You will give succinct titles that does not contain backslashes, forward slashes, or colons. Only generate a title as your response." },
+      { role: "system", content: DEFAULT_TITLE_PROMPT },
       { role: "user", content: (toc && toc.trim().length > 0 ? "Table of Contents:\n" + toc + "\n\n" : "") + noteContent }
     ];
     debug2("Original messages:", JSON.stringify(messages));
@@ -4310,7 +4319,7 @@ async function generateNoteSummary(app, settings, processMessages2) {
   let noteContent = await app.vault.cachedRead(activeFile);
   noteContent = noteContent.slice(0, 15e3);
   const toc = generateTableOfContents(noteContent);
-  let prompt = "You are a note summarizer. Read the note content and generate a concise summary (2\u20134 sentences) that captures the main ideas and purpose of the note. Do not include backslashes, forward slashes, or colons. Only output the summary as your response.\n\n";
+  let prompt = DEFAULT_SUMMARY_PROMPT + "\n\n";
   if (toc && toc.trim().length > 0) {
     prompt += "Table of Contents:\n" + toc + "\n\n";
   }
@@ -4319,7 +4328,7 @@ async function generateNoteSummary(app, settings, processMessages2) {
     debug2("Provider:", settings.provider);
     const provider = createProvider(settings);
     const messages = [
-      { role: "system", content: "You are a note summarizer. Read the note content and generate a concise summary (2\u20134 sentences) that captures the main ideas and purpose of the note. Do not include backslashes, forward slashes, or colons. Only output the summary as your response." },
+      { role: "system", content: DEFAULT_SUMMARY_PROMPT },
       { role: "user", content: (toc && toc.trim().length > 0 ? "Table of Contents:\n" + toc + "\n\n" : "") + noteContent }
     ];
     debug2("Original messages:", JSON.stringify(messages));
@@ -4354,7 +4363,7 @@ async function generateNoteSummary(app, settings, processMessages2) {
         if (outputMode === "metadata") {
           const file = app.workspace.getActiveFile();
           if (file) {
-            await upsertYamlField(app, file, "summary", summary);
+            await upsertYamlField(app, file, "abstract", summary);
             new import_obsidian5.Notice(`Inserted summary into metadata: ${summary}`);
           }
         } else {
@@ -4403,6 +4412,7 @@ var init_filechanger = __esm({
   "src/filechanger.ts"() {
     import_obsidian5 = require("obsidian");
     init_providers();
+    init_prompts();
     DEBUG = true;
   }
 });

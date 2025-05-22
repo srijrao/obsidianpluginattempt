@@ -1,0 +1,2 @@
+export const DEFAULT_TITLE_PROMPT = "You are a title generator. You will give succinct titles that does not contain backslashes, forward slashes, or colons. Only generate a title as your response.";
+export const DEFAULT_SUMMARY_PROMPT = "You are a note summarizer. Read the note content and generate a concise summary (2 sentences at most) that captures the main ideas and purpose of the note. Do not include backslashes, forward slashes, or colons. Only output the summary as your response.";
