@@ -682,7 +682,7 @@ export class ChatView extends ItemView {
         }));
 
         // Add a single regenerate button with context-aware label
-        const regenerateLabel = role === 'assistant' ? 'Regenerate' : 'Regenerate Response';
+        const regenerateLabel = role === 'assistant' ? 'Regenerate' : 'Regenerate';
         const regenerateTooltip = role === 'assistant' ? 'Regenerate this response' : 'Regenerate AI response';
         actionsEl.appendChild(this.createActionButton(regenerateLabel, regenerateTooltip, () => {
             this.regenerateResponse(messageEl);

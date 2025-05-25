@@ -82,9 +82,6 @@ export class UserMessage extends Component {
                         // Switch to edit mode
                         const textarea = document.createElement('textarea');
                         textarea.value = messageEl.dataset.rawContent || '';
-                        textarea.style.width = '100%';
-                        textarea.style.height = `${this.contentEl.offsetHeight}px`;
-                        textarea.style.minHeight = '100px';
                         this.contentEl.empty();
                         this.contentEl.appendChild(textarea);
                         textarea.focus();
@@ -107,7 +104,7 @@ export class UserMessage extends Component {
                 }
             },
             {
-                label: 'Regenerate Response',
+                label: 'Regenerate',
                 tooltip: 'Regenerate the AI response',
                 onClick: () => {
                     const event = new CustomEvent('ai-assistant:regenerate-response', {
@@ -120,10 +117,10 @@ export class UserMessage extends Component {
 
         // Add hover behavior
         messageEl.addEventListener('mouseenter', () => {
-            actions.style.display = 'flex';
+            // Rely on CSS for display
         });
         messageEl.addEventListener('mouseleave', () => {
-            actions.style.display = 'none';
+            // Rely on CSS for display
         });
 
         messageContainer.appendChild(actions);

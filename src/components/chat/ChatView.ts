@@ -105,9 +105,6 @@ export class ChatView extends ItemView {
 
         // Messages container
         this.messagesContainer = contentEl.createDiv('ai-chat-messages');
-        this.messagesContainer.style.flex = '1';
-        this.messagesContainer.style.overflow = 'auto';
-        this.messagesContainer.style.padding = '16px';
 
         // Initialize components
         this.buttonsContainer = contentEl.createDiv('ai-chat-buttons');
@@ -228,7 +225,7 @@ export class ChatView extends ItemView {
             value: session.name
         });
         
-        const buttonContainer = contentEl.createDiv();
+        const buttonContainer = contentEl.createDiv('modal-button-container');
         const saveButton = buttonContainer.createEl('button', {
             text: 'Save'
         });
@@ -259,7 +256,7 @@ export class ChatView extends ItemView {
         const contentEl = confirmModal.contentEl;
         contentEl.setText('Are you sure you want to delete this chat session? This cannot be undone.');
         
-        const buttonContainer = contentEl.createDiv();
+        const buttonContainer = contentEl.createDiv('modal-button-container');
         const deleteButton = buttonContainer.createEl('button', {
             text: 'Delete',
             cls: 'mod-warning'

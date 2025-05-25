@@ -48,21 +48,16 @@ export abstract class Message extends Component implements IMessage {
         
         // Create content element
         this.contentElement = container.createDiv('message-content');
-        this.contentElement.style.whiteSpace = 'pre-wrap';
         
         // Create actions container
         this.actionsElement = container.createDiv('message-actions');
-        this.actionsElement.style.display = 'none';
-        this.actionsElement.style.flexWrap = 'wrap';
-        this.actionsElement.style.gap = '8px';
-        this.actionsElement.style.marginTop = '8px';
         
         // Add hover behavior
         this.element.addEventListener('mouseenter', () => {
-            this.actionsElement.style.display = 'flex';
+            // Rely on CSS for display
         });
         this.element.addEventListener('mouseleave', () => {
-            this.actionsElement.style.display = 'none';
+            // Rely on CSS for display
         });
     }
 
@@ -129,9 +124,6 @@ export abstract class Message extends Component implements IMessage {
             // Switch to edit mode
             const textarea = document.createElement('textarea');
             textarea.value = this.rawContent;
-            textarea.style.width = '100%';
-            textarea.style.height = `${this.contentElement.offsetHeight}px`;
-            textarea.style.minHeight = '100px';
             this.contentElement.empty();
             this.contentElement.appendChild(textarea);
             textarea.focus();
