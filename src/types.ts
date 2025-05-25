@@ -158,6 +158,10 @@ export interface MyPluginSettings {
     enableContextNotes: boolean;
     contextNotes: string;
 
+    /** Prompts for title and summary generation */
+    titlePrompt: string;
+    summaryPrompt: string;
+
     /** Chat history settings */
     maxSessions: number;
     autoSaveSessions: boolean;
@@ -206,6 +210,9 @@ export const DEFAULT_SETTINGS: MyPluginSettings = {
     chatEndString: undefined,
     enableContextNotes: false,
     contextNotes: '',
+
+    titlePrompt: "You are a title generator. You will give succinct titles that does not contain backslashes, forward slashes, or colons. Only generate a title as your response.",
+    summaryPrompt: "You are a note summarizer. Read the note content and generate a concise summary (2 sentences at most) that captures the main ideas and purpose of the note. Do not include backslashes, forward slashes, or colons. Only output the summary as your response.",
 
     maxSessions: 10,
     autoSaveSessions: true,

@@ -84,7 +84,7 @@ export async function generateNoteTitle(
     const toc = generateTableOfContents(noteContent);
 
     // Compose the prompt
-    let prompt = DEFAULT_TITLE_PROMPT + " for:\n\n";
+    let prompt = settings.titlePrompt + " for:\n\n";
     if (toc && toc.trim().length > 0) {
         prompt += "Table of Contents:\n" + toc + "\n\n";
     }
@@ -96,7 +96,7 @@ export async function generateNoteTitle(
         const provider = createProvider(settings);
         // Compose messages: system = instruction, user = note content (with TOC)
         const messages: Message[] = [
-            { role: "system", content: DEFAULT_TITLE_PROMPT },
+            { role: "system", content: settings.titlePrompt },
             { role: "user", content: (toc && toc.trim().length > 0 ? "Table of Contents:\n" + toc + "\n\n" : "") + noteContent }
         ];
 
@@ -207,7 +207,7 @@ export async function generateNoteSummary(
     const toc = generateTableOfContents(noteContent);
 
     // Compose the prompt
-    let prompt = DEFAULT_SUMMARY_PROMPT + "\n\n";
+    let prompt = settings.summaryPrompt + "\n\n";
     if (toc && toc.trim().length > 0) {
         prompt += "Table of Contents:\n" + toc + "\n\n";
     }
@@ -219,7 +219,7 @@ export async function generateNoteSummary(
         const provider = createProvider(settings);
         // Compose messages: system = instruction, user = note content (with TOC)
         const messages: Message[] = [
-            { role: "system", content: DEFAULT_SUMMARY_PROMPT },
+            { role: "system", content: settings.summaryPrompt },
             { role: "user", content: (toc && toc.trim().length > 0 ? "Table of Contents:\n" + toc + "\n\n" : "") + noteContent }
         ];
 

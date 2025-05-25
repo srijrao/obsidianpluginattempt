@@ -1,4 +1,4 @@
-import { App, PluginSettingTab, Setting } from 'obsidian';
+import { App, PluginSettingTab, Setting, Notice } from 'obsidian';
 import { MyPluginSettings } from './types';
 import MyPlugin from './main';
 
@@ -137,6 +137,46 @@ export class MyPluginSettingTab extends PluginSettingTab {
                         await this.plugin.saveSettings();
                     });
             });
+
+        // Title Prompt
+        new Setting(containerEl)
+            .setName('Title Prompt')
+            .setDesc('The prompt used for generating note titles.')
+            .addTextArea(text => {
+                text.setPlaceholder('You are a title generator...')
+                    .setValue(this.plugin.settings.titlePrompt)
+                    .onChange(async (value: string) => {
+                        this.plugin.settings.titlePrompt = value;
+                        await this.plugin.saveSettings();
+                    });
+            });
+
+        // Summary Prompt
+        new Setting(containerEl)
+            .setName('Summary Prompt')
+            .setDesc('The prompt used for generating note summaries.')
+            .addTextArea(text => {
+                text.setPlaceholder('You are a note summarizer...')
+                    .setValue(this.plugin.settings.summaryPrompt)
+                    .onChange(async (value: string) => {
+                        this.plugin.settings.summaryPrompt = value;
+                        await this.plugin.saveSettings();
+                    });
+            });
+
+        // Reset Prompts to Default
+        new Setting(containerEl)
+            .setName('Reset Prompts to Default')
+            .setDesc('Reset title and summary prompts to their original default values.')
+            .addButton(button => button
+                .setButtonText('Reset')
+                .onClick(async () => {
+                    this.plugin.settings.titlePrompt = "You are a title generator. You will give succinct titles that does not contain backslashes, forward slashes, or colons. Only generate a title as your response.";
+                    this.plugin.settings.summaryPrompt = "You are a note summarizer. Read the note content and generate a concise summary (2 sentences at most) that captures the main ideas and purpose of the note. Do not include backslashes, forward slashes, or colons. Only output the summary as your response.";
+                    await this.plugin.saveSettings();
+                    this.display(); // Re-render the settings to show updated values
+                    new Notice('Prompts reset to default.');
+                }));
 
         // Title Output Mode
         new Setting(containerEl)

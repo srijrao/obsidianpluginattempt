@@ -1,7 +1,7 @@
 {
   "id": "ai-assistant-for-obsidian",
   "name": "AI Assistant for Obsidian",
-  "version": "1.3.2",
+  "version": "1.3.3.0",
   "minAppVersion": "0.15.0",
   "description": "An AI assistant plugin for Obsidian. With Chat view and Command Palette support, you can ask questions and get answers from your notes.",
   "author": "srijrao on Github",

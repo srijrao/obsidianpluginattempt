@@ -4183,15 +4183,6 @@ var init_providers = __esm({
   }
 });
 
-// src/prompts.ts
-var DEFAULT_TITLE_PROMPT, DEFAULT_SUMMARY_PROMPT;
-var init_prompts = __esm({
-  "src/prompts.ts"() {
-    DEFAULT_TITLE_PROMPT = "You are a title generator. You will give succinct titles that does not contain backslashes, forward slashes, or colons. Only generate a title as your response.";
-    DEFAULT_SUMMARY_PROMPT = "You are a note summarizer. Read the note content and generate a concise summary (2 sentences at most) that captures the main ideas and purpose of the note. Do not include backslashes, forward slashes, or colons. Only output the summary as your response.";
-  }
-});
-
 // src/filechanger.ts
 var filechanger_exports = {};
 __export(filechanger_exports, {
@@ -4226,7 +4217,7 @@ async function generateNoteTitle(app, settings, processMessages2) {
   let noteContent = await app.vault.cachedRead(activeFile);
   noteContent = noteContent.slice(0, 15e3);
   const toc = generateTableOfContents(noteContent);
-  let prompt = DEFAULT_TITLE_PROMPT + " for:\n\n";
+  let prompt = settings.titlePrompt + " for:\n\n";
   if (toc && toc.trim().length > 0) {
     prompt += "Table of Contents:\n" + toc + "\n\n";
   }
@@ -4235,7 +4226,7 @@ async function generateNoteTitle(app, settings, processMessages2) {
     debug2("Provider:", settings.provider);
     const provider = createProvider(settings);
     const messages = [
-      { role: "system", content: DEFAULT_TITLE_PROMPT },
+      { role: "system", content: settings.titlePrompt },
       { role: "user", content: (toc && toc.trim().length > 0 ? "Table of Contents:\n" + toc + "\n\n" : "") + noteContent }
     ];
     debug2("Original messages:", JSON.stringify(messages));
@@ -4319,7 +4310,7 @@ async function generateNoteSummary(app, settings, processMessages2) {
   let noteContent = await app.vault.cachedRead(activeFile);
   noteContent = noteContent.slice(0, 15e3);
   const toc = generateTableOfContents(noteContent);
-  let prompt = DEFAULT_SUMMARY_PROMPT + "\n\n";
+  let prompt = settings.summaryPrompt + "\n\n";
   if (toc && toc.trim().length > 0) {
     prompt += "Table of Contents:\n" + toc + "\n\n";
   }
@@ -4328,7 +4319,7 @@ async function generateNoteSummary(app, settings, processMessages2) {
     debug2("Provider:", settings.provider);
     const provider = createProvider(settings);
     const messages = [
-      { role: "system", content: DEFAULT_SUMMARY_PROMPT },
+      { role: "system", content: settings.summaryPrompt },
       { role: "user", content: (toc && toc.trim().length > 0 ? "Table of Contents:\n" + toc + "\n\n" : "") + noteContent }
     ];
     debug2("Original messages:", JSON.stringify(messages));
@@ -4412,7 +4403,6 @@ var init_filechanger = __esm({
   "src/filechanger.ts"() {
     import_obsidian5 = require("obsidian");
     init_providers();
-    init_prompts();
     DEBUG = true;
   }
 });
@@ -4464,6 +4454,8 @@ var DEFAULT_SETTINGS = {
   chatEndString: void 0,
   enableContextNotes: false,
   contextNotes: "",
+  titlePrompt: "You are a title generator. You will give succinct titles that does not contain backslashes, forward slashes, or colons. Only generate a title as your response.",
+  summaryPrompt: "You are a note summarizer. Read the note content and generate a concise summary (2 sentences at most) that captures the main ideas and purpose of the note. Do not include backslashes, forward slashes, or colons. Only output the summary as your response.",
   maxSessions: 10,
   autoSaveSessions: true,
   sessions: [],
@@ -4537,6 +4529,25 @@ var MyPluginSettingTab = class extends import_obsidian.PluginSettingTab {
         await this.plugin.saveSettings();
       });
     });
+    new import_obsidian.Setting(containerEl).setName("Title Prompt").setDesc("The prompt used for generating note titles.").addTextArea((text) => {
+      text.setPlaceholder("You are a title generator...").setValue(this.plugin.settings.titlePrompt).onChange(async (value) => {
+        this.plugin.settings.titlePrompt = value;
+        await this.plugin.saveSettings();
+      });
+    });
+    new import_obsidian.Setting(containerEl).setName("Summary Prompt").setDesc("The prompt used for generating note summaries.").addTextArea((text) => {
+      text.setPlaceholder("You are a note summarizer...").setValue(this.plugin.settings.summaryPrompt).onChange(async (value) => {
+        this.plugin.settings.summaryPrompt = value;
+        await this.plugin.saveSettings();
+      });
+    });
+    new import_obsidian.Setting(containerEl).setName("Reset Prompts to Default").setDesc("Reset title and summary prompts to their original default values.").addButton((button) => button.setButtonText("Reset").onClick(async () => {
+      this.plugin.settings.titlePrompt = "You are a title generator. You will give succinct titles that does not contain backslashes, forward slashes, or colons. Only generate a title as your response.";
+      this.plugin.settings.summaryPrompt = "You are a note summarizer. Read the note content and generate a concise summary (2 sentences at most) that captures the main ideas and purpose of the note. Do not include backslashes, forward slashes, or colons. Only output the summary as your response.";
+      await this.plugin.saveSettings();
+      this.display();
+      new import_obsidian.Notice("Prompts reset to default.");
+    }));
     new import_obsidian.Setting(containerEl).setName("Title Output Mode").setDesc("Choose what to do with the generated note title.").addDropdown((drop) => {
       var _a2;
       drop.addOption("clipboard", "Copy to clipboard");
