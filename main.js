@@ -4211,7 +4211,7 @@ async function generateNoteTitle(app, settings, processMessages2) {
   debug2("Starting generateNoteTitle");
   const activeFile = app.workspace.getActiveFile();
   if (!activeFile) {
-    new import_obsidian6.Notice("No active note found.");
+    new import_obsidian11.Notice("No active note found.");
     return;
   }
   let noteContent = await app.vault.cachedRead(activeFile);
@@ -4239,7 +4239,7 @@ async function generateNoteTitle(app, settings, processMessages2) {
       settings.enableContextNotes = originalEnableContextNotes;
       if (!processedMessages || processedMessages.length === 0) {
         debug2("No processed messages!");
-        new import_obsidian6.Notice("No valid messages to send to the model. Please check your note content.");
+        new import_obsidian11.Notice("No valid messages to send to the model. Please check your note content.");
         return;
       }
       debug2("Calling provider.getCompletion");
@@ -4267,28 +4267,28 @@ async function generateNoteTitle(app, settings, processMessages2) {
             const newPath = parentPath ? parentPath + "/" + sanitized + ext : sanitized + ext;
             if (file.path !== newPath) {
               await app.fileManager.renameFile(file, newPath);
-              new import_obsidian6.Notice(`Note renamed to: ${sanitized}${ext}`);
+              new import_obsidian11.Notice(`Note renamed to: ${sanitized}${ext}`);
             } else {
-              new import_obsidian6.Notice(`Note title is already: ${sanitized}${ext}`);
+              new import_obsidian11.Notice(`Note title is already: ${sanitized}${ext}`);
             }
           }
         } else if (outputMode === "metadata") {
           const file = app.workspace.getActiveFile();
           if (file) {
             await upsertYamlField(app, file, "title", title);
-            new import_obsidian6.Notice(`Inserted title into metadata: ${title}`);
+            new import_obsidian11.Notice(`Inserted title into metadata: ${title}`);
           }
         } else {
           try {
             await navigator.clipboard.writeText(title);
-            new import_obsidian6.Notice(`Generated title (copied): ${title}`);
+            new import_obsidian11.Notice(`Generated title (copied): ${title}`);
           } catch (e) {
-            new import_obsidian6.Notice(`Generated title: ${title}`);
+            new import_obsidian11.Notice(`Generated title: ${title}`);
           }
         }
       } else {
         debug2("No title generated after sanitization.");
-        new import_obsidian6.Notice("No title generated.");
+        new import_obsidian11.Notice("No title generated.");
       }
     } catch (processError) {
       debug2("Error in processMessages or provider.getCompletion:", processError);
@@ -4296,7 +4296,7 @@ async function generateNoteTitle(app, settings, processMessages2) {
       throw processError;
     }
   } catch (err) {
-    new import_obsidian6.Notice("Error generating title: " + ((_b = err == null ? void 0 : err.message) != null ? _b : err));
+    new import_obsidian11.Notice("Error generating title: " + ((_b = err == null ? void 0 : err.message) != null ? _b : err));
   }
 }
 async function generateNoteSummary(app, settings, processMessages2) {
@@ -4304,7 +4304,7 @@ async function generateNoteSummary(app, settings, processMessages2) {
   debug2("Starting generateNoteSummary");
   const activeFile = app.workspace.getActiveFile();
   if (!activeFile) {
-    new import_obsidian6.Notice("No active note found.");
+    new import_obsidian11.Notice("No active note found.");
     return;
   }
   let noteContent = await app.vault.cachedRead(activeFile);
@@ -4332,7 +4332,7 @@ async function generateNoteSummary(app, settings, processMessages2) {
       settings.enableContextNotes = originalEnableContextNotes;
       if (!processedMessages || processedMessages.length === 0) {
         debug2("No processed messages!");
-        new import_obsidian6.Notice("No valid messages to send to the model. Please check your note content.");
+        new import_obsidian11.Notice("No valid messages to send to the model. Please check your note content.");
         return;
       }
       debug2("Calling provider.getCompletion");
@@ -4355,19 +4355,19 @@ async function generateNoteSummary(app, settings, processMessages2) {
           const file = app.workspace.getActiveFile();
           if (file) {
             await upsertYamlField(app, file, "abstract", summary);
-            new import_obsidian6.Notice(`Inserted summary into metadata: ${summary}`);
+            new import_obsidian11.Notice(`Inserted summary into metadata: ${summary}`);
           }
         } else {
           try {
             await navigator.clipboard.writeText(summary);
-            new import_obsidian6.Notice(`Generated summary (copied): ${summary}`);
+            new import_obsidian11.Notice(`Generated summary (copied): ${summary}`);
           } catch (e) {
-            new import_obsidian6.Notice(`Generated summary: ${summary}`);
+            new import_obsidian11.Notice(`Generated summary: ${summary}`);
           }
         }
       } else {
         debug2("No summary generated after sanitization.");
-        new import_obsidian6.Notice("No summary generated.");
+        new import_obsidian11.Notice("No summary generated.");
       }
     } catch (processError) {
       debug2("Error in processMessages or provider.getCompletion:", processError);
@@ -4375,7 +4375,7 @@ async function generateNoteSummary(app, settings, processMessages2) {
       throw processError;
     }
   } catch (err) {
-    new import_obsidian6.Notice("Error generating summary: " + ((_b = err == null ? void 0 : err.message) != null ? _b : err));
+    new import_obsidian11.Notice("Error generating summary: " + ((_b = err == null ? void 0 : err.message) != null ? _b : err));
   }
 }
 async function upsertYamlField(app, file, field, value) {
@@ -4398,10 +4398,10 @@ ${field}: ${value}
   }
   await app.vault.modify(file, content);
 }
-var import_obsidian6, DEBUG;
+var import_obsidian11, DEBUG;
 var init_filechanger = __esm({
   "src/filechanger.ts"() {
-    import_obsidian6 = require("obsidian");
+    import_obsidian11 = require("obsidian");
     init_providers();
     DEBUG = true;
   }
@@ -4413,7 +4413,7 @@ __export(main_exports, {
   default: () => MyPlugin
 });
 module.exports = __toCommonJS(main_exports);
-var import_obsidian7 = require("obsidian");
+var import_obsidian12 = require("obsidian");
 
 // src/types.ts
 var DEFAULT_SETTINGS = {
@@ -4572,127 +4572,12 @@ var MyPluginSettingTab = class extends import_obsidian.PluginSettingTab {
   }
 };
 
-// src/components/chat.ts
-var import_obsidian3 = require("obsidian");
-init_providers();
+// src/components/chat/ChatView.ts
+var import_obsidian8 = require("obsidian");
 
-// src/ChatHistoryManager.ts
+// src/components/chat/SettingsModal.ts
 var import_obsidian2 = require("obsidian");
-var ChatHistoryManager = class {
-  constructor(vault, pluginId, historyFilePath) {
-    __publicField(this, "vault");
-    __publicField(this, "historyFilePath");
-    __publicField(this, "history", []);
-    __publicField(this, "isLoaded", false);
-    this.vault = vault;
-    let effectivePluginId = pluginId;
-    if (!pluginId) {
-      console.error("CRITICAL: ChatHistoryManager instantiated without pluginId! Using placeholder. This will likely lead to incorrect file paths.");
-      effectivePluginId = "unknown-plugin-id-error";
-    }
-    const fPath = historyFilePath || "chat-history.json";
-    this.historyFilePath = (0, import_obsidian2.normalizePath)(`.obsidian/plugins/${effectivePluginId}/${fPath}`);
-    console.log("[ChatHistoryManager] Using history file path:", this.historyFilePath);
-    if (typeof window !== "undefined" && window.Notice) {
-      new window.Notice("[ChatHistoryManager] Using history file path: " + this.historyFilePath);
-    }
-  }
-  async ensureDirectoryExists() {
-    const dirPath = this.historyFilePath.substring(0, this.historyFilePath.lastIndexOf("/"));
-    if (!dirPath) return;
-    try {
-      const abstractFile = this.vault.getAbstractFileByPath(dirPath);
-      if (abstractFile === null) {
-        await this.vault.createFolder(dirPath);
-      } else if (!(abstractFile instanceof import_obsidian2.TFolder)) {
-        console.error(`Path ${dirPath} exists but is not a folder.`);
-        throw new Error(`Path ${dirPath} exists but is not a folder.`);
-      }
-    } catch (e) {
-      if (e.message && e.message.toLowerCase().includes("folder already exists")) {
-        return;
-      }
-      console.error(`Failed to ensure directory ${dirPath} exists:`, e);
-      throw e;
-    }
-  }
-  async loadHistory() {
-    try {
-      const exists = await this.vault.adapter.exists(this.historyFilePath);
-      if (exists) {
-        const data = await this.vault.adapter.read(this.historyFilePath);
-        try {
-          this.history = JSON.parse(data);
-        } catch (parseError) {
-          console.error("Failed to parse chat history:", parseError);
-          this.history = [];
-        }
-      } else {
-        this.history = [];
-      }
-    } catch (e) {
-      console.error("Failed to load chat history:", e);
-      this.history = [];
-    }
-    return this.history;
-  }
-  async addMessage(message) {
-    const currentHistory = await this.loadHistory();
-    currentHistory.push(message);
-    this.history = currentHistory;
-    await this.saveHistory();
-  }
-  async getHistory() {
-    return await this.loadHistory();
-  }
-  async clearHistory() {
-    this.history = [];
-    await this.saveHistory();
-  }
-  async deleteMessage(timestamp, sender, content) {
-    await this.loadHistory();
-    const index = this.history.findIndex(
-      (msg) => msg.timestamp === timestamp && msg.sender === sender && msg.content === content
-    );
-    if (index !== -1) {
-      this.history.splice(index, 1);
-      await this.saveHistory();
-    }
-  }
-  async updateMessage(timestamp, sender, oldContent, newContent) {
-    await this.loadHistory();
-    const message = this.history.find(
-      (msg) => msg.timestamp === timestamp && msg.sender === sender && msg.content === oldContent
-    );
-    if (message) {
-      message.content = newContent;
-      await this.saveHistory();
-    } else {
-      console.warn("ChatHistoryManager: updateMessage did not find a matching message to update.", { timestamp, sender, oldContent });
-    }
-  }
-  async saveHistory() {
-    try {
-      await this.ensureDirectoryExists();
-      const data = JSON.stringify(this.history, null, 2);
-      const abstractTarget = this.vault.getAbstractFileByPath(this.historyFilePath);
-      if (abstractTarget instanceof import_obsidian2.TFolder) {
-        throw new Error(`Path ${this.historyFilePath} is a directory, not a file.`);
-      }
-      await this.vault.adapter.write(this.historyFilePath, data);
-      if (!abstractTarget || !(abstractTarget instanceof import_obsidian2.TFile)) {
-        await this.vault.adapter.exists(this.historyFilePath);
-      }
-    } catch (e) {
-      console.error(`Failed to save history to ${this.historyFilePath}:`, e);
-      throw e;
-    }
-  }
-};
-
-// src/components/chat.ts
-var VIEW_TYPE_CHAT = "chat-view";
-var SettingsModal = class extends import_obsidian3.Modal {
+var SettingsModal = class extends import_obsidian2.Modal {
   constructor(app, plugin) {
     super(app);
     __publicField(this, "plugin");
@@ -4703,69 +4588,64 @@ var SettingsModal = class extends import_obsidian3.Modal {
     const { contentEl } = this;
     contentEl.empty();
     contentEl.addClass("ai-settings-modal");
-    contentEl.createEl("h3", { text: "Session Management" });
-    new import_obsidian3.Setting(contentEl).setName("Auto-save Sessions").setDesc("Automatically save chat messages to sessions").addToggle((toggle) => toggle.setValue(this.plugin.settings.autoSaveSessions).onChange(async (value) => {
-      this.plugin.settings.autoSaveSessions = value;
-      await this.plugin.saveSettings();
-    }));
-    new import_obsidian3.Setting(contentEl).setName("Maximum Sessions").setDesc("Maximum number of chat sessions to keep (oldest will be removed)").addSlider((slider) => slider.setLimits(1, 50, 1).setValue(this.plugin.settings.maxSessions).setDynamicTooltip().onChange(async (value) => {
-      this.plugin.settings.maxSessions = value;
-      if (this.plugin.settings.sessions.length > value) {
-        this.plugin.settings.sessions = this.plugin.settings.sessions.sort((a, b) => b.lastUpdated - a.lastUpdated).slice(0, value);
-      }
-      await this.plugin.saveSettings();
-    }));
-    new import_obsidian3.Setting(contentEl).setName("AI Provider").setDesc("Choose which AI provider to use").addDropdown((dropdown) => {
+    new import_obsidian2.Setting(contentEl).setName("AI Provider").setDesc("Choose which AI provider to use").addDropdown((dropdown) => {
       dropdown.addOption("openai", "OpenAI (ChatGPT)").addOption("anthropic", "Anthropic (Claude)").addOption("gemini", "Google (Gemini)").addOption("ollama", "Ollama (Local AI)").setValue(this.plugin.settings.provider).onChange(async (value) => {
         this.plugin.settings.provider = value;
         await this.plugin.saveSettings();
         this.onOpen();
       });
     });
-    new import_obsidian3.Setting(contentEl).setName("System Message").setDesc("Set the system message for the AI").addTextArea((text) => text.setPlaceholder("You are a helpful assistant.").setValue(this.plugin.settings.systemMessage).onChange(async (value) => {
+    new import_obsidian2.Setting(contentEl).setName("System Message").setDesc("Set the system message for the AI").addTextArea((text) => text.setPlaceholder("You are a helpful assistant.").setValue(this.plugin.settings.systemMessage).onChange(async (value) => {
       this.plugin.settings.systemMessage = value;
       await this.plugin.saveSettings();
     }));
-    new import_obsidian3.Setting(contentEl).setName("Include Date with System Message").setDesc("Add the current date to the system message").addToggle((toggle) => toggle.setValue(this.plugin.settings.includeDateWithSystemMessage).onChange(async (value) => {
+    new import_obsidian2.Setting(contentEl).setName("Include Date with System Message").setDesc("Add the current date to the system message").addToggle((toggle) => toggle.setValue(this.plugin.settings.includeDateWithSystemMessage).onChange(async (value) => {
       this.plugin.settings.includeDateWithSystemMessage = value;
       await this.plugin.saveSettings();
     }));
-    new import_obsidian3.Setting(contentEl).setName("Include Time with System Message").setDesc("Add the current time along with the date to the system message").addToggle((toggle) => toggle.setValue(this.plugin.settings.includeTimeWithSystemMessage).onChange(async (value) => {
+    new import_obsidian2.Setting(contentEl).setName("Include Time with System Message").setDesc("Add the current time along with the date to the system message").addToggle((toggle) => toggle.setValue(this.plugin.settings.includeTimeWithSystemMessage).onChange(async (value) => {
       this.plugin.settings.includeTimeWithSystemMessage = value;
       await this.plugin.saveSettings();
     }));
-    new import_obsidian3.Setting(contentEl).setName("Enable Obsidian Links").setDesc("Read Obsidian links in messages using [[filename]] syntax").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableObsidianLinks).onChange(async (value) => {
+    new import_obsidian2.Setting(contentEl).setName("Enable Obsidian Links").setDesc("Read Obsidian links in messages using [[filename]] syntax").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableObsidianLinks).onChange(async (value) => {
       this.plugin.settings.enableObsidianLinks = value;
       await this.plugin.saveSettings();
     }));
-    new import_obsidian3.Setting(contentEl).setName("Enable Context Notes").setDesc("Attach specified note content to chat messages").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableContextNotes).onChange(async (value) => {
+    new import_obsidian2.Setting(contentEl).setName("Enable Context Notes").setDesc("Attach specified note content to chat messages").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableContextNotes).onChange(async (value) => {
       this.plugin.settings.enableContextNotes = value;
       await this.plugin.saveSettings();
     }));
-    new import_obsidian3.Setting(contentEl).setName("Context Notes").setDesc("Notes to attach as context (supports [[filename]] and [[filename#header]] syntax)").addTextArea((text) => {
+    new import_obsidian2.Setting(contentEl).setName("Context Notes").setDesc("Notes to attach as context (supports [[filename]] and [[filename#header]] syntax)").addTextArea((text) => {
       text.setPlaceholder("[[Note Name]]\n[[Another Note#Header]]").setValue(this.plugin.settings.contextNotes || "").onChange(async (value) => {
         this.plugin.settings.contextNotes = value;
         await this.plugin.saveSettings();
       });
       text.inputEl.rows = 4;
     });
-    new import_obsidian3.Setting(contentEl).setName("Enable Streaming").setDesc("Enable or disable streaming for completions").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableStreaming).onChange(async (value) => {
+    new import_obsidian2.Setting(contentEl).setName("Reference Current Note").setDesc("Include the content of the current note in the chat context.").addToggle((toggle) => toggle.setValue(this.plugin.settings.referenceCurrentNote).onChange(async (value) => {
+      this.plugin.settings.referenceCurrentNote = value;
+      await this.plugin.saveSettings();
+    }));
+    new import_obsidian2.Setting(contentEl).setName("Enable Streaming").setDesc("Enable or disable streaming for completions").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableStreaming).onChange(async (value) => {
       this.plugin.settings.enableStreaming = value;
       await this.plugin.saveSettings();
     }));
-    new import_obsidian3.Setting(contentEl).setName("Temperature").setDesc("Set the randomness of the model's output (0-1)").addSlider((slider) => slider.setLimits(0, 1, 0.1).setValue(this.plugin.settings.temperature).setDynamicTooltip().onChange(async (value) => {
+    new import_obsidian2.Setting(contentEl).setName("Temperature").setDesc("Set the randomness of the model's output (0-1)").addSlider((slider) => slider.setLimits(0, 1, 0.1).setValue(this.plugin.settings.temperature).setDynamicTooltip().onChange(async (value) => {
       this.plugin.settings.temperature = value;
       await this.plugin.saveSettings();
     }));
-    new import_obsidian3.Setting(contentEl).setName("Reference Current Note").setDesc("Include the content of the current note in the chat context.").addToggle((toggle) => toggle.setValue(this.plugin.settings.referenceCurrentNote).onChange(async (value) => {
-      this.plugin.settings.referenceCurrentNote = value;
-      await this.plugin.saveSettings();
+    new import_obsidian2.Setting(contentEl).setName("Max Tokens").setDesc("Set the maximum length of the model's output").addText((text) => text.setPlaceholder("4000").setValue(String(this.plugin.settings.maxTokens)).onChange(async (value) => {
+      const numValue = Number(value);
+      if (!isNaN(numValue)) {
+        this.plugin.settings.maxTokens = numValue;
+        await this.plugin.saveSettings();
+      }
     }));
     contentEl.createEl("h3", { text: `${this.plugin.settings.provider.toUpperCase()} Settings` });
     switch (this.plugin.settings.provider) {
       case "openai": {
         const settings = this.plugin.settings.openaiSettings;
-        new import_obsidian3.Setting(contentEl).setName("Model").setDesc("Choose the OpenAI model to use").addDropdown((dropdown) => {
+        new import_obsidian2.Setting(contentEl).setName("Model").setDesc("Choose the OpenAI model to use").addDropdown((dropdown) => {
           for (const model of settings.availableModels) {
             dropdown.addOption(model, model);
           }
@@ -4778,7 +4658,7 @@ var SettingsModal = class extends import_obsidian3.Modal {
       }
       case "anthropic": {
         const settings = this.plugin.settings.anthropicSettings;
-        new import_obsidian3.Setting(contentEl).setName("Model").setDesc("Choose the Anthropic model to use").addDropdown((dropdown) => {
+        new import_obsidian2.Setting(contentEl).setName("Model").setDesc("Choose the Anthropic model to use").addDropdown((dropdown) => {
           for (const model of settings.availableModels) {
             dropdown.addOption(model, model);
           }
@@ -4791,7 +4671,7 @@ var SettingsModal = class extends import_obsidian3.Modal {
       }
       case "gemini": {
         const settings = this.plugin.settings.geminiSettings;
-        new import_obsidian3.Setting(contentEl).setName("Model").setDesc("Choose the Gemini model to use").addDropdown((dropdown) => {
+        new import_obsidian2.Setting(contentEl).setName("Model").setDesc("Choose the Gemini model to use").addDropdown((dropdown) => {
           for (const model of settings.availableModels) {
             dropdown.addOption(model, model);
           }
@@ -4804,7 +4684,7 @@ var SettingsModal = class extends import_obsidian3.Modal {
       }
       case "ollama": {
         const settings = this.plugin.settings.ollamaSettings;
-        new import_obsidian3.Setting(contentEl).setName("Model").setDesc("Choose the Ollama model to use").addDropdown((dropdown) => {
+        new import_obsidian2.Setting(contentEl).setName("Model").setDesc("Choose the Ollama model to use").addDropdown((dropdown) => {
           for (const model of settings.availableModels) {
             dropdown.addOption(model, model);
           }
@@ -4822,52 +4702,612 @@ var SettingsModal = class extends import_obsidian3.Modal {
     contentEl.empty();
   }
 };
-var ConfirmationModal = class extends import_obsidian3.Modal {
-  constructor(app, title, message, onConfirm) {
-    super(app);
-    __publicField(this, "onConfirm");
-    __publicField(this, "message");
-    this.titleEl.setText(title);
-    this.message = message;
-    this.onConfirm = onConfirm;
+
+// src/components/chat/Buttons.ts
+var import_obsidian3 = require("obsidian");
+var Buttons = class extends import_obsidian3.Component {
+  constructor() {
+    super();
+    __publicField(this, "container");
+    __publicField(this, "sendButton");
+    __publicField(this, "stopButton");
+    __publicField(this, "clearButton");
+    __publicField(this, "settingsButton");
+    this.container = document.createElement("div");
+    this.container.addClass("ai-chat-buttons");
+    this.sendButton = new import_obsidian3.ButtonComponent(this.container).setButtonText("Send").setClass("mod-cta");
+    this.sendButton.buttonEl.addClass("hidden-button");
+    this.stopButton = new import_obsidian3.ButtonComponent(this.container).setButtonText("Stop");
+    this.stopButton.buttonEl.addClass("hidden-button");
+    this.clearButton = new import_obsidian3.ButtonComponent(this.container).setButtonText("Clear");
+    this.clearButton.buttonEl.addClass("hidden-button");
+    this.settingsButton = new import_obsidian3.ButtonComponent(this.container).setButtonText("Settings");
+    this.settingsButton.buttonEl.addClass("hidden-button");
   }
-  onOpen() {
-    const { contentEl } = this;
-    contentEl.createEl("p", { text: this.message });
-    const buttonContainer = contentEl.createDiv("modal-button-container");
-    buttonContainer.style.display = "flex";
-    buttonContainer.style.justifyContent = "flex-end";
-    buttonContainer.style.gap = "8px";
-    buttonContainer.style.marginTop = "16px";
-    buttonContainer.createEl("button", { text: "Cancel" }).addEventListener("click", () => {
-      this.onConfirm(false);
-      this.close();
-    });
-    const confirmButton = buttonContainer.createEl("button", {
-      text: "Delete",
-      cls: "mod-warning"
-    });
-    confirmButton.addEventListener("click", () => {
-      this.onConfirm(true);
-      this.close();
-    });
+  /**
+   * Get the button container element
+   */
+  getContainer() {
+    return this.container;
   }
-  onClose() {
-    const { contentEl } = this;
-    contentEl.empty();
+  getSendButton() {
+    return this.sendButton;
+  }
+  getStopButton() {
+    return this.stopButton;
+  }
+  getClearButton() {
+    return this.clearButton;
+  }
+  getSettingsButton() {
+    return this.settingsButton;
+  }
+  showSendButton() {
+    this.sendButton.buttonEl.removeClass("hidden-button");
+  }
+  hideSendButton() {
+    this.sendButton.buttonEl.addClass("hidden-button");
+  }
+  showStopButton() {
+    this.stopButton.buttonEl.removeClass("hidden-button");
+  }
+  hideStopButton() {
+    this.stopButton.buttonEl.addClass("hidden-button");
+  }
+  showClearButton() {
+    this.clearButton.buttonEl.removeClass("hidden-button");
+  }
+  hideClearButton() {
+    this.clearButton.buttonEl.addClass("hidden-button");
+  }
+  showSettingsButton() {
+    this.settingsButton.buttonEl.removeClass("hidden-button");
+  }
+  hideSettingsButton() {
+    this.settingsButton.buttonEl.addClass("hidden-button");
+  }
+  /**
+   * Create action buttons for messages (copy, edit, delete, regenerate)
+   */
+  createMessageActions(buttons) {
+    const actionsContainer = document.createElement("div");
+    actionsContainer.addClass("message-actions");
+    buttons.forEach((config) => {
+      const button = this.createButton(config);
+      actionsContainer.appendChild(button);
+    });
+    return actionsContainer;
+  }
+  /**
+   * Create the main chat control buttons (send, stop, copy all, clear, settings)
+   */
+  createChatControls(buttons) {
+    const controlsContainer = document.createElement("div");
+    controlsContainer.addClass("ai-chat-buttons");
+    buttons.forEach((config) => {
+      const button = this.createButton(config);
+      if (config.isHidden) {
+        button.addClass("hidden-button");
+      }
+      controlsContainer.appendChild(button);
+    });
+    return controlsContainer;
+  }
+  /**
+   * Create a single button with the given configuration
+   */
+  createButton(config) {
+    const button = document.createElement("button");
+    button.addClass("ai-chat-action-button");
+    if (config.className) {
+      button.addClass(config.className);
+    }
+    button.setAttribute("aria-label", config.tooltip);
+    const labelEl = document.createElement("span");
+    labelEl.textContent = config.label;
+    button.appendChild(labelEl);
+    button.addEventListener("click", config.onClick);
+    return button;
+  }
+  /**
+   * Show or hide a specific button in a container
+   */
+  toggleButton(container, label, show) {
+    const button = container.querySelector(`[aria-label="${label}"]`);
+    if (button instanceof HTMLElement) {
+      show ? button.removeClass("hidden-button") : button.addClass("hidden-button");
+    }
   }
 };
-var ChatView = class extends import_obsidian3.ItemView {
+
+// src/components/chat/Commands.ts
+var import_obsidian6 = require("obsidian");
+init_providers();
+
+// src/components/chat/BotMessage.ts
+var import_obsidian4 = require("obsidian");
+var BotMessage = class extends import_obsidian4.Component {
+  constructor(app, plugin, content) {
+    super();
+    __publicField(this, "app");
+    __publicField(this, "plugin");
+    __publicField(this, "content");
+    __publicField(this, "element");
+    __publicField(this, "contentEl");
+    this.app = app;
+    this.plugin = plugin;
+    this.content = content;
+    this.element = this.createMessageElement();
+  }
+  getElement() {
+    return this.element;
+  }
+  getContent() {
+    return this.content;
+  }
+  async setContent(content) {
+    this.content = content;
+    this.element.dataset.rawContent = content;
+    this.contentEl.empty();
+    await import_obsidian4.MarkdownRenderer.render(
+      this.app,
+      content,
+      this.contentEl,
+      "",
+      this
+    );
+  }
+  createMessageElement() {
+    const messageEl = document.createElement("div");
+    messageEl.addClass("ai-chat-message", "assistant");
+    messageEl.dataset.rawContent = this.content;
+    const messageContainer = messageEl.createDiv("message-container");
+    this.contentEl = messageContainer.createDiv("message-content");
+    import_obsidian4.MarkdownRenderer.render(
+      this.app,
+      this.content,
+      this.contentEl,
+      "",
+      this
+    );
+    const buttons = new Buttons();
+    const actions = buttons.createMessageActions([
+      {
+        label: "Copy",
+        tooltip: "Copy message",
+        onClick: async () => {
+          const content = messageEl.dataset.rawContent || "";
+          if (content.trim() === "") return;
+          await navigator.clipboard.writeText(content);
+        }
+      },
+      {
+        label: "Edit",
+        tooltip: "Edit message",
+        onClick: () => {
+          const wasEditing = this.contentEl.hasClass("editing");
+          if (!wasEditing) {
+            const textarea = document.createElement("textarea");
+            textarea.value = messageEl.dataset.rawContent || "";
+            this.contentEl.empty();
+            this.contentEl.appendChild(textarea);
+            textarea.focus();
+            this.contentEl.addClass("editing");
+          } else {
+            const textarea = this.contentEl.querySelector("textarea");
+            if (textarea) {
+              this.setContent(textarea.value);
+              this.contentEl.removeClass("editing");
+            }
+          }
+        }
+      },
+      {
+        label: "Delete",
+        tooltip: "Delete message",
+        onClick: () => {
+          messageEl.remove();
+        }
+      },
+      {
+        label: "Regenerate",
+        tooltip: "Regenerate this response",
+        onClick: () => {
+          const event = new CustomEvent("ai-assistant:regenerate-response", {
+            detail: { messageEl }
+          });
+          this.app.workspace.trigger("ai-assistant:regenerate-response", messageEl);
+        }
+      }
+    ]);
+    messageEl.addEventListener("mouseenter", () => {
+    });
+    messageEl.addEventListener("mouseleave", () => {
+    });
+    messageContainer.appendChild(actions);
+    return messageEl;
+  }
+};
+
+// src/components/chat/UserMessage.ts
+var import_obsidian5 = require("obsidian");
+var UserMessage = class extends import_obsidian5.Component {
+  constructor(app, plugin, content) {
+    super();
+    __publicField(this, "app");
+    __publicField(this, "plugin");
+    __publicField(this, "content");
+    __publicField(this, "element");
+    __publicField(this, "contentEl");
+    this.app = app;
+    this.plugin = plugin;
+    this.content = content;
+    this.element = this.createMessageElement();
+  }
+  getElement() {
+    return this.element;
+  }
+  getContent() {
+    return this.content;
+  }
+  async setContent(content) {
+    this.content = content;
+    this.element.dataset.rawContent = content;
+    this.contentEl.empty();
+    await import_obsidian5.MarkdownRenderer.render(
+      this.app,
+      content,
+      this.contentEl,
+      "",
+      this
+    );
+  }
+  createMessageElement() {
+    const messageEl = document.createElement("div");
+    messageEl.addClass("ai-chat-message", "user");
+    messageEl.dataset.rawContent = this.content;
+    const messageContainer = messageEl.createDiv("message-container");
+    this.contentEl = messageContainer.createDiv("message-content");
+    import_obsidian5.MarkdownRenderer.render(
+      this.app,
+      this.content,
+      this.contentEl,
+      "",
+      this
+    );
+    const buttons = new Buttons();
+    const actions = buttons.createMessageActions([
+      {
+        label: "Copy",
+        tooltip: "Copy message",
+        onClick: async () => {
+          const content = messageEl.dataset.rawContent || "";
+          if (content.trim() === "") return;
+          await navigator.clipboard.writeText(content);
+        }
+      },
+      {
+        label: "Edit",
+        tooltip: "Edit message",
+        onClick: () => {
+          const wasEditing = this.contentEl.hasClass("editing");
+          if (!wasEditing) {
+            const textarea = document.createElement("textarea");
+            textarea.value = messageEl.dataset.rawContent || "";
+            this.contentEl.empty();
+            this.contentEl.appendChild(textarea);
+            textarea.focus();
+            this.contentEl.addClass("editing");
+          } else {
+            const textarea = this.contentEl.querySelector("textarea");
+            if (textarea) {
+              this.setContent(textarea.value);
+              this.contentEl.removeClass("editing");
+            }
+          }
+        }
+      },
+      {
+        label: "Delete",
+        tooltip: "Delete message",
+        onClick: () => {
+          messageEl.remove();
+        }
+      },
+      {
+        label: "Regenerate",
+        tooltip: "Regenerate the AI response",
+        onClick: () => {
+          const event = new CustomEvent("ai-assistant:regenerate-response", {
+            detail: { messageEl }
+          });
+          this.app.workspace.trigger("ai-assistant:regenerate-response", messageEl);
+        }
+      }
+    ]);
+    messageEl.addEventListener("mouseenter", () => {
+    });
+    messageEl.addEventListener("mouseleave", () => {
+    });
+    messageContainer.appendChild(actions);
+    return messageEl;
+  }
+};
+
+// src/components/chat/Commands.ts
+var Commands = class extends import_obsidian6.Component {
+  constructor(app, plugin, messagesContainer, onMessageSent) {
+    super();
+    __publicField(this, "plugin");
+    __publicField(this, "app");
+    __publicField(this, "messagesContainer");
+    __publicField(this, "activeStream", null);
+    __publicField(this, "onMessageSent");
+    this.app = app;
+    this.plugin = plugin;
+    this.messagesContainer = messagesContainer;
+    this.onMessageSent = onMessageSent;
+  }
+  /**
+   * Send a new message and get AI response
+   */
+  async sendMessage(content) {
+    if (!content.trim()) return;
+    const userMessage = new UserMessage(this.app, this.plugin, content);
+    this.messagesContainer.appendChild(userMessage.getElement());
+    this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+    this.activeStream = new AbortController();
+    try {
+      const provider = createProvider(this.plugin.settings);
+      let systemMessage = this.plugin.getSystemMessage();
+      if (this.plugin.settings.enableContextNotes && this.plugin.settings.contextNotes) {
+        const contextContent = await this.plugin.getContextNotesContent(this.plugin.settings.contextNotes);
+        systemMessage += `
+
+Context Notes:
+${contextContent}`;
+      }
+      const messages = [{ role: "system", content: systemMessage }];
+      if (this.plugin.settings.referenceCurrentNote) {
+        const currentFile = this.app.workspace.getActiveFile();
+        if (currentFile) {
+          const currentNoteContent = await this.app.vault.cachedRead(currentFile);
+          messages.push({
+            role: "system",
+            content: `Here is the content of the current note:
+
+${currentNoteContent}`
+          });
+        }
+      }
+      messages.push({ role: "user", content });
+      const botMessage = new BotMessage(this.app, this.plugin, "");
+      this.messagesContainer.appendChild(botMessage.getElement());
+      this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+      await provider.getCompletion(
+        messages,
+        {
+          temperature: this.plugin.settings.temperature,
+          maxTokens: this.plugin.settings.maxTokens,
+          streamCallback: async (chunk) => {
+            botMessage.setContent(botMessage.getContent() + chunk);
+            this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+          },
+          abortController: this.activeStream
+        }
+      );
+      if (this.onMessageSent) {
+        this.onMessageSent();
+      }
+    } catch (error) {
+      if (error.name !== "AbortError") {
+        new import_obsidian6.Notice(`Error: ${error.message}`);
+        const errorMessage = new BotMessage(this.app, this.plugin, `Error: ${error.message}`);
+        this.messagesContainer.appendChild(errorMessage.getElement());
+      }
+    } finally {
+      this.activeStream = null;
+    }
+  }
+  /**
+   * Stop the current message generation
+   */
+  stopGeneration() {
+    if (this.activeStream) {
+      this.activeStream.abort();
+      this.activeStream = null;
+    }
+  }
+  /**
+   * Clear all messages from the chat
+   */
+  clearChat() {
+    this.messagesContainer.empty();
+  }
+  /**
+   * Copy all messages to clipboard
+   */
+  async copyAllMessages() {
+    const messages = this.messagesContainer.querySelectorAll(".ai-chat-message");
+    let chatContent = "";
+    messages.forEach((el, index) => {
+      var _a2;
+      const content = ((_a2 = el.querySelector(".message-content")) == null ? void 0 : _a2.textContent) || "";
+      chatContent += content;
+      if (index < messages.length - 1) {
+        chatContent += "\n\n" + this.plugin.settings.chatSeparator + "\n\n";
+      }
+    });
+    try {
+      await navigator.clipboard.writeText(chatContent);
+      new import_obsidian6.Notice("Copied to clipboard");
+    } catch (error) {
+      new import_obsidian6.Notice("Failed to copy to clipboard");
+      console.error("Clipboard error:", error);
+    }
+  }
+  /**
+   * Regenerate an AI response
+   */
+  async regenerateResponse(messageEl) {
+    const messages = [
+      { role: "system", content: this.plugin.getSystemMessage() }
+    ];
+    if (this.plugin.settings.enableContextNotes && this.plugin.settings.contextNotes) {
+      const contextContent = await this.plugin.getContextNotesContent(this.plugin.settings.contextNotes);
+      messages[0].content += `
+
+Context Notes:
+${contextContent}`;
+    }
+    const allMessages = Array.from(this.messagesContainer.querySelectorAll(".ai-chat-message"));
+    const currentIndex = allMessages.indexOf(messageEl);
+    for (let i = 0; i <= currentIndex; i++) {
+      const el = allMessages[i];
+      const role = el.classList.contains("user") ? "user" : "assistant";
+      const content = el.dataset.rawContent || "";
+      messages.push({ role, content });
+    }
+    let messageToReplace;
+    if (messageEl.classList.contains("assistant")) {
+      messageToReplace = messageEl;
+    } else {
+      messageToReplace = messageEl.nextElementSibling;
+      if (!(messageToReplace == null ? void 0 : messageToReplace.classList.contains("assistant"))) {
+        return;
+      }
+    }
+    messageToReplace.remove();
+    const botMessage = new BotMessage(this.app, this.plugin, "");
+    this.messagesContainer.insertBefore(
+      botMessage.getElement(),
+      messageEl.classList.contains("assistant") ? messageEl.nextSibling : (messageToReplace == null ? void 0 : messageToReplace.nextSibling) || null
+    );
+    this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+    this.activeStream = new AbortController();
+    try {
+      const provider = createProvider(this.plugin.settings);
+      await provider.getCompletion(
+        messages,
+        {
+          temperature: this.plugin.settings.temperature,
+          maxTokens: this.plugin.settings.maxTokens,
+          streamCallback: async (chunk) => {
+            botMessage.setContent(botMessage.getContent() + chunk);
+            this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+          },
+          abortController: this.activeStream
+        }
+      );
+    } catch (error) {
+      if (error.name !== "AbortError") {
+        new import_obsidian6.Notice(`Error: ${error.message}`);
+        botMessage.getElement().remove();
+      }
+    } finally {
+      this.activeStream = null;
+    }
+  }
+};
+
+// src/components/chat/Prompt.ts
+var import_obsidian7 = require("obsidian");
+var Prompt = class extends import_obsidian7.Component {
+  constructor(app, buttons, commands) {
+    super();
+    __publicField(this, "app");
+    __publicField(this, "buttons");
+    __publicField(this, "commands");
+    __publicField(this, "container");
+    __publicField(this, "textarea");
+    __publicField(this, "state", {
+      isDisabled: false,
+      isSending: false
+    });
+    this.app = app;
+    this.buttons = buttons;
+    this.commands = commands;
+    this.container = document.createElement("div");
+    this.container.addClass("ai-chat-input-container");
+    this.textarea = this.container.createEl("textarea", {
+      cls: "ai-chat-input",
+      attr: {
+        placeholder: "Type your message...",
+        rows: "3"
+      }
+    });
+    const buttonContainer = this.container.createDiv("ai-chat-buttons");
+    buttonContainer.appendChild(this.buttons.getContainer());
+    const sendButton = this.buttons.getSendButton();
+    sendButton.setDisabled(false);
+    sendButton.onClick(() => this.handleSend());
+    const stopButton = this.buttons.getStopButton();
+    stopButton.setDisabled(true);
+    stopButton.onClick(() => this.handleStop());
+    const clearButton = this.buttons.getClearButton();
+    clearButton.setDisabled(false);
+    clearButton.onClick(() => this.handleClear());
+    const settingsButton = this.buttons.getSettingsButton();
+    settingsButton.setDisabled(false);
+    settingsButton.onClick(() => this.handleSettings());
+    this.textarea.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        this.handleSend();
+      }
+    });
+    this.updateUI();
+  }
+  getContainer() {
+    return this.container;
+  }
+  setState(state) {
+    this.state = { ...this.state, ...state };
+    this.updateUI();
+  }
+  async handleSend() {
+    const content = this.textarea.value.trim();
+    if (!content || this.state.isDisabled) return;
+    this.setState({ isDisabled: true, isSending: true });
+    this.textarea.value = "";
+    await this.commands.sendMessage(content);
+    this.setState({ isDisabled: false, isSending: false });
+    this.textarea.focus();
+  }
+  handleStop() {
+    this.commands.stopGeneration();
+    this.setState({ isDisabled: false, isSending: false });
+    this.textarea.focus();
+  }
+  handleClear() {
+    this.commands.clearChat();
+  }
+  handleSettings() {
+    this.app.workspace.trigger("ai-assistant:open-settings");
+  }
+  updateUI() {
+    this.textarea.disabled = this.state.isDisabled;
+    this.buttons.getSendButton().setDisabled(this.state.isDisabled || this.state.isSending);
+    this.buttons.getStopButton().setDisabled(!this.state.isSending);
+    this.buttons.getClearButton().setDisabled(this.state.isDisabled);
+    this.buttons.getSettingsButton().setDisabled(this.state.isDisabled);
+  }
+};
+
+// src/components/chat/ChatView.ts
+var VIEW_TYPE_CHAT = "chat-view";
+var ChatView = class extends import_obsidian8.ItemView {
   constructor(leaf, plugin) {
     super(leaf);
     __publicField(this, "plugin");
     __publicField(this, "messagesContainer");
     __publicField(this, "inputContainer");
+    __publicField(this, "buttonsContainer");
+    __publicField(this, "sessionSelector");
     __publicField(this, "activeStream", null);
-    __publicField(this, "chatHistoryManager");
-    __publicField(this, "settingsContainer", null);
+    __publicField(this, "prompt");
+    __publicField(this, "commands");
     this.plugin = plugin;
-    this.chatHistoryManager = new ChatHistoryManager(this.app.vault, this.plugin.manifest.id, "chat-history.json");
   }
   getViewType() {
     return VIEW_TYPE_CHAT;
@@ -4881,567 +5321,261 @@ var ChatView = class extends import_obsidian3.ItemView {
   async onOpen() {
     const { contentEl } = this;
     contentEl.empty();
-    let loadedHistory = [];
-    try {
-      loadedHistory = await this.chatHistoryManager.getHistory();
-    } catch (e) {
-      new import_obsidian3.Notice("Failed to load chat history.");
-      loadedHistory = [];
-    }
     contentEl.addClass("ai-chat-view");
-    const settingsButton = document.createElement("button");
-    settingsButton.setText("Settings");
-    settingsButton.setAttribute("aria-label", "Toggle model settings");
+    const sessionContainer = contentEl.createDiv("ai-chat-session-container");
+    this.sessionSelector = sessionContainer.createEl("select", {
+      cls: "ai-chat-session-selector"
+    });
+    this.updateSessionSelector();
+    const metadataContainer = sessionContainer.createDiv("ai-chat-session-metadata");
+    this.updateSessionMetadata();
+    const sessionButtons = sessionContainer.createDiv("ai-chat-session-buttons");
+    const newSessionButton = sessionButtons.createEl("button", {
+      text: "New Session"
+    });
+    newSessionButton.addEventListener("click", () => this.createNewSession());
+    const renameSessionButton = sessionButtons.createEl("button", {
+      text: "Rename"
+    });
+    renameSessionButton.addEventListener("click", () => this.renameCurrentSession());
+    const deleteSessionButton = sessionButtons.createEl("button", {
+      text: "Delete"
+    });
+    deleteSessionButton.addEventListener("click", () => this.deleteCurrentSession());
+    const exportButton = sessionButtons.createEl("button", {
+      text: "Export"
+    });
+    exportButton.addEventListener("click", () => this.exportCurrentSession());
+    const importButton = sessionButtons.createEl("button", {
+      text: "Import"
+    });
+    importButton.addEventListener("click", () => this.importSession());
+    this.sessionSelector.addEventListener("change", () => {
+      this.plugin.settings.activeSessionId = this.sessionSelector.value;
+      this.plugin.saveSettings();
+      this.loadSession(this.sessionSelector.value);
+      this.updateSessionMetadata();
+    });
     this.messagesContainer = contentEl.createDiv("ai-chat-messages");
-    this.messagesContainer.style.flex = "1";
-    this.messagesContainer.style.overflow = "auto";
-    this.messagesContainer.style.padding = "16px";
-    this.inputContainer = contentEl.createDiv("ai-chat-input-container");
-    this.inputContainer.style.borderTop = "1px solid var(--background-modifier-border)";
-    this.inputContainer.style.padding = "16px";
-    const textarea = this.inputContainer.createEl("textarea", {
-      cls: "ai-chat-input",
-      attr: {
-        placeholder: "Type your message...",
-        rows: "3"
-      }
-    });
-    textarea.style.width = "100%";
-    textarea.style.resize = "none";
-    textarea.style.border = "1px solid var(--background-modifier-border)";
-    textarea.style.borderRadius = "4px";
-    textarea.style.padding = "8px";
-    textarea.style.backgroundColor = "var(--background-primary)";
-    textarea.style.color = "var(--text-normal)";
-    const buttonContainer = this.inputContainer.createDiv("ai-chat-buttons");
-    buttonContainer.style.marginTop = "8px";
-    buttonContainer.style.display = "flex";
-    buttonContainer.style.gap = "8px";
-    buttonContainer.style.justifyContent = "flex-end";
-    const sendButton = buttonContainer.createEl("button", {
-      text: "Send",
-      cls: "mod-cta"
-    });
-    const stopButton = buttonContainer.createEl("button", {
-      text: "Stop"
-    });
-    stopButton.style.display = "none";
-    const copyAllButton = buttonContainer.createEl("button", {
-      text: "Copy All"
-    });
-    copyAllButton.addEventListener("click", async () => {
-      const messages = this.messagesContainer.querySelectorAll(".ai-chat-message");
-      let chatContent = "";
-      messages.forEach((el, index) => {
-        var _a2;
-        const content = ((_a2 = el.querySelector(".message-content")) == null ? void 0 : _a2.textContent) || "";
-        chatContent += content;
-        if (index < messages.length - 1) {
-          chatContent += "\n\n" + this.plugin.settings.chatSeparator + "\n\n";
-        }
-      });
-      await this.copyToClipboard(chatContent);
-    });
-    const clearButton = buttonContainer.createEl("button", {
-      text: "Clear Chat"
-    });
-    const sendMessage = async () => {
-      const content = textarea.value.trim();
-      if (!content) return;
-      textarea.disabled = true;
-      sendButton.style.display = "none";
-      stopButton.style.display = "block";
-      await this.addMessage("user", content);
-      textarea.value = "";
-      this.activeStream = new AbortController();
-      try {
-        const provider = createProvider(this.plugin.settings);
-        let systemMessage = this.plugin.getSystemMessage();
-        if (this.plugin.settings.enableContextNotes && this.plugin.settings.contextNotes) {
-          const contextContent = await this.plugin.getContextNotesContent(this.plugin.settings.contextNotes);
-          systemMessage += `
-
-Context Notes:
-${contextContent}`;
-        }
-        const messages = [
-          { role: "system", content: systemMessage }
-        ];
-        if (this.plugin.settings.referenceCurrentNote) {
-          const currentFile = this.app.workspace.getActiveFile();
-          if (currentFile) {
-            const currentNoteContent = await this.app.vault.cachedRead(currentFile);
-            messages.push({
-              role: "system",
-              content: `Here is the content of the current note:
-
-${currentNoteContent}`
-            });
-          }
-        }
-        const messageElements = this.messagesContainer.querySelectorAll(".ai-chat-message");
-        messageElements.forEach((el) => {
-          var _a2;
-          const role = el.classList.contains("user") ? "user" : "assistant";
-          const content2 = ((_a2 = el.querySelector(".message-content")) == null ? void 0 : _a2.textContent) || "";
-          messages.push({ role, content: content2 });
-        });
-        const tempContainer = document.createElement("div");
-        tempContainer.addClass("ai-chat-message", "assistant");
-        tempContainer.style.marginBottom = "16px";
-        tempContainer.style.padding = "12px";
-        tempContainer.style.borderRadius = "8px";
-        tempContainer.style.backgroundColor = "var(--background-secondary)";
-        const contentEl2 = tempContainer.createDiv("message-content");
-        this.messagesContainer.appendChild(tempContainer);
-        this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
-        let responseContent = "";
-        await provider.getCompletion(
-          messages,
-          {
-            temperature: this.plugin.settings.temperature,
-            maxTokens: this.plugin.settings.maxTokens,
-            streamCallback: async (chunk) => {
-              responseContent += chunk;
-              contentEl2.empty();
-              await import_obsidian3.MarkdownRenderer.render(
-                this.app,
-                responseContent,
-                contentEl2,
-                "",
-                this
-              );
-              this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
-            },
-            abortController: this.activeStream
-          }
-        );
-        tempContainer.remove();
-        if (responseContent.trim() !== "") {
-          const messageEl = this.createMessageElement("assistant", responseContent);
-          this.messagesContainer.appendChild(messageEl);
-          await this.chatHistoryManager.addMessage({
-            timestamp: messageEl.dataset.timestamp || (/* @__PURE__ */ new Date()).toISOString(),
-            sender: "assistant",
-            content: responseContent
-          });
-        }
-      } catch (error) {
-        if (error.name !== "AbortError") {
-          new import_obsidian3.Notice(`Error: ${error.message}`);
-          await this.addMessage("assistant", `Error: ${error.message}`);
-        }
-      } finally {
-        textarea.disabled = false;
-        textarea.focus();
-        stopButton.style.display = "none";
-        sendButton.style.display = "block";
-        this.activeStream = null;
-      }
-    };
-    textarea.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" && !e.shiftKey) {
-        e.preventDefault();
-        sendMessage();
-      }
-    });
-    sendButton.addEventListener("click", sendMessage);
-    stopButton.addEventListener("click", () => {
-      if (this.activeStream) {
-        this.activeStream.abort();
-        this.activeStream = null;
-        textarea.disabled = false;
-        textarea.focus();
-        stopButton.style.display = "none";
-        sendButton.style.display = "block";
-      }
-    });
-    clearButton.addEventListener("click", async () => {
-      this.messagesContainer.empty();
-      try {
-        await this.chatHistoryManager.clearHistory();
-        const messageEl = this.createMessageElement("assistant", this.plugin.settings.systemMessage || "Hello! How can I help you today?");
-        this.messagesContainer.appendChild(messageEl);
-        this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
-      } catch (e) {
-        new import_obsidian3.Notice("Failed to clear chat history.");
-      }
-    });
-    buttonContainer.insertBefore(settingsButton, clearButton);
-    settingsButton.addEventListener("click", () => {
-      const settingsModal = new SettingsModal(this.app, this.plugin);
-      settingsModal.open();
-    });
-    if (loadedHistory.length > 0) {
-      for (const msg of loadedHistory) {
-        if (msg.sender === "user" || msg.sender === "assistant") {
-          const messageEl = this.createMessageElement(msg.sender, msg.content);
-          messageEl.dataset.timestamp = msg.timestamp;
-          this.messagesContainer.appendChild(messageEl);
-        }
-      }
-      this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
-    }
-  }
-  createActionButton(label, tooltip, callback) {
-    const button = document.createElement("button");
-    button.addClass("ai-chat-action-button");
-    button.setAttribute("aria-label", tooltip);
-    const labelEl = document.createElement("span");
-    labelEl.textContent = label;
-    button.appendChild(labelEl);
-    button.addEventListener("click", callback);
-    return button;
-  }
-  async copyToClipboard(text) {
-    try {
-      await navigator.clipboard.writeText(text);
-      new import_obsidian3.Notice("Copied to clipboard");
-    } catch (error) {
-      new import_obsidian3.Notice("Failed to copy to clipboard");
-      console.error("Clipboard error:", error);
-    }
-  }
-  createMessageElement(role, content) {
-    const messageEl = document.createElement("div");
-    messageEl.addClass("ai-chat-message", role);
-    messageEl.style.marginBottom = "16px";
-    messageEl.style.padding = "12px";
-    messageEl.style.borderRadius = "8px";
-    messageEl.style.backgroundColor = role === "user" ? "var(--background-modifier-hover)" : "var(--background-secondary)";
-    const messageContainer = messageEl.createDiv("message-container");
-    const contentEl = messageContainer.createDiv("message-content");
-    contentEl.style.whiteSpace = "pre-wrap";
-    messageEl.dataset.rawContent = content;
-    messageEl.dataset.timestamp = (/* @__PURE__ */ new Date()).toISOString();
-    import_obsidian3.MarkdownRenderer.render(
+    this.buttonsContainer = contentEl.createDiv("ai-chat-buttons");
+    const buttons = new Buttons();
+    this.commands = new Commands(
       this.app,
-      content,
-      contentEl,
-      "",
-      this
-    ).catch((error) => {
-      console.error("Markdown rendering error:", error);
-      contentEl.textContent = content;
-    });
-    const actionsEl = messageContainer.createDiv("message-actions");
-    actionsEl.style.display = "none";
-    messageEl.addEventListener("mouseenter", () => {
-      actionsEl.style.display = "flex";
-    });
-    messageEl.addEventListener("mouseleave", () => {
-      actionsEl.style.display = "none";
-    });
-    actionsEl.style.flexWrap = "wrap";
-    actionsEl.style.gap = "8px";
-    actionsEl.style.marginTop = "8px";
-    actionsEl.appendChild(this.createActionButton("Copy", "Copy message", () => {
-      const currentContent = messageEl.dataset.rawContent || "";
-      if (currentContent.trim() === "") {
-        new import_obsidian3.Notice("No content to copy");
-        return;
-      }
-      this.copyToClipboard(currentContent);
-    }));
-    actionsEl.appendChild(this.createActionButton("Edit", "Edit message", async () => {
-      const wasEditing = contentEl.hasClass("editing");
-      if (!wasEditing) {
-        const textarea = document.createElement("textarea");
-        textarea.value = messageEl.dataset.rawContent || "";
-        textarea.style.width = "100%";
-        textarea.style.height = `${contentEl.offsetHeight}px`;
-        textarea.style.minHeight = "100px";
-        contentEl.empty();
-        contentEl.appendChild(textarea);
-        textarea.focus();
-        contentEl.addClass("editing");
-      } else {
-        const textarea = contentEl.querySelector("textarea");
-        if (textarea) {
-          const oldContent = messageEl.dataset.rawContent;
-          const newContent = textarea.value;
-          try {
-            await this.chatHistoryManager.updateMessage(
-              messageEl.dataset.timestamp || (/* @__PURE__ */ new Date()).toISOString(),
-              messageEl.classList.contains("user") ? "user" : "assistant",
-              oldContent || "",
-              newContent
-            );
-            messageEl.dataset.rawContent = newContent;
-            contentEl.empty();
-            await import_obsidian3.MarkdownRenderer.render(this.app, newContent, contentEl, "", this);
-            contentEl.removeClass("editing");
-          } catch (e) {
-            new import_obsidian3.Notice("Failed to save edited message.");
-            messageEl.dataset.rawContent = oldContent || "";
-            contentEl.empty();
-            await import_obsidian3.MarkdownRenderer.render(this.app, oldContent || "", contentEl, "", this);
-            contentEl.removeClass("editing");
-          }
-        }
-      }
-    }));
-    actionsEl.appendChild(this.createActionButton("Delete", "Delete message", () => {
-      const modal = new ConfirmationModal(
-        this.app,
-        "Delete message",
-        "Are you sure you want to delete this message?",
-        async (confirmed) => {
-          if (confirmed) {
-            try {
-              await this.chatHistoryManager.deleteMessage(
-                messageEl.dataset.timestamp || (/* @__PURE__ */ new Date()).toISOString(),
-                messageEl.classList.contains("user") ? "user" : "assistant",
-                messageEl.dataset.rawContent || ""
-              );
-              messageEl.remove();
-            } catch (e) {
-              new import_obsidian3.Notice("Failed to delete message from history.");
-            }
-          }
-        }
-      );
-      modal.open();
-    }));
-    const regenerateLabel = role === "assistant" ? "Regenerate" : "Regenerate";
-    const regenerateTooltip = role === "assistant" ? "Regenerate this response" : "Regenerate AI response";
-    actionsEl.appendChild(this.createActionButton(regenerateLabel, regenerateTooltip, () => {
-      this.regenerateResponse(messageEl);
-    }));
-    messageContainer.appendChild(actionsEl);
-    return messageEl;
+      this.plugin,
+      this.messagesContainer,
+      () => this.prompt.setState({ isDisabled: false, isSending: false })
+    );
+    this.prompt = new Prompt(this.app, buttons, this.commands);
+    this.inputContainer = contentEl.createDiv("ai-chat-input-container");
+    this.inputContainer.appendChild(this.prompt.getContainer());
+    if (this.plugin.settings.activeSessionId) {
+      this.loadSession(this.plugin.settings.activeSessionId);
+    } else {
+      this.createNewSession();
+    }
+    this.registerEvent(
+      this.app.workspace.on("ai-assistant:open-settings", () => {
+        const settingsModal = new SettingsModal(this.app, this.plugin);
+        settingsModal.open();
+      })
+    );
   }
-  async addMessage(role, content, isError = false) {
-    const messageEl = this.createMessageElement(role, content);
-    const uiTimestamp = messageEl.dataset.timestamp || (/* @__PURE__ */ new Date()).toISOString();
+  updateSessionSelector() {
+    this.sessionSelector.empty();
+    const { sessions } = this.plugin.settings;
+    sessions.forEach((session) => {
+      const option = this.sessionSelector.createEl("option", {
+        value: session.id,
+        text: session.name
+      });
+      if (session.id === this.plugin.settings.activeSessionId) {
+        option.selected = true;
+      }
+    });
+  }
+  updateSessionMetadata() {
+    const metadataContainer = this.contentEl.querySelector(".ai-chat-session-metadata");
+    if (!metadataContainer) return;
+    metadataContainer.empty();
+    const sessionId = this.plugin.settings.activeSessionId;
+    if (!sessionId) return;
+    const session = this.plugin.settings.sessions.find((s) => s.id === sessionId);
+    if (!session) return;
+    const created = new Date(session.created).toLocaleString();
+    const lastUpdated = new Date(session.lastUpdated).toLocaleString();
+    metadataContainer.createSpan({
+      text: `Created: ${created}`
+    });
+    metadataContainer.createSpan({
+      text: ` \u2022 Last updated: ${lastUpdated}`
+    });
+  }
+  async createNewSession() {
+    const now = /* @__PURE__ */ new Date();
+    const year = now.getFullYear();
+    const month = (now.getMonth() + 1).toString().padStart(2, "0");
+    const day = now.getDate().toString().padStart(2, "0");
+    let hours = now.getHours();
+    const minutes = now.getMinutes().toString().padStart(2, "0");
+    const ampm = hours >= 12 ? " PM" : " AM";
+    hours = hours % 12;
+    hours = hours ? hours : 12;
+    const time = `${hours.toString().padStart(2, "0")}:${minutes}${ampm}`;
+    const defaultName = `${year}-${month}-${day}_${time}`;
+    const session = {
+      id: crypto.randomUUID(),
+      name: defaultName,
+      created: Date.now(),
+      lastUpdated: Date.now(),
+      messages: []
+    };
+    if (this.plugin.settings.sessions.length >= this.plugin.settings.maxSessions) {
+      this.plugin.settings.sessions = this.plugin.settings.sessions.sort((a, b) => b.lastUpdated - a.lastUpdated).slice(0, this.plugin.settings.maxSessions - 1);
+    }
+    this.plugin.settings.sessions.push(session);
+    this.plugin.settings.activeSessionId = session.id;
+    await this.plugin.saveSettings();
+    this.updateSessionSelector();
+    this.updateSessionMetadata();
+    this.messagesContainer.empty();
+  }
+  async renameCurrentSession() {
+    const sessionId = this.plugin.settings.activeSessionId;
+    if (!sessionId) return;
+    const session = this.plugin.settings.sessions.find((s) => s.id === sessionId);
+    if (!session) return;
+    const modal = new import_obsidian8.Modal(this.app);
+    modal.titleEl.setText("Rename Session");
+    const contentEl = modal.contentEl;
+    const inputEl = contentEl.createEl("input", {
+      type: "text",
+      value: session.name
+    });
+    const buttonContainer = contentEl.createDiv("modal-button-container");
+    const saveButton = buttonContainer.createEl("button", {
+      text: "Save"
+    });
+    saveButton.addEventListener("click", async () => {
+      session.name = inputEl.value;
+      session.lastUpdated = Date.now();
+      await this.plugin.saveSettings();
+      this.updateSessionSelector();
+      this.updateSessionMetadata();
+      modal.close();
+    });
+    const cancelButton = buttonContainer.createEl("button", {
+      text: "Cancel"
+    });
+    cancelButton.addEventListener("click", () => modal.close());
+    modal.open();
+  }
+  async deleteCurrentSession() {
+    const sessionId = this.plugin.settings.activeSessionId;
+    if (!sessionId) return;
+    const confirmModal = new import_obsidian8.Modal(this.app);
+    confirmModal.titleEl.setText("Delete Session");
+    const contentEl = confirmModal.contentEl;
+    contentEl.setText("Are you sure you want to delete this chat session? This cannot be undone.");
+    const buttonContainer = contentEl.createDiv("modal-button-container");
+    const deleteButton = buttonContainer.createEl("button", {
+      text: "Delete",
+      cls: "mod-warning"
+    });
+    deleteButton.addEventListener("click", async () => {
+      this.plugin.settings.sessions = this.plugin.settings.sessions.filter((s) => s.id !== sessionId);
+      if (this.plugin.settings.sessions.length > 0) {
+        this.plugin.settings.activeSessionId = this.plugin.settings.sessions[0].id;
+        this.loadSession(this.plugin.settings.activeSessionId);
+      } else {
+        this.plugin.settings.activeSessionId = void 0;
+        await this.createNewSession();
+      }
+      await this.plugin.saveSettings();
+      this.updateSessionSelector();
+      this.updateSessionMetadata();
+      confirmModal.close();
+    });
+    const cancelButton = buttonContainer.createEl("button", {
+      text: "Cancel"
+    });
+    cancelButton.addEventListener("click", () => confirmModal.close());
+    confirmModal.open();
+  }
+  async exportCurrentSession() {
+    const sessionId = this.plugin.settings.activeSessionId;
+    if (!sessionId) return;
+    const session = this.plugin.settings.sessions.find((s) => s.id === sessionId);
+    if (!session) return;
+    const exportData = JSON.stringify(session, null, 2);
+    const blob = new Blob([exportData], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${session.name.replace(/[^a-z0-9]/gi, "_").toLowerCase()}_${(/* @__PURE__ */ new Date()).toISOString().split("T")[0]}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+  async importSession() {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".json";
+    input.addEventListener("change", async () => {
+      var _a2;
+      const file = (_a2 = input.files) == null ? void 0 : _a2[0];
+      if (!file) return;
+      try {
+        const text = await file.text();
+        const session = JSON.parse(text);
+        if (!session.id || !session.name || !session.created || !session.lastUpdated || !Array.isArray(session.messages)) {
+          throw new Error("Invalid session data");
+        }
+        session.id = crypto.randomUUID();
+        session.lastUpdated = Date.now();
+        if (this.plugin.settings.sessions.length >= this.plugin.settings.maxSessions) {
+          this.plugin.settings.sessions = this.plugin.settings.sessions.sort((a, b) => b.lastUpdated - a.lastUpdated).slice(0, this.plugin.settings.maxSessions - 1);
+        }
+        this.plugin.settings.sessions.push(session);
+        this.plugin.settings.activeSessionId = session.id;
+        await this.plugin.saveSettings();
+        this.updateSessionSelector();
+        this.updateSessionMetadata();
+        this.loadSession(session.id);
+        new import_obsidian8.Notice("Session imported successfully");
+      } catch (error) {
+        new import_obsidian8.Notice("Failed to import session: " + error.message);
+      }
+    });
+    input.click();
+  }
+  loadSession(sessionId) {
+    const session = this.plugin.settings.sessions.find((s) => s.id === sessionId);
+    if (!session) return;
+    this.messagesContainer.empty();
+    session.messages.forEach((msg) => {
+      if (msg.role !== "system") {
+        this.addMessage(msg.role, msg.content);
+      }
+    });
+  }
+  addMessage(role, content) {
+    const MessageClass = role === "user" ? UserMessage : BotMessage;
+    const messageComponent = new MessageClass(this.app, this.plugin, content);
+    const messageEl = messageComponent.getElement();
     this.messagesContainer.appendChild(messageEl);
     this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
-    try {
-      await this.chatHistoryManager.addMessage({
-        timestamp: uiTimestamp,
-        sender: role,
-        content
-      });
-    } catch (e) {
-      new import_obsidian3.Notice("Failed to save chat message: " + e.message);
+    if (this.plugin.settings.autoSaveSessions && this.plugin.settings.activeSessionId) {
+      const session = this.plugin.settings.sessions.find((s) => s.id === this.plugin.settings.activeSessionId);
+      if (session) {
+        session.messages.push({ role, content });
+        session.lastUpdated = Date.now();
+        this.plugin.saveSettings();
+      }
     }
   }
   async onClose() {
-    if (this.activeStream) {
-      this.activeStream.abort();
-      this.activeStream = null;
-    }
-  }
-  createSettingsPanel() {
-    const container = document.createElement("div");
-    container.addClass("ai-chat-settings-panel");
-    container.createEl("h3", { text: "AI Model Settings" });
-    const providerContainer = container.createDiv();
-    providerContainer.createEl("label", { text: "AI Provider" });
-    const providerSelect = providerContainer.createEl("select");
-    providerSelect.createEl("option", { value: "openai", text: "OpenAI (ChatGPT)" });
-    providerSelect.createEl("option", { value: "anthropic", text: "Anthropic (Claude)" });
-    providerSelect.createEl("option", { value: "gemini", text: "Google (Gemini)" });
-    providerSelect.createEl("option", { value: "ollama", text: "Ollama (Local AI)" });
-    providerSelect.value = this.plugin.settings.provider;
-    providerSelect.addEventListener("change", async () => {
-      this.plugin.settings.provider = providerSelect.value;
-      await this.plugin.saveSettings();
-      if (this.settingsContainer) {
-        this.settingsContainer.replaceWith(this.createSettingsPanel());
-      }
-    });
-    const systemMessageContainer = container.createDiv();
-    systemMessageContainer.createEl("label", { text: "System Message" });
-    const systemMessageInput = systemMessageContainer.createEl("textarea");
-    systemMessageInput.value = this.plugin.settings.systemMessage;
-    systemMessageInput.addEventListener("change", async () => {
-      this.plugin.settings.systemMessage = systemMessageInput.value;
-      await this.plugin.saveSettings();
-    });
-    const temperatureContainer = container.createDiv();
-    temperatureContainer.createEl("label", { text: "Temperature" });
-    const temperatureInput = temperatureContainer.createEl("input", { type: "range" });
-    temperatureInput.min = "0";
-    temperatureInput.max = "1";
-    temperatureInput.step = "0.1";
-    temperatureInput.value = String(this.plugin.settings.temperature);
-    const temperatureValue = temperatureContainer.createSpan();
-    temperatureValue.textContent = String(this.plugin.settings.temperature);
-    temperatureInput.addEventListener("input", async () => {
-      const value = Number(temperatureInput.value);
-      temperatureValue.textContent = String(value);
-      this.plugin.settings.temperature = value;
-      await this.plugin.saveSettings();
-    });
-    const providerSettings = container.createDiv();
-    providerSettings.createEl("h4", { text: `${this.plugin.settings.provider.toUpperCase()} Settings` });
-    switch (this.plugin.settings.provider) {
-      case "openai": {
-        const settings = this.plugin.settings.openaiSettings;
-        const modelSelect = providerSettings.createEl("select");
-        settings.availableModels.forEach((model) => {
-          modelSelect.createEl("option", { value: model, text: model });
-        });
-        modelSelect.value = settings.model;
-        modelSelect.addEventListener("change", async () => {
-          settings.model = modelSelect.value;
-          await this.plugin.saveSettings();
-        });
-        break;
-      }
-      case "anthropic": {
-        const settings = this.plugin.settings.anthropicSettings;
-        const modelSelect = providerSettings.createEl("select");
-        settings.availableModels.forEach((model) => {
-          modelSelect.createEl("option", { value: model, text: model });
-        });
-        modelSelect.value = settings.model;
-        modelSelect.addEventListener("change", async () => {
-          settings.model = modelSelect.value;
-          await this.plugin.saveSettings();
-        });
-        break;
-      }
-      case "gemini": {
-        const settings = this.plugin.settings.geminiSettings;
-        const modelSelect = providerSettings.createEl("select");
-        settings.availableModels.forEach((model) => {
-          modelSelect.createEl("option", { value: model, text: model });
-        });
-        modelSelect.value = settings.model;
-        modelSelect.addEventListener("change", async () => {
-          settings.model = modelSelect.value;
-          await this.plugin.saveSettings();
-        });
-        break;
-      }
-      case "ollama": {
-        const settings = this.plugin.settings.ollamaSettings;
-        const modelSelect = providerSettings.createEl("select");
-        settings.availableModels.forEach((model) => {
-          modelSelect.createEl("option", { value: model, text: model });
-        });
-        modelSelect.value = settings.model;
-        modelSelect.addEventListener("change", async () => {
-          settings.model = modelSelect.value;
-          await this.plugin.saveSettings();
-        });
-        break;
-      }
-    }
-    return container;
-  }
-  async regenerateResponse(messageEl) {
-    const textarea = this.inputContainer.querySelector("textarea");
-    if (textarea) textarea.disabled = true;
-    const allMessages = Array.from(this.messagesContainer.querySelectorAll(".ai-chat-message"));
-    const currentIndex = allMessages.indexOf(messageEl);
-    let userMsgIndex;
-    if (messageEl.classList.contains("user")) {
-      userMsgIndex = currentIndex;
-      messageEl = allMessages[currentIndex + 1];
-      if (!(messageEl == null ? void 0 : messageEl.classList.contains("assistant"))) {
-        new import_obsidian3.Notice("No AI response found to regenerate");
-        if (textarea) textarea.disabled = false;
-        return;
-      }
-    } else {
-      userMsgIndex = currentIndex - 1;
-      while (userMsgIndex >= 0 && !allMessages[userMsgIndex].classList.contains("user")) {
-        userMsgIndex--;
-      }
-      if (userMsgIndex < 0) {
-        new import_obsidian3.Notice("No user message found to regenerate response");
-        if (textarea) textarea.disabled = false;
-        return;
-      }
-    }
-    const contextMessages = [
-      { role: "system", content: this.plugin.getSystemMessage() }
-    ];
-    if (this.plugin.settings.enableContextNotes && this.plugin.settings.contextNotes) {
-      const contextContent = await this.plugin.getContextNotesContent(this.plugin.settings.contextNotes);
-      contextMessages[0].content += `
-
-Context Notes:
-${contextContent}`;
-    }
-    if (this.plugin.settings.referenceCurrentNote) {
-      const currentFile = this.app.workspace.getActiveFile();
-      if (currentFile) {
-        const currentNoteContent = await this.app.vault.cachedRead(currentFile);
-        contextMessages.push({
-          role: "system",
-          content: `Here is the content of the current note:
-
-${currentNoteContent}`
-        });
-      }
-    }
-    for (let i = 0; i <= userMsgIndex; i++) {
-      const el = allMessages[i];
-      const role = el.classList.contains("user") ? "user" : "assistant";
-      const content = el.dataset.rawContent || "";
-      contextMessages.push({ role, content });
-    }
-    const originalTimestamp = messageEl.dataset.timestamp || (/* @__PURE__ */ new Date()).toISOString();
-    const originalContent = messageEl.dataset.rawContent || "";
-    const assistantContainer = this.createMessageElement("assistant", "");
-    assistantContainer.dataset.timestamp = originalTimestamp;
-    this.messagesContainer.insertBefore(assistantContainer, messageEl.nextSibling);
-    this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
-    messageEl.remove();
-    this.activeStream = new AbortController();
-    let responseContent = "";
-    try {
-      const provider = createProvider(this.plugin.settings);
-      await provider.getCompletion(
-        contextMessages,
-        {
-          temperature: this.plugin.settings.temperature,
-          maxTokens: this.plugin.settings.maxTokens,
-          streamCallback: async (chunk) => {
-            responseContent += chunk;
-            const contentEl = assistantContainer.querySelector(".message-content");
-            if (contentEl) {
-              assistantContainer.dataset.rawContent = responseContent;
-              contentEl.empty();
-              await import_obsidian3.MarkdownRenderer.render(
-                this.app,
-                responseContent,
-                contentEl,
-                "",
-                this
-              );
-              this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
-            }
-          },
-          abortController: this.activeStream
-        }
-      );
-    } catch (error) {
-      if (error.name !== "AbortError") {
-        new import_obsidian3.Notice(`Error: ${error.message}`);
-        assistantContainer.remove();
-      }
-    }
-    try {
-      if (responseContent.trim() !== "") {
-        await this.chatHistoryManager.updateMessage(
-          originalTimestamp,
-          "assistant",
-          originalContent,
-          responseContent
-        );
-      }
-    } finally {
-      if (textarea) {
-        textarea.disabled = false;
-        textarea.focus();
-      }
-      this.activeStream = null;
-    }
+    this.commands.stopGeneration();
   }
 };
 
@@ -5479,10 +5613,10 @@ function parseSelection(selection, chatSeparator, chatBoundaryString) {
 }
 
 // src/components/ModelSettingsView.ts
-var import_obsidian4 = require("obsidian");
+var import_obsidian9 = require("obsidian");
 init_providers();
 var VIEW_TYPE_MODEL_SETTINGS = "model-settings-view";
-var ModelSettingsView = class extends import_obsidian4.ItemView {
+var ModelSettingsView = class extends import_obsidian9.ItemView {
   constructor(leaf, plugin) {
     super(leaf);
     __publicField(this, "plugin");
@@ -5501,39 +5635,39 @@ var ModelSettingsView = class extends import_obsidian4.ItemView {
     const { contentEl } = this;
     contentEl.empty();
     contentEl.createEl("h2", { text: "AI Model Settings" });
-    new import_obsidian4.Setting(contentEl).setName("System Message").setDesc("Set the system message for the AI").addTextArea((text) => text.setPlaceholder("You are a helpful assistant.").setValue(this.plugin.settings.systemMessage).onChange(async (value) => {
+    new import_obsidian9.Setting(contentEl).setName("System Message").setDesc("Set the system message for the AI").addTextArea((text) => text.setPlaceholder("You are a helpful assistant.").setValue(this.plugin.settings.systemMessage).onChange(async (value) => {
       this.plugin.settings.systemMessage = value;
       await this.plugin.saveSettings();
     }));
-    new import_obsidian4.Setting(contentEl).setName("Enable Streaming").setDesc("Enable or disable streaming for completions").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableStreaming).onChange(async (value) => {
+    new import_obsidian9.Setting(contentEl).setName("Enable Streaming").setDesc("Enable or disable streaming for completions").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableStreaming).onChange(async (value) => {
       this.plugin.settings.enableStreaming = value;
       await this.plugin.saveSettings();
     }));
-    new import_obsidian4.Setting(contentEl).setName("Temperature").setDesc("Set the randomness of the model's output (0-1)").addSlider((slider) => slider.setLimits(0, 1, 0.1).setValue(this.plugin.settings.temperature).setDynamicTooltip().onChange(async (value) => {
+    new import_obsidian9.Setting(contentEl).setName("Temperature").setDesc("Set the randomness of the model's output (0-1)").addSlider((slider) => slider.setLimits(0, 1, 0.1).setValue(this.plugin.settings.temperature).setDynamicTooltip().onChange(async (value) => {
       this.plugin.settings.temperature = value;
       await this.plugin.saveSettings();
     }));
     contentEl.createEl("h4", { text: "Date Settings" });
-    new import_obsidian4.Setting(contentEl).setName("Include Date with System Message").setDesc("Add the current date to the system message").addToggle((toggle) => toggle.setValue(this.plugin.settings.includeDateWithSystemMessage).onChange(async (value) => {
+    new import_obsidian9.Setting(contentEl).setName("Include Date with System Message").setDesc("Add the current date to the system message").addToggle((toggle) => toggle.setValue(this.plugin.settings.includeDateWithSystemMessage).onChange(async (value) => {
       this.plugin.settings.includeDateWithSystemMessage = value;
       await this.plugin.saveSettings();
     }));
-    new import_obsidian4.Setting(contentEl).setName("Include Time with System Message").setDesc("Add the current time along with the date to the system message").addToggle((toggle) => toggle.setValue(this.plugin.settings.includeTimeWithSystemMessage).onChange(async (value) => {
+    new import_obsidian9.Setting(contentEl).setName("Include Time with System Message").setDesc("Add the current time along with the date to the system message").addToggle((toggle) => toggle.setValue(this.plugin.settings.includeTimeWithSystemMessage).onChange(async (value) => {
       this.plugin.settings.includeTimeWithSystemMessage = value;
       await this.plugin.saveSettings();
     }));
     contentEl.createEl("h4", { text: "Note Reference Settings" });
-    new import_obsidian4.Setting(contentEl).setName("Enable Obsidian Links").setDesc("Read Obsidian links in messages using [[filename]] syntax").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableObsidianLinks).onChange(async (value) => {
+    new import_obsidian9.Setting(contentEl).setName("Enable Obsidian Links").setDesc("Read Obsidian links in messages using [[filename]] syntax").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableObsidianLinks).onChange(async (value) => {
       this.plugin.settings.enableObsidianLinks = value;
       await this.plugin.saveSettings();
     }));
-    new import_obsidian4.Setting(contentEl).setName("Enable Context Notes").setDesc("Attach specified note content to chat messages").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableContextNotes).onChange(async (value) => {
+    new import_obsidian9.Setting(contentEl).setName("Enable Context Notes").setDesc("Attach specified note content to chat messages").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableContextNotes).onChange(async (value) => {
       this.plugin.settings.enableContextNotes = value;
       await this.plugin.saveSettings();
     }));
     const contextNotesContainer = contentEl.createDiv("context-notes-container");
     contextNotesContainer.style.marginBottom = "24px";
-    new import_obsidian4.Setting(contextNotesContainer).setName("Context Notes").setDesc("Notes to attach as context (supports [[filename]] and [[filename#header]] syntax)").addTextArea((text) => {
+    new import_obsidian9.Setting(contextNotesContainer).setName("Context Notes").setDesc("Notes to attach as context (supports [[filename]] and [[filename#header]] syntax)").addTextArea((text) => {
       text.setPlaceholder("[[Note Name]]\n[[Another Note#Header]]").setValue(this.plugin.settings.contextNotes || "").onChange(async (value) => {
         this.plugin.settings.contextNotes = value;
         await this.plugin.saveSettings();
@@ -5542,7 +5676,7 @@ var ModelSettingsView = class extends import_obsidian4.ItemView {
       text.inputEl.style.width = "100%";
     });
     contentEl.createEl("h2", { text: "Provider Settings" });
-    new import_obsidian4.Setting(contentEl).setName("AI Provider").setDesc("Choose which AI provider to use").addDropdown((dropdown) => {
+    new import_obsidian9.Setting(contentEl).setName("AI Provider").setDesc("Choose which AI provider to use").addDropdown((dropdown) => {
       dropdown.addOption("openai", "OpenAI (ChatGPT)").addOption("anthropic", "Anthropic (Claude)").addOption("gemini", "Google (Gemini)").addOption("ollama", "Ollama (Local AI)").setValue(this.plugin.settings.provider).onChange(async (value) => {
         this.plugin.settings.provider = value;
         await this.plugin.saveSettings();
@@ -5565,13 +5699,13 @@ var ModelSettingsView = class extends import_obsidian4.ItemView {
     }
   }
   renderProviderSettings(containerEl, settings, providerName, testConnectionCallback) {
-    new import_obsidian4.Setting(containerEl).setName("Test Connection").setDesc(`Verify your API key and fetch available models for ${providerName}`).addButton((button) => button.setButtonText("Test").onClick(async () => {
+    new import_obsidian9.Setting(containerEl).setName("Test Connection").setDesc(`Verify your API key and fetch available models for ${providerName}`).addButton((button) => button.setButtonText("Test").onClick(async () => {
       button.setButtonText("Testing...");
       button.setDisabled(true);
       try {
         await testConnectionCallback();
       } catch (error) {
-        new import_obsidian4.Notice(`Error: ${error.message}`);
+        new import_obsidian9.Notice(`Error: ${error.message}`);
       } finally {
         button.setButtonText("Test");
         button.setDisabled(false);
@@ -5584,7 +5718,7 @@ var ModelSettingsView = class extends import_obsidian4.ItemView {
         cls: settings.lastTestResult.success ? "success" : "error"
       });
     }
-    new import_obsidian4.Setting(containerEl).setName("Model").setDesc(`Choose the ${providerName} model to use`).addDropdown((dropdown) => {
+    new import_obsidian9.Setting(containerEl).setName("Model").setDesc(`Choose the ${providerName} model to use`).addDropdown((dropdown) => {
       for (const model of settings.availableModels) {
         dropdown.addOption(model, model);
       }
@@ -5606,7 +5740,7 @@ var ModelSettingsView = class extends import_obsidian4.ItemView {
           success: true,
           message: result.message
         };
-        new import_obsidian4.Notice(result.message);
+        new import_obsidian9.Notice(result.message);
         this.onOpen();
       } else {
         this.plugin.settings.openaiSettings.lastTestResult = {
@@ -5614,7 +5748,7 @@ var ModelSettingsView = class extends import_obsidian4.ItemView {
           success: false,
           message: result.message
         };
-        new import_obsidian4.Notice(result.message);
+        new import_obsidian9.Notice(result.message);
       }
     });
   }
@@ -5630,7 +5764,7 @@ var ModelSettingsView = class extends import_obsidian4.ItemView {
           success: true,
           message: result.message
         };
-        new import_obsidian4.Notice(result.message);
+        new import_obsidian9.Notice(result.message);
         this.onOpen();
       } else {
         this.plugin.settings.anthropicSettings.lastTestResult = {
@@ -5638,7 +5772,7 @@ var ModelSettingsView = class extends import_obsidian4.ItemView {
           success: false,
           message: result.message
         };
-        new import_obsidian4.Notice(result.message);
+        new import_obsidian9.Notice(result.message);
       }
     });
   }
@@ -5654,7 +5788,7 @@ var ModelSettingsView = class extends import_obsidian4.ItemView {
           success: true,
           message: result.message
         };
-        new import_obsidian4.Notice(result.message);
+        new import_obsidian9.Notice(result.message);
         this.onOpen();
       } else {
         this.plugin.settings.geminiSettings.lastTestResult = {
@@ -5662,7 +5796,7 @@ var ModelSettingsView = class extends import_obsidian4.ItemView {
           success: false,
           message: result.message
         };
-        new import_obsidian4.Notice(result.message);
+        new import_obsidian9.Notice(result.message);
       }
     });
   }
@@ -5678,7 +5812,7 @@ var ModelSettingsView = class extends import_obsidian4.ItemView {
           success: true,
           message: result.message
         };
-        new import_obsidian4.Notice(result.message);
+        new import_obsidian9.Notice(result.message);
         this.onOpen();
       } else {
         this.plugin.settings.ollamaSettings.lastTestResult = {
@@ -5686,7 +5820,7 @@ var ModelSettingsView = class extends import_obsidian4.ItemView {
           success: false,
           message: result.message
         };
-        new import_obsidian4.Notice(result.message);
+        new import_obsidian9.Notice(result.message);
       }
     });
     containerEl.createEl("div", {
@@ -5704,7 +5838,7 @@ var ModelSettingsView = class extends import_obsidian4.ItemView {
 };
 
 // src/components/noteUtils.ts
-var import_obsidian5 = require("obsidian");
+var import_obsidian10 = require("obsidian");
 function extractContentUnderHeader(content, headerText) {
   const lines = content.split("\n");
   let foundHeader = false;
@@ -5751,7 +5885,7 @@ async function processObsidianLinks(content, app, settings) {
         }
         const headerMatch = filePath.match(/(.*?)#(.*)/);
         let extractedContent = "";
-        if (file && file instanceof import_obsidian5.TFile) {
+        if (file && file instanceof import_obsidian10.TFile) {
           const noteContent = await app.vault.cachedRead(file);
           if (headerMatch) {
             extractedContent = extractContentUnderHeader(noteContent, headerMatch[2].trim());
@@ -5770,10 +5904,10 @@ ${extractedContent}
 `
           );
         } else {
-          new import_obsidian5.Notice(`File not found: ${filePath}. Ensure the file name and path are correct.`);
+          new import_obsidian10.Notice(`File not found: ${filePath}. Ensure the file name and path are correct.`);
         }
       } catch (error) {
-        new import_obsidian5.Notice(`Error processing link for ${filePath}: ${error.message}`);
+        new import_obsidian10.Notice(`Error processing link for ${filePath}: ${error.message}`);
       }
     }
   }
@@ -5797,7 +5931,7 @@ async function processContextNotes(contextNotesText, app) {
             (f) => f.basename.toLowerCase() === baseFileName.toLowerCase() || f.name.toLowerCase() === `${baseFileName.toLowerCase()}.md`
           ) || null;
         }
-        if (file && file instanceof import_obsidian5.TFile) {
+        if (file && file instanceof import_obsidian10.TFile) {
           const noteContent = await app.vault.cachedRead(file);
           contextContent += `---
 From note: ${file.basename}
@@ -5886,7 +6020,7 @@ The current time is ${currentTime} ${timeZoneString}.`;
 
 // src/main.ts
 var VIEW_TYPE_MODEL_SETTINGS2 = "model-settings-view";
-var MyPlugin = class extends import_obsidian7.Plugin {
+var MyPlugin = class extends import_obsidian12.Plugin {
   constructor() {
     super(...arguments);
     __publicField(this, "settings");
@@ -5944,7 +6078,7 @@ var MyPlugin = class extends import_obsidian7.Plugin {
         console.log("Extracted text for completion:", text);
         const messages = parseSelection(text, this.settings.chatSeparator);
         if (messages.length === 0) {
-          new import_obsidian7.Notice("No valid messages found in the selection.");
+          new import_obsidian12.Notice("No valid messages found in the selection.");
           return;
         }
         const lineContent = (_a2 = editor.getLine(insertPosition.line)) != null ? _a2 : "";
@@ -6003,7 +6137,7 @@ ${this.settings.chatSeparator}
           );
           editor.setCursor(newCursorPos);
         } catch (error) {
-          new import_obsidian7.Notice(`Error: ${error.message}`);
+          new import_obsidian12.Notice(`Error: ${error.message}`);
           const errLineContent = (_c = editor.getLine(currentPosition.line)) != null ? _c : "";
           let errPrefix = "";
           if (errLineContent.trim() !== "") {
@@ -6026,9 +6160,9 @@ ${this.settings.chatSeparator}
         if (this.activeStream) {
           this.activeStream.abort();
           this.activeStream = null;
-          new import_obsidian7.Notice("AI stream ended");
+          new import_obsidian12.Notice("AI stream ended");
         } else {
-          new import_obsidian7.Notice("No active AI stream to end");
+          new import_obsidian12.Notice("No active AI stream to end");
         }
       }
     });
@@ -6055,13 +6189,13 @@ ${this.settings.chatSeparator}
           const noteName = `[[${activeFile.basename}]]`;
           try {
             await navigator.clipboard.writeText(noteName);
-            new import_obsidian7.Notice(`Copied to clipboard: ${noteName}`);
+            new import_obsidian12.Notice(`Copied to clipboard: ${noteName}`);
           } catch (error) {
-            new import_obsidian7.Notice("Failed to copy to clipboard");
+            new import_obsidian12.Notice("Failed to copy to clipboard");
             console.error("Clipboard error:", error);
           }
         } else {
-          new import_obsidian7.Notice("No active note found");
+          new import_obsidian12.Notice("No active note found");
         }
       }
     });
@@ -6072,7 +6206,7 @@ ${this.settings.chatSeparator}
         var _a2;
         const chatStartString = (_a2 = this.settings.chatStartString) != null ? _a2 : "";
         if (!chatStartString) {
-          new import_obsidian7.Notice("chatStartString is not set in settings.");
+          new import_obsidian12.Notice("chatStartString is not set in settings.");
           return;
         }
         const cursor = editor.getCursor();

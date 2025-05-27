@@ -3,7 +3,6 @@ import MyPlugin from '../../main';
 import { Message, ChatSession } from '../../types';
 import { createProvider } from '../../../providers';
 import { SettingsModal } from './SettingsModal';
-import { SessionModal } from './SessionModal';
 import { Buttons } from './Buttons';
 import { Commands } from './Commands';
 import { Prompt } from './Prompt';
@@ -175,38 +174,42 @@ export class ChatView extends ItemView {
     }
 
     private async createNewSession() {
-        const defaultName = `Chat ${this.plugin.settings.sessions.length + 1}`;
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = (now.getMonth() + 1).toString().padStart(2, '0');
+        const day = now.getDate().toString().padStart(2, '0');
+        let hours = now.getHours();
+        const minutes = now.getMinutes().toString().padStart(2, '0');
+        const ampm = hours >= 12 ? ' PM' : ' AM';
+        hours = hours % 12;
+        hours = hours ? hours : 12; // the hour '0' should be '12'
+        const time = `${hours.toString().padStart(2, '0')}:${minutes}${ampm}`;
+
+        const defaultName = `${year}-${month}-${day}_${time}`;
         
-        const modal = new SessionModal(
-            this.app,
-            defaultName,
-            async (name: string) => {
-                const session: ChatSession = {
-                    id: crypto.randomUUID(),
-                    name: name,
-                    created: Date.now(),
-                    lastUpdated: Date.now(),
-                    messages: []
-                };
+        const session: ChatSession = {
+            id: crypto.randomUUID(),
+            name: defaultName,
+            created: Date.now(),
+            lastUpdated: Date.now(),
+            messages: []
+        };
 
-                // Prune old sessions if we're at the limit
-                if (this.plugin.settings.sessions.length >= this.plugin.settings.maxSessions) {
-                    this.plugin.settings.sessions = this.plugin.settings.sessions
-                        .sort((a, b) => b.lastUpdated - a.lastUpdated)
-                        .slice(0, this.plugin.settings.maxSessions - 1);
-                }
+        // Prune old sessions if we're at the limit
+        if (this.plugin.settings.sessions.length >= this.plugin.settings.maxSessions) {
+            this.plugin.settings.sessions = this.plugin.settings.sessions
+                .sort((a, b) => b.lastUpdated - a.lastUpdated)
+                .slice(0, this.plugin.settings.maxSessions - 1);
+        }
 
-                this.plugin.settings.sessions.push(session);
-                this.plugin.settings.activeSessionId = session.id;
-                await this.plugin.saveSettings();
-                
-                this.updateSessionSelector();
-                this.updateSessionMetadata();
-                this.messagesContainer.empty();
-                this.addMessage('assistant', 'Hello! How can I help you today?');
-            }
-        );
-        modal.open();
+        this.plugin.settings.sessions.push(session);
+        this.plugin.settings.activeSessionId = session.id;
+        await this.plugin.saveSettings();
+        
+        this.updateSessionSelector();
+        this.updateSessionMetadata();
+        this.messagesContainer.empty();
+        // No welcome message; start with a blank chat for new sessions
     }
 
     private async renameCurrentSession() {
