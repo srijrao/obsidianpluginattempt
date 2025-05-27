@@ -277,10 +277,7 @@ class ConfirmationModal extends Modal {
         contentEl.createEl('p', { text: this.message });
 
         const buttonContainer = contentEl.createDiv('modal-button-container');
-        buttonContainer.style.display = 'flex';
-        buttonContainer.style.justifyContent = 'flex-end';
-        buttonContainer.style.gap = '8px';
-        buttonContainer.style.marginTop = '16px';
+        // All styling for buttonContainer is now handled by .modal-button-container in styles.css
 
         buttonContainer.createEl('button', { text: 'Cancel' })
             .addEventListener('click', () => {
@@ -386,7 +383,7 @@ export class ChatView extends ItemView {
         const stopButton = buttonContainer.createEl('button', {
             text: 'Stop',
         });
-        stopButton.style.display = 'none';
+        stopButton.classList.add('hidden');
 
         // Copy All button
         const copyAllButton = buttonContainer.createEl('button', {
@@ -417,8 +414,8 @@ export class ChatView extends ItemView {
 
             // Disable input and show stop button
             textarea.disabled = true;
-            sendButton.style.display = 'none';
-            stopButton.style.display = 'block';
+            sendButton.classList.add('hidden');
+            stopButton.classList.remove('hidden');
 
     // Add user message
     await this.addMessage('user', content);
@@ -512,8 +509,8 @@ export class ChatView extends ItemView {
                 // Re-enable input and hide stop button
                 textarea.disabled = false;
                 textarea.focus();
-                stopButton.style.display = 'none';
-                sendButton.style.display = 'block';
+                stopButton.classList.add('hidden');
+                sendButton.classList.remove('hidden');
                 this.activeStream = null;
             }
         };
@@ -534,8 +531,8 @@ export class ChatView extends ItemView {
                 this.activeStream = null;
                 textarea.disabled = false;
                 textarea.focus();
-                stopButton.style.display = 'none';
-                sendButton.style.display = 'block';
+                stopButton.classList.add('hidden');
+                sendButton.classList.remove('hidden');
             }
         });
 
@@ -631,14 +628,16 @@ export class ChatView extends ItemView {
         // Create actions container
         const actionsEl = messageContainer.createDiv('message-actions');
         // All styling for actionsEl is now handled by .message-actions in styles.css
-        actionsEl.style.display = 'none';
+        actionsEl.classList.add('hidden');
 
         // Add hover behavior to the message element
         messageEl.addEventListener('mouseenter', () => {
-            actionsEl.style.display = 'flex';
+            actionsEl.classList.remove('hidden');
+            actionsEl.classList.add('visible');
         });
         messageEl.addEventListener('mouseleave', () => {
-            actionsEl.style.display = 'none';
+            actionsEl.classList.remove('visible');
+            actionsEl.classList.add('hidden');
         });
 
         // Add copy button

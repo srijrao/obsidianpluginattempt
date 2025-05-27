@@ -4835,10 +4835,6 @@ var ConfirmationModal = class extends import_obsidian3.Modal {
     const { contentEl } = this;
     contentEl.createEl("p", { text: this.message });
     const buttonContainer = contentEl.createDiv("modal-button-container");
-    buttonContainer.style.display = "flex";
-    buttonContainer.style.justifyContent = "flex-end";
-    buttonContainer.style.gap = "8px";
-    buttonContainer.style.marginTop = "16px";
     buttonContainer.createEl("button", { text: "Cancel" }).addEventListener("click", () => {
       this.onConfirm(false);
       this.close();
@@ -4909,7 +4905,7 @@ var ChatView = class extends import_obsidian3.ItemView {
     const stopButton = buttonContainer.createEl("button", {
       text: "Stop"
     });
-    stopButton.style.display = "none";
+    stopButton.classList.add("hidden");
     const copyAllButton = buttonContainer.createEl("button", {
       text: "Copy All"
     });
@@ -4933,8 +4929,8 @@ var ChatView = class extends import_obsidian3.ItemView {
       const content = textarea.value.trim();
       if (!content) return;
       textarea.disabled = true;
-      sendButton.style.display = "none";
-      stopButton.style.display = "block";
+      sendButton.classList.add("hidden");
+      stopButton.classList.remove("hidden");
       await this.addMessage("user", content);
       textarea.value = "";
       this.activeStream = new AbortController();
@@ -5014,8 +5010,8 @@ ${currentNoteContent}`
       } finally {
         textarea.disabled = false;
         textarea.focus();
-        stopButton.style.display = "none";
-        sendButton.style.display = "block";
+        stopButton.classList.add("hidden");
+        sendButton.classList.remove("hidden");
         this.activeStream = null;
       }
     };
@@ -5032,8 +5028,8 @@ ${currentNoteContent}`
         this.activeStream = null;
         textarea.disabled = false;
         textarea.focus();
-        stopButton.style.display = "none";
-        sendButton.style.display = "block";
+        stopButton.classList.add("hidden");
+        sendButton.classList.remove("hidden");
       }
     });
     clearButton.addEventListener("click", async () => {
@@ -5100,12 +5096,14 @@ ${currentNoteContent}`
       contentEl.textContent = content;
     });
     const actionsEl = messageContainer.createDiv("message-actions");
-    actionsEl.style.display = "none";
+    actionsEl.classList.add("hidden");
     messageEl.addEventListener("mouseenter", () => {
-      actionsEl.style.display = "flex";
+      actionsEl.classList.remove("hidden");
+      actionsEl.classList.add("visible");
     });
     messageEl.addEventListener("mouseleave", () => {
-      actionsEl.style.display = "none";
+      actionsEl.classList.remove("visible");
+      actionsEl.classList.add("hidden");
     });
     actionsEl.appendChild(this.createActionButton("Copy", "Copy message", () => {
       const currentContent = messageEl.dataset.rawContent || "";

@@ -10,10 +10,10 @@
    -------------------------------------------------------------------------- */
 :root {
     --spacing-xs: 4px;         /* Extra small spacing (used for tight gaps) */
-    --spacing-md: 8px;         /* Medium spacing (default for padding/gaps) */
     --spacing-lg: 16px;        /* Large spacing (for main container padding) */
-    --border-radius: 4px;      /* Border radius for rounded corners */
+    --border-radius: var(--spacing-xs);      /* Border radius for rounded corners */
     --transition: all 0.2s ease; /* Default transition for interactive elements */
+    --lineheight: 1.5; /* Default line height for text */
 }
 
 /* === BASE LAYOUT ===
@@ -38,7 +38,6 @@
    -------------------------------------------------------------------------- */
 .ai-chat-message {
     margin-bottom: var(--spacing-xs);
-    padding: var(--spacing-xs);
     border-radius: var(--border-radius);
     position: relative;
     word-break: break-word;
@@ -57,13 +56,27 @@
 .message-container {
     display: flex;
     flex-direction: column;
-    gap: var(--spacing-xs);
 }
 
 .message-content {
-    white-space: pre-wrap;
+    white-space: normal;
     word-break: break-word;
     user-select: text;
+    line-height: var(--lineheight);
+}
+.message-content p 
+.message-content h1,
+.message-content h2,
+.message-content h3,
+.message-content h4,
+.message-content h5,
+.message-content h6 {
+    margin-top: 0;
+    margin-bottom: 0;
+}
+
+.ai-chat-message {
+    line-height: var(--lineheight)4;
 }
 
 .message-content.editing textarea {
@@ -86,9 +99,9 @@
    -------------------------------------------------------------------------- */
 .message-actions {
     display: flex;
-    gap: var(--spacing-md);
+    gap: var(--spacing-xs);
     flex-wrap: wrap;
-    margin-top: var(--spacing-md);
+    margin-top: var(--spacing-xs);
     padding: var(--spacing-xs);
     border-radius: var(--border-radius);
     background-color: var(--background-primary);
@@ -142,7 +155,7 @@
 .ai-chat-input,
 .ai-chat-session-selector {
     width: 100%;
-    padding: var(--spacing-md); /* Changed from --spacing-xs to --spacing-md (8px) */
+    padding: var(--spacing-xs);
     border: 1px solid var(--background-modifier-border);
     border-radius: var(--border-radius);
     background-color: var(--background-primary);
@@ -162,6 +175,23 @@
     justify-content: flex-end;
     flex-wrap: wrap;
     margin-top: var(--spacing-md);
+}
+
+/* === UTILITY CLASSES ===
+   Use these for dynamic show/hide and modal button containers.
+   -------------------------------------------------------------------------- */
+.modal-button-container {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--spacing-md);
+    margin-top: var(--spacing-lg);
+}
+
+.hidden {
+    display: none !important;
+}
+.visible {
+    display: flex !important;
 }
 
 /* === SETTINGS PANEL ===
