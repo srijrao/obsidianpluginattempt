@@ -4593,6 +4593,9 @@ var ChatHistoryManager = class {
     const fPath = historyFilePath || "chat-history.json";
     this.historyFilePath = (0, import_obsidian2.normalizePath)(`.obsidian/plugins/${effectivePluginId}/${fPath}`);
     console.log("[ChatHistoryManager] Using history file path:", this.historyFilePath);
+    if (typeof window !== "undefined" && window.Notice) {
+      new window.Notice("[ChatHistoryManager] Using history file path: " + this.historyFilePath);
+    }
   }
   async ensureDirectoryExists() {
     const dirPath = this.historyFilePath.substring(0, this.historyFilePath.lastIndexOf("/"));
@@ -5332,50 +5335,58 @@ ${currentNoteContent}`
   async regenerateResponse(messageEl) {
     const textarea = this.inputContainer.querySelector("textarea");
     if (textarea) textarea.disabled = true;
-    const messages = [
+    const allMessages = Array.from(this.messagesContainer.querySelectorAll(".ai-chat-message"));
+    const currentIndex = allMessages.indexOf(messageEl);
+    let userMsgIndex = currentIndex - 1;
+    while (userMsgIndex >= 0 && !allMessages[userMsgIndex].classList.contains("user")) {
+      userMsgIndex--;
+    }
+    if (userMsgIndex < 0) {
+      new import_obsidian3.Notice("No user message found to regenerate response");
+      if (textarea) textarea.disabled = false;
+      return;
+    }
+    const contextMessages = [
       { role: "system", content: this.plugin.getSystemMessage() }
     ];
     if (this.plugin.settings.enableContextNotes && this.plugin.settings.contextNotes) {
       const contextContent = await this.plugin.getContextNotesContent(this.plugin.settings.contextNotes);
-      messages[0].content += `
+      contextMessages[0].content += `
 
 Context Notes:
 ${contextContent}`;
     }
-    const allMessages = Array.from(this.messagesContainer.querySelectorAll(".ai-chat-message"));
-    const currentIndex = allMessages.indexOf(messageEl);
-    for (let i = 0; i <= currentIndex; i++) {
+    if (this.plugin.settings.referenceCurrentNote) {
+      const currentFile = this.app.workspace.getActiveFile();
+      if (currentFile) {
+        const currentNoteContent = await this.app.vault.cachedRead(currentFile);
+        contextMessages.push({
+          role: "system",
+          content: `Here is the content of the current note:
+
+${currentNoteContent}`
+        });
+      }
+    }
+    for (let i = 0; i <= userMsgIndex; i++) {
       const el = allMessages[i];
       const role = el.classList.contains("user") ? "user" : "assistant";
       const content = el.dataset.rawContent || "";
-      messages.push({ role, content });
+      contextMessages.push({ role, content });
     }
-    let messageToReplace;
-    if (messageEl.classList.contains("assistant")) {
-      messageToReplace = messageEl;
-    } else {
-      messageToReplace = messageEl.nextElementSibling;
-      if (!(messageToReplace == null ? void 0 : messageToReplace.classList.contains("assistant"))) {
-        return;
-      }
-    }
-    const originalTimestamp = messageToReplace.dataset.timestamp || (/* @__PURE__ */ new Date()).toISOString();
-    const originalContent = messageToReplace.dataset.rawContent || "";
+    const originalTimestamp = messageEl.dataset.timestamp || (/* @__PURE__ */ new Date()).toISOString();
+    const originalContent = messageEl.dataset.rawContent || "";
     const assistantContainer = this.createMessageElement("assistant", "");
     assistantContainer.dataset.timestamp = originalTimestamp;
-    if (messageEl.classList.contains("assistant")) {
-      this.messagesContainer.insertBefore(assistantContainer, messageEl.nextSibling);
-    } else {
-      this.messagesContainer.insertBefore(assistantContainer, (messageToReplace == null ? void 0 : messageToReplace.nextSibling) || null);
-    }
+    this.messagesContainer.insertBefore(assistantContainer, messageEl.nextSibling);
     this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
-    messageToReplace.remove();
+    messageEl.remove();
     this.activeStream = new AbortController();
     let responseContent = "";
     try {
       const provider = createProvider(this.plugin.settings);
       await provider.getCompletion(
-        messages,
+        contextMessages,
         {
           temperature: this.plugin.settings.temperature,
           maxTokens: this.plugin.settings.maxTokens,

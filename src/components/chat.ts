@@ -910,66 +910,67 @@ export class ChatView extends ItemView {
         // Disable input during regeneration
         const textarea = this.inputContainer.querySelector('textarea');
         if (textarea) textarea.disabled = true;
-    
-        // Get all messages up to this point for context
-        const messages: Message[] = [
-            { role: 'system', content: this.plugin.getSystemMessage() }
-        ];
-    
-        // Add context notes if enabled
-        if (this.plugin.settings.enableContextNotes && this.plugin.settings.contextNotes) {
-            const contextContent = await this.plugin.getContextNotesContent(this.plugin.settings.contextNotes);
-            messages[0].content += `\n\nContext Notes:\n${contextContent}`;
-        }
-    
+
+        // Find the user message immediately above the assistant message
         const allMessages = Array.from(this.messagesContainer.querySelectorAll('.ai-chat-message'));
         const currentIndex = allMessages.indexOf(messageEl);
-    
-        // Get all messages up to current message
-        for (let i = 0; i <= currentIndex; i++) {
+        let userMsgIndex = currentIndex - 1;
+        while (userMsgIndex >= 0 && !allMessages[userMsgIndex].classList.contains('user')) {
+            userMsgIndex--;
+        }
+        if (userMsgIndex < 0) {
+            new Notice('No user message found to regenerate response');
+            if (textarea) textarea.disabled = false;
+            return;
+        }
+
+        // Gather all messages above and including the user message
+        const contextMessages: Message[] = [
+            { role: 'system', content: this.plugin.getSystemMessage() }
+        ];
+
+        // Add context notes if enabled (re-fetch for this regeneration)
+        if (this.plugin.settings.enableContextNotes && this.plugin.settings.contextNotes) {
+            const contextContent = await this.plugin.getContextNotesContent(this.plugin.settings.contextNotes);
+            contextMessages[0].content += `\n\nContext Notes:\n${contextContent}`;
+        }
+
+        // Add current note context if enabled
+        if (this.plugin.settings.referenceCurrentNote) {
+            const currentFile = this.app.workspace.getActiveFile();
+            if (currentFile) {
+                const currentNoteContent = await this.app.vault.cachedRead(currentFile);
+                contextMessages.push({
+                    role: 'system',
+                    content: `Here is the content of the current note:\n\n${currentNoteContent}`
+                });
+            }
+        }
+
+        // Add all chat messages above and including the user message
+        for (let i = 0; i <= userMsgIndex; i++) {
             const el = allMessages[i];
             const role = el.classList.contains('user') ? 'user' : 'assistant';
             const content = (el as HTMLElement).dataset.rawContent || '';
-            messages.push({ role, content });
+            contextMessages.push({ role, content });
         }
-    
-        // Determine which message to replace
-        let messageToReplace: HTMLElement;
-        if (messageEl.classList.contains('assistant')) {
-            messageToReplace = messageEl;
-        } else {
-            // For user messages, replace the next assistant message if it exists
-            messageToReplace = messageEl.nextElementSibling as HTMLElement;
-            if (!messageToReplace?.classList.contains('assistant')) {
-                return; // No assistant message to replace
-            }
-        }
-    
-        const originalTimestamp = messageToReplace.dataset.timestamp || new Date().toISOString();
-        const originalContent = messageToReplace.dataset.rawContent || '';
 
-        // Create new assistant message container with original timestamp
+        // Remove the old assistant message and insert a new one for streaming
+        const originalTimestamp = messageEl.dataset.timestamp || new Date().toISOString();
+        const originalContent = messageEl.dataset.rawContent || '';
         const assistantContainer = this.createMessageElement('assistant', '');
-        assistantContainer.dataset.timestamp = originalTimestamp; // Preserve original timestamp
-        
-        if (messageEl.classList.contains('assistant')) {
-            this.messagesContainer.insertBefore(assistantContainer, messageEl.nextSibling);
-        } else {
-            this.messagesContainer.insertBefore(assistantContainer, messageToReplace?.nextSibling || null);
-        }
+        assistantContainer.dataset.timestamp = originalTimestamp;
+        this.messagesContainer.insertBefore(assistantContainer, messageEl.nextSibling);
         this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+        messageEl.remove();
 
-        // Remove the old message after new container is created
-        messageToReplace.remove();
-    
         // Generate new response
         this.activeStream = new AbortController();
         let responseContent = '';
-    
         try {
             const provider = createProvider(this.plugin.settings);
             await provider.getCompletion(
-                messages,
+                contextMessages,
                 {
                     temperature: this.plugin.settings.temperature,
                     maxTokens: this.plugin.settings.maxTokens,
@@ -998,7 +999,6 @@ export class ChatView extends ItemView {
                 assistantContainer.remove();
             }
         }
-
         // Update the message in persistent history
         try {
             if (responseContent.trim() !== "") {
