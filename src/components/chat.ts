@@ -911,17 +911,31 @@ export class ChatView extends ItemView {
         const textarea = this.inputContainer.querySelector('textarea');
         if (textarea) textarea.disabled = true;
 
-        // Find the user message immediately above the assistant message
+        // Determine which message to regenerate and find the context
         const allMessages = Array.from(this.messagesContainer.querySelectorAll('.ai-chat-message'));
         const currentIndex = allMessages.indexOf(messageEl);
-        let userMsgIndex = currentIndex - 1;
-        while (userMsgIndex >= 0 && !allMessages[userMsgIndex].classList.contains('user')) {
-            userMsgIndex--;
-        }
-        if (userMsgIndex < 0) {
-            new Notice('No user message found to regenerate response');
-            if (textarea) textarea.disabled = false;
-            return;
+        let userMsgIndex: number;
+        
+        if (messageEl.classList.contains('user')) {
+            // If regenerating from a user message, use that message and find the next assistant message
+            userMsgIndex = currentIndex;
+            messageEl = allMessages[currentIndex + 1] as HTMLElement;
+            if (!messageEl?.classList.contains('assistant')) {
+                new Notice('No AI response found to regenerate');
+                if (textarea) textarea.disabled = false;
+                return;
+            }
+        } else {
+            // If regenerating from an assistant message, find the previous user message
+            userMsgIndex = currentIndex - 1;
+            while (userMsgIndex >= 0 && !allMessages[userMsgIndex].classList.contains('user')) {
+                userMsgIndex--;
+            }
+            if (userMsgIndex < 0) {
+                new Notice('No user message found to regenerate response');
+                if (textarea) textarea.disabled = false;
+                return;
+            }
         }
 
         // Gather all messages above and including the user message

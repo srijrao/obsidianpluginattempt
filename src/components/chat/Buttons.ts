@@ -22,27 +22,22 @@ export class Buttons extends Component {
         super();
         this.container = document.createElement('div');
         this.container.addClass('ai-chat-buttons');
-        this.container.style.display = 'flex';
-        this.container.style.gap = '8px';
-        this.container.style.flexWrap = 'wrap';
-        this.container.style.marginTop = '8px';
-
         this.sendButton = new ButtonComponent(this.container)
             .setButtonText('Send')
             .setClass('mod-cta');
-        this.sendButton.buttonEl.style.display = 'none';
+        this.sendButton.buttonEl.addClass('hidden-button');
 
         this.stopButton = new ButtonComponent(this.container)
             .setButtonText('Stop');
-        this.stopButton.buttonEl.style.display = 'none';
+        this.stopButton.buttonEl.addClass('hidden-button');
 
         this.clearButton = new ButtonComponent(this.container)
             .setButtonText('Clear');
-        this.clearButton.buttonEl.style.display = 'none';
+        this.clearButton.buttonEl.addClass('hidden-button');
 
         this.settingsButton = new ButtonComponent(this.container)
             .setButtonText('Settings');
-        this.settingsButton.buttonEl.style.display = 'none';
+        this.settingsButton.buttonEl.addClass('hidden-button');
     }
 
     /**
@@ -69,35 +64,35 @@ export class Buttons extends Component {
     }
 
     showSendButton(): void {
-        this.sendButton.buttonEl.style.display = 'block';
+        this.sendButton.buttonEl.removeClass('hidden-button');
     }
 
     hideSendButton(): void {
-        this.sendButton.buttonEl.style.display = 'none';
+        this.sendButton.buttonEl.addClass('hidden-button');
     }
 
     showStopButton(): void {
-        this.stopButton.buttonEl.style.display = 'block';
+        this.stopButton.buttonEl.removeClass('hidden-button');
     }
 
     hideStopButton(): void {
-        this.stopButton.buttonEl.style.display = 'none';
+        this.stopButton.buttonEl.addClass('hidden-button');
     }
 
     showClearButton(): void {
-        this.clearButton.buttonEl.style.display = 'block';
+        this.clearButton.buttonEl.removeClass('hidden-button');
     }
 
     hideClearButton(): void {
-        this.clearButton.buttonEl.style.display = 'none';
+        this.clearButton.buttonEl.addClass('hidden-button');
     }
 
     showSettingsButton(): void {
-        this.settingsButton.buttonEl.style.display = 'block';
+        this.settingsButton.buttonEl.removeClass('hidden-button');
     }
 
     hideSettingsButton(): void {
-        this.settingsButton.buttonEl.style.display = 'none';
+        this.settingsButton.buttonEl.addClass('hidden-button');
     }
 
     /**
@@ -106,10 +101,7 @@ export class Buttons extends Component {
     createMessageActions(buttons: IButtonConfig[]): HTMLElement {
         const actionsContainer = document.createElement('div');
         actionsContainer.addClass('message-actions');
-        actionsContainer.style.display = 'none';
-        actionsContainer.style.flexWrap = 'wrap';
-        actionsContainer.style.gap = '8px';
-        actionsContainer.style.marginTop = '8px';
+        // Rely on CSS for display and hover behavior
 
         buttons.forEach(config => {
             const button = this.createButton(config);
@@ -125,15 +117,11 @@ export class Buttons extends Component {
     createChatControls(buttons: IButtonConfig[]): HTMLElement {
         const controlsContainer = document.createElement('div');
         controlsContainer.addClass('ai-chat-buttons');
-        controlsContainer.style.display = 'flex';
-        controlsContainer.style.gap = '8px';
-        controlsContainer.style.justifyContent = 'flex-end';
-        controlsContainer.style.marginTop = '8px';
 
         buttons.forEach(config => {
             const button = this.createButton(config);
             if (config.isHidden) {
-                button.style.display = 'none';
+                button.addClass('hidden-button');
             }
             controlsContainer.appendChild(button);
         });
@@ -166,7 +154,7 @@ export class Buttons extends Component {
     toggleButton(container: HTMLElement, label: string, show: boolean): void {
         const button = container.querySelector(`[aria-label="${label}"]`);
         if (button instanceof HTMLElement) {
-            button.style.display = show ? 'block' : 'none';
+            show ? button.removeClass('hidden-button') : button.addClass('hidden-button');
         }
     }
 }

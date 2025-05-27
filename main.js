@@ -5337,14 +5337,25 @@ ${currentNoteContent}`
     if (textarea) textarea.disabled = true;
     const allMessages = Array.from(this.messagesContainer.querySelectorAll(".ai-chat-message"));
     const currentIndex = allMessages.indexOf(messageEl);
-    let userMsgIndex = currentIndex - 1;
-    while (userMsgIndex >= 0 && !allMessages[userMsgIndex].classList.contains("user")) {
-      userMsgIndex--;
-    }
-    if (userMsgIndex < 0) {
-      new import_obsidian3.Notice("No user message found to regenerate response");
-      if (textarea) textarea.disabled = false;
-      return;
+    let userMsgIndex;
+    if (messageEl.classList.contains("user")) {
+      userMsgIndex = currentIndex;
+      messageEl = allMessages[currentIndex + 1];
+      if (!(messageEl == null ? void 0 : messageEl.classList.contains("assistant"))) {
+        new import_obsidian3.Notice("No AI response found to regenerate");
+        if (textarea) textarea.disabled = false;
+        return;
+      }
+    } else {
+      userMsgIndex = currentIndex - 1;
+      while (userMsgIndex >= 0 && !allMessages[userMsgIndex].classList.contains("user")) {
+        userMsgIndex--;
+      }
+      if (userMsgIndex < 0) {
+        new import_obsidian3.Notice("No user message found to regenerate response");
+        if (textarea) textarea.disabled = false;
+        return;
+      }
     }
     const contextMessages = [
       { role: "system", content: this.plugin.getSystemMessage() }

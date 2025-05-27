@@ -36,14 +36,7 @@ export class Prompt extends Component {
             }
         });
 
-        // Style textarea
-        this.textarea.style.width = '100%';
-        this.textarea.style.resize = 'none';
-        this.textarea.style.border = '1px solid var(--background-modifier-border)';
-        this.textarea.style.borderRadius = '4px';
-        this.textarea.style.padding = '8px';
-        this.textarea.style.backgroundColor = 'var(--background-primary)';
-        this.textarea.style.color = 'var(--text-normal)';
+        // Styling is handled by CSS class 'ai-chat-input'
 
         // Add button container
         const buttonContainer = this.container.createDiv('ai-chat-buttons');

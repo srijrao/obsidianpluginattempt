@@ -78,9 +78,9 @@
 /* === BUTTONS AND ACTIONS === */
 .message-actions {
     display: flex;
-    gap: var(--spacing-xs);
+    gap: var(--spacing-md);
     flex-wrap: wrap;
-    margin-top: var(--spacing-xs);
+    margin-top: var(--spacing-md);
     padding: var(--spacing-xs);
     border-radius: var(--border-radius);
     background-color: var(--background-primary);
@@ -131,7 +131,7 @@
 .ai-chat-input,
 .ai-chat-session-selector {
     width: 100%;
-    padding: var(--spacing-xs);
+    padding: var(--spacing-md); /* Changed from --spacing-xs to --spacing-md (8px) */
     border: 1px solid var(--background-modifier-border);
     border-radius: var(--border-radius);
     background-color: var(--background-primary);
@@ -147,9 +147,10 @@
 .modal-button-container,
 .ai-chat-session-buttons {
     display: flex;
-    gap: var(--spacing-xs);
+    gap: var(--spacing-md);
     justify-content: flex-end;
-    margin-top: var(--spacing-xs);
+    flex-wrap: wrap;
+    margin-top: var(--spacing-md);
 }
 
 /* === SETTINGS PANEL === */
@@ -259,4 +260,8 @@
 
 .ai-chat-session-metadata span {
     margin-right: var(--spacing-xs);
+}
+
+.hidden-button {
+    display: none !important; /* Use !important to ensure override */
 }
