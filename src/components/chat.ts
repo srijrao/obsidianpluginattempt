@@ -2,6 +2,7 @@ import { ItemView, WorkspaceLeaf, Notice, Modal, App, Setting, MarkdownRenderer 
 import MyPlugin from '../main';
 import { Message } from '../types';
 import { createProvider } from '../../providers';
+import { ChatHistoryManager, ChatMessage } from '../ChatHistoryManager';
 
 export const VIEW_TYPE_CHAT = 'chat-view';
 
@@ -308,10 +309,12 @@ export class ChatView extends ItemView {
     messagesContainer: HTMLElement;
     inputContainer: HTMLElement;
     activeStream: AbortController | null = null;
+    private chatHistoryManager: ChatHistoryManager;
 
     constructor(leaf: WorkspaceLeaf, plugin: MyPlugin) {
         super(leaf);
         this.plugin = plugin;
+        this.chatHistoryManager = new ChatHistoryManager(this.app.vault, this.plugin.manifest.id, "chat-history.json");
     }
 
     getViewType(): string {
@@ -331,6 +334,15 @@ export class ChatView extends ItemView {
     async onOpen() {
         const { contentEl } = this;
         contentEl.empty();
+
+        // Load persistent chat history before UI setup
+        let loadedHistory: ChatMessage[] = [];
+        try {
+            loadedHistory = await this.chatHistoryManager.getHistory();
+        } catch (e) {
+            new Notice("Failed to load chat history.");
+            loadedHistory = [];
+        }
 
         // Create main container with flex layout
         contentEl.addClass('ai-chat-view');
@@ -422,9 +434,9 @@ export class ChatView extends ItemView {
             sendButton.style.display = 'none';
             stopButton.style.display = 'block';
 
-            // Add user message
-            this.addMessage('user', content);
-            textarea.value = '';
+    // Add user message
+    await this.addMessage('user', content);
+    textarea.value = '';
 
             // Create abort controller for streaming
             this.activeStream = new AbortController();
@@ -463,9 +475,15 @@ export class ChatView extends ItemView {
                     messages.push({ role, content });
                 });
 
-                // Create assistant message container for streaming
-                const assistantContainer = this.createMessageElement('assistant', '');
-                this.messagesContainer.appendChild(assistantContainer);
+                // Create temporary container for streaming display
+                const tempContainer = document.createElement('div');
+                tempContainer.addClass('ai-chat-message', 'assistant');
+                tempContainer.style.marginBottom = '16px';
+                tempContainer.style.padding = '12px';
+                tempContainer.style.borderRadius = '8px';
+                tempContainer.style.backgroundColor = 'var(--background-secondary)';
+                const contentEl = tempContainer.createDiv('message-content');
+                this.messagesContainer.appendChild(tempContainer);
                 this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
 
                 let responseContent = '';
@@ -476,30 +494,36 @@ export class ChatView extends ItemView {
                         maxTokens: this.plugin.settings.maxTokens,
                         streamCallback: async (chunk: string) => {
                             responseContent += chunk;
-                            const contentEl = assistantContainer.querySelector('.message-content') as HTMLElement;
-                            if (contentEl) {
-                                // Update the data attribute with the current content
-                                assistantContainer.dataset.rawContent = responseContent;
-                                
-                                // Render Markdown content dynamically
-                                contentEl.empty();
-                                await MarkdownRenderer.render(
-                                    this.app,
-                                    responseContent,
-                                    contentEl,
-                                    '',
-                                    this
-                                );
-                                this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
-                            }
+                            // Update display only during streaming
+                            contentEl.empty();
+                            await MarkdownRenderer.render(
+                                this.app,
+                                responseContent,
+                                contentEl,
+                                '',
+                                this
+                            );
+                            this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
                         },
                         abortController: this.activeStream
                     }
                 );
+
+                // Remove temporary container and create permanent message
+                tempContainer.remove();
+                if (responseContent.trim() !== "") {
+                    const messageEl = this.createMessageElement('assistant', responseContent);
+                    this.messagesContainer.appendChild(messageEl);
+                    await this.chatHistoryManager.addMessage({
+                        timestamp: messageEl.dataset.timestamp || new Date().toISOString(),
+                        sender: 'assistant',
+                        content: responseContent
+                    });
+                }
             } catch (error) {
                 if (error.name !== 'AbortError') {
                     new Notice(`Error: ${error.message}`);
-                    this.addMessage('assistant', `Error: ${error.message}`);
+                    await this.addMessage('assistant', `Error: ${error.message}`);
                 }
             } finally {
                 // Re-enable input and hide stop button
@@ -532,8 +556,17 @@ export class ChatView extends ItemView {
             }
         });
 
-        clearButton.addEventListener('click', () => {
+        clearButton.addEventListener('click', async () => {
             this.messagesContainer.empty();
+            try {
+                await this.chatHistoryManager.clearHistory();
+                // Show initial system message after clearing (UI only, do not persist)
+                const messageEl = this.createMessageElement('assistant', this.plugin.settings.systemMessage || 'Hello! How can I help you today?');
+                this.messagesContainer.appendChild(messageEl);
+                this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+            } catch (e) {
+                new Notice("Failed to clear chat history.");
+            }
         });
 
         // Add settings button to the button container
@@ -545,8 +578,19 @@ export class ChatView extends ItemView {
             settingsModal.open();
         });
 
-        // Add initial system message
-        this.addMessage('assistant', 'Hello! How can I help you today?');
+        // Render loaded chat history
+        if (loadedHistory.length > 0) {
+            for (const msg of loadedHistory) {
+                // Only render user/assistant messages
+                if (msg.sender === "user" || msg.sender === "assistant") {
+                    const messageEl = this.createMessageElement(msg.sender as 'user' | 'assistant', msg.content);
+                    // Restore original timestamp from history for the UI element
+                    messageEl.dataset.timestamp = msg.timestamp; 
+                    this.messagesContainer.appendChild(messageEl);
+                }
+            }
+            this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+        }
     }
 
     private createActionButton(label: string, tooltip: string, callback: () => void): HTMLElement {
@@ -590,8 +634,9 @@ export class ChatView extends ItemView {
         const contentEl = messageContainer.createDiv('message-content');
         contentEl.style.whiteSpace = 'pre-wrap';
         
-        // Store the raw Markdown content as a data attribute
+        // Store the raw Markdown content and timestamp as data attributes
         messageEl.dataset.rawContent = content;
+        messageEl.dataset.timestamp = new Date().toISOString();
 
         // Render Markdown content
         MarkdownRenderer.render(
@@ -632,7 +677,7 @@ export class ChatView extends ItemView {
         }));
 
         // Add edit button
-        actionsEl.appendChild(this.createActionButton('Edit', 'Edit message', () => {
+        actionsEl.appendChild(this.createActionButton('Edit', 'Edit message', async () => {
             const wasEditing = contentEl.hasClass('editing');
             
             if (!wasEditing) {
@@ -653,15 +698,27 @@ export class ChatView extends ItemView {
                     const oldContent = messageEl.dataset.rawContent;
                     const newContent = textarea.value;
                     
-                    // Update the data attribute with the new content
-                    messageEl.dataset.rawContent = newContent;
-                    contentEl.empty();
-                    MarkdownRenderer.render(this.app, newContent, contentEl, '', this).catch((error) => {
-                        console.error('Markdown rendering error:', error);
-                        contentEl.textContent = newContent;
-                    });
-                    contentEl.removeClass('editing');
-
+                    try {
+                        // Update in persistent history first
+                        await this.chatHistoryManager.updateMessage(
+                            messageEl.dataset.timestamp || new Date().toISOString(),
+                            messageEl.classList.contains('user') ? 'user' : 'assistant',
+                            oldContent || '',
+                            newContent
+                        );
+                        // Then update UI
+                        messageEl.dataset.rawContent = newContent;
+                        contentEl.empty();
+                        await MarkdownRenderer.render(this.app, newContent, contentEl, '', this);
+                        contentEl.removeClass('editing');
+                    } catch (e) {
+                        new Notice("Failed to save edited message.");
+                        // Revert to old content on error
+                        messageEl.dataset.rawContent = oldContent || '';
+                        contentEl.empty();
+                        await MarkdownRenderer.render(this.app, oldContent || '', contentEl, '', this);
+                        contentEl.removeClass('editing');
+                    }
                 }
             }
         }));
@@ -674,7 +731,18 @@ export class ChatView extends ItemView {
                 'Are you sure you want to delete this message?',
                 async (confirmed) => {
                     if (confirmed) {
-                        messageEl.remove();
+                        try {
+                            // Delete from persistent history first
+                            await this.chatHistoryManager.deleteMessage(
+                                messageEl.dataset.timestamp || new Date().toISOString(),
+                                messageEl.classList.contains('user') ? 'user' : 'assistant',
+                                messageEl.dataset.rawContent || ''
+                            );
+                            // Then remove from UI
+                            messageEl.remove();
+                        } catch (e) {
+                            new Notice("Failed to delete message from history.");
+                        }
                     }
                 }
             );
@@ -694,10 +762,26 @@ export class ChatView extends ItemView {
         return messageEl;
     }
 
-    private addMessage(role: 'user' | 'assistant', content: string) {
+    private async addMessage(role: 'user' | 'assistant', content: string, isError: boolean = false) {
         const messageEl = this.createMessageElement(role, content);
+        // The timestamp for the UI element is set within createMessageElement
+        const uiTimestamp = messageEl.dataset.timestamp || new Date().toISOString(); // Fallback, though createMessageElement should set it
+        
         this.messagesContainer.appendChild(messageEl);
         this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+
+        // Persist the message, using the timestamp from the UI element for consistency
+        // unless it's an error message that shouldn't be persisted as a regular chat entry.
+        // However, the current requirement is to persist error messages too.
+        try {
+            await this.chatHistoryManager.addMessage({
+                timestamp: uiTimestamp, 
+                sender: role,
+                content
+            });
+        } catch (e) {
+            new Notice("Failed to save chat message: " + e.message);
+        }
     }
 
     async onClose() {
@@ -861,17 +945,22 @@ export class ChatView extends ItemView {
             }
         }
     
-        // Remove the message to be replaced
-        messageToReplace.remove();
-    
-        // Create new assistant message container
+        const originalTimestamp = messageToReplace.dataset.timestamp || new Date().toISOString();
+        const originalContent = messageToReplace.dataset.rawContent || '';
+
+        // Create new assistant message container with original timestamp
         const assistantContainer = this.createMessageElement('assistant', '');
+        assistantContainer.dataset.timestamp = originalTimestamp; // Preserve original timestamp
+        
         if (messageEl.classList.contains('assistant')) {
             this.messagesContainer.insertBefore(assistantContainer, messageEl.nextSibling);
         } else {
             this.messagesContainer.insertBefore(assistantContainer, messageToReplace?.nextSibling || null);
         }
         this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+
+        // Remove the old message after new container is created
+        messageToReplace.remove();
     
         // Generate new response
         this.activeStream = new AbortController();
@@ -907,6 +996,18 @@ export class ChatView extends ItemView {
             if (error.name !== 'AbortError') {
                 new Notice(`Error: ${error.message}`);
                 assistantContainer.remove();
+            }
+        }
+
+        // Update the message in persistent history
+        try {
+            if (responseContent.trim() !== "") {
+                await this.chatHistoryManager.updateMessage(
+                    originalTimestamp,
+                    'assistant',
+                    originalContent,
+                    responseContent
+                );
             }
         } finally {
             if (textarea) {

@@ -8,3 +8,4 @@ providers/**/*.js
 !main.js
 !esbuild.config.mjs
 !version-bump.mjs
+chat-history.json
