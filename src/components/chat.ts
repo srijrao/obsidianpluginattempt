@@ -356,14 +356,11 @@ export class ChatView extends ItemView {
         
         // Messages container
         this.messagesContainer = contentEl.createDiv('ai-chat-messages');
-        this.messagesContainer.style.flex = '1';
-        this.messagesContainer.style.overflow = 'auto';
-        this.messagesContainer.style.padding = '16px';
+        // All styling for messagesContainer is now handled by .ai-chat-messages in styles.css
 
         // Input container at bottom
         this.inputContainer = contentEl.createDiv('ai-chat-input-container');
-        this.inputContainer.style.borderTop = '1px solid var(--background-modifier-border)';
-        this.inputContainer.style.padding = '16px';
+        // All styling for inputContainer is now handled by .ai-chat-input-container in styles.css
 
         // Textarea for input
         const textarea = this.inputContainer.createEl('textarea', {
@@ -373,22 +370,11 @@ export class ChatView extends ItemView {
                 rows: '3'
             }
         });
-
-        // Style the textarea
-        textarea.style.width = '100%';
-        textarea.style.resize = 'none';
-        textarea.style.border = '1px solid var(--background-modifier-border)';
-        textarea.style.borderRadius = '4px';
-        textarea.style.padding = '8px';
-        textarea.style.backgroundColor = 'var(--background-primary)';
-        textarea.style.color = 'var(--text-normal)';
+        // All styling for textarea is now handled by .ai-chat-input in styles.css
 
         // Button container
         const buttonContainer = this.inputContainer.createDiv('ai-chat-buttons');
-        buttonContainer.style.marginTop = '8px';
-        buttonContainer.style.display = 'flex';
-        buttonContainer.style.gap = '8px';
-        buttonContainer.style.justifyContent = 'flex-end';
+        // All styling for buttonContainer is now handled by .ai-chat-buttons in styles.css
 
         // Send button
         const sendButton = buttonContainer.createEl('button', {
@@ -478,10 +464,7 @@ export class ChatView extends ItemView {
                 // Create temporary container for streaming display
                 const tempContainer = document.createElement('div');
                 tempContainer.addClass('ai-chat-message', 'assistant');
-                tempContainer.style.marginBottom = '16px';
-                tempContainer.style.padding = '12px';
-                tempContainer.style.borderRadius = '8px';
-                tempContainer.style.backgroundColor = 'var(--background-secondary)';
+                // All styling for tempContainer is now handled by .ai-chat-message.assistant in styles.css
                 const contentEl = tempContainer.createDiv('message-content');
                 this.messagesContainer.appendChild(tempContainer);
                 this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
@@ -620,19 +603,14 @@ export class ChatView extends ItemView {
     private createMessageElement(role: 'user' | 'assistant', content: string): HTMLElement {
         const messageEl = document.createElement('div');
         messageEl.addClass('ai-chat-message', role);
-        messageEl.style.marginBottom = '16px';
-        messageEl.style.padding = '12px';
-        messageEl.style.borderRadius = '8px';
-        messageEl.style.backgroundColor = role === 'user' 
-            ? 'var(--background-modifier-hover)'
-            : 'var(--background-secondary)';
+        // All styling for messageEl is now handled by .ai-chat-message and .ai-chat-message.user/.assistant in styles.css
 
         // Create message container with content and actions
         const messageContainer = messageEl.createDiv('message-container');
 
         // Create content element
         const contentEl = messageContainer.createDiv('message-content');
-        contentEl.style.whiteSpace = 'pre-wrap';
+        // All styling for contentEl is now handled by .message-content in styles.css
         
         // Store the raw Markdown content and timestamp as data attributes
         messageEl.dataset.rawContent = content;
@@ -652,6 +630,7 @@ export class ChatView extends ItemView {
 
         // Create actions container
         const actionsEl = messageContainer.createDiv('message-actions');
+        // All styling for actionsEl is now handled by .message-actions in styles.css
         actionsEl.style.display = 'none';
 
         // Add hover behavior to the message element
@@ -661,10 +640,6 @@ export class ChatView extends ItemView {
         messageEl.addEventListener('mouseleave', () => {
             actionsEl.style.display = 'none';
         });
-
-        actionsEl.style.flexWrap = 'wrap';
-        actionsEl.style.gap = '8px';
-        actionsEl.style.marginTop = '8px';
 
         // Add copy button
         actionsEl.appendChild(this.createActionButton('Copy', 'Copy message', () => {
@@ -684,9 +659,9 @@ export class ChatView extends ItemView {
                 // Switch to edit mode
                 const textarea = document.createElement('textarea');
                 textarea.value = messageEl.dataset.rawContent || '';
-                textarea.style.width = '100%';
-                textarea.style.height = `${contentEl.offsetHeight}px`;
-                textarea.style.minHeight = '100px';
+                textarea.className = 'message-content editing'; // Use class for styling
+                // Height will be handled by CSS, but if you want to set it dynamically, you can still do so
+                // textarea.style.height = `${contentEl.offsetHeight}px`;
                 contentEl.empty();
                 contentEl.appendChild(textarea);
                 textarea.focus();

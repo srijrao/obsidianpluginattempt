@@ -1,14 +1,25 @@
-/* === VARIABLES === */
+/* ==========================================================================
+   AI Assistant Plugin Stylesheet
+   --------------------------------------------------------------------------
+   This file controls the appearance of the AI Assistant plugin UI in Obsidian.
+   You can customize variables and section styles below to match your preferences.
+   ========================================================================== */
+
+/* === CSS VARIABLES ===
+   Adjust these values to change spacing, border radius, and transitions globally.
+   -------------------------------------------------------------------------- */
 :root {
-    --spacing-xs: 2px;
-    --spacing-xs: 4px;
-    --spacing-md: 8px;
-    --spacing-lg: 16px;
-    --border-radius: 4px;
-    --transition: all 0.2s ease;
+    --spacing-xs: 4px;         /* Extra small spacing (used for tight gaps) */
+    --spacing-md: 8px;         /* Medium spacing (default for padding/gaps) */
+    --spacing-lg: 16px;        /* Large spacing (for main container padding) */
+    --border-radius: 4px;      /* Border radius for rounded corners */
+    --transition: all 0.2s ease; /* Default transition for interactive elements */
 }
 
-/* === BASE LAYOUT === */
+/* === BASE LAYOUT ===
+   Main layout for the chat view and message area.
+   You can adjust flex direction, height, and padding here.
+   -------------------------------------------------------------------------- */
 .ai-chat-view {
     display: flex;
     flex-direction: column;
@@ -18,19 +29,13 @@
 .ai-chat-messages {
     flex: 1;
     overflow-y: auto;
-    padding: var(--spacing-xs);
+    padding: var(--spacing-xs); /* Increase for more space around messages */
 }
 
-/* === FLEX & UTILITY CLASSES (for future use, not applied directly) === */
-.flex-container { display: flex; gap: var(--spacing-xs); }
-.flex-column { flex-direction: column; }
-.flex-wrap { flex-wrap: wrap; }
-.flex-end { justify-content: flex-end; }
-.border-bottom { border-bottom: 1px solid var(--background-modifier-border); }
-.text-muted { color: var(--text-muted); }
-.full-width { width: 100%; }
-
-/* === MESSAGES === */
+/* === MESSAGES ===
+   Styles for chat message bubbles and containers.
+   Customize background, spacing, and alignment for user/assistant messages.
+   -------------------------------------------------------------------------- */
 .ai-chat-message {
     margin-bottom: var(--spacing-xs);
     padding: var(--spacing-xs);
@@ -40,13 +45,13 @@
 }
 
 .ai-chat-message.user {
-    background-color: var(--background-modifier-hover);
-    margin-left: 10%;
+    background-color: var(--background-modifier-hover); /* User message color */
+    margin-left: 10%; /* Indent user messages */
 }
 
 .ai-chat-message.assistant {
-    background-color: var(--background-secondary);
-    margin-right: 10%;
+    background-color: var(--background-secondary); /* Assistant message color */
+    margin-right: 10%; /* Indent assistant messages */
 }
 
 .message-container {
@@ -75,7 +80,10 @@
     line-height: inherit;
 }
 
-/* === BUTTONS AND ACTIONS === */
+/* === BUTTONS AND ACTIONS ===
+   Styles for message action buttons (copy, edit, delete, regenerate, etc).
+   Adjust padding, color, and hover effects for interactive elements.
+   -------------------------------------------------------------------------- */
 .message-actions {
     display: flex;
     gap: var(--spacing-md);
@@ -122,7 +130,10 @@
     vertical-align: middle;
 }
 
-/* === INPUTS AND FORMS === */
+/* === INPUTS AND FORMS ===
+   Styles for chat input area, session selector, and button containers.
+   You can adjust border, padding, and input appearance here.
+   -------------------------------------------------------------------------- */
 .ai-chat-input-container {
     border-top: 1px solid var(--background-modifier-border);
     padding: var(--spacing-xs);
@@ -153,7 +164,10 @@
     margin-top: var(--spacing-md);
 }
 
-/* === SETTINGS PANEL === */
+/* === SETTINGS PANEL ===
+   Styles for the settings sidebar and toggle button.
+   Adjust panel width, background, and label appearance here.
+   -------------------------------------------------------------------------- */
 .ai-chat-settings-toggle {
     position: absolute;
     top: var(--spacing-xs);
@@ -236,7 +250,10 @@
     margin-right: var(--spacing-xs);
 }
 
-/* === SESSION MANAGEMENT === */
+/* === SESSION MANAGEMENT ===
+   Styles for session container, session buttons, and metadata.
+   Adjust background, spacing, and font size for session management UI.
+   -------------------------------------------------------------------------- */
 .ai-chat-session-container {
     display: flex;
     flex-direction: column;

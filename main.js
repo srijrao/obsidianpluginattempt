@@ -4893,12 +4893,7 @@ var ChatView = class extends import_obsidian3.ItemView {
     settingsButton.setText("Settings");
     settingsButton.setAttribute("aria-label", "Toggle model settings");
     this.messagesContainer = contentEl.createDiv("ai-chat-messages");
-    this.messagesContainer.style.flex = "1";
-    this.messagesContainer.style.overflow = "auto";
-    this.messagesContainer.style.padding = "16px";
     this.inputContainer = contentEl.createDiv("ai-chat-input-container");
-    this.inputContainer.style.borderTop = "1px solid var(--background-modifier-border)";
-    this.inputContainer.style.padding = "16px";
     const textarea = this.inputContainer.createEl("textarea", {
       cls: "ai-chat-input",
       attr: {
@@ -4906,18 +4901,7 @@ var ChatView = class extends import_obsidian3.ItemView {
         rows: "3"
       }
     });
-    textarea.style.width = "100%";
-    textarea.style.resize = "none";
-    textarea.style.border = "1px solid var(--background-modifier-border)";
-    textarea.style.borderRadius = "4px";
-    textarea.style.padding = "8px";
-    textarea.style.backgroundColor = "var(--background-primary)";
-    textarea.style.color = "var(--text-normal)";
     const buttonContainer = this.inputContainer.createDiv("ai-chat-buttons");
-    buttonContainer.style.marginTop = "8px";
-    buttonContainer.style.display = "flex";
-    buttonContainer.style.gap = "8px";
-    buttonContainer.style.justifyContent = "flex-end";
     const sendButton = buttonContainer.createEl("button", {
       text: "Send",
       cls: "mod-cta"
@@ -4988,10 +4972,6 @@ ${currentNoteContent}`
         });
         const tempContainer = document.createElement("div");
         tempContainer.addClass("ai-chat-message", "assistant");
-        tempContainer.style.marginBottom = "16px";
-        tempContainer.style.padding = "12px";
-        tempContainer.style.borderRadius = "8px";
-        tempContainer.style.backgroundColor = "var(--background-secondary)";
         const contentEl2 = tempContainer.createDiv("message-content");
         this.messagesContainer.appendChild(tempContainer);
         this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
@@ -5105,13 +5085,8 @@ ${currentNoteContent}`
   createMessageElement(role, content) {
     const messageEl = document.createElement("div");
     messageEl.addClass("ai-chat-message", role);
-    messageEl.style.marginBottom = "16px";
-    messageEl.style.padding = "12px";
-    messageEl.style.borderRadius = "8px";
-    messageEl.style.backgroundColor = role === "user" ? "var(--background-modifier-hover)" : "var(--background-secondary)";
     const messageContainer = messageEl.createDiv("message-container");
     const contentEl = messageContainer.createDiv("message-content");
-    contentEl.style.whiteSpace = "pre-wrap";
     messageEl.dataset.rawContent = content;
     messageEl.dataset.timestamp = (/* @__PURE__ */ new Date()).toISOString();
     import_obsidian3.MarkdownRenderer.render(
@@ -5132,9 +5107,6 @@ ${currentNoteContent}`
     messageEl.addEventListener("mouseleave", () => {
       actionsEl.style.display = "none";
     });
-    actionsEl.style.flexWrap = "wrap";
-    actionsEl.style.gap = "8px";
-    actionsEl.style.marginTop = "8px";
     actionsEl.appendChild(this.createActionButton("Copy", "Copy message", () => {
       const currentContent = messageEl.dataset.rawContent || "";
       if (currentContent.trim() === "") {
@@ -5148,9 +5120,7 @@ ${currentNoteContent}`
       if (!wasEditing) {
         const textarea = document.createElement("textarea");
         textarea.value = messageEl.dataset.rawContent || "";
-        textarea.style.width = "100%";
-        textarea.style.height = `${contentEl.offsetHeight}px`;
-        textarea.style.minHeight = "100px";
+        textarea.className = "message-content editing";
         contentEl.empty();
         contentEl.appendChild(textarea);
         textarea.focus();
