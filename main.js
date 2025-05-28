@@ -4869,7 +4869,6 @@ var ChatView = class extends import_obsidian3.ItemView {
     __publicField(this, "inputContainer");
     __publicField(this, "activeStream", null);
     __publicField(this, "chatHistoryManager");
-    __publicField(this, "settingsContainer", null);
     this.plugin = plugin;
     this.chatHistoryManager = new ChatHistoryManager(this.app.vault, this.plugin.manifest.id, "chat-history.json");
   }
@@ -5208,106 +5207,6 @@ ${currentNoteContent}`
       this.activeStream = null;
     }
   }
-  createSettingsPanel() {
-    const container = document.createElement("div");
-    container.addClass("ai-chat-settings-panel");
-    container.createEl("h3", { text: "AI Model Settings" });
-    const providerContainer = container.createDiv();
-    providerContainer.createEl("label", { text: "AI Provider" });
-    const providerSelect = providerContainer.createEl("select");
-    providerSelect.createEl("option", { value: "openai", text: "OpenAI (ChatGPT)" });
-    providerSelect.createEl("option", { value: "anthropic", text: "Anthropic (Claude)" });
-    providerSelect.createEl("option", { value: "gemini", text: "Google (Gemini)" });
-    providerSelect.createEl("option", { value: "ollama", text: "Ollama (Local AI)" });
-    providerSelect.value = this.plugin.settings.provider;
-    providerSelect.addEventListener("change", async () => {
-      this.plugin.settings.provider = providerSelect.value;
-      await this.plugin.saveSettings();
-      if (this.settingsContainer) {
-        this.settingsContainer.replaceWith(this.createSettingsPanel());
-      }
-    });
-    const systemMessageContainer = container.createDiv();
-    systemMessageContainer.createEl("label", { text: "System Message" });
-    const systemMessageInput = systemMessageContainer.createEl("textarea");
-    systemMessageInput.value = this.plugin.settings.systemMessage;
-    systemMessageInput.addEventListener("change", async () => {
-      this.plugin.settings.systemMessage = systemMessageInput.value;
-      await this.plugin.saveSettings();
-    });
-    const temperatureContainer = container.createDiv();
-    temperatureContainer.createEl("label", { text: "Temperature" });
-    const temperatureInput = temperatureContainer.createEl("input", { type: "range" });
-    temperatureInput.min = "0";
-    temperatureInput.max = "1";
-    temperatureInput.step = "0.1";
-    temperatureInput.value = String(this.plugin.settings.temperature);
-    const temperatureValue = temperatureContainer.createSpan();
-    temperatureValue.textContent = String(this.plugin.settings.temperature);
-    temperatureInput.addEventListener("input", async () => {
-      const value = Number(temperatureInput.value);
-      temperatureValue.textContent = String(value);
-      this.plugin.settings.temperature = value;
-      await this.plugin.saveSettings();
-    });
-    const providerSettings = container.createDiv();
-    providerSettings.createEl("h4", { text: `${this.plugin.settings.provider.toUpperCase()} Settings` });
-    switch (this.plugin.settings.provider) {
-      case "openai": {
-        const settings = this.plugin.settings.openaiSettings;
-        const modelSelect = providerSettings.createEl("select");
-        settings.availableModels.forEach((model) => {
-          modelSelect.createEl("option", { value: model, text: model });
-        });
-        modelSelect.value = settings.model;
-        modelSelect.addEventListener("change", async () => {
-          settings.model = modelSelect.value;
-          await this.plugin.saveSettings();
-        });
-        break;
-      }
-      case "anthropic": {
-        const settings = this.plugin.settings.anthropicSettings;
-        const modelSelect = providerSettings.createEl("select");
-        settings.availableModels.forEach((model) => {
-          modelSelect.createEl("option", { value: model, text: model });
-        });
-        modelSelect.value = settings.model;
-        modelSelect.addEventListener("change", async () => {
-          settings.model = modelSelect.value;
-          await this.plugin.saveSettings();
-        });
-        break;
-      }
-      case "gemini": {
-        const settings = this.plugin.settings.geminiSettings;
-        const modelSelect = providerSettings.createEl("select");
-        settings.availableModels.forEach((model) => {
-          modelSelect.createEl("option", { value: model, text: model });
-        });
-        modelSelect.value = settings.model;
-        modelSelect.addEventListener("change", async () => {
-          settings.model = modelSelect.value;
-          await this.plugin.saveSettings();
-        });
-        break;
-      }
-      case "ollama": {
-        const settings = this.plugin.settings.ollamaSettings;
-        const modelSelect = providerSettings.createEl("select");
-        settings.availableModels.forEach((model) => {
-          modelSelect.createEl("option", { value: model, text: model });
-        });
-        modelSelect.value = settings.model;
-        modelSelect.addEventListener("change", async () => {
-          settings.model = modelSelect.value;
-          await this.plugin.saveSettings();
-        });
-        break;
-      }
-    }
-    return container;
-  }
   async regenerateResponse(messageEl) {
     const textarea = this.inputContainer.querySelector("textarea");
     if (textarea) textarea.disabled = true;
@@ -5516,6 +5415,13 @@ var ModelSettingsView = class extends import_obsidian4.ItemView {
       });
       text.inputEl.rows = 4;
       text.inputEl.style.width = "100%";
+    });
+    new import_obsidian4.Setting(contentEl).setName("Expand Linked Notes Recursively").setDesc("If enabled, when fetching a note, also fetch and expand links within that note recursively (prevents infinite loops).").addToggle((toggle) => {
+      var _a2;
+      return toggle.setValue((_a2 = this.plugin.settings.expandLinkedNotesRecursively) != null ? _a2 : false).onChange(async (value) => {
+        this.plugin.settings.expandLinkedNotesRecursively = value;
+        await this.plugin.saveSettings();
+      });
     });
     contentEl.createEl("h2", { text: "Provider Settings" });
     new import_obsidian4.Setting(contentEl).setName("AI Provider").setDesc("Choose which AI provider to use").addDropdown((dropdown) => {

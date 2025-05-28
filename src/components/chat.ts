@@ -326,8 +326,6 @@ export class ChatView extends ItemView {
         return 'message-square';
     }
 
-    private settingsContainer: HTMLElement | null = null;
-
     async onOpen() {
         const { contentEl } = this;
         contentEl.empty();
@@ -763,121 +761,6 @@ export class ChatView extends ItemView {
             this.activeStream.abort();
             this.activeStream = null;
         }
-    }
-
-    private createSettingsPanel(): HTMLElement {
-        const container = document.createElement('div');
-        container.addClass('ai-chat-settings-panel');
-
-        // Add settings title
-        container.createEl('h3', { text: 'AI Model Settings' });
-
-        // Provider selection
-        const providerContainer = container.createDiv();
-        providerContainer.createEl('label', { text: 'AI Provider' });
-        const providerSelect = providerContainer.createEl('select');
-        providerSelect.createEl('option', { value: 'openai', text: 'OpenAI (ChatGPT)' });
-        providerSelect.createEl('option', { value: 'anthropic', text: 'Anthropic (Claude)' });
-        providerSelect.createEl('option', { value: 'gemini', text: 'Google (Gemini)' });
-        providerSelect.createEl('option', { value: 'ollama', text: 'Ollama (Local AI)' });
-        providerSelect.value = this.plugin.settings.provider;
-        providerSelect.addEventListener('change', async () => {
-            this.plugin.settings.provider = providerSelect.value as any;
-            await this.plugin.saveSettings();
-            // Refresh settings panel to show provider-specific settings
-            if (this.settingsContainer) {
-                this.settingsContainer.replaceWith(this.createSettingsPanel());
-            }
-        });
-
-        // System message
-        const systemMessageContainer = container.createDiv();
-        systemMessageContainer.createEl('label', { text: 'System Message' });
-        const systemMessageInput = systemMessageContainer.createEl('textarea');
-        systemMessageInput.value = this.plugin.settings.systemMessage;
-        systemMessageInput.addEventListener('change', async () => {
-            this.plugin.settings.systemMessage = systemMessageInput.value;
-            await this.plugin.saveSettings();
-        });
-
-        // Temperature
-        const temperatureContainer = container.createDiv();
-        temperatureContainer.createEl('label', { text: 'Temperature' });
-        const temperatureInput = temperatureContainer.createEl('input', { type: 'range' });
-        temperatureInput.min = '0';
-        temperatureInput.max = '1';
-        temperatureInput.step = '0.1';
-        temperatureInput.value = String(this.plugin.settings.temperature);
-        const temperatureValue = temperatureContainer.createSpan();
-        temperatureValue.textContent = String(this.plugin.settings.temperature);
-        temperatureInput.addEventListener('input', async () => {
-            const value = Number(temperatureInput.value);
-            temperatureValue.textContent = String(value);
-            this.plugin.settings.temperature = value;
-            await this.plugin.saveSettings();
-        });
-
-
-        // Provider-specific settings
-        const providerSettings = container.createDiv();
-        providerSettings.createEl('h4', { text: `${this.plugin.settings.provider.toUpperCase()} Settings` });
-
-        switch (this.plugin.settings.provider) {
-            case 'openai': {
-                const settings = this.plugin.settings.openaiSettings;
-                const modelSelect = providerSettings.createEl('select');
-                settings.availableModels.forEach(model => {
-                    modelSelect.createEl('option', { value: model, text: model });
-                });
-                modelSelect.value = settings.model;
-                modelSelect.addEventListener('change', async () => {
-                    settings.model = modelSelect.value;
-                    await this.plugin.saveSettings();
-                });
-                break;
-            }
-            case 'anthropic': {
-                const settings = this.plugin.settings.anthropicSettings;
-                const modelSelect = providerSettings.createEl('select');
-                settings.availableModels.forEach(model => {
-                    modelSelect.createEl('option', { value: model, text: model });
-                });
-                modelSelect.value = settings.model;
-                modelSelect.addEventListener('change', async () => {
-                    settings.model = modelSelect.value;
-                    await this.plugin.saveSettings();
-                });
-                break;
-            }
-            case 'gemini': {
-                const settings = this.plugin.settings.geminiSettings;
-                const modelSelect = providerSettings.createEl('select');
-                settings.availableModels.forEach(model => {
-                    modelSelect.createEl('option', { value: model, text: model });
-                });
-                modelSelect.value = settings.model;
-                modelSelect.addEventListener('change', async () => {
-                    settings.model = modelSelect.value;
-                    await this.plugin.saveSettings();
-                });
-                break;
-            }
-            case 'ollama': {
-                const settings = this.plugin.settings.ollamaSettings;
-                const modelSelect = providerSettings.createEl('select');
-                settings.availableModels.forEach(model => {
-                    modelSelect.createEl('option', { value: model, text: model });
-                });
-                modelSelect.value = settings.model;
-                modelSelect.addEventListener('change', async () => {
-                    settings.model = modelSelect.value;
-                    await this.plugin.saveSettings();
-                });
-                break;
-            }
-        }
-
-        return container;
     }
 
     private async regenerateResponse(messageEl: HTMLElement) {
