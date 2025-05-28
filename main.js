@@ -4459,7 +4459,8 @@ var DEFAULT_SETTINGS = {
   maxSessions: 10,
   autoSaveSessions: true,
   sessions: [],
-  activeSessionId: void 0
+  activeSessionId: void 0,
+  expandLinkedNotesRecursively: false
 };
 
 // src/main.ts
@@ -4566,6 +4567,13 @@ var MyPluginSettingTab = class extends import_obsidian.PluginSettingTab {
       drop.setValue((_a2 = this.plugin.settings.summaryOutputMode) != null ? _a2 : "clipboard");
       drop.onChange(async (value) => {
         this.plugin.settings.summaryOutputMode = value;
+        await this.plugin.saveSettings();
+      });
+    });
+    new import_obsidian.Setting(containerEl).setName("Expand Linked Notes Recursively").setDesc("If enabled, when fetching a note, also fetch and expand links within that note recursively (prevents infinite loops).").addToggle((toggle) => {
+      var _a2;
+      return toggle.setValue((_a2 = this.plugin.settings.expandLinkedNotesRecursively) != null ? _a2 : false).onChange(async (value) => {
+        this.plugin.settings.expandLinkedNotesRecursively = value;
         await this.plugin.saveSettings();
       });
     });
@@ -5701,7 +5709,7 @@ function extractContentUnderHeader(content, headerText) {
   }
   return extractedContent.join("\n");
 }
-async function processObsidianLinks(content, app, settings) {
+async function processObsidianLinks(content, app, settings, visitedNotes = /* @__PURE__ */ new Set()) {
   if (!settings.enableObsidianLinks) return content;
   const linkRegex = /\[\[(.*?)\]\]/g;
   let match;
@@ -5720,11 +5728,19 @@ async function processObsidianLinks(content, app, settings) {
         const headerMatch = filePath.match(/(.*?)#(.*)/);
         let extractedContent = "";
         if (file && file instanceof import_obsidian5.TFile) {
-          const noteContent = await app.vault.cachedRead(file);
-          if (headerMatch) {
-            extractedContent = extractContentUnderHeader(noteContent, headerMatch[2].trim());
+          if (visitedNotes.has(file.path)) {
+            extractedContent = "[Recursive link omitted: already included]";
           } else {
-            extractedContent = noteContent;
+            visitedNotes.add(file.path);
+            const noteContent = await app.vault.cachedRead(file);
+            if (headerMatch) {
+              extractedContent = extractContentUnderHeader(noteContent, headerMatch[2].trim());
+            } else {
+              extractedContent = noteContent;
+            }
+            if (settings.expandLinkedNotesRecursively) {
+              extractedContent = await processObsidianLinks(extractedContent, app, settings, visitedNotes);
+            }
           }
           processedContent = processedContent.replace(
             match[0],
@@ -5816,7 +5832,7 @@ ${contextContent}`
     }
   }
   for (const message of messages) {
-    const processedContent = await processObsidianLinks(message.content, app, settings);
+    const processedContent = await processObsidianLinks(message.content, app, settings, /* @__PURE__ */ new Set());
     processedMessages.push({
       role: message.role,
       content: processedContent

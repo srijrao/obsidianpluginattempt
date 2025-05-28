@@ -81,6 +81,17 @@ export class SettingsModal extends Modal {
                     await this.plugin.saveSettings();
                 }));
 
+        // Expand Linked Notes Recursively
+        new Setting(contentEl)
+            .setName('Expand Linked Notes Recursively')
+            .setDesc('If enabled, when fetching a note, also fetch and expand links within that note recursively (prevents infinite loops).')
+            .addToggle(toggle => toggle
+                .setValue(this.plugin.settings.expandLinkedNotesRecursively ?? false)
+                .onChange(async (value) => {
+                    this.plugin.settings.expandLinkedNotesRecursively = value;
+                    await this.plugin.saveSettings();
+                }));
+
         // Enable context notes
         new Setting(contentEl)
             .setName('Enable Context Notes')

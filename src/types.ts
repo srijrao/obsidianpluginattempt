@@ -167,6 +167,11 @@ export interface MyPluginSettings {
     autoSaveSessions: boolean;
     sessions: ChatSession[];
     activeSessionId?: string;
+
+    /**
+     * If true, recursively expand links within fetched notes (with loop protection)
+     */
+    expandLinkedNotesRecursively?: boolean;
 }
 
 /**
@@ -217,7 +222,9 @@ export const DEFAULT_SETTINGS: MyPluginSettings = {
     maxSessions: 10,
     autoSaveSessions: true,
     sessions: [],
-    activeSessionId: undefined
+    activeSessionId: undefined,
+
+    expandLinkedNotesRecursively: false
 };
 
 /**

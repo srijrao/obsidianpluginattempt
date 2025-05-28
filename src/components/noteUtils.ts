@@ -35,9 +35,14 @@ export function extractContentUnderHeader(content: string, headerText: string): 
 }
 
 /**
- * Process a single message content to include Obsidian note contents
+ * Process a single message content to include Obsidian note contents, recursively if enabled
  */
-export async function processObsidianLinks(content: string, app: App, settings: MyPluginSettings): Promise<string> {
+export async function processObsidianLinks(
+    content: string,
+    app: App,
+    settings: MyPluginSettings,
+    visitedNotes: Set<string> = new Set()
+): Promise<string> {
     if (!settings.enableObsidianLinks) return content;
     const linkRegex = /\[\[(.*?)\]\]/g;
     let match;
@@ -58,11 +63,21 @@ export async function processObsidianLinks(content: string, app: App, settings: 
                 const headerMatch = filePath.match(/(.*?)#(.*)/);
                 let extractedContent = "";
                 if (file && file instanceof TFile) {
-                    const noteContent = await app.vault.cachedRead(file);
-                    if (headerMatch) {
-                        extractedContent = extractContentUnderHeader(noteContent, headerMatch[2].trim());
+                    // Prevent infinite recursion
+                    if (visitedNotes.has(file.path)) {
+                        extractedContent = '[Recursive link omitted: already included]';
                     } else {
-                        extractedContent = noteContent;
+                        visitedNotes.add(file.path);
+                        const noteContent = await app.vault.cachedRead(file);
+                        if (headerMatch) {
+                            extractedContent = extractContentUnderHeader(noteContent, headerMatch[2].trim());
+                        } else {
+                            extractedContent = noteContent;
+                        }
+                        // Recursively expand links if enabled
+                        if (settings.expandLinkedNotesRecursively) {
+                            extractedContent = await processObsidianLinks(extractedContent, app, settings, visitedNotes);
+                        }
                     }
                     processedContent = processedContent.replace(
                         match[0],
@@ -146,7 +161,7 @@ export async function processMessages(messages: Message[], app: App, settings: M
         }
     }
     for (const message of messages) {
-        const processedContent = await processObsidianLinks(message.content, app, settings);
+        const processedContent = await processObsidianLinks(message.content, app, settings, new Set());
         processedMessages.push({
             role: message.role,
             content: processedContent
