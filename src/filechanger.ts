@@ -2,6 +2,7 @@ import { Notice, TFile, App } from "obsidian";
 import { createProvider } from "../providers";
 import { Message, MyPluginSettings } from "./types";
 import { DEFAULT_TITLE_PROMPT, DEFAULT_SUMMARY_PROMPT } from "./prompts";
+import * as yaml from "js-yaml";
 
 /**
  * Generate a Table of Contents from all headers in the note.
@@ -299,20 +300,24 @@ export async function generateNoteSummary(
  */
 export async function upsertYamlField(app: App, file: TFile, field: string, value: string) {
     let content = await app.vault.read(file);
-    if (/^---\n[\s\S]*?\n---/.test(content)) {
-        // Update or add field (replace all occurrences to avoid duplicates)
-        content = content.replace(
-            /^---\n([\s\S]*?)\n---/,
-            (match, yaml) => {
-                // Remove all existing field lines
-                const cleanedYaml = yaml.replace(new RegExp(`^${field}:.*$`, "gm"), "").replace(/^\s*\n/gm, "");
-                // Add the field at the top
-                return "---\n" + `${field}: ${value}\n` + cleanedYaml.trimEnd() + "\n---";
-            }
-        );
+    let newContent = content;
+    const frontmatterRegex = /^---\n([\s\S]*?)\n---/;
+    const match = content.match(frontmatterRegex);
+    if (match) {
+        // Parse YAML frontmatter
+        let yamlObj: any = {};
+        try {
+            yamlObj = yaml.load(match[1]) || {};
+        } catch (e) {
+            yamlObj = {};
+        }
+        yamlObj[field] = value;
+        const newYaml = yaml.dump(yamlObj, { lineWidth: -1 }).trim();
+        newContent = content.replace(frontmatterRegex, `---\n${newYaml}\n---`);
     } else {
         // No frontmatter, add it
-        content = `---\n${field}: ${value}\n---\n` + content;
+        const newYaml = yaml.dump({ [field]: value }, { lineWidth: -1 }).trim();
+        newContent = `---\n${newYaml}\n---\n` + content;
     }
-    await app.vault.modify(file, content);
+    await app.vault.modify(file, newContent);
 }

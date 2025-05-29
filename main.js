@@ -4183,907 +4183,6 @@ var init_providers = __esm({
   }
 });
 
-// src/filechanger.ts
-var filechanger_exports = {};
-__export(filechanger_exports, {
-  generateNoteSummary: () => generateNoteSummary,
-  generateNoteTitle: () => generateNoteTitle,
-  upsertYamlField: () => upsertYamlField
-});
-function generateTableOfContents(noteContent) {
-  const headerLines = noteContent.split("\n").filter((line) => /^#{1,6}\s+.+/.test(line));
-  if (headerLines.length === 0) return "";
-  return headerLines.map((line) => {
-    const match = line.match(/^(#{1,6})\s+(.+)/);
-    if (!match) return "";
-    const level = match[1].length;
-    const title = match[2].trim();
-    return `${"  ".repeat(level - 1)}- ${title}`;
-  }).join("\n");
-}
-function debug2(...args) {
-  if (DEBUG) {
-    console.log("[DEBUG]", ...args);
-  }
-}
-async function generateNoteTitle(app, settings, processMessages2) {
-  var _a2, _b;
-  debug2("Starting generateNoteTitle");
-  const activeFile = app.workspace.getActiveFile();
-  if (!activeFile) {
-    new import_obsidian11.Notice("No active note found.");
-    return;
-  }
-  let noteContent = await app.vault.cachedRead(activeFile);
-  noteContent = noteContent.slice(0, 15e3);
-  const toc = generateTableOfContents(noteContent);
-  let prompt = settings.titlePrompt + " for:\n\n";
-  if (toc && toc.trim().length > 0) {
-    prompt += "Table of Contents:\n" + toc + "\n\n";
-  }
-  prompt += noteContent;
-  try {
-    debug2("Provider:", settings.provider);
-    const provider = createProvider(settings);
-    const messages = [
-      { role: "system", content: settings.titlePrompt },
-      { role: "user", content: (toc && toc.trim().length > 0 ? "Table of Contents:\n" + toc + "\n\n" : "") + noteContent }
-    ];
-    debug2("Original messages:", JSON.stringify(messages));
-    const originalEnableContextNotes = settings.enableContextNotes;
-    debug2("Original enableContextNotes:", originalEnableContextNotes);
-    settings.enableContextNotes = false;
-    try {
-      const processedMessages = await processMessages2(messages);
-      debug2("Processed messages:", JSON.stringify(processedMessages));
-      settings.enableContextNotes = originalEnableContextNotes;
-      if (!processedMessages || processedMessages.length === 0) {
-        debug2("No processed messages!");
-        new import_obsidian11.Notice("No valid messages to send to the model. Please check your note content.");
-        return;
-      }
-      debug2("Calling provider.getCompletion");
-      let resultBuffer = "";
-      await provider.getCompletion(processedMessages, {
-        temperature: 0,
-        streamCallback: (chunk) => {
-          resultBuffer += chunk;
-        }
-      });
-      debug2("Result from provider (buffered):", resultBuffer);
-      let title = resultBuffer.trim();
-      debug2("Extracted title before sanitization:", title);
-      title = title.replace(/[\\/:]/g, "").trim();
-      debug2("Sanitized title:", title);
-      if (title && typeof title === "string" && title.length > 0) {
-        const outputMode = (_a2 = settings.titleOutputMode) != null ? _a2 : "clipboard";
-        debug2("Output mode:", outputMode);
-        if (outputMode === "replace-filename") {
-          const file = app.workspace.getActiveFile();
-          if (file) {
-            const ext = file.extension ? "." + file.extension : "";
-            const sanitized = title;
-            const parentPath = file.parent ? file.parent.path : "";
-            const newPath = parentPath ? parentPath + "/" + sanitized + ext : sanitized + ext;
-            if (file.path !== newPath) {
-              await app.fileManager.renameFile(file, newPath);
-              new import_obsidian11.Notice(`Note renamed to: ${sanitized}${ext}`);
-            } else {
-              new import_obsidian11.Notice(`Note title is already: ${sanitized}${ext}`);
-            }
-          }
-        } else if (outputMode === "metadata") {
-          const file = app.workspace.getActiveFile();
-          if (file) {
-            await upsertYamlField(app, file, "title", title);
-            new import_obsidian11.Notice(`Inserted title into metadata: ${title}`);
-          }
-        } else {
-          try {
-            await navigator.clipboard.writeText(title);
-            new import_obsidian11.Notice(`Generated title (copied): ${title}`);
-          } catch (e) {
-            new import_obsidian11.Notice(`Generated title: ${title}`);
-          }
-        }
-      } else {
-        debug2("No title generated after sanitization.");
-        new import_obsidian11.Notice("No title generated.");
-      }
-    } catch (processError) {
-      debug2("Error in processMessages or provider.getCompletion:", processError);
-      settings.enableContextNotes = originalEnableContextNotes;
-      throw processError;
-    }
-  } catch (err) {
-    new import_obsidian11.Notice("Error generating title: " + ((_b = err == null ? void 0 : err.message) != null ? _b : err));
-  }
-}
-async function generateNoteSummary(app, settings, processMessages2) {
-  var _a2, _b;
-  debug2("Starting generateNoteSummary");
-  const activeFile = app.workspace.getActiveFile();
-  if (!activeFile) {
-    new import_obsidian11.Notice("No active note found.");
-    return;
-  }
-  let noteContent = await app.vault.cachedRead(activeFile);
-  noteContent = noteContent.slice(0, 15e3);
-  const toc = generateTableOfContents(noteContent);
-  let prompt = settings.summaryPrompt + "\n\n";
-  if (toc && toc.trim().length > 0) {
-    prompt += "Table of Contents:\n" + toc + "\n\n";
-  }
-  prompt += noteContent;
-  try {
-    debug2("Provider:", settings.provider);
-    const provider = createProvider(settings);
-    const messages = [
-      { role: "system", content: settings.summaryPrompt },
-      { role: "user", content: (toc && toc.trim().length > 0 ? "Table of Contents:\n" + toc + "\n\n" : "") + noteContent }
-    ];
-    debug2("Original messages:", JSON.stringify(messages));
-    const originalEnableContextNotes = settings.enableContextNotes;
-    debug2("Original enableContextNotes:", originalEnableContextNotes);
-    settings.enableContextNotes = false;
-    try {
-      const processedMessages = await processMessages2(messages);
-      debug2("Processed messages:", JSON.stringify(processedMessages));
-      settings.enableContextNotes = originalEnableContextNotes;
-      if (!processedMessages || processedMessages.length === 0) {
-        debug2("No processed messages!");
-        new import_obsidian11.Notice("No valid messages to send to the model. Please check your note content.");
-        return;
-      }
-      debug2("Calling provider.getCompletion");
-      let resultBuffer = "";
-      await provider.getCompletion(processedMessages, {
-        temperature: 0,
-        streamCallback: (chunk) => {
-          resultBuffer += chunk;
-        }
-      });
-      debug2("Result from provider (buffered):", resultBuffer);
-      let summary = resultBuffer.trim();
-      debug2("Extracted summary before sanitization:", summary);
-      summary = summary.replace(/[\\/:]/g, "").trim();
-      debug2("Sanitized summary:", summary);
-      if (summary && typeof summary === "string" && summary.length > 0) {
-        const outputMode = (_a2 = settings.summaryOutputMode) != null ? _a2 : "clipboard";
-        debug2("Output mode:", outputMode);
-        if (outputMode === "metadata") {
-          const file = app.workspace.getActiveFile();
-          if (file) {
-            await upsertYamlField(app, file, "abstract", summary);
-            new import_obsidian11.Notice(`Inserted summary into metadata: ${summary}`);
-          }
-        } else {
-          try {
-            await navigator.clipboard.writeText(summary);
-            new import_obsidian11.Notice(`Generated summary (copied): ${summary}`);
-          } catch (e) {
-            new import_obsidian11.Notice(`Generated summary: ${summary}`);
-          }
-        }
-      } else {
-        debug2("No summary generated after sanitization.");
-        new import_obsidian11.Notice("No summary generated.");
-      }
-    } catch (processError) {
-      debug2("Error in processMessages or provider.getCompletion:", processError);
-      settings.enableContextNotes = originalEnableContextNotes;
-      throw processError;
-    }
-  } catch (err) {
-    new import_obsidian11.Notice("Error generating summary: " + ((_b = err == null ? void 0 : err.message) != null ? _b : err));
-  }
-}
-async function upsertYamlField(app, file, field, value) {
-  let content = await app.vault.read(file);
-  if (/^---\n[\s\S]*?\n---/.test(content)) {
-    content = content.replace(
-      /^---\n([\s\S]*?)\n---/,
-      (match, yaml) => {
-        const cleanedYaml = yaml.replace(new RegExp(`^${field}:.*$`, "gm"), "").replace(/^\s*\n/gm, "");
-        return `---
-${field}: ${value}
-` + cleanedYaml.trimEnd() + "\n---";
-      }
-    );
-  } else {
-    content = `---
-${field}: ${value}
----
-` + content;
-  }
-  await app.vault.modify(file, content);
-}
-var import_obsidian11, DEBUG;
-var init_filechanger = __esm({
-  "src/filechanger.ts"() {
-    import_obsidian11 = require("obsidian");
-    init_providers();
-    DEBUG = true;
-  }
-});
-
-// src/main.ts
-var main_exports = {};
-__export(main_exports, {
-  default: () => MyPlugin
-});
-module.exports = __toCommonJS(main_exports);
-var import_obsidian12 = require("obsidian");
-
-// src/types.ts
-var DEFAULT_SETTINGS = {
-  referenceCurrentNote: false,
-  provider: "openai",
-  openaiSettings: {
-    apiKey: "",
-    model: "gpt-4o-mini",
-    availableModels: []
-  },
-  anthropicSettings: {
-    apiKey: "",
-    model: "claude-3-5-sonnet-latest",
-    availableModels: []
-  },
-  geminiSettings: {
-    apiKey: "",
-    model: "gemini-pro",
-    availableModels: []
-  },
-  ollamaSettings: {
-    serverUrl: "http://localhost:11434",
-    model: "llama2",
-    availableModels: []
-  },
-  systemMessage: "You are a helpful assistant.",
-  temperature: 0.7,
-  maxTokens: 1e3,
-  includeDateWithSystemMessage: false,
-  includeTimeWithSystemMessage: false,
-  enableStreaming: true,
-  autoOpenModelSettings: true,
-  enableObsidianLinks: true,
-  titleOutputMode: "clipboard",
-  summaryOutputMode: "clipboard",
-  chatSeparator: "----",
-  chatStartString: void 0,
-  chatEndString: void 0,
-  enableContextNotes: false,
-  contextNotes: "",
-  titlePrompt: "You are a title generator. You will give succinct titles that does not contain backslashes, forward slashes, or colons. Only generate a title as your response.",
-  summaryPrompt: "You are a note summarizer. Read the note content and generate a concise summary (2 sentences at most) that captures the main ideas and purpose of the note. Do not include backslashes, forward slashes, or colons. Only output the summary as your response.",
-  maxSessions: 10,
-  autoSaveSessions: true,
-  sessions: [],
-  activeSessionId: void 0,
-  expandLinkedNotesRecursively: false,
-  maxLinkExpansionDepth: 2,
-  chatNoteFolder: ""
-  // Default to vault root
-};
-
-// src/main.ts
-init_providers();
-
-// src/settings.ts
-var import_obsidian = require("obsidian");
-var MyPluginSettingTab = class extends import_obsidian.PluginSettingTab {
-  constructor(app, plugin) {
-    super(app, plugin);
-    __publicField(this, "plugin");
-    this.plugin = plugin;
-  }
-  /**
-   * Display the settings tab
-   * 
-   * Shows only the auto-open setting here since all other settings
-   * are managed in the model settings view for better organization.
-   */
-  display() {
-    const { containerEl } = this;
-    containerEl.empty();
-    containerEl.createEl("h2", { text: "AI Assistant Settings" });
-    containerEl.createEl("h3", { text: "API Keys" });
-    new import_obsidian.Setting(containerEl).setName("OpenAI API Key").setDesc("Enter your OpenAI API key").addText((text) => text.setPlaceholder("Enter your API key").setValue(this.plugin.settings.openaiSettings.apiKey).onChange(async (value) => {
-      this.plugin.settings.openaiSettings.apiKey = value;
-      await this.plugin.saveSettings();
-    }));
-    new import_obsidian.Setting(containerEl).setName("Anthropic API Key").setDesc("Enter your Anthropic API key").addText((text) => text.setPlaceholder("Enter your API key").setValue(this.plugin.settings.anthropicSettings.apiKey).onChange(async (value) => {
-      this.plugin.settings.anthropicSettings.apiKey = value;
-      await this.plugin.saveSettings();
-    }));
-    new import_obsidian.Setting(containerEl).setName("Google API Key").setDesc("Enter your Google API key").addText((text) => text.setPlaceholder("Enter your API key").setValue(this.plugin.settings.geminiSettings.apiKey).onChange(async (value) => {
-      this.plugin.settings.geminiSettings.apiKey = value;
-      await this.plugin.saveSettings();
-    }));
-    new import_obsidian.Setting(containerEl).setName("Ollama Server URL").setDesc("Enter your Ollama server URL (default: http://localhost:11434)").addText((text) => text.setPlaceholder("http://localhost:11434").setValue(this.plugin.settings.ollamaSettings.serverUrl).onChange(async (value) => {
-      this.plugin.settings.ollamaSettings.serverUrl = value;
-      await this.plugin.saveSettings();
-    }));
-    containerEl.createEl("h3", { text: "Model Settings" });
-    new import_obsidian.Setting(containerEl).setName("Auto-open Model Settings").setDesc("Automatically open model settings when Obsidian starts").addToggle((toggle) => toggle.setValue(this.plugin.settings.autoOpenModelSettings).onChange(async (value) => {
-      this.plugin.settings.autoOpenModelSettings = value;
-      await this.plugin.saveSettings();
-    }));
-    new import_obsidian.Setting(containerEl).setName("Open Model Settings").setDesc("Open the model settings view").addButton((button) => button.setButtonText("Open").onClick(() => {
-      this.plugin.activateView();
-    }));
-    new import_obsidian.Setting(containerEl).setName("Chat Separator").setDesc("The string used to separate chat messages.").addText((text) => {
-      var _a2;
-      text.setPlaceholder("----").setValue((_a2 = this.plugin.settings.chatSeparator) != null ? _a2 : "").onChange(async (value) => {
-        this.plugin.settings.chatSeparator = value;
-        await this.plugin.saveSettings();
-      });
-    });
-    new import_obsidian.Setting(containerEl).setName("Chat Start String").setDesc("The string that indicates where to start taking the note for context.").addText((text) => {
-      var _a2;
-      text.setPlaceholder("===START===").setValue((_a2 = this.plugin.settings.chatStartString) != null ? _a2 : "").onChange(async (value) => {
-        this.plugin.settings.chatStartString = value;
-        await this.plugin.saveSettings();
-      });
-    });
-    new import_obsidian.Setting(containerEl).setName("Chat End String").setDesc("The string that indicates where to end taking the note for context.").addText((text) => {
-      var _a2;
-      text.setPlaceholder("===END===").setValue((_a2 = this.plugin.settings.chatEndString) != null ? _a2 : "").onChange(async (value) => {
-        this.plugin.settings.chatEndString = value;
-        await this.plugin.saveSettings();
-      });
-    });
-    new import_obsidian.Setting(containerEl).setName("Title Prompt").setDesc("The prompt used for generating note titles.").addTextArea((text) => {
-      text.setPlaceholder("You are a title generator...").setValue(this.plugin.settings.titlePrompt).onChange(async (value) => {
-        this.plugin.settings.titlePrompt = value;
-        await this.plugin.saveSettings();
-      });
-    });
-    new import_obsidian.Setting(containerEl).setName("Summary Prompt").setDesc("The prompt used for generating note summaries.").addTextArea((text) => {
-      text.setPlaceholder("You are a note summarizer...").setValue(this.plugin.settings.summaryPrompt).onChange(async (value) => {
-        this.plugin.settings.summaryPrompt = value;
-        await this.plugin.saveSettings();
-      });
-    });
-    new import_obsidian.Setting(containerEl).setName("Reset Prompts to Default").setDesc("Reset title and summary prompts to their original default values.").addButton((button) => button.setButtonText("Reset").onClick(async () => {
-      this.plugin.settings.titlePrompt = "You are a title generator. You will give succinct titles that does not contain backslashes, forward slashes, or colons. Only generate a title as your response.";
-      this.plugin.settings.summaryPrompt = "You are a note summarizer. Read the note content and generate a concise summary (2 sentences at most) that captures the main ideas and purpose of the note. Do not include backslashes, forward slashes, or colons. Only output the summary as your response.";
-      await this.plugin.saveSettings();
-      this.display();
-      new import_obsidian.Notice("Prompts reset to default.");
-    }));
-    new import_obsidian.Setting(containerEl).setName("Title Output Mode").setDesc("Choose what to do with the generated note title.").addDropdown((drop) => {
-      var _a2;
-      drop.addOption("clipboard", "Copy to clipboard");
-      drop.addOption("replace-filename", "Replace note filename");
-      drop.addOption("metadata", "Insert into metadata");
-      drop.setValue((_a2 = this.plugin.settings.titleOutputMode) != null ? _a2 : "clipboard");
-      drop.onChange(async (value) => {
-        this.plugin.settings.titleOutputMode = value;
-        await this.plugin.saveSettings();
-      });
-    });
-    new import_obsidian.Setting(containerEl).setName("Summary Output Mode").setDesc("Choose what to do with the generated note summary.").addDropdown((drop) => {
-      var _a2;
-      drop.addOption("clipboard", "Copy to clipboard");
-      drop.addOption("metadata", "Insert into metadata");
-      drop.setValue((_a2 = this.plugin.settings.summaryOutputMode) != null ? _a2 : "clipboard");
-      drop.onChange(async (value) => {
-        this.plugin.settings.summaryOutputMode = value;
-        await this.plugin.saveSettings();
-      });
-    });
-    new import_obsidian.Setting(containerEl).setName("Expand Linked Notes Recursively").setDesc("If enabled, when fetching a note, also fetch and expand links within that note recursively (prevents infinite loops).").addToggle((toggle) => {
-      var _a2;
-      return toggle.setValue((_a2 = this.plugin.settings.expandLinkedNotesRecursively) != null ? _a2 : false).onChange(async (value) => {
-        this.plugin.settings.expandLinkedNotesRecursively = value;
-        await this.plugin.saveSettings();
-        this.display();
-      });
-    });
-    if (this.plugin.settings.expandLinkedNotesRecursively) {
-      new import_obsidian.Setting(containerEl).setName("Max Link Expansion Depth").setDesc("Maximum depth for recursively expanding linked notes (1-3).").addSlider((slider) => {
-        var _a2;
-        slider.setLimits(1, 3, 1).setValue((_a2 = this.plugin.settings.maxLinkExpansionDepth) != null ? _a2 : 2).setDynamicTooltip().onChange(async (value) => {
-          this.plugin.settings.maxLinkExpansionDepth = value;
-          await this.plugin.saveSettings();
-        });
-      });
-    }
-    new import_obsidian.Setting(containerEl).setName("Chat Note Folder").setDesc("Folder to save exported chat notes (relative to vault root, leave blank for root)").addText((text) => {
-      var _a2;
-      text.setPlaceholder("e.g. AI Chats").setValue((_a2 = this.plugin.settings.chatNoteFolder) != null ? _a2 : "").onChange(async (value) => {
-        this.plugin.settings.chatNoteFolder = value.trim();
-        await this.plugin.saveSettings();
-      });
-    });
-  }
-};
-
-// src/components/chat.ts
-var import_obsidian8 = require("obsidian");
-init_providers();
-
-// src/ChatHistoryManager.ts
-var import_obsidian2 = require("obsidian");
-var ChatHistoryManager = class {
-  constructor(vault, pluginId, historyFilePath) {
-    __publicField(this, "vault");
-    __publicField(this, "historyFilePath");
-    __publicField(this, "history", []);
-    __publicField(this, "isLoaded", false);
-    this.vault = vault;
-    let effectivePluginId = pluginId;
-    if (!pluginId) {
-      console.error("CRITICAL: ChatHistoryManager instantiated without pluginId! Using placeholder. This will likely lead to incorrect file paths.");
-      effectivePluginId = "unknown-plugin-id-error";
-    }
-    const fPath = historyFilePath || "chat-history.json";
-    this.historyFilePath = (0, import_obsidian2.normalizePath)(`.obsidian/plugins/${effectivePluginId}/${fPath}`);
-    console.log("[ChatHistoryManager] Using history file path:", this.historyFilePath);
-    if (typeof window !== "undefined" && window.Notice) {
-      new window.Notice("[ChatHistoryManager] Using history file path: " + this.historyFilePath);
-    }
-  }
-  async ensureDirectoryExists() {
-    const dirPath = this.historyFilePath.substring(0, this.historyFilePath.lastIndexOf("/"));
-    if (!dirPath) return;
-    try {
-      const abstractFile = this.vault.getAbstractFileByPath(dirPath);
-      if (abstractFile === null) {
-        await this.vault.createFolder(dirPath);
-      } else if (!(abstractFile instanceof import_obsidian2.TFolder)) {
-        console.error(`Path ${dirPath} exists but is not a folder.`);
-        throw new Error(`Path ${dirPath} exists but is not a folder.`);
-      }
-    } catch (e) {
-      if (e.message && e.message.toLowerCase().includes("folder already exists")) {
-        return;
-      }
-      console.error(`Failed to ensure directory ${dirPath} exists:`, e);
-      throw e;
-    }
-  }
-  async loadHistory() {
-    try {
-      const exists = await this.vault.adapter.exists(this.historyFilePath);
-      if (exists) {
-        const data = await this.vault.adapter.read(this.historyFilePath);
-        try {
-          this.history = JSON.parse(data);
-        } catch (parseError) {
-          console.error("Failed to parse chat history:", parseError);
-          this.history = [];
-        }
-      } else {
-        this.history = [];
-      }
-    } catch (e) {
-      console.error("Failed to load chat history:", e);
-      this.history = [];
-    }
-    return this.history;
-  }
-  async addMessage(message) {
-    const currentHistory = await this.loadHistory();
-    currentHistory.push(message);
-    this.history = currentHistory;
-    await this.saveHistory();
-  }
-  async getHistory() {
-    return await this.loadHistory();
-  }
-  async clearHistory() {
-    this.history = [];
-    await this.saveHistory();
-  }
-  async deleteMessage(timestamp2, sender, content) {
-    await this.loadHistory();
-    const index = this.history.findIndex(
-      (msg) => msg.timestamp === timestamp2 && msg.sender === sender && msg.content === content
-    );
-    if (index !== -1) {
-      this.history.splice(index, 1);
-      await this.saveHistory();
-    }
-  }
-  async updateMessage(timestamp2, sender, oldContent, newContent) {
-    await this.loadHistory();
-    const message = this.history.find(
-      (msg) => msg.timestamp === timestamp2 && msg.sender === sender && msg.content === oldContent
-    );
-    if (message) {
-      message.content = newContent;
-      await this.saveHistory();
-    } else {
-      console.warn("ChatHistoryManager: updateMessage did not find a matching message to update.", { timestamp: timestamp2, sender, oldContent });
-    }
-  }
-  async saveHistory() {
-    try {
-      await this.ensureDirectoryExists();
-      const data = JSON.stringify(this.history, null, 2);
-      const abstractTarget = this.vault.getAbstractFileByPath(this.historyFilePath);
-      if (abstractTarget instanceof import_obsidian2.TFolder) {
-        throw new Error(`Path ${this.historyFilePath} is a directory, not a file.`);
-      }
-      await this.vault.adapter.write(this.historyFilePath, data);
-      if (!abstractTarget || !(abstractTarget instanceof import_obsidian2.TFile)) {
-        await this.vault.adapter.exists(this.historyFilePath);
-      }
-    } catch (e) {
-      console.error(`Failed to save history to ${this.historyFilePath}:`, e);
-      throw e;
-    }
-  }
-};
-
-// src/components/chat/SettingsModal.ts
-var import_obsidian3 = require("obsidian");
-init_providers();
-var SettingsModal = class extends import_obsidian3.Modal {
-  constructor(app, plugin) {
-    super(app);
-    __publicField(this, "plugin");
-    this.plugin = plugin;
-    this.titleEl.setText("AI Model Settings");
-  }
-  onOpen() {
-    const { contentEl } = this;
-    contentEl.empty();
-    contentEl.addClass("ai-settings-modal");
-    contentEl.createEl("h2", { text: "AI Model Settings" });
-    contentEl.createEl("hr");
-    new import_obsidian3.Setting(contentEl).setName("System Message").setDesc("Set the system message for the AI").addTextArea((text) => text.setPlaceholder("You are a helpful assistant.").setValue(this.plugin.settings.systemMessage).onChange(async (value) => {
-      this.plugin.settings.systemMessage = value;
-      await this.plugin.saveSettings();
-    }));
-    new import_obsidian3.Setting(contentEl).setName("Enable Streaming").setDesc("Enable or disable streaming for completions").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableStreaming).onChange(async (value) => {
-      this.plugin.settings.enableStreaming = value;
-      await this.plugin.saveSettings();
-    }));
-    new import_obsidian3.Setting(contentEl).setName("Temperature").setDesc("Set the randomness of the model's output (0-1)").addSlider((slider) => slider.setLimits(0, 1, 0.1).setValue(this.plugin.settings.temperature).setDynamicTooltip().onChange(async (value) => {
-      this.plugin.settings.temperature = value;
-      await this.plugin.saveSettings();
-    }));
-    contentEl.createEl("hr");
-    contentEl.createEl("h4", { text: "Date Settings" });
-    new import_obsidian3.Setting(contentEl).setName("Include Date with System Message").setDesc("Add the current date to the system message").addToggle((toggle) => toggle.setValue(this.plugin.settings.includeDateWithSystemMessage).onChange(async (value) => {
-      this.plugin.settings.includeDateWithSystemMessage = value;
-      await this.plugin.saveSettings();
-    }));
-    new import_obsidian3.Setting(contentEl).setName("Include Time with System Message").setDesc("Add the current time along with the date to the system message").addToggle((toggle) => toggle.setValue(this.plugin.settings.includeTimeWithSystemMessage).onChange(async (value) => {
-      this.plugin.settings.includeTimeWithSystemMessage = value;
-      await this.plugin.saveSettings();
-    }));
-    contentEl.createEl("hr");
-    contentEl.createEl("h4", { text: "Note Reference Settings" });
-    new import_obsidian3.Setting(contentEl).setName("Enable Obsidian Links").setDesc("Read Obsidian links in messages using [[filename]] syntax").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableObsidianLinks).onChange(async (value) => {
-      this.plugin.settings.enableObsidianLinks = value;
-      await this.plugin.saveSettings();
-    }));
-    new import_obsidian3.Setting(contentEl).setName("Enable Context Notes").setDesc("Attach specified note content to chat messages").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableContextNotes).onChange(async (value) => {
-      this.plugin.settings.enableContextNotes = value;
-      await this.plugin.saveSettings();
-    }));
-    const contextNotesContainer = contentEl.createDiv("context-notes-container");
-    contextNotesContainer.style.marginBottom = "24px";
-    new import_obsidian3.Setting(contextNotesContainer).setName("Context Notes").setDesc("Notes to attach as context (supports [[filename]] and [[filename#header]] syntax)").addTextArea((text) => {
-      text.setPlaceholder("[[Note Name]]\n[[Another Note#Header]]").setValue(this.plugin.settings.contextNotes || "").onChange(async (value) => {
-        this.plugin.settings.contextNotes = value;
-        await this.plugin.saveSettings();
-      });
-      text.inputEl.rows = 4;
-      text.inputEl.style.width = "100%";
-    });
-    new import_obsidian3.Setting(contentEl).setName("Expand Linked Notes Recursively").setDesc("If enabled, when fetching a note, also fetch and expand links within that note recursively (prevents infinite loops).").addToggle((toggle) => {
-      var _a2;
-      return toggle.setValue((_a2 = this.plugin.settings.expandLinkedNotesRecursively) != null ? _a2 : false).onChange(async (value) => {
-        this.plugin.settings.expandLinkedNotesRecursively = value;
-        await this.plugin.saveSettings();
-      });
-    });
-    contentEl.createEl("hr");
-    contentEl.createEl("h2", { text: "Provider Settings" });
-    new import_obsidian3.Setting(contentEl).setName("AI Provider").setDesc("Choose which AI provider to use").addDropdown((dropdown) => {
-      dropdown.addOption("openai", "OpenAI (ChatGPT)").addOption("anthropic", "Anthropic (Claude)").addOption("gemini", "Google (Gemini)").addOption("ollama", "Ollama (Local AI)").setValue(this.plugin.settings.provider).onChange(async (value) => {
-        this.plugin.settings.provider = value;
-        await this.plugin.saveSettings();
-        this.onOpen();
-      });
-    });
-    switch (this.plugin.settings.provider) {
-      case "openai":
-        this.renderProviderSettings(contentEl, this.plugin.settings.openaiSettings, "OpenAI", async () => {
-          const provider = createProvider(this.plugin.settings);
-          const result = await provider.testConnection();
-          if (result.success && result.models) {
-            this.plugin.settings.openaiSettings.availableModels = result.models;
-            await this.plugin.saveSettings();
-            this.plugin.settings.openaiSettings.lastTestResult = {
-              timestamp: Date.now(),
-              success: true,
-              message: result.message
-            };
-            new import_obsidian3.Notice(result.message);
-            this.onOpen();
-          } else {
-            this.plugin.settings.openaiSettings.lastTestResult = {
-              timestamp: Date.now(),
-              success: false,
-              message: result.message
-            };
-            new import_obsidian3.Notice(result.message);
-          }
-        });
-        break;
-      case "anthropic":
-        this.renderProviderSettings(contentEl, this.plugin.settings.anthropicSettings, "Anthropic", async () => {
-          const provider = createProvider(this.plugin.settings);
-          const result = await provider.testConnection();
-          if (result.success && result.models) {
-            this.plugin.settings.anthropicSettings.availableModels = result.models;
-            await this.plugin.saveSettings();
-            this.plugin.settings.anthropicSettings.lastTestResult = {
-              timestamp: Date.now(),
-              success: true,
-              message: result.message
-            };
-            new import_obsidian3.Notice(result.message);
-            this.onOpen();
-          } else {
-            this.plugin.settings.anthropicSettings.lastTestResult = {
-              timestamp: Date.now(),
-              success: false,
-              message: result.message
-            };
-            new import_obsidian3.Notice(result.message);
-          }
-        });
-        break;
-      case "gemini":
-        this.renderProviderSettings(contentEl, this.plugin.settings.geminiSettings, "Gemini", async () => {
-          const provider = createProvider(this.plugin.settings);
-          const result = await provider.testConnection();
-          if (result.success && result.models) {
-            this.plugin.settings.geminiSettings.availableModels = result.models;
-            await this.plugin.saveSettings();
-            this.plugin.settings.geminiSettings.lastTestResult = {
-              timestamp: Date.now(),
-              success: true,
-              message: result.message
-            };
-            new import_obsidian3.Notice(result.message);
-            this.onOpen();
-          } else {
-            this.plugin.settings.geminiSettings.lastTestResult = {
-              timestamp: Date.now(),
-              success: false,
-              message: result.message
-            };
-            new import_obsidian3.Notice(result.message);
-          }
-        });
-        break;
-      case "ollama":
-        this.renderProviderSettings(contentEl, this.plugin.settings.ollamaSettings, "Ollama", async () => {
-          const provider = createProvider(this.plugin.settings);
-          const result = await provider.testConnection();
-          if (result.success && result.models) {
-            this.plugin.settings.ollamaSettings.availableModels = result.models;
-            await this.plugin.saveSettings();
-            this.plugin.settings.ollamaSettings.lastTestResult = {
-              timestamp: Date.now(),
-              success: true,
-              message: result.message
-            };
-            new import_obsidian3.Notice(result.message);
-            this.onOpen();
-          } else {
-            this.plugin.settings.ollamaSettings.lastTestResult = {
-              timestamp: Date.now(),
-              success: false,
-              message: result.message
-            };
-            new import_obsidian3.Notice(result.message);
-          }
-        });
-        contentEl.createEl("div", {
-          cls: "setting-item-description",
-          text: "To use Ollama:"
-        });
-        const steps = contentEl.createEl("ol");
-        steps.createEl("li", { text: "Install Ollama from https://ollama.ai" });
-        steps.createEl("li", { text: "Start the Ollama server" });
-        steps.createEl("li", { text: 'Pull models using "ollama pull model-name"' });
-        steps.createEl("li", { text: "Test connection to see available models" });
-        break;
-    }
-  }
-  renderProviderSettings(containerEl, settings, providerName, testConnectionCallback) {
-    new import_obsidian3.Setting(containerEl).setName("Test Connection").setDesc(`Verify your API key and fetch available models for ${providerName}`).addButton((button) => button.setButtonText("Test").onClick(async () => {
-      button.setButtonText("Testing...");
-      button.setDisabled(true);
-      try {
-        await testConnectionCallback();
-      } catch (error) {
-        new import_obsidian3.Notice(`Error: ${error.message}`);
-      } finally {
-        button.setButtonText("Test");
-        button.setDisabled(false);
-      }
-    }));
-    if (settings.lastTestResult) {
-      const date = new Date(settings.lastTestResult.timestamp);
-      containerEl.createEl("div", {
-        text: `Last test: ${date.toLocaleString()} - ${settings.lastTestResult.message}`,
-        cls: settings.lastTestResult.success ? "success" : "error"
-      });
-    }
-    new import_obsidian3.Setting(containerEl).setName("Model").setDesc(`Choose the ${providerName} model to use`).addDropdown((dropdown) => {
-      for (const model of settings.availableModels) {
-        dropdown.addOption(model, model);
-      }
-      dropdown.setValue(settings.model).onChange(async (value) => {
-        settings.model = value;
-        await this.plugin.saveSettings();
-      });
-    });
-  }
-  onClose() {
-    this.contentEl.empty();
-  }
-};
-
-// src/components/chat/Message.ts
-var import_obsidian6 = require("obsidian");
-
-// src/components/chat/Buttons.ts
-var import_obsidian4 = require("obsidian");
-function createActionButton(label, tooltip, callback) {
-  const button = document.createElement("button");
-  button.addClass("ai-chat-action-button");
-  button.setAttribute("aria-label", tooltip);
-  const labelEl = document.createElement("span");
-  labelEl.textContent = label;
-  button.appendChild(labelEl);
-  button.addEventListener("click", callback);
-  return button;
-}
-async function copyToClipboard(text) {
-  try {
-    await navigator.clipboard.writeText(text);
-  } catch (error) {
-  }
-}
-
-// src/components/chat/ConfirmationModal.ts
-var import_obsidian5 = require("obsidian");
-var ConfirmationModal = class extends import_obsidian5.Modal {
-  constructor(app, title, message, onConfirm) {
-    super(app);
-    __publicField(this, "onConfirm");
-    __publicField(this, "message");
-    this.titleEl.setText(title);
-    this.message = message;
-    this.onConfirm = onConfirm;
-  }
-  onOpen() {
-    const { contentEl } = this;
-    contentEl.createEl("p", { text: this.message });
-    const buttonContainer = contentEl.createDiv("modal-button-container");
-    buttonContainer.createEl("button", { text: "Cancel" }).addEventListener("click", () => {
-      this.onConfirm(false);
-      this.close();
-    });
-    const confirmButton = buttonContainer.createEl("button", {
-      text: "Delete",
-      cls: "mod-warning"
-    });
-    confirmButton.addEventListener("click", () => {
-      this.onConfirm(true);
-      this.close();
-    });
-  }
-  onClose() {
-    this.contentEl.empty();
-  }
-};
-
-// src/components/chat/Message.ts
-function createMessageElement(app, role, content, chatHistoryManager, plugin, regenerateCallback, parentComponent) {
-  const messageEl = document.createElement("div");
-  messageEl.addClass("ai-chat-message", role);
-  const messageContainer = messageEl.createDiv("message-container");
-  const contentEl = messageContainer.createDiv("message-content");
-  messageEl.dataset.rawContent = content;
-  messageEl.dataset.timestamp = (/* @__PURE__ */ new Date()).toISOString();
-  import_obsidian6.MarkdownRenderer.render(app, content, contentEl, "", parentComponent).catch((error) => {
-    contentEl.textContent = content;
-  });
-  const actionsEl = messageContainer.createDiv("message-actions");
-  actionsEl.classList.add("hidden");
-  messageEl.addEventListener("mouseenter", () => {
-    actionsEl.classList.remove("hidden");
-    actionsEl.classList.add("visible");
-  });
-  messageEl.addEventListener("mouseleave", () => {
-    actionsEl.classList.remove("visible");
-    actionsEl.classList.add("hidden");
-  });
-  actionsEl.appendChild(createActionButton("Copy", "Copy message", () => {
-    const currentContent = messageEl.dataset.rawContent || "";
-    if (currentContent.trim() === "") {
-      new import_obsidian6.Notice("No content to copy");
-      return;
-    }
-    copyToClipboard(currentContent);
-  }));
-  actionsEl.appendChild(createActionButton("Edit", "Edit message", async () => {
-    if (!contentEl.hasClass("editing")) {
-      const textarea = document.createElement("textarea");
-      textarea.value = messageEl.dataset.rawContent || "";
-      textarea.className = "message-content editing";
-      contentEl.empty();
-      contentEl.appendChild(textarea);
-      textarea.focus();
-      contentEl.addClass("editing");
-      textarea.addEventListener("keydown", async (e) => {
-        if (e.key === "Enter" && !e.shiftKey) {
-          e.preventDefault();
-          textarea.blur();
-        }
-      });
-      textarea.addEventListener("blur", async () => {
-        const oldContent = messageEl.dataset.rawContent;
-        const newContent = textarea.value;
-        try {
-          await chatHistoryManager.updateMessage(
-            messageEl.dataset.timestamp || (/* @__PURE__ */ new Date()).toISOString(),
-            messageEl.classList.contains("user") ? "user" : "assistant",
-            oldContent || "",
-            newContent
-          );
-          messageEl.dataset.rawContent = newContent;
-          contentEl.empty();
-          await import_obsidian6.MarkdownRenderer.render(app, newContent, contentEl, "", parentComponent);
-          contentEl.removeClass("editing");
-        } catch (e) {
-          new import_obsidian6.Notice("Failed to save edited message.");
-          messageEl.dataset.rawContent = oldContent || "";
-          contentEl.empty();
-          await import_obsidian6.MarkdownRenderer.render(app, oldContent || "", contentEl, "", parentComponent);
-          contentEl.removeClass("editing");
-        }
-      });
-    }
-  }));
-  actionsEl.appendChild(createActionButton("Delete", "Delete message", () => {
-    const modal = new ConfirmationModal(app, "Delete message", "Are you sure you want to delete this message?", (confirmed) => {
-      if (confirmed) {
-        chatHistoryManager.deleteMessage(
-          messageEl.dataset.timestamp || (/* @__PURE__ */ new Date()).toISOString(),
-          messageEl.classList.contains("user") ? "user" : "assistant",
-          messageEl.dataset.rawContent || ""
-        ).then(() => {
-          messageEl.remove();
-        }).catch(() => {
-          new import_obsidian6.Notice("Failed to delete message from history.");
-        });
-      }
-    });
-    modal.open();
-  }));
-  actionsEl.appendChild(createActionButton("Regenerate", "Regenerate this response", () => {
-    regenerateCallback(messageEl);
-  }));
-  messageContainer.appendChild(actionsEl);
-  return messageEl;
-}
-
-// src/components/chat/chatPersistence.ts
-var import_obsidian7 = require("obsidian");
-
 // node_modules/js-yaml/dist/js-yaml.mjs
 function isNothing(subject) {
   return typeof subject === "undefined" || subject === null;
@@ -5117,20 +4216,6 @@ function repeat(string, count) {
 function isNegativeZero(number) {
   return number === 0 && Number.NEGATIVE_INFINITY === 1 / number;
 }
-var isNothing_1 = isNothing;
-var isObject_1 = isObject;
-var toArray_1 = toArray;
-var repeat_1 = repeat;
-var isNegativeZero_1 = isNegativeZero;
-var extend_1 = extend;
-var common = {
-  isNothing: isNothing_1,
-  isObject: isObject_1,
-  toArray: toArray_1,
-  repeat: repeat_1,
-  isNegativeZero: isNegativeZero_1,
-  extend: extend_1
-};
 function formatError(exception2, compact) {
   var where = "", message = exception2.reason || "(unknown reason)";
   if (!exception2.mark) return message;
@@ -5155,12 +4240,6 @@ function YAMLException$1(reason, mark) {
     this.stack = new Error().stack || "";
   }
 }
-YAMLException$1.prototype = Object.create(Error.prototype);
-YAMLException$1.prototype.constructor = YAMLException$1;
-YAMLException$1.prototype.toString = function toString(compact) {
-  return this.name + ": " + formatError(this, compact);
-};
-var exception = YAMLException$1;
 function getLine(buffer, lineStart, lineEnd, position, maxLineLength) {
   var head = "";
   var tail = "";
@@ -5232,24 +4311,6 @@ function makeSnippet(mark, options) {
   }
   return result.replace(/\n$/, "");
 }
-var snippet = makeSnippet;
-var TYPE_CONSTRUCTOR_OPTIONS = [
-  "kind",
-  "multi",
-  "resolve",
-  "construct",
-  "instanceOf",
-  "predicate",
-  "represent",
-  "representName",
-  "defaultStyle",
-  "styleAliases"
-];
-var YAML_NODE_KINDS = [
-  "scalar",
-  "sequence",
-  "mapping"
-];
 function compileStyleAliases(map2) {
   var result = {};
   if (map2 !== null) {
@@ -5288,7 +4349,6 @@ function Type$1(tag, options) {
     throw new exception('Unknown kind "' + this.kind + '" is specified for "' + tag + '" YAML type.');
   }
 }
-var type = Type$1;
 function compileList(schema2, name) {
   var result = [];
   schema2[name].forEach(function(currentType) {
@@ -5331,69 +4391,6 @@ function compileMap() {
 function Schema$1(definition) {
   return this.extend(definition);
 }
-Schema$1.prototype.extend = function extend2(definition) {
-  var implicit = [];
-  var explicit = [];
-  if (definition instanceof type) {
-    explicit.push(definition);
-  } else if (Array.isArray(definition)) {
-    explicit = explicit.concat(definition);
-  } else if (definition && (Array.isArray(definition.implicit) || Array.isArray(definition.explicit))) {
-    if (definition.implicit) implicit = implicit.concat(definition.implicit);
-    if (definition.explicit) explicit = explicit.concat(definition.explicit);
-  } else {
-    throw new exception("Schema.extend argument should be a Type, [ Type ], or a schema definition ({ implicit: [...], explicit: [...] })");
-  }
-  implicit.forEach(function(type$1) {
-    if (!(type$1 instanceof type)) {
-      throw new exception("Specified list of YAML types (or a single Type object) contains a non-Type object.");
-    }
-    if (type$1.loadKind && type$1.loadKind !== "scalar") {
-      throw new exception("There is a non-scalar type in the implicit list of a schema. Implicit resolving of such types is not supported.");
-    }
-    if (type$1.multi) {
-      throw new exception("There is a multi type in the implicit list of a schema. Multi tags can only be listed as explicit.");
-    }
-  });
-  explicit.forEach(function(type$1) {
-    if (!(type$1 instanceof type)) {
-      throw new exception("Specified list of YAML types (or a single Type object) contains a non-Type object.");
-    }
-  });
-  var result = Object.create(Schema$1.prototype);
-  result.implicit = (this.implicit || []).concat(implicit);
-  result.explicit = (this.explicit || []).concat(explicit);
-  result.compiledImplicit = compileList(result, "implicit");
-  result.compiledExplicit = compileList(result, "explicit");
-  result.compiledTypeMap = compileMap(result.compiledImplicit, result.compiledExplicit);
-  return result;
-};
-var schema = Schema$1;
-var str = new type("tag:yaml.org,2002:str", {
-  kind: "scalar",
-  construct: function(data) {
-    return data !== null ? data : "";
-  }
-});
-var seq = new type("tag:yaml.org,2002:seq", {
-  kind: "sequence",
-  construct: function(data) {
-    return data !== null ? data : [];
-  }
-});
-var map = new type("tag:yaml.org,2002:map", {
-  kind: "mapping",
-  construct: function(data) {
-    return data !== null ? data : {};
-  }
-});
-var failsafe = new schema({
-  explicit: [
-    str,
-    seq,
-    map
-  ]
-});
 function resolveYamlNull(data) {
   if (data === null) return true;
   var max = data.length;
@@ -5405,30 +4402,6 @@ function constructYamlNull() {
 function isNull(object) {
   return object === null;
 }
-var _null = new type("tag:yaml.org,2002:null", {
-  kind: "scalar",
-  resolve: resolveYamlNull,
-  construct: constructYamlNull,
-  predicate: isNull,
-  represent: {
-    canonical: function() {
-      return "~";
-    },
-    lowercase: function() {
-      return "null";
-    },
-    uppercase: function() {
-      return "NULL";
-    },
-    camelcase: function() {
-      return "Null";
-    },
-    empty: function() {
-      return "";
-    }
-  },
-  defaultStyle: "lowercase"
-});
 function resolveYamlBoolean(data) {
   if (data === null) return false;
   var max = data.length;
@@ -5440,24 +4413,6 @@ function constructYamlBoolean(data) {
 function isBoolean(object) {
   return Object.prototype.toString.call(object) === "[object Boolean]";
 }
-var bool = new type("tag:yaml.org,2002:bool", {
-  kind: "scalar",
-  resolve: resolveYamlBoolean,
-  construct: constructYamlBoolean,
-  predicate: isBoolean,
-  represent: {
-    lowercase: function(object) {
-      return object ? "true" : "false";
-    },
-    uppercase: function(object) {
-      return object ? "TRUE" : "FALSE";
-    },
-    camelcase: function(object) {
-      return object ? "True" : "False";
-    }
-  },
-  defaultStyle: "lowercase"
-});
 function isHexCode(c) {
   return 48 <= c && c <= 57 || 65 <= c && c <= 70 || 97 <= c && c <= 102;
 }
@@ -5543,38 +4498,6 @@ function constructYamlInteger(data) {
 function isInteger(object) {
   return Object.prototype.toString.call(object) === "[object Number]" && (object % 1 === 0 && !common.isNegativeZero(object));
 }
-var int = new type("tag:yaml.org,2002:int", {
-  kind: "scalar",
-  resolve: resolveYamlInteger,
-  construct: constructYamlInteger,
-  predicate: isInteger,
-  represent: {
-    binary: function(obj) {
-      return obj >= 0 ? "0b" + obj.toString(2) : "-0b" + obj.toString(2).slice(1);
-    },
-    octal: function(obj) {
-      return obj >= 0 ? "0o" + obj.toString(8) : "-0o" + obj.toString(8).slice(1);
-    },
-    decimal: function(obj) {
-      return obj.toString(10);
-    },
-    /* eslint-disable max-len */
-    hexadecimal: function(obj) {
-      return obj >= 0 ? "0x" + obj.toString(16).toUpperCase() : "-0x" + obj.toString(16).toUpperCase().slice(1);
-    }
-  },
-  defaultStyle: "decimal",
-  styleAliases: {
-    binary: [2, "bin"],
-    octal: [8, "oct"],
-    decimal: [10, "dec"],
-    hexadecimal: [16, "hex"]
-  }
-});
-var YAML_FLOAT_PATTERN = new RegExp(
-  // 2.5e4, 2.5 and integers
-  "^(?:[-+]?(?:[0-9][0-9_]*)(?:\\.[0-9_]*)?(?:[eE][-+]?[0-9]+)?|\\.[0-9_]+(?:[eE][-+]?[0-9]+)?|[-+]?\\.(?:inf|Inf|INF)|\\.(?:nan|NaN|NAN))$"
-);
 function resolveYamlFloat(data) {
   if (data === null) return false;
   if (!YAML_FLOAT_PATTERN.test(data) || // Quick hack to not allow integers end with `_`
@@ -5598,7 +4521,6 @@ function constructYamlFloat(data) {
   }
   return sign * parseFloat(value, 10);
 }
-var SCIENTIFIC_WITHOUT_DOT = /^[-+]?[0-9]+e/;
 function representYamlFloat(object, style) {
   var res;
   if (isNaN(object)) {
@@ -5637,29 +4559,6 @@ function representYamlFloat(object, style) {
 function isFloat(object) {
   return Object.prototype.toString.call(object) === "[object Number]" && (object % 1 !== 0 || common.isNegativeZero(object));
 }
-var float = new type("tag:yaml.org,2002:float", {
-  kind: "scalar",
-  resolve: resolveYamlFloat,
-  construct: constructYamlFloat,
-  predicate: isFloat,
-  represent: representYamlFloat,
-  defaultStyle: "lowercase"
-});
-var json = failsafe.extend({
-  implicit: [
-    _null,
-    bool,
-    int,
-    float
-  ]
-});
-var core = json;
-var YAML_DATE_REGEXP = new RegExp(
-  "^([0-9][0-9][0-9][0-9])-([0-9][0-9])-([0-9][0-9])$"
-);
-var YAML_TIMESTAMP_REGEXP = new RegExp(
-  "^([0-9][0-9][0-9][0-9])-([0-9][0-9]?)-([0-9][0-9]?)(?:[Tt]|[ \\t]+)([0-9][0-9]?):([0-9][0-9]):([0-9][0-9])(?:\\.([0-9]*))?(?:[ \\t]*(Z|([-+])([0-9][0-9]?)(?::([0-9][0-9]))?))?$"
-);
 function resolveYamlTimestamp(data) {
   if (data === null) return false;
   if (YAML_DATE_REGEXP.exec(data) !== null) return true;
@@ -5700,21 +4599,9 @@ function constructYamlTimestamp(data) {
 function representYamlTimestamp(object) {
   return object.toISOString();
 }
-var timestamp = new type("tag:yaml.org,2002:timestamp", {
-  kind: "scalar",
-  resolve: resolveYamlTimestamp,
-  construct: constructYamlTimestamp,
-  instanceOf: Date,
-  represent: representYamlTimestamp
-});
 function resolveYamlMerge(data) {
   return data === "<<" || data === null;
 }
-var merge = new type("tag:yaml.org,2002:merge", {
-  kind: "scalar",
-  resolve: resolveYamlMerge
-});
-var BASE64_MAP = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=\n\r";
 function resolveYamlBinary(data) {
   if (data === null) return false;
   var code, idx, bitlen = 0, max = data.length, map2 = BASE64_MAP;
@@ -5782,15 +4669,6 @@ function representYamlBinary(object) {
 function isBinary(obj) {
   return Object.prototype.toString.call(obj) === "[object Uint8Array]";
 }
-var binary = new type("tag:yaml.org,2002:binary", {
-  kind: "scalar",
-  resolve: resolveYamlBinary,
-  construct: constructYamlBinary,
-  predicate: isBinary,
-  represent: representYamlBinary
-});
-var _hasOwnProperty$3 = Object.prototype.hasOwnProperty;
-var _toString$2 = Object.prototype.toString;
 function resolveYamlOmap(data) {
   if (data === null) return true;
   var objectKeys = [], index, length, pair, pairKey, pairHasKey, object = data;
@@ -5813,12 +4691,6 @@ function resolveYamlOmap(data) {
 function constructYamlOmap(data) {
   return data !== null ? data : [];
 }
-var omap = new type("tag:yaml.org,2002:omap", {
-  kind: "sequence",
-  resolve: resolveYamlOmap,
-  construct: constructYamlOmap
-});
-var _toString$1 = Object.prototype.toString;
 function resolveYamlPairs(data) {
   if (data === null) return true;
   var index, length, pair, keys, result, object = data;
@@ -5843,12 +4715,6 @@ function constructYamlPairs(data) {
   }
   return result;
 }
-var pairs = new type("tag:yaml.org,2002:pairs", {
-  kind: "sequence",
-  resolve: resolveYamlPairs,
-  construct: constructYamlPairs
-});
-var _hasOwnProperty$2 = Object.prototype.hasOwnProperty;
 function resolveYamlSet(data) {
   if (data === null) return true;
   var key, object = data;
@@ -5862,36 +4728,6 @@ function resolveYamlSet(data) {
 function constructYamlSet(data) {
   return data !== null ? data : {};
 }
-var set = new type("tag:yaml.org,2002:set", {
-  kind: "mapping",
-  resolve: resolveYamlSet,
-  construct: constructYamlSet
-});
-var _default = core.extend({
-  implicit: [
-    timestamp,
-    merge
-  ],
-  explicit: [
-    binary,
-    omap,
-    pairs,
-    set
-  ]
-});
-var _hasOwnProperty$1 = Object.prototype.hasOwnProperty;
-var CONTEXT_FLOW_IN = 1;
-var CONTEXT_FLOW_OUT = 2;
-var CONTEXT_BLOCK_IN = 3;
-var CONTEXT_BLOCK_OUT = 4;
-var CHOMPING_CLIP = 1;
-var CHOMPING_STRIP = 2;
-var CHOMPING_KEEP = 3;
-var PATTERN_NON_PRINTABLE = /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x84\x86-\x9F\uFFFE\uFFFF]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?:[^\uD800-\uDBFF]|^)[\uDC00-\uDFFF]/;
-var PATTERN_NON_ASCII_LINE_BREAKS = /[\x85\u2028\u2029]/;
-var PATTERN_FLOW_INDICATORS = /[,\[\]\{\}]/;
-var PATTERN_TAG_HANDLE = /^(?:!|!!|![a-z\-]+!)$/i;
-var PATTERN_TAG_URI = /^(?:!|[^,\[\]\{\}])(?:%[0-9a-f]{2}|[0-9a-z\-#;\/\?:@&=\+\$,_\.!~\*'\(\)\[\]])*$/i;
 function _class(obj) {
   return Object.prototype.toString.call(obj);
 }
@@ -5948,13 +4784,6 @@ function charFromCodepoint(c) {
     (c - 65536 & 1023) + 56320
   );
 }
-var simpleEscapeCheck = new Array(256);
-var simpleEscapeMap = new Array(256);
-for (i = 0; i < 256; i++) {
-  simpleEscapeCheck[i] = simpleEscapeSequence(i) ? 1 : 0;
-  simpleEscapeMap[i] = simpleEscapeSequence(i);
-}
-var i;
 function State$1(input, options) {
   this.input = input;
   this.filename = options["filename"] || null;
@@ -5993,54 +4822,6 @@ function throwWarning(state, message) {
     state.onWarning.call(null, generateError(state, message));
   }
 }
-var directiveHandlers = {
-  YAML: function handleYamlDirective(state, name, args) {
-    var match, major, minor;
-    if (state.version !== null) {
-      throwError(state, "duplication of %YAML directive");
-    }
-    if (args.length !== 1) {
-      throwError(state, "YAML directive accepts exactly one argument");
-    }
-    match = /^([0-9]+)\.([0-9]+)$/.exec(args[0]);
-    if (match === null) {
-      throwError(state, "ill-formed argument of the YAML directive");
-    }
-    major = parseInt(match[1], 10);
-    minor = parseInt(match[2], 10);
-    if (major !== 1) {
-      throwError(state, "unacceptable YAML version of the document");
-    }
-    state.version = args[0];
-    state.checkLineBreaks = minor < 2;
-    if (minor !== 1 && minor !== 2) {
-      throwWarning(state, "unsupported YAML version of the document");
-    }
-  },
-  TAG: function handleTagDirective(state, name, args) {
-    var handle, prefix;
-    if (args.length !== 2) {
-      throwError(state, "TAG directive accepts exactly two arguments");
-    }
-    handle = args[0];
-    prefix = args[1];
-    if (!PATTERN_TAG_HANDLE.test(handle)) {
-      throwError(state, "ill-formed tag handle (first argument) of the TAG directive");
-    }
-    if (_hasOwnProperty$1.call(state.tagMap, handle)) {
-      throwError(state, 'there is a previously declared suffix for "' + handle + '" tag handle');
-    }
-    if (!PATTERN_TAG_URI.test(prefix)) {
-      throwError(state, "ill-formed tag prefix (second argument) of the TAG directive");
-    }
-    try {
-      prefix = decodeURIComponent(prefix);
-    } catch (err) {
-      throwError(state, "tag prefix is malformed: " + prefix);
-    }
-    state.tagMap[handle] = prefix;
-  }
-};
 function captureSegment(state, start, end, checkJson) {
   var _position, _length, _character, _result;
   if (start < end) {
@@ -7027,74 +5808,6 @@ function load$1(input, options) {
   }
   throw new exception("expected a single document in the stream, but found more");
 }
-var loadAll_1 = loadAll$1;
-var load_1 = load$1;
-var loader = {
-  loadAll: loadAll_1,
-  load: load_1
-};
-var _toString = Object.prototype.toString;
-var _hasOwnProperty = Object.prototype.hasOwnProperty;
-var CHAR_BOM = 65279;
-var CHAR_TAB = 9;
-var CHAR_LINE_FEED = 10;
-var CHAR_CARRIAGE_RETURN = 13;
-var CHAR_SPACE = 32;
-var CHAR_EXCLAMATION = 33;
-var CHAR_DOUBLE_QUOTE = 34;
-var CHAR_SHARP = 35;
-var CHAR_PERCENT = 37;
-var CHAR_AMPERSAND = 38;
-var CHAR_SINGLE_QUOTE = 39;
-var CHAR_ASTERISK = 42;
-var CHAR_COMMA = 44;
-var CHAR_MINUS = 45;
-var CHAR_COLON = 58;
-var CHAR_EQUALS = 61;
-var CHAR_GREATER_THAN = 62;
-var CHAR_QUESTION = 63;
-var CHAR_COMMERCIAL_AT = 64;
-var CHAR_LEFT_SQUARE_BRACKET = 91;
-var CHAR_RIGHT_SQUARE_BRACKET = 93;
-var CHAR_GRAVE_ACCENT = 96;
-var CHAR_LEFT_CURLY_BRACKET = 123;
-var CHAR_VERTICAL_LINE = 124;
-var CHAR_RIGHT_CURLY_BRACKET = 125;
-var ESCAPE_SEQUENCES = {};
-ESCAPE_SEQUENCES[0] = "\\0";
-ESCAPE_SEQUENCES[7] = "\\a";
-ESCAPE_SEQUENCES[8] = "\\b";
-ESCAPE_SEQUENCES[9] = "\\t";
-ESCAPE_SEQUENCES[10] = "\\n";
-ESCAPE_SEQUENCES[11] = "\\v";
-ESCAPE_SEQUENCES[12] = "\\f";
-ESCAPE_SEQUENCES[13] = "\\r";
-ESCAPE_SEQUENCES[27] = "\\e";
-ESCAPE_SEQUENCES[34] = '\\"';
-ESCAPE_SEQUENCES[92] = "\\\\";
-ESCAPE_SEQUENCES[133] = "\\N";
-ESCAPE_SEQUENCES[160] = "\\_";
-ESCAPE_SEQUENCES[8232] = "\\L";
-ESCAPE_SEQUENCES[8233] = "\\P";
-var DEPRECATED_BOOLEANS_SYNTAX = [
-  "y",
-  "Y",
-  "yes",
-  "Yes",
-  "YES",
-  "on",
-  "On",
-  "ON",
-  "n",
-  "N",
-  "no",
-  "No",
-  "NO",
-  "off",
-  "Off",
-  "OFF"
-];
-var DEPRECATED_BASE60_SYNTAX = /^[-+]?[0-9_]+(?::[0-9_]+)+(?:\.[0-9_]*)?$/;
 function compileStyleMap(schema2, map2) {
   var result, keys, index, length, tag, style, type2;
   if (map2 === null) return {};
@@ -7131,8 +5844,6 @@ function encodeHex(character) {
   }
   return "\\" + handle + common.repeat("0", length - string.length) + string;
 }
-var QUOTING_TYPE_SINGLE = 1;
-var QUOTING_TYPE_DOUBLE = 2;
 function State(options) {
   this.schema = options["schema"] || _default;
   this.indent = Math.max(1, options["indent"] || 2);
@@ -7224,11 +5935,6 @@ function needIndentIndicator(string) {
   var leadingSpaceRe = /^\n* /;
   return leadingSpaceRe.test(string);
 }
-var STYLE_PLAIN = 1;
-var STYLE_SINGLE = 2;
-var STYLE_LITERAL = 3;
-var STYLE_FOLDED = 4;
-var STYLE_DOUBLE = 5;
 function chooseScalarStyle(string, singleLineOnly, indentPerLevel, lineWidth, testAmbiguousType, quotingType, forceQuotes, inblock) {
   var i;
   var char = 0;
@@ -7651,23 +6357,1326 @@ function dump$1(input, options) {
   if (writeNode(state, 0, value, true, true)) return state.dump + "\n";
   return "";
 }
-var dump_1 = dump$1;
-var dumper = {
-  dump: dump_1
-};
 function renamed(from, to) {
   return function() {
     throw new Error("Function yaml." + from + " is removed in js-yaml 4. Use yaml." + to + " instead, which is now safe by default.");
   };
 }
-var load = loader.load;
-var loadAll = loader.loadAll;
-var dump = dumper.dump;
-var safeLoad = renamed("safeLoad", "load");
-var safeLoadAll = renamed("safeLoadAll", "loadAll");
-var safeDump = renamed("safeDump", "dump");
+var isNothing_1, isObject_1, toArray_1, repeat_1, isNegativeZero_1, extend_1, common, exception, snippet, TYPE_CONSTRUCTOR_OPTIONS, YAML_NODE_KINDS, type, schema, str, seq, map, failsafe, _null, bool, int, YAML_FLOAT_PATTERN, SCIENTIFIC_WITHOUT_DOT, float, json, core, YAML_DATE_REGEXP, YAML_TIMESTAMP_REGEXP, timestamp, merge, BASE64_MAP, binary, _hasOwnProperty$3, _toString$2, omap, _toString$1, pairs, _hasOwnProperty$2, set, _default, _hasOwnProperty$1, CONTEXT_FLOW_IN, CONTEXT_FLOW_OUT, CONTEXT_BLOCK_IN, CONTEXT_BLOCK_OUT, CHOMPING_CLIP, CHOMPING_STRIP, CHOMPING_KEEP, PATTERN_NON_PRINTABLE, PATTERN_NON_ASCII_LINE_BREAKS, PATTERN_FLOW_INDICATORS, PATTERN_TAG_HANDLE, PATTERN_TAG_URI, simpleEscapeCheck, simpleEscapeMap, i, directiveHandlers, loadAll_1, load_1, loader, _toString, _hasOwnProperty, CHAR_BOM, CHAR_TAB, CHAR_LINE_FEED, CHAR_CARRIAGE_RETURN, CHAR_SPACE, CHAR_EXCLAMATION, CHAR_DOUBLE_QUOTE, CHAR_SHARP, CHAR_PERCENT, CHAR_AMPERSAND, CHAR_SINGLE_QUOTE, CHAR_ASTERISK, CHAR_COMMA, CHAR_MINUS, CHAR_COLON, CHAR_EQUALS, CHAR_GREATER_THAN, CHAR_QUESTION, CHAR_COMMERCIAL_AT, CHAR_LEFT_SQUARE_BRACKET, CHAR_RIGHT_SQUARE_BRACKET, CHAR_GRAVE_ACCENT, CHAR_LEFT_CURLY_BRACKET, CHAR_VERTICAL_LINE, CHAR_RIGHT_CURLY_BRACKET, ESCAPE_SEQUENCES, DEPRECATED_BOOLEANS_SYNTAX, DEPRECATED_BASE60_SYNTAX, QUOTING_TYPE_SINGLE, QUOTING_TYPE_DOUBLE, STYLE_PLAIN, STYLE_SINGLE, STYLE_LITERAL, STYLE_FOLDED, STYLE_DOUBLE, dump_1, dumper, load, loadAll, dump, safeLoad, safeLoadAll, safeDump;
+var init_js_yaml = __esm({
+  "node_modules/js-yaml/dist/js-yaml.mjs"() {
+    isNothing_1 = isNothing;
+    isObject_1 = isObject;
+    toArray_1 = toArray;
+    repeat_1 = repeat;
+    isNegativeZero_1 = isNegativeZero;
+    extend_1 = extend;
+    common = {
+      isNothing: isNothing_1,
+      isObject: isObject_1,
+      toArray: toArray_1,
+      repeat: repeat_1,
+      isNegativeZero: isNegativeZero_1,
+      extend: extend_1
+    };
+    YAMLException$1.prototype = Object.create(Error.prototype);
+    YAMLException$1.prototype.constructor = YAMLException$1;
+    YAMLException$1.prototype.toString = function toString(compact) {
+      return this.name + ": " + formatError(this, compact);
+    };
+    exception = YAMLException$1;
+    snippet = makeSnippet;
+    TYPE_CONSTRUCTOR_OPTIONS = [
+      "kind",
+      "multi",
+      "resolve",
+      "construct",
+      "instanceOf",
+      "predicate",
+      "represent",
+      "representName",
+      "defaultStyle",
+      "styleAliases"
+    ];
+    YAML_NODE_KINDS = [
+      "scalar",
+      "sequence",
+      "mapping"
+    ];
+    type = Type$1;
+    Schema$1.prototype.extend = function extend2(definition) {
+      var implicit = [];
+      var explicit = [];
+      if (definition instanceof type) {
+        explicit.push(definition);
+      } else if (Array.isArray(definition)) {
+        explicit = explicit.concat(definition);
+      } else if (definition && (Array.isArray(definition.implicit) || Array.isArray(definition.explicit))) {
+        if (definition.implicit) implicit = implicit.concat(definition.implicit);
+        if (definition.explicit) explicit = explicit.concat(definition.explicit);
+      } else {
+        throw new exception("Schema.extend argument should be a Type, [ Type ], or a schema definition ({ implicit: [...], explicit: [...] })");
+      }
+      implicit.forEach(function(type$1) {
+        if (!(type$1 instanceof type)) {
+          throw new exception("Specified list of YAML types (or a single Type object) contains a non-Type object.");
+        }
+        if (type$1.loadKind && type$1.loadKind !== "scalar") {
+          throw new exception("There is a non-scalar type in the implicit list of a schema. Implicit resolving of such types is not supported.");
+        }
+        if (type$1.multi) {
+          throw new exception("There is a multi type in the implicit list of a schema. Multi tags can only be listed as explicit.");
+        }
+      });
+      explicit.forEach(function(type$1) {
+        if (!(type$1 instanceof type)) {
+          throw new exception("Specified list of YAML types (or a single Type object) contains a non-Type object.");
+        }
+      });
+      var result = Object.create(Schema$1.prototype);
+      result.implicit = (this.implicit || []).concat(implicit);
+      result.explicit = (this.explicit || []).concat(explicit);
+      result.compiledImplicit = compileList(result, "implicit");
+      result.compiledExplicit = compileList(result, "explicit");
+      result.compiledTypeMap = compileMap(result.compiledImplicit, result.compiledExplicit);
+      return result;
+    };
+    schema = Schema$1;
+    str = new type("tag:yaml.org,2002:str", {
+      kind: "scalar",
+      construct: function(data) {
+        return data !== null ? data : "";
+      }
+    });
+    seq = new type("tag:yaml.org,2002:seq", {
+      kind: "sequence",
+      construct: function(data) {
+        return data !== null ? data : [];
+      }
+    });
+    map = new type("tag:yaml.org,2002:map", {
+      kind: "mapping",
+      construct: function(data) {
+        return data !== null ? data : {};
+      }
+    });
+    failsafe = new schema({
+      explicit: [
+        str,
+        seq,
+        map
+      ]
+    });
+    _null = new type("tag:yaml.org,2002:null", {
+      kind: "scalar",
+      resolve: resolveYamlNull,
+      construct: constructYamlNull,
+      predicate: isNull,
+      represent: {
+        canonical: function() {
+          return "~";
+        },
+        lowercase: function() {
+          return "null";
+        },
+        uppercase: function() {
+          return "NULL";
+        },
+        camelcase: function() {
+          return "Null";
+        },
+        empty: function() {
+          return "";
+        }
+      },
+      defaultStyle: "lowercase"
+    });
+    bool = new type("tag:yaml.org,2002:bool", {
+      kind: "scalar",
+      resolve: resolveYamlBoolean,
+      construct: constructYamlBoolean,
+      predicate: isBoolean,
+      represent: {
+        lowercase: function(object) {
+          return object ? "true" : "false";
+        },
+        uppercase: function(object) {
+          return object ? "TRUE" : "FALSE";
+        },
+        camelcase: function(object) {
+          return object ? "True" : "False";
+        }
+      },
+      defaultStyle: "lowercase"
+    });
+    int = new type("tag:yaml.org,2002:int", {
+      kind: "scalar",
+      resolve: resolveYamlInteger,
+      construct: constructYamlInteger,
+      predicate: isInteger,
+      represent: {
+        binary: function(obj) {
+          return obj >= 0 ? "0b" + obj.toString(2) : "-0b" + obj.toString(2).slice(1);
+        },
+        octal: function(obj) {
+          return obj >= 0 ? "0o" + obj.toString(8) : "-0o" + obj.toString(8).slice(1);
+        },
+        decimal: function(obj) {
+          return obj.toString(10);
+        },
+        /* eslint-disable max-len */
+        hexadecimal: function(obj) {
+          return obj >= 0 ? "0x" + obj.toString(16).toUpperCase() : "-0x" + obj.toString(16).toUpperCase().slice(1);
+        }
+      },
+      defaultStyle: "decimal",
+      styleAliases: {
+        binary: [2, "bin"],
+        octal: [8, "oct"],
+        decimal: [10, "dec"],
+        hexadecimal: [16, "hex"]
+      }
+    });
+    YAML_FLOAT_PATTERN = new RegExp(
+      // 2.5e4, 2.5 and integers
+      "^(?:[-+]?(?:[0-9][0-9_]*)(?:\\.[0-9_]*)?(?:[eE][-+]?[0-9]+)?|\\.[0-9_]+(?:[eE][-+]?[0-9]+)?|[-+]?\\.(?:inf|Inf|INF)|\\.(?:nan|NaN|NAN))$"
+    );
+    SCIENTIFIC_WITHOUT_DOT = /^[-+]?[0-9]+e/;
+    float = new type("tag:yaml.org,2002:float", {
+      kind: "scalar",
+      resolve: resolveYamlFloat,
+      construct: constructYamlFloat,
+      predicate: isFloat,
+      represent: representYamlFloat,
+      defaultStyle: "lowercase"
+    });
+    json = failsafe.extend({
+      implicit: [
+        _null,
+        bool,
+        int,
+        float
+      ]
+    });
+    core = json;
+    YAML_DATE_REGEXP = new RegExp(
+      "^([0-9][0-9][0-9][0-9])-([0-9][0-9])-([0-9][0-9])$"
+    );
+    YAML_TIMESTAMP_REGEXP = new RegExp(
+      "^([0-9][0-9][0-9][0-9])-([0-9][0-9]?)-([0-9][0-9]?)(?:[Tt]|[ \\t]+)([0-9][0-9]?):([0-9][0-9]):([0-9][0-9])(?:\\.([0-9]*))?(?:[ \\t]*(Z|([-+])([0-9][0-9]?)(?::([0-9][0-9]))?))?$"
+    );
+    timestamp = new type("tag:yaml.org,2002:timestamp", {
+      kind: "scalar",
+      resolve: resolveYamlTimestamp,
+      construct: constructYamlTimestamp,
+      instanceOf: Date,
+      represent: representYamlTimestamp
+    });
+    merge = new type("tag:yaml.org,2002:merge", {
+      kind: "scalar",
+      resolve: resolveYamlMerge
+    });
+    BASE64_MAP = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=\n\r";
+    binary = new type("tag:yaml.org,2002:binary", {
+      kind: "scalar",
+      resolve: resolveYamlBinary,
+      construct: constructYamlBinary,
+      predicate: isBinary,
+      represent: representYamlBinary
+    });
+    _hasOwnProperty$3 = Object.prototype.hasOwnProperty;
+    _toString$2 = Object.prototype.toString;
+    omap = new type("tag:yaml.org,2002:omap", {
+      kind: "sequence",
+      resolve: resolveYamlOmap,
+      construct: constructYamlOmap
+    });
+    _toString$1 = Object.prototype.toString;
+    pairs = new type("tag:yaml.org,2002:pairs", {
+      kind: "sequence",
+      resolve: resolveYamlPairs,
+      construct: constructYamlPairs
+    });
+    _hasOwnProperty$2 = Object.prototype.hasOwnProperty;
+    set = new type("tag:yaml.org,2002:set", {
+      kind: "mapping",
+      resolve: resolveYamlSet,
+      construct: constructYamlSet
+    });
+    _default = core.extend({
+      implicit: [
+        timestamp,
+        merge
+      ],
+      explicit: [
+        binary,
+        omap,
+        pairs,
+        set
+      ]
+    });
+    _hasOwnProperty$1 = Object.prototype.hasOwnProperty;
+    CONTEXT_FLOW_IN = 1;
+    CONTEXT_FLOW_OUT = 2;
+    CONTEXT_BLOCK_IN = 3;
+    CONTEXT_BLOCK_OUT = 4;
+    CHOMPING_CLIP = 1;
+    CHOMPING_STRIP = 2;
+    CHOMPING_KEEP = 3;
+    PATTERN_NON_PRINTABLE = /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x84\x86-\x9F\uFFFE\uFFFF]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?:[^\uD800-\uDBFF]|^)[\uDC00-\uDFFF]/;
+    PATTERN_NON_ASCII_LINE_BREAKS = /[\x85\u2028\u2029]/;
+    PATTERN_FLOW_INDICATORS = /[,\[\]\{\}]/;
+    PATTERN_TAG_HANDLE = /^(?:!|!!|![a-z\-]+!)$/i;
+    PATTERN_TAG_URI = /^(?:!|[^,\[\]\{\}])(?:%[0-9a-f]{2}|[0-9a-z\-#;\/\?:@&=\+\$,_\.!~\*'\(\)\[\]])*$/i;
+    simpleEscapeCheck = new Array(256);
+    simpleEscapeMap = new Array(256);
+    for (i = 0; i < 256; i++) {
+      simpleEscapeCheck[i] = simpleEscapeSequence(i) ? 1 : 0;
+      simpleEscapeMap[i] = simpleEscapeSequence(i);
+    }
+    directiveHandlers = {
+      YAML: function handleYamlDirective(state, name, args) {
+        var match, major, minor;
+        if (state.version !== null) {
+          throwError(state, "duplication of %YAML directive");
+        }
+        if (args.length !== 1) {
+          throwError(state, "YAML directive accepts exactly one argument");
+        }
+        match = /^([0-9]+)\.([0-9]+)$/.exec(args[0]);
+        if (match === null) {
+          throwError(state, "ill-formed argument of the YAML directive");
+        }
+        major = parseInt(match[1], 10);
+        minor = parseInt(match[2], 10);
+        if (major !== 1) {
+          throwError(state, "unacceptable YAML version of the document");
+        }
+        state.version = args[0];
+        state.checkLineBreaks = minor < 2;
+        if (minor !== 1 && minor !== 2) {
+          throwWarning(state, "unsupported YAML version of the document");
+        }
+      },
+      TAG: function handleTagDirective(state, name, args) {
+        var handle, prefix;
+        if (args.length !== 2) {
+          throwError(state, "TAG directive accepts exactly two arguments");
+        }
+        handle = args[0];
+        prefix = args[1];
+        if (!PATTERN_TAG_HANDLE.test(handle)) {
+          throwError(state, "ill-formed tag handle (first argument) of the TAG directive");
+        }
+        if (_hasOwnProperty$1.call(state.tagMap, handle)) {
+          throwError(state, 'there is a previously declared suffix for "' + handle + '" tag handle');
+        }
+        if (!PATTERN_TAG_URI.test(prefix)) {
+          throwError(state, "ill-formed tag prefix (second argument) of the TAG directive");
+        }
+        try {
+          prefix = decodeURIComponent(prefix);
+        } catch (err) {
+          throwError(state, "tag prefix is malformed: " + prefix);
+        }
+        state.tagMap[handle] = prefix;
+      }
+    };
+    loadAll_1 = loadAll$1;
+    load_1 = load$1;
+    loader = {
+      loadAll: loadAll_1,
+      load: load_1
+    };
+    _toString = Object.prototype.toString;
+    _hasOwnProperty = Object.prototype.hasOwnProperty;
+    CHAR_BOM = 65279;
+    CHAR_TAB = 9;
+    CHAR_LINE_FEED = 10;
+    CHAR_CARRIAGE_RETURN = 13;
+    CHAR_SPACE = 32;
+    CHAR_EXCLAMATION = 33;
+    CHAR_DOUBLE_QUOTE = 34;
+    CHAR_SHARP = 35;
+    CHAR_PERCENT = 37;
+    CHAR_AMPERSAND = 38;
+    CHAR_SINGLE_QUOTE = 39;
+    CHAR_ASTERISK = 42;
+    CHAR_COMMA = 44;
+    CHAR_MINUS = 45;
+    CHAR_COLON = 58;
+    CHAR_EQUALS = 61;
+    CHAR_GREATER_THAN = 62;
+    CHAR_QUESTION = 63;
+    CHAR_COMMERCIAL_AT = 64;
+    CHAR_LEFT_SQUARE_BRACKET = 91;
+    CHAR_RIGHT_SQUARE_BRACKET = 93;
+    CHAR_GRAVE_ACCENT = 96;
+    CHAR_LEFT_CURLY_BRACKET = 123;
+    CHAR_VERTICAL_LINE = 124;
+    CHAR_RIGHT_CURLY_BRACKET = 125;
+    ESCAPE_SEQUENCES = {};
+    ESCAPE_SEQUENCES[0] = "\\0";
+    ESCAPE_SEQUENCES[7] = "\\a";
+    ESCAPE_SEQUENCES[8] = "\\b";
+    ESCAPE_SEQUENCES[9] = "\\t";
+    ESCAPE_SEQUENCES[10] = "\\n";
+    ESCAPE_SEQUENCES[11] = "\\v";
+    ESCAPE_SEQUENCES[12] = "\\f";
+    ESCAPE_SEQUENCES[13] = "\\r";
+    ESCAPE_SEQUENCES[27] = "\\e";
+    ESCAPE_SEQUENCES[34] = '\\"';
+    ESCAPE_SEQUENCES[92] = "\\\\";
+    ESCAPE_SEQUENCES[133] = "\\N";
+    ESCAPE_SEQUENCES[160] = "\\_";
+    ESCAPE_SEQUENCES[8232] = "\\L";
+    ESCAPE_SEQUENCES[8233] = "\\P";
+    DEPRECATED_BOOLEANS_SYNTAX = [
+      "y",
+      "Y",
+      "yes",
+      "Yes",
+      "YES",
+      "on",
+      "On",
+      "ON",
+      "n",
+      "N",
+      "no",
+      "No",
+      "NO",
+      "off",
+      "Off",
+      "OFF"
+    ];
+    DEPRECATED_BASE60_SYNTAX = /^[-+]?[0-9_]+(?::[0-9_]+)+(?:\.[0-9_]*)?$/;
+    QUOTING_TYPE_SINGLE = 1;
+    QUOTING_TYPE_DOUBLE = 2;
+    STYLE_PLAIN = 1;
+    STYLE_SINGLE = 2;
+    STYLE_LITERAL = 3;
+    STYLE_FOLDED = 4;
+    STYLE_DOUBLE = 5;
+    dump_1 = dump$1;
+    dumper = {
+      dump: dump_1
+    };
+    load = loader.load;
+    loadAll = loader.loadAll;
+    dump = dumper.dump;
+    safeLoad = renamed("safeLoad", "load");
+    safeLoadAll = renamed("safeLoadAll", "loadAll");
+    safeDump = renamed("safeDump", "dump");
+  }
+});
+
+// src/filechanger.ts
+var filechanger_exports = {};
+__export(filechanger_exports, {
+  generateNoteSummary: () => generateNoteSummary,
+  generateNoteTitle: () => generateNoteTitle,
+  upsertYamlField: () => upsertYamlField
+});
+function generateTableOfContents(noteContent) {
+  const headerLines = noteContent.split("\n").filter((line) => /^#{1,6}\s+.+/.test(line));
+  if (headerLines.length === 0) return "";
+  return headerLines.map((line) => {
+    const match = line.match(/^(#{1,6})\s+(.+)/);
+    if (!match) return "";
+    const level = match[1].length;
+    const title = match[2].trim();
+    return `${"  ".repeat(level - 1)}- ${title}`;
+  }).join("\n");
+}
+function debug2(...args) {
+  if (DEBUG) {
+    console.log("[DEBUG]", ...args);
+  }
+}
+async function generateNoteTitle(app, settings, processMessages2) {
+  var _a2, _b;
+  debug2("Starting generateNoteTitle");
+  const activeFile = app.workspace.getActiveFile();
+  if (!activeFile) {
+    new import_obsidian11.Notice("No active note found.");
+    return;
+  }
+  let noteContent = await app.vault.cachedRead(activeFile);
+  noteContent = noteContent.slice(0, 15e3);
+  const toc = generateTableOfContents(noteContent);
+  let prompt = settings.titlePrompt + " for:\n\n";
+  if (toc && toc.trim().length > 0) {
+    prompt += "Table of Contents:\n" + toc + "\n\n";
+  }
+  prompt += noteContent;
+  try {
+    debug2("Provider:", settings.provider);
+    const provider = createProvider(settings);
+    const messages = [
+      { role: "system", content: settings.titlePrompt },
+      { role: "user", content: (toc && toc.trim().length > 0 ? "Table of Contents:\n" + toc + "\n\n" : "") + noteContent }
+    ];
+    debug2("Original messages:", JSON.stringify(messages));
+    const originalEnableContextNotes = settings.enableContextNotes;
+    debug2("Original enableContextNotes:", originalEnableContextNotes);
+    settings.enableContextNotes = false;
+    try {
+      const processedMessages = await processMessages2(messages);
+      debug2("Processed messages:", JSON.stringify(processedMessages));
+      settings.enableContextNotes = originalEnableContextNotes;
+      if (!processedMessages || processedMessages.length === 0) {
+        debug2("No processed messages!");
+        new import_obsidian11.Notice("No valid messages to send to the model. Please check your note content.");
+        return;
+      }
+      debug2("Calling provider.getCompletion");
+      let resultBuffer = "";
+      await provider.getCompletion(processedMessages, {
+        temperature: 0,
+        streamCallback: (chunk) => {
+          resultBuffer += chunk;
+        }
+      });
+      debug2("Result from provider (buffered):", resultBuffer);
+      let title = resultBuffer.trim();
+      debug2("Extracted title before sanitization:", title);
+      title = title.replace(/[\\/:]/g, "").trim();
+      debug2("Sanitized title:", title);
+      if (title && typeof title === "string" && title.length > 0) {
+        const outputMode = (_a2 = settings.titleOutputMode) != null ? _a2 : "clipboard";
+        debug2("Output mode:", outputMode);
+        if (outputMode === "replace-filename") {
+          const file = app.workspace.getActiveFile();
+          if (file) {
+            const ext = file.extension ? "." + file.extension : "";
+            const sanitized = title;
+            const parentPath = file.parent ? file.parent.path : "";
+            const newPath = parentPath ? parentPath + "/" + sanitized + ext : sanitized + ext;
+            if (file.path !== newPath) {
+              await app.fileManager.renameFile(file, newPath);
+              new import_obsidian11.Notice(`Note renamed to: ${sanitized}${ext}`);
+            } else {
+              new import_obsidian11.Notice(`Note title is already: ${sanitized}${ext}`);
+            }
+          }
+        } else if (outputMode === "metadata") {
+          const file = app.workspace.getActiveFile();
+          if (file) {
+            await upsertYamlField(app, file, "title", title);
+            new import_obsidian11.Notice(`Inserted title into metadata: ${title}`);
+          }
+        } else {
+          try {
+            await navigator.clipboard.writeText(title);
+            new import_obsidian11.Notice(`Generated title (copied): ${title}`);
+          } catch (e) {
+            new import_obsidian11.Notice(`Generated title: ${title}`);
+          }
+        }
+      } else {
+        debug2("No title generated after sanitization.");
+        new import_obsidian11.Notice("No title generated.");
+      }
+    } catch (processError) {
+      debug2("Error in processMessages or provider.getCompletion:", processError);
+      settings.enableContextNotes = originalEnableContextNotes;
+      throw processError;
+    }
+  } catch (err) {
+    new import_obsidian11.Notice("Error generating title: " + ((_b = err == null ? void 0 : err.message) != null ? _b : err));
+  }
+}
+async function generateNoteSummary(app, settings, processMessages2) {
+  var _a2, _b;
+  debug2("Starting generateNoteSummary");
+  const activeFile = app.workspace.getActiveFile();
+  if (!activeFile) {
+    new import_obsidian11.Notice("No active note found.");
+    return;
+  }
+  let noteContent = await app.vault.cachedRead(activeFile);
+  noteContent = noteContent.slice(0, 15e3);
+  const toc = generateTableOfContents(noteContent);
+  let prompt = settings.summaryPrompt + "\n\n";
+  if (toc && toc.trim().length > 0) {
+    prompt += "Table of Contents:\n" + toc + "\n\n";
+  }
+  prompt += noteContent;
+  try {
+    debug2("Provider:", settings.provider);
+    const provider = createProvider(settings);
+    const messages = [
+      { role: "system", content: settings.summaryPrompt },
+      { role: "user", content: (toc && toc.trim().length > 0 ? "Table of Contents:\n" + toc + "\n\n" : "") + noteContent }
+    ];
+    debug2("Original messages:", JSON.stringify(messages));
+    const originalEnableContextNotes = settings.enableContextNotes;
+    debug2("Original enableContextNotes:", originalEnableContextNotes);
+    settings.enableContextNotes = false;
+    try {
+      const processedMessages = await processMessages2(messages);
+      debug2("Processed messages:", JSON.stringify(processedMessages));
+      settings.enableContextNotes = originalEnableContextNotes;
+      if (!processedMessages || processedMessages.length === 0) {
+        debug2("No processed messages!");
+        new import_obsidian11.Notice("No valid messages to send to the model. Please check your note content.");
+        return;
+      }
+      debug2("Calling provider.getCompletion");
+      let resultBuffer = "";
+      await provider.getCompletion(processedMessages, {
+        temperature: 0,
+        streamCallback: (chunk) => {
+          resultBuffer += chunk;
+        }
+      });
+      debug2("Result from provider (buffered):", resultBuffer);
+      let summary = resultBuffer.trim();
+      debug2("Extracted summary before sanitization:", summary);
+      summary = summary.replace(/[\\/:]/g, "").trim();
+      debug2("Sanitized summary:", summary);
+      if (summary && typeof summary === "string" && summary.length > 0) {
+        const outputMode = (_a2 = settings.summaryOutputMode) != null ? _a2 : "clipboard";
+        debug2("Output mode:", outputMode);
+        if (outputMode === "metadata") {
+          const file = app.workspace.getActiveFile();
+          if (file) {
+            await upsertYamlField(app, file, "abstract", summary);
+            new import_obsidian11.Notice(`Inserted summary into metadata: ${summary}`);
+          }
+        } else {
+          try {
+            await navigator.clipboard.writeText(summary);
+            new import_obsidian11.Notice(`Generated summary (copied): ${summary}`);
+          } catch (e) {
+            new import_obsidian11.Notice(`Generated summary: ${summary}`);
+          }
+        }
+      } else {
+        debug2("No summary generated after sanitization.");
+        new import_obsidian11.Notice("No summary generated.");
+      }
+    } catch (processError) {
+      debug2("Error in processMessages or provider.getCompletion:", processError);
+      settings.enableContextNotes = originalEnableContextNotes;
+      throw processError;
+    }
+  } catch (err) {
+    new import_obsidian11.Notice("Error generating summary: " + ((_b = err == null ? void 0 : err.message) != null ? _b : err));
+  }
+}
+async function upsertYamlField(app, file, field, value) {
+  let content = await app.vault.read(file);
+  let newContent = content;
+  const frontmatterRegex = /^---\n([\s\S]*?)\n---/;
+  const match = content.match(frontmatterRegex);
+  if (match) {
+    let yamlObj = {};
+    try {
+      yamlObj = load(match[1]) || {};
+    } catch (e) {
+      yamlObj = {};
+    }
+    yamlObj[field] = value;
+    const newYaml = dump(yamlObj, { lineWidth: -1 }).trim();
+    newContent = content.replace(frontmatterRegex, `---
+${newYaml}
+---`);
+  } else {
+    const newYaml = dump({ [field]: value }, { lineWidth: -1 }).trim();
+    newContent = `---
+${newYaml}
+---
+` + content;
+  }
+  await app.vault.modify(file, newContent);
+}
+var import_obsidian11, DEBUG;
+var init_filechanger = __esm({
+  "src/filechanger.ts"() {
+    import_obsidian11 = require("obsidian");
+    init_providers();
+    init_js_yaml();
+    DEBUG = true;
+  }
+});
+
+// src/main.ts
+var main_exports = {};
+__export(main_exports, {
+  default: () => MyPlugin
+});
+module.exports = __toCommonJS(main_exports);
+var import_obsidian12 = require("obsidian");
+
+// src/types.ts
+var DEFAULT_SETTINGS = {
+  referenceCurrentNote: false,
+  provider: "openai",
+  openaiSettings: {
+    apiKey: "",
+    model: "gpt-4o-mini",
+    availableModels: []
+  },
+  anthropicSettings: {
+    apiKey: "",
+    model: "claude-3-5-sonnet-latest",
+    availableModels: []
+  },
+  geminiSettings: {
+    apiKey: "",
+    model: "gemini-pro",
+    availableModels: []
+  },
+  ollamaSettings: {
+    serverUrl: "http://localhost:11434",
+    model: "llama2",
+    availableModels: []
+  },
+  systemMessage: "You are a helpful assistant.",
+  temperature: 0.7,
+  maxTokens: 1e3,
+  includeDateWithSystemMessage: false,
+  includeTimeWithSystemMessage: false,
+  enableStreaming: true,
+  autoOpenModelSettings: true,
+  enableObsidianLinks: true,
+  titleOutputMode: "clipboard",
+  summaryOutputMode: "clipboard",
+  chatSeparator: "----",
+  chatStartString: void 0,
+  chatEndString: void 0,
+  enableContextNotes: false,
+  contextNotes: "",
+  titlePrompt: "You are a title generator. You will give succinct titles that does not contain backslashes, forward slashes, or colons. Only generate a title as your response.",
+  summaryPrompt: "You are a note summarizer. Read the note content and generate a concise summary (2 sentences at most) that captures the main ideas and purpose of the note. Do not include backslashes, forward slashes, or colons. Only output the summary as your response.",
+  maxSessions: 10,
+  autoSaveSessions: true,
+  sessions: [],
+  activeSessionId: void 0,
+  expandLinkedNotesRecursively: false,
+  maxLinkExpansionDepth: 2,
+  chatNoteFolder: ""
+  // Default to vault root
+};
+
+// src/main.ts
+init_providers();
+
+// src/settings.ts
+var import_obsidian = require("obsidian");
+var MyPluginSettingTab = class extends import_obsidian.PluginSettingTab {
+  constructor(app, plugin) {
+    super(app, plugin);
+    __publicField(this, "plugin");
+    this.plugin = plugin;
+  }
+  /**
+   * Display the settings tab
+   * 
+   * Shows only the auto-open setting here since all other settings
+   * are managed in the model settings view for better organization.
+   */
+  display() {
+    const { containerEl } = this;
+    containerEl.empty();
+    containerEl.createEl("h2", { text: "AI Assistant Settings" });
+    containerEl.createEl("h3", { text: "API Keys" });
+    new import_obsidian.Setting(containerEl).setName("OpenAI API Key").setDesc("Enter your OpenAI API key").addText((text) => text.setPlaceholder("Enter your API key").setValue(this.plugin.settings.openaiSettings.apiKey).onChange(async (value) => {
+      this.plugin.settings.openaiSettings.apiKey = value;
+      await this.plugin.saveSettings();
+    }));
+    new import_obsidian.Setting(containerEl).setName("Anthropic API Key").setDesc("Enter your Anthropic API key").addText((text) => text.setPlaceholder("Enter your API key").setValue(this.plugin.settings.anthropicSettings.apiKey).onChange(async (value) => {
+      this.plugin.settings.anthropicSettings.apiKey = value;
+      await this.plugin.saveSettings();
+    }));
+    new import_obsidian.Setting(containerEl).setName("Google API Key").setDesc("Enter your Google API key").addText((text) => text.setPlaceholder("Enter your API key").setValue(this.plugin.settings.geminiSettings.apiKey).onChange(async (value) => {
+      this.plugin.settings.geminiSettings.apiKey = value;
+      await this.plugin.saveSettings();
+    }));
+    new import_obsidian.Setting(containerEl).setName("Ollama Server URL").setDesc("Enter your Ollama server URL (default: http://localhost:11434)").addText((text) => text.setPlaceholder("http://localhost:11434").setValue(this.plugin.settings.ollamaSettings.serverUrl).onChange(async (value) => {
+      this.plugin.settings.ollamaSettings.serverUrl = value;
+      await this.plugin.saveSettings();
+    }));
+    containerEl.createEl("h3", { text: "Model Settings" });
+    new import_obsidian.Setting(containerEl).setName("Auto-open Model Settings").setDesc("Automatically open model settings when Obsidian starts").addToggle((toggle) => toggle.setValue(this.plugin.settings.autoOpenModelSettings).onChange(async (value) => {
+      this.plugin.settings.autoOpenModelSettings = value;
+      await this.plugin.saveSettings();
+    }));
+    new import_obsidian.Setting(containerEl).setName("Open Model Settings").setDesc("Open the model settings view").addButton((button) => button.setButtonText("Open").onClick(() => {
+      this.plugin.activateView();
+    }));
+    new import_obsidian.Setting(containerEl).setName("Chat Separator").setDesc("The string used to separate chat messages.").addText((text) => {
+      var _a2;
+      text.setPlaceholder("----").setValue((_a2 = this.plugin.settings.chatSeparator) != null ? _a2 : "").onChange(async (value) => {
+        this.plugin.settings.chatSeparator = value;
+        await this.plugin.saveSettings();
+      });
+    });
+    new import_obsidian.Setting(containerEl).setName("Chat Start String").setDesc("The string that indicates where to start taking the note for context.").addText((text) => {
+      var _a2;
+      text.setPlaceholder("===START===").setValue((_a2 = this.plugin.settings.chatStartString) != null ? _a2 : "").onChange(async (value) => {
+        this.plugin.settings.chatStartString = value;
+        await this.plugin.saveSettings();
+      });
+    });
+    new import_obsidian.Setting(containerEl).setName("Chat End String").setDesc("The string that indicates where to end taking the note for context.").addText((text) => {
+      var _a2;
+      text.setPlaceholder("===END===").setValue((_a2 = this.plugin.settings.chatEndString) != null ? _a2 : "").onChange(async (value) => {
+        this.plugin.settings.chatEndString = value;
+        await this.plugin.saveSettings();
+      });
+    });
+    new import_obsidian.Setting(containerEl).setName("Title Prompt").setDesc("The prompt used for generating note titles.").addTextArea((text) => {
+      text.setPlaceholder("You are a title generator...").setValue(this.plugin.settings.titlePrompt).onChange(async (value) => {
+        this.plugin.settings.titlePrompt = value;
+        await this.plugin.saveSettings();
+      });
+    });
+    new import_obsidian.Setting(containerEl).setName("Summary Prompt").setDesc("The prompt used for generating note summaries.").addTextArea((text) => {
+      text.setPlaceholder("You are a note summarizer...").setValue(this.plugin.settings.summaryPrompt).onChange(async (value) => {
+        this.plugin.settings.summaryPrompt = value;
+        await this.plugin.saveSettings();
+      });
+    });
+    new import_obsidian.Setting(containerEl).setName("Reset Prompts to Default").setDesc("Reset title and summary prompts to their original default values.").addButton((button) => button.setButtonText("Reset").onClick(async () => {
+      this.plugin.settings.titlePrompt = "You are a title generator. You will give succinct titles that does not contain backslashes, forward slashes, or colons. Only generate a title as your response.";
+      this.plugin.settings.summaryPrompt = "You are a note summarizer. Read the note content and generate a concise summary (2 sentences at most) that captures the main ideas and purpose of the note. Do not include backslashes, forward slashes, or colons. Only output the summary as your response.";
+      await this.plugin.saveSettings();
+      this.display();
+      new import_obsidian.Notice("Prompts reset to default.");
+    }));
+    new import_obsidian.Setting(containerEl).setName("Title Output Mode").setDesc("Choose what to do with the generated note title.").addDropdown((drop) => {
+      var _a2;
+      drop.addOption("clipboard", "Copy to clipboard");
+      drop.addOption("replace-filename", "Replace note filename");
+      drop.addOption("metadata", "Insert into metadata");
+      drop.setValue((_a2 = this.plugin.settings.titleOutputMode) != null ? _a2 : "clipboard");
+      drop.onChange(async (value) => {
+        this.plugin.settings.titleOutputMode = value;
+        await this.plugin.saveSettings();
+      });
+    });
+    new import_obsidian.Setting(containerEl).setName("Summary Output Mode").setDesc("Choose what to do with the generated note summary.").addDropdown((drop) => {
+      var _a2;
+      drop.addOption("clipboard", "Copy to clipboard");
+      drop.addOption("metadata", "Insert into metadata");
+      drop.setValue((_a2 = this.plugin.settings.summaryOutputMode) != null ? _a2 : "clipboard");
+      drop.onChange(async (value) => {
+        this.plugin.settings.summaryOutputMode = value;
+        await this.plugin.saveSettings();
+      });
+    });
+    new import_obsidian.Setting(containerEl).setName("Expand Linked Notes Recursively").setDesc("If enabled, when fetching a note, also fetch and expand links within that note recursively (prevents infinite loops).").addToggle((toggle) => {
+      var _a2;
+      return toggle.setValue((_a2 = this.plugin.settings.expandLinkedNotesRecursively) != null ? _a2 : false).onChange(async (value) => {
+        this.plugin.settings.expandLinkedNotesRecursively = value;
+        await this.plugin.saveSettings();
+        this.display();
+      });
+    });
+    if (this.plugin.settings.expandLinkedNotesRecursively) {
+      new import_obsidian.Setting(containerEl).setName("Max Link Expansion Depth").setDesc("Maximum depth for recursively expanding linked notes (1-3).").addSlider((slider) => {
+        var _a2;
+        slider.setLimits(1, 3, 1).setValue((_a2 = this.plugin.settings.maxLinkExpansionDepth) != null ? _a2 : 2).setDynamicTooltip().onChange(async (value) => {
+          this.plugin.settings.maxLinkExpansionDepth = value;
+          await this.plugin.saveSettings();
+        });
+      });
+    }
+    new import_obsidian.Setting(containerEl).setName("Chat Note Folder").setDesc("Folder to save exported chat notes (relative to vault root, leave blank for root)").addText((text) => {
+      var _a2;
+      text.setPlaceholder("e.g. AI Chats").setValue((_a2 = this.plugin.settings.chatNoteFolder) != null ? _a2 : "").onChange(async (value) => {
+        this.plugin.settings.chatNoteFolder = value.trim();
+        await this.plugin.saveSettings();
+      });
+    });
+  }
+};
+
+// src/components/chat.ts
+var import_obsidian8 = require("obsidian");
+init_providers();
+
+// src/ChatHistoryManager.ts
+var import_obsidian2 = require("obsidian");
+var ChatHistoryManager = class {
+  constructor(vault, pluginId, historyFilePath) {
+    __publicField(this, "vault");
+    __publicField(this, "historyFilePath");
+    __publicField(this, "history", []);
+    __publicField(this, "isLoaded", false);
+    this.vault = vault;
+    let effectivePluginId = pluginId;
+    if (!pluginId) {
+      console.error("CRITICAL: ChatHistoryManager instantiated without pluginId! Using placeholder. This will likely lead to incorrect file paths.");
+      effectivePluginId = "unknown-plugin-id-error";
+    }
+    const fPath = historyFilePath || "chat-history.json";
+    this.historyFilePath = (0, import_obsidian2.normalizePath)(`.obsidian/plugins/${effectivePluginId}/${fPath}`);
+    console.log("[ChatHistoryManager] Using history file path:", this.historyFilePath);
+    if (typeof window !== "undefined" && window.Notice) {
+    }
+  }
+  async ensureDirectoryExists() {
+    const dirPath = this.historyFilePath.substring(0, this.historyFilePath.lastIndexOf("/"));
+    if (!dirPath) return;
+    try {
+      const abstractFile = this.vault.getAbstractFileByPath(dirPath);
+      if (abstractFile === null) {
+        await this.vault.createFolder(dirPath);
+      } else if (!(abstractFile instanceof import_obsidian2.TFolder)) {
+        console.error(`Path ${dirPath} exists but is not a folder.`);
+        throw new Error(`Path ${dirPath} exists but is not a folder.`);
+      }
+    } catch (e) {
+      if (e.message && e.message.toLowerCase().includes("folder already exists")) {
+        return;
+      }
+      console.error(`Failed to ensure directory ${dirPath} exists:`, e);
+      throw e;
+    }
+  }
+  async loadHistory() {
+    try {
+      const exists = await this.vault.adapter.exists(this.historyFilePath);
+      if (exists) {
+        const data = await this.vault.adapter.read(this.historyFilePath);
+        try {
+          this.history = JSON.parse(data);
+        } catch (parseError) {
+          console.error("Failed to parse chat history:", parseError);
+          this.history = [];
+        }
+      } else {
+        this.history = [];
+      }
+    } catch (e) {
+      console.error("Failed to load chat history:", e);
+      this.history = [];
+    }
+    return this.history;
+  }
+  async addMessage(message) {
+    const currentHistory = await this.loadHistory();
+    currentHistory.push(message);
+    this.history = currentHistory;
+    await this.saveHistory();
+  }
+  async getHistory() {
+    return await this.loadHistory();
+  }
+  async clearHistory() {
+    this.history = [];
+    await this.saveHistory();
+  }
+  async deleteMessage(timestamp2, sender, content) {
+    await this.loadHistory();
+    const index = this.history.findIndex(
+      (msg) => msg.timestamp === timestamp2 && msg.sender === sender && msg.content === content
+    );
+    if (index !== -1) {
+      this.history.splice(index, 1);
+      await this.saveHistory();
+    }
+  }
+  async updateMessage(timestamp2, sender, oldContent, newContent) {
+    await this.loadHistory();
+    const message = this.history.find(
+      (msg) => msg.timestamp === timestamp2 && msg.sender === sender && msg.content === oldContent
+    );
+    if (message) {
+      message.content = newContent;
+      await this.saveHistory();
+    } else {
+      console.warn("ChatHistoryManager: updateMessage did not find a matching message to update.", { timestamp: timestamp2, sender, oldContent });
+    }
+  }
+  async saveHistory() {
+    try {
+      await this.ensureDirectoryExists();
+      const data = JSON.stringify(this.history, null, 2);
+      const abstractTarget = this.vault.getAbstractFileByPath(this.historyFilePath);
+      if (abstractTarget instanceof import_obsidian2.TFolder) {
+        throw new Error(`Path ${this.historyFilePath} is a directory, not a file.`);
+      }
+      await this.vault.adapter.write(this.historyFilePath, data);
+      if (!abstractTarget || !(abstractTarget instanceof import_obsidian2.TFile)) {
+        await this.vault.adapter.exists(this.historyFilePath);
+      }
+    } catch (e) {
+      console.error(`Failed to save history to ${this.historyFilePath}:`, e);
+      throw e;
+    }
+  }
+};
+
+// src/components/chat/SettingsModal.ts
+var import_obsidian3 = require("obsidian");
+init_providers();
+var SettingsModal = class extends import_obsidian3.Modal {
+  constructor(app, plugin) {
+    super(app);
+    __publicField(this, "plugin");
+    this.plugin = plugin;
+    this.titleEl.setText("AI Model Settings");
+  }
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.addClass("ai-settings-modal");
+    contentEl.createEl("h2", { text: "AI Model Settings" });
+    contentEl.createEl("hr");
+    new import_obsidian3.Setting(contentEl).setName("System Message").setDesc("Set the system message for the AI").addTextArea((text) => text.setPlaceholder("You are a helpful assistant.").setValue(this.plugin.settings.systemMessage).onChange(async (value) => {
+      this.plugin.settings.systemMessage = value;
+      await this.plugin.saveSettings();
+    }));
+    new import_obsidian3.Setting(contentEl).setName("Enable Streaming").setDesc("Enable or disable streaming for completions").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableStreaming).onChange(async (value) => {
+      this.plugin.settings.enableStreaming = value;
+      await this.plugin.saveSettings();
+    }));
+    new import_obsidian3.Setting(contentEl).setName("Temperature").setDesc("Set the randomness of the model's output (0-1)").addSlider((slider) => slider.setLimits(0, 1, 0.1).setValue(this.plugin.settings.temperature).setDynamicTooltip().onChange(async (value) => {
+      this.plugin.settings.temperature = value;
+      await this.plugin.saveSettings();
+    }));
+    contentEl.createEl("hr");
+    contentEl.createEl("h4", { text: "Date Settings" });
+    new import_obsidian3.Setting(contentEl).setName("Include Date with System Message").setDesc("Add the current date to the system message").addToggle((toggle) => toggle.setValue(this.plugin.settings.includeDateWithSystemMessage).onChange(async (value) => {
+      this.plugin.settings.includeDateWithSystemMessage = value;
+      await this.plugin.saveSettings();
+    }));
+    new import_obsidian3.Setting(contentEl).setName("Include Time with System Message").setDesc("Add the current time along with the date to the system message").addToggle((toggle) => toggle.setValue(this.plugin.settings.includeTimeWithSystemMessage).onChange(async (value) => {
+      this.plugin.settings.includeTimeWithSystemMessage = value;
+      await this.plugin.saveSettings();
+    }));
+    contentEl.createEl("hr");
+    contentEl.createEl("h4", { text: "Note Reference Settings" });
+    new import_obsidian3.Setting(contentEl).setName("Enable Obsidian Links").setDesc("Read Obsidian links in messages using [[filename]] syntax").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableObsidianLinks).onChange(async (value) => {
+      this.plugin.settings.enableObsidianLinks = value;
+      await this.plugin.saveSettings();
+    }));
+    new import_obsidian3.Setting(contentEl).setName("Enable Context Notes").setDesc("Attach specified note content to chat messages").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableContextNotes).onChange(async (value) => {
+      this.plugin.settings.enableContextNotes = value;
+      await this.plugin.saveSettings();
+    }));
+    const contextNotesContainer = contentEl.createDiv("context-notes-container");
+    contextNotesContainer.style.marginBottom = "24px";
+    new import_obsidian3.Setting(contextNotesContainer).setName("Context Notes").setDesc("Notes to attach as context (supports [[filename]] and [[filename#header]] syntax)").addTextArea((text) => {
+      text.setPlaceholder("[[Note Name]]\n[[Another Note#Header]]").setValue(this.plugin.settings.contextNotes || "").onChange(async (value) => {
+        this.plugin.settings.contextNotes = value;
+        await this.plugin.saveSettings();
+      });
+      text.inputEl.rows = 4;
+      text.inputEl.style.width = "100%";
+    });
+    new import_obsidian3.Setting(contentEl).setName("Expand Linked Notes Recursively").setDesc("If enabled, when fetching a note, also fetch and expand links within that note recursively (prevents infinite loops).").addToggle((toggle) => {
+      var _a2;
+      return toggle.setValue((_a2 = this.plugin.settings.expandLinkedNotesRecursively) != null ? _a2 : false).onChange(async (value) => {
+        this.plugin.settings.expandLinkedNotesRecursively = value;
+        await this.plugin.saveSettings();
+      });
+    });
+    contentEl.createEl("hr");
+    contentEl.createEl("h2", { text: "Provider Settings" });
+    new import_obsidian3.Setting(contentEl).setName("AI Provider").setDesc("Choose which AI provider to use").addDropdown((dropdown) => {
+      dropdown.addOption("openai", "OpenAI (ChatGPT)").addOption("anthropic", "Anthropic (Claude)").addOption("gemini", "Google (Gemini)").addOption("ollama", "Ollama (Local AI)").setValue(this.plugin.settings.provider).onChange(async (value) => {
+        this.plugin.settings.provider = value;
+        await this.plugin.saveSettings();
+        this.onOpen();
+      });
+    });
+    switch (this.plugin.settings.provider) {
+      case "openai":
+        this.renderProviderSettings(contentEl, this.plugin.settings.openaiSettings, "OpenAI", async () => {
+          const provider = createProvider(this.plugin.settings);
+          const result = await provider.testConnection();
+          if (result.success && result.models) {
+            this.plugin.settings.openaiSettings.availableModels = result.models;
+            await this.plugin.saveSettings();
+            this.plugin.settings.openaiSettings.lastTestResult = {
+              timestamp: Date.now(),
+              success: true,
+              message: result.message
+            };
+            new import_obsidian3.Notice(result.message);
+            this.onOpen();
+          } else {
+            this.plugin.settings.openaiSettings.lastTestResult = {
+              timestamp: Date.now(),
+              success: false,
+              message: result.message
+            };
+            new import_obsidian3.Notice(result.message);
+          }
+        });
+        break;
+      case "anthropic":
+        this.renderProviderSettings(contentEl, this.plugin.settings.anthropicSettings, "Anthropic", async () => {
+          const provider = createProvider(this.plugin.settings);
+          const result = await provider.testConnection();
+          if (result.success && result.models) {
+            this.plugin.settings.anthropicSettings.availableModels = result.models;
+            await this.plugin.saveSettings();
+            this.plugin.settings.anthropicSettings.lastTestResult = {
+              timestamp: Date.now(),
+              success: true,
+              message: result.message
+            };
+            new import_obsidian3.Notice(result.message);
+            this.onOpen();
+          } else {
+            this.plugin.settings.anthropicSettings.lastTestResult = {
+              timestamp: Date.now(),
+              success: false,
+              message: result.message
+            };
+            new import_obsidian3.Notice(result.message);
+          }
+        });
+        break;
+      case "gemini":
+        this.renderProviderSettings(contentEl, this.plugin.settings.geminiSettings, "Gemini", async () => {
+          const provider = createProvider(this.plugin.settings);
+          const result = await provider.testConnection();
+          if (result.success && result.models) {
+            this.plugin.settings.geminiSettings.availableModels = result.models;
+            await this.plugin.saveSettings();
+            this.plugin.settings.geminiSettings.lastTestResult = {
+              timestamp: Date.now(),
+              success: true,
+              message: result.message
+            };
+            new import_obsidian3.Notice(result.message);
+            this.onOpen();
+          } else {
+            this.plugin.settings.geminiSettings.lastTestResult = {
+              timestamp: Date.now(),
+              success: false,
+              message: result.message
+            };
+            new import_obsidian3.Notice(result.message);
+          }
+        });
+        break;
+      case "ollama":
+        this.renderProviderSettings(contentEl, this.plugin.settings.ollamaSettings, "Ollama", async () => {
+          const provider = createProvider(this.plugin.settings);
+          const result = await provider.testConnection();
+          if (result.success && result.models) {
+            this.plugin.settings.ollamaSettings.availableModels = result.models;
+            await this.plugin.saveSettings();
+            this.plugin.settings.ollamaSettings.lastTestResult = {
+              timestamp: Date.now(),
+              success: true,
+              message: result.message
+            };
+            new import_obsidian3.Notice(result.message);
+            this.onOpen();
+          } else {
+            this.plugin.settings.ollamaSettings.lastTestResult = {
+              timestamp: Date.now(),
+              success: false,
+              message: result.message
+            };
+            new import_obsidian3.Notice(result.message);
+          }
+        });
+        contentEl.createEl("div", {
+          cls: "setting-item-description",
+          text: "To use Ollama:"
+        });
+        const steps = contentEl.createEl("ol");
+        steps.createEl("li", { text: "Install Ollama from https://ollama.ai" });
+        steps.createEl("li", { text: "Start the Ollama server" });
+        steps.createEl("li", { text: 'Pull models using "ollama pull model-name"' });
+        steps.createEl("li", { text: "Test connection to see available models" });
+        break;
+    }
+  }
+  renderProviderSettings(containerEl, settings, providerName, testConnectionCallback) {
+    new import_obsidian3.Setting(containerEl).setName("Test Connection").setDesc(`Verify your API key and fetch available models for ${providerName}`).addButton((button) => button.setButtonText("Test").onClick(async () => {
+      button.setButtonText("Testing...");
+      button.setDisabled(true);
+      try {
+        await testConnectionCallback();
+      } catch (error) {
+        new import_obsidian3.Notice(`Error: ${error.message}`);
+      } finally {
+        button.setButtonText("Test");
+        button.setDisabled(false);
+      }
+    }));
+    if (settings.lastTestResult) {
+      const date = new Date(settings.lastTestResult.timestamp);
+      containerEl.createEl("div", {
+        text: `Last test: ${date.toLocaleString()} - ${settings.lastTestResult.message}`,
+        cls: settings.lastTestResult.success ? "success" : "error"
+      });
+    }
+    new import_obsidian3.Setting(containerEl).setName("Model").setDesc(`Choose the ${providerName} model to use`).addDropdown((dropdown) => {
+      for (const model of settings.availableModels) {
+        dropdown.addOption(model, model);
+      }
+      dropdown.setValue(settings.model).onChange(async (value) => {
+        settings.model = value;
+        await this.plugin.saveSettings();
+      });
+    });
+  }
+  onClose() {
+    this.contentEl.empty();
+  }
+};
+
+// src/components/chat/Message.ts
+var import_obsidian6 = require("obsidian");
+
+// src/components/chat/Buttons.ts
+var import_obsidian4 = require("obsidian");
+function createActionButton(label, tooltip, callback) {
+  const button = document.createElement("button");
+  button.addClass("ai-chat-action-button");
+  button.setAttribute("aria-label", tooltip);
+  const labelEl = document.createElement("span");
+  labelEl.textContent = label;
+  button.appendChild(labelEl);
+  button.addEventListener("click", callback);
+  return button;
+}
+async function copyToClipboard(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch (error) {
+  }
+}
+
+// src/components/chat/ConfirmationModal.ts
+var import_obsidian5 = require("obsidian");
+var ConfirmationModal = class extends import_obsidian5.Modal {
+  constructor(app, title, message, onConfirm) {
+    super(app);
+    __publicField(this, "onConfirm");
+    __publicField(this, "message");
+    this.titleEl.setText(title);
+    this.message = message;
+    this.onConfirm = onConfirm;
+  }
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.createEl("p", { text: this.message });
+    const buttonContainer = contentEl.createDiv("modal-button-container");
+    buttonContainer.createEl("button", { text: "Cancel" }).addEventListener("click", () => {
+      this.onConfirm(false);
+      this.close();
+    });
+    const confirmButton = buttonContainer.createEl("button", {
+      text: "Delete",
+      cls: "mod-warning"
+    });
+    confirmButton.addEventListener("click", () => {
+      this.onConfirm(true);
+      this.close();
+    });
+  }
+  onClose() {
+    this.contentEl.empty();
+  }
+};
+
+// src/components/chat/Message.ts
+function createMessageElement(app, role, content, chatHistoryManager, plugin, regenerateCallback, parentComponent) {
+  const messageEl = document.createElement("div");
+  messageEl.addClass("ai-chat-message", role);
+  const messageContainer = messageEl.createDiv("message-container");
+  const contentEl = messageContainer.createDiv("message-content");
+  messageEl.dataset.rawContent = content;
+  messageEl.dataset.timestamp = (/* @__PURE__ */ new Date()).toISOString();
+  import_obsidian6.MarkdownRenderer.render(app, content, contentEl, "", parentComponent).catch((error) => {
+    contentEl.textContent = content;
+  });
+  const actionsEl = messageContainer.createDiv("message-actions");
+  actionsEl.classList.add("hidden");
+  messageEl.addEventListener("mouseenter", () => {
+    actionsEl.classList.remove("hidden");
+    actionsEl.classList.add("visible");
+  });
+  messageEl.addEventListener("mouseleave", () => {
+    actionsEl.classList.remove("visible");
+    actionsEl.classList.add("hidden");
+  });
+  actionsEl.appendChild(createActionButton("Copy", "Copy message", () => {
+    const currentContent = messageEl.dataset.rawContent || "";
+    if (currentContent.trim() === "") {
+      new import_obsidian6.Notice("No content to copy");
+      return;
+    }
+    copyToClipboard(currentContent);
+  }));
+  actionsEl.appendChild(createActionButton("Edit", "Edit message", async () => {
+    if (!contentEl.hasClass("editing")) {
+      const textarea = document.createElement("textarea");
+      textarea.value = messageEl.dataset.rawContent || "";
+      textarea.className = "message-content editing";
+      contentEl.empty();
+      contentEl.appendChild(textarea);
+      textarea.focus();
+      contentEl.addClass("editing");
+      textarea.addEventListener("keydown", async (e) => {
+        if (e.key === "Enter" && !e.shiftKey) {
+          e.preventDefault();
+          textarea.blur();
+        }
+      });
+      textarea.addEventListener("blur", async () => {
+        const oldContent = messageEl.dataset.rawContent;
+        const newContent = textarea.value;
+        try {
+          await chatHistoryManager.updateMessage(
+            messageEl.dataset.timestamp || (/* @__PURE__ */ new Date()).toISOString(),
+            messageEl.classList.contains("user") ? "user" : "assistant",
+            oldContent || "",
+            newContent
+          );
+          messageEl.dataset.rawContent = newContent;
+          contentEl.empty();
+          await import_obsidian6.MarkdownRenderer.render(app, newContent, contentEl, "", parentComponent);
+          contentEl.removeClass("editing");
+        } catch (e) {
+          new import_obsidian6.Notice("Failed to save edited message.");
+          messageEl.dataset.rawContent = oldContent || "";
+          contentEl.empty();
+          await import_obsidian6.MarkdownRenderer.render(app, oldContent || "", contentEl, "", parentComponent);
+          contentEl.removeClass("editing");
+        }
+      });
+    }
+  }));
+  actionsEl.appendChild(createActionButton("Delete", "Delete message", () => {
+    const modal = new ConfirmationModal(app, "Delete message", "Are you sure you want to delete this message?", (confirmed) => {
+      if (confirmed) {
+        chatHistoryManager.deleteMessage(
+          messageEl.dataset.timestamp || (/* @__PURE__ */ new Date()).toISOString(),
+          messageEl.classList.contains("user") ? "user" : "assistant",
+          messageEl.dataset.rawContent || ""
+        ).then(() => {
+          messageEl.remove();
+        }).catch(() => {
+          new import_obsidian6.Notice("Failed to delete message from history.");
+        });
+      }
+    });
+    modal.open();
+  }));
+  actionsEl.appendChild(createActionButton("Regenerate", "Regenerate this response", () => {
+    regenerateCallback(messageEl);
+  }));
+  messageContainer.appendChild(actionsEl);
+  return messageEl;
+}
 
 // src/components/chat/chatPersistence.ts
+var import_obsidian7 = require("obsidian");
+init_js_yaml();
 function buildChatYaml(settings, provider, model) {
   const yamlObj = {
     provider,

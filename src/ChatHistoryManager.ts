@@ -27,7 +27,6 @@ export class ChatHistoryManager {
     // @ts-ignore
     if (typeof window !== "undefined" && window.Notice) {
       // @ts-ignore
-      new window.Notice("[ChatHistoryManager] Using history file path: " + this.historyFilePath);
     }
   }
 
