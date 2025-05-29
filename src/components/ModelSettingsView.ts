@@ -293,7 +293,7 @@ export class ModelSettingsView extends ItemView {
                     message: result.message
                 };
                 new Notice(result.message);
-                this.onOpen(); // Refresh view
+                this.onOpen(); // Refresh view to reload models
             } else {
                 this.plugin.settings.geminiSettings.lastTestResult = {
                     timestamp: Date.now(),

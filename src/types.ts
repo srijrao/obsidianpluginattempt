@@ -1,3 +1,5 @@
+import { DEFAULT_TITLE_PROMPT, DEFAULT_SUMMARY_PROMPT, DEFAULT_YAML_SYSTEM_MESSAGE, DEFAULT_GENERAL_SYSTEM_PROMPT } from "./prompts";
+
 /**
  * AI Assistant Plugin Types
  * 
@@ -205,7 +207,7 @@ export const DEFAULT_SETTINGS: MyPluginSettings = {
     provider: 'openai',
     openaiSettings: {
         apiKey: '',
-        model: 'gpt-4o-mini',
+        model: 'gpt-4.1',
         availableModels: []
     },
     anthropicSettings: {
@@ -215,7 +217,7 @@ export const DEFAULT_SETTINGS: MyPluginSettings = {
     },
     geminiSettings: {
         apiKey: '',
-        model: 'gemini-pro',
+        model: 'gemini-2.5-flash-preview-05-20',
         availableModels: []
     },
     ollamaSettings: {
@@ -223,7 +225,7 @@ export const DEFAULT_SETTINGS: MyPluginSettings = {
         model: 'llama2',
         availableModels: []
     },
-    systemMessage: 'You are a helpful assistant.',
+    systemMessage: DEFAULT_GENERAL_SYSTEM_PROMPT,
     temperature: 0.7,
     maxTokens: 1000,
     includeDateWithSystemMessage: false,
@@ -239,8 +241,8 @@ export const DEFAULT_SETTINGS: MyPluginSettings = {
     enableContextNotes: false,
     contextNotes: '',
 
-    titlePrompt: "You are a title generator. You will give succinct titles that does not contain backslashes, forward slashes, or colons. Only generate a title as your response.",
-    summaryPrompt: "You are a note summarizer. Read the note content and generate a concise summary (2 sentences at most) that captures the main ideas and purpose of the note. Do not include backslashes, forward slashes, or colons. Only output the summary as your response.",
+    titlePrompt: DEFAULT_TITLE_PROMPT,
+    summaryPrompt: DEFAULT_SUMMARY_PROMPT,
 
     maxSessions: 10,
     autoSaveSessions: true,
@@ -255,7 +257,7 @@ export const DEFAULT_SETTINGS: MyPluginSettings = {
     yamlAttributeGenerators: [
         {
             attributeName: "summary",
-            prompt: "You are a note summarizer. Read the note content and generate a concise summary (2 sentences at most) that captures the main ideas and purpose of the note. Do not include backslashes, forward slashes, or colons. Only output the summary as your response.",
+            prompt: DEFAULT_SUMMARY_PROMPT,
             outputMode: "metadata",
             commandName: "Generate YAML: summary"
         }

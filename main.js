@@ -26,6 +26,24 @@ var __copyProps = (to, from, except, desc) => {
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
 
+// src/prompts.ts
+var prompts_exports = {};
+__export(prompts_exports, {
+  DEFAULT_GENERAL_SYSTEM_PROMPT: () => DEFAULT_GENERAL_SYSTEM_PROMPT,
+  DEFAULT_SUMMARY_PROMPT: () => DEFAULT_SUMMARY_PROMPT,
+  DEFAULT_TITLE_PROMPT: () => DEFAULT_TITLE_PROMPT,
+  DEFAULT_YAML_SYSTEM_MESSAGE: () => DEFAULT_YAML_SYSTEM_MESSAGE
+});
+var DEFAULT_TITLE_PROMPT, DEFAULT_SUMMARY_PROMPT, DEFAULT_GENERAL_SYSTEM_PROMPT, DEFAULT_YAML_SYSTEM_MESSAGE;
+var init_prompts = __esm({
+  "src/prompts.ts"() {
+    DEFAULT_TITLE_PROMPT = "You are a title generator. You will give succinct titles that do not contain backslashes, forward slashes, or colons. Only generate a title as your response.";
+    DEFAULT_SUMMARY_PROMPT = "Summarize the note content in 1-2 sentences, focusing on the main ideas and purpose.";
+    DEFAULT_GENERAL_SYSTEM_PROMPT = "You are a helpful assistant.";
+    DEFAULT_YAML_SYSTEM_MESSAGE = "You are an assistant that generates YAML attribute values for Obsidian notes. Read the note content and generate a concise value for the specified YAML field. Only output the value, no extra text.";
+  }
+});
+
 // src/types.ts
 var types_exports = {};
 __export(types_exports, {
@@ -34,12 +52,13 @@ __export(types_exports, {
 var DEFAULT_SETTINGS;
 var init_types = __esm({
   "src/types.ts"() {
+    init_prompts();
     DEFAULT_SETTINGS = {
       referenceCurrentNote: false,
       provider: "openai",
       openaiSettings: {
         apiKey: "",
-        model: "gpt-4o-mini",
+        model: "gpt-4.1",
         availableModels: []
       },
       anthropicSettings: {
@@ -49,7 +68,7 @@ var init_types = __esm({
       },
       geminiSettings: {
         apiKey: "",
-        model: "gemini-pro",
+        model: "gemini-2.5-flash-preview-05-20",
         availableModels: []
       },
       ollamaSettings: {
@@ -57,7 +76,7 @@ var init_types = __esm({
         model: "llama2",
         availableModels: []
       },
-      systemMessage: "You are a helpful assistant.",
+      systemMessage: DEFAULT_GENERAL_SYSTEM_PROMPT,
       temperature: 0.7,
       maxTokens: 1e3,
       includeDateWithSystemMessage: false,
@@ -72,8 +91,8 @@ var init_types = __esm({
       chatEndString: void 0,
       enableContextNotes: false,
       contextNotes: "",
-      titlePrompt: "You are a title generator. You will give succinct titles that does not contain backslashes, forward slashes, or colons. Only generate a title as your response.",
-      summaryPrompt: "You are a note summarizer. Read the note content and generate a concise summary (2 sentences at most) that captures the main ideas and purpose of the note. Do not include backslashes, forward slashes, or colons. Only output the summary as your response.",
+      titlePrompt: DEFAULT_TITLE_PROMPT,
+      summaryPrompt: DEFAULT_SUMMARY_PROMPT,
       maxSessions: 10,
       autoSaveSessions: true,
       sessions: [],
@@ -85,7 +104,7 @@ var init_types = __esm({
       yamlAttributeGenerators: [
         {
           attributeName: "summary",
-          prompt: "You are a note summarizer. Read the note content and generate a concise summary (2 sentences at most) that captures the main ideas and purpose of the note. Do not include backslashes, forward slashes, or colons. Only output the summary as your response.",
+          prompt: DEFAULT_SUMMARY_PROMPT,
           outputMode: "metadata",
           commandName: "Generate YAML: summary"
         }
@@ -4248,22 +4267,6 @@ var init_providers = __esm({
     init_openai();
     init_gemini();
     init_ollama();
-  }
-});
-
-// src/prompts.ts
-var prompts_exports = {};
-__export(prompts_exports, {
-  DEFAULT_SUMMARY_PROMPT: () => DEFAULT_SUMMARY_PROMPT,
-  DEFAULT_TITLE_PROMPT: () => DEFAULT_TITLE_PROMPT,
-  DEFAULT_YAML_SYSTEM_MESSAGE: () => DEFAULT_YAML_SYSTEM_MESSAGE
-});
-var DEFAULT_TITLE_PROMPT, DEFAULT_SUMMARY_PROMPT, DEFAULT_YAML_SYSTEM_MESSAGE;
-var init_prompts = __esm({
-  "src/prompts.ts"() {
-    DEFAULT_TITLE_PROMPT = "You are a title generator. You will give succinct titles that do not contain backslashes, forward slashes, or colons. Only generate a title as your response.";
-    DEFAULT_SUMMARY_PROMPT = "Summarize the note content in 1-2 sentences, focusing on the main ideas and purpose.";
-    DEFAULT_YAML_SYSTEM_MESSAGE = "You are an assistant that generates YAML attribute values for Obsidian notes. Read the note content and generate a concise value for the specified YAML field. Do not include backslashes, forward slashes, or colons. Only output the value, no extra text.";
   }
 });
 
