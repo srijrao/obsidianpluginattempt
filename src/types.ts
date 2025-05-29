@@ -172,6 +172,11 @@ export interface MyPluginSettings {
      * If true, recursively expand links within fetched notes (with loop protection)
      */
     expandLinkedNotesRecursively?: boolean;
+
+    /**
+     * Maximum depth for recursively expanding linked notes. 0 = no recursion, 1 = direct links only, etc.
+     */
+    maxLinkExpansionDepth?: number;
 }
 
 /**
@@ -224,7 +229,8 @@ export const DEFAULT_SETTINGS: MyPluginSettings = {
     sessions: [],
     activeSessionId: undefined,
 
-    expandLinkedNotesRecursively: false
+    expandLinkedNotesRecursively: false,
+    maxLinkExpansionDepth: 2
 };
 
 /**

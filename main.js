@@ -4460,7 +4460,8 @@ var DEFAULT_SETTINGS = {
   autoSaveSessions: true,
   sessions: [],
   activeSessionId: void 0,
-  expandLinkedNotesRecursively: false
+  expandLinkedNotesRecursively: false,
+  maxLinkExpansionDepth: 2
 };
 
 // src/main.ts
@@ -4575,8 +4576,18 @@ var MyPluginSettingTab = class extends import_obsidian.PluginSettingTab {
       return toggle.setValue((_a2 = this.plugin.settings.expandLinkedNotesRecursively) != null ? _a2 : false).onChange(async (value) => {
         this.plugin.settings.expandLinkedNotesRecursively = value;
         await this.plugin.saveSettings();
+        this.display();
       });
     });
+    if (this.plugin.settings.expandLinkedNotesRecursively) {
+      new import_obsidian.Setting(containerEl).setName("Max Link Expansion Depth").setDesc("Maximum depth for recursively expanding linked notes (1-3).").addSlider((slider) => {
+        var _a2;
+        slider.setLimits(1, 3, 1).setValue((_a2 = this.plugin.settings.maxLinkExpansionDepth) != null ? _a2 : 2).setDynamicTooltip().onChange(async (value) => {
+          this.plugin.settings.maxLinkExpansionDepth = value;
+          await this.plugin.saveSettings();
+        });
+      });
+    }
   }
 };
 
@@ -5615,7 +5626,8 @@ function extractContentUnderHeader(content, headerText) {
   }
   return extractedContent.join("\n");
 }
-async function processObsidianLinks(content, app, settings, visitedNotes = /* @__PURE__ */ new Set()) {
+async function processObsidianLinks(content, app, settings, visitedNotes = /* @__PURE__ */ new Set(), currentDepth = 0) {
+  var _a2;
   if (!settings.enableObsidianLinks) return content;
   const linkRegex = /\[\[(.*?)\]\]/g;
   let match;
@@ -5644,8 +5656,8 @@ async function processObsidianLinks(content, app, settings, visitedNotes = /* @_
             } else {
               extractedContent = noteContent;
             }
-            if (settings.expandLinkedNotesRecursively) {
-              extractedContent = await processObsidianLinks(extractedContent, app, settings, visitedNotes);
+            if (settings.expandLinkedNotesRecursively && currentDepth < ((_a2 = settings.maxLinkExpansionDepth) != null ? _a2 : 2)) {
+              extractedContent = await processObsidianLinks(extractedContent, app, settings, visitedNotes, currentDepth + 1);
             }
           }
           processedContent = processedContent.replace(

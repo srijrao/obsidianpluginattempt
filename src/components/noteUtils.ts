@@ -41,7 +41,8 @@ export async function processObsidianLinks(
     content: string,
     app: App,
     settings: MyPluginSettings,
-    visitedNotes: Set<string> = new Set()
+    visitedNotes: Set<string> = new Set(),
+    currentDepth: number = 0
 ): Promise<string> {
     if (!settings.enableObsidianLinks) return content;
     const linkRegex = /\[\[(.*?)\]\]/g;
@@ -74,9 +75,9 @@ export async function processObsidianLinks(
                         } else {
                             extractedContent = noteContent;
                         }
-                        // Recursively expand links if enabled
-                        if (settings.expandLinkedNotesRecursively) {
-                            extractedContent = await processObsidianLinks(extractedContent, app, settings, visitedNotes);
+                        // Recursively expand links if enabled and depth not exceeded
+                        if (settings.expandLinkedNotesRecursively && currentDepth < (settings.maxLinkExpansionDepth ?? 2)) {
+                            extractedContent = await processObsidianLinks(extractedContent, app, settings, visitedNotes, currentDepth + 1);
                         }
                     }
                     processedContent = processedContent.replace(

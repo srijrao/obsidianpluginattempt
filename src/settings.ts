@@ -215,6 +215,22 @@ export class MyPluginSettingTab extends PluginSettingTab {
                 .onChange(async (value) => {
                     this.plugin.settings.expandLinkedNotesRecursively = value;
                     await this.plugin.saveSettings();
+                    this.display(); // Re-render to show/hide the slider
                 }));
+
+        if (this.plugin.settings.expandLinkedNotesRecursively) {
+            new Setting(containerEl)
+                .setName('Max Link Expansion Depth')
+                .setDesc('Maximum depth for recursively expanding linked notes (1-3).')
+                .addSlider(slider => {
+                    slider.setLimits(1, 3, 1)
+                        .setValue(this.plugin.settings.maxLinkExpansionDepth ?? 2)
+                        .setDynamicTooltip()
+                        .onChange(async (value: number) => {
+                            this.plugin.settings.maxLinkExpansionDepth = value;
+                            await this.plugin.saveSettings();
+                        });
+                });
+        }
     }
 }
