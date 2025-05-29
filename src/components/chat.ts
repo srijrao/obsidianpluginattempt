@@ -7,6 +7,8 @@ import { SettingsModal } from './chat/SettingsModal';
 import { ConfirmationModal } from './chat/ConfirmationModal';
 import { createMessageElement } from './chat/Message';
 import { createActionButton, copyToClipboard } from './chat/Buttons';
+import { saveChatAsNote, loadChatYamlAndApplySettings } from './chat/chatPersistence';
+import { renderChatHistory } from './chat/chatHistoryUtils';
 
 export const VIEW_TYPE_CHAT = 'chat-view';
 
@@ -114,30 +116,21 @@ export class ChatView extends ItemView {
             text: 'Save as Note'
         });
         saveNoteButton.addEventListener('click', async () => {
-            const messages = this.messagesContainer.querySelectorAll('.ai-chat-message');
-            let chatContent = '';
-            messages.forEach((el, index) => {
-                const content = el.querySelector('.message-content')?.textContent || '';
-                chatContent += content;
-                if (index < messages.length - 1) {
-                    chatContent += '\n\n' + this.plugin.settings.chatSeparator + '\n\n';
-                }
+            const provider = this.plugin.settings.provider;
+            let model = '';
+            if (provider === 'openai') model = this.plugin.settings.openaiSettings.model;
+            else if (provider === 'anthropic') model = this.plugin.settings.anthropicSettings.model;
+            else if (provider === 'gemini') model = this.plugin.settings.geminiSettings.model;
+            else if (provider === 'ollama') model = this.plugin.settings.ollamaSettings.model;
+            await saveChatAsNote({
+                app: this.app,
+                messages: this.messagesContainer.querySelectorAll('.ai-chat-message'),
+                settings: this.plugin.settings,
+                provider,
+                model,
+                chatSeparator: this.plugin.settings.chatSeparator,
+                chatNoteFolder: this.plugin.settings.chatNoteFolder
             });
-            // Generate filename with timestamp
-            const now = new Date();
-            const pad = (n: number) => n.toString().padStart(2, '0');
-            const fileName = `Chat Export ${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())} ${pad(now.getHours())}-${pad(now.getMinutes())}.md`;
-            let filePath = fileName;
-            const folder = this.plugin.settings.chatNoteFolder?.trim();
-            if (folder) {
-                filePath = folder.replace(/[/\\]+$/, '') + '/' + fileName;
-            }
-            try {
-                await this.app.vault.create(filePath, chatContent);
-                new Notice(`Chat saved as note: ${filePath}`);
-            } catch (e) {
-                new Notice('Failed to save chat as note.');
-            }
         });
 
         // Clear button
@@ -298,16 +291,25 @@ export class ChatView extends ItemView {
 
         // Render loaded chat history
         if (loadedHistory.length > 0) {
-            for (const msg of loadedHistory) {
-                // Only render user/assistant messages
-                if (msg.sender === "user" || msg.sender === "assistant") {
-                    const messageEl = await createMessageElement(this.app, msg.sender as 'user' | 'assistant', msg.content, this.chatHistoryManager, this.plugin, (el) => this.regenerateResponse(el), this);
-                    // Restore original timestamp from history for the UI element
-                    messageEl.dataset.timestamp = msg.timestamp; 
-                    this.messagesContainer.appendChild(messageEl);
-                }
+            this.messagesContainer.empty();
+            // If loading from a note, check for YAML frontmatter and update settings
+            const file = this.app.workspace.getActiveFile();
+            if (file) {
+                await loadChatYamlAndApplySettings({
+                    app: this.app,
+                    plugin: this.plugin,
+                    settings: this.plugin.settings,
+                    file
+                });
             }
-            this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+            await renderChatHistory({
+                messagesContainer: this.messagesContainer,
+                loadedHistory,
+                chatHistoryManager: this.chatHistoryManager,
+                plugin: this.plugin,
+                regenerateResponse: (el) => this.regenerateResponse(el),
+                scrollToBottom: true
+            });
         }
     }
 
@@ -345,44 +347,47 @@ export class ChatView extends ItemView {
         const textarea = this.inputContainer.querySelector('textarea');
         if (textarea) textarea.disabled = true;
 
-        // Determine which message to regenerate and find the context
+        // Find all message elements
         const allMessages = Array.from(this.messagesContainer.querySelectorAll('.ai-chat-message'));
         const currentIndex = allMessages.indexOf(messageEl);
-        let userMsgIndex: number;
-        let regenerateAfterIndex: number;
-        let isUserClicked = messageEl.classList.contains('user');
+        const isUserClicked = messageEl.classList.contains('user');
 
+        // Find the target AI message to overwrite
+        let targetIndex = -1;
         if (isUserClicked) {
-            // If regenerating from a user message, use that message and generate a new assistant message after it
-            userMsgIndex = currentIndex;
-            regenerateAfterIndex = currentIndex;
+            // If user message: find the next AI message after this user message
+            for (let i = currentIndex + 1; i < allMessages.length; i++) {
+                if (allMessages[i].classList.contains('assistant')) {
+                    targetIndex = i;
+                    break;
+                }
+                if (allMessages[i].classList.contains('user')) {
+                    break; // Stop if another user message is found first
+                }
+            }
         } else {
-            // If regenerating from an assistant message, find the previous user message
+            // If AI message: target is this message
+            targetIndex = currentIndex;
+        }
+
+        // Gather context up to and including the relevant user message
+        let userMsgIndex = currentIndex;
+        if (!isUserClicked) {
+            // For AI message, find the previous user message
             userMsgIndex = currentIndex - 1;
             while (userMsgIndex >= 0 && !allMessages[userMsgIndex].classList.contains('user')) {
                 userMsgIndex--;
             }
-            if (userMsgIndex < 0) {
-                new Notice('No user message found to regenerate response, generating new response at top.');
-                userMsgIndex = -1;
-                regenerateAfterIndex = -1;
-            } else {
-                regenerateAfterIndex = currentIndex;
-            }
         }
 
-        // Gather all messages above and including the user message
+        // Build context messages
         const contextMessages: Message[] = [
             { role: 'system', content: this.plugin.getSystemMessage() }
         ];
-
-        // Add context notes if enabled (re-fetch for this regeneration)
         if (this.plugin.settings.enableContextNotes && this.plugin.settings.contextNotes) {
             const contextContent = await this.plugin.getContextNotesContent(this.plugin.settings.contextNotes);
             contextMessages[0].content += `\n\nContext Notes:\n${contextContent}`;
         }
-
-        // Add current note context if enabled
         if (this.plugin.settings.referenceCurrentNote) {
             const currentFile = this.app.workspace.getActiveFile();
             if (currentFile) {
@@ -393,8 +398,6 @@ export class ChatView extends ItemView {
                 });
             }
         }
-
-        // Add all chat messages above and including the user message
         for (let i = 0; i <= userMsgIndex; i++) {
             const el = allMessages[i];
             const role = el.classList.contains('user') ? 'user' : 'assistant';
@@ -402,19 +405,19 @@ export class ChatView extends ItemView {
             contextMessages.push({ role, content });
         }
 
-        // Remove the old assistant message if present and clicked
+        // Remove the old AI message if overwriting
         let originalTimestamp = new Date().toISOString();
         let originalContent = '';
         let insertAfterNode: HTMLElement | null = null;
-        if (!isUserClicked && userMsgIndex >= 0) {
-            // If clicked on assistant, remove it and regenerate after it
-            originalTimestamp = messageEl.dataset.timestamp || originalTimestamp;
-            originalContent = messageEl.dataset.rawContent || '';
-            insertAfterNode = messageEl;
-            messageEl.remove();
+        if (targetIndex !== -1) {
+            const targetEl = allMessages[targetIndex] as HTMLElement;
+            originalTimestamp = targetEl.dataset.timestamp || originalTimestamp;
+            originalContent = targetEl.dataset.rawContent || '';
+            insertAfterNode = targetEl.previousElementSibling as HTMLElement;
+            targetEl.remove();
         } else if (isUserClicked) {
-            // If clicked on user, insert after user message
-            insertAfterNode = allMessages[userMsgIndex] as HTMLElement;
+            // No AI message to overwrite, insert after user message
+            insertAfterNode = messageEl;
         } else {
             // No user message found, insert at top
             insertAfterNode = null;
