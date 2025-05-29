@@ -117,9 +117,8 @@ export class ChatView extends ItemView {
             const messages = this.messagesContainer.querySelectorAll('.ai-chat-message');
             let chatContent = '';
             messages.forEach((el, index) => {
-                const role = el.classList.contains('user') ? 'User' : 'Assistant';
                 const content = el.querySelector('.message-content')?.textContent || '';
-                chatContent += `**${role}:**\n${content}`;
+                chatContent += content;
                 if (index < messages.length - 1) {
                     chatContent += '\n\n' + this.plugin.settings.chatSeparator + '\n\n';
                 }
@@ -350,16 +349,13 @@ export class ChatView extends ItemView {
         const allMessages = Array.from(this.messagesContainer.querySelectorAll('.ai-chat-message'));
         const currentIndex = allMessages.indexOf(messageEl);
         let userMsgIndex: number;
-        
-        if (messageEl.classList.contains('user')) {
-            // If regenerating from a user message, use that message and find the next assistant message
+        let regenerateAfterIndex: number;
+        let isUserClicked = messageEl.classList.contains('user');
+
+        if (isUserClicked) {
+            // If regenerating from a user message, use that message and generate a new assistant message after it
             userMsgIndex = currentIndex;
-            messageEl = allMessages[currentIndex + 1] as HTMLElement;
-            if (!messageEl?.classList.contains('assistant')) {
-                new Notice('No AI response found to regenerate');
-                if (textarea) textarea.disabled = false;
-                return;
-            }
+            regenerateAfterIndex = currentIndex;
         } else {
             // If regenerating from an assistant message, find the previous user message
             userMsgIndex = currentIndex - 1;
@@ -367,9 +363,11 @@ export class ChatView extends ItemView {
                 userMsgIndex--;
             }
             if (userMsgIndex < 0) {
-                new Notice('No user message found to regenerate response');
-                if (textarea) textarea.disabled = false;
-                return;
+                new Notice('No user message found to regenerate response, generating new response at top.');
+                userMsgIndex = -1;
+                regenerateAfterIndex = -1;
+            } else {
+                regenerateAfterIndex = currentIndex;
             }
         }
 
@@ -404,14 +402,33 @@ export class ChatView extends ItemView {
             contextMessages.push({ role, content });
         }
 
-        // Remove the old assistant message and insert a new one for streaming
-        const originalTimestamp = messageEl.dataset.timestamp || new Date().toISOString();
-        const originalContent = messageEl.dataset.rawContent || '';
+        // Remove the old assistant message if present and clicked
+        let originalTimestamp = new Date().toISOString();
+        let originalContent = '';
+        let insertAfterNode: HTMLElement | null = null;
+        if (!isUserClicked && userMsgIndex >= 0) {
+            // If clicked on assistant, remove it and regenerate after it
+            originalTimestamp = messageEl.dataset.timestamp || originalTimestamp;
+            originalContent = messageEl.dataset.rawContent || '';
+            insertAfterNode = messageEl;
+            messageEl.remove();
+        } else if (isUserClicked) {
+            // If clicked on user, insert after user message
+            insertAfterNode = allMessages[userMsgIndex] as HTMLElement;
+        } else {
+            // No user message found, insert at top
+            insertAfterNode = null;
+        }
+
+        // Create new assistant message container for streaming
         const assistantContainer = await createMessageElement(this.app, 'assistant', '', this.chatHistoryManager, this.plugin, (el) => this.regenerateResponse(el), this);
         assistantContainer.dataset.timestamp = originalTimestamp;
-        this.messagesContainer.insertBefore(assistantContainer, messageEl.nextSibling);
+        if (insertAfterNode && insertAfterNode.nextSibling) {
+            this.messagesContainer.insertBefore(assistantContainer, insertAfterNode.nextSibling);
+        } else {
+            this.messagesContainer.appendChild(assistantContainer);
+        }
         this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
-        messageEl.remove();
 
         // Generate new response
         this.activeStream = new AbortController();

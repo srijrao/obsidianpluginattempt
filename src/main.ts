@@ -307,6 +307,41 @@ export default class MyPlugin extends Plugin {
                 );
             }
         });
+
+        this.addCommand({
+            id: 'load-chat-note-into-chat',
+            name: 'Load Chat Note into Chat',
+            callback: async () => {
+                let file: TFile | null = this.app.workspace.getActiveFile();
+                if (!file) {
+                    new Notice('No active note found. Please open a note to load as chat.');
+                    return;
+                }
+                let content = await this.app.vault.read(file);
+                const messages = parseSelection(content, this.settings.chatSeparator);
+                if (!messages.length) {
+                    new Notice('No chat messages found in the selected note.');
+                    return;
+                }
+                await this.activateChatView();
+                const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_CHAT);
+                if (!leaves.length) {
+                    new Notice('Could not find chat view.');
+                    return;
+                }
+                const chatView = leaves[0].view as ChatView;
+                // Clear chat UI (and history will be rebuilt as we add messages)
+                chatView.messagesContainer.empty();
+                // Add each parsed message
+                for (const msg of messages) {
+                    if (msg.role === 'user' || msg.role === 'assistant') {
+                        await chatView["addMessage"](msg.role, msg.content);
+                    }
+                }
+                chatView.messagesContainer.scrollTop = chatView.messagesContainer.scrollHeight;
+                new Notice('Loaded chat note into chat.');
+            }
+        });
     }    public getSystemMessage(): string {
         return getSystemMessage(this.settings);
     }

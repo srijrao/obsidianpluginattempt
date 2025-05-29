@@ -5160,10 +5160,8 @@ var ChatView = class extends import_obsidian7.ItemView {
       let chatContent = "";
       messages.forEach((el, index) => {
         var _a3;
-        const role = el.classList.contains("user") ? "User" : "Assistant";
         const content = ((_a3 = el.querySelector(".message-content")) == null ? void 0 : _a3.textContent) || "";
-        chatContent += `**${role}:**
-${content}`;
+        chatContent += content;
         if (index < messages.length - 1) {
           chatContent += "\n\n" + this.plugin.settings.chatSeparator + "\n\n";
         }
@@ -5347,23 +5345,22 @@ ${currentNoteContent}`
     const allMessages = Array.from(this.messagesContainer.querySelectorAll(".ai-chat-message"));
     const currentIndex = allMessages.indexOf(messageEl);
     let userMsgIndex;
-    if (messageEl.classList.contains("user")) {
+    let regenerateAfterIndex;
+    let isUserClicked = messageEl.classList.contains("user");
+    if (isUserClicked) {
       userMsgIndex = currentIndex;
-      messageEl = allMessages[currentIndex + 1];
-      if (!(messageEl == null ? void 0 : messageEl.classList.contains("assistant"))) {
-        new import_obsidian7.Notice("No AI response found to regenerate");
-        if (textarea) textarea.disabled = false;
-        return;
-      }
+      regenerateAfterIndex = currentIndex;
     } else {
       userMsgIndex = currentIndex - 1;
       while (userMsgIndex >= 0 && !allMessages[userMsgIndex].classList.contains("user")) {
         userMsgIndex--;
       }
       if (userMsgIndex < 0) {
-        new import_obsidian7.Notice("No user message found to regenerate response");
-        if (textarea) textarea.disabled = false;
-        return;
+        new import_obsidian7.Notice("No user message found to regenerate response, generating new response at top.");
+        userMsgIndex = -1;
+        regenerateAfterIndex = -1;
+      } else {
+        regenerateAfterIndex = currentIndex;
       }
     }
     const contextMessages = [
@@ -5394,13 +5391,27 @@ ${currentNoteContent}`
       const content = el.dataset.rawContent || "";
       contextMessages.push({ role, content });
     }
-    const originalTimestamp = messageEl.dataset.timestamp || (/* @__PURE__ */ new Date()).toISOString();
-    const originalContent = messageEl.dataset.rawContent || "";
+    let originalTimestamp = (/* @__PURE__ */ new Date()).toISOString();
+    let originalContent = "";
+    let insertAfterNode = null;
+    if (!isUserClicked && userMsgIndex >= 0) {
+      originalTimestamp = messageEl.dataset.timestamp || originalTimestamp;
+      originalContent = messageEl.dataset.rawContent || "";
+      insertAfterNode = messageEl;
+      messageEl.remove();
+    } else if (isUserClicked) {
+      insertAfterNode = allMessages[userMsgIndex];
+    } else {
+      insertAfterNode = null;
+    }
     const assistantContainer = await createMessageElement(this.app, "assistant", "", this.chatHistoryManager, this.plugin, (el) => this.regenerateResponse(el), this);
     assistantContainer.dataset.timestamp = originalTimestamp;
-    this.messagesContainer.insertBefore(assistantContainer, messageEl.nextSibling);
+    if (insertAfterNode && insertAfterNode.nextSibling) {
+      this.messagesContainer.insertBefore(assistantContainer, insertAfterNode.nextSibling);
+    } else {
+      this.messagesContainer.appendChild(assistantContainer);
+    }
     this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
-    messageEl.remove();
     this.activeStream = new AbortController();
     let responseContent = "";
     try {
@@ -6138,6 +6149,38 @@ ${this.settings.chatSeparator}
           this.settings,
           (messages) => this.processMessages(messages)
         );
+      }
+    });
+    this.addCommand({
+      id: "load-chat-note-into-chat",
+      name: "Load Chat Note into Chat",
+      callback: async () => {
+        let file = this.app.workspace.getActiveFile();
+        if (!file) {
+          new import_obsidian11.Notice("No active note found. Please open a note to load as chat.");
+          return;
+        }
+        let content = await this.app.vault.read(file);
+        const messages = parseSelection(content, this.settings.chatSeparator);
+        if (!messages.length) {
+          new import_obsidian11.Notice("No chat messages found in the selected note.");
+          return;
+        }
+        await this.activateChatView();
+        const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_CHAT);
+        if (!leaves.length) {
+          new import_obsidian11.Notice("Could not find chat view.");
+          return;
+        }
+        const chatView = leaves[0].view;
+        chatView.messagesContainer.empty();
+        for (const msg of messages) {
+          if (msg.role === "user" || msg.role === "assistant") {
+            await chatView["addMessage"](msg.role, msg.content);
+          }
+        }
+        chatView.messagesContainer.scrollTop = chatView.messagesContainer.scrollHeight;
+        new import_obsidian11.Notice("Loaded chat note into chat.");
       }
     });
   }
