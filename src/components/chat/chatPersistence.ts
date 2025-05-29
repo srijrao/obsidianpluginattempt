@@ -1,9 +1,16 @@
 // Handles chat YAML load/save for chat notes
 import { MyPluginSettings } from '../../types';
 import { Notice } from 'obsidian';
+import * as yaml from 'js-yaml';
 
 export function buildChatYaml(settings: MyPluginSettings, provider: string, model: string): string {
-    return `---\nprovider: ${provider}\nmodel: ${model}\nsystem_message: |\n  ${settings.systemMessage.replace(/\n/g, '\n  ')}\ntemperature: ${settings.temperature}\n---\n`;
+    const yamlObj = {
+        provider,
+        model,
+        system_message: settings.systemMessage,
+        temperature: settings.temperature
+    };
+    return `---\n${yaml.dump(yamlObj)}---\n`;
 }
 
 export async function saveChatAsNote({
@@ -73,41 +80,45 @@ export async function loadChatYamlAndApplySettings({
     let yamlObj: any = {};
     if (yamlMatch) {
         try {
-            // Use Obsidian's built-in YAML parser if available, else fallback to a simple parse
-            if (app.metadataCache && app.metadataCache.getFileCache) {
-                const cache = app.metadataCache.getFileCache(file);
-                if (cache && cache.frontmatter) {
-                    yamlObj = { ...cache.frontmatter };
-                }
-            } else {
-                // Fallback: basic YAML parse (not full-featured)
-                yamlMatch[1].split(/\n(?=\w)/).forEach((line: string) => {
-                    const [key, ...rest] = line.split(':');
-                    if (key && rest.length) {
-                        yamlObj[key.trim()] = rest.join(':').trim();
-                    }
-                });
-            }
+            yamlObj = yaml.load(yamlMatch[1]) || {};
         } catch (e) {
-            // Ignore YAML parse errors, fallback to empty
             yamlObj = {};
         }
     }
-    // Robustly apply settings with graceful fallbacks
-    // Provider
-    let newProvider = yamlObj.provider || settings.provider;
-    // Model
-    let newModel = yamlObj.model;
-    // If model is not available for provider, fallback to previous
+    // Improved provider/model selection logic: prioritize model
+    let newProvider = settings.provider;
+    let newModel = settings.openaiSettings?.model || settings.anthropicSettings?.model || settings.geminiSettings?.model || settings.ollamaSettings?.model;
     const availableProviders = plugin.getAvailableProviders ? plugin.getAvailableProviders() : [];
-    if (availableProviders.length && !availableProviders.includes(newProvider)) {
-        // Try to find provider for the model
-        const bestProvider = availableProviders.find((prov: string) => {
+    // 1. If a model is specified, find a provider that supports it
+    if (yamlObj.model) {
+        let found = false;
+        for (const prov of availableProviders) {
             const models = plugin.getModelsForProvider ? plugin.getModelsForProvider(prov) : [];
-            return models.includes(newModel);
-        });
-        if (bestProvider) newProvider = bestProvider;
-        else newProvider = settings.provider;
+            if (models.includes(yamlObj.model)) {
+                newProvider = prov;
+                newModel = yamlObj.model;
+                found = true;
+                break;
+            }
+        }
+        // If not found, keep previous provider/model
+    } else if (yamlObj.provider && availableProviders.includes(yamlObj.provider)) {
+        // 2. If only provider is specified, use previous model for that provider
+        newProvider = yamlObj.provider;
+        switch (newProvider) {
+            case 'openai':
+                newModel = settings.openaiSettings.model;
+                break;
+            case 'anthropic':
+                newModel = settings.anthropicSettings.model;
+                break;
+            case 'gemini':
+                newModel = settings.geminiSettings.model;
+                break;
+            case 'ollama':
+                newModel = settings.ollamaSettings.model;
+                break;
+        }
     }
     // System message
     let newSystemMessage = yamlObj.system_message || settings.systemMessage;
@@ -119,7 +130,6 @@ export async function loadChatYamlAndApplySettings({
     }
     // Apply settings
     settings.provider = newProvider;
-    // Set the model for the correct provider
     if (newModel) {
         switch (newProvider) {
             case 'openai':
@@ -138,7 +148,6 @@ export async function loadChatYamlAndApplySettings({
     }
     settings.systemMessage = newSystemMessage;
     settings.temperature = newTemperature;
-    // Optionally, update UI or plugin state if needed
     if (plugin.onSettingsLoadedFromNote) {
         plugin.onSettingsLoadedFromNote(settings);
     }
