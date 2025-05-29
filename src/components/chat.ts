@@ -400,6 +400,38 @@ export class ChatView extends ItemView {
             await this.copyToClipboard(chatContent);
         });
 
+        // Save as Note button
+        const saveNoteButton = buttonContainer.createEl('button', {
+            text: 'Save as Note'
+        });
+        saveNoteButton.addEventListener('click', async () => {
+            const messages = this.messagesContainer.querySelectorAll('.ai-chat-message');
+            let chatContent = '';
+            messages.forEach((el, index) => {
+                const role = el.classList.contains('user') ? 'User' : 'Assistant';
+                const content = el.querySelector('.message-content')?.textContent || '';
+                chatContent += `**${role}:**\n${content}`;
+                if (index < messages.length - 1) {
+                    chatContent += '\n\n' + this.plugin.settings.chatSeparator + '\n\n';
+                }
+            });
+            // Generate filename with timestamp
+            const now = new Date();
+            const pad = (n: number) => n.toString().padStart(2, '0');
+            const fileName = `Chat Export ${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())} ${pad(now.getHours())}-${pad(now.getMinutes())}.md`;
+            let filePath = fileName;
+            const folder = this.plugin.settings.chatNoteFolder?.trim();
+            if (folder) {
+                filePath = folder.replace(/[/\\]+$/, '') + '/' + fileName;
+            }
+            try {
+                await this.app.vault.create(filePath, chatContent);
+                new Notice(`Chat saved as note: ${filePath}`);
+            } catch (e) {
+                new Notice('Failed to save chat as note.');
+            }
+        });
+
         // Clear button
         const clearButton = buttonContainer.createEl('button', {
             text: 'Clear Chat'

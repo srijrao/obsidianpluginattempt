@@ -177,6 +177,11 @@ export interface MyPluginSettings {
      * Maximum depth for recursively expanding linked notes. 0 = no recursion, 1 = direct links only, etc.
      */
     maxLinkExpansionDepth?: number;
+
+    /**
+     * Folder path (relative to vault root) where chat notes will be saved. If empty, saves to vault root.
+     */
+    chatNoteFolder?: string;
 }
 
 /**
@@ -230,7 +235,9 @@ export const DEFAULT_SETTINGS: MyPluginSettings = {
     activeSessionId: undefined,
 
     expandLinkedNotesRecursively: false,
-    maxLinkExpansionDepth: 2
+    maxLinkExpansionDepth: 2,
+
+    chatNoteFolder: '' // Default to vault root
 };
 
 /**

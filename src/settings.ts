@@ -232,5 +232,17 @@ export class MyPluginSettingTab extends PluginSettingTab {
                         });
                 });
         }
+
+        new Setting(containerEl)
+            .setName('Chat Note Folder')
+            .setDesc('Folder to save exported chat notes (relative to vault root, leave blank for root)')
+            .addText(text => {
+                text.setPlaceholder('e.g. AI Chats')
+                    .setValue(this.plugin.settings.chatNoteFolder ?? '')
+                    .onChange(async (value: string) => {
+                        this.plugin.settings.chatNoteFolder = value.trim();
+                        await this.plugin.saveSettings();
+                    });
+            });
     }
 }

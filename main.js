@@ -4461,7 +4461,9 @@ var DEFAULT_SETTINGS = {
   sessions: [],
   activeSessionId: void 0,
   expandLinkedNotesRecursively: false,
-  maxLinkExpansionDepth: 2
+  maxLinkExpansionDepth: 2,
+  chatNoteFolder: ""
+  // Default to vault root
 };
 
 // src/main.ts
@@ -4588,6 +4590,13 @@ var MyPluginSettingTab = class extends import_obsidian.PluginSettingTab {
         });
       });
     }
+    new import_obsidian.Setting(containerEl).setName("Chat Note Folder").setDesc("Folder to save exported chat notes (relative to vault root, leave blank for root)").addText((text) => {
+      var _a2;
+      text.setPlaceholder("e.g. AI Chats").setValue((_a2 = this.plugin.settings.chatNoteFolder) != null ? _a2 : "").onChange(async (value) => {
+        this.plugin.settings.chatNoteFolder = value.trim();
+        await this.plugin.saveSettings();
+      });
+    });
   }
 };
 
@@ -4939,6 +4948,38 @@ var ChatView = class extends import_obsidian3.ItemView {
         }
       });
       await this.copyToClipboard(chatContent);
+    });
+    const saveNoteButton = buttonContainer.createEl("button", {
+      text: "Save as Note"
+    });
+    saveNoteButton.addEventListener("click", async () => {
+      var _a2;
+      const messages = this.messagesContainer.querySelectorAll(".ai-chat-message");
+      let chatContent = "";
+      messages.forEach((el, index) => {
+        var _a3;
+        const role = el.classList.contains("user") ? "User" : "Assistant";
+        const content = ((_a3 = el.querySelector(".message-content")) == null ? void 0 : _a3.textContent) || "";
+        chatContent += `**${role}:**
+${content}`;
+        if (index < messages.length - 1) {
+          chatContent += "\n\n" + this.plugin.settings.chatSeparator + "\n\n";
+        }
+      });
+      const now = /* @__PURE__ */ new Date();
+      const pad = (n) => n.toString().padStart(2, "0");
+      const fileName = `Chat Export ${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}-${pad(now.getMinutes())}.md`;
+      let filePath = fileName;
+      const folder = (_a2 = this.plugin.settings.chatNoteFolder) == null ? void 0 : _a2.trim();
+      if (folder) {
+        filePath = folder.replace(/[/\\]+$/, "") + "/" + fileName;
+      }
+      try {
+        await this.app.vault.create(filePath, chatContent);
+        new import_obsidian3.Notice(`Chat saved as note: ${filePath}`);
+      } catch (e) {
+        new import_obsidian3.Notice("Failed to save chat as note.");
+      }
     });
     const clearButton = buttonContainer.createEl("button", {
       text: "Clear Chat"
