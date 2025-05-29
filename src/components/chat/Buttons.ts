@@ -158,3 +158,23 @@ export class Buttons extends Component {
         }
     }
 }
+
+// Utility for creating action buttons and copying to clipboard
+export function createActionButton(label: string, tooltip: string, callback: () => void): HTMLElement {
+    const button = document.createElement('button');
+    button.addClass('ai-chat-action-button');
+    button.setAttribute('aria-label', tooltip);
+    const labelEl = document.createElement('span');
+    labelEl.textContent = label;
+    button.appendChild(labelEl);
+    button.addEventListener('click', callback);
+    return button;
+}
+
+export async function copyToClipboard(text: string): Promise<void> {
+    try {
+        await navigator.clipboard.writeText(text);
+    } catch (error) {
+        // Optionally handle error
+    }
+}

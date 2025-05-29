@@ -1,5 +1,7 @@
 import { App, MarkdownRenderer, Notice, Component } from 'obsidian';
 import { Message as MessageType } from '../../types';
+import { createActionButton, copyToClipboard } from './Buttons';
+import { ConfirmationModal } from './ConfirmationModal';
 
 /**
  * Base Message interface for chat messages
@@ -54,10 +56,12 @@ export abstract class Message extends Component implements IMessage {
         
         // Add hover behavior
         this.element.addEventListener('mouseenter', () => {
-            // Rely on CSS for display
+            this.actionsElement.removeClass('hidden');
+            this.actionsElement.addClass('visible');
         });
         this.element.addEventListener('mouseleave', () => {
-            // Rely on CSS for display
+            this.actionsElement.removeClass('visible');
+            this.actionsElement.addClass('hidden');
         });
     }
 
@@ -147,4 +151,110 @@ export abstract class Message extends Component implements IMessage {
             console.error('Clipboard error:', error);
         }
     }
+}
+
+/**
+ * Create a message element for the chat
+ */
+export function createMessageElement(
+    app: App,
+    role: 'user' | 'assistant',
+    content: string,
+    chatHistoryManager: any,
+    plugin: any,
+    regenerateCallback: (messageEl: HTMLElement) => void,
+    parentComponent: Component
+): HTMLElement {
+    const messageEl = document.createElement('div');
+    messageEl.addClass('ai-chat-message', role);
+    const messageContainer = messageEl.createDiv('message-container');
+    const contentEl = messageContainer.createDiv('message-content');
+    messageEl.dataset.rawContent = content;
+    messageEl.dataset.timestamp = new Date().toISOString();
+    MarkdownRenderer.render(app, content, contentEl, '', parentComponent).catch((error) => {
+        contentEl.textContent = content;
+    });
+    const actionsEl = messageContainer.createDiv('message-actions');
+    actionsEl.classList.add('hidden');
+    messageEl.addEventListener('mouseenter', () => {
+        actionsEl.classList.remove('hidden');
+        actionsEl.classList.add('visible');
+    });
+    messageEl.addEventListener('mouseleave', () => {
+        actionsEl.classList.remove('visible');
+        actionsEl.classList.add('hidden');
+    });
+    // Copy button
+    actionsEl.appendChild(createActionButton('Copy', 'Copy message', () => {
+        const currentContent = messageEl.dataset.rawContent || '';
+        if (currentContent.trim() === '') {
+            new Notice('No content to copy');
+            return;
+        }
+        copyToClipboard(currentContent);
+    }));
+    // Edit button
+    actionsEl.appendChild(createActionButton('Edit', 'Edit message', async () => {
+        if (!contentEl.hasClass('editing')) {
+            const textarea = document.createElement('textarea');
+            textarea.value = messageEl.dataset.rawContent || '';
+            textarea.className = 'message-content editing';
+            contentEl.empty();
+            contentEl.appendChild(textarea);
+            textarea.focus();
+            contentEl.addClass('editing');
+            textarea.addEventListener('keydown', async (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    textarea.blur();
+                }
+            });
+            textarea.addEventListener('blur', async () => {
+                const oldContent = messageEl.dataset.rawContent;
+                const newContent = textarea.value;
+                try {
+                    await chatHistoryManager.updateMessage(
+                        messageEl.dataset.timestamp || new Date().toISOString(),
+                        messageEl.classList.contains('user') ? 'user' : 'assistant',
+                        oldContent || '',
+                        newContent
+                    );
+                    messageEl.dataset.rawContent = newContent;
+                    contentEl.empty();
+                    await MarkdownRenderer.render(app, newContent, contentEl, '', parentComponent);
+                    contentEl.removeClass('editing');
+                } catch (e) {
+                    new Notice('Failed to save edited message.');
+                    messageEl.dataset.rawContent = oldContent || '';
+                    contentEl.empty();
+                    await MarkdownRenderer.render(app, oldContent || '', contentEl, '', parentComponent);
+                    contentEl.removeClass('editing');
+                }
+            });
+        }
+    }));
+    // Delete button
+    actionsEl.appendChild(createActionButton('Delete', 'Delete message', () => {
+        const modal = new ConfirmationModal(app, 'Delete message', 'Are you sure you want to delete this message?', (confirmed: boolean) => {
+            if (confirmed) {
+                chatHistoryManager.deleteMessage(
+                    messageEl.dataset.timestamp || new Date().toISOString(),
+                    messageEl.classList.contains('user') ? 'user' : 'assistant',
+                    messageEl.dataset.rawContent || ''
+                ).then(() => {
+                    messageEl.remove();
+                }).catch(() => {
+                    new Notice('Failed to delete message from history.');
+                });
+            }
+        });
+        modal.open();
+    }));
+    // Regenerate button
+    actionsEl.appendChild(createActionButton('Regenerate', 'Regenerate this response', () => {
+        regenerateCallback(messageEl);
+    }));
+    
+    messageContainer.appendChild(actionsEl);
+    return messageEl;
 }

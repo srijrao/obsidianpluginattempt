@@ -1,305 +1,14 @@
-import { ItemView, WorkspaceLeaf, Notice, Modal, App, Setting, MarkdownRenderer } from 'obsidian';
+import { ItemView, WorkspaceLeaf, Notice, MarkdownRenderer } from 'obsidian';
 import MyPlugin from '../main';
 import { Message } from '../types';
 import { createProvider } from '../../providers';
 import { ChatHistoryManager, ChatMessage } from '../ChatHistoryManager';
+import { SettingsModal } from './chat/SettingsModal';
+import { ConfirmationModal } from './chat/ConfirmationModal';
+import { createMessageElement } from './chat/Message';
+import { createActionButton, copyToClipboard } from './chat/Buttons';
 
 export const VIEW_TYPE_CHAT = 'chat-view';
-
-class SettingsModal extends Modal {
-    plugin: MyPlugin;
-
-    constructor(app: App, plugin: MyPlugin) {
-        super(app);
-        this.plugin = plugin;
-        this.titleEl.setText('AI Model Settings');
-    }
-
-    onOpen() {
-        const { contentEl } = this;
-        contentEl.empty();
-        contentEl.addClass('ai-settings-modal');
-
-        // Session Management Settings
-        contentEl.createEl('h3', { text: 'Session Management' });
-        
-        new Setting(contentEl)
-            .setName('Auto-save Sessions')
-            .setDesc('Automatically save chat messages to sessions')
-            .addToggle(toggle => toggle
-                .setValue(this.plugin.settings.autoSaveSessions)
-                .onChange(async (value) => {
-                    this.plugin.settings.autoSaveSessions = value;
-                    await this.plugin.saveSettings();
-                }));
-
-        new Setting(contentEl)
-            .setName('Maximum Sessions')
-            .setDesc('Maximum number of chat sessions to keep (oldest will be removed)')
-            .addSlider(slider => slider
-                .setLimits(1, 50, 1)
-                .setValue(this.plugin.settings.maxSessions)
-                .setDynamicTooltip()
-                .onChange(async (value) => {
-                    this.plugin.settings.maxSessions = value;
-                    // Remove oldest sessions if we're over the limit
-                    if (this.plugin.settings.sessions.length > value) {
-                        this.plugin.settings.sessions = this.plugin.settings.sessions
-                            .sort((a, b) => b.lastUpdated - a.lastUpdated)
-                            .slice(0, value);
-                    }
-                    await this.plugin.saveSettings();
-                }));
-
-        // Provider selection
-        new Setting(contentEl)
-            .setName('AI Provider')
-            .setDesc('Choose which AI provider to use')
-            .addDropdown(dropdown => {
-                dropdown
-                    .addOption('openai', 'OpenAI (ChatGPT)')
-                    .addOption('anthropic', 'Anthropic (Claude)')
-                    .addOption('gemini', 'Google (Gemini)')
-                    .addOption('ollama', 'Ollama (Local AI)')
-                    .setValue(this.plugin.settings.provider)
-                    .onChange(async (value: 'openai' | 'anthropic' | 'gemini' | 'ollama') => {
-                        this.plugin.settings.provider = value;
-                        await this.plugin.saveSettings();
-                        this.onOpen(); // Refresh view to show provider-specific settings
-                    });
-            });
-    
-        // System message
-        new Setting(contentEl)
-            .setName('System Message')
-            .setDesc('Set the system message for the AI')
-            .addTextArea(text => text
-                .setPlaceholder('You are a helpful assistant.')
-                .setValue(this.plugin.settings.systemMessage)
-                .onChange(async (value) => {
-                    this.plugin.settings.systemMessage = value;
-                    await this.plugin.saveSettings();
-                }));
-    
-        // Include date with system message
-        new Setting(contentEl)
-            .setName('Include Date with System Message')
-            .setDesc('Add the current date to the system message')
-            .addToggle(toggle => toggle
-                .setValue(this.plugin.settings.includeDateWithSystemMessage)
-                .onChange(async (value) => {
-                    this.plugin.settings.includeDateWithSystemMessage = value;
-                    await this.plugin.saveSettings();
-                }));
-    
-        // Include time with system message
-        new Setting(contentEl)
-            .setName('Include Time with System Message')
-            .setDesc('Add the current time along with the date to the system message')
-            .addToggle(toggle => toggle
-                .setValue(this.plugin.settings.includeTimeWithSystemMessage)
-                .onChange(async (value) => {
-                    this.plugin.settings.includeTimeWithSystemMessage = value;
-                    await this.plugin.saveSettings();
-                }));
-    
-        // Enable Obsidian links
-        new Setting(contentEl)
-            .setName('Enable Obsidian Links')
-            .setDesc('Read Obsidian links in messages using [[filename]] syntax')
-            .addToggle(toggle => toggle
-                .setValue(this.plugin.settings.enableObsidianLinks)
-                .onChange(async (value) => {
-                    this.plugin.settings.enableObsidianLinks = value;
-                    await this.plugin.saveSettings();
-                }));
-    
-        // Enable context notes
-        new Setting(contentEl)
-            .setName('Enable Context Notes')
-            .setDesc('Attach specified note content to chat messages')
-            .addToggle(toggle => toggle
-                .setValue(this.plugin.settings.enableContextNotes)
-                .onChange(async (value) => {
-                    this.plugin.settings.enableContextNotes = value;
-                    await this.plugin.saveSettings();
-                }));
-    
-        // Context notes
-        new Setting(contentEl)
-            .setName('Context Notes')
-            .setDesc('Notes to attach as context (supports [[filename]] and [[filename#header]] syntax)')
-            .addTextArea(text => {
-                text.setPlaceholder('[[Note Name]]\n[[Another Note#Header]]')
-                    .setValue(this.plugin.settings.contextNotes || '')
-                    .onChange(async (value) => {
-                        this.plugin.settings.contextNotes = value;
-                        await this.plugin.saveSettings();
-                    });
-                text.inputEl.rows = 4;
-            });
-    
-        // Enable streaming
-        new Setting(contentEl)
-            .setName('Enable Streaming')
-            .setDesc('Enable or disable streaming for completions')
-            .addToggle(toggle => toggle
-                .setValue(this.plugin.settings.enableStreaming)
-                .onChange(async (value) => {
-                    this.plugin.settings.enableStreaming = value;
-                    await this.plugin.saveSettings();
-                }));
-    
-        // Temperature
-        new Setting(contentEl)
-            .setName('Temperature')
-            .setDesc('Set the randomness of the model\'s output (0-1)')
-            .addSlider(slider => slider
-                .setLimits(0, 1, 0.1)
-                .setValue(this.plugin.settings.temperature)
-                .setDynamicTooltip()
-                .onChange(async (value) => {
-                    this.plugin.settings.temperature = value;
-                    await this.plugin.saveSettings();
-                }));
-    
-    
-        // Add "Reference Current Note" toggle
-        new Setting(contentEl)
-            .setName('Reference Current Note')
-            .setDesc('Include the content of the current note in the chat context.')
-            .addToggle(toggle => toggle
-                .setValue(this.plugin.settings.referenceCurrentNote)
-                .onChange(async (value) => {
-                    this.plugin.settings.referenceCurrentNote = value;
-                    await this.plugin.saveSettings();
-                }));
-    
-        // Provider-specific settings
-        contentEl.createEl('h3', { text: `${this.plugin.settings.provider.toUpperCase()} Settings` });
-    
-        switch (this.plugin.settings.provider) {
-            case 'openai': {
-                const settings = this.plugin.settings.openaiSettings;
-                new Setting(contentEl)
-                    .setName('Model')
-                    .setDesc('Choose the OpenAI model to use')
-                    .addDropdown(dropdown => {
-                        for (const model of settings.availableModels) {
-                            dropdown.addOption(model, model);
-                        }
-                        dropdown
-                            .setValue(settings.model)
-                            .onChange(async (value) => {
-                                settings.model = value;
-                                await this.plugin.saveSettings();
-                            });
-                    });
-                break;
-            }
-            case 'anthropic': {
-                const settings = this.plugin.settings.anthropicSettings;
-                new Setting(contentEl)
-                    .setName('Model')
-                    .setDesc('Choose the Anthropic model to use')
-                    .addDropdown(dropdown => {
-                        for (const model of settings.availableModels) {
-                            dropdown.addOption(model, model);
-                        }
-                        dropdown
-                            .setValue(settings.model)
-                            .onChange(async (value) => {
-                                settings.model = value;
-                                await this.plugin.saveSettings();
-                            });
-                    });
-                break;
-            }
-            case 'gemini': {
-                const settings = this.plugin.settings.geminiSettings;
-                new Setting(contentEl)
-                    .setName('Model')
-                    .setDesc('Choose the Gemini model to use')
-                    .addDropdown(dropdown => {
-                        for (const model of settings.availableModels) {
-                            dropdown.addOption(model, model);
-                        }
-                        dropdown
-                            .setValue(settings.model)
-                            .onChange(async (value) => {
-                                settings.model = value;
-                                await this.plugin.saveSettings();
-                            });
-                    });
-                break;
-            }
-            case 'ollama': {
-                const settings = this.plugin.settings.ollamaSettings;
-                new Setting(contentEl)
-                    .setName('Model')
-                    .setDesc('Choose the Ollama model to use')
-                    .addDropdown(dropdown => {
-                        for (const model of settings.availableModels) {
-                            dropdown.addOption(model, model);
-                        }
-                        dropdown
-                            .setValue(settings.model)
-                            .onChange(async (value) => {
-                                settings.model = value;
-                                await this.plugin.saveSettings();
-                            });
-                    });
-                break;
-            }
-        }
-    }
-
-    onClose() {
-        const { contentEl } = this;
-        contentEl.empty();
-    }
-}
-
-class ConfirmationModal extends Modal {
-    private onConfirm: (confirmed: boolean) => void;
-    private message: string;
-
-    constructor(app: App, title: string, message: string, onConfirm: (confirmed: boolean) => void) {
-        super(app);
-        this.titleEl.setText(title);
-        this.message = message;
-        this.onConfirm = onConfirm;
-    }
-
-    onOpen() {
-        const { contentEl } = this;
-
-        contentEl.createEl('p', { text: this.message });
-
-        const buttonContainer = contentEl.createDiv('modal-button-container');
-        // All styling for buttonContainer is now handled by .modal-button-container in styles.css
-
-        buttonContainer.createEl('button', { text: 'Cancel' })
-            .addEventListener('click', () => {
-                this.onConfirm(false);
-                this.close();
-            });
-
-        const confirmButton = buttonContainer.createEl('button', {
-            text: 'Delete',
-            cls: 'mod-warning'
-        });
-        confirmButton.addEventListener('click', () => {
-            this.onConfirm(true);
-            this.close();
-        });
-    }
-
-    onClose() {
-        const { contentEl } = this;
-        contentEl.empty();
-    }
-}
 
 export class ChatView extends ItemView {
     plugin: MyPlugin;
@@ -397,7 +106,7 @@ export class ChatView extends ItemView {
                     chatContent += '\n\n' + this.plugin.settings.chatSeparator + '\n\n';
                 }
             });
-            await this.copyToClipboard(chatContent);
+            await copyToClipboard(chatContent);
         });
 
         // Save as Note button
@@ -448,7 +157,7 @@ export class ChatView extends ItemView {
             stopButton.classList.remove('hidden');
 
     // Add user message
-    await this.addMessage('user', content);
+    await createMessageElement(this.app, 'user', content, this.chatHistoryManager, this.plugin, (el) => this.regenerateResponse(el), this);
     textarea.value = '';
 
             // Create abort controller for streaming
@@ -522,7 +231,7 @@ export class ChatView extends ItemView {
                 // Remove temporary container and create permanent message
                 tempContainer.remove();
                 if (responseContent.trim() !== "") {
-                    const messageEl = this.createMessageElement('assistant', responseContent);
+                    const messageEl = await createMessageElement(this.app, 'assistant', responseContent, this.chatHistoryManager, this.plugin, (el) => this.regenerateResponse(el), this);
                     this.messagesContainer.appendChild(messageEl);
                     await this.chatHistoryManager.addMessage({
                         timestamp: messageEl.dataset.timestamp || new Date().toISOString(),
@@ -533,7 +242,7 @@ export class ChatView extends ItemView {
             } catch (error) {
                 if (error.name !== 'AbortError') {
                     new Notice(`Error: ${error.message}`);
-                    await this.addMessage('assistant', `Error: ${error.message}`);
+                    await createMessageElement(this.app, 'assistant', `Error: ${error.message}`, this.chatHistoryManager, this.plugin, (el) => this.regenerateResponse(el), this);
                 }
             } finally {
                 // Re-enable input and hide stop button
@@ -571,7 +280,7 @@ export class ChatView extends ItemView {
             try {
                 await this.chatHistoryManager.clearHistory();
                 // Show initial system message after clearing (UI only, do not persist)
-                const messageEl = this.createMessageElement('assistant', this.plugin.settings.systemMessage || 'Hello! How can I help you today?');
+                const messageEl = await createMessageElement(this.app, 'assistant', this.plugin.settings.systemMessage || 'Hello! How can I help you today?', this.chatHistoryManager, this.plugin, (el) => this.regenerateResponse(el), this);
                 this.messagesContainer.appendChild(messageEl);
                 this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
             } catch (e) {
@@ -593,7 +302,7 @@ export class ChatView extends ItemView {
             for (const msg of loadedHistory) {
                 // Only render user/assistant messages
                 if (msg.sender === "user" || msg.sender === "assistant") {
-                    const messageEl = this.createMessageElement(msg.sender as 'user' | 'assistant', msg.content);
+                    const messageEl = await createMessageElement(this.app, msg.sender as 'user' | 'assistant', msg.content, this.chatHistoryManager, this.plugin, (el) => this.regenerateResponse(el), this);
                     // Restore original timestamp from history for the UI element
                     messageEl.dataset.timestamp = msg.timestamp; 
                     this.messagesContainer.appendChild(messageEl);
@@ -603,171 +312,8 @@ export class ChatView extends ItemView {
         }
     }
 
-    private createActionButton(label: string, tooltip: string, callback: () => void): HTMLElement {
-        const button = document.createElement('button');
-        button.addClass('ai-chat-action-button');
-        button.setAttribute('aria-label', tooltip);
-
-        // Add label
-        const labelEl = document.createElement('span');
-        labelEl.textContent = label;
-        button.appendChild(labelEl);
-
-        button.addEventListener('click', callback);
-        return button;
-    }
-
-    private async copyToClipboard(text: string): Promise<void> {
-        try {
-            await navigator.clipboard.writeText(text);
-            new Notice('Copied to clipboard');
-        } catch (error) {
-            new Notice('Failed to copy to clipboard');
-            console.error('Clipboard error:', error);
-        }
-    }
-
-    private createMessageElement(role: 'user' | 'assistant', content: string): HTMLElement {
-        const messageEl = document.createElement('div');
-        messageEl.addClass('ai-chat-message', role);
-        // All styling for messageEl is now handled by .ai-chat-message and .ai-chat-message.user/.assistant in styles.css
-
-        // Create message container with content and actions
-        const messageContainer = messageEl.createDiv('message-container');
-
-        // Create content element
-        const contentEl = messageContainer.createDiv('message-content');
-        // All styling for contentEl is now handled by .message-content in styles.css
-        
-        // Store the raw Markdown content and timestamp as data attributes
-        messageEl.dataset.rawContent = content;
-        messageEl.dataset.timestamp = new Date().toISOString();
-
-        // Render Markdown content
-        MarkdownRenderer.render(
-            this.app,
-            content,
-            contentEl,
-            '',
-            this
-        ).catch((error) => {
-            console.error('Markdown rendering error:', error);
-            contentEl.textContent = content;
-        });
-
-        // Create actions container
-        const actionsEl = messageContainer.createDiv('message-actions');
-        // All styling for actionsEl is now handled by .message-actions in styles.css
-        actionsEl.classList.add('hidden');
-
-        // Add hover behavior to the message element
-        messageEl.addEventListener('mouseenter', () => {
-            actionsEl.classList.remove('hidden');
-            actionsEl.classList.add('visible');
-        });
-        messageEl.addEventListener('mouseleave', () => {
-            actionsEl.classList.remove('visible');
-            actionsEl.classList.add('hidden');
-        });
-
-        // Add copy button
-        actionsEl.appendChild(this.createActionButton('Copy', 'Copy message', () => {
-            const currentContent = messageEl.dataset.rawContent || '';
-            if (currentContent.trim() === '') {
-                new Notice('No content to copy');
-                return;
-            }
-            this.copyToClipboard(currentContent);
-        }));
-
-        // Add edit button
-        actionsEl.appendChild(this.createActionButton('Edit', 'Edit message', async () => {
-            const wasEditing = contentEl.hasClass('editing');
-            
-            if (!wasEditing) {
-                // Switch to edit mode
-                const textarea = document.createElement('textarea');
-                textarea.value = messageEl.dataset.rawContent || '';
-                textarea.className = 'message-content editing'; // Use class for styling
-                // Height will be handled by CSS, but if you want to set it dynamically, you can still do so
-                // textarea.style.height = `${contentEl.offsetHeight}px`;
-                contentEl.empty();
-                contentEl.appendChild(textarea);
-                textarea.focus();
-                contentEl.addClass('editing');
-            } else {
-                // Save edits
-                const textarea = contentEl.querySelector('textarea');
-                if (textarea) {
-                    const oldContent = messageEl.dataset.rawContent;
-                    const newContent = textarea.value;
-                    
-                    try {
-                        // Update in persistent history first
-                        await this.chatHistoryManager.updateMessage(
-                            messageEl.dataset.timestamp || new Date().toISOString(),
-                            messageEl.classList.contains('user') ? 'user' : 'assistant',
-                            oldContent || '',
-                            newContent
-                        );
-                        // Then update UI
-                        messageEl.dataset.rawContent = newContent;
-                        contentEl.empty();
-                        await MarkdownRenderer.render(this.app, newContent, contentEl, '', this);
-                        contentEl.removeClass('editing');
-                    } catch (e) {
-                        new Notice("Failed to save edited message.");
-                        // Revert to old content on error
-                        messageEl.dataset.rawContent = oldContent || '';
-                        contentEl.empty();
-                        await MarkdownRenderer.render(this.app, oldContent || '', contentEl, '', this);
-                        contentEl.removeClass('editing');
-                    }
-                }
-            }
-        }));
-
-        // Add delete button
-        actionsEl.appendChild(this.createActionButton('Delete', 'Delete message', () => {
-            const modal = new ConfirmationModal(
-                this.app,
-                'Delete message',
-                'Are you sure you want to delete this message?',
-                async (confirmed) => {
-                    if (confirmed) {
-                        try {
-                            // Delete from persistent history first
-                            await this.chatHistoryManager.deleteMessage(
-                                messageEl.dataset.timestamp || new Date().toISOString(),
-                                messageEl.classList.contains('user') ? 'user' : 'assistant',
-                                messageEl.dataset.rawContent || ''
-                            );
-                            // Then remove from UI
-                            messageEl.remove();
-                        } catch (e) {
-                            new Notice("Failed to delete message from history.");
-                        }
-                    }
-                }
-            );
-            modal.open();
-        }));
-
-        // Add a single regenerate button with context-aware label
-        const regenerateLabel = role === 'assistant' ? 'Regenerate' : 'Regenerate';
-        const regenerateTooltip = role === 'assistant' ? 'Regenerate this response' : 'Regenerate AI response';
-        actionsEl.appendChild(this.createActionButton(regenerateLabel, regenerateTooltip, () => {
-            this.regenerateResponse(messageEl);
-        }));
-
-        // Append actions container to message container
-        messageContainer.appendChild(actionsEl);
-
-        return messageEl;
-    }
-
     private async addMessage(role: 'user' | 'assistant', content: string, isError: boolean = false) {
-        const messageEl = this.createMessageElement(role, content);
+        const messageEl = await createMessageElement(this.app, role, content, this.chatHistoryManager, this.plugin, (el) => this.regenerateResponse(el), this);
         // The timestamp for the UI element is set within createMessageElement
         const uiTimestamp = messageEl.dataset.timestamp || new Date().toISOString(); // Fallback, though createMessageElement should set it
         
@@ -861,7 +407,7 @@ export class ChatView extends ItemView {
         // Remove the old assistant message and insert a new one for streaming
         const originalTimestamp = messageEl.dataset.timestamp || new Date().toISOString();
         const originalContent = messageEl.dataset.rawContent || '';
-        const assistantContainer = this.createMessageElement('assistant', '');
+        const assistantContainer = await createMessageElement(this.app, 'assistant', '', this.chatHistoryManager, this.plugin, (el) => this.regenerateResponse(el), this);
         assistantContainer.dataset.timestamp = originalTimestamp;
         this.messagesContainer.insertBefore(assistantContainer, messageEl.nextSibling);
         this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;

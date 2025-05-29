@@ -2,19 +2,14 @@ import { App, Modal, Setting, Notice } from 'obsidian';
 import MyPlugin from '../../main';
 import { createProvider } from '../../../providers';
 
-/**
- * Modal for configuring AI model settings
- */
 export class SettingsModal extends Modal {
-    private plugin: MyPlugin;
-
+    plugin: MyPlugin;
     constructor(app: App, plugin: MyPlugin) {
         super(app);
         this.plugin = plugin;
         this.titleEl.setText('AI Model Settings');
     }
-
-    async onOpen() {
+    onOpen() {
         const { contentEl } = this;
         contentEl.empty();
         contentEl.addClass('ai-settings-modal');
@@ -301,7 +296,6 @@ export class SettingsModal extends Modal {
     }
 
     onClose() {
-        const { contentEl } = this;
-        contentEl.empty();
+        this.contentEl.empty();
     }
 }
