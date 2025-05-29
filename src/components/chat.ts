@@ -149,8 +149,10 @@ export class ChatView extends ItemView {
             stopButton.classList.remove('hidden');
 
     // Add user message
-    await createMessageElement(this.app, 'user', content, this.chatHistoryManager, this.plugin, (el) => this.regenerateResponse(el), this);
-    textarea.value = '';
+        const userMessageEl = await createMessageElement(this.app, 'user', content, this.chatHistoryManager, this.plugin, (el) => this.regenerateResponse(el), this);
+        this.messagesContainer.appendChild(userMessageEl);
+        this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+        textarea.value = '';
 
             // Create abort controller for streaming
             this.activeStream = new AbortController();

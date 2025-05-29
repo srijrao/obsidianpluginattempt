@@ -5335,7 +5335,9 @@ var ChatView = class extends import_obsidian8.ItemView {
       textarea.disabled = true;
       sendButton.classList.add("hidden");
       stopButton.classList.remove("hidden");
-      await createMessageElement(this.app, "user", content, this.chatHistoryManager, this.plugin, (el) => this.regenerateResponse(el), this);
+      const userMessageEl = await createMessageElement(this.app, "user", content, this.chatHistoryManager, this.plugin, (el) => this.regenerateResponse(el), this);
+      this.messagesContainer.appendChild(userMessageEl);
+      this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
       textarea.value = "";
       this.activeStream = new AbortController();
       try {
