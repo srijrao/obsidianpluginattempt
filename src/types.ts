@@ -78,6 +78,16 @@ export interface AIProvider {
 }
 
 /**
+ * Represents a YAML attribute generator for the settings UI
+ */
+export interface YamlAttributeGenerator {
+    attributeName: string; // The YAML field to insert/update
+    prompt: string;        // The LLM prompt to use for generating the value
+    outputMode: "clipboard" | "metadata"; // Output mode
+    commandName: string;   // The name/label for the command
+}
+
+/**
  * Plugin Settings
  * 
  * These settings control how the AI Assistant plugin works.
@@ -182,6 +192,9 @@ export interface MyPluginSettings {
      * Folder path (relative to vault root) where chat notes will be saved. If empty, saves to vault root.
      */
     chatNoteFolder?: string;
+
+    /** YAML attribute generators for the settings UI */
+    yamlAttributeGenerators?: YamlAttributeGenerator[];
 }
 
 /**
@@ -237,7 +250,16 @@ export const DEFAULT_SETTINGS: MyPluginSettings = {
     expandLinkedNotesRecursively: false,
     maxLinkExpansionDepth: 2,
 
-    chatNoteFolder: '' // Default to vault root
+    chatNoteFolder: '', // Default to vault root
+
+    yamlAttributeGenerators: [
+        {
+            attributeName: "summary",
+            prompt: "You are a note summarizer. Read the note content and generate a concise summary (2 sentences at most) that captures the main ideas and purpose of the note. Do not include backslashes, forward slashes, or colons. Only output the summary as your response.",
+            outputMode: "metadata",
+            commandName: "Generate YAML: summary"
+        }
+    ]
 };
 
 /**

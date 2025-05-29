@@ -2,7 +2,7 @@ import { ItemView, WorkspaceLeaf, Notice, MarkdownRenderer } from 'obsidian';
 import MyPlugin from '../main';
 import { Message } from '../types';
 import { createProvider } from '../../providers';
-import { ChatHistoryManager, ChatMessage } from '../ChatHistoryManager';
+import { ChatHistoryManager, ChatMessage } from './chat/ChatHistoryManager';
 import { SettingsModal } from './chat/SettingsModal';
 import { ConfirmationModal } from './chat/ConfirmationModal';
 import { createMessageElement } from './chat/Message';

@@ -31,6 +31,7 @@ export default class MyPlugin extends Plugin {
     settings: MyPluginSettings;
     modelSettingsView: ModelSettingsView | null = null;
     activeStream: AbortController | null = null;
+    private _yamlAttributeCommandIds: string[] = [];
 
     async onload() {
         await this.loadSettings();
@@ -294,19 +295,18 @@ export default class MyPlugin extends Plugin {
             }
         });
 
-        // Generate Note Summary Command
-        this.addCommand({
-            id: 'generate-note-summary',
-            name: 'Generate Note Summary',
-            callback: async () => {
-                const { generateNoteSummary } = await import("./filechanger");
-                await generateNoteSummary(
-                    this.app,
-                    this.settings,
-                    (messages) => this.processMessages(messages)
-                );
-            }
-        });
+        // this.addCommand({
+        //     id: 'generate-note-summary',
+        //     name: 'Generate Note Summary',
+        //     callback: async () => {
+        //         const { generateNoteSummary } = await import("./filechanger");
+        //         await generateNoteSummary(
+        //             this.app,
+        //             this.settings,
+        //             (messages) => this.processMessages(messages)
+        //         );
+        //     }
+        // });
 
         this.addCommand({
             id: 'load-chat-note-into-chat',
@@ -342,7 +342,48 @@ export default class MyPlugin extends Plugin {
                 new Notice('Loaded chat note into chat.');
             }
         });
-    }    public getSystemMessage(): string {
+        // --- Register YAML Attribute Generator Commands ---
+        this.registerYamlAttributeCommands();
+    }
+
+    /**
+     * Register YAML attribute generator commands dynamically based on settings.
+     * Unregisters previous commands before registering new ones.
+     */
+    private registerYamlAttributeCommands() {
+        // Unregister previous commands
+        if (this._yamlAttributeCommandIds && this._yamlAttributeCommandIds.length > 0) {
+            for (const id of this._yamlAttributeCommandIds) {
+                // @ts-ignore: Obsidian Plugin API has undocumented method
+                this.app.commands.removeCommand(id);
+            }
+        }
+        this._yamlAttributeCommandIds = [];
+        if (this.settings.yamlAttributeGenerators && Array.isArray(this.settings.yamlAttributeGenerators)) {
+            for (const gen of this.settings.yamlAttributeGenerators) {
+                if (!gen.attributeName || !gen.prompt || !gen.commandName) continue;
+                const id = `generate-yaml-attribute-${gen.attributeName}`;
+                this.addCommand({
+                    id,
+                    name: gen.commandName,
+                    callback: async () => {
+                        const { generateYamlAttribute } = await import("./filechanger");
+                        await generateYamlAttribute(
+                            this.app,
+                            this.settings,
+                            (messages) => this.processMessages(messages),
+                            gen.attributeName,
+                            gen.prompt,
+                            gen.outputMode
+                        );
+                    }
+                });
+                this._yamlAttributeCommandIds.push(id);
+            }
+        }
+    }
+
+    public getSystemMessage(): string {
         return getSystemMessage(this.settings);
     }
 
@@ -375,6 +416,7 @@ export default class MyPlugin extends Plugin {
 
     async saveSettings() {
         await this.saveData(this.settings);
+        this.registerYamlAttributeCommands(); // Update commands after saving settings
     }
 
     private async processMessages(messages: Message[]): Promise<Message[]> {

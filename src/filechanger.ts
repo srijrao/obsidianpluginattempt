@@ -1,7 +1,7 @@
 import { Notice, TFile, App } from "obsidian";
 import { createProvider } from "../providers";
 import { Message, MyPluginSettings } from "./types";
-import { DEFAULT_TITLE_PROMPT, DEFAULT_SUMMARY_PROMPT } from "./prompts";
+import { DEFAULT_TITLE_PROMPT, DEFAULT_SUMMARY_PROMPT, DEFAULT_YAML_SYSTEM_MESSAGE } from "./prompts";
 import * as yaml from "js-yaml";
 
 /**
@@ -23,41 +23,6 @@ function generateTableOfContents(noteContent: string): string {
         .join('\n');
 }
 
-/*
--------------------------------
-Function Definitions & Behavior
--------------------------------
-
-generateTableOfContents(noteContent: string): string
----------------------------------------------------
-- Scans the provided note content for all Markdown headers (lines starting with #, ##, ###, etc.).
-- For each header, determines its level (number of #) and extracts the header text.
-- Builds a hierarchical Table of Contents as a bullet list, indenting subheaders (2 spaces per level after H1).
-- Returns the TOC as a string, or an empty string if no headers are found.
-
-generateNoteTitle(app, settings, processMessages): Promise<void>
----------------------------------------------------------------
-- Gets the active note in Obsidian and reads its content (up to 15,000 characters).
-- Calls generateTableOfContents to create a TOC from the note's headers.
-- Constructs a prompt for the LLM, including the TOC if present, and the note content.
-- Sends the prompt to the LLM provider using the configured settings.
-- Receives the generated title, copies it to the clipboard, and displays it in a Notice.
-
-generateNoteSummary(app, settings, processMessages): Promise<void>
------------------------------------------------------------------
-- Gets the active note in Obsidian and reads its content (up to 15,000 characters).
-- Calls generateTableOfContents to create a TOC from the note's headers.
-- Constructs a prompt for the LLM, including the TOC if present, and the note content.
-- Sends the prompt to the LLM provider using the configured settings.
-- Receives the generated summary, copies it to the clipboard, and displays it in a Notice.
-
-*/
-
-/**
- * Generate a succinct title for the active note using the LLM provider.
- * Copies the result to clipboard and shows a Notice.
- */
-// Enable this for verbose debugging
 const DEBUG = true;
 
 function debug(...args: any[]) {
@@ -78,48 +43,40 @@ export async function generateNoteTitle(
         return;
     }
     let noteContent = await app.vault.cachedRead(activeFile);
-    // Snip to 15,000 chars
     noteContent = noteContent.slice(0, 15000);
 
     // Generate Table of Contents from all headers in the note
     const toc = generateTableOfContents(noteContent);
 
-    // Compose the prompt
-    let prompt = settings.titlePrompt + " for:\n\n";
-    if (toc && toc.trim().length > 0) {
-        prompt += "Table of Contents:\n" + toc + "\n\n";
-    }
-    prompt += noteContent;
+    // Use the default title prompt from prompts.ts
+    const prompt = DEFAULT_TITLE_PROMPT;
+    const userContent = (toc && toc.trim().length > 0 ? "Table of Contents:\n" + toc + "\n\n" : "") + noteContent;
 
-    // Use the provider system
     try {
         debug("Provider:", settings.provider);
         const provider = createProvider(settings);
-        // Compose messages: system = instruction, user = note content (with TOC)
+        // Compose messages: system = prompt, user = note content (with TOC)
         const messages: Message[] = [
-            { role: "system", content: settings.titlePrompt },
-            { role: "user", content: (toc && toc.trim().length > 0 ? "Table of Contents:\n" + toc + "\n\n" : "") + noteContent }
+            { role: "system", content: prompt },
+            { role: "user", content: userContent }
         ];
 
-        // Use processMessages for Obsidian link expansion, but skip context notes
         debug("Original messages:", JSON.stringify(messages));
         const originalEnableContextNotes = settings.enableContextNotes;
         debug("Original enableContextNotes:", originalEnableContextNotes);
         (settings as any).enableContextNotes = false;
-        
+
         try {
             const processedMessages = await processMessages(messages);
             debug("Processed messages:", JSON.stringify(processedMessages));
             (settings as any).enableContextNotes = originalEnableContextNotes;
 
-            // Ensure there are messages to send
             if (!processedMessages || processedMessages.length === 0) {
                 debug("No processed messages!");
                 new Notice("No valid messages to send to the model. Please check your note content.");
                 return;
             }
 
-            // Get completion (buffer streamed output)
             debug("Calling provider.getCompletion");
             let resultBuffer = "";
             await provider.getCompletion(processedMessages, {
@@ -141,7 +98,6 @@ export async function generateNoteTitle(
                 const outputMode = settings.titleOutputMode ?? "clipboard";
                 debug("Output mode:", outputMode);
                 if (outputMode === "replace-filename") {
-                    // Rename the note file (preserve extension)
                     const file = app.workspace.getActiveFile();
                     if (file) {
                         const ext = file.extension ? "." + file.extension : "";
@@ -156,14 +112,12 @@ export async function generateNoteTitle(
                         }
                     }
                 } else if (outputMode === "metadata") {
-                    // Insert or update title in YAML frontmatter using helper
                     const file = app.workspace.getActiveFile();
                     if (file) {
                         await upsertYamlField(app, file, "title", title);
                         new Notice(`Inserted title into metadata: ${title}`);
                     }
                 } else {
-                    // Clipboard (default)
                     try {
                         await navigator.clipboard.writeText(title);
                         new Notice(`Generated title (copied): ${title}`);
@@ -186,16 +140,18 @@ export async function generateNoteTitle(
 }
 
 /**
- * Generate a concise summary for the active note using the LLM provider.
- * Prepends the Table of Contents (if present) to the note content for the LLM.
- * Copies the result to clipboard and shows a Notice.
+ * Generic function to generate and insert/update a YAML attribute in the active note.
+ * Always uses the default system message and temperature 0.
  */
-export async function generateNoteSummary(
+export async function generateYamlAttribute(
     app: App,
     settings: MyPluginSettings,
-    processMessages: (messages: Message[]) => Promise<Message[]>
+    processMessages: (messages: Message[]) => Promise<Message[]>,
+    attributeName: string,
+    prompt: string,
+    outputMode: string = "metadata"
 ) {
-    debug("Starting generateNoteSummary");
+    debug(`Starting generateYamlAttribute for ${attributeName}`);
     const activeFile = app.workspace.getActiveFile();
     if (!activeFile) {
         new Notice("No active note found.");
@@ -204,92 +160,69 @@ export async function generateNoteSummary(
     let noteContent = await app.vault.cachedRead(activeFile);
     noteContent = noteContent.slice(0, 15000);
 
-    // Generate Table of Contents from all headers in the note
-    const toc = generateTableOfContents(noteContent);
+    // Compose messages: system = default system message, user = prompt + note content
+    const messages: Message[] = [
+        { role: "system", content: DEFAULT_YAML_SYSTEM_MESSAGE },
+        { role: "user", content: prompt + "\n\n" + noteContent }
+    ];
 
-    // Compose the prompt
-    let prompt = settings.summaryPrompt + "\n\n";
-    if (toc && toc.trim().length > 0) {
-        prompt += "Table of Contents:\n" + toc + "\n\n";
-    }
-    prompt += noteContent;
+    // Use processMessages for Obsidian link expansion, but skip context notes
+    debug("Original messages:", JSON.stringify(messages));
+    const originalEnableContextNotes = settings.enableContextNotes;
+    debug("Original enableContextNotes:", originalEnableContextNotes);
+    (settings as any).enableContextNotes = false;
 
-    // Use the provider system
     try {
-        debug("Provider:", settings.provider);
-        const provider = createProvider(settings);
-        // Compose messages: system = instruction, user = note content (with TOC)
-        const messages: Message[] = [
-            { role: "system", content: settings.summaryPrompt },
-            { role: "user", content: (toc && toc.trim().length > 0 ? "Table of Contents:\n" + toc + "\n\n" : "") + noteContent }
-        ];
+        const processedMessages = await processMessages(messages);
+        debug("Processed messages:", JSON.stringify(processedMessages));
+        (settings as any).enableContextNotes = originalEnableContextNotes;
 
-        // Use processMessages for Obsidian link expansion, but skip context notes
-        debug("Original messages:", JSON.stringify(messages));
-        const originalEnableContextNotes = settings.enableContextNotes;
-        debug("Original enableContextNotes:", originalEnableContextNotes);
-        (settings as any).enableContextNotes = false;
-        
-        try {
-            const processedMessages = await processMessages(messages);
-            debug("Processed messages:", JSON.stringify(processedMessages));
-            (settings as any).enableContextNotes = originalEnableContextNotes;
-
-            // Ensure there are messages to send
-            if (!processedMessages || processedMessages.length === 0) {
-                debug("No processed messages!");
-                new Notice("No valid messages to send to the model. Please check your note content.");
-                return;
-            }
-
-            // Get completion (buffer streamed output)
-            debug("Calling provider.getCompletion");
-            let resultBuffer = "";
-            await provider.getCompletion(processedMessages, {
-                temperature: 0,
-                streamCallback: (chunk: string) => {
-                    resultBuffer += chunk;
-                }
-            });
-            debug("Result from provider (buffered):", resultBuffer);
-
-            let summary = resultBuffer.trim();
-            debug("Extracted summary before sanitization:", summary);
-
-            // Remove forbidden characters: backslashes, forward slashes, colons
-            summary = summary.replace(/[\\/:]/g, "").trim();
-            debug("Sanitized summary:", summary);
-
-            if (summary && typeof summary === "string" && summary.length > 0) {
-                const outputMode = settings.summaryOutputMode ?? "clipboard";
-                debug("Output mode:", outputMode);
-                if (outputMode === "metadata") {
-                    // Insert or update summary in YAML frontmatter using helper
-                    const file = app.workspace.getActiveFile();
-                    if (file) {
-                        await upsertYamlField(app, file, "abstract", summary);
-                        new Notice(`Inserted summary into metadata: ${summary}`);
-                    }
-                } else {
-                    // Clipboard (default)
-                    try {
-                        await navigator.clipboard.writeText(summary);
-                        new Notice(`Generated summary (copied): ${summary}`);
-                    } catch (e) {
-                        new Notice(`Generated summary: ${summary}`);
-                    }
-                }
-            } else {
-                debug("No summary generated after sanitization.");
-                new Notice("No summary generated.");
-            }
-        } catch (processError) {
-            debug("Error in processMessages or provider.getCompletion:", processError);
-            (settings as any).enableContextNotes = originalEnableContextNotes;
-            throw processError;
+        if (!processedMessages || processedMessages.length === 0) {
+            debug("No processed messages!");
+            new Notice("No valid messages to send to the model. Please check your note content.");
+            return;
         }
-    } catch (err) {
-        new Notice("Error generating summary: " + (err?.message ?? err));
+
+        // Get completion (buffer streamed output)
+        debug("Calling provider.getCompletion");
+        const provider = createProvider(settings);
+        let resultBuffer = "";
+        await provider.getCompletion(processedMessages, {
+            temperature: 0,
+            streamCallback: (chunk: string) => {
+                resultBuffer += chunk;
+            }
+        });
+        debug("Result from provider (buffered):", resultBuffer);
+
+        let value = resultBuffer.trim();
+        debug("Extracted value before sanitization:", value);
+        value = value.replace(/[\\/:]/g, "").trim();
+        debug("Sanitized value:", value);
+
+        if (value && typeof value === "string" && value.length > 0) {
+            debug("Output mode:", outputMode);
+            if (outputMode === "metadata") {
+                // Insert or update attribute in YAML frontmatter using helper
+                await upsertYamlField(app, activeFile, attributeName, value);
+                new Notice(`Inserted ${attributeName} into metadata: ${value}`);
+            } else {
+                // Clipboard (default)
+                try {
+                    await navigator.clipboard.writeText(value);
+                    new Notice(`Generated ${attributeName} (copied): ${value}`);
+                } catch (e) {
+                    new Notice(`Generated ${attributeName}: ${value}`);
+                }
+            }
+        } else {
+            debug(`No value generated for ${attributeName} after sanitization.`);
+            new Notice(`No value generated for ${attributeName}.`);
+        }
+    } catch (processError) {
+        debug("Error in processMessages or provider.getCompletion:", processError);
+        (settings as any).enableContextNotes = originalEnableContextNotes;
+        throw processError;
     }
 }
 

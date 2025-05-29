@@ -26,6 +26,74 @@ var __copyProps = (to, from, except, desc) => {
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
 
+// src/types.ts
+var types_exports = {};
+__export(types_exports, {
+  DEFAULT_SETTINGS: () => DEFAULT_SETTINGS
+});
+var DEFAULT_SETTINGS;
+var init_types = __esm({
+  "src/types.ts"() {
+    DEFAULT_SETTINGS = {
+      referenceCurrentNote: false,
+      provider: "openai",
+      openaiSettings: {
+        apiKey: "",
+        model: "gpt-4o-mini",
+        availableModels: []
+      },
+      anthropicSettings: {
+        apiKey: "",
+        model: "claude-3-5-sonnet-latest",
+        availableModels: []
+      },
+      geminiSettings: {
+        apiKey: "",
+        model: "gemini-pro",
+        availableModels: []
+      },
+      ollamaSettings: {
+        serverUrl: "http://localhost:11434",
+        model: "llama2",
+        availableModels: []
+      },
+      systemMessage: "You are a helpful assistant.",
+      temperature: 0.7,
+      maxTokens: 1e3,
+      includeDateWithSystemMessage: false,
+      includeTimeWithSystemMessage: false,
+      enableStreaming: true,
+      autoOpenModelSettings: true,
+      enableObsidianLinks: true,
+      titleOutputMode: "clipboard",
+      summaryOutputMode: "clipboard",
+      chatSeparator: "----",
+      chatStartString: void 0,
+      chatEndString: void 0,
+      enableContextNotes: false,
+      contextNotes: "",
+      titlePrompt: "You are a title generator. You will give succinct titles that does not contain backslashes, forward slashes, or colons. Only generate a title as your response.",
+      summaryPrompt: "You are a note summarizer. Read the note content and generate a concise summary (2 sentences at most) that captures the main ideas and purpose of the note. Do not include backslashes, forward slashes, or colons. Only output the summary as your response.",
+      maxSessions: 10,
+      autoSaveSessions: true,
+      sessions: [],
+      activeSessionId: void 0,
+      expandLinkedNotesRecursively: false,
+      maxLinkExpansionDepth: 2,
+      chatNoteFolder: "",
+      // Default to vault root
+      yamlAttributeGenerators: [
+        {
+          attributeName: "summary",
+          prompt: "You are a note summarizer. Read the note content and generate a concise summary (2 sentences at most) that captures the main ideas and purpose of the note. Do not include backslashes, forward slashes, or colons. Only output the summary as your response.",
+          outputMode: "metadata",
+          commandName: "Generate YAML: summary"
+        }
+      ]
+    };
+  }
+});
+
 // providers/base.ts
 var ProviderError, BaseProvider;
 var init_base = __esm({
@@ -4183,6 +4251,22 @@ var init_providers = __esm({
   }
 });
 
+// src/prompts.ts
+var prompts_exports = {};
+__export(prompts_exports, {
+  DEFAULT_SUMMARY_PROMPT: () => DEFAULT_SUMMARY_PROMPT,
+  DEFAULT_TITLE_PROMPT: () => DEFAULT_TITLE_PROMPT,
+  DEFAULT_YAML_SYSTEM_MESSAGE: () => DEFAULT_YAML_SYSTEM_MESSAGE
+});
+var DEFAULT_TITLE_PROMPT, DEFAULT_SUMMARY_PROMPT, DEFAULT_YAML_SYSTEM_MESSAGE;
+var init_prompts = __esm({
+  "src/prompts.ts"() {
+    DEFAULT_TITLE_PROMPT = "You are a title generator. You will give succinct titles that do not contain backslashes, forward slashes, or colons. Only generate a title as your response.";
+    DEFAULT_SUMMARY_PROMPT = "Summarize the note content in 1-2 sentences, focusing on the main ideas and purpose.";
+    DEFAULT_YAML_SYSTEM_MESSAGE = "You are an assistant that generates YAML attribute values for Obsidian notes. Read the note content and generate a concise value for the specified YAML field. Do not include backslashes, forward slashes, or colons. Only output the value, no extra text.";
+  }
+});
+
 // node_modules/js-yaml/dist/js-yaml.mjs
 function isNothing(subject) {
   return typeof subject === "undefined" || subject === null;
@@ -6773,8 +6857,8 @@ var init_js_yaml = __esm({
 // src/filechanger.ts
 var filechanger_exports = {};
 __export(filechanger_exports, {
-  generateNoteSummary: () => generateNoteSummary,
   generateNoteTitle: () => generateNoteTitle,
+  generateYamlAttribute: () => generateYamlAttribute,
   upsertYamlField: () => upsertYamlField
 });
 function generateTableOfContents(noteContent) {
@@ -6804,17 +6888,14 @@ async function generateNoteTitle(app, settings, processMessages2) {
   let noteContent = await app.vault.cachedRead(activeFile);
   noteContent = noteContent.slice(0, 15e3);
   const toc = generateTableOfContents(noteContent);
-  let prompt = settings.titlePrompt + " for:\n\n";
-  if (toc && toc.trim().length > 0) {
-    prompt += "Table of Contents:\n" + toc + "\n\n";
-  }
-  prompt += noteContent;
+  const prompt = DEFAULT_TITLE_PROMPT;
+  const userContent = (toc && toc.trim().length > 0 ? "Table of Contents:\n" + toc + "\n\n" : "") + noteContent;
   try {
     debug2("Provider:", settings.provider);
     const provider = createProvider(settings);
     const messages = [
-      { role: "system", content: settings.titlePrompt },
-      { role: "user", content: (toc && toc.trim().length > 0 ? "Table of Contents:\n" + toc + "\n\n" : "") + noteContent }
+      { role: "system", content: prompt },
+      { role: "user", content: userContent }
     ];
     debug2("Original messages:", JSON.stringify(messages));
     const originalEnableContextNotes = settings.enableContextNotes;
@@ -6886,9 +6967,8 @@ async function generateNoteTitle(app, settings, processMessages2) {
     new import_obsidian11.Notice("Error generating title: " + ((_b = err == null ? void 0 : err.message) != null ? _b : err));
   }
 }
-async function generateNoteSummary(app, settings, processMessages2) {
-  var _a2, _b;
-  debug2("Starting generateNoteSummary");
+async function generateYamlAttribute(app, settings, processMessages2, attributeName, prompt, outputMode = "metadata") {
+  debug2(`Starting generateYamlAttribute for ${attributeName}`);
   const activeFile = app.workspace.getActiveFile();
   if (!activeFile) {
     new import_obsidian11.Notice("No active note found.");
@@ -6896,73 +6976,58 @@ async function generateNoteSummary(app, settings, processMessages2) {
   }
   let noteContent = await app.vault.cachedRead(activeFile);
   noteContent = noteContent.slice(0, 15e3);
-  const toc = generateTableOfContents(noteContent);
-  let prompt = settings.summaryPrompt + "\n\n";
-  if (toc && toc.trim().length > 0) {
-    prompt += "Table of Contents:\n" + toc + "\n\n";
-  }
-  prompt += noteContent;
+  const messages = [
+    { role: "system", content: DEFAULT_YAML_SYSTEM_MESSAGE },
+    { role: "user", content: prompt + "\n\n" + noteContent }
+  ];
+  debug2("Original messages:", JSON.stringify(messages));
+  const originalEnableContextNotes = settings.enableContextNotes;
+  debug2("Original enableContextNotes:", originalEnableContextNotes);
+  settings.enableContextNotes = false;
   try {
-    debug2("Provider:", settings.provider);
-    const provider = createProvider(settings);
-    const messages = [
-      { role: "system", content: settings.summaryPrompt },
-      { role: "user", content: (toc && toc.trim().length > 0 ? "Table of Contents:\n" + toc + "\n\n" : "") + noteContent }
-    ];
-    debug2("Original messages:", JSON.stringify(messages));
-    const originalEnableContextNotes = settings.enableContextNotes;
-    debug2("Original enableContextNotes:", originalEnableContextNotes);
-    settings.enableContextNotes = false;
-    try {
-      const processedMessages = await processMessages2(messages);
-      debug2("Processed messages:", JSON.stringify(processedMessages));
-      settings.enableContextNotes = originalEnableContextNotes;
-      if (!processedMessages || processedMessages.length === 0) {
-        debug2("No processed messages!");
-        new import_obsidian11.Notice("No valid messages to send to the model. Please check your note content.");
-        return;
-      }
-      debug2("Calling provider.getCompletion");
-      let resultBuffer = "";
-      await provider.getCompletion(processedMessages, {
-        temperature: 0,
-        streamCallback: (chunk) => {
-          resultBuffer += chunk;
-        }
-      });
-      debug2("Result from provider (buffered):", resultBuffer);
-      let summary = resultBuffer.trim();
-      debug2("Extracted summary before sanitization:", summary);
-      summary = summary.replace(/[\\/:]/g, "").trim();
-      debug2("Sanitized summary:", summary);
-      if (summary && typeof summary === "string" && summary.length > 0) {
-        const outputMode = (_a2 = settings.summaryOutputMode) != null ? _a2 : "clipboard";
-        debug2("Output mode:", outputMode);
-        if (outputMode === "metadata") {
-          const file = app.workspace.getActiveFile();
-          if (file) {
-            await upsertYamlField(app, file, "abstract", summary);
-            new import_obsidian11.Notice(`Inserted summary into metadata: ${summary}`);
-          }
-        } else {
-          try {
-            await navigator.clipboard.writeText(summary);
-            new import_obsidian11.Notice(`Generated summary (copied): ${summary}`);
-          } catch (e) {
-            new import_obsidian11.Notice(`Generated summary: ${summary}`);
-          }
-        }
-      } else {
-        debug2("No summary generated after sanitization.");
-        new import_obsidian11.Notice("No summary generated.");
-      }
-    } catch (processError) {
-      debug2("Error in processMessages or provider.getCompletion:", processError);
-      settings.enableContextNotes = originalEnableContextNotes;
-      throw processError;
+    const processedMessages = await processMessages2(messages);
+    debug2("Processed messages:", JSON.stringify(processedMessages));
+    settings.enableContextNotes = originalEnableContextNotes;
+    if (!processedMessages || processedMessages.length === 0) {
+      debug2("No processed messages!");
+      new import_obsidian11.Notice("No valid messages to send to the model. Please check your note content.");
+      return;
     }
-  } catch (err) {
-    new import_obsidian11.Notice("Error generating summary: " + ((_b = err == null ? void 0 : err.message) != null ? _b : err));
+    debug2("Calling provider.getCompletion");
+    const provider = createProvider(settings);
+    let resultBuffer = "";
+    await provider.getCompletion(processedMessages, {
+      temperature: 0,
+      streamCallback: (chunk) => {
+        resultBuffer += chunk;
+      }
+    });
+    debug2("Result from provider (buffered):", resultBuffer);
+    let value = resultBuffer.trim();
+    debug2("Extracted value before sanitization:", value);
+    value = value.replace(/[\\/:]/g, "").trim();
+    debug2("Sanitized value:", value);
+    if (value && typeof value === "string" && value.length > 0) {
+      debug2("Output mode:", outputMode);
+      if (outputMode === "metadata") {
+        await upsertYamlField(app, activeFile, attributeName, value);
+        new import_obsidian11.Notice(`Inserted ${attributeName} into metadata: ${value}`);
+      } else {
+        try {
+          await navigator.clipboard.writeText(value);
+          new import_obsidian11.Notice(`Generated ${attributeName} (copied): ${value}`);
+        } catch (e) {
+          new import_obsidian11.Notice(`Generated ${attributeName}: ${value}`);
+        }
+      }
+    } else {
+      debug2(`No value generated for ${attributeName} after sanitization.`);
+      new import_obsidian11.Notice(`No value generated for ${attributeName}.`);
+    }
+  } catch (processError) {
+    debug2("Error in processMessages or provider.getCompletion:", processError);
+    settings.enableContextNotes = originalEnableContextNotes;
+    throw processError;
   }
 }
 async function upsertYamlField(app, file, field, value) {
@@ -6996,6 +7061,7 @@ var init_filechanger = __esm({
   "src/filechanger.ts"() {
     import_obsidian11 = require("obsidian");
     init_providers();
+    init_prompts();
     init_js_yaml();
     DEBUG = true;
   }
@@ -7008,59 +7074,7 @@ __export(main_exports, {
 });
 module.exports = __toCommonJS(main_exports);
 var import_obsidian12 = require("obsidian");
-
-// src/types.ts
-var DEFAULT_SETTINGS = {
-  referenceCurrentNote: false,
-  provider: "openai",
-  openaiSettings: {
-    apiKey: "",
-    model: "gpt-4o-mini",
-    availableModels: []
-  },
-  anthropicSettings: {
-    apiKey: "",
-    model: "claude-3-5-sonnet-latest",
-    availableModels: []
-  },
-  geminiSettings: {
-    apiKey: "",
-    model: "gemini-pro",
-    availableModels: []
-  },
-  ollamaSettings: {
-    serverUrl: "http://localhost:11434",
-    model: "llama2",
-    availableModels: []
-  },
-  systemMessage: "You are a helpful assistant.",
-  temperature: 0.7,
-  maxTokens: 1e3,
-  includeDateWithSystemMessage: false,
-  includeTimeWithSystemMessage: false,
-  enableStreaming: true,
-  autoOpenModelSettings: true,
-  enableObsidianLinks: true,
-  titleOutputMode: "clipboard",
-  summaryOutputMode: "clipboard",
-  chatSeparator: "----",
-  chatStartString: void 0,
-  chatEndString: void 0,
-  enableContextNotes: false,
-  contextNotes: "",
-  titlePrompt: "You are a title generator. You will give succinct titles that does not contain backslashes, forward slashes, or colons. Only generate a title as your response.",
-  summaryPrompt: "You are a note summarizer. Read the note content and generate a concise summary (2 sentences at most) that captures the main ideas and purpose of the note. Do not include backslashes, forward slashes, or colons. Only output the summary as your response.",
-  maxSessions: 10,
-  autoSaveSessions: true,
-  sessions: [],
-  activeSessionId: void 0,
-  expandLinkedNotesRecursively: false,
-  maxLinkExpansionDepth: 2,
-  chatNoteFolder: ""
-  // Default to vault root
-};
-
-// src/main.ts
+init_types();
 init_providers();
 
 // src/settings.ts
@@ -7078,6 +7092,7 @@ var MyPluginSettingTab = class extends import_obsidian.PluginSettingTab {
    * are managed in the model settings view for better organization.
    */
   display() {
+    var _a2;
     const { containerEl } = this;
     containerEl.empty();
     containerEl.createEl("h2", { text: "AI Assistant Settings" });
@@ -7107,22 +7122,22 @@ var MyPluginSettingTab = class extends import_obsidian.PluginSettingTab {
       this.plugin.activateView();
     }));
     new import_obsidian.Setting(containerEl).setName("Chat Separator").setDesc("The string used to separate chat messages.").addText((text) => {
-      var _a2;
-      text.setPlaceholder("----").setValue((_a2 = this.plugin.settings.chatSeparator) != null ? _a2 : "").onChange(async (value) => {
+      var _a3;
+      text.setPlaceholder("----").setValue((_a3 = this.plugin.settings.chatSeparator) != null ? _a3 : "").onChange(async (value) => {
         this.plugin.settings.chatSeparator = value;
         await this.plugin.saveSettings();
       });
     });
     new import_obsidian.Setting(containerEl).setName("Chat Start String").setDesc("The string that indicates where to start taking the note for context.").addText((text) => {
-      var _a2;
-      text.setPlaceholder("===START===").setValue((_a2 = this.plugin.settings.chatStartString) != null ? _a2 : "").onChange(async (value) => {
+      var _a3;
+      text.setPlaceholder("===START===").setValue((_a3 = this.plugin.settings.chatStartString) != null ? _a3 : "").onChange(async (value) => {
         this.plugin.settings.chatStartString = value;
         await this.plugin.saveSettings();
       });
     });
     new import_obsidian.Setting(containerEl).setName("Chat End String").setDesc("The string that indicates where to end taking the note for context.").addText((text) => {
-      var _a2;
-      text.setPlaceholder("===END===").setValue((_a2 = this.plugin.settings.chatEndString) != null ? _a2 : "").onChange(async (value) => {
+      var _a3;
+      text.setPlaceholder("===END===").setValue((_a3 = this.plugin.settings.chatEndString) != null ? _a3 : "").onChange(async (value) => {
         this.plugin.settings.chatEndString = value;
         await this.plugin.saveSettings();
       });
@@ -7133,43 +7148,45 @@ var MyPluginSettingTab = class extends import_obsidian.PluginSettingTab {
         await this.plugin.saveSettings();
       });
     });
-    new import_obsidian.Setting(containerEl).setName("Summary Prompt").setDesc("The prompt used for generating note summaries.").addTextArea((text) => {
-      text.setPlaceholder("You are a note summarizer...").setValue(this.plugin.settings.summaryPrompt).onChange(async (value) => {
-        this.plugin.settings.summaryPrompt = value;
-        await this.plugin.saveSettings();
-      });
-    });
-    new import_obsidian.Setting(containerEl).setName("Reset Prompts to Default").setDesc("Reset title and summary prompts to their original default values.").addButton((button) => button.setButtonText("Reset").onClick(async () => {
-      this.plugin.settings.titlePrompt = "You are a title generator. You will give succinct titles that does not contain backslashes, forward slashes, or colons. Only generate a title as your response.";
-      this.plugin.settings.summaryPrompt = "You are a note summarizer. Read the note content and generate a concise summary (2 sentences at most) that captures the main ideas and purpose of the note. Do not include backslashes, forward slashes, or colons. Only output the summary as your response.";
+    new import_obsidian.Setting(containerEl).setName("Reset All Settings to Default").setDesc("Reset all plugin settings (except API keys) to their original default values.").addButton((button) => button.setButtonText("Reset").onClick(async () => {
+      const { DEFAULT_TITLE_PROMPT: DEFAULT_TITLE_PROMPT2 } = await Promise.resolve().then(() => (init_prompts(), prompts_exports));
+      const { DEFAULT_SETTINGS: DEFAULT_SETTINGS2 } = await Promise.resolve().then(() => (init_types(), types_exports));
+      const openaiKey = this.plugin.settings.openaiSettings.apiKey;
+      const anthropicKey = this.plugin.settings.anthropicSettings.apiKey;
+      const geminiKey = this.plugin.settings.geminiSettings.apiKey;
+      this.plugin.settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS2));
+      this.plugin.settings.openaiSettings.apiKey = openaiKey;
+      this.plugin.settings.anthropicSettings.apiKey = anthropicKey;
+      this.plugin.settings.geminiSettings.apiKey = geminiKey;
+      this.plugin.settings.titlePrompt = DEFAULT_TITLE_PROMPT2;
       await this.plugin.saveSettings();
       this.display();
-      new import_obsidian.Notice("Prompts reset to default.");
+      new import_obsidian.Notice("All settings (except API keys) reset to default.");
     }));
     new import_obsidian.Setting(containerEl).setName("Title Output Mode").setDesc("Choose what to do with the generated note title.").addDropdown((drop) => {
-      var _a2;
+      var _a3;
       drop.addOption("clipboard", "Copy to clipboard");
       drop.addOption("replace-filename", "Replace note filename");
       drop.addOption("metadata", "Insert into metadata");
-      drop.setValue((_a2 = this.plugin.settings.titleOutputMode) != null ? _a2 : "clipboard");
+      drop.setValue((_a3 = this.plugin.settings.titleOutputMode) != null ? _a3 : "clipboard");
       drop.onChange(async (value) => {
         this.plugin.settings.titleOutputMode = value;
         await this.plugin.saveSettings();
       });
     });
     new import_obsidian.Setting(containerEl).setName("Summary Output Mode").setDesc("Choose what to do with the generated note summary.").addDropdown((drop) => {
-      var _a2;
+      var _a3;
       drop.addOption("clipboard", "Copy to clipboard");
       drop.addOption("metadata", "Insert into metadata");
-      drop.setValue((_a2 = this.plugin.settings.summaryOutputMode) != null ? _a2 : "clipboard");
+      drop.setValue((_a3 = this.plugin.settings.summaryOutputMode) != null ? _a3 : "clipboard");
       drop.onChange(async (value) => {
         this.plugin.settings.summaryOutputMode = value;
         await this.plugin.saveSettings();
       });
     });
     new import_obsidian.Setting(containerEl).setName("Expand Linked Notes Recursively").setDesc("If enabled, when fetching a note, also fetch and expand links within that note recursively (prevents infinite loops).").addToggle((toggle) => {
-      var _a2;
-      return toggle.setValue((_a2 = this.plugin.settings.expandLinkedNotesRecursively) != null ? _a2 : false).onChange(async (value) => {
+      var _a3;
+      return toggle.setValue((_a3 = this.plugin.settings.expandLinkedNotesRecursively) != null ? _a3 : false).onChange(async (value) => {
         this.plugin.settings.expandLinkedNotesRecursively = value;
         await this.plugin.saveSettings();
         this.display();
@@ -7177,18 +7194,69 @@ var MyPluginSettingTab = class extends import_obsidian.PluginSettingTab {
     });
     if (this.plugin.settings.expandLinkedNotesRecursively) {
       new import_obsidian.Setting(containerEl).setName("Max Link Expansion Depth").setDesc("Maximum depth for recursively expanding linked notes (1-3).").addSlider((slider) => {
-        var _a2;
-        slider.setLimits(1, 3, 1).setValue((_a2 = this.plugin.settings.maxLinkExpansionDepth) != null ? _a2 : 2).setDynamicTooltip().onChange(async (value) => {
+        var _a3;
+        slider.setLimits(1, 3, 1).setValue((_a3 = this.plugin.settings.maxLinkExpansionDepth) != null ? _a3 : 2).setDynamicTooltip().onChange(async (value) => {
           this.plugin.settings.maxLinkExpansionDepth = value;
           await this.plugin.saveSettings();
         });
       });
     }
     new import_obsidian.Setting(containerEl).setName("Chat Note Folder").setDesc("Folder to save exported chat notes (relative to vault root, leave blank for root)").addText((text) => {
-      var _a2;
-      text.setPlaceholder("e.g. AI Chats").setValue((_a2 = this.plugin.settings.chatNoteFolder) != null ? _a2 : "").onChange(async (value) => {
+      var _a3;
+      text.setPlaceholder("e.g. AI Chats").setValue((_a3 = this.plugin.settings.chatNoteFolder) != null ? _a3 : "").onChange(async (value) => {
         this.plugin.settings.chatNoteFolder = value.trim();
         await this.plugin.saveSettings();
+      });
+    });
+    containerEl.createEl("h3", { text: "YAML Attribute Generators" });
+    const yamlGenDesc = containerEl.createEl("div", { text: "Configure custom YAML attribute generators. Each entry will create a command to generate and insert/update a YAML field in your notes." });
+    yamlGenDesc.style.marginBottom = "1em";
+    const yamlGens = (_a2 = this.plugin.settings.yamlAttributeGenerators) != null ? _a2 : [];
+    yamlGens.forEach((gen, idx) => {
+      const autoCommandName = gen.attributeName ? `Generate YAML: ${gen.attributeName}` : `YAML Generator #${idx + 1}`;
+      const setting = new import_obsidian.Setting(containerEl).setName(autoCommandName).setDesc(`YAML field: ${gen.attributeName}`).addText((text) => text.setPlaceholder("YAML Attribute Name").setValue(gen.attributeName).onChange(async (value) => {
+        if (this.plugin.settings.yamlAttributeGenerators) {
+          this.plugin.settings.yamlAttributeGenerators[idx].attributeName = value;
+          this.plugin.settings.yamlAttributeGenerators[idx].commandName = value ? `Generate YAML: ${value}` : "";
+          await this.plugin.saveSettings();
+          this.display();
+        }
+      })).addTextArea((text) => text.setPlaceholder("Prompt for LLM").setValue(gen.prompt).onChange(async (value) => {
+        if (this.plugin.settings.yamlAttributeGenerators) {
+          this.plugin.settings.yamlAttributeGenerators[idx].prompt = value;
+          await this.plugin.saveSettings();
+        }
+      })).addDropdown((drop) => {
+        drop.addOption("clipboard", "Copy to clipboard");
+        drop.addOption("metadata", "Insert into metadata");
+        drop.setValue(gen.outputMode);
+        drop.onChange(async (value) => {
+          if (this.plugin.settings.yamlAttributeGenerators) {
+            this.plugin.settings.yamlAttributeGenerators[idx].outputMode = value;
+            await this.plugin.saveSettings();
+          }
+        });
+      }).addExtraButton((btn) => {
+        btn.setIcon("cross").setTooltip("Delete").onClick(async () => {
+          if (this.plugin.settings.yamlAttributeGenerators) {
+            this.plugin.settings.yamlAttributeGenerators.splice(idx, 1);
+            await this.plugin.saveSettings();
+            this.display();
+          }
+        });
+      });
+    });
+    new import_obsidian.Setting(containerEl).addButton((btn) => {
+      btn.setButtonText("Add YAML Attribute Generator").setCta().onClick(async () => {
+        if (!this.plugin.settings.yamlAttributeGenerators) this.plugin.settings.yamlAttributeGenerators = [];
+        this.plugin.settings.yamlAttributeGenerators.push({
+          attributeName: "",
+          prompt: "",
+          outputMode: "metadata",
+          commandName: "New YAML Generator"
+        });
+        await this.plugin.saveSettings();
+        this.display();
       });
     });
   }
@@ -7198,7 +7266,7 @@ var MyPluginSettingTab = class extends import_obsidian.PluginSettingTab {
 var import_obsidian8 = require("obsidian");
 init_providers();
 
-// src/ChatHistoryManager.ts
+// src/components/chat/ChatHistoryManager.ts
 var import_obsidian2 = require("obsidian");
 var ChatHistoryManager = class {
   constructor(vault, pluginId, historyFilePath) {
@@ -8693,6 +8761,7 @@ var MyPlugin = class extends import_obsidian12.Plugin {
     __publicField(this, "settings");
     __publicField(this, "modelSettingsView", null);
     __publicField(this, "activeStream", null);
+    __publicField(this, "_yamlAttributeCommandIds", []);
   }
   async onload() {
     await this.loadSettings();
@@ -8905,18 +8974,6 @@ ${this.settings.chatSeparator}
       }
     });
     this.addCommand({
-      id: "generate-note-summary",
-      name: "Generate Note Summary",
-      callback: async () => {
-        const { generateNoteSummary: generateNoteSummary2 } = await Promise.resolve().then(() => (init_filechanger(), filechanger_exports));
-        await generateNoteSummary2(
-          this.app,
-          this.settings,
-          (messages) => this.processMessages(messages)
-        );
-      }
-    });
-    this.addCommand({
       id: "load-chat-note-into-chat",
       name: "Load Chat Note into Chat",
       callback: async () => {
@@ -8948,6 +9005,41 @@ ${this.settings.chatSeparator}
         new import_obsidian12.Notice("Loaded chat note into chat.");
       }
     });
+    this.registerYamlAttributeCommands();
+  }
+  /**
+   * Register YAML attribute generator commands dynamically based on settings.
+   * Unregisters previous commands before registering new ones.
+   */
+  registerYamlAttributeCommands() {
+    if (this._yamlAttributeCommandIds && this._yamlAttributeCommandIds.length > 0) {
+      for (const id of this._yamlAttributeCommandIds) {
+        this.app.commands.removeCommand(id);
+      }
+    }
+    this._yamlAttributeCommandIds = [];
+    if (this.settings.yamlAttributeGenerators && Array.isArray(this.settings.yamlAttributeGenerators)) {
+      for (const gen of this.settings.yamlAttributeGenerators) {
+        if (!gen.attributeName || !gen.prompt || !gen.commandName) continue;
+        const id = `generate-yaml-attribute-${gen.attributeName}`;
+        this.addCommand({
+          id,
+          name: gen.commandName,
+          callback: async () => {
+            const { generateYamlAttribute: generateYamlAttribute2 } = await Promise.resolve().then(() => (init_filechanger(), filechanger_exports));
+            await generateYamlAttribute2(
+              this.app,
+              this.settings,
+              (messages) => this.processMessages(messages),
+              gen.attributeName,
+              gen.prompt,
+              gen.outputMode
+            );
+          }
+        });
+        this._yamlAttributeCommandIds.push(id);
+      }
+    }
   }
   getSystemMessage() {
     return getSystemMessage(this.settings);
@@ -8977,6 +9069,7 @@ ${this.settings.chatSeparator}
   }
   async saveSettings() {
     await this.saveData(this.settings);
+    this.registerYamlAttributeCommands();
   }
   async processMessages(messages) {
     return processMessages(messages, this.app, this.settings);

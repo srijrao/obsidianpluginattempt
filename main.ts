@@ -1,5 +1,5 @@
 import { Plugin, App, Notice } from "obsidian";
-import { ChatHistoryManager, ChatMessage } from "./src/ChatHistoryManager";
+import { ChatHistoryManager, ChatMessage } from "./src/components/chat/ChatHistoryManager";
 
 export default class ObsidianPluginAttempt extends Plugin {
   private chatHistoryManager: ChatHistoryManager;

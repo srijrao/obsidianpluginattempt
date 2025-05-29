@@ -151,31 +151,31 @@ export class MyPluginSettingTab extends PluginSettingTab {
                     });
             });
 
-        // Summary Prompt
+        // Reset Prompts and All Settings (except API keys) to Default
         new Setting(containerEl)
-            .setName('Summary Prompt')
-            .setDesc('The prompt used for generating note summaries.')
-            .addTextArea(text => {
-                text.setPlaceholder('You are a note summarizer...')
-                    .setValue(this.plugin.settings.summaryPrompt)
-                    .onChange(async (value: string) => {
-                        this.plugin.settings.summaryPrompt = value;
-                        await this.plugin.saveSettings();
-                    });
-            });
-
-        // Reset Prompts to Default
-        new Setting(containerEl)
-            .setName('Reset Prompts to Default')
-            .setDesc('Reset title and summary prompts to their original default values.')
+            .setName('Reset All Settings to Default')
+            .setDesc('Reset all plugin settings (except API keys) to their original default values.')
             .addButton(button => button
                 .setButtonText('Reset')
                 .onClick(async () => {
-                    this.plugin.settings.titlePrompt = "You are a title generator. You will give succinct titles that does not contain backslashes, forward slashes, or colons. Only generate a title as your response.";
-                    this.plugin.settings.summaryPrompt = "You are a note summarizer. Read the note content and generate a concise summary (2 sentences at most) that captures the main ideas and purpose of the note. Do not include backslashes, forward slashes, or colons. Only output the summary as your response.";
+                    // Import defaults
+                    const { DEFAULT_TITLE_PROMPT } = await import('./prompts');
+                    const { DEFAULT_SETTINGS } = await import('./types');
+                    // Preserve API keys
+                    const openaiKey = this.plugin.settings.openaiSettings.apiKey;
+                    const anthropicKey = this.plugin.settings.anthropicSettings.apiKey;
+                    const geminiKey = this.plugin.settings.geminiSettings.apiKey;
+                    // Reset all settings
+                    this.plugin.settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+                    // Restore API keys
+                    this.plugin.settings.openaiSettings.apiKey = openaiKey;
+                    this.plugin.settings.anthropicSettings.apiKey = anthropicKey;
+                    this.plugin.settings.geminiSettings.apiKey = geminiKey;
+                    // Restore title prompt from prompts.ts
+                    this.plugin.settings.titlePrompt = DEFAULT_TITLE_PROMPT;
                     await this.plugin.saveSettings();
                     this.display(); // Re-render the settings to show updated values
-                    new Notice('Prompts reset to default.');
+                    new Notice('All settings (except API keys) reset to default.');
                 }));
 
         // Title Output Mode
@@ -242,6 +242,82 @@ export class MyPluginSettingTab extends PluginSettingTab {
                     .onChange(async (value: string) => {
                         this.plugin.settings.chatNoteFolder = value.trim();
                         await this.plugin.saveSettings();
+                    });
+            });
+
+        // --- YAML Attribute Generators Section ---
+        containerEl.createEl('h3', { text: 'YAML Attribute Generators' });
+        const yamlGenDesc = containerEl.createEl('div', { text: 'Configure custom YAML attribute generators. Each entry will create a command to generate and insert/update a YAML field in your notes.' });
+        yamlGenDesc.style.marginBottom = '1em';
+
+        // List all generators
+        const yamlGens = this.plugin.settings.yamlAttributeGenerators ?? [];
+        yamlGens.forEach((gen, idx) => {
+            // Automatically generate the command name: 'Generate YAML: <attributeName>'
+            const autoCommandName = gen.attributeName ? `Generate YAML: ${gen.attributeName}` : `YAML Generator #${idx + 1}`;
+            const setting = new Setting(containerEl)
+                .setName(autoCommandName)
+                .setDesc(`YAML field: ${gen.attributeName}`)
+                .addText(text => text
+                    .setPlaceholder('YAML Attribute Name')
+                    .setValue(gen.attributeName)
+                    .onChange(async (value) => {
+                        if (this.plugin.settings.yamlAttributeGenerators) {
+                            this.plugin.settings.yamlAttributeGenerators[idx].attributeName = value;
+                            // Also update the command name automatically
+                            this.plugin.settings.yamlAttributeGenerators[idx].commandName = value ? `Generate YAML: ${value}` : '';
+                            await this.plugin.saveSettings();
+                            this.display(); // Re-render to update the command name
+                        }
+                    }))
+                .addTextArea(text => text
+                    .setPlaceholder('Prompt for LLM')
+                    .setValue(gen.prompt)
+                    .onChange(async (value) => {
+                        if (this.plugin.settings.yamlAttributeGenerators) {
+                            this.plugin.settings.yamlAttributeGenerators[idx].prompt = value;
+                            await this.plugin.saveSettings();
+                        }
+                    }))
+                .addDropdown(drop => {
+                    drop.addOption('clipboard', 'Copy to clipboard');
+                    drop.addOption('metadata', 'Insert into metadata');
+                    drop.setValue(gen.outputMode);
+                    drop.onChange(async (value) => {
+                        if (this.plugin.settings.yamlAttributeGenerators) {
+                            this.plugin.settings.yamlAttributeGenerators[idx].outputMode = value as any;
+                            await this.plugin.saveSettings();
+                        }
+                    });
+                })
+                .addExtraButton(btn => {
+                    btn.setIcon('cross')
+                        .setTooltip('Delete')
+                        .onClick(async () => {
+                            if (this.plugin.settings.yamlAttributeGenerators) {
+                                this.plugin.settings.yamlAttributeGenerators.splice(idx, 1);
+                                await this.plugin.saveSettings();
+                                this.display();
+                            }
+                        });
+                });
+        });
+
+        // Add new generator button
+        new Setting(containerEl)
+            .addButton(btn => {
+                btn.setButtonText('Add YAML Attribute Generator')
+                    .setCta()
+                    .onClick(async () => {
+                        if (!this.plugin.settings.yamlAttributeGenerators) this.plugin.settings.yamlAttributeGenerators = [];
+                        this.plugin.settings.yamlAttributeGenerators.push({
+                            attributeName: '',
+                            prompt: '',
+                            outputMode: 'metadata',
+                            commandName: 'New YAML Generator'
+                        });
+                        await this.plugin.saveSettings();
+                        this.display();
                     });
             });
     }
