@@ -40,7 +40,7 @@ var init_prompts = __esm({
     DEFAULT_TITLE_PROMPT = "You are a title generator. You will give succinct titles that do not contain backslashes, forward slashes, or colons. Only generate a title as your response.";
     DEFAULT_SUMMARY_PROMPT = "Summarize the note content in 1-2 sentences, focusing on the main ideas and purpose.";
     DEFAULT_GENERAL_SYSTEM_PROMPT = "You are a helpful assistant.";
-    DEFAULT_YAML_SYSTEM_MESSAGE = "You are an assistant that generates YAML attribute values for Obsidian notes. Read the note content and generate a concise value for the specified YAML field. Only output the value, no extra text.";
+    DEFAULT_YAML_SYSTEM_MESSAGE = "You are an assistant that generates YAML attribute values for Obsidian notes. Read the note and generate a value for the specified YAML field. Only output the value, no extra text.";
   }
 });
 
@@ -7008,7 +7008,7 @@ async function generateYamlAttribute(app, settings, processMessages2, attributeN
     debug2("Result from provider (buffered):", resultBuffer);
     let value = resultBuffer.trim();
     debug2("Extracted value before sanitization:", value);
-    value = value.replace(/[\\/:]/g, "").trim();
+    value = value.replace(/[\\/]/g, "").trim();
     debug2("Sanitized value:", value);
     if (value && typeof value === "string" && value.length > 0) {
       debug2("Output mode:", outputMode);

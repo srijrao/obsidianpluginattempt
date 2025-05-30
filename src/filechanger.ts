@@ -197,7 +197,7 @@ export async function generateYamlAttribute(
 
         let value = resultBuffer.trim();
         debug("Extracted value before sanitization:", value);
-        value = value.replace(/[\\/:]/g, "").trim();
+        value = value.replace(/[\\/]/g, "").trim(); // Allow colons in YAML values
         debug("Sanitized value:", value);
 
         if (value && typeof value === "string" && value.length > 0) {

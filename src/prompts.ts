@@ -10,5 +10,5 @@ export const DEFAULT_GENERAL_SYSTEM_PROMPT = "You are a helpful assistant.";
 // Default system message for YAML attribute generation (used in filechanger.ts)
 export const DEFAULT_YAML_SYSTEM_MESSAGE =
     "You are an assistant that generates YAML attribute values for Obsidian notes. " +
-    "Read the note content and generate a concise value for the specified YAML field. " +
-    "Only output the value, no extra text.";
+    "Read the note and generate a value for the specified YAML field. " +
+    "Only output the value, not the key or extra text.";
