@@ -168,38 +168,36 @@
    You can adjust border, padding, and input appearance here.
    -------------------------------------------------------------------------- */
 .ai-chat-input-container {
+    display: flex;
+    align-items: flex-end;
+    gap: 0.5em;
+    padding: 0.5em;
     border-top: 1px solid var(--background-modifier-border);
-    padding: var(--spacing-sm);
+    background: var(--background-secondary);
 }
 
-.ai-chat-input,
-.ai-chat-session-selector {
-    width: 100%;
-    padding: var(--spacing-sm);
-    border: 1px solid var(--background-modifier-border);
-    border-radius: var(--border-radius);
-    background-color: var(--background-primary);
-    color: var(--text-normal);
-    resize: none;
+.ai-chat-input {
+    flex: 1 1 auto;
+    min-height: 2.5em;
+    max-height: 8em;
+    resize: vertical;
+    margin: 0;
+}
+
+.ai-chat-buttons {
+    display: flex;
+    flex-direction: row;
+    gap: 0.5em;
+    align-items: center;
+    margin-left: 0;
+    margin-bottom: 0.5em;
+    justify-content: center;
 }
 
 .ai-chat-session-selector {
     margin-bottom: var(--spacing-sm);
 }
 
-.ai-chat-buttons,
-.modal-button-container,
-.ai-chat-session-buttons {
-    display: flex;
-    gap: var(--spacing-md);
-    justify-content: flex-end;
-    flex-wrap: wrap;
-    margin-top: var(--spacing-md);
-}
-
-/* === UTILITY CLASSES ===
-   Use these for dynamic show/hide and modal button containers.
-   -------------------------------------------------------------------------- */
 .modal-button-container {
     display: flex;
     justify-content: flex-end;
@@ -207,6 +205,9 @@
     margin-top: var(--spacing-lg);
 }
 
+/* === UTILITY CLASSES ===
+   Use these for dynamic show/hide and modal button containers.
+   -------------------------------------------------------------------------- */
 .hidden {
     display: none !important;
 }

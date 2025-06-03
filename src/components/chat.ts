@@ -53,21 +53,32 @@ export class ChatView extends ItemView {
         // Create main container with flex layout
         contentEl.addClass('ai-chat-view');
 
-        // Create settings button in the button container (will be added later)
+        // --- BUTTONS ABOVE CHAT WINDOW ---
+        const topButtonContainer = contentEl.createDiv('ai-chat-buttons');
+        // Settings button
         const settingsButton = document.createElement('button');
         settingsButton.setText('Settings');
         settingsButton.setAttribute('aria-label', 'Toggle model settings');
-        
-        // We'll add this button to the button container later
-        
+        topButtonContainer.appendChild(settingsButton);
+        // Copy All button
+        const copyAllButton = document.createElement('button');
+        copyAllButton.textContent = 'Copy All';
+        topButtonContainer.appendChild(copyAllButton);
+        // Save as Note button
+        const saveNoteButton = document.createElement('button');
+        saveNoteButton.textContent = 'Save as Note';
+        topButtonContainer.appendChild(saveNoteButton);
+        // Clear button
+        const clearButton = document.createElement('button');
+        clearButton.textContent = 'Clear Chat';
+        topButtonContainer.appendChild(clearButton);
+
         // Messages container
         this.messagesContainer = contentEl.createDiv('ai-chat-messages');
         // All styling for messagesContainer is now handled by .ai-chat-messages in styles.css
 
-        // Input container at bottom
+        // --- INPUT CONTAINER AT BOTTOM ---
         this.inputContainer = contentEl.createDiv('ai-chat-input-container');
-        // All styling for inputContainer is now handled by .ai-chat-input-container in styles.css
-
         // Textarea for input
         const textarea = this.inputContainer.createEl('textarea', {
             cls: 'ai-chat-input',
@@ -78,67 +89,18 @@ export class ChatView extends ItemView {
         });
         // All styling for textarea is now handled by .ai-chat-input in styles.css
 
-        // Button container
-        const buttonContainer = this.inputContainer.createDiv('ai-chat-buttons');
-        // All styling for buttonContainer is now handled by .ai-chat-buttons in styles.css
-
-        // Send button
-        const sendButton = buttonContainer.createEl('button', {
+        // Send button (now next to textarea)
+        const sendButton = this.inputContainer.createEl('button', {
             text: 'Send',
             cls: 'mod-cta'
         });
-
-        // Stop button (hidden initially)
-        const stopButton = buttonContainer.createEl('button', {
+        // Stop button (now next to textarea, hidden initially)
+        const stopButton = this.inputContainer.createEl('button', {
             text: 'Stop',
         });
         stopButton.classList.add('hidden');
 
-        // Copy All button
-        const copyAllButton = buttonContainer.createEl('button', {
-            text: 'Copy All'
-        });
-        copyAllButton.addEventListener('click', async () => {
-            const messages = this.messagesContainer.querySelectorAll('.ai-chat-message');
-            let chatContent = '';
-            messages.forEach((el, index) => {
-                const content = el.querySelector('.message-content')?.textContent || '';
-                chatContent += content;
-                if (index < messages.length - 1) {
-                    chatContent += '\n\n' + this.plugin.settings.chatSeparator + '\n\n';
-                }
-            });
-            await copyToClipboard(chatContent);
-        });
-
-        // Save as Note button
-        const saveNoteButton = buttonContainer.createEl('button', {
-            text: 'Save as Note'
-        });
-        saveNoteButton.addEventListener('click', async () => {
-            const provider = this.plugin.settings.provider;
-            let model = '';
-            if (provider === 'openai') model = this.plugin.settings.openaiSettings.model;
-            else if (provider === 'anthropic') model = this.plugin.settings.anthropicSettings.model;
-            else if (provider === 'gemini') model = this.plugin.settings.geminiSettings.model;
-            else if (provider === 'ollama') model = this.plugin.settings.ollamaSettings.model;
-            await saveChatAsNote({
-                app: this.app,
-                messages: this.messagesContainer.querySelectorAll('.ai-chat-message'),
-                settings: this.plugin.settings,
-                provider,
-                model,
-                chatSeparator: this.plugin.settings.chatSeparator,
-                chatNoteFolder: this.plugin.settings.chatNoteFolder
-            });
-        });
-
-        // Clear button
-        const clearButton = buttonContainer.createEl('button', {
-            text: 'Clear Chat'
-        });
-
-        // Handle send message
+        // --- HANDLE SEND MESSAGE ---
         const sendMessage = async () => {
             const content = textarea.value.trim();
             if (!content) return;
@@ -148,11 +110,11 @@ export class ChatView extends ItemView {
             sendButton.classList.add('hidden');
             stopButton.classList.remove('hidden');
 
-    // Add user message
-        const userMessageEl = await createMessageElement(this.app, 'user', content, this.chatHistoryManager, this.plugin, (el) => this.regenerateResponse(el), this);
-        this.messagesContainer.appendChild(userMessageEl);
-        this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
-        textarea.value = '';
+            // Add user message
+            const userMessageEl = await createMessageElement(this.app, 'user', content, this.chatHistoryManager, this.plugin, (el) => this.regenerateResponse(el), this);
+            this.messagesContainer.appendChild(userMessageEl);
+            this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+            textarea.value = '';
 
             // Create abort controller for streaming
             this.activeStream = new AbortController();
@@ -248,16 +210,8 @@ export class ChatView extends ItemView {
             }
         };
 
-        // Event listeners
-        textarea.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                sendMessage();
-            }
-        });
-
+        // --- BUTTON EVENT LISTENERS ---
         sendButton.addEventListener('click', sendMessage);
-
         stopButton.addEventListener('click', () => {
             if (this.activeStream) {
                 this.activeStream.abort();
@@ -268,7 +222,35 @@ export class ChatView extends ItemView {
                 sendButton.classList.remove('hidden');
             }
         });
-
+        copyAllButton.addEventListener('click', async () => {
+            const messages = this.messagesContainer.querySelectorAll('.ai-chat-message');
+            let chatContent = '';
+            messages.forEach((el, index) => {
+                const content = el.querySelector('.message-content')?.textContent || '';
+                chatContent += content;
+                if (index < messages.length - 1) {
+                    chatContent += '\n\n' + this.plugin.settings.chatSeparator + '\n\n';
+                }
+            });
+            await copyToClipboard(chatContent);
+        });
+        saveNoteButton.addEventListener('click', async () => {
+            const provider = this.plugin.settings.provider;
+            let model = '';
+            if (provider === 'openai') model = this.plugin.settings.openaiSettings.model;
+            else if (provider === 'anthropic') model = this.plugin.settings.anthropicSettings.model;
+            else if (provider === 'gemini') model = this.plugin.settings.geminiSettings.model;
+            else if (provider === 'ollama') model = this.plugin.settings.ollamaSettings.model;
+            await saveChatAsNote({
+                app: this.app,
+                messages: this.messagesContainer.querySelectorAll('.ai-chat-message'),
+                settings: this.plugin.settings,
+                provider,
+                model,
+                chatSeparator: this.plugin.settings.chatSeparator,
+                chatNoteFolder: this.plugin.settings.chatNoteFolder
+            });
+        });
         clearButton.addEventListener('click', async () => {
             this.messagesContainer.empty();
             try {
@@ -281,14 +263,17 @@ export class ChatView extends ItemView {
                 new Notice("Failed to clear chat history.");
             }
         });
-
-        // Add settings button to the button container
-        buttonContainer.insertBefore(settingsButton, clearButton);
-        
-        // Settings button click handler
         settingsButton.addEventListener('click', () => {
             const settingsModal = new SettingsModal(this.app, this.plugin);
             settingsModal.open();
+        });
+
+        // Event listeners
+        textarea.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
         });
 
         // Render loaded chat history

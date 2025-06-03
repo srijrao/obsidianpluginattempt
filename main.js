@@ -40,7 +40,7 @@ var init_prompts = __esm({
     DEFAULT_TITLE_PROMPT = "You are a title generator. You will give succinct titles that do not contain backslashes, forward slashes, or colons. Only generate a title as your response.";
     DEFAULT_SUMMARY_PROMPT = "Summarize the note content in 1-2 sentences, focusing on the main ideas and purpose.";
     DEFAULT_GENERAL_SYSTEM_PROMPT = "You are a helpful assistant.";
-    DEFAULT_YAML_SYSTEM_MESSAGE = "You are an assistant that generates YAML attribute values for Obsidian notes. Read the note and generate a value for the specified YAML field. Only output the value, no extra text.";
+    DEFAULT_YAML_SYSTEM_MESSAGE = "You are an assistant that generates YAML attribute values for Obsidian notes. Read the note and generate a value for the specified YAML field. Only output the value, not the key or extra text.";
   }
 });
 
@@ -7944,9 +7944,20 @@ var ChatView = class extends import_obsidian8.ItemView {
       loadedHistory = [];
     }
     contentEl.addClass("ai-chat-view");
+    const topButtonContainer = contentEl.createDiv("ai-chat-buttons");
     const settingsButton = document.createElement("button");
     settingsButton.setText("Settings");
     settingsButton.setAttribute("aria-label", "Toggle model settings");
+    topButtonContainer.appendChild(settingsButton);
+    const copyAllButton = document.createElement("button");
+    copyAllButton.textContent = "Copy All";
+    topButtonContainer.appendChild(copyAllButton);
+    const saveNoteButton = document.createElement("button");
+    saveNoteButton.textContent = "Save as Note";
+    topButtonContainer.appendChild(saveNoteButton);
+    const clearButton = document.createElement("button");
+    clearButton.textContent = "Clear Chat";
+    topButtonContainer.appendChild(clearButton);
     this.messagesContainer = contentEl.createDiv("ai-chat-messages");
     this.inputContainer = contentEl.createDiv("ai-chat-input-container");
     const textarea = this.inputContainer.createEl("textarea", {
@@ -7956,54 +7967,14 @@ var ChatView = class extends import_obsidian8.ItemView {
         rows: "3"
       }
     });
-    const buttonContainer = this.inputContainer.createDiv("ai-chat-buttons");
-    const sendButton = buttonContainer.createEl("button", {
+    const sendButton = this.inputContainer.createEl("button", {
       text: "Send",
       cls: "mod-cta"
     });
-    const stopButton = buttonContainer.createEl("button", {
+    const stopButton = this.inputContainer.createEl("button", {
       text: "Stop"
     });
     stopButton.classList.add("hidden");
-    const copyAllButton = buttonContainer.createEl("button", {
-      text: "Copy All"
-    });
-    copyAllButton.addEventListener("click", async () => {
-      const messages = this.messagesContainer.querySelectorAll(".ai-chat-message");
-      let chatContent = "";
-      messages.forEach((el, index) => {
-        var _a2;
-        const content = ((_a2 = el.querySelector(".message-content")) == null ? void 0 : _a2.textContent) || "";
-        chatContent += content;
-        if (index < messages.length - 1) {
-          chatContent += "\n\n" + this.plugin.settings.chatSeparator + "\n\n";
-        }
-      });
-      await copyToClipboard(chatContent);
-    });
-    const saveNoteButton = buttonContainer.createEl("button", {
-      text: "Save as Note"
-    });
-    saveNoteButton.addEventListener("click", async () => {
-      const provider = this.plugin.settings.provider;
-      let model = "";
-      if (provider === "openai") model = this.plugin.settings.openaiSettings.model;
-      else if (provider === "anthropic") model = this.plugin.settings.anthropicSettings.model;
-      else if (provider === "gemini") model = this.plugin.settings.geminiSettings.model;
-      else if (provider === "ollama") model = this.plugin.settings.ollamaSettings.model;
-      await saveChatAsNote({
-        app: this.app,
-        messages: this.messagesContainer.querySelectorAll(".ai-chat-message"),
-        settings: this.plugin.settings,
-        provider,
-        model,
-        chatSeparator: this.plugin.settings.chatSeparator,
-        chatNoteFolder: this.plugin.settings.chatNoteFolder
-      });
-    });
-    const clearButton = buttonContainer.createEl("button", {
-      text: "Clear Chat"
-    });
     const sendMessage = async () => {
       const content = textarea.value.trim();
       if (!content) return;
@@ -8096,12 +8067,6 @@ ${currentNoteContent}`
         this.activeStream = null;
       }
     };
-    textarea.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" && !e.shiftKey) {
-        e.preventDefault();
-        sendMessage();
-      }
-    });
     sendButton.addEventListener("click", sendMessage);
     stopButton.addEventListener("click", () => {
       if (this.activeStream) {
@@ -8112,6 +8077,36 @@ ${currentNoteContent}`
         stopButton.classList.add("hidden");
         sendButton.classList.remove("hidden");
       }
+    });
+    copyAllButton.addEventListener("click", async () => {
+      const messages = this.messagesContainer.querySelectorAll(".ai-chat-message");
+      let chatContent = "";
+      messages.forEach((el, index) => {
+        var _a2;
+        const content = ((_a2 = el.querySelector(".message-content")) == null ? void 0 : _a2.textContent) || "";
+        chatContent += content;
+        if (index < messages.length - 1) {
+          chatContent += "\n\n" + this.plugin.settings.chatSeparator + "\n\n";
+        }
+      });
+      await copyToClipboard(chatContent);
+    });
+    saveNoteButton.addEventListener("click", async () => {
+      const provider = this.plugin.settings.provider;
+      let model = "";
+      if (provider === "openai") model = this.plugin.settings.openaiSettings.model;
+      else if (provider === "anthropic") model = this.plugin.settings.anthropicSettings.model;
+      else if (provider === "gemini") model = this.plugin.settings.geminiSettings.model;
+      else if (provider === "ollama") model = this.plugin.settings.ollamaSettings.model;
+      await saveChatAsNote({
+        app: this.app,
+        messages: this.messagesContainer.querySelectorAll(".ai-chat-message"),
+        settings: this.plugin.settings,
+        provider,
+        model,
+        chatSeparator: this.plugin.settings.chatSeparator,
+        chatNoteFolder: this.plugin.settings.chatNoteFolder
+      });
     });
     clearButton.addEventListener("click", async () => {
       this.messagesContainer.empty();
@@ -8124,10 +8119,15 @@ ${currentNoteContent}`
         new import_obsidian8.Notice("Failed to clear chat history.");
       }
     });
-    buttonContainer.insertBefore(settingsButton, clearButton);
     settingsButton.addEventListener("click", () => {
       const settingsModal = new SettingsModal(this.app, this.plugin);
       settingsModal.open();
+    });
+    textarea.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+      }
     });
     if (loadedHistory.length > 0) {
       this.messagesContainer.empty();
