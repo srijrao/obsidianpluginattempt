@@ -1,4 +1,4 @@
-import { ItemView, WorkspaceLeaf, Notice, MarkdownRenderer } from 'obsidian';
+import { ItemView, WorkspaceLeaf, Notice, MarkdownRenderer, Modal, App } from 'obsidian';
 import MyPlugin from '../main';
 import { Message } from '../types';
 import { createProvider } from '../../providers';
@@ -53,6 +53,14 @@ export class ChatView extends ItemView {
         // Create main container with flex layout
         contentEl.addClass('ai-chat-view');
 
+        // --- FADED HELP MESSAGE NEAR TOP ---
+        const fadedHelp = contentEl.createDiv();
+        fadedHelp.setText('Tip: Type /help or press Ctrl+Shift+H for chat commands and shortcuts.');
+        fadedHelp.style.textAlign = 'center';
+        fadedHelp.style.opacity = '0.6';
+        fadedHelp.style.fontSize = '0.95em';
+        fadedHelp.style.margin = '0.5em 0 0.2em 0';
+
         // --- BUTTONS ABOVE CHAT WINDOW ---
         const topButtonContainer = contentEl.createDiv('ai-chat-buttons');
         // Settings button
@@ -99,6 +107,25 @@ export class ChatView extends ItemView {
             text: 'Stop',
         });
         stopButton.classList.add('hidden');
+
+        // --- TINY HELP BUTTON ABOVE SEND BUTTON ---
+        const helpButton = this.inputContainer.createEl('button', {
+            text: '?',
+        });
+        helpButton.setAttr('aria-label', 'Show chat help');
+        helpButton.style.fontSize = '0.9em';
+        helpButton.style.width = '1.8em';
+        helpButton.style.height = '1.8em';
+        helpButton.style.marginBottom = '0.2em';
+        helpButton.style.opacity = '0.7';
+        helpButton.style.position = 'absolute';
+        helpButton.style.right = '0.5em';
+        helpButton.style.top = '-2.2em';
+        helpButton.style.zIndex = '2';
+        helpButton.addEventListener('click', () => {
+            new ChatHelpModal(this.app).open();
+        });
+        this.inputContainer.style.position = 'relative';
 
         // --- HANDLE SEND MESSAGE ---
         const sendMessage = async () => {
@@ -255,10 +282,7 @@ export class ChatView extends ItemView {
             this.messagesContainer.empty();
             try {
                 await this.chatHistoryManager.clearHistory();
-                // Show initial system message after clearing (UI only, do not persist)
-                const messageEl = await createMessageElement(this.app, 'assistant', this.plugin.settings.systemMessage || 'Hello! How can I help you today?', this.chatHistoryManager, this.plugin, (el) => this.regenerateResponse(el), this);
-                this.messagesContainer.appendChild(messageEl);
-                this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+                // Do not show any message after clearing.
             } catch (e) {
                 new Notice("Failed to clear chat history.");
             }
@@ -268,12 +292,49 @@ export class ChatView extends ItemView {
             settingsModal.open();
         });
 
-        // Event listeners
-        textarea.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                sendMessage();
+        // --- SLASH COMMANDS AND KEYBOARD SHORTCUTS ---
+        async function handleSlashCommand(cmd: string) {
+            switch (cmd) {
+                case '/clear':
+                    await clearButton.click();
+                    break;
+                case '/copy':
+                    await copyAllButton.click();
+                    break;
+                case '/save':
+                    await saveNoteButton.click();
+                    break;
+                case '/settings':
+                    settingsButton.click();
+                    break;
+                case '/help':
+                    new ChatHelpModal(this.app).open();
+                    break;
             }
+        }
+
+        textarea.addEventListener('keydown', async (e) => {
+            // Keyboard shortcuts: Ctrl+Shift+C (Clear), Y (Copy), S (Save), O (Settings), H (Help)
+            if (e.ctrlKey && e.shiftKey) {
+                if (e.key.toLowerCase() === 'c') { e.preventDefault(); await clearButton.click(); return; }
+                if (e.key.toLowerCase() === 'y') { e.preventDefault(); await copyAllButton.click(); return; }
+                if (e.key.toLowerCase() === 's') { e.preventDefault(); await saveNoteButton.click(); return; }
+                if (e.key.toLowerCase() === 'o') { e.preventDefault(); settingsButton.click(); return; }
+                if (e.key.toLowerCase() === 'h') { e.preventDefault(); new ChatHelpModal(this.app).open(); return; }
+            }
+            // Slash commands
+            if (e.key === 'Enter' && !e.shiftKey) {
+                const val = textarea.value.trim();
+                if (val === '/clear' || val === '/copy' || val === '/save' || val === '/settings' || val === '/help') {
+                    e.preventDefault();
+                    await handleSlashCommand.call(this, val);
+                    textarea.value = '';
+                    return;
+                }
+                sendMessage();
+                e.preventDefault();
+            }
+            // Shift+Enter will fall through and act as a normal Enter (newline)
         });
 
         // Render loaded chat history
@@ -472,5 +533,38 @@ export class ChatView extends ItemView {
             }
             this.activeStream = null;
         }
+    }
+}
+
+// --- HELP MODAL ---
+class ChatHelpModal extends Modal {
+    constructor(app: App) {
+        super(app);
+    }
+    onOpen() {
+        this.titleEl.setText('AI Chat Help');
+        this.contentEl.innerHTML = `
+            <div style="line-height:1.7;font-size:1em;">
+                <b>Slash Commands:</b><br>
+                <code>/clear</code> – Clear the chat<br>
+                <code>/copy</code> – Copy all chat<br>
+                <code>/save</code> – Save chat as note<br>
+                <code>/settings</code> – Open settings<br>
+                <code>/help</code> – Show this help<br>
+                <br>
+                <b>Keyboard Shortcuts (when input is focused):</b><br>
+                <code>Ctrl+Shift+C</code> – Clear chat<br>
+                <code>Ctrl+Shift+Y</code> – Copy all chat<br>
+                <code>Ctrl+Shift+S</code> – Save as note<br>
+                <code>Ctrl+Shift+O</code> – Open settings<br>
+                <code>Ctrl+Shift+H</code> – Show this help<br>
+                <br>
+                <b>Other:</b><br>
+                <code>Enter</code> – Send message<br>
+                <code>Shift+Enter</code> – Newline<br>
+                <br>
+                You can also use the buttons at the top of the chat window.
+            </div>
+        `;
     }
 }

@@ -1,75 +1,56 @@
-# obsidianpluginattempt
-Obsidian Plugin for LLM Integration with Customizable Settings
+# AI Assistant for Obsidian
 
-This plugin integrates various LLM providers into your Obsidian workflow, allowing you to generate AI-powered completions directly within your notes.
+A powerful AI assistant plugin for Obsidian, designed to enhance your note-taking workflow with advanced language model capabilities. Supports multiple providers (OpenAI, Anthropic, Gemini, Ollama, and more) and offers a chat interface, context-aware commands, and customizable prompts.
 
 ## Features
 
-- Generate AI completions using multiple providers (OpenAI, Anthropic, Gemini, Ollama)
-- Customizable system message and model settings
-- Stream responses for real-time interaction
-- Ability to include current date and time in system messages
-- Easy-to-use interface for adjusting model parameters
+- **Multi-provider support:** Easily switch between OpenAI, Anthropic, Gemini, Ollama, and other LLM providers.
+- **Chat interface:** Interact with AI directly inside Obsidian using a modern chat UI.
+- **Context-aware commands:** Run AI commands on selected text, entire notes, or vault-wide.
+- **Customizable prompts:** Create and manage your own prompt templates for various tasks.
+- **Session management:** Save, load, and manage chat sessions and histories.
+- **Model settings:** Fine-tune model parameters and preferences per provider.
+- **Secure API key storage:** API keys are stored securely within Obsidian settings.
 
 ## Installation
 
-1. Download the latest release from the GitHub repository.
-2. Extract the zip file in your Obsidian plugins folder: `<vault>/.obsidian/plugins/`.
-3. Reload Obsidian.
-4. Enable the plugin in Settings -> Community Plugins.
+1. Download the latest release from the [GitHub Releases](https://github.com/your-repo/releases) page or clone this repository.
+2. Place the plugin folder (`ai-assistant-for-obsidian`) into your Obsidian vault's `.obsidian/plugins/` directory.
+3. Enable the plugin in Obsidian's Settings > Community Plugins.
 
 ## Usage
 
-1. Set up your API key for the desired provider in the plugin settings.
-2. Use the ribbon icon or command palette to open Model Settings.
-3. Customize your model settings as desired.
-4. In any note, select text or place your cursor at the end of a line.
-5. Use the command palette to run "Get AI Completion."
-6. The AI-generated text will be inserted into your note.
+- Open the command palette (Ctrl+P) and search for "AI Assistant" commands.
+- Use the chat panel to interact with the AI, ask questions, or generate content.
+- Select text in a note and run context-aware commands for summarization, rewriting, or custom prompts.
+- Manage chat sessions and view chat history from the plugin sidebar.
 
-## Example Usage
+## Configuration
 
-1. Open a note in Obsidian.
-2. Select some text or place your cursor at the end of a line.
-3. Use the command palette (Ctrl+P or Cmd+P) to run "Get AI Completion."
-4. The AI-generated text will be inserted into your note.
+1. Go to Settings > AI Assistant for Obsidian.
+2. Choose your preferred AI provider and enter the required API key.
+3. Adjust model parameters (temperature, max tokens, etc.) as needed.
+4. Create or edit custom prompts for your workflow.
 
-## Commands
+## Supported Providers
 
-- **Get AI Completion**: Generate AI text based on the current selection or line
-- **End AI Stream**: Stop the current AI text generation
-- **Show Model Settings**: Open the Model Settings view
-
-## Settings
-
-- **API Key**: Your API key for the selected provider (OpenAI, Anthropic, Gemini, Ollama)
-- **System Message**: The initial prompt for the AI
-- **Include Date with System Message**: Option to append the current date to the system message for better context
-- **Include Time with System Message**: Option to append the current time along with the date to the system message
-- **Provider**: Choose from supported providers (OpenAI, Anthropic, Gemini, Ollama)
-- **Model**: Choose from available models for the selected provider
-- **Temperature**: Adjust the randomness of the AI's output (0-1)
-- **Max Tokens**: Set the maximum length of the AI's response
+- OpenAI (ChatGPT, GPT-4, etc.)
+- Anthropic (Claude)
+- Google Gemini
+- Ollama (local models)
+- Extendable via the `providers/` directory
 
 ## Development
 
-To set up the development environment:
-
-1. Clone this repository.
-2. Run `npm install` to install dependencies.
-3. Run `npm run dev` to start compilation in watch mode.
-4. Load the plugin in Obsidian by enabling "Developer Mode" in settings and loading the plugin folder.
-
-## Troubleshooting
-
-- **API Key Not Working**: Ensure your API key is correctly entered in the plugin settings.
-- **Connection Issues**: Verify your internet connection and ensure the selected provider's service is operational.
-- **Streaming Not Working**: Check if streaming is enabled in the plugin settings.
+- Clone the repository and run `npm install` to install dependencies.
+- Use `npm run build` to compile the plugin (uses esbuild).
+- Source code is in the `src/` and `providers/` directories.
+- See `REFACTORING.md` for architecture notes.
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions are welcome! Please open issues or pull requests for bug fixes, new features, or improvements.
 
 ## License
 
-[MIT License](LICENSE)
+This project is licensed under the MIT License. See the `LICENSE` file for details.
