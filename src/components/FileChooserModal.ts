@@ -1,4 +1,5 @@
 import { App, Modal, TFile, TFolder, Vault, FuzzySuggestModal } from 'obsidian';
+import * as yaml from 'js-yaml';
 
 /**
  * Utility to get all files in a folder, optionally recursively and/or markdown only.
@@ -158,6 +159,215 @@ export async function searchStringInFolder(
         }
         if (results.length >= maxResults) break;
     }
-    if (!results.length) return `No matches found for: "${searchString}"`;
-    return results.slice(0, maxResults).map(r => `- ${r.path}\n  ...${r.context}...`).join('\n\n');
+    if (!results.length) return `No results found for: "${searchString}"`;
+    return results.map(r => `- ${r.path}\n  Context: ${r.context}`).join('\n');
+}
+
+/**
+ * Move a file or folder to another folder in the vault.
+ * @param app Obsidian App instance
+ * @param sourcePath Path to the file or folder to move (relative to vault root)
+ * @param destFolderPath Path to the destination folder (relative to vault root)
+ * @returns Promise<string> describing the result
+ */
+export async function moveFileOrFolder(app: App, sourcePath: string, destFolderPath: string): Promise<string> {
+    const src = app.vault.getAbstractFileByPath(sourcePath);
+    const destFolder = app.vault.getAbstractFileByPath(destFolderPath);
+    if (!src) return `Source not found: "${sourcePath}"`;
+    if (!destFolder || !(destFolder instanceof TFolder)) return `Destination folder not found: "${destFolderPath}"`;
+    const newPath = destFolderPath.replace(/\/$/, '') + '/' + src.name;
+    try {
+        await app.vault.rename(src, newPath);
+        return `Moved '${sourcePath}' to '${newPath}'.`;
+    } catch (err: any) {
+        return `Failed to move: ${err?.message || err}`;
+    }
+}
+
+/**
+ * Copy a file or folder to another folder in the vault.
+ * @param app Obsidian App instance
+ * @param sourcePath Path to the file or folder to copy (relative to vault root)
+ * @param destFolderPath Path to the destination folder (relative to vault root)
+ * @returns Promise<string> describing the result
+ */
+export async function copyFileOrFolder(app: App, sourcePath: string, destFolderPath: string): Promise<string> {
+    const src = app.vault.getAbstractFileByPath(sourcePath);
+    const destFolder = app.vault.getAbstractFileByPath(destFolderPath);
+    if (!src) return `Source not found: "${sourcePath}"`;
+    if (!destFolder || !(destFolder instanceof TFolder)) return `Destination folder not found: "${destFolderPath}"`;
+    const newPath = destFolderPath.replace(/\/$/, '') + '/' + src.name;
+    try {
+        if (src instanceof TFile) {
+            const data = await app.vault.read(src);
+            await app.vault.create(newPath, data);
+            return `Copied file '${sourcePath}' to '${newPath}'.`;
+        } else if (src instanceof TFolder) {
+            await copyFolderRecursive(app, src, newPath);
+            return `Copied folder '${sourcePath}' to '${newPath}'.`;
+        } else {
+            return `Source is neither file nor folder: "${sourcePath}"`;
+        }
+    } catch (err: any) {
+        return `Failed to copy: ${err?.message || err}`;
+    }
+}
+
+/**
+ * Helper to recursively copy a folder and its contents.
+ */
+async function copyFolderRecursive(app: App, srcFolder: TFolder, destPath: string): Promise<void> {
+    await app.vault.createFolder(destPath);
+    for (const child of srcFolder.children) {
+        const childDestPath = destPath + '/' + child.name;
+        if (child instanceof TFile) {
+            const data = await app.vault.read(child);
+            await app.vault.create(childDestPath, data);
+        } else if (child instanceof TFolder) {
+            await copyFolderRecursive(app, child, childDestPath);
+        }
+    }
+}
+
+/**
+ * Delete a file or folder (recursively for folders).
+ * @param app Obsidian App instance
+ * @param path Path to the file or folder to delete (relative to vault root)
+ * @returns Promise<string> describing the result
+ */
+export async function deleteFileOrFolder(app: App, path: string): Promise<string> {
+    const target = app.vault.getAbstractFileByPath(path);
+    if (!target) return `Target not found: "${path}"`;
+    try {
+        await app.vault.delete(target, true);
+        return `Deleted '${path}'.`;
+    } catch (err: any) {
+        return `Failed to delete: ${err?.message || err}`;
+    }
+}
+
+/**
+ * Rename or move a file or folder to a new path.
+ * @param app Obsidian App instance
+ * @param oldPath Current path of the file or folder (relative to vault root)
+ * @param newPath New path (relative to vault root)
+ * @returns Promise<string> describing the result
+ */
+export async function renameFileOrFolder(app: App, oldPath: string, newPath: string): Promise<string> {
+    const target = app.vault.getAbstractFileByPath(oldPath);
+    if (!target) return `Target not found: "${oldPath}"`;
+    try {
+        await app.vault.rename(target, newPath);
+        return `Renamed/moved '${oldPath}' to '${newPath}'.`;
+    } catch (err: any) {
+        return `Failed to rename/move: ${err?.message || err}`;
+    }
+}
+
+/**
+ * Create a new file with optional content.
+ * @param app Obsidian App instance
+ * @param filePath Path to the new file (relative to vault root)
+ * @param content Optional initial content for the file
+ * @returns Promise<string> describing the result
+ */
+export async function createFile(app: App, filePath: string, content = ''): Promise<string> {
+    try {
+        await app.vault.create(filePath, content);
+        return `Created file '${filePath}'.`;
+    } catch (err: any) {
+        return `Failed to create file: ${err?.message || err}`;
+    }
+}
+
+/**
+ * Create a new folder.
+ * @param app Obsidian App instance
+ * @param folderPath Path to the new folder (relative to vault root)
+ * @returns Promise<string> describing the result
+ */
+export async function createFolder(app: App, folderPath: string): Promise<string> {
+    try {
+        await app.vault.createFolder(folderPath);
+        return `Created folder '${folderPath}'.`;
+    } catch (err: any) {
+        return `Failed to create folder: ${err?.message || err}`;
+    }
+}
+
+/**
+ * Read the contents of a file as a string.
+ * @param app Obsidian App instance
+ * @param filePath Path to the file (relative to vault root)
+ * @returns Promise<string> with file contents or error message
+ */
+export async function readFile(app: App, filePath: string): Promise<string> {
+    const file = app.vault.getAbstractFileByPath(filePath);
+    if (!file || !(file instanceof TFile)) return `File not found: "${filePath}"`;
+    try {
+        return await app.vault.read(file);
+    } catch (err: any) {
+        return `Failed to read file: ${err?.message || err}`;
+    }
+}
+
+/**
+ * Overwrite the contents of a file.
+ * @param app Obsidian App instance
+ * @param filePath Path to the file (relative to vault root)
+ * @param content New content to write
+ * @returns Promise<string> describing the result
+ */
+export async function writeFile(app: App, filePath: string, content: string): Promise<string> {
+    const file = app.vault.getAbstractFileByPath(filePath);
+    if (!file || !(file instanceof TFile)) return `File not found: "${filePath}"`;
+    try {
+        await app.vault.modify(file, content);
+        return `Wrote to file '${filePath}'.`;
+    } catch (err: any) {
+        return `Failed to write file: ${err?.message || err}`;
+    }
+}
+
+/**
+ * Append content to the end of a file.
+ * @param app Obsidian App instance
+ * @param filePath Path to the file (relative to vault root)
+ * @param content Content to append
+ * @returns Promise<string> describing the result
+ */
+export async function appendToFile(app: App, filePath: string, content: string): Promise<string> {
+    const file = app.vault.getAbstractFileByPath(filePath);
+    if (!file || !(file instanceof TFile)) return `File not found: "${filePath}"`;
+    try {
+        await app.vault.append(file, content);
+        return `Appended to file '${filePath}'.`;
+    } catch (err: any) {
+        return `Failed to append to file: ${err?.message || err}`;
+    }
+}
+
+/**
+ * Read only the YAML frontmatter from a markdown file.
+ * @param app Obsidian App instance
+ * @param filePath Path to the markdown file (relative to vault root)
+ * @returns Promise<string> with YAML as a string, or a message if not found/invalid
+ */
+export async function readYamlOnly(app: App, filePath: string): Promise<string> {
+    const file = app.vault.getAbstractFileByPath(filePath);
+    if (!file || !(file instanceof TFile)) return `File not found: "${filePath}"`;
+    try {
+        const content = await app.vault.read(file);
+        const match = content.match(/^---\s*\n([\s\S]*?)\n---/);
+        if (!match) return `No YAML frontmatter found in: "${filePath}"`;
+        // Optionally parse and re-stringify for clean output
+        try {
+            const parsed = yaml.load(match[1]);
+            return yaml.dump(parsed);
+        } catch (e) {
+            return match[1]; // Return raw YAML if parsing fails
+        }
+    } catch (err: any) {
+        return `Failed to read YAML: ${err?.message || err}`;
+    }
 }
