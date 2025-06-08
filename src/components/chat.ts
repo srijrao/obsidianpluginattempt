@@ -143,34 +143,9 @@ export class ChatView extends ItemView {
             this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
             textarea.value = '';
 
-            // Create abort controller for streaming
-            this.activeStream = new AbortController();
-
             try {
-                const provider = createProvider(this.plugin.settings);
-                let systemMessage = this.plugin.getSystemMessage();
-        
-                // Process context notes to get the latest version
-                if (this.plugin.settings.enableContextNotes && this.plugin.settings.contextNotes) {
-                    const contextContent = await this.plugin.getContextNotesContent(this.plugin.settings.contextNotes);
-                    systemMessage += `\n\nContext Notes:\n${contextContent}`;
-                }
-        
-                const messages: Message[] = [
-                    { role: 'system', content: systemMessage }
-                ];
-
-                // Include the current note's content if the toggle is enabled
-                if (this.plugin.settings.referenceCurrentNote) {
-                    const currentFile = this.app.workspace.getActiveFile();
-                    if (currentFile) {
-                        const currentNoteContent = await this.app.vault.cachedRead(currentFile);
-                        messages.push({
-                            role: 'system',
-                            content: `Here is the content of the current note:\n\n${currentNoteContent}`
-                        });
-                    }
-                }
+                // Build context and get chat history
+                const messages = await this.buildContextMessages();
 
                 // Get all existing messages
                 const messageElements = this.messagesContainer.querySelectorAll('.ai-chat-message');
@@ -183,33 +158,11 @@ export class ChatView extends ItemView {
                 // Create temporary container for streaming display
                 const tempContainer = document.createElement('div');
                 tempContainer.addClass('ai-chat-message', 'assistant');
-                // All styling for tempContainer is now handled by .ai-chat-message.assistant in styles.css
-                const contentEl = tempContainer.createDiv('message-content');
+                tempContainer.createDiv('message-content');
                 this.messagesContainer.appendChild(tempContainer);
                 this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
 
-                let responseContent = '';
-                await provider.getCompletion(
-                    messages,
-                    {
-                        temperature: this.plugin.settings.temperature,
-                        maxTokens: this.plugin.settings.maxTokens,
-                        streamCallback: async (chunk: string) => {
-                            responseContent += chunk;
-                            // Update display only during streaming
-                            contentEl.empty();
-                            await MarkdownRenderer.render(
-                                this.app,
-                                responseContent,
-                                contentEl,
-                                '',
-                                this
-                            );
-                            this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
-                        },
-                        abortController: this.activeStream
-                    }
-                );
+                const responseContent = await this.streamAssistantResponse(messages, tempContainer);
 
                 // Remove temporary container and create permanent message
                 tempContainer.remove();
@@ -421,36 +374,19 @@ export class ChatView extends ItemView {
         // Gather context up to and including the relevant user message
         let userMsgIndex = currentIndex;
         if (!isUserClicked) {
-            // For AI message, find the previous user message
             userMsgIndex = currentIndex - 1;
             while (userMsgIndex >= 0 && !allMessages[userMsgIndex].classList.contains('user')) {
                 userMsgIndex--;
             }
         }
 
-        // Build context messages
-        const contextMessages: Message[] = [
-            { role: 'system', content: this.plugin.getSystemMessage() }
-        ];
-        if (this.plugin.settings.enableContextNotes && this.plugin.settings.contextNotes) {
-            const contextContent = await this.plugin.getContextNotesContent(this.plugin.settings.contextNotes);
-            contextMessages[0].content += `\n\nContext Notes:\n${contextContent}`;
-        }
-        if (this.plugin.settings.referenceCurrentNote) {
-            const currentFile = this.app.workspace.getActiveFile();
-            if (currentFile) {
-                const currentNoteContent = await this.app.vault.cachedRead(currentFile);
-                contextMessages.push({
-                    role: 'system',
-                    content: `Here is the content of the current note:\n\n${currentNoteContent}`
-                });
-            }
-        }
+        // Build context messages and include prior chat history
+        const messages = await this.buildContextMessages();
         for (let i = 0; i <= userMsgIndex; i++) {
             const el = allMessages[i];
             const role = el.classList.contains('user') ? 'user' : 'assistant';
             const content = (el as HTMLElement).dataset.rawContent || '';
-            contextMessages.push({ role, content });
+            messages.push({ role, content });
         }
 
         // Remove the old AI message if overwriting
@@ -481,21 +417,69 @@ export class ChatView extends ItemView {
         }
         this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
 
-        // Generate new response
-        this.activeStream = new AbortController();
+        try {
+            await this.streamAssistantResponse(messages, assistantContainer, originalTimestamp, originalContent);
+        } catch (error) {
+            if (error.name !== 'AbortError') {
+                new Notice(`Error: ${error.message}`);
+                assistantContainer.remove();
+            }
+        } finally {
+            if (textarea) {
+                textarea.disabled = false;
+                textarea.focus();
+            }
+            this.activeStream = null;
+        }
+    }
+
+    private async buildContextMessages(): Promise<Message[]> {
+        const messages: Message[] = [
+            { role: 'system', content: this.plugin.getSystemMessage() }
+        ];
+
+        // Add context notes if enabled
+        if (this.plugin.settings.enableContextNotes && this.plugin.settings.contextNotes) {
+            const contextContent = await this.plugin.getContextNotesContent(this.plugin.settings.contextNotes);
+            messages[0].content += `\n\nContext Notes:\n${contextContent}`;
+        }
+
+        // Add current note content if enabled
+        if (this.plugin.settings.referenceCurrentNote) {
+            const currentFile = this.app.workspace.getActiveFile();
+            if (currentFile) {
+                const currentNoteContent = await this.app.vault.cachedRead(currentFile);
+                messages.push({
+                    role: 'system',
+                    content: `Here is the content of the current note:\n\n${currentNoteContent}`
+                });
+            }
+        }
+
+        return messages;
+    }
+
+    private async streamAssistantResponse(
+        messages: Message[],
+        container: HTMLElement,
+        originalTimestamp?: string,
+        originalContent?: string
+    ): Promise<string> {
         let responseContent = '';
+        this.activeStream = new AbortController();
+
         try {
             const provider = createProvider(this.plugin.settings);
             await provider.getCompletion(
-                contextMessages,
+                messages,
                 {
                     temperature: this.plugin.settings.temperature,
                     maxTokens: this.plugin.settings.maxTokens,
                     streamCallback: async (chunk: string) => {
                         responseContent += chunk;
-                        const contentEl = assistantContainer.querySelector('.message-content') as HTMLElement;
+                        const contentEl = container.querySelector('.message-content') as HTMLElement;
                         if (contentEl) {
-                            assistantContainer.dataset.rawContent = responseContent;
+                            container.dataset.rawContent = responseContent;
                             contentEl.empty();
                             await MarkdownRenderer.render(
                                 this.app,
@@ -510,28 +494,23 @@ export class ChatView extends ItemView {
                     abortController: this.activeStream
                 }
             );
-        } catch (error) {
-            if (error.name !== 'AbortError') {
-                new Notice(`Error: ${error.message}`);
-                assistantContainer.remove();
-            }
-        }
-        // Update the message in persistent history
-        try {
-            if (responseContent.trim() !== "") {
+
+            // Update chat history if we have a timestamp
+            if (originalTimestamp && responseContent.trim() !== "") {
                 await this.chatHistoryManager.updateMessage(
                     originalTimestamp,
                     'assistant',
-                    originalContent,
+                    originalContent || '',
                     responseContent
                 );
             }
-        } finally {
-            if (textarea) {
-                textarea.disabled = false;
-                textarea.focus();
+
+            return responseContent;
+        } catch (error) {
+            if (error.name !== 'AbortError') {
+                throw error;
             }
-            this.activeStream = null;
+            return '';
         }
     }
 }
