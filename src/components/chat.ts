@@ -3,10 +3,9 @@ import MyPlugin from '../main';
 import { Message } from '../types';
 import { createProvider } from '../../providers';
 import { ChatHistoryManager, ChatMessage } from './chat/ChatHistoryManager';
-import { SettingsModal } from './chat/SettingsModal';
-import { ConfirmationModal } from './chat/ConfirmationModal';
 import { createMessageElement } from './chat/Message';
-import { createActionButton, copyToClipboard } from './chat/Buttons';
+import { createChatUI, ChatUIElements } from './chat/ui';
+import { handleCopyAll, handleSaveNote, handleClearChat, handleSettings, handleHelp } from './chat/eventHandlers';
 import { saveChatAsNote, loadChatYamlAndApplySettings } from './chat/chatPersistence';
 import { renderChatHistory } from './chat/chatHistoryUtils';
 import { ChatHelpModal } from './chat/ChatHelpModal';
@@ -41,6 +40,7 @@ export class ChatView extends ItemView {
     async onOpen() {
         const { contentEl } = this;
         contentEl.empty();
+        // Refactored: Use modular UI and event handler setup
 
         // Load persistent chat history before UI setup
         let loadedHistory: ChatMessage[] = [];
@@ -51,82 +51,20 @@ export class ChatView extends ItemView {
             loadedHistory = [];
         }
 
-        // Create main container with flex layout
-        contentEl.addClass('ai-chat-view');
-
-        // --- FADED HELP MESSAGE NEAR TOP ---
-        const fadedHelp = contentEl.createDiv();
-        fadedHelp.setText('Tip: Type /help or press Ctrl+Shift+H for chat commands and shortcuts.');
-        fadedHelp.style.textAlign = 'center';
-        fadedHelp.style.opacity = '0.6';
-        fadedHelp.style.fontSize = '0.95em';
-        fadedHelp.style.margin = '0.5em 0 0.2em 0';
-
-        // --- BUTTONS ABOVE CHAT WINDOW ---
-        const topButtonContainer = contentEl.createDiv('ai-chat-buttons');
-        // Settings button
-        const settingsButton = document.createElement('button');
-        settingsButton.setText('Settings');
-        settingsButton.setAttribute('aria-label', 'Toggle model settings');
-        topButtonContainer.appendChild(settingsButton);
-        // Copy All button
-        const copyAllButton = document.createElement('button');
-        copyAllButton.textContent = 'Copy All';
-        topButtonContainer.appendChild(copyAllButton);
-        // Save as Note button
-        const saveNoteButton = document.createElement('button');
-        saveNoteButton.textContent = 'Save as Note';
-        topButtonContainer.appendChild(saveNoteButton);
-        // Clear button
-        const clearButton = document.createElement('button');
-        clearButton.textContent = 'Clear Chat';
-        topButtonContainer.appendChild(clearButton);
-
-        // Messages container
-        this.messagesContainer = contentEl.createDiv('ai-chat-messages');
-        // All styling for messagesContainer is now handled by .ai-chat-messages in styles.css
-
-        // --- INPUT CONTAINER AT BOTTOM ---
-        this.inputContainer = contentEl.createDiv('ai-chat-input-container');
-        // Textarea for input
-        const textarea = this.inputContainer.createEl('textarea', {
-            cls: 'ai-chat-input',
-            attr: {
-                placeholder: 'Type your message...',
-                rows: '3'
-            }
-        });
-        // All styling for textarea is now handled by .ai-chat-input in styles.css
-
-        // Send button (now next to textarea)
-        const sendButton = this.inputContainer.createEl('button', {
-            text: 'Send',
-            cls: 'mod-cta'
-        });
-        // Stop button (now next to textarea, hidden initially)
-        const stopButton = this.inputContainer.createEl('button', {
-            text: 'Stop',
-        });
-        stopButton.classList.add('hidden');
-
-        // --- TINY HELP BUTTON ABOVE SEND BUTTON ---
-        const helpButton = this.inputContainer.createEl('button', {
-            text: '?',
-        });
-        helpButton.setAttr('aria-label', 'Show chat help');
-        helpButton.style.fontSize = '0.9em';
-        helpButton.style.width = '1.8em';
-        helpButton.style.height = '1.8em';
-        helpButton.style.marginBottom = '0.2em';
-        helpButton.style.opacity = '0.7';
-        helpButton.style.position = 'absolute';
-        helpButton.style.right = '0.5em';
-        helpButton.style.top = '-2.2em';
-        helpButton.style.zIndex = '2';
-        helpButton.addEventListener('click', () => {
-            new ChatHelpModal(this.app).open();
-        });
-        this.inputContainer.style.position = 'relative';
+        // Modular UI creation
+        const ui: ChatUIElements = createChatUI(this.app, contentEl);
+        this.messagesContainer = ui.messagesContainer;
+        this.inputContainer = ui.inputContainer;
+        const textarea = ui.textarea;
+        const sendButton = ui.sendButton;
+        const stopButton = ui.stopButton;
+        // Attach event handlers
+        ui.copyAllButton.addEventListener('click', handleCopyAll(this.messagesContainer, this.plugin));
+        ui.saveNoteButton.addEventListener('click', handleSaveNote(this.messagesContainer, this.plugin, this.app));
+        ui.clearButton.addEventListener('click', handleClearChat(this.messagesContainer, this.chatHistoryManager));
+        ui.settingsButton.addEventListener('click', handleSettings(this.app, this.plugin));
+        ui.helpButton.addEventListener('click', handleHelp(this.app));
+        // All styling for messagesContainer and textarea is handled by CSS
 
         // --- HANDLE SEND MESSAGE ---
         const sendMessage = async () => {
@@ -203,92 +141,38 @@ export class ChatView extends ItemView {
                 sendButton.classList.remove('hidden');
             }
         });
-        copyAllButton.addEventListener('click', async () => {
-            const messages = this.messagesContainer.querySelectorAll('.ai-chat-message');
-            let chatContent = '';
-            messages.forEach((el, index) => {
-                const content = el.querySelector('.message-content')?.textContent || '';
-                chatContent += content;
-                if (index < messages.length - 1) {
-                    chatContent += '\n\n' + this.plugin.settings.chatSeparator + '\n\n';
-                }
-            });
-            await copyToClipboard(chatContent);
-        });
-        saveNoteButton.addEventListener('click', async () => {
-            const provider = this.plugin.settings.provider;
-            let model = '';
-            if (provider === 'openai') model = this.plugin.settings.openaiSettings.model;
-            else if (provider === 'anthropic') model = this.plugin.settings.anthropicSettings.model;
-            else if (provider === 'gemini') model = this.plugin.settings.geminiSettings.model;
-            else if (provider === 'ollama') model = this.plugin.settings.ollamaSettings.model;
-            await saveChatAsNote({
-                app: this.app,
-                messages: this.messagesContainer.querySelectorAll('.ai-chat-message'),
-                settings: this.plugin.settings,
-                provider,
-                model,
-                chatSeparator: this.plugin.settings.chatSeparator,
-                chatNoteFolder: this.plugin.settings.chatNoteFolder
-            });
-        });
-        clearButton.addEventListener('click', async () => {
-            this.messagesContainer.empty();
-            try {
-                await this.chatHistoryManager.clearHistory();
-                // Do not show any message after clearing.
-            } catch (e) {
-                new Notice("Failed to clear chat history.");
-            }
-        });
-        settingsButton.addEventListener('click', () => {
-            const settingsModal = new SettingsModal(this.app, this.plugin);
-            settingsModal.open();
-        });
 
-        // --- SLASH COMMANDS AND KEYBOARD SHORTCUTS ---
-        async function handleSlashCommand(cmd: string) {
-            switch (cmd) {
-                case '/clear':
-                    await clearButton.click();
-                    break;
-                case '/copy':
-                    await copyAllButton.click();
-                    break;
-                case '/save':
-                    await saveNoteButton.click();
-                    break;
-                case '/settings':
-                    settingsButton.click();
-                    break;
-                case '/help':
-                    new ChatHelpModal(this.app).open();
-                    break;
-            }
-        }
-
-        textarea.addEventListener('keydown', async (e) => {
-            // Keyboard shortcuts: Ctrl+Shift+C (Clear), Y (Copy), S (Save), O (Settings), H (Help)
-            if (e.ctrlKey && e.shiftKey) {
-                if (e.key.toLowerCase() === 'c') { e.preventDefault(); await clearButton.click(); return; }
-                if (e.key.toLowerCase() === 'y') { e.preventDefault(); await copyAllButton.click(); return; }
-                if (e.key.toLowerCase() === 's') { e.preventDefault(); await saveNoteButton.click(); return; }
-                if (e.key.toLowerCase() === 'o') { e.preventDefault(); settingsButton.click(); return; }
-                if (e.key.toLowerCase() === 'h') { e.preventDefault(); new ChatHelpModal(this.app).open(); return; }
-            }
-            // Slash commands
-            if (e.key === 'Enter' && !e.shiftKey) {
-                const val = textarea.value.trim();
-                if (val === '/clear' || val === '/copy' || val === '/save' || val === '/settings' || val === '/help') {
-                    e.preventDefault();
-                    await handleSlashCommand.call(this, val);
-                    textarea.value = '';
-                    return;
-                }
-                sendMessage();
-                e.preventDefault();
-            }
-            // Shift+Enter will fall through and act as a normal Enter (newline)
+        // Modular input handler for slash commands and keyboard shortcuts
+        // (setupInputHandler will be imported from './chat/inputHandler')
+        // @ts-ignore
+        import('./chat/inputHandler').then(({ setupInputHandler }) => {
+            setupInputHandler(
+                textarea,
+                sendMessage,
+                async (cmd: string) => {
+                    switch (cmd) {
+                        case '/clear':
+                            ui.clearButton.click();
+                            break;
+                        case '/copy':
+                            ui.copyAllButton.click();
+                            break;
+                        case '/save':
+                            ui.saveNoteButton.click();
+                            break;
+                        case '/settings':
+                            ui.settingsButton.click();
+                            break;
+                        case '/help':
+                            ui.helpButton.click();
+                            break;
+                    }
+                },
+                this.app,
+                this.plugin,
+                sendButton,
+                stopButton
+            );
         });
 
         // Render loaded chat history
