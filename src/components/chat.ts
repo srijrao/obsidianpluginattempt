@@ -40,7 +40,7 @@ export class ChatView extends ItemView {
     async onOpen() {
         const { contentEl } = this;
         contentEl.empty();
-        // Refactored: Use modular UI and event handler setup
+        contentEl.addClass('ai-chat-view');
 
         // Load persistent chat history before UI setup
         let loadedHistory: ChatMessage[] = [];

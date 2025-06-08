@@ -8189,6 +8189,7 @@ var ChatView = class extends import_obsidian10.ItemView {
   async onOpen() {
     const { contentEl } = this;
     contentEl.empty();
+    contentEl.addClass("ai-chat-view");
     let loadedHistory = [];
     try {
       loadedHistory = await this.chatHistoryManager.getHistory();
