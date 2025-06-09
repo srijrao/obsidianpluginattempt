@@ -581,4 +581,14 @@ export class SettingsSections {
             });
         }
     }
+
+    /**
+     * Render all settings sections in order (for modal or view)
+     */
+    async renderAllSettings(containerEl: HTMLElement, options?: { onRefresh?: () => void }) {
+        await this.renderAIModelSettings(containerEl, options?.onRefresh);
+        this.renderDateSettings(containerEl);
+        this.renderNoteReferenceSettings(containerEl);
+        this.renderProviderConfiguration(containerEl);
+    }
 }
