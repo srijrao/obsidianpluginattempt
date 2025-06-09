@@ -29,27 +29,27 @@ export class SettingsModal extends Modal {
         // AI Model Settings Section
         CollapsibleSectionRenderer.createCollapsibleSection(contentEl, 'AI Model Settings', (sectionEl: HTMLElement) => {
             this.settingsSections.renderAIModelSettings(sectionEl);
-        });
+        }, this.plugin, 'generalSectionsExpanded');
 
         // Date Settings Section
         CollapsibleSectionRenderer.createCollapsibleSection(contentEl, 'Date Settings', (sectionEl: HTMLElement) => {
             this.settingsSections.renderDateSettings(sectionEl);
-        });
+        }, this.plugin, 'generalSectionsExpanded');
 
         // Note Reference Settings Section
         CollapsibleSectionRenderer.createCollapsibleSection(contentEl, 'Note Reference Settings', (sectionEl: HTMLElement) => {
             this.settingsSections.renderNoteReferenceSettings(sectionEl);
-        });
+        }, this.plugin, 'generalSectionsExpanded');
 
         // Model Settings Section
         CollapsibleSectionRenderer.createCollapsibleSection(contentEl, 'Model Settings', async (sectionEl: HTMLElement) => {
             await this.settingsSections.renderModelSettings(sectionEl, () => this.onOpen());
-        });
+        }, this.plugin, 'generalSectionsExpanded');
 
         // Provider Configuration Section
         CollapsibleSectionRenderer.createCollapsibleSection(contentEl, 'Provider Configuration', (sectionEl: HTMLElement) => {
-            this.settingsSections.renderProviderConfiguration(sectionEl);
-        });
+            this.settingsSections.renderProviderConfiguration(sectionEl); // Removed plugin argument
+        }, this.plugin, 'generalSectionsExpanded');
     }/**
      * Renders the unified model selection dropdown
      */

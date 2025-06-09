@@ -212,6 +212,12 @@ export interface MyPluginSettings {
 
     /** YAML attribute generators for the settings UI */
     yamlAttributeGenerators?: YamlAttributeGenerator[];
+
+    /** Stores the expanded state of provider configuration sections */
+    providerConfigExpanded?: Record<string, boolean>;
+
+    /** Stores the expanded state of general collapsible sections in settings */
+    generalSectionsExpanded?: Record<string, boolean>;
 }
 
 /**
@@ -278,7 +284,20 @@ export const DEFAULT_SETTINGS: MyPluginSettings = {
             outputMode: "metadata",
             commandName: "Generate YAML: summary"
         }
-    ]
+    ],
+    providerConfigExpanded: {
+        openai: false,
+        anthropic: false,
+        gemini: false,
+        ollama: false,
+    },
+    generalSectionsExpanded: {
+        "AI Model Settings": true,
+        "Date Settings": true,
+        "Note Reference Settings": true,
+        "Model Settings": true, // For the unified model selection section
+        "Provider Configuration": true // For the main group of provider configs
+    }
 };
 
 /**

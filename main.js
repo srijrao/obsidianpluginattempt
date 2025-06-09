@@ -110,7 +110,22 @@ var init_types = __esm({
           outputMode: "metadata",
           commandName: "Generate YAML: summary"
         }
-      ]
+      ],
+      providerConfigExpanded: {
+        openai: false,
+        anthropic: false,
+        gemini: false,
+        ollama: false
+      },
+      generalSectionsExpanded: {
+        "AI Model Settings": true,
+        "Date Settings": true,
+        "Note Reference Settings": true,
+        "Model Settings": true,
+        // For the unified model selection section
+        "Provider Configuration": true
+        // For the main group of provider configs
+      }
     };
   }
 });
@@ -7603,24 +7618,28 @@ var init_CollapsibleSection = __esm({
       /**
        * Creates a collapsible section with a header that can be toggled
        */
-      static createCollapsibleSection(containerEl, title, contentCallback, expanded = false) {
+      static createCollapsibleSection(containerEl, title, contentCallback, plugin, settingsType) {
+        var _a2;
+        plugin.settings[settingsType] = plugin.settings[settingsType] || {};
+        let isExpanded = (_a2 = plugin.settings[settingsType][title]) != null ? _a2 : false;
         const collapsibleContainer = containerEl.createEl("div");
         collapsibleContainer.addClass("ai-collapsible-section");
         const headerEl = collapsibleContainer.createEl("div");
         headerEl.addClass("ai-collapsible-header");
         const arrow = headerEl.createEl("span");
         arrow.addClass("ai-collapsible-arrow");
-        arrow.textContent = expanded ? "\u25BC" : "\u25B6";
+        arrow.textContent = isExpanded ? "\u25BC" : "\u25B6";
         const titleSpan = headerEl.createEl("span");
         titleSpan.textContent = title;
         const contentEl = collapsibleContainer.createEl("div");
         contentEl.addClass("ai-collapsible-content");
-        contentEl.style.display = expanded ? "block" : "none";
-        let isExpanded = expanded;
-        headerEl.addEventListener("click", () => {
+        contentEl.style.display = isExpanded ? "block" : "none";
+        headerEl.addEventListener("click", async () => {
           isExpanded = !isExpanded;
           contentEl.style.display = isExpanded ? "block" : "none";
           arrow.textContent = isExpanded ? "\u25BC" : "\u25B6";
+          plugin.settings[settingsType][title] = isExpanded;
+          await plugin.saveSettings();
         });
         const result = contentCallback(contentEl);
         if (result instanceof Promise) {
@@ -7662,19 +7681,19 @@ var init_SettingsModal = __esm({
         contentEl.addClass("ai-settings-modal");
         CollapsibleSectionRenderer.createCollapsibleSection(contentEl, "AI Model Settings", (sectionEl) => {
           this.settingsSections.renderAIModelSettings(sectionEl);
-        });
+        }, this.plugin, "generalSectionsExpanded");
         CollapsibleSectionRenderer.createCollapsibleSection(contentEl, "Date Settings", (sectionEl) => {
           this.settingsSections.renderDateSettings(sectionEl);
-        });
+        }, this.plugin, "generalSectionsExpanded");
         CollapsibleSectionRenderer.createCollapsibleSection(contentEl, "Note Reference Settings", (sectionEl) => {
           this.settingsSections.renderNoteReferenceSettings(sectionEl);
-        });
+        }, this.plugin, "generalSectionsExpanded");
         CollapsibleSectionRenderer.createCollapsibleSection(contentEl, "Model Settings", async (sectionEl) => {
           await this.settingsSections.renderModelSettings(sectionEl, () => this.onOpen());
-        });
+        }, this.plugin, "generalSectionsExpanded");
         CollapsibleSectionRenderer.createCollapsibleSection(contentEl, "Provider Configuration", (sectionEl) => {
           this.settingsSections.renderProviderConfiguration(sectionEl);
-        });
+        }, this.plugin, "generalSectionsExpanded");
       }
       /**
       * Renders the unified model selection dropdown
@@ -9243,6 +9262,7 @@ function parseSelection(selection, chatSeparator, chatBoundaryString) {
 // src/components/ModelSettingsView.ts
 var import_obsidian12 = require("obsidian");
 init_providers();
+init_CollapsibleSection();
 var VIEW_TYPE_MODEL_SETTINGS = "model-settings-view";
 var ModelSettingsView = class extends import_obsidian12.ItemView {
   constructor(leaf, plugin) {
@@ -9267,78 +9287,83 @@ var ModelSettingsView = class extends import_obsidian12.ItemView {
     contentEl.empty();
     this.plugin.offSettingsChange(this._onSettingsChange);
     this.plugin.onSettingsChange(this._onSettingsChange);
-    contentEl.createEl("h2", { text: "AI Model Settings" });
-    new import_obsidian12.Setting(contentEl).setName("System Message").setDesc("Set the system message for the AI").addTextArea((text) => text.setPlaceholder("You are a helpful assistant.").setValue(this.plugin.settings.systemMessage).onChange(async (value) => {
-      this.plugin.settings.systemMessage = value;
-      await this.plugin.saveSettings();
-    }));
-    new import_obsidian12.Setting(contentEl).setName("Enable Streaming").setDesc("Enable or disable streaming for completions").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableStreaming).onChange(async (value) => {
-      this.plugin.settings.enableStreaming = value;
-      await this.plugin.saveSettings();
-    }));
-    new import_obsidian12.Setting(contentEl).setName("Temperature").setDesc("Set the randomness of the model's output (0-1)").addSlider((slider) => slider.setLimits(0, 1, 0.1).setValue(this.plugin.settings.temperature).setDynamicTooltip().onChange(async (value) => {
-      this.plugin.settings.temperature = value;
-      await this.plugin.saveSettings();
-    }));
-    contentEl.createEl("h4", { text: "Date Settings" });
-    new import_obsidian12.Setting(contentEl).setName("Include Date with System Message").setDesc("Add the current date to the system message").addToggle((toggle) => toggle.setValue(this.plugin.settings.includeDateWithSystemMessage).onChange(async (value) => {
-      this.plugin.settings.includeDateWithSystemMessage = value;
-      await this.plugin.saveSettings();
-    }));
-    new import_obsidian12.Setting(contentEl).setName("Include Time with System Message").setDesc("Add the current time along with the date to the system message").addToggle((toggle) => toggle.setValue(this.plugin.settings.includeTimeWithSystemMessage).onChange(async (value) => {
-      this.plugin.settings.includeTimeWithSystemMessage = value;
-      await this.plugin.saveSettings();
-    }));
-    contentEl.createEl("h4", { text: "Note Reference Settings" });
-    new import_obsidian12.Setting(contentEl).setName("Enable Obsidian Links").setDesc("Read Obsidian links in messages using [[filename]] syntax").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableObsidianLinks).onChange(async (value) => {
-      this.plugin.settings.enableObsidianLinks = value;
-      await this.plugin.saveSettings();
-    }));
-    new import_obsidian12.Setting(contentEl).setName("Enable Context Notes").setDesc("Attach specified note content to chat messages").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableContextNotes).onChange(async (value) => {
-      this.plugin.settings.enableContextNotes = value;
-      await this.plugin.saveSettings();
-    }));
-    const contextNotesContainer = contentEl.createDiv("context-notes-container");
-    contextNotesContainer.style.marginBottom = "24px";
-    new import_obsidian12.Setting(contextNotesContainer).setName("Context Notes").setDesc("Notes to attach as context (supports [[filename]] and [[filename#header]] syntax)").addTextArea((text) => {
-      text.setPlaceholder("[[Note Name]]\n[[Another Note#Header]]").setValue(this.plugin.settings.contextNotes || "").onChange(async (value) => {
-        this.plugin.settings.contextNotes = value;
+    CollapsibleSectionRenderer.createCollapsibleSection(contentEl, "AI Model Settings", (sectionEl) => {
+      new import_obsidian12.Setting(sectionEl).setName("System Message").setDesc("Set the system message for the AI").addTextArea((text) => text.setPlaceholder("You are a helpful assistant.").setValue(this.plugin.settings.systemMessage).onChange(async (value) => {
+        this.plugin.settings.systemMessage = value;
         await this.plugin.saveSettings();
-      });
-      text.inputEl.rows = 4;
-      text.inputEl.style.width = "100%";
-    });
-    new import_obsidian12.Setting(contentEl).setName("Expand Linked Notes Recursively").setDesc("If enabled, when fetching a note, also fetch and expand links within that note recursively (prevents infinite loops).").addToggle((toggle) => {
-      var _a2;
-      return toggle.setValue((_a2 = this.plugin.settings.expandLinkedNotesRecursively) != null ? _a2 : false).onChange(async (value) => {
-        this.plugin.settings.expandLinkedNotesRecursively = value;
+      }));
+      new import_obsidian12.Setting(sectionEl).setName("Enable Streaming").setDesc("Enable or disable streaming for completions").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableStreaming).onChange(async (value) => {
+        this.plugin.settings.enableStreaming = value;
         await this.plugin.saveSettings();
+      }));
+      new import_obsidian12.Setting(sectionEl).setName("Temperature").setDesc("Set the randomness of the model's output (0-1)").addSlider((slider) => slider.setLimits(0, 1, 0.1).setValue(this.plugin.settings.temperature).setDynamicTooltip().onChange(async (value) => {
+        this.plugin.settings.temperature = value;
+        await this.plugin.saveSettings();
+      }));
+    }, this.plugin, "generalSectionsExpanded");
+    CollapsibleSectionRenderer.createCollapsibleSection(contentEl, "Date Settings", (sectionEl) => {
+      new import_obsidian12.Setting(sectionEl).setName("Include Date with System Message").setDesc("Add the current date to the system message").addToggle((toggle) => toggle.setValue(this.plugin.settings.includeDateWithSystemMessage).onChange(async (value) => {
+        this.plugin.settings.includeDateWithSystemMessage = value;
+        await this.plugin.saveSettings();
+      }));
+      new import_obsidian12.Setting(sectionEl).setName("Include Time with System Message").setDesc("Add the current time along with the date to the system message").addToggle((toggle) => toggle.setValue(this.plugin.settings.includeTimeWithSystemMessage).onChange(async (value) => {
+        this.plugin.settings.includeTimeWithSystemMessage = value;
+        await this.plugin.saveSettings();
+      }));
+    }, this.plugin, "generalSectionsExpanded");
+    CollapsibleSectionRenderer.createCollapsibleSection(contentEl, "Note Reference Settings", (sectionEl) => {
+      new import_obsidian12.Setting(sectionEl).setName("Enable Obsidian Links").setDesc("Read Obsidian links in messages using [[filename]] syntax").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableObsidianLinks).onChange(async (value) => {
+        this.plugin.settings.enableObsidianLinks = value;
+        await this.plugin.saveSettings();
+      }));
+      new import_obsidian12.Setting(sectionEl).setName("Enable Context Notes").setDesc("Attach specified note content to chat messages").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableContextNotes).onChange(async (value) => {
+        this.plugin.settings.enableContextNotes = value;
+        await this.plugin.saveSettings();
+      }));
+      const contextNotesContainer = sectionEl.createDiv("context-notes-container");
+      contextNotesContainer.style.marginBottom = "24px";
+      new import_obsidian12.Setting(contextNotesContainer).setName("Context Notes").setDesc("Notes to attach as context (supports [[filename]] and [[filename#header]] syntax)").addTextArea((text) => {
+        text.setPlaceholder("[[Note Name]]\\n[[Another Note#Header]]").setValue(this.plugin.settings.contextNotes || "").onChange(async (value) => {
+          this.plugin.settings.contextNotes = value;
+          await this.plugin.saveSettings();
+        });
+        text.inputEl.rows = 4;
+        text.inputEl.style.width = "100%";
       });
-    });
-    contentEl.createEl("h2", { text: "Model Settings" });
-    new import_obsidian12.Setting(contentEl).setName("Refresh Available Models").setDesc("Test connections to all configured providers and refresh available models").addButton((button) => button.setButtonText("Refresh Models").onClick(async () => {
-      button.setButtonText("Refreshing...");
-      button.setDisabled(true);
-      try {
-        await this.refreshAllAvailableModels();
-        new import_obsidian12.Notice("Successfully refreshed available models");
-      } catch (error) {
-        new import_obsidian12.Notice(`Error refreshing models: ${error.message}`);
-      } finally {
-        button.setButtonText("Refresh Models");
-        button.setDisabled(false);
-      }
-    }));
-    await this.renderUnifiedModelDropdown(contentEl);
-    contentEl.createEl("h2", { text: "Provider Configuration" });
-    contentEl.createEl("p", {
-      text: "API keys are configured in the main plugin settings. Use the test buttons below to verify connections and refresh available models.",
-      cls: "setting-item-description"
-    });
-    this.renderOpenAIConfig(contentEl);
-    this.renderAnthropicConfig(contentEl);
-    this.renderGeminiConfig(contentEl);
-    this.renderOllamaConfig(contentEl);
+      new import_obsidian12.Setting(sectionEl).setName("Expand Linked Notes Recursively").setDesc("If enabled, when fetching a note, also fetch and expand links within that note recursively (prevents infinite loops).").addToggle((toggle) => {
+        var _a2;
+        return toggle.setValue((_a2 = this.plugin.settings.expandLinkedNotesRecursively) != null ? _a2 : false).onChange(async (value) => {
+          this.plugin.settings.expandLinkedNotesRecursively = value;
+          await this.plugin.saveSettings();
+        });
+      });
+    }, this.plugin, "generalSectionsExpanded");
+    CollapsibleSectionRenderer.createCollapsibleSection(contentEl, "Model Settings", async (sectionEl) => {
+      new import_obsidian12.Setting(sectionEl).setName("Refresh Available Models").setDesc("Test connections to all configured providers and refresh available models").addButton((button) => button.setButtonText("Refresh Models").onClick(async () => {
+        button.setButtonText("Refreshing...");
+        button.setDisabled(true);
+        try {
+          await this.refreshAllAvailableModels();
+          new import_obsidian12.Notice("Successfully refreshed available models");
+        } catch (error) {
+          new import_obsidian12.Notice(`Error refreshing models: ${error.message}`);
+        } finally {
+          button.setButtonText("Refresh Models");
+          button.setDisabled(false);
+        }
+      }));
+      await this.renderUnifiedModelDropdown(sectionEl);
+    }, this.plugin, "generalSectionsExpanded");
+    CollapsibleSectionRenderer.createCollapsibleSection(contentEl, "Provider Configuration", (sectionEl) => {
+      sectionEl.createEl("p", {
+        text: "API keys are configured in the main plugin settings. Use the test buttons below to verify connections and refresh available models.",
+        cls: "setting-item-description"
+      });
+      this.renderOpenAIConfig(sectionEl);
+      this.renderAnthropicConfig(sectionEl);
+      this.renderGeminiConfig(sectionEl);
+      this.renderOllamaConfig(sectionEl);
+    }, this.plugin, "generalSectionsExpanded");
   }
   /**
    * Renders the unified model selection dropdown
@@ -9481,124 +9506,68 @@ var ModelSettingsView = class extends import_obsidian12.ItemView {
   * Renders OpenAI configuration section
   */
   renderOpenAIConfig(containerEl) {
-    const collapsibleContainer = containerEl.createEl("div", { cls: "provider-collapsible" });
-    const headerEl = collapsibleContainer.createEl("div", {
-      cls: "provider-header",
-      text: "\u25B6 OpenAI Configuration"
-    });
-    headerEl.style.cursor = "pointer";
-    headerEl.style.userSelect = "none";
-    headerEl.style.padding = "8px 0";
-    headerEl.style.fontWeight = "bold";
-    const openaiContainer = collapsibleContainer.createEl("div", { cls: "provider-config-section" });
-    openaiContainer.style.display = "none";
-    openaiContainer.style.paddingLeft = "16px";
-    let isExpanded = false;
-    headerEl.addEventListener("click", () => {
-      isExpanded = !isExpanded;
-      openaiContainer.style.display = isExpanded ? "block" : "none";
-      headerEl.textContent = `${isExpanded ? "\u25BC" : "\u25B6"} OpenAI Configuration`;
-    });
-    const apiKeyStatus = this.plugin.settings.openaiSettings.apiKey ? `API Key: ${this.plugin.settings.openaiSettings.apiKey.substring(0, 8)}...` : "No API Key configured";
-    openaiContainer.createEl("div", {
-      cls: "setting-item-description",
-      text: `${apiKeyStatus} (Configure in main plugin settings)`
-    });
-    this.renderProviderStatus(openaiContainer, this.plugin.settings.openaiSettings, "OpenAI");
+    const providerKey = "OpenAI Configuration";
+    CollapsibleSectionRenderer.createCollapsibleSection(containerEl, providerKey, (openaiContainer) => {
+      openaiContainer.style.paddingLeft = "16px";
+      const apiKeyStatus = this.plugin.settings.openaiSettings.apiKey ? `API Key: ${this.plugin.settings.openaiSettings.apiKey.substring(0, 8)}...` : "No API Key configured";
+      openaiContainer.createEl("div", {
+        cls: "setting-item-description",
+        text: `${apiKeyStatus} (Configure in main plugin settings)`
+      });
+      this.renderProviderStatus(openaiContainer, this.plugin.settings.openaiSettings, "OpenAI");
+    }, this.plugin, "providerConfigExpanded");
   }
   /**
-  * Renders Anthropic configuration section
-  */
+   * Renders Anthropic configuration section
+   */
   renderAnthropicConfig(containerEl) {
-    const collapsibleContainer = containerEl.createEl("div", { cls: "provider-collapsible" });
-    const headerEl = collapsibleContainer.createEl("div", {
-      cls: "provider-header",
-      text: "\u25B6 Anthropic Configuration"
-    });
-    headerEl.style.cursor = "pointer";
-    headerEl.style.userSelect = "none";
-    headerEl.style.padding = "8px 0";
-    headerEl.style.fontWeight = "bold";
-    const anthropicContainer = collapsibleContainer.createEl("div", { cls: "provider-config-section" });
-    anthropicContainer.style.display = "none";
-    anthropicContainer.style.paddingLeft = "16px";
-    let isExpanded = false;
-    headerEl.addEventListener("click", () => {
-      isExpanded = !isExpanded;
-      anthropicContainer.style.display = isExpanded ? "block" : "none";
-      headerEl.textContent = `${isExpanded ? "\u25BC" : "\u25B6"} Anthropic Configuration`;
-    });
-    const apiKeyStatus = this.plugin.settings.anthropicSettings.apiKey ? `API Key: ${this.plugin.settings.anthropicSettings.apiKey.substring(0, 8)}...` : "No API Key configured";
-    anthropicContainer.createEl("div", {
-      cls: "setting-item-description",
-      text: `${apiKeyStatus} (Configure in main plugin settings)`
-    });
-    this.renderProviderStatus(anthropicContainer, this.plugin.settings.anthropicSettings, "Anthropic");
+    const providerKey = "Anthropic Configuration";
+    CollapsibleSectionRenderer.createCollapsibleSection(containerEl, providerKey, (anthropicContainer) => {
+      anthropicContainer.style.paddingLeft = "16px";
+      const apiKeyStatus = this.plugin.settings.anthropicSettings.apiKey ? `API Key: ${this.plugin.settings.anthropicSettings.apiKey.substring(0, 8)}...` : "No API Key configured";
+      anthropicContainer.createEl("div", {
+        cls: "setting-item-description",
+        text: `${apiKeyStatus} (Configure in main plugin settings)`
+      });
+      this.renderProviderStatus(anthropicContainer, this.plugin.settings.anthropicSettings, "Anthropic");
+    }, this.plugin, "providerConfigExpanded");
   }
   /**
-  * Renders Gemini configuration section
-  */
+   * Renders Gemini configuration section
+   */
   renderGeminiConfig(containerEl) {
-    const collapsibleContainer = containerEl.createEl("div", { cls: "provider-collapsible" });
-    const headerEl = collapsibleContainer.createEl("div", {
-      cls: "provider-header",
-      text: "\u25B6 Google Gemini Configuration"
-    });
-    headerEl.style.cursor = "pointer";
-    headerEl.style.userSelect = "none";
-    headerEl.style.padding = "8px 0";
-    headerEl.style.fontWeight = "bold";
-    const geminiContainer = collapsibleContainer.createEl("div", { cls: "provider-config-section" });
-    geminiContainer.style.display = "none";
-    geminiContainer.style.paddingLeft = "16px";
-    let isExpanded = false;
-    headerEl.addEventListener("click", () => {
-      isExpanded = !isExpanded;
-      geminiContainer.style.display = isExpanded ? "block" : "none";
-      headerEl.textContent = `${isExpanded ? "\u25BC" : "\u25B6"} Google Gemini Configuration`;
-    });
-    const apiKeyStatus = this.plugin.settings.geminiSettings.apiKey ? `API Key: ${this.plugin.settings.geminiSettings.apiKey.substring(0, 8)}...` : "No API Key configured";
-    geminiContainer.createEl("div", {
-      cls: "setting-item-description",
-      text: `${apiKeyStatus} (Configure in main plugin settings)`
-    });
-    this.renderProviderStatus(geminiContainer, this.plugin.settings.geminiSettings, "Gemini");
+    const providerKey = "Google Gemini Configuration";
+    CollapsibleSectionRenderer.createCollapsibleSection(containerEl, providerKey, (geminiContainer) => {
+      geminiContainer.style.paddingLeft = "16px";
+      const apiKeyStatus = this.plugin.settings.geminiSettings.apiKey ? `API Key: ${this.plugin.settings.geminiSettings.apiKey.substring(0, 8)}...` : "No API Key configured";
+      geminiContainer.createEl("div", {
+        cls: "setting-item-description",
+        text: `${apiKeyStatus} (Configure in main plugin settings)`
+      });
+      this.renderProviderStatus(geminiContainer, this.plugin.settings.geminiSettings, "Gemini");
+    }, this.plugin, "providerConfigExpanded");
   }
   /**
-  * Renders Ollama configuration section
-  */
+   * Renders Ollama configuration section
+   */
   renderOllamaConfig(containerEl) {
-    const collapsibleContainer = containerEl.createEl("div", { cls: "provider-collapsible" });
-    const headerEl = collapsibleContainer.createEl("div", {
-      cls: "provider-header",
-      text: "\u25B6 Ollama Configuration"
-    });
-    headerEl.style.cursor = "pointer";
-    headerEl.style.userSelect = "none";
-    headerEl.style.padding = "8px 0";
-    headerEl.style.fontWeight = "bold";
-    const ollamaContainer = collapsibleContainer.createEl("div", { cls: "provider-config-section" });
-    ollamaContainer.style.display = "none";
-    ollamaContainer.style.paddingLeft = "16px";
-    let isExpanded = false;
-    headerEl.addEventListener("click", () => {
-      isExpanded = !isExpanded;
-      ollamaContainer.style.display = isExpanded ? "block" : "none";
-      headerEl.textContent = `${isExpanded ? "\u25BC" : "\u25B6"} Ollama Configuration`;
-    });
-    const serverStatus = this.plugin.settings.ollamaSettings.serverUrl ? `Server URL: ${this.plugin.settings.ollamaSettings.serverUrl}` : "No Server URL configured";
-    ollamaContainer.createEl("div", {
-      cls: "setting-item-description",
-      text: `${serverStatus} (Configure in main plugin settings)`
-    });
-    this.renderProviderStatus(ollamaContainer, this.plugin.settings.ollamaSettings, "Ollama");
-    const helpContainer = ollamaContainer.createEl("div", { cls: "setting-item-description" });
-    helpContainer.createEl("p", { text: "To use Ollama:" });
-    const steps = helpContainer.createEl("ol");
-    steps.createEl("li", { text: "Install Ollama from https://ollama.ai" });
-    steps.createEl("li", { text: "Start the Ollama server" });
-    steps.createEl("li", { text: 'Pull models using "ollama pull model-name"' });
-    steps.createEl("li", { text: 'Click "Refresh Models" above to see available models' });
+    const providerKey = "Ollama Configuration";
+    CollapsibleSectionRenderer.createCollapsibleSection(containerEl, providerKey, (ollamaContainer) => {
+      ollamaContainer.style.paddingLeft = "16px";
+      const serverStatus = this.plugin.settings.ollamaSettings.serverUrl ? `Server URL: ${this.plugin.settings.ollamaSettings.serverUrl}` : "No Server URL configured";
+      ollamaContainer.createEl("div", {
+        cls: "setting-item-description",
+        text: `${serverStatus} (Configure in main plugin settings)`
+      });
+      this.renderProviderStatus(ollamaContainer, this.plugin.settings.ollamaSettings, "Ollama");
+      const helpContainer = ollamaContainer.createEl("div", { cls: "setting-item-description" });
+      helpContainer.createEl("p", { text: "To use Ollama:" });
+      const steps = helpContainer.createEl("ol");
+      steps.createEl("li", { text: "Install Ollama from https://ollama.ai" });
+      steps.createEl("li", { text: "Start the Ollama server" });
+      steps.createEl("li", { text: 'Pull models using "ollama pull model-name"' });
+      steps.createEl("li", { text: 'Click "Refresh Models" above to see available models' });
+    }, this.plugin, "providerConfigExpanded");
   }
   /**
    * Renders provider status information
