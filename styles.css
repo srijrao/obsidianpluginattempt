@@ -200,14 +200,21 @@
 }
 
 .ai-chat-reference-button {
-    /* Style for the new reference button */
-    padding: var(--spacing-sm) var(--spacing-md);
-    font-size: 0.9em; /* Adjust as needed */
+    font-size: 0.85em;
+    font-family: inherit;
+    padding: 0.2em 0.7em;
     border-radius: var(--border-radius);
     background-color: var(--background-secondary);
     color: var(--text-normal);
     border: 1px solid var(--background-modifier-border);
     transition: var(--transition);
+    opacity: 0.7;
+    margin-bottom: 0.2em;
+    min-width: 1.8em;
+    min-height: 1.8em;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .ai-chat-reference-button:hover {
@@ -215,18 +222,18 @@
 }
 
 .ai-chat-reference-button.active {
-    background-color: var(--background-modifier-success); /* Example: green when active */
+    background-color: var(--background-modifier-success);
     color: var(--text-on-accent);
+    opacity: 1;
 }
-
 
 .ai-reference-note-indicator {
     text-align: center;
-    opacity: 0.6; /* Faded text */
-    font-size: 0.85em; /* Smaller text */
-    margin: 0.5em 0; /* Spacing around the indicator */
-    display: none; /* Hidden by default, shown via JS */
-    width: 100%; /* Ensure it takes full width for centering */
+    opacity: 0.5;
+    font-size: 0.85em;
+    margin: 0.1em 0 0.2em 0;
+    display: none;
+    width: 100%;
 }
 
 .ai-chat-session-selector {

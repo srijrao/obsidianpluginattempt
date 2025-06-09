@@ -342,23 +342,19 @@ export class ChatView extends ItemView {
         
         const currentFile = this.app.workspace.getActiveFile();
         const isReferenceEnabled = this.plugin.settings.referenceCurrentNote;
-        
+        const button = this.referenceNoteIndicator.previousElementSibling as HTMLButtonElement;
         if (isReferenceEnabled && currentFile) {
             this.referenceNoteIndicator.setText(`📝 Referencing: ${currentFile.basename}`);
             this.referenceNoteIndicator.style.display = 'block';
-            // Update button text/style to indicate "on" state
-            const button = this.inputContainer.parentElement?.querySelector('[aria-label="Toggle referencing current note"]') as HTMLButtonElement;
-            if (button) {
-                button.setText('📝 On'); // Or some other visual cue
-                button.addClass('active');
+            if (button && button.getAttribute('aria-label') === 'Toggle referencing current note') {
+                button.setText('📝');
+                button.classList.add('active');
             }
         } else {
             this.referenceNoteIndicator.style.display = 'none';
-            // Update button text/style to indicate "off" state
-            const button = this.inputContainer.parentElement?.querySelector('[aria-label="Toggle referencing current note"]') as HTMLButtonElement;
-            if (button) {
-                button.setText('📝 Off'); // Or some other visual cue
-                button.removeClass('active');
+            if (button && button.getAttribute('aria-label') === 'Toggle referencing current note') {
+                button.setText('📝');
+                button.classList.remove('active');
             }
         }
     }

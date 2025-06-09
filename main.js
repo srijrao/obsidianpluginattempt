@@ -8837,13 +8837,6 @@ function createChatUI(app, contentEl) {
   fadedHelp.style.opacity = "0.6";
   fadedHelp.style.fontSize = "0.95em";
   fadedHelp.style.margin = "0.5em 0 0.2em 0";
-  const referenceNoteIndicator = contentEl.createDiv();
-  referenceNoteIndicator.style.textAlign = "center";
-  referenceNoteIndicator.style.opacity = "0.5";
-  referenceNoteIndicator.style.fontSize = "0.85em";
-  referenceNoteIndicator.style.margin = "0.2em 0";
-  referenceNoteIndicator.style.display = "none";
-  referenceNoteIndicator.addClass("ai-reference-note-indicator");
   const topButtonContainer = contentEl.createDiv("ai-chat-buttons");
   const settingsButton = document.createElement("button");
   settingsButton.setText("Settings");
@@ -8859,10 +8852,24 @@ function createChatUI(app, contentEl) {
   clearButton.textContent = "Clear Chat";
   topButtonContainer.appendChild(clearButton);
   const referenceNoteButton = document.createElement("button");
-  referenceNoteButton.setText("\u{1F4DD} Off");
+  referenceNoteButton.setText("\u{1F4DD}");
   referenceNoteButton.setAttribute("aria-label", "Toggle referencing current note");
   referenceNoteButton.addClass("ai-chat-reference-button");
+  referenceNoteButton.style.fontSize = "0.85em";
+  referenceNoteButton.style.fontFamily = "inherit";
+  referenceNoteButton.style.width = "1.8em";
+  referenceNoteButton.style.height = "1.8em";
+  referenceNoteButton.style.marginBottom = "0.2em";
+  referenceNoteButton.style.opacity = "0.7";
   topButtonContainer.appendChild(referenceNoteButton);
+  const referenceNoteIndicator = document.createElement("div");
+  referenceNoteIndicator.className = "ai-reference-note-indicator";
+  referenceNoteIndicator.style.textAlign = "center";
+  referenceNoteIndicator.style.opacity = "0.5";
+  referenceNoteIndicator.style.fontSize = "0.85em";
+  referenceNoteIndicator.style.margin = "0.1em 0 0.2em 0";
+  referenceNoteIndicator.style.display = "none";
+  topButtonContainer.appendChild(referenceNoteIndicator);
   const messagesContainer = contentEl.createDiv("ai-chat-messages");
   const inputContainer = contentEl.createDiv("ai-chat-input-container");
   const textarea = inputContainer.createEl("textarea", {
@@ -8894,6 +8901,12 @@ function createChatUI(app, contentEl) {
   helpButton.style.top = "-2.2em";
   helpButton.style.zIndex = "2";
   inputContainer.style.position = "relative";
+  [topButtonContainer.querySelectorAll("button")].forEach((btns) => {
+    btns.forEach((btn) => {
+      btn.style.fontSize = "0.85em";
+      btn.style.fontFamily = "inherit";
+    });
+  });
   return {
     contentEl,
     fadedHelp,
@@ -9210,24 +9223,22 @@ var ChatView = class extends import_obsidian11.ItemView {
     }
   }
   updateReferenceNoteIndicator() {
-    var _a2, _b;
     if (!this.referenceNoteIndicator) return;
     const currentFile = this.app.workspace.getActiveFile();
     const isReferenceEnabled = this.plugin.settings.referenceCurrentNote;
+    const button = this.referenceNoteIndicator.previousElementSibling;
     if (isReferenceEnabled && currentFile) {
       this.referenceNoteIndicator.setText(`\u{1F4DD} Referencing: ${currentFile.basename}`);
       this.referenceNoteIndicator.style.display = "block";
-      const button = (_a2 = this.inputContainer.parentElement) == null ? void 0 : _a2.querySelector('[aria-label="Toggle referencing current note"]');
-      if (button) {
-        button.setText("\u{1F4DD} On");
-        button.addClass("active");
+      if (button && button.getAttribute("aria-label") === "Toggle referencing current note") {
+        button.setText("\u{1F4DD}");
+        button.classList.add("active");
       }
     } else {
       this.referenceNoteIndicator.style.display = "none";
-      const button = (_b = this.inputContainer.parentElement) == null ? void 0 : _b.querySelector('[aria-label="Toggle referencing current note"]');
-      if (button) {
-        button.setText("\u{1F4DD} Off");
-        button.removeClass("active");
+      if (button && button.getAttribute("aria-label") === "Toggle referencing current note") {
+        button.setText("\u{1F4DD}");
+        button.classList.remove("active");
       }
     }
   }

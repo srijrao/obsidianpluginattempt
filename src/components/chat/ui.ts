@@ -27,15 +27,6 @@ export function createChatUI(app: App, contentEl: HTMLElement): ChatUIElements {
     fadedHelp.style.fontSize = '0.95em';
     fadedHelp.style.margin = '0.5em 0 0.2em 0';
 
-    // --- REFERENCE NOTE INDICATOR ---
-    const referenceNoteIndicator = contentEl.createDiv();
-    referenceNoteIndicator.style.textAlign = 'center';
-    referenceNoteIndicator.style.opacity = '0.5';
-    referenceNoteIndicator.style.fontSize = '0.85em';
-    referenceNoteIndicator.style.margin = '0.2em 0';
-    referenceNoteIndicator.style.display = 'none'; // Hidden by default
-    referenceNoteIndicator.addClass('ai-reference-note-indicator');
-
     // --- BUTTONS ABOVE CHAT WINDOW ---
     const topButtonContainer = contentEl.createDiv('ai-chat-buttons');
     // Settings button
@@ -55,14 +46,27 @@ export function createChatUI(app: App, contentEl: HTMLElement): ChatUIElements {
     const clearButton = document.createElement('button');
     clearButton.textContent = 'Clear Chat';
     topButtonContainer.appendChild(clearButton);
-
     // --- REFERENCE NOTE BUTTON ---
     const referenceNoteButton = document.createElement('button');
-    referenceNoteButton.setText('📝 Off');
+    referenceNoteButton.setText('📝');
     referenceNoteButton.setAttribute('aria-label', 'Toggle referencing current note');
-    referenceNoteButton.addClass('ai-chat-reference-button'); // Add a class for styling
+    referenceNoteButton.addClass('ai-chat-reference-button');
+    referenceNoteButton.style.fontSize = '0.85em';
+    referenceNoteButton.style.fontFamily = 'inherit';
+    referenceNoteButton.style.width = '1.8em';
+    referenceNoteButton.style.height = '1.8em';
+    referenceNoteButton.style.marginBottom = '0.2em';
+    referenceNoteButton.style.opacity = '0.7';
     topButtonContainer.appendChild(referenceNoteButton);
-
+    // --- REFERENCE NOTE INDICATOR (now under the button) ---
+    const referenceNoteIndicator = document.createElement('div');
+    referenceNoteIndicator.className = 'ai-reference-note-indicator';
+    referenceNoteIndicator.style.textAlign = 'center';
+    referenceNoteIndicator.style.opacity = '0.5';
+    referenceNoteIndicator.style.fontSize = '0.85em';
+    referenceNoteIndicator.style.margin = '0.1em 0 0.2em 0';
+    referenceNoteIndicator.style.display = 'none';
+    topButtonContainer.appendChild(referenceNoteIndicator);
 
     // Messages container
     const messagesContainer = contentEl.createDiv('ai-chat-messages');
@@ -117,7 +121,17 @@ export function createChatUI(app: App, contentEl: HTMLElement): ChatUIElements {
     // referenceNoteButton.style.top = '-2.2em';
     // referenceNoteButton.style.zIndex = '2';
     
-    inputContainer.style.position = 'relative';    return {
+    inputContainer.style.position = 'relative';
+
+    // After all button creations in topButtonContainer, apply consistent font size and font family
+    [topButtonContainer.querySelectorAll('button')].forEach(btns => {
+      btns.forEach(btn => {
+        btn.style.fontSize = '0.85em';
+        btn.style.fontFamily = 'inherit';
+      });
+    });
+
+    return {
         contentEl,
         fadedHelp,
         topButtonContainer,
