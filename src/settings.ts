@@ -1,6 +1,8 @@
 import { App, PluginSettingTab, Setting, Notice } from 'obsidian';
 import { MyPluginSettings } from './types';
 import MyPlugin from './main';
+import { SettingsSections } from './components/chat/SettingsSections';
+import { CollapsibleSectionRenderer } from './components/chat/CollapsibleSection';
 
 /**
  * Plugin Settings Tab
@@ -10,10 +12,12 @@ import MyPlugin from './main';
  */
 export class MyPluginSettingTab extends PluginSettingTab {
     plugin: MyPlugin;
+    private settingsSections: SettingsSections; // Added
 
     constructor(app: App, plugin: MyPlugin) {
         super(app, plugin);
         this.plugin = plugin;
+        this.settingsSections = new SettingsSections(this.plugin); // Added initialization
     }
 
     /**
@@ -89,28 +93,16 @@ export class MyPluginSettingTab extends PluginSettingTab {
                     await this.plugin.saveSettings();
                 }));
 
-        // Model Settings Section
-        containerEl.createEl('h3', { text: 'Model Settings' });
-
-        new Setting(containerEl)
-            .setName('Auto-open Model Settings')
-            .setDesc('Automatically open model settings when Obsidian starts')
-            .addToggle(toggle => toggle
-                .setValue(this.plugin.settings.autoOpenModelSettings)
-                .onChange(async (value) => {
-                    this.plugin.settings.autoOpenModelSettings = value;
-                    await this.plugin.saveSettings();
-                }));
-
-        // Add a button to open model settings
-        new Setting(containerEl)
-            .setName('Open Model Settings')
-            .setDesc('Open the model settings view')
-            .addButton(button => button
-                .setButtonText('Open')
-                .onClick(() => {
-                    this.plugin.activateView();
-                }));
+        // Unified AI Model Settings Section (matching chat modal exactly)
+        CollapsibleSectionRenderer.createCollapsibleSection(
+            containerEl,
+            'AI Model Settings', // Title matches the chat modal
+            async (sectionEl: HTMLElement) => {
+                await this.settingsSections.renderAIModelSettings(sectionEl, () => this.display());
+            },
+            this.plugin,
+            'generalSectionsExpanded'
+        );
 
         new Setting(containerEl)
             .setName('Chat Separator')

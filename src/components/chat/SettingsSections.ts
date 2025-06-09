@@ -16,7 +16,7 @@ export class SettingsSections {
     /**
      * AI Model Settings Section
      */
-    renderAIModelSettings(containerEl: HTMLElement): void {
+    async renderAIModelSettings(containerEl: HTMLElement, onRefresh?: () => void): Promise<void> {
         new Setting(containerEl)
             .setName('System Message')
             .setDesc('Set the system message for the AI')
@@ -49,6 +49,31 @@ export class SettingsSections {
                     this.plugin.settings.temperature = value;
                     await this.plugin.saveSettings();
                 }));
+
+        // Refresh available models button
+        new Setting(containerEl)
+            .setName('Refresh Available Models')
+            .setDesc('Test connections to all configured providers and refresh available models')
+            .addButton(button => button
+                .setButtonText('Refresh Models')
+                .onClick(async () => {
+                    button.setButtonText('Refreshing...');
+                    button.setDisabled(true);
+                    
+                    try {
+                        await this.refreshAllAvailableModels();
+                        new Notice('Successfully refreshed available models');
+                        if (onRefresh) onRefresh();
+                    } catch (error) {
+                        new Notice(`Error refreshing models: ${error.message}`);
+                    } finally {
+                        button.setButtonText('Refresh Models');
+                        button.setDisabled(false);
+                    }
+                }));
+
+        // Unified model selection dropdown
+        await this.renderUnifiedModelDropdown(containerEl);
     }
 
     /**
@@ -128,35 +153,6 @@ export class SettingsSections {
                 }));
     }
 
-    /**
-     * Model Settings Section
-     */
-    async renderModelSettings(containerEl: HTMLElement, onRefresh?: () => void): Promise<void> {
-        // Refresh available models button
-        new Setting(containerEl)
-            .setName('Refresh Available Models')
-            .setDesc('Test connections to all configured providers and refresh available models')
-            .addButton(button => button
-                .setButtonText('Refresh Models')
-                .onClick(async () => {
-                    button.setButtonText('Refreshing...');
-                    button.setDisabled(true);
-                    
-                    try {
-                        await this.refreshAllAvailableModels();
-                        new Notice('Successfully refreshed available models');
-                        if (onRefresh) onRefresh();
-                    } catch (error) {
-                        new Notice(`Error refreshing models: ${error.message}`);
-                    } finally {
-                        button.setButtonText('Refresh Models');
-                        button.setDisabled(false);
-                    }
-                }));
-
-        // Unified model selection dropdown
-        await this.renderUnifiedModelDropdown(containerEl);
-    }
 
     /**
      * Provider Configuration Section

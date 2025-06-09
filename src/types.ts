@@ -295,8 +295,8 @@ export const DEFAULT_SETTINGS: MyPluginSettings = {
         "AI Model Settings": true,
         "Date Settings": true,
         "Note Reference Settings": true,
-        "Model Settings": true, // For the unified model selection section
-        "Provider Configuration": true // For the main group of provider configs
+        "Provider Configuration": true, // For the main group of provider configs
+        "AI Model Configuration": true 
     }
 };
 

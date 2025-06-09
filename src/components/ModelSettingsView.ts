@@ -46,7 +46,7 @@ export class ModelSettingsView extends ItemView {
         this.plugin.onSettingsChange(this._onSettingsChange);
 
         // AI Model Settings Section
-        CollapsibleSectionRenderer.createCollapsibleSection(contentEl, 'AI Model Settings', (sectionEl: HTMLElement) => {
+        CollapsibleSectionRenderer.createCollapsibleSection(contentEl, 'AI Model Settings', async (sectionEl: HTMLElement) => {
             new Setting(sectionEl)
                 .setName('System Message')
                 .setDesc('Set the system message for the AI')
@@ -79,6 +79,30 @@ export class ModelSettingsView extends ItemView {
                         this.plugin.settings.temperature = value;
                         await this.plugin.saveSettings();
                     }));
+
+            // Refresh available models button
+            new Setting(sectionEl)
+                .setName('Refresh Available Models')
+                .setDesc('Test connections to all configured providers and refresh available models')
+                .addButton(button => button
+                    .setButtonText('Refresh Models')
+                    .onClick(async () => {
+                        button.setButtonText('Refreshing...');
+                        button.setDisabled(true);
+                        
+                        try {
+                            await this.refreshAllAvailableModels();
+                            new Notice('Successfully refreshed available models');
+                        } catch (error) {
+                            new Notice(`Error refreshing models: ${error.message}`);
+                        } finally {
+                            button.setButtonText('Refresh Models');
+                            button.setDisabled(false);
+                        }
+                    }));
+
+            // Unified model selection dropdown
+            await this.renderUnifiedModelDropdown(sectionEl);
         }, this.plugin, 'generalSectionsExpanded');
 
         // Date Settings Section
@@ -157,32 +181,6 @@ export class ModelSettingsView extends ItemView {
                     }));
         }, this.plugin, 'generalSectionsExpanded');
         
-        // Model Settings Section - Unified Approach
-        CollapsibleSectionRenderer.createCollapsibleSection(contentEl, 'Model Settings', async (sectionEl: HTMLElement) => {
-            // Refresh available models button
-            new Setting(sectionEl)
-                .setName('Refresh Available Models')
-                .setDesc('Test connections to all configured providers and refresh available models')
-                .addButton(button => button
-                    .setButtonText('Refresh Models')
-                    .onClick(async () => {
-                        button.setButtonText('Refreshing...');
-                        button.setDisabled(true);
-                        
-                        try {
-                            await this.refreshAllAvailableModels();
-                            new Notice('Successfully refreshed available models');
-                        } catch (error) {
-                            new Notice(`Error refreshing models: ${error.message}`);
-                        } finally {
-                            button.setButtonText('Refresh Models');
-                            button.setDisabled(false);
-                        }
-                    }));
-
-            // Unified model selection dropdown
-            await this.renderUnifiedModelDropdown(sectionEl);
-        }, this.plugin, 'generalSectionsExpanded');
 
         // Provider Configuration Section
         CollapsibleSectionRenderer.createCollapsibleSection(contentEl, 'Provider Configuration', (sectionEl: HTMLElement) => {

@@ -26,9 +26,9 @@ export class SettingsModal extends Modal {
         contentEl.empty();
         contentEl.addClass('ai-settings-modal');
 
-        // AI Model Settings Section
-        CollapsibleSectionRenderer.createCollapsibleSection(contentEl, 'AI Model Settings', (sectionEl: HTMLElement) => {
-            this.settingsSections.renderAIModelSettings(sectionEl);
+        // AI Model Settings Section (now includes unified model settings)
+        CollapsibleSectionRenderer.createCollapsibleSection(contentEl, 'AI Model Settings', async (sectionEl: HTMLElement) => {
+            await this.settingsSections.renderAIModelSettings(sectionEl, () => this.onOpen());
         }, this.plugin, 'generalSectionsExpanded');
 
         // Date Settings Section
@@ -39,11 +39,6 @@ export class SettingsModal extends Modal {
         // Note Reference Settings Section
         CollapsibleSectionRenderer.createCollapsibleSection(contentEl, 'Note Reference Settings', (sectionEl: HTMLElement) => {
             this.settingsSections.renderNoteReferenceSettings(sectionEl);
-        }, this.plugin, 'generalSectionsExpanded');
-
-        // Model Settings Section
-        CollapsibleSectionRenderer.createCollapsibleSection(contentEl, 'Model Settings', async (sectionEl: HTMLElement) => {
-            await this.settingsSections.renderModelSettings(sectionEl, () => this.onOpen());
         }, this.plugin, 'generalSectionsExpanded');
 
         // Provider Configuration Section
