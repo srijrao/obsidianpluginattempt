@@ -1,6 +1,6 @@
 import { Component, Notice, App } from 'obsidian';
 import { Message } from '../../types';
-import { createProvider } from '../../../providers';
+import { createProvider, createProviderFromUnifiedModel } from '../../../providers';
 import MyPlugin from '../../main';
 import { BotMessage } from './BotMessage';
 import { UserMessage } from './UserMessage';
@@ -48,10 +48,11 @@ export class Commands extends Component implements IChatCommands {
         this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
 
         // Create abort controller for streaming
-        this.activeStream = new AbortController();
-
-        try {
-            const provider = createProvider(this.plugin.settings);
+        this.activeStream = new AbortController();        try {
+            // Use unified model if available, fallback to legacy provider selection
+            const provider = this.plugin.settings.selectedModel 
+                ? createProviderFromUnifiedModel(this.plugin.settings, this.plugin.settings.selectedModel)
+                : createProvider(this.plugin.settings);
             let systemMessage = this.plugin.getSystemMessage();
 
             // Process context notes
@@ -203,10 +204,11 @@ export class Commands extends Component implements IChatCommands {
         this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
 
         // Generate new response
-        this.activeStream = new AbortController();
-
-        try {
-            const provider = createProvider(this.plugin.settings);
+        this.activeStream = new AbortController();        try {
+            // Use unified model if available, fallback to legacy provider selection
+            const provider = this.plugin.settings.selectedModel 
+                ? createProviderFromUnifiedModel(this.plugin.settings, this.plugin.settings.selectedModel)
+                : createProvider(this.plugin.settings);
             await provider.getCompletion(
                 messages,
                 {

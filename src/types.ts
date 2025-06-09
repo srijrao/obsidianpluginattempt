@@ -80,6 +80,16 @@ export interface AIProvider {
 }
 
 /**
+ * Represents a unified model from any provider
+ */
+export interface UnifiedModel {
+    id: string;           // Unique identifier (e.g., "openai:gpt-4", "anthropic:claude-3-5-sonnet-latest")
+    name: string;         // Display name (e.g., "GPT-4 (OpenAI)", "Claude 3.5 Sonnet (Anthropic)")
+    provider: 'openai' | 'anthropic' | 'gemini' | 'ollama';
+    modelId: string;      // The actual model ID for the provider (e.g., "gpt-4", "claude-3-5-sonnet-latest")
+}
+
+/**
  * Represents a YAML attribute generator for the settings UI
  */
 export interface YamlAttributeGenerator {
@@ -100,9 +110,14 @@ export interface MyPluginSettings {
     provider: 'openai' | 'anthropic' | 'gemini' | 'ollama';
     referenceCurrentNote: boolean;
 
-    /** OpenAI-specific settings */
+    /** Selected unified model (new unified approach) */
+    selectedModel?: string; // Format: "provider:modelId" (e.g., "openai:gpt-4")
+    
+    /** Available unified models from all providers */
+    availableModels?: UnifiedModel[];    /** OpenAI-specific settings */
     openaiSettings: {
         apiKey: string;
+        baseUrl?: string;
         model: string;
         availableModels: string[];
         lastTestResult?: {
@@ -205,6 +220,8 @@ export interface MyPluginSettings {
 export const DEFAULT_SETTINGS: MyPluginSettings = {
     referenceCurrentNote: false,
     provider: 'openai',
+    selectedModel: undefined,
+    availableModels: [],
     openaiSettings: {
         apiKey: '',
         model: 'gpt-4.1',

@@ -1,5 +1,5 @@
 import { Notice, TFile, App } from "obsidian";
-import { createProvider } from "../providers";
+import { createProvider, createProviderFromUnifiedModel } from "../providers";
 import { Message, MyPluginSettings } from "./types";
 import { DEFAULT_TITLE_PROMPT, DEFAULT_SUMMARY_PROMPT, DEFAULT_YAML_SYSTEM_MESSAGE } from "./prompts";
 import * as yaml from "js-yaml";
@@ -50,11 +50,12 @@ export async function generateNoteTitle(
 
     // Use the default title prompt from prompts.ts
     const prompt = DEFAULT_TITLE_PROMPT;
-    const userContent = (toc && toc.trim().length > 0 ? "Table of Contents:\n" + toc + "\n\n" : "") + noteContent;
-
-    try {
+    const userContent = (toc && toc.trim().length > 0 ? "Table of Contents:\n" + toc + "\n\n" : "") + noteContent;    try {
         debug("Provider:", settings.provider);
-        const provider = createProvider(settings);
+        // Use unified model if available, fallback to legacy provider selection
+        const provider = settings.selectedModel 
+            ? createProviderFromUnifiedModel(settings, settings.selectedModel)
+            : createProvider(settings);
         // Compose messages: system = prompt, user = note content (with TOC)
         const messages: Message[] = [
             { role: "system", content: prompt },
@@ -181,11 +182,12 @@ export async function generateYamlAttribute(
             debug("No processed messages!");
             new Notice("No valid messages to send to the model. Please check your note content.");
             return;
-        }
-
-        // Get completion (buffer streamed output)
+        }        // Get completion (buffer streamed output)
         debug("Calling provider.getCompletion");
-        const provider = createProvider(settings);
+        // Use unified model if available, fallback to legacy provider selection
+        const provider = settings.selectedModel 
+            ? createProviderFromUnifiedModel(settings, settings.selectedModel)
+            : createProvider(settings);
         let resultBuffer = "";
         await provider.getCompletion(processedMessages, {
             temperature: 0,

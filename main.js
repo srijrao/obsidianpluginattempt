@@ -56,6 +56,8 @@ var init_types = __esm({
     DEFAULT_SETTINGS = {
       referenceCurrentNote: false,
       provider: "openai",
+      selectedModel: void 0,
+      availableModels: [],
       openaiSettings: {
         apiKey: "",
         model: "gpt-4.1",
@@ -3821,13 +3823,14 @@ var init_openai = __esm({
   "providers/openai.ts"() {
     init_base();
     OpenAIProvider = class extends BaseProvider {
-      constructor(apiKey, model = "gpt-4") {
+      constructor(apiKey, model = "gpt-4", baseUrl) {
         super();
         __publicField(this, "apiKey");
-        __publicField(this, "baseUrl", "https://api.openai.com/v1");
+        __publicField(this, "baseUrl");
         __publicField(this, "model");
         this.apiKey = apiKey;
         this.model = model;
+        this.baseUrl = baseUrl || "https://api.openai.com/v1";
       }
       /**
        * Get a completion from OpenAI
@@ -4239,7 +4242,8 @@ function createProvider(settings) {
     case "openai":
       return new OpenAIProvider(
         settings.openaiSettings.apiKey,
-        settings.openaiSettings.model
+        settings.openaiSettings.model,
+        settings.openaiSettings.baseUrl
       );
     case "anthropic":
       return new AnthropicProvider(
@@ -4259,6 +4263,87 @@ function createProvider(settings) {
     default:
       throw new Error(`Invalid provider type: ${settings.provider}`);
   }
+}
+function createProviderFromUnifiedModel(settings, unifiedModelId) {
+  const [providerType, modelId] = unifiedModelId.split(":", 2);
+  switch (providerType) {
+    case "openai":
+      return new OpenAIProvider(settings.openaiSettings.apiKey, modelId, settings.openaiSettings.baseUrl);
+    case "anthropic":
+      return new AnthropicProvider(settings.anthropicSettings.apiKey, modelId);
+    case "gemini":
+      return new GeminiProvider(settings.geminiSettings.apiKey, modelId);
+    case "ollama":
+      return new OllamaProvider(settings.ollamaSettings.serverUrl, modelId);
+    default:
+      throw new Error(`Invalid provider type: ${providerType}`);
+  }
+}
+async function getAllAvailableModels(settings) {
+  const allModels = [];
+  const getProviderDisplayName = (provider) => {
+    switch (provider) {
+      case "openai":
+        return "OpenAI";
+      case "anthropic":
+        return "Anthropic";
+      case "gemini":
+        return "Google";
+      case "ollama":
+        return "Ollama";
+      default:
+        return provider;
+    }
+  };
+  if (settings.openaiSettings.apiKey && settings.openaiSettings.availableModels.length > 0) {
+    settings.openaiSettings.availableModels.forEach((model) => {
+      allModels.push({
+        id: `openai:${model}`,
+        name: `${model} (${getProviderDisplayName("openai")})`,
+        provider: "openai",
+        modelId: model
+      });
+    });
+  }
+  if (settings.anthropicSettings.apiKey && settings.anthropicSettings.availableModels.length > 0) {
+    settings.anthropicSettings.availableModels.forEach((model) => {
+      allModels.push({
+        id: `anthropic:${model}`,
+        name: `${model} (${getProviderDisplayName("anthropic")})`,
+        provider: "anthropic",
+        modelId: model
+      });
+    });
+  }
+  if (settings.geminiSettings.apiKey && settings.geminiSettings.availableModels.length > 0) {
+    settings.geminiSettings.availableModels.forEach((model) => {
+      allModels.push({
+        id: `gemini:${model}`,
+        name: `${model} (${getProviderDisplayName("gemini")})`,
+        provider: "gemini",
+        modelId: model
+      });
+    });
+  }
+  if (settings.ollamaSettings.serverUrl && settings.ollamaSettings.availableModels.length > 0) {
+    settings.ollamaSettings.availableModels.forEach((model) => {
+      allModels.push({
+        id: `ollama:${model}`,
+        name: `${model} (${getProviderDisplayName("ollama")})`,
+        provider: "ollama",
+        modelId: model
+      });
+    });
+  }
+  return allModels;
+}
+function getProviderFromUnifiedModel(unifiedModelId) {
+  const [providerType] = unifiedModelId.split(":", 2);
+  return providerType;
+}
+function getModelIdFromUnifiedModel(unifiedModelId) {
+  const [, modelId] = unifiedModelId.split(":", 2);
+  return modelId;
 }
 var init_providers = __esm({
   "providers/index.ts"() {
@@ -6883,15 +6968,45 @@ var init_js_yaml = __esm({
 
 // src/components/chat/chatPersistence.ts
 function buildChatYaml(settings, provider, model) {
-  const yamlObj = {
-    provider,
-    model,
-    system_message: settings.systemMessage,
-    temperature: settings.temperature
-  };
-  return `---
+  if (settings.selectedModel) {
+    const providerType = getProviderFromUnifiedModel(settings.selectedModel);
+    const modelId = getModelIdFromUnifiedModel(settings.selectedModel);
+    const yamlObj = {
+      provider: providerType,
+      model: modelId,
+      unified_model: settings.selectedModel,
+      // Add unified model ID for future compatibility
+      system_message: settings.systemMessage,
+      temperature: settings.temperature
+    };
+    return `---
 ${dump(yamlObj)}---
 `;
+  } else {
+    const yamlObj = {
+      provider: provider || settings.provider,
+      model: model || getCurrentModelForProvider(settings),
+      system_message: settings.systemMessage,
+      temperature: settings.temperature
+    };
+    return `---
+${dump(yamlObj)}---
+`;
+  }
+}
+function getCurrentModelForProvider(settings) {
+  switch (settings.provider) {
+    case "openai":
+      return settings.openaiSettings.model;
+    case "anthropic":
+      return settings.anthropicSettings.model;
+    case "gemini":
+      return settings.geminiSettings.model;
+    case "ollama":
+      return settings.ollamaSettings.model;
+    default:
+      return "";
+  }
 }
 async function saveChatAsNote({
   app,
@@ -6936,7 +7051,6 @@ async function loadChatYamlAndApplySettings({
   settings,
   file
 }) {
-  var _a2, _b, _c, _d;
   let content = await app.vault.read(file);
   const yamlMatch = content.match(/^---\n([\s\S]*?)\n---/);
   let yamlObj = {};
@@ -6947,34 +7061,24 @@ async function loadChatYamlAndApplySettings({
       yamlObj = {};
     }
   }
-  let newProvider = settings.provider;
-  let newModel = ((_a2 = settings.openaiSettings) == null ? void 0 : _a2.model) || ((_b = settings.anthropicSettings) == null ? void 0 : _b.model) || ((_c = settings.geminiSettings) == null ? void 0 : _c.model) || ((_d = settings.ollamaSettings) == null ? void 0 : _d.model);
-  const availableProviders = plugin.getAvailableProviders ? plugin.getAvailableProviders() : [];
-  if (yamlObj.model) {
-    let found = false;
-    for (const prov of availableProviders) {
-      const models = plugin.getModelsForProvider ? plugin.getModelsForProvider(prov) : [];
-      if (models.includes(yamlObj.model)) {
-        newProvider = prov;
-        newModel = yamlObj.model;
-        found = true;
-        break;
-      }
-    }
-  } else if (yamlObj.provider && availableProviders.includes(yamlObj.provider)) {
-    newProvider = yamlObj.provider;
-    switch (newProvider) {
+  if (yamlObj.unified_model) {
+    settings.selectedModel = yamlObj.unified_model;
+  } else if (yamlObj.provider && yamlObj.model) {
+    const unifiedModelId = `${yamlObj.provider}:${yamlObj.model}`;
+    settings.selectedModel = unifiedModelId;
+    settings.provider = yamlObj.provider;
+    switch (yamlObj.provider) {
       case "openai":
-        newModel = settings.openaiSettings.model;
+        settings.openaiSettings.model = yamlObj.model;
         break;
       case "anthropic":
-        newModel = settings.anthropicSettings.model;
+        settings.anthropicSettings.model = yamlObj.model;
         break;
       case "gemini":
-        newModel = settings.geminiSettings.model;
+        settings.geminiSettings.model = yamlObj.model;
         break;
       case "ollama":
-        newModel = settings.ollamaSettings.model;
+        settings.ollamaSettings.model = yamlObj.model;
         break;
     }
   }
@@ -6984,31 +7088,15 @@ async function loadChatYamlAndApplySettings({
     const tempNum = parseFloat(yamlObj.temperature);
     if (!isNaN(tempNum)) newTemperature = tempNum;
   }
-  settings.provider = newProvider;
-  if (newModel) {
-    switch (newProvider) {
-      case "openai":
-        settings.openaiSettings.model = newModel;
-        break;
-      case "anthropic":
-        settings.anthropicSettings.model = newModel;
-        break;
-      case "gemini":
-        settings.geminiSettings.model = newModel;
-        break;
-      case "ollama":
-        settings.ollamaSettings.model = newModel;
-        break;
-    }
-  }
   settings.systemMessage = newSystemMessage;
   settings.temperature = newTemperature;
   if (plugin.onSettingsLoadedFromNote) {
     plugin.onSettingsLoadedFromNote(settings);
   }
   return {
-    provider: newProvider,
-    model: newModel,
+    provider: yamlObj.provider,
+    model: yamlObj.model,
+    unifiedModel: settings.selectedModel,
     systemMessage: newSystemMessage,
     temperature: newTemperature
   };
@@ -7018,6 +7106,7 @@ var init_chatPersistence = __esm({
   "src/components/chat/chatPersistence.ts"() {
     import_obsidian6 = require("obsidian");
     init_js_yaml();
+    init_providers();
   }
 });
 
@@ -7030,92 +7119,124 @@ var init_ChatHelpModal = __esm({
       constructor(app) {
         super(app);
       }
+      createCollapsibleSection(title, contentCallback, expanded = true) {
+        const sectionContainer = createDiv();
+        sectionContainer.addClass("ai-collapsible-section");
+        const header = createDiv();
+        header.addClass("ai-collapsible-header");
+        const arrow = createSpan();
+        arrow.addClass("ai-collapsible-arrow");
+        arrow.textContent = expanded ? "\u25BC" : "\u25B6";
+        const titleSpan = createSpan();
+        titleSpan.textContent = title;
+        header.appendChild(arrow);
+        header.appendChild(titleSpan);
+        const content = createDiv();
+        content.addClass("ai-collapsible-content");
+        content.style.display = expanded ? "block" : "none";
+        header.addEventListener("click", () => {
+          const isExpanded = content.style.display !== "none";
+          content.style.display = isExpanded ? "none" : "block";
+          arrow.textContent = isExpanded ? "\u25B6" : "\u25BC";
+        });
+        sectionContainer.appendChild(header);
+        sectionContainer.appendChild(content);
+        const originalContent = this.contentEl;
+        this.contentEl = content;
+        contentCallback();
+        this.contentEl = originalContent;
+        return sectionContainer;
+      }
       onOpen() {
         this.titleEl.setText("AI Chat Help");
-        this.contentEl.innerHTML = `
-            <div style="line-height:1.7;font-size:1em;">
-                <b>Slash Commands:</b><br>
+        this.contentEl.empty();
+        this.contentEl.appendChild(this.createCollapsibleSection("Slash Commands", () => {
+          this.contentEl.innerHTML = `
                 <code>/clear</code> \u2013 Clear the chat<br>
                 <code>/copy</code> \u2013 Copy all chat<br>
                 <code>/save</code> \u2013 Save chat as note<br>
                 <code>/settings</code> \u2013 Open settings<br>
                 <code>/help</code> \u2013 Show this help<br>
                 <br>
-                <b>Keyboard Shortcuts (when input is focused):</b><br>
+            `;
+        }));
+        this.contentEl.appendChild(this.createCollapsibleSection("Keyboard Shortcuts (when input is focused)", () => {
+          this.contentEl.innerHTML = `
                 <code>Ctrl+Shift+C</code> \u2013 Clear chat<br>
                 <code>Ctrl+Shift+Y</code> \u2013 Copy all chat<br>
                 <code>Ctrl+Shift+S</code> \u2013 Save as note<br>
                 <code>Ctrl+Shift+O</code> \u2013 Open settings<br>
                 <code>Ctrl+Shift+H</code> \u2013 Show this help<br>
                 <br>
-                <b>Other:</b><br>
+            `;
+        }));
+        this.contentEl.appendChild(this.createCollapsibleSection("Other", () => {
+          this.contentEl.innerHTML = `
                 <code>Enter</code> \u2013 Send message<br>
                 <code>Shift+Enter</code> \u2013 Newline<br>
                 <br>
                 You can also use the buttons at the top of the chat window.
-            </div>
-        `;
+            `;
+        }));
       }
     };
   }
 });
 
-// src/components/chat/SettingsModal.ts
-var SettingsModal_exports = {};
-__export(SettingsModal_exports, {
-  SettingsModal: () => SettingsModal
-});
-var import_obsidian8, SettingsModal;
-var init_SettingsModal = __esm({
-  "src/components/chat/SettingsModal.ts"() {
+// src/components/chat/SettingsSections.ts
+var import_obsidian8, SettingsSections;
+var init_SettingsSections = __esm({
+  "src/components/chat/SettingsSections.ts"() {
     import_obsidian8 = require("obsidian");
     init_providers();
-    SettingsModal = class extends import_obsidian8.Modal {
-      constructor(app, plugin) {
-        super(app);
+    SettingsSections = class {
+      constructor(plugin) {
         __publicField(this, "plugin");
         this.plugin = plugin;
-        this.titleEl.setText("AI Model Settings");
       }
-      onOpen() {
-        const { contentEl } = this;
-        contentEl.empty();
-        contentEl.addClass("ai-settings-modal");
-        contentEl.createEl("h2", { text: "AI Model Settings" });
-        contentEl.createEl("hr");
-        new import_obsidian8.Setting(contentEl).setName("System Message").setDesc("Set the system message for the AI").addTextArea((text) => text.setPlaceholder("You are a helpful assistant.").setValue(this.plugin.settings.systemMessage).onChange(async (value) => {
+      /**
+       * AI Model Settings Section
+       */
+      renderAIModelSettings(containerEl) {
+        new import_obsidian8.Setting(containerEl).setName("System Message").setDesc("Set the system message for the AI").addTextArea((text) => text.setPlaceholder("You are a helpful assistant.").setValue(this.plugin.settings.systemMessage).onChange(async (value) => {
           this.plugin.settings.systemMessage = value;
           await this.plugin.saveSettings();
         }));
-        new import_obsidian8.Setting(contentEl).setName("Enable Streaming").setDesc("Enable or disable streaming for completions").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableStreaming).onChange(async (value) => {
+        new import_obsidian8.Setting(containerEl).setName("Enable Streaming").setDesc("Enable or disable streaming for completions").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableStreaming).onChange(async (value) => {
           this.plugin.settings.enableStreaming = value;
           await this.plugin.saveSettings();
         }));
-        new import_obsidian8.Setting(contentEl).setName("Temperature").setDesc("Set the randomness of the model's output (0-1)").addSlider((slider) => slider.setLimits(0, 1, 0.1).setValue(this.plugin.settings.temperature).setDynamicTooltip().onChange(async (value) => {
+        new import_obsidian8.Setting(containerEl).setName("Temperature").setDesc("Set the randomness of the model's output (0-1)").addSlider((slider) => slider.setLimits(0, 1, 0.1).setValue(this.plugin.settings.temperature).setDynamicTooltip().onChange(async (value) => {
           this.plugin.settings.temperature = value;
           await this.plugin.saveSettings();
         }));
-        contentEl.createEl("hr");
-        contentEl.createEl("h4", { text: "Date Settings" });
-        new import_obsidian8.Setting(contentEl).setName("Include Date with System Message").setDesc("Add the current date to the system message").addToggle((toggle) => toggle.setValue(this.plugin.settings.includeDateWithSystemMessage).onChange(async (value) => {
+      }
+      /**
+       * Date Settings Section
+       */
+      renderDateSettings(containerEl) {
+        new import_obsidian8.Setting(containerEl).setName("Include Date with System Message").setDesc("Add the current date to the system message").addToggle((toggle) => toggle.setValue(this.plugin.settings.includeDateWithSystemMessage).onChange(async (value) => {
           this.plugin.settings.includeDateWithSystemMessage = value;
           await this.plugin.saveSettings();
         }));
-        new import_obsidian8.Setting(contentEl).setName("Include Time with System Message").setDesc("Add the current time along with the date to the system message").addToggle((toggle) => toggle.setValue(this.plugin.settings.includeTimeWithSystemMessage).onChange(async (value) => {
+        new import_obsidian8.Setting(containerEl).setName("Include Time with System Message").setDesc("Add the current time along with the date to the system message").addToggle((toggle) => toggle.setValue(this.plugin.settings.includeTimeWithSystemMessage).onChange(async (value) => {
           this.plugin.settings.includeTimeWithSystemMessage = value;
           await this.plugin.saveSettings();
         }));
-        contentEl.createEl("hr");
-        contentEl.createEl("h4", { text: "Note Reference Settings" });
-        new import_obsidian8.Setting(contentEl).setName("Enable Obsidian Links").setDesc("Read Obsidian links in messages using [[filename]] syntax").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableObsidianLinks).onChange(async (value) => {
+      }
+      /**
+       * Note Reference Settings Section
+       */
+      renderNoteReferenceSettings(containerEl) {
+        new import_obsidian8.Setting(containerEl).setName("Enable Obsidian Links").setDesc("Read Obsidian links in messages using [[filename]] syntax").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableObsidianLinks).onChange(async (value) => {
           this.plugin.settings.enableObsidianLinks = value;
           await this.plugin.saveSettings();
         }));
-        new import_obsidian8.Setting(contentEl).setName("Enable Context Notes").setDesc("Attach specified note content to chat messages").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableContextNotes).onChange(async (value) => {
+        new import_obsidian8.Setting(containerEl).setName("Enable Context Notes").setDesc("Attach specified note content to chat messages").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableContextNotes).onChange(async (value) => {
           this.plugin.settings.enableContextNotes = value;
           await this.plugin.saveSettings();
         }));
-        const contextNotesContainer = contentEl.createDiv("context-notes-container");
+        const contextNotesContainer = containerEl.createDiv("context-notes-container");
         contextNotesContainer.style.marginBottom = "24px";
         new import_obsidian8.Setting(contextNotesContainer).setName("Context Notes").setDesc("Notes to attach as context (supports [[filename]] and [[filename#header]] syntax)").addTextArea((text) => {
           text.setPlaceholder("[[Note Name]]\n[[Another Note#Header]]").setValue(this.plugin.settings.contextNotes || "").onChange(async (value) => {
@@ -7125,136 +7246,330 @@ var init_SettingsModal = __esm({
           text.inputEl.rows = 4;
           text.inputEl.style.width = "100%";
         });
-        new import_obsidian8.Setting(contentEl).setName("Expand Linked Notes Recursively").setDesc("If enabled, when fetching a note, also fetch and expand links within that note recursively (prevents infinite loops).").addToggle((toggle) => {
+        new import_obsidian8.Setting(containerEl).setName("Expand Linked Notes Recursively").setDesc("If enabled, when fetching a note, also fetch and expand links within that note recursively (prevents infinite loops).").addToggle((toggle) => {
           var _a2;
           return toggle.setValue((_a2 = this.plugin.settings.expandLinkedNotesRecursively) != null ? _a2 : false).onChange(async (value) => {
             this.plugin.settings.expandLinkedNotesRecursively = value;
             await this.plugin.saveSettings();
           });
         });
-        contentEl.createEl("hr");
-        contentEl.createEl("h2", { text: "Provider Settings" });
-        new import_obsidian8.Setting(contentEl).setName("AI Provider").setDesc("Choose which AI provider to use").addDropdown((dropdown) => {
-          dropdown.addOption("openai", "OpenAI (ChatGPT)").addOption("anthropic", "Anthropic (Claude)").addOption("gemini", "Google (Gemini)").addOption("ollama", "Ollama (Local AI)").setValue(this.plugin.settings.provider).onChange(async (value) => {
-            this.plugin.settings.provider = value;
+      }
+      /**
+       * Model Settings Section
+       */
+      async renderModelSettings(containerEl, onRefresh) {
+        new import_obsidian8.Setting(containerEl).setName("Refresh Available Models").setDesc("Test connections to all configured providers and refresh available models").addButton((button) => button.setButtonText("Refresh Models").onClick(async () => {
+          button.setButtonText("Refreshing...");
+          button.setDisabled(true);
+          try {
+            await this.refreshAllAvailableModels();
+            new import_obsidian8.Notice("Successfully refreshed available models");
+            if (onRefresh) onRefresh();
+          } catch (error) {
+            new import_obsidian8.Notice(`Error refreshing models: ${error.message}`);
+          } finally {
+            button.setButtonText("Refresh Models");
+            button.setDisabled(false);
+          }
+        }));
+        await this.renderUnifiedModelDropdown(containerEl);
+      }
+      /**
+       * Provider Configuration Section
+       */
+      renderProviderConfiguration(containerEl) {
+        containerEl.createEl("p", {
+          text: "API keys are configured in the main plugin settings. Use the test buttons below to verify connections and refresh available models.",
+          cls: "setting-item-description"
+        });
+        this.renderOpenAIConfig(containerEl);
+        this.renderAnthropicConfig(containerEl);
+        this.renderGeminiConfig(containerEl);
+        this.renderOllamaConfig(containerEl);
+      }
+      /**
+       * Renders the unified model selection dropdown
+       */
+      async renderUnifiedModelDropdown(containerEl) {
+        if (!this.plugin.settings.availableModels || this.plugin.settings.availableModels.length === 0) {
+          this.plugin.settings.availableModels = await getAllAvailableModels(this.plugin.settings);
+          await this.plugin.saveSettings();
+        }
+        new import_obsidian8.Setting(containerEl).setName("Selected Model").setDesc("Choose from all available models across all configured providers").addDropdown((dropdown) => {
+          if (!this.plugin.settings.availableModels || this.plugin.settings.availableModels.length === 0) {
+            dropdown.addOption("", "No models available - configure providers below");
+          } else {
+            dropdown.addOption("", "Select a model...");
+            const modelsByProvider = {};
+            this.plugin.settings.availableModels.forEach((model) => {
+              if (!modelsByProvider[model.provider]) {
+                modelsByProvider[model.provider] = [];
+              }
+              modelsByProvider[model.provider].push(model);
+            });
+            Object.entries(modelsByProvider).forEach(([provider, models]) => {
+              models.forEach((model) => {
+                dropdown.addOption(model.id, model.name);
+              });
+            });
+          }
+          dropdown.setValue(this.plugin.settings.selectedModel || "").onChange(async (value) => {
+            this.plugin.settings.selectedModel = value;
+            if (value) {
+              const provider = getProviderFromUnifiedModel(value);
+              this.plugin.settings.provider = provider;
+            }
             await this.plugin.saveSettings();
-            this.onOpen();
           });
         });
-        switch (this.plugin.settings.provider) {
-          case "openai":
-            this.renderProviderSettings(contentEl, this.plugin.settings.openaiSettings, "OpenAI", async () => {
-              const provider = createProvider(this.plugin.settings);
-              const result = await provider.testConnection();
-              if (result.success && result.models) {
-                this.plugin.settings.openaiSettings.availableModels = result.models;
-                await this.plugin.saveSettings();
-                this.plugin.settings.openaiSettings.lastTestResult = {
-                  timestamp: Date.now(),
-                  success: true,
-                  message: result.message
-                };
-                new import_obsidian8.Notice(result.message);
-                this.onOpen();
-              } else {
-                this.plugin.settings.openaiSettings.lastTestResult = {
-                  timestamp: Date.now(),
-                  success: false,
-                  message: result.message
-                };
-                new import_obsidian8.Notice(result.message);
-              }
-            });
-            break;
-          case "anthropic":
-            this.renderProviderSettings(contentEl, this.plugin.settings.anthropicSettings, "Anthropic", async () => {
-              const provider = createProvider(this.plugin.settings);
-              const result = await provider.testConnection();
-              if (result.success && result.models) {
-                this.plugin.settings.anthropicSettings.availableModels = result.models;
-                await this.plugin.saveSettings();
-                this.plugin.settings.anthropicSettings.lastTestResult = {
-                  timestamp: Date.now(),
-                  success: true,
-                  message: result.message
-                };
-                new import_obsidian8.Notice(result.message);
-                this.onOpen();
-              } else {
-                this.plugin.settings.anthropicSettings.lastTestResult = {
-                  timestamp: Date.now(),
-                  success: false,
-                  message: result.message
-                };
-                new import_obsidian8.Notice(result.message);
-              }
-            });
-            break;
-          case "gemini":
-            this.renderProviderSettings(contentEl, this.plugin.settings.geminiSettings, "Gemini", async () => {
-              const provider = createProvider(this.plugin.settings);
-              const result = await provider.testConnection();
-              if (result.success && result.models) {
-                this.plugin.settings.geminiSettings.availableModels = result.models;
-                await this.plugin.saveSettings();
-                this.plugin.settings.geminiSettings.lastTestResult = {
-                  timestamp: Date.now(),
-                  success: true,
-                  message: result.message
-                };
-                new import_obsidian8.Notice(result.message);
-                this.onOpen();
-              } else {
-                this.plugin.settings.geminiSettings.lastTestResult = {
-                  timestamp: Date.now(),
-                  success: false,
-                  message: result.message
-                };
-                new import_obsidian8.Notice(result.message);
-              }
-            });
-            break;
-          case "ollama":
-            this.renderProviderSettings(contentEl, this.plugin.settings.ollamaSettings, "Ollama", async () => {
-              const provider = createProvider(this.plugin.settings);
-              const result = await provider.testConnection();
-              if (result.success && result.models) {
-                this.plugin.settings.ollamaSettings.availableModels = result.models;
-                await this.plugin.saveSettings();
-                this.plugin.settings.ollamaSettings.lastTestResult = {
-                  timestamp: Date.now(),
-                  success: true,
-                  message: result.message
-                };
-                new import_obsidian8.Notice(result.message);
-                this.onOpen();
-              } else {
-                this.plugin.settings.ollamaSettings.lastTestResult = {
-                  timestamp: Date.now(),
-                  success: false,
-                  message: result.message
-                };
-                new import_obsidian8.Notice(result.message);
-              }
-            });
-            contentEl.createEl("div", {
-              cls: "setting-item-description",
-              text: "To use Ollama:"
-            });
-            const steps = contentEl.createEl("ol");
-            steps.createEl("li", { text: "Install Ollama from https://ollama.ai" });
-            steps.createEl("li", { text: "Start the Ollama server" });
-            steps.createEl("li", { text: 'Pull models using "ollama pull model-name"' });
-            steps.createEl("li", { text: "Test connection to see available models" });
-            break;
+        if (this.plugin.settings.selectedModel && this.plugin.settings.availableModels) {
+          const selectedModel = this.plugin.settings.availableModels.find(
+            (model) => model.id === this.plugin.settings.selectedModel
+          );
+          if (selectedModel) {
+            const infoEl = containerEl.createEl("div", { cls: "setting-item-description" });
+            infoEl.setText(`Currently using: ${selectedModel.name}`);
+          }
         }
       }
-      renderProviderSettings(containerEl, settings, providerName, testConnectionCallback) {
-        new import_obsidian8.Setting(containerEl).setName("Test Connection").setDesc(`Verify your API key and fetch available models for ${providerName}`).addButton((button) => button.setButtonText("Test").onClick(async () => {
+      /**
+       * Refreshes available models from all configured providers
+       */
+      async refreshAllAvailableModels() {
+        const providers = ["openai", "anthropic", "gemini", "ollama"];
+        const results = [];
+        for (const providerType of providers) {
+          try {
+            const originalProvider = this.plugin.settings.provider;
+            this.plugin.settings.provider = providerType;
+            const provider = createProvider(this.plugin.settings);
+            const result = await provider.testConnection();
+            this.plugin.settings.provider = originalProvider;
+            if (result.success && result.models) {
+              switch (providerType) {
+                case "openai":
+                  this.plugin.settings.openaiSettings.availableModels = result.models;
+                  this.plugin.settings.openaiSettings.lastTestResult = {
+                    timestamp: Date.now(),
+                    success: true,
+                    message: result.message
+                  };
+                  results.push(`OpenAI: ${result.models.length} models`);
+                  break;
+                case "anthropic":
+                  this.plugin.settings.anthropicSettings.availableModels = result.models;
+                  this.plugin.settings.anthropicSettings.lastTestResult = {
+                    timestamp: Date.now(),
+                    success: true,
+                    message: result.message
+                  };
+                  results.push(`Anthropic: ${result.models.length} models`);
+                  break;
+                case "gemini":
+                  this.plugin.settings.geminiSettings.availableModels = result.models;
+                  this.plugin.settings.geminiSettings.lastTestResult = {
+                    timestamp: Date.now(),
+                    success: true,
+                    message: result.message
+                  };
+                  results.push(`Gemini: ${result.models.length} models`);
+                  break;
+                case "ollama":
+                  this.plugin.settings.ollamaSettings.availableModels = result.models;
+                  this.plugin.settings.ollamaSettings.lastTestResult = {
+                    timestamp: Date.now(),
+                    success: true,
+                    message: result.message
+                  };
+                  results.push(`Ollama: ${result.models.length} models`);
+                  break;
+              }
+            } else {
+              switch (providerType) {
+                case "openai":
+                  this.plugin.settings.openaiSettings.lastTestResult = {
+                    timestamp: Date.now(),
+                    success: false,
+                    message: result.message
+                  };
+                  break;
+                case "anthropic":
+                  this.plugin.settings.anthropicSettings.lastTestResult = {
+                    timestamp: Date.now(),
+                    success: false,
+                    message: result.message
+                  };
+                  break;
+                case "gemini":
+                  this.plugin.settings.geminiSettings.lastTestResult = {
+                    timestamp: Date.now(),
+                    success: false,
+                    message: result.message
+                  };
+                  break;
+                case "ollama":
+                  this.plugin.settings.ollamaSettings.lastTestResult = {
+                    timestamp: Date.now(),
+                    success: false,
+                    message: result.message
+                  };
+                  break;
+              }
+            }
+          } catch (error) {
+            console.error(`Error testing ${providerType}:`, error);
+          }
+        }
+        this.plugin.settings.availableModels = await getAllAvailableModels(this.plugin.settings);
+        await this.plugin.saveSettings();
+      }
+      renderOpenAIConfig(containerEl) {
+        const collapsibleContainer = containerEl.createEl("div", { cls: "provider-collapsible" });
+        const headerEl = collapsibleContainer.createEl("div", {
+          cls: "provider-header",
+          text: "\u25B6 OpenAI Configuration"
+        });
+        headerEl.style.cursor = "pointer";
+        headerEl.style.userSelect = "none";
+        headerEl.style.padding = "8px 0";
+        headerEl.style.fontWeight = "bold";
+        const contentEl = collapsibleContainer.createEl("div", { cls: "provider-content" });
+        contentEl.style.display = "none";
+        contentEl.style.paddingLeft = "16px";
+        let isExpanded = false;
+        headerEl.addEventListener("click", () => {
+          isExpanded = !isExpanded;
+          contentEl.style.display = isExpanded ? "block" : "none";
+          headerEl.textContent = `${isExpanded ? "\u25BC" : "\u25B6"} OpenAI Configuration`;
+        });
+        const apiKeyStatus = this.plugin.settings.openaiSettings.apiKey ? `API Key: ${this.plugin.settings.openaiSettings.apiKey.substring(0, 8)}...` : "No API Key configured";
+        contentEl.createEl("div", {
+          cls: "setting-item-description",
+          text: `${apiKeyStatus} (Configure in main plugin settings)`
+        });
+        new import_obsidian8.Setting(contentEl).setName("OpenAI Base URL").setDesc("Custom base URL for OpenAI API (optional)").addText((text) => text.setPlaceholder("https://api.openai.com/v1").setValue(this.plugin.settings.openaiSettings.baseUrl || "").onChange(async (value) => {
+          this.plugin.settings.openaiSettings.baseUrl = value;
+          await this.plugin.saveSettings();
+        }));
+        this.renderProviderTestSection(contentEl, "openai", "OpenAI");
+      }
+      renderAnthropicConfig(containerEl) {
+        const collapsibleContainer = containerEl.createEl("div", { cls: "provider-collapsible" });
+        const headerEl = collapsibleContainer.createEl("div", {
+          cls: "provider-header",
+          text: "\u25B6 Anthropic Configuration"
+        });
+        headerEl.style.cursor = "pointer";
+        headerEl.style.userSelect = "none";
+        headerEl.style.padding = "8px 0";
+        headerEl.style.fontWeight = "bold";
+        const contentEl = collapsibleContainer.createEl("div", { cls: "provider-content" });
+        contentEl.style.display = "none";
+        contentEl.style.paddingLeft = "16px";
+        let isExpanded = false;
+        headerEl.addEventListener("click", () => {
+          isExpanded = !isExpanded;
+          contentEl.style.display = isExpanded ? "block" : "none";
+          headerEl.textContent = `${isExpanded ? "\u25BC" : "\u25B6"} Anthropic Configuration`;
+        });
+        const apiKeyStatus = this.plugin.settings.anthropicSettings.apiKey ? `API Key: ${this.plugin.settings.anthropicSettings.apiKey.substring(0, 8)}...` : "No API Key configured";
+        contentEl.createEl("div", {
+          cls: "setting-item-description",
+          text: `${apiKeyStatus} (Configure in main plugin settings)`
+        });
+        this.renderProviderTestSection(contentEl, "anthropic", "Anthropic");
+      }
+      renderGeminiConfig(containerEl) {
+        const collapsibleContainer = containerEl.createEl("div", { cls: "provider-collapsible" });
+        const headerEl = collapsibleContainer.createEl("div", {
+          cls: "provider-header",
+          text: "\u25B6 Gemini Configuration"
+        });
+        headerEl.style.cursor = "pointer";
+        headerEl.style.userSelect = "none";
+        headerEl.style.padding = "8px 0";
+        headerEl.style.fontWeight = "bold";
+        const contentEl = collapsibleContainer.createEl("div", { cls: "provider-content" });
+        contentEl.style.display = "none";
+        contentEl.style.paddingLeft = "16px";
+        let isExpanded = false;
+        headerEl.addEventListener("click", () => {
+          isExpanded = !isExpanded;
+          contentEl.style.display = isExpanded ? "block" : "none";
+          headerEl.textContent = `${isExpanded ? "\u25BC" : "\u25B6"} Gemini Configuration`;
+        });
+        const apiKeyStatus = this.plugin.settings.geminiSettings.apiKey ? `API Key: ${this.plugin.settings.geminiSettings.apiKey.substring(0, 8)}...` : "No API Key configured";
+        contentEl.createEl("div", {
+          cls: "setting-item-description",
+          text: `${apiKeyStatus} (Configure in main plugin settings)`
+        });
+        this.renderProviderTestSection(contentEl, "gemini", "Gemini");
+      }
+      renderOllamaConfig(containerEl) {
+        const collapsibleContainer = containerEl.createEl("div", { cls: "provider-collapsible" });
+        const headerEl = collapsibleContainer.createEl("div", {
+          cls: "provider-header",
+          text: "\u25B6 Ollama Configuration"
+        });
+        headerEl.style.cursor = "pointer";
+        headerEl.style.userSelect = "none";
+        headerEl.style.padding = "8px 0";
+        headerEl.style.fontWeight = "bold";
+        const contentEl = collapsibleContainer.createEl("div", { cls: "provider-content" });
+        contentEl.style.display = "none";
+        contentEl.style.paddingLeft = "16px";
+        let isExpanded = false;
+        headerEl.addEventListener("click", () => {
+          isExpanded = !isExpanded;
+          contentEl.style.display = isExpanded ? "block" : "none";
+          headerEl.textContent = `${isExpanded ? "\u25BC" : "\u25B6"} Ollama Configuration`;
+        });
+        const serverStatus = this.plugin.settings.ollamaSettings.serverUrl ? `Server URL: ${this.plugin.settings.ollamaSettings.serverUrl}` : "No Server URL configured";
+        contentEl.createEl("div", {
+          cls: "setting-item-description",
+          text: `${serverStatus} (Configure in main plugin settings)`
+        });
+        this.renderProviderTestSection(contentEl, "ollama", "Ollama");
+        contentEl.createEl("div", {
+          cls: "setting-item-description",
+          text: "To use Ollama:"
+        });
+        const steps = contentEl.createEl("ol");
+        steps.createEl("li", { text: "Install Ollama from https://ollama.ai" });
+        steps.createEl("li", { text: "Start the Ollama server" });
+        steps.createEl("li", { text: 'Pull models using "ollama pull model-name"' });
+        steps.createEl("li", { text: "Test connection to see available models" });
+      }
+      renderProviderTestSection(containerEl, provider, displayName) {
+        const settings = this.plugin.settings[`${provider}Settings`];
+        new import_obsidian8.Setting(containerEl).setName("Test Connection").setDesc(`Verify your API key and fetch available models for ${displayName}`).addButton((button) => button.setButtonText("Test").onClick(async () => {
           button.setButtonText("Testing...");
           button.setDisabled(true);
           try {
-            await testConnectionCallback();
+            const originalProvider = this.plugin.settings.provider;
+            this.plugin.settings.provider = provider;
+            const providerInstance = createProvider(this.plugin.settings);
+            const result = await providerInstance.testConnection();
+            this.plugin.settings.provider = originalProvider;
+            if (result.success && result.models) {
+              settings.availableModels = result.models;
+              settings.lastTestResult = {
+                timestamp: Date.now(),
+                success: true,
+                message: result.message
+              };
+              await this.plugin.saveSettings();
+              this.plugin.settings.availableModels = await getAllAvailableModels(this.plugin.settings);
+              await this.plugin.saveSettings();
+              new import_obsidian8.Notice(result.message);
+            } else {
+              settings.lastTestResult = {
+                timestamp: Date.now(),
+                success: false,
+                message: result.message
+              };
+              new import_obsidian8.Notice(result.message);
+            }
           } catch (error) {
             new import_obsidian8.Notice(`Error: ${error.message}`);
           } finally {
@@ -7269,17 +7584,432 @@ var init_SettingsModal = __esm({
             cls: settings.lastTestResult.success ? "success" : "error"
           });
         }
-        new import_obsidian8.Setting(containerEl).setName("Model").setDesc(`Choose the ${providerName} model to use`).addDropdown((dropdown) => {
-          for (const model of settings.availableModels) {
-            dropdown.addOption(model, model);
+        if (settings.availableModels && settings.availableModels.length > 0) {
+          containerEl.createEl("div", {
+            text: `Available models: ${settings.availableModels.join(", ")}`,
+            cls: "setting-item-description"
+          });
+        }
+      }
+    };
+  }
+});
+
+// src/components/chat/CollapsibleSection.ts
+var CollapsibleSectionRenderer;
+var init_CollapsibleSection = __esm({
+  "src/components/chat/CollapsibleSection.ts"() {
+    CollapsibleSectionRenderer = class {
+      /**
+       * Creates a collapsible section with a header that can be toggled
+       */
+      static createCollapsibleSection(containerEl, title, contentCallback, expanded = false) {
+        const collapsibleContainer = containerEl.createEl("div");
+        collapsibleContainer.addClass("ai-collapsible-section");
+        const headerEl = collapsibleContainer.createEl("div");
+        headerEl.addClass("ai-collapsible-header");
+        const arrow = headerEl.createEl("span");
+        arrow.addClass("ai-collapsible-arrow");
+        arrow.textContent = expanded ? "\u25BC" : "\u25B6";
+        const titleSpan = headerEl.createEl("span");
+        titleSpan.textContent = title;
+        const contentEl = collapsibleContainer.createEl("div");
+        contentEl.addClass("ai-collapsible-content");
+        contentEl.style.display = expanded ? "block" : "none";
+        let isExpanded = expanded;
+        headerEl.addEventListener("click", () => {
+          isExpanded = !isExpanded;
+          contentEl.style.display = isExpanded ? "block" : "none";
+          arrow.textContent = isExpanded ? "\u25BC" : "\u25B6";
+        });
+        const result = contentCallback(contentEl);
+        if (result instanceof Promise) {
+          result.catch((error) => console.error("Error in collapsible section:", error));
+        }
+      }
+    };
+  }
+});
+
+// src/components/chat/SettingsModal.ts
+var SettingsModal_exports = {};
+__export(SettingsModal_exports, {
+  SettingsModal: () => SettingsModal
+});
+var import_obsidian9, SettingsModal;
+var init_SettingsModal = __esm({
+  "src/components/chat/SettingsModal.ts"() {
+    import_obsidian9 = require("obsidian");
+    init_providers();
+    init_SettingsSections();
+    init_CollapsibleSection();
+    SettingsModal = class extends import_obsidian9.Modal {
+      constructor(app, plugin) {
+        super(app);
+        __publicField(this, "plugin");
+        __publicField(this, "settingsSections");
+        __publicField(this, "_onSettingsChange", () => {
+          this.onOpen();
+        });
+        this.plugin = plugin;
+        this.settingsSections = new SettingsSections(plugin);
+        this.titleEl.setText("AI Model Settings");
+        this.plugin.onSettingsChange(this._onSettingsChange);
+      }
+      async onOpen() {
+        const { contentEl } = this;
+        contentEl.empty();
+        contentEl.addClass("ai-settings-modal");
+        CollapsibleSectionRenderer.createCollapsibleSection(contentEl, "AI Model Settings", (sectionEl) => {
+          this.settingsSections.renderAIModelSettings(sectionEl);
+        });
+        CollapsibleSectionRenderer.createCollapsibleSection(contentEl, "Date Settings", (sectionEl) => {
+          this.settingsSections.renderDateSettings(sectionEl);
+        });
+        CollapsibleSectionRenderer.createCollapsibleSection(contentEl, "Note Reference Settings", (sectionEl) => {
+          this.settingsSections.renderNoteReferenceSettings(sectionEl);
+        });
+        CollapsibleSectionRenderer.createCollapsibleSection(contentEl, "Model Settings", async (sectionEl) => {
+          await this.settingsSections.renderModelSettings(sectionEl, () => this.onOpen());
+        });
+        CollapsibleSectionRenderer.createCollapsibleSection(contentEl, "Provider Configuration", (sectionEl) => {
+          this.settingsSections.renderProviderConfiguration(sectionEl);
+        });
+      }
+      /**
+      * Renders the unified model selection dropdown
+      */
+      async renderUnifiedModelDropdown(containerEl) {
+        if (!this.plugin.settings.availableModels || this.plugin.settings.availableModels.length === 0) {
+          this.plugin.settings.availableModels = await getAllAvailableModels(this.plugin.settings);
+          await this.plugin.saveSettings();
+        }
+        new import_obsidian9.Setting(containerEl).setName("Selected Model").setDesc("Choose from all available models across all configured providers").addDropdown((dropdown) => {
+          if (!this.plugin.settings.availableModels || this.plugin.settings.availableModels.length === 0) {
+            dropdown.addOption("", "No models available - configure providers below");
+          } else {
+            dropdown.addOption("", "Select a model...");
+            const modelsByProvider = {};
+            this.plugin.settings.availableModels.forEach((model) => {
+              if (!modelsByProvider[model.provider]) {
+                modelsByProvider[model.provider] = [];
+              }
+              modelsByProvider[model.provider].push(model);
+            });
+            Object.entries(modelsByProvider).forEach(([provider, models]) => {
+              models.forEach((model) => {
+                dropdown.addOption(model.id, model.name);
+              });
+            });
           }
-          dropdown.setValue(settings.model).onChange(async (value) => {
-            settings.model = value;
+          dropdown.setValue(this.plugin.settings.selectedModel || "").onChange(async (value) => {
+            this.plugin.settings.selectedModel = value;
+            if (value) {
+              const provider = getProviderFromUnifiedModel(value);
+              this.plugin.settings.provider = provider;
+            }
             await this.plugin.saveSettings();
           });
         });
+        if (this.plugin.settings.selectedModel && this.plugin.settings.availableModels) {
+          const selectedModel = this.plugin.settings.availableModels.find(
+            (model) => model.id === this.plugin.settings.selectedModel
+          );
+          if (selectedModel) {
+            const infoEl = containerEl.createEl("div", { cls: "setting-item-description" });
+            infoEl.setText(`Currently using: ${selectedModel.name}`);
+          }
+        }
+      }
+      /**
+       * Refreshes available models from all configured providers
+       */
+      async refreshAllAvailableModels() {
+        const providers = ["openai", "anthropic", "gemini", "ollama"];
+        const results = [];
+        for (const providerType of providers) {
+          try {
+            const originalProvider = this.plugin.settings.provider;
+            this.plugin.settings.provider = providerType;
+            const provider = createProvider(this.plugin.settings);
+            const result = await provider.testConnection();
+            this.plugin.settings.provider = originalProvider;
+            if (result.success && result.models) {
+              switch (providerType) {
+                case "openai":
+                  this.plugin.settings.openaiSettings.availableModels = result.models;
+                  this.plugin.settings.openaiSettings.lastTestResult = {
+                    timestamp: Date.now(),
+                    success: true,
+                    message: result.message
+                  };
+                  results.push(`OpenAI: ${result.models.length} models`);
+                  break;
+                case "anthropic":
+                  this.plugin.settings.anthropicSettings.availableModels = result.models;
+                  this.plugin.settings.anthropicSettings.lastTestResult = {
+                    timestamp: Date.now(),
+                    success: true,
+                    message: result.message
+                  };
+                  results.push(`Anthropic: ${result.models.length} models`);
+                  break;
+                case "gemini":
+                  this.plugin.settings.geminiSettings.availableModels = result.models;
+                  this.plugin.settings.geminiSettings.lastTestResult = {
+                    timestamp: Date.now(),
+                    success: true,
+                    message: result.message
+                  };
+                  results.push(`Gemini: ${result.models.length} models`);
+                  break;
+                case "ollama":
+                  this.plugin.settings.ollamaSettings.availableModels = result.models;
+                  this.plugin.settings.ollamaSettings.lastTestResult = {
+                    timestamp: Date.now(),
+                    success: true,
+                    message: result.message
+                  };
+                  results.push(`Ollama: ${result.models.length} models`);
+                  break;
+              }
+            } else {
+              switch (providerType) {
+                case "openai":
+                  this.plugin.settings.openaiSettings.lastTestResult = {
+                    timestamp: Date.now(),
+                    success: false,
+                    message: result.message
+                  };
+                  break;
+                case "anthropic":
+                  this.plugin.settings.anthropicSettings.lastTestResult = {
+                    timestamp: Date.now(),
+                    success: false,
+                    message: result.message
+                  };
+                  break;
+                case "gemini":
+                  this.plugin.settings.geminiSettings.lastTestResult = {
+                    timestamp: Date.now(),
+                    success: false,
+                    message: result.message
+                  };
+                  break;
+                case "ollama":
+                  this.plugin.settings.ollamaSettings.lastTestResult = {
+                    timestamp: Date.now(),
+                    success: false,
+                    message: result.message
+                  };
+                  break;
+              }
+            }
+          } catch (error) {
+            console.error(`Error testing ${providerType}:`, error);
+          }
+        }
+        this.plugin.settings.availableModels = await getAllAvailableModels(this.plugin.settings);
+        await this.plugin.saveSettings();
+      }
+      renderOpenAIConfig(containerEl) {
+        const collapsibleContainer = containerEl.createEl("div", { cls: "provider-collapsible" });
+        const headerEl = collapsibleContainer.createEl("div", {
+          cls: "provider-header",
+          text: "\u25B6 OpenAI Configuration"
+        });
+        headerEl.style.cursor = "pointer";
+        headerEl.style.userSelect = "none";
+        headerEl.style.padding = "8px 0";
+        headerEl.style.fontWeight = "bold";
+        const contentEl = collapsibleContainer.createEl("div", { cls: "provider-content" });
+        contentEl.style.display = "none";
+        contentEl.style.paddingLeft = "16px";
+        let isExpanded = false;
+        headerEl.addEventListener("click", () => {
+          isExpanded = !isExpanded;
+          contentEl.style.display = isExpanded ? "block" : "none";
+          headerEl.textContent = `${isExpanded ? "\u25BC" : "\u25B6"} OpenAI Configuration`;
+        });
+        const apiKeyStatus = this.plugin.settings.openaiSettings.apiKey ? `API Key: ${this.plugin.settings.openaiSettings.apiKey.substring(0, 8)}...` : "No API Key configured";
+        contentEl.createEl("div", {
+          cls: "setting-item-description",
+          text: `${apiKeyStatus} (Configure in main plugin settings)`
+        });
+        new import_obsidian9.Setting(contentEl).setName("OpenAI Base URL").setDesc("Custom base URL for OpenAI API (optional)").addText((text) => text.setPlaceholder("https://api.openai.com/v1").setValue(this.plugin.settings.openaiSettings.baseUrl || "").onChange(async (value) => {
+          this.plugin.settings.openaiSettings.baseUrl = value;
+          await this.plugin.saveSettings();
+        }));
+        this.renderProviderTestSection(contentEl, "openai", "OpenAI");
+      }
+      renderAnthropicConfig(containerEl) {
+        const collapsibleContainer = containerEl.createEl("div", { cls: "provider-collapsible" });
+        const headerEl = collapsibleContainer.createEl("div", {
+          cls: "provider-header",
+          text: "\u25B6 Anthropic Configuration"
+        });
+        headerEl.style.cursor = "pointer";
+        headerEl.style.userSelect = "none";
+        headerEl.style.padding = "8px 0";
+        headerEl.style.fontWeight = "bold";
+        const contentEl = collapsibleContainer.createEl("div", { cls: "provider-content" });
+        contentEl.style.display = "none";
+        contentEl.style.paddingLeft = "16px";
+        let isExpanded = false;
+        headerEl.addEventListener("click", () => {
+          isExpanded = !isExpanded;
+          contentEl.style.display = isExpanded ? "block" : "none";
+          headerEl.textContent = `${isExpanded ? "\u25BC" : "\u25B6"} Anthropic Configuration`;
+        });
+        const apiKeyStatus = this.plugin.settings.anthropicSettings.apiKey ? `API Key: ${this.plugin.settings.anthropicSettings.apiKey.substring(0, 8)}...` : "No API Key configured";
+        contentEl.createEl("div", {
+          cls: "setting-item-description",
+          text: `${apiKeyStatus} (Configure in main plugin settings)`
+        });
+        this.renderProviderTestSection(contentEl, "anthropic", "Anthropic");
+      }
+      renderGeminiConfig(containerEl) {
+        const collapsibleContainer = containerEl.createEl("div", { cls: "provider-collapsible" });
+        const headerEl = collapsibleContainer.createEl("div", {
+          cls: "provider-header",
+          text: "\u25B6 Gemini Configuration"
+        });
+        headerEl.style.cursor = "pointer";
+        headerEl.style.userSelect = "none";
+        headerEl.style.padding = "8px 0";
+        headerEl.style.fontWeight = "bold";
+        const contentEl = collapsibleContainer.createEl("div", { cls: "provider-content" });
+        contentEl.style.display = "none";
+        contentEl.style.paddingLeft = "16px";
+        let isExpanded = false;
+        headerEl.addEventListener("click", () => {
+          isExpanded = !isExpanded;
+          contentEl.style.display = isExpanded ? "block" : "none";
+          headerEl.textContent = `${isExpanded ? "\u25BC" : "\u25B6"} Gemini Configuration`;
+        });
+        const apiKeyStatus = this.plugin.settings.geminiSettings.apiKey ? `API Key: ${this.plugin.settings.geminiSettings.apiKey.substring(0, 8)}...` : "No API Key configured";
+        contentEl.createEl("div", {
+          cls: "setting-item-description",
+          text: `${apiKeyStatus} (Configure in main plugin settings)`
+        });
+        this.renderProviderTestSection(contentEl, "gemini", "Gemini");
+      }
+      renderOllamaConfig(containerEl) {
+        const collapsibleContainer = containerEl.createEl("div", { cls: "provider-collapsible" });
+        const headerEl = collapsibleContainer.createEl("div", {
+          cls: "provider-header",
+          text: "\u25B6 Ollama Configuration"
+        });
+        headerEl.style.cursor = "pointer";
+        headerEl.style.userSelect = "none";
+        headerEl.style.padding = "8px 0";
+        headerEl.style.fontWeight = "bold";
+        const contentEl = collapsibleContainer.createEl("div", { cls: "provider-content" });
+        contentEl.style.display = "none";
+        contentEl.style.paddingLeft = "16px";
+        let isExpanded = false;
+        headerEl.addEventListener("click", () => {
+          isExpanded = !isExpanded;
+          contentEl.style.display = isExpanded ? "block" : "none";
+          headerEl.textContent = `${isExpanded ? "\u25BC" : "\u25B6"} Ollama Configuration`;
+        });
+        const serverStatus = this.plugin.settings.ollamaSettings.serverUrl ? `Server URL: ${this.plugin.settings.ollamaSettings.serverUrl}` : "No Server URL configured";
+        contentEl.createEl("div", {
+          cls: "setting-item-description",
+          text: `${serverStatus} (Configure in main plugin settings)`
+        });
+        this.renderProviderTestSection(contentEl, "ollama", "Ollama");
+        contentEl.createEl("div", {
+          cls: "setting-item-description",
+          text: "To use Ollama:"
+        });
+        const steps = contentEl.createEl("ol");
+        steps.createEl("li", { text: "Install Ollama from https://ollama.ai" });
+        steps.createEl("li", { text: "Start the Ollama server" });
+        steps.createEl("li", { text: 'Pull models using "ollama pull model-name"' });
+        steps.createEl("li", { text: "Test connection to see available models" });
+      }
+      renderProviderTestSection(containerEl, provider, displayName) {
+        const settings = this.plugin.settings[`${provider}Settings`];
+        new import_obsidian9.Setting(containerEl).setName("Test Connection").setDesc(`Verify your API key and fetch available models for ${displayName}`).addButton((button) => button.setButtonText("Test").onClick(async () => {
+          button.setButtonText("Testing...");
+          button.setDisabled(true);
+          try {
+            const originalProvider = this.plugin.settings.provider;
+            this.plugin.settings.provider = provider;
+            const providerInstance = createProvider(this.plugin.settings);
+            const result = await providerInstance.testConnection();
+            this.plugin.settings.provider = originalProvider;
+            if (result.success && result.models) {
+              settings.availableModels = result.models;
+              settings.lastTestResult = {
+                timestamp: Date.now(),
+                success: true,
+                message: result.message
+              };
+              await this.plugin.saveSettings();
+              this.plugin.settings.availableModels = await getAllAvailableModels(this.plugin.settings);
+              await this.plugin.saveSettings();
+              new import_obsidian9.Notice(result.message);
+              this.onOpen();
+            } else {
+              settings.lastTestResult = {
+                timestamp: Date.now(),
+                success: false,
+                message: result.message
+              };
+              new import_obsidian9.Notice(result.message);
+            }
+          } catch (error) {
+            new import_obsidian9.Notice(`Error: ${error.message}`);
+          } finally {
+            button.setButtonText("Test");
+            button.setDisabled(false);
+          }
+        }));
+        if (settings.lastTestResult) {
+          const date = new Date(settings.lastTestResult.timestamp);
+          containerEl.createEl("div", {
+            text: `Last test: ${date.toLocaleString()} - ${settings.lastTestResult.message}`,
+            cls: settings.lastTestResult.success ? "success" : "error"
+          });
+        }
+        if (settings.availableModels && settings.availableModels.length > 0) {
+          containerEl.createEl("div", {
+            text: `Available models: ${settings.availableModels.join(", ")}`,
+            cls: "setting-item-description"
+          });
+        }
+      }
+      /**
+      * Creates a collapsible section with a header that can be toggled
+      */
+      createCollapsibleSection(containerEl, title, contentCallback) {
+        const collapsibleContainer = containerEl.createEl("div");
+        collapsibleContainer.addClass("ai-collapsible-section");
+        const headerEl = collapsibleContainer.createEl("div");
+        headerEl.addClass("ai-collapsible-header");
+        const arrow = headerEl.createEl("span");
+        arrow.addClass("ai-collapsible-arrow");
+        arrow.textContent = "\u25B6";
+        const titleSpan = headerEl.createEl("span");
+        titleSpan.textContent = title;
+        const contentEl = collapsibleContainer.createEl("div");
+        contentEl.addClass("ai-collapsible-content");
+        contentEl.style.display = "none";
+        let isExpanded = false;
+        headerEl.addEventListener("click", () => {
+          isExpanded = !isExpanded;
+          contentEl.style.display = isExpanded ? "block" : "none";
+          arrow.textContent = isExpanded ? "\u25BC" : "\u25B6";
+        });
+        const result = contentCallback(contentEl);
+        if (result instanceof Promise) {
+          result.catch((error) => console.error("Error in collapsible section:", error));
+        }
       }
       onClose() {
+        this.plugin.offSettingsChange(this._onSettingsChange);
         this.contentEl.empty();
       }
     };
@@ -7304,18 +8034,10 @@ function handleCopyAll(messagesContainer, plugin) {
 }
 function handleSaveNote(messagesContainer, plugin, app) {
   return async () => {
-    const provider = plugin.settings.provider;
-    let model = "";
-    if (provider === "openai") model = plugin.settings.openaiSettings.model;
-    else if (provider === "anthropic") model = plugin.settings.anthropicSettings.model;
-    else if (provider === "gemini") model = plugin.settings.geminiSettings.model;
-    else if (provider === "ollama") model = plugin.settings.ollamaSettings.model;
     await saveChatAsNote({
       app,
       messages: messagesContainer.querySelectorAll(".ai-chat-message"),
       settings: plugin.settings,
-      provider,
-      model,
       chatSeparator: plugin.settings.chatSeparator,
       chatNoteFolder: plugin.settings.chatNoteFolder
     });
@@ -7327,7 +8049,7 @@ function handleClearChat(messagesContainer, chatHistoryManager) {
     try {
       await chatHistoryManager.clearHistory();
     } catch (e) {
-      new import_obsidian9.Notice("Failed to clear chat history.");
+      new import_obsidian10.Notice("Failed to clear chat history.");
     }
   };
 }
@@ -7343,13 +8065,13 @@ function handleHelp(app) {
     new ChatHelpModal(app).open();
   };
 }
-var import_obsidian9;
+var import_obsidian10;
 var init_eventHandlers = __esm({
   "src/components/chat/eventHandlers.ts"() {
     init_Buttons();
     init_chatPersistence();
     init_ChatHelpModal();
-    import_obsidian9 = require("obsidian");
+    import_obsidian10 = require("obsidian");
   }
 });
 
@@ -7434,7 +8156,7 @@ async function generateNoteTitle(app, settings, processMessages2) {
   debug2("Starting generateNoteTitle");
   const activeFile = app.workspace.getActiveFile();
   if (!activeFile) {
-    new import_obsidian13.Notice("No active note found.");
+    new import_obsidian14.Notice("No active note found.");
     return;
   }
   let noteContent = await app.vault.cachedRead(activeFile);
@@ -7444,7 +8166,7 @@ async function generateNoteTitle(app, settings, processMessages2) {
   const userContent = (toc && toc.trim().length > 0 ? "Table of Contents:\n" + toc + "\n\n" : "") + noteContent;
   try {
     debug2("Provider:", settings.provider);
-    const provider = createProvider(settings);
+    const provider = settings.selectedModel ? createProviderFromUnifiedModel(settings, settings.selectedModel) : createProvider(settings);
     const messages = [
       { role: "system", content: prompt },
       { role: "user", content: userContent }
@@ -7459,7 +8181,7 @@ async function generateNoteTitle(app, settings, processMessages2) {
       settings.enableContextNotes = originalEnableContextNotes;
       if (!processedMessages || processedMessages.length === 0) {
         debug2("No processed messages!");
-        new import_obsidian13.Notice("No valid messages to send to the model. Please check your note content.");
+        new import_obsidian14.Notice("No valid messages to send to the model. Please check your note content.");
         return;
       }
       debug2("Calling provider.getCompletion");
@@ -7487,28 +8209,28 @@ async function generateNoteTitle(app, settings, processMessages2) {
             const newPath = parentPath ? parentPath + "/" + sanitized + ext : sanitized + ext;
             if (file.path !== newPath) {
               await app.fileManager.renameFile(file, newPath);
-              new import_obsidian13.Notice(`Note renamed to: ${sanitized}${ext}`);
+              new import_obsidian14.Notice(`Note renamed to: ${sanitized}${ext}`);
             } else {
-              new import_obsidian13.Notice(`Note title is already: ${sanitized}${ext}`);
+              new import_obsidian14.Notice(`Note title is already: ${sanitized}${ext}`);
             }
           }
         } else if (outputMode === "metadata") {
           const file = app.workspace.getActiveFile();
           if (file) {
             await upsertYamlField(app, file, "title", title);
-            new import_obsidian13.Notice(`Inserted title into metadata: ${title}`);
+            new import_obsidian14.Notice(`Inserted title into metadata: ${title}`);
           }
         } else {
           try {
             await navigator.clipboard.writeText(title);
-            new import_obsidian13.Notice(`Generated title (copied): ${title}`);
+            new import_obsidian14.Notice(`Generated title (copied): ${title}`);
           } catch (e) {
-            new import_obsidian13.Notice(`Generated title: ${title}`);
+            new import_obsidian14.Notice(`Generated title: ${title}`);
           }
         }
       } else {
         debug2("No title generated after sanitization.");
-        new import_obsidian13.Notice("No title generated.");
+        new import_obsidian14.Notice("No title generated.");
       }
     } catch (processError) {
       debug2("Error in processMessages or provider.getCompletion:", processError);
@@ -7516,14 +8238,14 @@ async function generateNoteTitle(app, settings, processMessages2) {
       throw processError;
     }
   } catch (err) {
-    new import_obsidian13.Notice("Error generating title: " + ((_b = err == null ? void 0 : err.message) != null ? _b : err));
+    new import_obsidian14.Notice("Error generating title: " + ((_b = err == null ? void 0 : err.message) != null ? _b : err));
   }
 }
 async function generateYamlAttribute(app, settings, processMessages2, attributeName, prompt, outputMode = "metadata") {
   debug2(`Starting generateYamlAttribute for ${attributeName}`);
   const activeFile = app.workspace.getActiveFile();
   if (!activeFile) {
-    new import_obsidian13.Notice("No active note found.");
+    new import_obsidian14.Notice("No active note found.");
     return;
   }
   let noteContent = await app.vault.cachedRead(activeFile);
@@ -7542,11 +8264,11 @@ async function generateYamlAttribute(app, settings, processMessages2, attributeN
     settings.enableContextNotes = originalEnableContextNotes;
     if (!processedMessages || processedMessages.length === 0) {
       debug2("No processed messages!");
-      new import_obsidian13.Notice("No valid messages to send to the model. Please check your note content.");
+      new import_obsidian14.Notice("No valid messages to send to the model. Please check your note content.");
       return;
     }
     debug2("Calling provider.getCompletion");
-    const provider = createProvider(settings);
+    const provider = settings.selectedModel ? createProviderFromUnifiedModel(settings, settings.selectedModel) : createProvider(settings);
     let resultBuffer = "";
     await provider.getCompletion(processedMessages, {
       temperature: 0,
@@ -7563,18 +8285,18 @@ async function generateYamlAttribute(app, settings, processMessages2, attributeN
       debug2("Output mode:", outputMode);
       if (outputMode === "metadata") {
         await upsertYamlField(app, activeFile, attributeName, value);
-        new import_obsidian13.Notice(`Inserted ${attributeName} into metadata: ${value}`);
+        new import_obsidian14.Notice(`Inserted ${attributeName} into metadata: ${value}`);
       } else {
         try {
           await navigator.clipboard.writeText(value);
-          new import_obsidian13.Notice(`Generated ${attributeName} (copied): ${value}`);
+          new import_obsidian14.Notice(`Generated ${attributeName} (copied): ${value}`);
         } catch (e) {
-          new import_obsidian13.Notice(`Generated ${attributeName}: ${value}`);
+          new import_obsidian14.Notice(`Generated ${attributeName}: ${value}`);
         }
       }
     } else {
       debug2(`No value generated for ${attributeName} after sanitization.`);
-      new import_obsidian13.Notice(`No value generated for ${attributeName}.`);
+      new import_obsidian14.Notice(`No value generated for ${attributeName}.`);
     }
   } catch (processError) {
     debug2("Error in processMessages or provider.getCompletion:", processError);
@@ -7608,10 +8330,10 @@ ${newYaml}
   }
   await app.vault.modify(file, newContent);
 }
-var import_obsidian13, DEBUG;
+var import_obsidian14, DEBUG;
 var init_filechanger = __esm({
   "src/filechanger.ts"() {
-    import_obsidian13 = require("obsidian");
+    import_obsidian14 = require("obsidian");
     init_providers();
     init_prompts();
     init_js_yaml();
@@ -7625,7 +8347,7 @@ __export(main_exports, {
   default: () => MyPlugin
 });
 module.exports = __toCommonJS(main_exports);
-var import_obsidian14 = require("obsidian");
+var import_obsidian15 = require("obsidian");
 init_types();
 init_providers();
 
@@ -7651,6 +8373,10 @@ var MyPluginSettingTab = class extends import_obsidian.PluginSettingTab {
     containerEl.createEl("h3", { text: "API Keys" });
     new import_obsidian.Setting(containerEl).setName("OpenAI API Key").setDesc("Enter your OpenAI API key").addText((text) => text.setPlaceholder("Enter your API key").setValue(this.plugin.settings.openaiSettings.apiKey).onChange(async (value) => {
       this.plugin.settings.openaiSettings.apiKey = value;
+      await this.plugin.saveSettings();
+    }));
+    new import_obsidian.Setting(containerEl).setName("OpenAI Base URL").setDesc("Custom base URL for OpenAI API (optional, leave empty for default)").addText((text) => text.setPlaceholder("https://api.openai.com/v1").setValue(this.plugin.settings.openaiSettings.baseUrl || "").onChange(async (value) => {
+      this.plugin.settings.openaiSettings.baseUrl = value.trim() || void 0;
       await this.plugin.saveSettings();
     }));
     new import_obsidian.Setting(containerEl).setName("Anthropic API Key").setDesc("Enter your Anthropic API key").addText((text) => text.setPlaceholder("Enter your API key").setValue(this.plugin.settings.anthropicSettings.apiKey).onChange(async (value) => {
@@ -7815,7 +8541,7 @@ var MyPluginSettingTab = class extends import_obsidian.PluginSettingTab {
 };
 
 // src/components/chat.ts
-var import_obsidian10 = require("obsidian");
+var import_obsidian11 = require("obsidian");
 init_providers();
 
 // src/components/chat/ChatHistoryManager.ts
@@ -8166,7 +8892,7 @@ async function renderChatHistory({
 
 // src/components/chat.ts
 var VIEW_TYPE_CHAT = "chat-view";
-var ChatView = class extends import_obsidian10.ItemView {
+var ChatView = class extends import_obsidian11.ItemView {
   constructor(leaf, plugin) {
     super(leaf);
     __publicField(this, "plugin");
@@ -8194,7 +8920,7 @@ var ChatView = class extends import_obsidian10.ItemView {
     try {
       loadedHistory = await this.chatHistoryManager.getHistory();
     } catch (e) {
-      new import_obsidian10.Notice("Failed to load chat history.");
+      new import_obsidian11.Notice("Failed to load chat history.");
       loadedHistory = [];
     }
     const ui = createChatUI(this.app, contentEl);
@@ -8245,7 +8971,7 @@ var ChatView = class extends import_obsidian10.ItemView {
         }
       } catch (error) {
         if (error.name !== "AbortError") {
-          new import_obsidian10.Notice(`Error: ${error.message}`);
+          new import_obsidian11.Notice(`Error: ${error.message}`);
           await createMessageElement(this.app, "assistant", `Error: ${error.message}`, this.chatHistoryManager, this.plugin, (el) => this.regenerateResponse(el), this);
         }
       } finally {
@@ -8329,7 +9055,7 @@ var ChatView = class extends import_obsidian10.ItemView {
         content
       });
     } catch (e) {
-      new import_obsidian10.Notice("Failed to save chat message: " + e.message);
+      new import_obsidian11.Notice("Failed to save chat message: " + e.message);
     }
   }
   async onClose() {
@@ -8398,7 +9124,7 @@ var ChatView = class extends import_obsidian10.ItemView {
       await this.streamAssistantResponse(messages, assistantContainer, originalTimestamp, originalContent);
     } catch (error) {
       if (error.name !== "AbortError") {
-        new import_obsidian10.Notice(`Error: ${error.message}`);
+        new import_obsidian11.Notice(`Error: ${error.message}`);
         assistantContainer.remove();
       }
     } finally {
@@ -8438,7 +9164,7 @@ ${currentNoteContent}`
     let responseContent = "";
     this.activeStream = new AbortController();
     try {
-      const provider = createProvider(this.plugin.settings);
+      const provider = this.plugin.settings.selectedModel ? createProviderFromUnifiedModel(this.plugin.settings, this.plugin.settings.selectedModel) : createProvider(this.plugin.settings);
       await provider.getCompletion(
         messages,
         {
@@ -8450,7 +9176,7 @@ ${currentNoteContent}`
             if (contentEl) {
               container.dataset.rawContent = responseContent;
               contentEl.empty();
-              await import_obsidian10.MarkdownRenderer.render(
+              await import_obsidian11.MarkdownRenderer.render(
                 this.app,
                 responseContent,
                 contentEl,
@@ -8515,13 +9241,16 @@ function parseSelection(selection, chatSeparator, chatBoundaryString) {
 }
 
 // src/components/ModelSettingsView.ts
-var import_obsidian11 = require("obsidian");
+var import_obsidian12 = require("obsidian");
 init_providers();
 var VIEW_TYPE_MODEL_SETTINGS = "model-settings-view";
-var ModelSettingsView = class extends import_obsidian11.ItemView {
+var ModelSettingsView = class extends import_obsidian12.ItemView {
   constructor(leaf, plugin) {
     super(leaf);
     __publicField(this, "plugin");
+    __publicField(this, "_onSettingsChange", () => {
+      this.onOpen();
+    });
     this.plugin = plugin;
   }
   getViewType() {
@@ -8536,40 +9265,42 @@ var ModelSettingsView = class extends import_obsidian11.ItemView {
   async onOpen() {
     const { contentEl } = this;
     contentEl.empty();
+    this.plugin.offSettingsChange(this._onSettingsChange);
+    this.plugin.onSettingsChange(this._onSettingsChange);
     contentEl.createEl("h2", { text: "AI Model Settings" });
-    new import_obsidian11.Setting(contentEl).setName("System Message").setDesc("Set the system message for the AI").addTextArea((text) => text.setPlaceholder("You are a helpful assistant.").setValue(this.plugin.settings.systemMessage).onChange(async (value) => {
+    new import_obsidian12.Setting(contentEl).setName("System Message").setDesc("Set the system message for the AI").addTextArea((text) => text.setPlaceholder("You are a helpful assistant.").setValue(this.plugin.settings.systemMessage).onChange(async (value) => {
       this.plugin.settings.systemMessage = value;
       await this.plugin.saveSettings();
     }));
-    new import_obsidian11.Setting(contentEl).setName("Enable Streaming").setDesc("Enable or disable streaming for completions").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableStreaming).onChange(async (value) => {
+    new import_obsidian12.Setting(contentEl).setName("Enable Streaming").setDesc("Enable or disable streaming for completions").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableStreaming).onChange(async (value) => {
       this.plugin.settings.enableStreaming = value;
       await this.plugin.saveSettings();
     }));
-    new import_obsidian11.Setting(contentEl).setName("Temperature").setDesc("Set the randomness of the model's output (0-1)").addSlider((slider) => slider.setLimits(0, 1, 0.1).setValue(this.plugin.settings.temperature).setDynamicTooltip().onChange(async (value) => {
+    new import_obsidian12.Setting(contentEl).setName("Temperature").setDesc("Set the randomness of the model's output (0-1)").addSlider((slider) => slider.setLimits(0, 1, 0.1).setValue(this.plugin.settings.temperature).setDynamicTooltip().onChange(async (value) => {
       this.plugin.settings.temperature = value;
       await this.plugin.saveSettings();
     }));
     contentEl.createEl("h4", { text: "Date Settings" });
-    new import_obsidian11.Setting(contentEl).setName("Include Date with System Message").setDesc("Add the current date to the system message").addToggle((toggle) => toggle.setValue(this.plugin.settings.includeDateWithSystemMessage).onChange(async (value) => {
+    new import_obsidian12.Setting(contentEl).setName("Include Date with System Message").setDesc("Add the current date to the system message").addToggle((toggle) => toggle.setValue(this.plugin.settings.includeDateWithSystemMessage).onChange(async (value) => {
       this.plugin.settings.includeDateWithSystemMessage = value;
       await this.plugin.saveSettings();
     }));
-    new import_obsidian11.Setting(contentEl).setName("Include Time with System Message").setDesc("Add the current time along with the date to the system message").addToggle((toggle) => toggle.setValue(this.plugin.settings.includeTimeWithSystemMessage).onChange(async (value) => {
+    new import_obsidian12.Setting(contentEl).setName("Include Time with System Message").setDesc("Add the current time along with the date to the system message").addToggle((toggle) => toggle.setValue(this.plugin.settings.includeTimeWithSystemMessage).onChange(async (value) => {
       this.plugin.settings.includeTimeWithSystemMessage = value;
       await this.plugin.saveSettings();
     }));
     contentEl.createEl("h4", { text: "Note Reference Settings" });
-    new import_obsidian11.Setting(contentEl).setName("Enable Obsidian Links").setDesc("Read Obsidian links in messages using [[filename]] syntax").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableObsidianLinks).onChange(async (value) => {
+    new import_obsidian12.Setting(contentEl).setName("Enable Obsidian Links").setDesc("Read Obsidian links in messages using [[filename]] syntax").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableObsidianLinks).onChange(async (value) => {
       this.plugin.settings.enableObsidianLinks = value;
       await this.plugin.saveSettings();
     }));
-    new import_obsidian11.Setting(contentEl).setName("Enable Context Notes").setDesc("Attach specified note content to chat messages").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableContextNotes).onChange(async (value) => {
+    new import_obsidian12.Setting(contentEl).setName("Enable Context Notes").setDesc("Attach specified note content to chat messages").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableContextNotes).onChange(async (value) => {
       this.plugin.settings.enableContextNotes = value;
       await this.plugin.saveSettings();
     }));
     const contextNotesContainer = contentEl.createDiv("context-notes-container");
     contextNotesContainer.style.marginBottom = "24px";
-    new import_obsidian11.Setting(contextNotesContainer).setName("Context Notes").setDesc("Notes to attach as context (supports [[filename]] and [[filename#header]] syntax)").addTextArea((text) => {
+    new import_obsidian12.Setting(contextNotesContainer).setName("Context Notes").setDesc("Notes to attach as context (supports [[filename]] and [[filename#header]] syntax)").addTextArea((text) => {
       text.setPlaceholder("[[Note Name]]\n[[Another Note#Header]]").setValue(this.plugin.settings.contextNotes || "").onChange(async (value) => {
         this.plugin.settings.contextNotes = value;
         await this.plugin.saveSettings();
@@ -8577,177 +9308,329 @@ var ModelSettingsView = class extends import_obsidian11.ItemView {
       text.inputEl.rows = 4;
       text.inputEl.style.width = "100%";
     });
-    new import_obsidian11.Setting(contentEl).setName("Expand Linked Notes Recursively").setDesc("If enabled, when fetching a note, also fetch and expand links within that note recursively (prevents infinite loops).").addToggle((toggle) => {
+    new import_obsidian12.Setting(contentEl).setName("Expand Linked Notes Recursively").setDesc("If enabled, when fetching a note, also fetch and expand links within that note recursively (prevents infinite loops).").addToggle((toggle) => {
       var _a2;
       return toggle.setValue((_a2 = this.plugin.settings.expandLinkedNotesRecursively) != null ? _a2 : false).onChange(async (value) => {
         this.plugin.settings.expandLinkedNotesRecursively = value;
         await this.plugin.saveSettings();
       });
     });
-    contentEl.createEl("h2", { text: "Provider Settings" });
-    new import_obsidian11.Setting(contentEl).setName("AI Provider").setDesc("Choose which AI provider to use").addDropdown((dropdown) => {
-      dropdown.addOption("openai", "OpenAI (ChatGPT)").addOption("anthropic", "Anthropic (Claude)").addOption("gemini", "Google (Gemini)").addOption("ollama", "Ollama (Local AI)").setValue(this.plugin.settings.provider).onChange(async (value) => {
-        this.plugin.settings.provider = value;
-        await this.plugin.saveSettings();
-        this.onOpen();
-      });
-    });
-    switch (this.plugin.settings.provider) {
-      case "openai":
-        this.renderOpenAISettings(contentEl);
-        break;
-      case "anthropic":
-        this.renderAnthropicSettings(contentEl);
-        break;
-      case "gemini":
-        this.renderGeminiSettings(contentEl);
-        break;
-      case "ollama":
-        this.renderOllamaSettings(contentEl);
-        break;
-    }
-  }
-  renderProviderSettings(containerEl, settings, providerName, testConnectionCallback) {
-    new import_obsidian11.Setting(containerEl).setName("Test Connection").setDesc(`Verify your API key and fetch available models for ${providerName}`).addButton((button) => button.setButtonText("Test").onClick(async () => {
-      button.setButtonText("Testing...");
+    contentEl.createEl("h2", { text: "Model Settings" });
+    new import_obsidian12.Setting(contentEl).setName("Refresh Available Models").setDesc("Test connections to all configured providers and refresh available models").addButton((button) => button.setButtonText("Refresh Models").onClick(async () => {
+      button.setButtonText("Refreshing...");
       button.setDisabled(true);
       try {
-        await testConnectionCallback();
+        await this.refreshAllAvailableModels();
+        new import_obsidian12.Notice("Successfully refreshed available models");
       } catch (error) {
-        new import_obsidian11.Notice(`Error: ${error.message}`);
+        new import_obsidian12.Notice(`Error refreshing models: ${error.message}`);
       } finally {
-        button.setButtonText("Test");
+        button.setButtonText("Refresh Models");
         button.setDisabled(false);
       }
     }));
-    if (settings.lastTestResult) {
-      const date = new Date(settings.lastTestResult.timestamp);
-      containerEl.createEl("div", {
-        text: `Last test: ${date.toLocaleString()} - ${settings.lastTestResult.message}`,
-        cls: settings.lastTestResult.success ? "success" : "error"
-      });
+    await this.renderUnifiedModelDropdown(contentEl);
+    contentEl.createEl("h2", { text: "Provider Configuration" });
+    contentEl.createEl("p", {
+      text: "API keys are configured in the main plugin settings. Use the test buttons below to verify connections and refresh available models.",
+      cls: "setting-item-description"
+    });
+    this.renderOpenAIConfig(contentEl);
+    this.renderAnthropicConfig(contentEl);
+    this.renderGeminiConfig(contentEl);
+    this.renderOllamaConfig(contentEl);
+  }
+  /**
+   * Renders the unified model selection dropdown
+   */
+  async renderUnifiedModelDropdown(containerEl) {
+    if (!this.plugin.settings.availableModels || this.plugin.settings.availableModels.length === 0) {
+      this.plugin.settings.availableModels = await getAllAvailableModels(this.plugin.settings);
+      await this.plugin.saveSettings();
     }
-    new import_obsidian11.Setting(containerEl).setName("Model").setDesc(`Choose the ${providerName} model to use`).addDropdown((dropdown) => {
-      for (const model of settings.availableModels) {
-        dropdown.addOption(model, model);
+    new import_obsidian12.Setting(containerEl).setName("Selected Model").setDesc("Choose from all available models across all configured providers").addDropdown((dropdown) => {
+      if (!this.plugin.settings.availableModels || this.plugin.settings.availableModels.length === 0) {
+        dropdown.addOption("", "No models available - configure providers below");
+      } else {
+        dropdown.addOption("", "Select a model...");
+        const modelsByProvider = {};
+        this.plugin.settings.availableModels.forEach((model) => {
+          if (!modelsByProvider[model.provider]) {
+            modelsByProvider[model.provider] = [];
+          }
+          modelsByProvider[model.provider].push(model);
+        });
+        Object.entries(modelsByProvider).forEach(([provider, models]) => {
+          models.forEach((model) => {
+            dropdown.addOption(model.id, model.name);
+          });
+        });
       }
-      dropdown.setValue(settings.model).onChange(async (value) => {
-        settings.model = value;
+      dropdown.setValue(this.plugin.settings.selectedModel || "").onChange(async (value) => {
+        this.plugin.settings.selectedModel = value;
+        if (value) {
+          const provider = getProviderFromUnifiedModel(value);
+          this.plugin.settings.provider = provider;
+        }
         await this.plugin.saveSettings();
       });
     });
-  }
-  renderOpenAISettings(containerEl) {
-    this.renderProviderSettings(containerEl, this.plugin.settings.openaiSettings, "OpenAI", async () => {
-      const provider = createProvider(this.plugin.settings);
-      const result = await provider.testConnection();
-      if (result.success && result.models) {
-        this.plugin.settings.openaiSettings.availableModels = result.models;
-        await this.plugin.saveSettings();
-        this.plugin.settings.openaiSettings.lastTestResult = {
-          timestamp: Date.now(),
-          success: true,
-          message: result.message
-        };
-        new import_obsidian11.Notice(result.message);
-        this.onOpen();
-      } else {
-        this.plugin.settings.openaiSettings.lastTestResult = {
-          timestamp: Date.now(),
-          success: false,
-          message: result.message
-        };
-        new import_obsidian11.Notice(result.message);
+    if (this.plugin.settings.selectedModel && this.plugin.settings.availableModels) {
+      const selectedModel = this.plugin.settings.availableModels.find(
+        (model) => model.id === this.plugin.settings.selectedModel
+      );
+      if (selectedModel) {
+        const infoEl = containerEl.createEl("div", { cls: "setting-item-description" });
+        infoEl.setText(`Currently using: ${selectedModel.name}`);
       }
-    });
+    }
   }
-  renderAnthropicSettings(containerEl) {
-    this.renderProviderSettings(containerEl, this.plugin.settings.anthropicSettings, "Anthropic", async () => {
-      const provider = createProvider(this.plugin.settings);
-      const result = await provider.testConnection();
-      if (result.success && result.models) {
-        this.plugin.settings.anthropicSettings.availableModels = result.models;
-        await this.plugin.saveSettings();
-        this.plugin.settings.anthropicSettings.lastTestResult = {
-          timestamp: Date.now(),
-          success: true,
-          message: result.message
-        };
-        new import_obsidian11.Notice(result.message);
-        this.onOpen();
-      } else {
-        this.plugin.settings.anthropicSettings.lastTestResult = {
-          timestamp: Date.now(),
-          success: false,
-          message: result.message
-        };
-        new import_obsidian11.Notice(result.message);
+  /**
+   * Refreshes available models from all configured providers
+   */
+  async refreshAllAvailableModels() {
+    const providers = ["openai", "anthropic", "gemini", "ollama"];
+    const results = [];
+    for (const providerType of providers) {
+      try {
+        const originalProvider = this.plugin.settings.provider;
+        this.plugin.settings.provider = providerType;
+        const provider = createProvider(this.plugin.settings);
+        const result = await provider.testConnection();
+        this.plugin.settings.provider = originalProvider;
+        if (result.success && result.models) {
+          switch (providerType) {
+            case "openai":
+              this.plugin.settings.openaiSettings.availableModels = result.models;
+              this.plugin.settings.openaiSettings.lastTestResult = {
+                timestamp: Date.now(),
+                success: true,
+                message: result.message
+              };
+              results.push(`OpenAI: ${result.models.length} models`);
+              break;
+            case "anthropic":
+              this.plugin.settings.anthropicSettings.availableModels = result.models;
+              this.plugin.settings.anthropicSettings.lastTestResult = {
+                timestamp: Date.now(),
+                success: true,
+                message: result.message
+              };
+              results.push(`Anthropic: ${result.models.length} models`);
+              break;
+            case "gemini":
+              this.plugin.settings.geminiSettings.availableModels = result.models;
+              this.plugin.settings.geminiSettings.lastTestResult = {
+                timestamp: Date.now(),
+                success: true,
+                message: result.message
+              };
+              results.push(`Gemini: ${result.models.length} models`);
+              break;
+            case "ollama":
+              this.plugin.settings.ollamaSettings.availableModels = result.models;
+              this.plugin.settings.ollamaSettings.lastTestResult = {
+                timestamp: Date.now(),
+                success: true,
+                message: result.message
+              };
+              results.push(`Ollama: ${result.models.length} models`);
+              break;
+          }
+        } else {
+          switch (providerType) {
+            case "openai":
+              this.plugin.settings.openaiSettings.lastTestResult = {
+                timestamp: Date.now(),
+                success: false,
+                message: result.message
+              };
+              break;
+            case "anthropic":
+              this.plugin.settings.anthropicSettings.lastTestResult = {
+                timestamp: Date.now(),
+                success: false,
+                message: result.message
+              };
+              break;
+            case "gemini":
+              this.plugin.settings.geminiSettings.lastTestResult = {
+                timestamp: Date.now(),
+                success: false,
+                message: result.message
+              };
+              break;
+            case "ollama":
+              this.plugin.settings.ollamaSettings.lastTestResult = {
+                timestamp: Date.now(),
+                success: false,
+                message: result.message
+              };
+              break;
+          }
+        }
+      } catch (error) {
+        console.warn(`Failed to test ${providerType} connection:`, error);
       }
-    });
+    }
+    this.plugin.settings.availableModels = await getAllAvailableModels(this.plugin.settings);
+    await this.plugin.saveSettings();
+    this.onOpen();
   }
-  renderGeminiSettings(containerEl) {
-    this.renderProviderSettings(containerEl, this.plugin.settings.geminiSettings, "Gemini", async () => {
-      const provider = createProvider(this.plugin.settings);
-      const result = await provider.testConnection();
-      if (result.success && result.models) {
-        this.plugin.settings.geminiSettings.availableModels = result.models;
-        await this.plugin.saveSettings();
-        this.plugin.settings.geminiSettings.lastTestResult = {
-          timestamp: Date.now(),
-          success: true,
-          message: result.message
-        };
-        new import_obsidian11.Notice(result.message);
-        this.onOpen();
-      } else {
-        this.plugin.settings.geminiSettings.lastTestResult = {
-          timestamp: Date.now(),
-          success: false,
-          message: result.message
-        };
-        new import_obsidian11.Notice(result.message);
-      }
+  /**
+  * Renders OpenAI configuration section
+  */
+  renderOpenAIConfig(containerEl) {
+    const collapsibleContainer = containerEl.createEl("div", { cls: "provider-collapsible" });
+    const headerEl = collapsibleContainer.createEl("div", {
+      cls: "provider-header",
+      text: "\u25B6 OpenAI Configuration"
     });
-  }
-  renderOllamaSettings(containerEl) {
-    this.renderProviderSettings(containerEl, this.plugin.settings.ollamaSettings, "Ollama", async () => {
-      const provider = createProvider(this.plugin.settings);
-      const result = await provider.testConnection();
-      if (result.success && result.models) {
-        this.plugin.settings.ollamaSettings.availableModels = result.models;
-        await this.plugin.saveSettings();
-        this.plugin.settings.ollamaSettings.lastTestResult = {
-          timestamp: Date.now(),
-          success: true,
-          message: result.message
-        };
-        new import_obsidian11.Notice(result.message);
-        this.onOpen();
-      } else {
-        this.plugin.settings.ollamaSettings.lastTestResult = {
-          timestamp: Date.now(),
-          success: false,
-          message: result.message
-        };
-        new import_obsidian11.Notice(result.message);
-      }
+    headerEl.style.cursor = "pointer";
+    headerEl.style.userSelect = "none";
+    headerEl.style.padding = "8px 0";
+    headerEl.style.fontWeight = "bold";
+    const openaiContainer = collapsibleContainer.createEl("div", { cls: "provider-config-section" });
+    openaiContainer.style.display = "none";
+    openaiContainer.style.paddingLeft = "16px";
+    let isExpanded = false;
+    headerEl.addEventListener("click", () => {
+      isExpanded = !isExpanded;
+      openaiContainer.style.display = isExpanded ? "block" : "none";
+      headerEl.textContent = `${isExpanded ? "\u25BC" : "\u25B6"} OpenAI Configuration`;
     });
-    containerEl.createEl("div", {
+    const apiKeyStatus = this.plugin.settings.openaiSettings.apiKey ? `API Key: ${this.plugin.settings.openaiSettings.apiKey.substring(0, 8)}...` : "No API Key configured";
+    openaiContainer.createEl("div", {
       cls: "setting-item-description",
-      text: "To use Ollama:"
+      text: `${apiKeyStatus} (Configure in main plugin settings)`
     });
-    const steps = containerEl.createEl("ol");
+    this.renderProviderStatus(openaiContainer, this.plugin.settings.openaiSettings, "OpenAI");
+  }
+  /**
+  * Renders Anthropic configuration section
+  */
+  renderAnthropicConfig(containerEl) {
+    const collapsibleContainer = containerEl.createEl("div", { cls: "provider-collapsible" });
+    const headerEl = collapsibleContainer.createEl("div", {
+      cls: "provider-header",
+      text: "\u25B6 Anthropic Configuration"
+    });
+    headerEl.style.cursor = "pointer";
+    headerEl.style.userSelect = "none";
+    headerEl.style.padding = "8px 0";
+    headerEl.style.fontWeight = "bold";
+    const anthropicContainer = collapsibleContainer.createEl("div", { cls: "provider-config-section" });
+    anthropicContainer.style.display = "none";
+    anthropicContainer.style.paddingLeft = "16px";
+    let isExpanded = false;
+    headerEl.addEventListener("click", () => {
+      isExpanded = !isExpanded;
+      anthropicContainer.style.display = isExpanded ? "block" : "none";
+      headerEl.textContent = `${isExpanded ? "\u25BC" : "\u25B6"} Anthropic Configuration`;
+    });
+    const apiKeyStatus = this.plugin.settings.anthropicSettings.apiKey ? `API Key: ${this.plugin.settings.anthropicSettings.apiKey.substring(0, 8)}...` : "No API Key configured";
+    anthropicContainer.createEl("div", {
+      cls: "setting-item-description",
+      text: `${apiKeyStatus} (Configure in main plugin settings)`
+    });
+    this.renderProviderStatus(anthropicContainer, this.plugin.settings.anthropicSettings, "Anthropic");
+  }
+  /**
+  * Renders Gemini configuration section
+  */
+  renderGeminiConfig(containerEl) {
+    const collapsibleContainer = containerEl.createEl("div", { cls: "provider-collapsible" });
+    const headerEl = collapsibleContainer.createEl("div", {
+      cls: "provider-header",
+      text: "\u25B6 Google Gemini Configuration"
+    });
+    headerEl.style.cursor = "pointer";
+    headerEl.style.userSelect = "none";
+    headerEl.style.padding = "8px 0";
+    headerEl.style.fontWeight = "bold";
+    const geminiContainer = collapsibleContainer.createEl("div", { cls: "provider-config-section" });
+    geminiContainer.style.display = "none";
+    geminiContainer.style.paddingLeft = "16px";
+    let isExpanded = false;
+    headerEl.addEventListener("click", () => {
+      isExpanded = !isExpanded;
+      geminiContainer.style.display = isExpanded ? "block" : "none";
+      headerEl.textContent = `${isExpanded ? "\u25BC" : "\u25B6"} Google Gemini Configuration`;
+    });
+    const apiKeyStatus = this.plugin.settings.geminiSettings.apiKey ? `API Key: ${this.plugin.settings.geminiSettings.apiKey.substring(0, 8)}...` : "No API Key configured";
+    geminiContainer.createEl("div", {
+      cls: "setting-item-description",
+      text: `${apiKeyStatus} (Configure in main plugin settings)`
+    });
+    this.renderProviderStatus(geminiContainer, this.plugin.settings.geminiSettings, "Gemini");
+  }
+  /**
+  * Renders Ollama configuration section
+  */
+  renderOllamaConfig(containerEl) {
+    const collapsibleContainer = containerEl.createEl("div", { cls: "provider-collapsible" });
+    const headerEl = collapsibleContainer.createEl("div", {
+      cls: "provider-header",
+      text: "\u25B6 Ollama Configuration"
+    });
+    headerEl.style.cursor = "pointer";
+    headerEl.style.userSelect = "none";
+    headerEl.style.padding = "8px 0";
+    headerEl.style.fontWeight = "bold";
+    const ollamaContainer = collapsibleContainer.createEl("div", { cls: "provider-config-section" });
+    ollamaContainer.style.display = "none";
+    ollamaContainer.style.paddingLeft = "16px";
+    let isExpanded = false;
+    headerEl.addEventListener("click", () => {
+      isExpanded = !isExpanded;
+      ollamaContainer.style.display = isExpanded ? "block" : "none";
+      headerEl.textContent = `${isExpanded ? "\u25BC" : "\u25B6"} Ollama Configuration`;
+    });
+    const serverStatus = this.plugin.settings.ollamaSettings.serverUrl ? `Server URL: ${this.plugin.settings.ollamaSettings.serverUrl}` : "No Server URL configured";
+    ollamaContainer.createEl("div", {
+      cls: "setting-item-description",
+      text: `${serverStatus} (Configure in main plugin settings)`
+    });
+    this.renderProviderStatus(ollamaContainer, this.plugin.settings.ollamaSettings, "Ollama");
+    const helpContainer = ollamaContainer.createEl("div", { cls: "setting-item-description" });
+    helpContainer.createEl("p", { text: "To use Ollama:" });
+    const steps = helpContainer.createEl("ol");
     steps.createEl("li", { text: "Install Ollama from https://ollama.ai" });
     steps.createEl("li", { text: "Start the Ollama server" });
     steps.createEl("li", { text: 'Pull models using "ollama pull model-name"' });
-    steps.createEl("li", { text: "Test connection to see available models" });
+    steps.createEl("li", { text: 'Click "Refresh Models" above to see available models' });
+  }
+  /**
+   * Renders provider status information
+   */
+  renderProviderStatus(containerEl, settings, providerName) {
+    if (settings.lastTestResult) {
+      const date = new Date(settings.lastTestResult.timestamp);
+      const statusEl = containerEl.createEl("div", {
+        text: `Last test: ${date.toLocaleString()} - ${settings.lastTestResult.message}`,
+        cls: settings.lastTestResult.success ? "mod-success" : "mod-warning"
+      });
+      if (settings.lastTestResult.success && settings.availableModels && settings.availableModels.length > 0) {
+        statusEl.createEl("br");
+        statusEl.createSpan({
+          text: `Available models: ${settings.availableModels.length}`,
+          cls: "setting-item-description"
+        });
+      }
+    } else {
+      containerEl.createEl("div", {
+        text: `${providerName} not tested yet. Click "Refresh Models" above to test connection.`,
+        cls: "setting-item-description"
+      });
+    }
   }
   async onClose() {
+    this.plugin.offSettingsChange(this._onSettingsChange);
   }
 };
 
 // src/components/noteUtils.ts
-var import_obsidian12 = require("obsidian");
+var import_obsidian13 = require("obsidian");
 function extractContentUnderHeader(content, headerText) {
   const lines = content.split("\n");
   let foundHeader = false;
@@ -8795,7 +9678,7 @@ async function processObsidianLinks(content, app, settings, visitedNotes = /* @_
         }
         const headerMatch = filePath.match(/(.*?)#(.*)/);
         let extractedContent = "";
-        if (file && file instanceof import_obsidian12.TFile) {
+        if (file && file instanceof import_obsidian13.TFile) {
           if (visitedNotes.has(file.path)) {
             extractedContent = "[Recursive link omitted: already included]";
           } else {
@@ -8822,10 +9705,10 @@ ${extractedContent}
 `
           );
         } else {
-          new import_obsidian12.Notice(`File not found: ${filePath}. Ensure the file name and path are correct.`);
+          new import_obsidian13.Notice(`File not found: ${filePath}. Ensure the file name and path are correct.`);
         }
       } catch (error) {
-        new import_obsidian12.Notice(`Error processing link for ${filePath}: ${error.message}`);
+        new import_obsidian13.Notice(`Error processing link for ${filePath}: ${error.message}`);
       }
     }
   }
@@ -8849,7 +9732,7 @@ async function processContextNotes(contextNotesText, app) {
             (f) => f.basename.toLowerCase() === baseFileName.toLowerCase() || f.name.toLowerCase() === `${baseFileName.toLowerCase()}.md`
           ) || null;
         }
-        if (file && file instanceof import_obsidian12.TFile) {
+        if (file && file instanceof import_obsidian13.TFile) {
           const noteContent = await app.vault.cachedRead(file);
           contextContent += `---
 From note: ${file.basename}
@@ -8938,13 +9821,30 @@ The current time is ${currentTime} ${timeZoneString}.`;
 
 // src/main.ts
 var VIEW_TYPE_MODEL_SETTINGS2 = "model-settings-view";
-var MyPlugin = class extends import_obsidian14.Plugin {
+var MyPlugin = class extends import_obsidian15.Plugin {
   constructor() {
     super(...arguments);
     __publicField(this, "settings");
     __publicField(this, "modelSettingsView", null);
     __publicField(this, "activeStream", null);
     __publicField(this, "_yamlAttributeCommandIds", []);
+    // --- Settings change event emitter ---
+    __publicField(this, "settingsListeners", []);
+  }
+  onSettingsChange(listener) {
+    this.settingsListeners.push(listener);
+  }
+  offSettingsChange(listener) {
+    this.settingsListeners = this.settingsListeners.filter((l) => l !== listener);
+  }
+  emitSettingsChange() {
+    for (const listener of this.settingsListeners) {
+      try {
+        listener();
+      } catch (e) {
+        console.error(e);
+      }
+    }
   }
   async onload() {
     await this.loadSettings();
@@ -8997,7 +9897,7 @@ var MyPlugin = class extends import_obsidian14.Plugin {
         console.log("Extracted text for completion:", text);
         const messages = parseSelection(text, this.settings.chatSeparator);
         if (messages.length === 0) {
-          new import_obsidian14.Notice("No valid messages found in the selection.");
+          new import_obsidian15.Notice("No valid messages found in the selection.");
           return;
         }
         const lineContent = (_a2 = editor.getLine(insertPosition.line)) != null ? _a2 : "";
@@ -9014,7 +9914,7 @@ ${this.settings.chatSeparator}
         };
         this.activeStream = new AbortController();
         try {
-          const provider = createProvider(this.settings);
+          const provider = this.settings.selectedModel ? createProviderFromUnifiedModel(this.settings, this.settings.selectedModel) : createProvider(this.settings);
           const processedMessages = await this.processMessages([
             { role: "system", content: this.getSystemMessage() },
             ...messages
@@ -9056,7 +9956,7 @@ ${this.settings.chatSeparator}
           );
           editor.setCursor(newCursorPos);
         } catch (error) {
-          new import_obsidian14.Notice(`Error: ${error.message}`);
+          new import_obsidian15.Notice(`Error: ${error.message}`);
           const errLineContent = (_c = editor.getLine(currentPosition.line)) != null ? _c : "";
           let errPrefix = "";
           if (errLineContent.trim() !== "") {
@@ -9079,9 +9979,9 @@ ${this.settings.chatSeparator}
         if (this.activeStream) {
           this.activeStream.abort();
           this.activeStream = null;
-          new import_obsidian14.Notice("AI stream ended");
+          new import_obsidian15.Notice("AI stream ended");
         } else {
-          new import_obsidian14.Notice("No active AI stream to end");
+          new import_obsidian15.Notice("No active AI stream to end");
         }
       }
     });
@@ -9108,13 +10008,13 @@ ${this.settings.chatSeparator}
           const noteName = `[[${activeFile.basename}]]`;
           try {
             await navigator.clipboard.writeText(noteName);
-            new import_obsidian14.Notice(`Copied to clipboard: ${noteName}`);
+            new import_obsidian15.Notice(`Copied to clipboard: ${noteName}`);
           } catch (error) {
-            new import_obsidian14.Notice("Failed to copy to clipboard");
+            new import_obsidian15.Notice("Failed to copy to clipboard");
             console.error("Clipboard error:", error);
           }
         } else {
-          new import_obsidian14.Notice("No active note found");
+          new import_obsidian15.Notice("No active note found");
         }
       }
     });
@@ -9125,7 +10025,7 @@ ${this.settings.chatSeparator}
         var _a2;
         const chatStartString = (_a2 = this.settings.chatStartString) != null ? _a2 : "";
         if (!chatStartString) {
-          new import_obsidian14.Notice("chatStartString is not set in settings.");
+          new import_obsidian15.Notice("chatStartString is not set in settings.");
           return;
         }
         const cursor = editor.getCursor();
@@ -9162,19 +10062,19 @@ ${this.settings.chatSeparator}
       callback: async () => {
         let file = this.app.workspace.getActiveFile();
         if (!file) {
-          new import_obsidian14.Notice("No active note found. Please open a note to load as chat.");
+          new import_obsidian15.Notice("No active note found. Please open a note to load as chat.");
           return;
         }
         let content = await this.app.vault.read(file);
         const messages = parseSelection(content, this.settings.chatSeparator);
         if (!messages.length) {
-          new import_obsidian14.Notice("No chat messages found in the selected note.");
+          new import_obsidian15.Notice("No chat messages found in the selected note.");
           return;
         }
         await this.activateChatView();
         const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_CHAT);
         if (!leaves.length) {
-          new import_obsidian14.Notice("Could not find chat view.");
+          new import_obsidian15.Notice("Could not find chat view.");
           return;
         }
         const chatView = leaves[0].view;
@@ -9185,7 +10085,7 @@ ${this.settings.chatSeparator}
           }
         }
         chatView.messagesContainer.scrollTop = chatView.messagesContainer.scrollHeight;
-        new import_obsidian14.Notice("Loaded chat note into chat.");
+        new import_obsidian15.Notice("Loaded chat note into chat.");
       }
     });
     this.registerYamlAttributeCommands();
@@ -9253,6 +10153,7 @@ ${this.settings.chatSeparator}
   async saveSettings() {
     await this.saveData(this.settings);
     this.registerYamlAttributeCommands();
+    this.emitSettingsChange();
   }
   async processMessages(messages) {
     return processMessages(messages, this.app, this.settings);

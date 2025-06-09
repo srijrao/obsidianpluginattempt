@@ -1,53 +1,23 @@
-import { App, WorkspaceLeaf, ItemView, Setting, Notice, TFile } from 'obsidian';
-import MyPlugin from '../main'; // Import MyPlugin
-import { createProvider, getAllAvailableModels, getProviderFromUnifiedModel } from '../../providers';
-
-const VIEW_TYPE_MODEL_SETTINGS = 'model-settings-view';
+import { Setting, Notice } from 'obsidian';
+import MyPlugin from '../../main';
+import { createProvider, getAllAvailableModels, getProviderFromUnifiedModel } from '../../../providers';
 
 /**
- * AI Model Settings View
- *
- * This view provides a user interface for configuring AI model settings.
- * It allows users to:
- * - Select their preferred AI provider (OpenAI, Anthropic, Gemini, Ollama)
- * - Configure provider-specific settings like API keys and models
- * - Adjust common settings like temperature and token limits
- * - Test API connections and refresh available models
+ * Shared settings sections that can be rendered in any modal or view
+ * This ensures consistent UI across different interfaces
  */
-export class ModelSettingsView extends ItemView {
-    plugin: MyPlugin;
-    private _onSettingsChange = () => {
-        this.onOpen();
-    };
+export class SettingsSections {
+    private plugin: MyPlugin;
 
-    constructor(leaf: WorkspaceLeaf, plugin: MyPlugin) {
-        super(leaf);
+    constructor(plugin: MyPlugin) {
         this.plugin = plugin;
     }
 
-    getViewType(): string {
-        return VIEW_TYPE_MODEL_SETTINGS;
-    }
-
-    getDisplayText(): string {
-        return 'AI Model Settings';
-    }
-
-    getIcon(): string {
-        return 'file-sliders';
-    }
-
-    async onOpen() {
-        const { contentEl } = this;
-        contentEl.empty();
-        // Register settings change listener (avoid duplicate listeners)
-        this.plugin.offSettingsChange(this._onSettingsChange);
-        this.plugin.onSettingsChange(this._onSettingsChange);
-
-        // Settings Section
-        contentEl.createEl('h2', { text: 'AI Model Settings' });
-
-        new Setting(contentEl)
+    /**
+     * AI Model Settings Section
+     */
+    renderAIModelSettings(containerEl: HTMLElement): void {
+        new Setting(containerEl)
             .setName('System Message')
             .setDesc('Set the system message for the AI')
             .addTextArea(text => text
@@ -58,7 +28,7 @@ export class ModelSettingsView extends ItemView {
                     await this.plugin.saveSettings();
                 }));
 
-        new Setting(contentEl)
+        new Setting(containerEl)
             .setName('Enable Streaming')
             .setDesc('Enable or disable streaming for completions')
             .addToggle(toggle => toggle
@@ -68,7 +38,7 @@ export class ModelSettingsView extends ItemView {
                     await this.plugin.saveSettings();
                 }));
 
-        new Setting(contentEl)
+        new Setting(containerEl)
             .setName('Temperature')
             .setDesc('Set the randomness of the model\'s output (0-1)')
             .addSlider(slider => slider
@@ -79,11 +49,13 @@ export class ModelSettingsView extends ItemView {
                     this.plugin.settings.temperature = value;
                     await this.plugin.saveSettings();
                 }));
+    }
 
-        // Date Settings Section
-        contentEl.createEl('h4', { text: 'Date Settings' });
-
-        new Setting(contentEl)
+    /**
+     * Date Settings Section
+     */
+    renderDateSettings(containerEl: HTMLElement): void {
+        new Setting(containerEl)
             .setName('Include Date with System Message')
             .setDesc('Add the current date to the system message')
             .addToggle(toggle => toggle
@@ -93,7 +65,7 @@ export class ModelSettingsView extends ItemView {
                     await this.plugin.saveSettings();
                 }));
 
-        new Setting(contentEl)
+        new Setting(containerEl)
             .setName('Include Time with System Message')
             .setDesc('Add the current time along with the date to the system message')
             .addToggle(toggle => toggle
@@ -102,9 +74,13 @@ export class ModelSettingsView extends ItemView {
                     this.plugin.settings.includeTimeWithSystemMessage = value;
                     await this.plugin.saveSettings();
                 }));
-        // Note Reference Settings Section
-        contentEl.createEl('h4', { text: 'Note Reference Settings' });
-        new Setting(contentEl)
+    }
+
+    /**
+     * Note Reference Settings Section
+     */
+    renderNoteReferenceSettings(containerEl: HTMLElement): void {
+        new Setting(containerEl)
             .setName('Enable Obsidian Links')
             .setDesc('Read Obsidian links in messages using [[filename]] syntax')
             .addToggle(toggle => toggle
@@ -114,7 +90,7 @@ export class ModelSettingsView extends ItemView {
                     await this.plugin.saveSettings();
                 }));
 
-        new Setting(contentEl)
+        new Setting(containerEl)
             .setName('Enable Context Notes')
             .setDesc('Attach specified note content to chat messages')
             .addToggle(toggle => toggle
@@ -124,7 +100,7 @@ export class ModelSettingsView extends ItemView {
                     await this.plugin.saveSettings();
                 }));
 
-        const contextNotesContainer = contentEl.createDiv('context-notes-container');
+        const contextNotesContainer = containerEl.createDiv('context-notes-container');
         contextNotesContainer.style.marginBottom = '24px';
 
         new Setting(contextNotesContainer)
@@ -137,14 +113,11 @@ export class ModelSettingsView extends ItemView {
                         this.plugin.settings.contextNotes = value;
                         await this.plugin.saveSettings();
                     });
-
-                // Enable larger text area
                 text.inputEl.rows = 4;
                 text.inputEl.style.width = '100%';
-
             });
 
-        new Setting(contentEl)
+        new Setting(containerEl)
             .setName('Expand Linked Notes Recursively')
             .setDesc('If enabled, when fetching a note, also fetch and expand links within that note recursively (prevents infinite loops).')
             .addToggle(toggle => toggle
@@ -152,11 +125,15 @@ export class ModelSettingsView extends ItemView {
                 .onChange(async (value) => {
                     this.plugin.settings.expandLinkedNotesRecursively = value;
                     await this.plugin.saveSettings();
-                }));        // Model Settings Section - Unified Approach
-        contentEl.createEl('h2', { text: 'Model Settings' });
-        
+                }));
+    }
+
+    /**
+     * Model Settings Section
+     */
+    async renderModelSettings(containerEl: HTMLElement, onRefresh?: () => void): Promise<void> {
         // Refresh available models button
-        new Setting(contentEl)
+        new Setting(containerEl)
             .setName('Refresh Available Models')
             .setDesc('Test connections to all configured providers and refresh available models')
             .addButton(button => button
@@ -168,6 +145,7 @@ export class ModelSettingsView extends ItemView {
                     try {
                         await this.refreshAllAvailableModels();
                         new Notice('Successfully refreshed available models');
+                        if (onRefresh) onRefresh();
                     } catch (error) {
                         new Notice(`Error refreshing models: ${error.message}`);
                     } finally {
@@ -177,24 +155,30 @@ export class ModelSettingsView extends ItemView {
                 }));
 
         // Unified model selection dropdown
-        await this.renderUnifiedModelDropdown(contentEl);
-          // Provider Configuration Section
-        contentEl.createEl('h2', { text: 'Provider Configuration' });
-        contentEl.createEl('p', { 
+        await this.renderUnifiedModelDropdown(containerEl);
+    }
+
+    /**
+     * Provider Configuration Section
+     */
+    renderProviderConfiguration(containerEl: HTMLElement): void {
+        containerEl.createEl('p', { 
             text: 'API keys are configured in the main plugin settings. Use the test buttons below to verify connections and refresh available models.',
             cls: 'setting-item-description'
         });
         
         // Render all provider configurations
-        this.renderOpenAIConfig(contentEl);
-        this.renderAnthropicConfig(contentEl);
-        this.renderGeminiConfig(contentEl);
-        this.renderOllamaConfig(contentEl);    }
+        this.renderOpenAIConfig(containerEl);
+        this.renderAnthropicConfig(containerEl);
+        this.renderGeminiConfig(containerEl);
+        this.renderOllamaConfig(containerEl);
+    }
 
     /**
      * Renders the unified model selection dropdown
      */
-    private async renderUnifiedModelDropdown(containerEl: HTMLElement) {        // Ensure we have available models
+    private async renderUnifiedModelDropdown(containerEl: HTMLElement): Promise<void> {
+        // Ensure we have available models
         if (!this.plugin.settings.availableModels || this.plugin.settings.availableModels.length === 0) {
             this.plugin.settings.availableModels = await getAllAvailableModels(this.plugin.settings);
             await this.plugin.saveSettings();
@@ -257,7 +241,7 @@ export class ModelSettingsView extends ItemView {
     /**
      * Refreshes available models from all configured providers
      */
-    private async refreshAllAvailableModels() {
+    private async refreshAllAvailableModels(): Promise<void> {
         const providers = ['openai', 'anthropic', 'gemini', 'ollama'] as const;
         const results: string[] = [];
 
@@ -314,7 +298,7 @@ export class ModelSettingsView extends ItemView {
                             break;
                     }
                 } else {
-                    // Update failed test result
+                    // Update failed test results
                     switch (providerType) {
                         case 'openai':
                             this.plugin.settings.openaiSettings.lastTestResult = {
@@ -347,20 +331,16 @@ export class ModelSettingsView extends ItemView {
                     }
                 }
             } catch (error) {
-                console.warn(`Failed to test ${providerType} connection:`, error);
+                console.error(`Error testing ${providerType}:`, error);
             }
         }
 
-        // Update the unified available models
+        // Update unified available models
         this.plugin.settings.availableModels = await getAllAvailableModels(this.plugin.settings);
         await this.plugin.saveSettings();
-        
-        // Refresh the view to show updated models
-        this.onOpen();
-    }    /**
-     * Renders OpenAI configuration section
-     */
-    private renderOpenAIConfig(containerEl: HTMLElement) {
+    }
+
+    private renderOpenAIConfig(containerEl: HTMLElement): void {
         // Create collapsible container
         const collapsibleContainer = containerEl.createEl('div', { cls: 'provider-collapsible' });
         
@@ -375,32 +355,42 @@ export class ModelSettingsView extends ItemView {
         headerEl.style.fontWeight = 'bold';
         
         // Create content container (initially hidden)
-        const openaiContainer = collapsibleContainer.createEl('div', { cls: 'provider-config-section' });
-        openaiContainer.style.display = 'none';
-        openaiContainer.style.paddingLeft = '16px';
+        const contentEl = collapsibleContainer.createEl('div', { cls: 'provider-content' });
+        contentEl.style.display = 'none';
+        contentEl.style.paddingLeft = '16px';
         
         // Toggle functionality
         let isExpanded = false;
         headerEl.addEventListener('click', () => {
             isExpanded = !isExpanded;
-            openaiContainer.style.display = isExpanded ? 'block' : 'none';
+            contentEl.style.display = isExpanded ? 'block' : 'none';
             headerEl.textContent = `${isExpanded ? '▼' : '▶'} OpenAI Configuration`;
         });
-
+        
         // Show current API key status
         const apiKeyStatus = this.plugin.settings.openaiSettings.apiKey ? 
             `API Key: ${this.plugin.settings.openaiSettings.apiKey.substring(0, 8)}...` : 
             'No API Key configured';
-        openaiContainer.createEl('div', { 
+        contentEl.createEl('div', { 
             cls: 'setting-item-description',
             text: `${apiKeyStatus} (Configure in main plugin settings)`
         });
 
-        this.renderProviderStatus(openaiContainer, this.plugin.settings.openaiSettings, 'OpenAI');
-    }    /**
-     * Renders Anthropic configuration section
-     */
-    private renderAnthropicConfig(containerEl: HTMLElement) {
+        new Setting(contentEl)
+            .setName('OpenAI Base URL')
+            .setDesc('Custom base URL for OpenAI API (optional)')
+            .addText(text => text
+                .setPlaceholder('https://api.openai.com/v1')
+                .setValue(this.plugin.settings.openaiSettings.baseUrl || '')
+                .onChange(async (value) => {
+                    this.plugin.settings.openaiSettings.baseUrl = value;
+                    await this.plugin.saveSettings();
+                }));
+
+        this.renderProviderTestSection(contentEl, 'openai', 'OpenAI');
+    }
+
+    private renderAnthropicConfig(containerEl: HTMLElement): void {
         // Create collapsible container
         const collapsibleContainer = containerEl.createEl('div', { cls: 'provider-collapsible' });
         
@@ -415,39 +405,38 @@ export class ModelSettingsView extends ItemView {
         headerEl.style.fontWeight = 'bold';
         
         // Create content container (initially hidden)
-        const anthropicContainer = collapsibleContainer.createEl('div', { cls: 'provider-config-section' });
-        anthropicContainer.style.display = 'none';
-        anthropicContainer.style.paddingLeft = '16px';
+        const contentEl = collapsibleContainer.createEl('div', { cls: 'provider-content' });
+        contentEl.style.display = 'none';
+        contentEl.style.paddingLeft = '16px';
         
         // Toggle functionality
         let isExpanded = false;
         headerEl.addEventListener('click', () => {
             isExpanded = !isExpanded;
-            anthropicContainer.style.display = isExpanded ? 'block' : 'none';
+            contentEl.style.display = isExpanded ? 'block' : 'none';
             headerEl.textContent = `${isExpanded ? '▼' : '▶'} Anthropic Configuration`;
         });
-
+        
         // Show current API key status
         const apiKeyStatus = this.plugin.settings.anthropicSettings.apiKey ? 
             `API Key: ${this.plugin.settings.anthropicSettings.apiKey.substring(0, 8)}...` : 
             'No API Key configured';
-        anthropicContainer.createEl('div', { 
+        contentEl.createEl('div', { 
             cls: 'setting-item-description',
             text: `${apiKeyStatus} (Configure in main plugin settings)`
         });
 
-        this.renderProviderStatus(anthropicContainer, this.plugin.settings.anthropicSettings, 'Anthropic');
-    }    /**
-     * Renders Gemini configuration section
-     */
-    private renderGeminiConfig(containerEl: HTMLElement) {
+        this.renderProviderTestSection(contentEl, 'anthropic', 'Anthropic');
+    }
+
+    private renderGeminiConfig(containerEl: HTMLElement): void {
         // Create collapsible container
         const collapsibleContainer = containerEl.createEl('div', { cls: 'provider-collapsible' });
         
         // Create header that can be clicked to toggle
         const headerEl = collapsibleContainer.createEl('div', { 
             cls: 'provider-header',
-            text: '▶ Google Gemini Configuration'
+            text: '▶ Gemini Configuration'
         });
         headerEl.style.cursor = 'pointer';
         headerEl.style.userSelect = 'none';
@@ -455,32 +444,31 @@ export class ModelSettingsView extends ItemView {
         headerEl.style.fontWeight = 'bold';
         
         // Create content container (initially hidden)
-        const geminiContainer = collapsibleContainer.createEl('div', { cls: 'provider-config-section' });
-        geminiContainer.style.display = 'none';
-        geminiContainer.style.paddingLeft = '16px';
+        const contentEl = collapsibleContainer.createEl('div', { cls: 'provider-content' });
+        contentEl.style.display = 'none';
+        contentEl.style.paddingLeft = '16px';
         
         // Toggle functionality
         let isExpanded = false;
         headerEl.addEventListener('click', () => {
             isExpanded = !isExpanded;
-            geminiContainer.style.display = isExpanded ? 'block' : 'none';
-            headerEl.textContent = `${isExpanded ? '▼' : '▶'} Google Gemini Configuration`;
+            contentEl.style.display = isExpanded ? 'block' : 'none';
+            headerEl.textContent = `${isExpanded ? '▼' : '▶'} Gemini Configuration`;
         });
-
+        
         // Show current API key status
         const apiKeyStatus = this.plugin.settings.geminiSettings.apiKey ? 
             `API Key: ${this.plugin.settings.geminiSettings.apiKey.substring(0, 8)}...` : 
             'No API Key configured';
-        geminiContainer.createEl('div', { 
+        contentEl.createEl('div', { 
             cls: 'setting-item-description',
             text: `${apiKeyStatus} (Configure in main plugin settings)`
         });
 
-        this.renderProviderStatus(geminiContainer, this.plugin.settings.geminiSettings, 'Gemini');
-    }    /**
-     * Renders Ollama configuration section
-     */
-    private renderOllamaConfig(containerEl: HTMLElement) {
+        this.renderProviderTestSection(contentEl, 'gemini', 'Gemini');
+    }
+
+    private renderOllamaConfig(containerEl: HTMLElement): void {
         // Create collapsible container
         const collapsibleContainer = containerEl.createEl('div', { cls: 'provider-collapsible' });
         
@@ -495,68 +483,106 @@ export class ModelSettingsView extends ItemView {
         headerEl.style.fontWeight = 'bold';
         
         // Create content container (initially hidden)
-        const ollamaContainer = collapsibleContainer.createEl('div', { cls: 'provider-config-section' });
-        ollamaContainer.style.display = 'none';
-        ollamaContainer.style.paddingLeft = '16px';
+        const contentEl = collapsibleContainer.createEl('div', { cls: 'provider-content' });
+        contentEl.style.display = 'none';
+        contentEl.style.paddingLeft = '16px';
         
         // Toggle functionality
         let isExpanded = false;
         headerEl.addEventListener('click', () => {
             isExpanded = !isExpanded;
-            ollamaContainer.style.display = isExpanded ? 'block' : 'none';
+            contentEl.style.display = isExpanded ? 'block' : 'none';
             headerEl.textContent = `${isExpanded ? '▼' : '▶'} Ollama Configuration`;
         });
-
+        
         // Show current server URL status
         const serverStatus = this.plugin.settings.ollamaSettings.serverUrl ? 
             `Server URL: ${this.plugin.settings.ollamaSettings.serverUrl}` : 
             'No Server URL configured';
-        ollamaContainer.createEl('div', { 
+        contentEl.createEl('div', { 
             cls: 'setting-item-description',
             text: `${serverStatus} (Configure in main plugin settings)`
         });
 
-        this.renderProviderStatus(ollamaContainer, this.plugin.settings.ollamaSettings, 'Ollama');
-
+        this.renderProviderTestSection(contentEl, 'ollama', 'Ollama');
+        
         // Add help text for Ollama setup
-        const helpContainer = ollamaContainer.createEl('div', { cls: 'setting-item-description' });
-        helpContainer.createEl('p', { text: 'To use Ollama:' });
-        const steps = helpContainer.createEl('ol');
+        contentEl.createEl('div', {
+            cls: 'setting-item-description',
+            text: 'To use Ollama:'
+        });
+        const steps = contentEl.createEl('ol');
         steps.createEl('li', { text: 'Install Ollama from https://ollama.ai' });
         steps.createEl('li', { text: 'Start the Ollama server' });
         steps.createEl('li', { text: 'Pull models using "ollama pull model-name"' });
-        steps.createEl('li', { text: 'Click "Refresh Models" above to see available models' });
+        steps.createEl('li', { text: 'Test connection to see available models' });
     }
 
-    /**
-     * Renders provider status information
-     */
-    private renderProviderStatus(containerEl: HTMLElement, settings: any, providerName: string) {
+    private renderProviderTestSection(containerEl: HTMLElement, provider: string, displayName: string): void {
+        const settings = this.plugin.settings[`${provider}Settings` as keyof typeof this.plugin.settings] as any;
+        
+        new Setting(containerEl)
+            .setName('Test Connection')
+            .setDesc(`Verify your API key and fetch available models for ${displayName}`)
+            .addButton(button => button
+                .setButtonText('Test')
+                .onClick(async () => {
+                    button.setButtonText('Testing...');
+                    button.setDisabled(true);
+                    try {
+                        // Temporarily set provider to test connection
+                        const originalProvider = this.plugin.settings.provider;
+                        this.plugin.settings.provider = provider as any;
+                        
+                        const providerInstance = createProvider(this.plugin.settings);
+                        const result = await providerInstance.testConnection();
+                        
+                        // Restore original provider
+                        this.plugin.settings.provider = originalProvider;
+                        
+                        if (result.success && result.models) {
+                            settings.availableModels = result.models;
+                            settings.lastTestResult = {
+                                timestamp: Date.now(),
+                                success: true,
+                                message: result.message
+                            };
+                            await this.plugin.saveSettings();
+                            
+                            // Refresh unified models
+                            this.plugin.settings.availableModels = await getAllAvailableModels(this.plugin.settings);
+                            await this.plugin.saveSettings();
+                            
+                            new Notice(result.message);
+                        } else {
+                            settings.lastTestResult = {
+                                timestamp: Date.now(),
+                                success: false,
+                                message: result.message
+                            };
+                            new Notice(result.message);
+                        }
+                    } catch (error) {
+                        new Notice(`Error: ${error.message}`);
+                    } finally {
+                        button.setButtonText('Test');
+                        button.setDisabled(false);
+                    }
+                }));
+
         if (settings.lastTestResult) {
             const date = new Date(settings.lastTestResult.timestamp);
-            const statusEl = containerEl.createEl('div', {
-                text: `Last test: ${date.toLocaleString()} - ${settings.lastTestResult.message}`,
-                cls: settings.lastTestResult.success ? 'mod-success' : 'mod-warning'
-            });
-            
-            if (settings.lastTestResult.success && settings.availableModels && settings.availableModels.length > 0) {
-                statusEl.createEl('br');
-                statusEl.createSpan({ 
-                    text: `Available models: ${settings.availableModels.length}`,
-                    cls: 'setting-item-description'
-                });
-            }
-        } else {
             containerEl.createEl('div', {
-                text: `${providerName} not tested yet. Click "Refresh Models" above to test connection.`,
+                text: `Last test: ${date.toLocaleString()} - ${settings.lastTestResult.message}`,
+                cls: settings.lastTestResult.success ? 'success' : 'error'
+            });
+        }
+
+        if (settings.availableModels && settings.availableModels.length > 0) {
+            containerEl.createEl('div', {
+                text: `Available models: ${settings.availableModels.join(', ')}`,
                 cls: 'setting-item-description'
             });
         }
     }
-
-    async onClose() {
-        this.plugin.offSettingsChange(this._onSettingsChange);
-        // Clean up any resources if needed
-    }
-
 }

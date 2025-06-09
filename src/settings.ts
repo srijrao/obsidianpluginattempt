@@ -29,9 +29,7 @@ export class MyPluginSettingTab extends PluginSettingTab {
         containerEl.createEl('h2', { text: 'AI Assistant Settings' });
 
         // API Keys Section
-        containerEl.createEl('h3', { text: 'API Keys' });
-
-        // OpenAI API Key
+        containerEl.createEl('h3', { text: 'API Keys' });        // OpenAI API Key
         new Setting(containerEl)
             .setName('OpenAI API Key')
             .setDesc('Enter your OpenAI API key')
@@ -40,6 +38,18 @@ export class MyPluginSettingTab extends PluginSettingTab {
                 .setValue(this.plugin.settings.openaiSettings.apiKey)
                 .onChange(async (value) => {
                     this.plugin.settings.openaiSettings.apiKey = value;
+                    await this.plugin.saveSettings();
+                }));
+
+        // OpenAI Base URL
+        new Setting(containerEl)
+            .setName('OpenAI Base URL')
+            .setDesc('Custom base URL for OpenAI API (optional, leave empty for default)')
+            .addText(text => text
+                .setPlaceholder('https://api.openai.com/v1')
+                .setValue(this.plugin.settings.openaiSettings.baseUrl || '')
+                .onChange(async (value) => {
+                    this.plugin.settings.openaiSettings.baseUrl = value.trim() || undefined;
                     await this.plugin.saveSettings();
                 }));
 

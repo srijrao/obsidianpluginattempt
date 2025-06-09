@@ -2,15 +2,46 @@
 import { MyPluginSettings } from '../../types';
 import { Notice } from 'obsidian';
 import * as yaml from 'js-yaml';
+import { getProviderFromUnifiedModel, getModelIdFromUnifiedModel } from '../../../providers';
 
-export function buildChatYaml(settings: MyPluginSettings, provider: string, model: string): string {
-    const yamlObj = {
-        provider,
-        model,
-        system_message: settings.systemMessage,
-        temperature: settings.temperature
-    };
-    return `---\n${yaml.dump(yamlObj)}---\n`;
+export function buildChatYaml(settings: MyPluginSettings, provider?: string, model?: string): string {
+    // Use unified model if available, otherwise fall back to legacy provider/model
+    if (settings.selectedModel) {
+        const providerType = getProviderFromUnifiedModel(settings.selectedModel);
+        const modelId = getModelIdFromUnifiedModel(settings.selectedModel);
+        const yamlObj = {
+            provider: providerType,
+            model: modelId,
+            unified_model: settings.selectedModel, // Add unified model ID for future compatibility
+            system_message: settings.systemMessage,
+            temperature: settings.temperature
+        };
+        return `---\n${yaml.dump(yamlObj)}---\n`;
+    } else {
+        // Legacy format
+        const yamlObj = {
+            provider: provider || settings.provider,
+            model: model || getCurrentModelForProvider(settings),
+            system_message: settings.systemMessage,
+            temperature: settings.temperature
+        };
+        return `---\n${yaml.dump(yamlObj)}---\n`;
+    }
+}
+
+function getCurrentModelForProvider(settings: MyPluginSettings): string {
+    switch (settings.provider) {
+        case 'openai':
+            return settings.openaiSettings.model;
+        case 'anthropic':
+            return settings.anthropicSettings.model;
+        case 'gemini':
+            return settings.geminiSettings.model;
+        case 'ollama':
+            return settings.ollamaSettings.model;
+        default:
+            return '';
+    }
 }
 
 export async function saveChatAsNote({
@@ -25,8 +56,8 @@ export async function saveChatAsNote({
     app: any,
     messages: NodeListOf<Element>,
     settings: MyPluginSettings,
-    provider: string,
-    model: string,
+    provider?: string,
+    model?: string,
     chatSeparator: string,
     chatNoteFolder?: string
 }) {
@@ -85,75 +116,55 @@ export async function loadChatYamlAndApplySettings({
             yamlObj = {};
         }
     }
-    // Improved provider/model selection logic: prioritize model
-    let newProvider = settings.provider;
-    let newModel = settings.openaiSettings?.model || settings.anthropicSettings?.model || settings.geminiSettings?.model || settings.ollamaSettings?.model;
-    const availableProviders = plugin.getAvailableProviders ? plugin.getAvailableProviders() : [];
-    // 1. If a model is specified, find a provider that supports it
-    if (yamlObj.model) {
-        let found = false;
-        for (const prov of availableProviders) {
-            const models = plugin.getModelsForProvider ? plugin.getModelsForProvider(prov) : [];
-            if (models.includes(yamlObj.model)) {
-                newProvider = prov;
-                newModel = yamlObj.model;
-                found = true;
-                break;
-            }
-        }
-        // If not found, keep previous provider/model
-    } else if (yamlObj.provider && availableProviders.includes(yamlObj.provider)) {
-        // 2. If only provider is specified, use previous model for that provider
-        newProvider = yamlObj.provider;
-        switch (newProvider) {
+
+    // Handle unified model format first
+    if (yamlObj.unified_model) {
+        settings.selectedModel = yamlObj.unified_model;
+    } else if (yamlObj.provider && yamlObj.model) {
+        // Convert legacy format to unified model format
+        const unifiedModelId = `${yamlObj.provider}:${yamlObj.model}`;
+        settings.selectedModel = unifiedModelId;
+        
+        // Also update the legacy provider-specific settings for backward compatibility
+        settings.provider = yamlObj.provider;
+        switch (yamlObj.provider) {
             case 'openai':
-                newModel = settings.openaiSettings.model;
+                settings.openaiSettings.model = yamlObj.model;
                 break;
             case 'anthropic':
-                newModel = settings.anthropicSettings.model;
+                settings.anthropicSettings.model = yamlObj.model;
                 break;
             case 'gemini':
-                newModel = settings.geminiSettings.model;
+                settings.geminiSettings.model = yamlObj.model;
                 break;
             case 'ollama':
-                newModel = settings.ollamaSettings.model;
+                settings.ollamaSettings.model = yamlObj.model;
                 break;
         }
     }
+
     // System message
     let newSystemMessage = yamlObj.system_message || settings.systemMessage;
+    
     // Temperature
     let newTemperature = settings.temperature;
     if (yamlObj.temperature !== undefined) {
         const tempNum = parseFloat(yamlObj.temperature);
         if (!isNaN(tempNum)) newTemperature = tempNum;
     }
+    
     // Apply settings
-    settings.provider = newProvider;
-    if (newModel) {
-        switch (newProvider) {
-            case 'openai':
-                settings.openaiSettings.model = newModel;
-                break;
-            case 'anthropic':
-                settings.anthropicSettings.model = newModel;
-                break;
-            case 'gemini':
-                settings.geminiSettings.model = newModel;
-                break;
-            case 'ollama':
-                settings.ollamaSettings.model = newModel;
-                break;
-        }
-    }
     settings.systemMessage = newSystemMessage;
     settings.temperature = newTemperature;
+    
     if (plugin.onSettingsLoadedFromNote) {
         plugin.onSettingsLoadedFromNote(settings);
     }
+    
     return {
-        provider: newProvider,
-        model: newModel,
+        provider: yamlObj.provider,
+        model: yamlObj.model,
+        unifiedModel: settings.selectedModel,
         systemMessage: newSystemMessage,
         temperature: newTemperature
     };

@@ -22,18 +22,12 @@ export function handleCopyAll(messagesContainer: HTMLElement, plugin: MyPlugin) 
 
 export function handleSaveNote(messagesContainer: HTMLElement, plugin: MyPlugin, app: App) {
     return async () => {
-        const provider = plugin.settings.provider;
-        let model = '';
-        if (provider === 'openai') model = plugin.settings.openaiSettings.model;
-        else if (provider === 'anthropic') model = plugin.settings.anthropicSettings.model;
-        else if (provider === 'gemini') model = plugin.settings.geminiSettings.model;
-        else if (provider === 'ollama') model = plugin.settings.ollamaSettings.model;
+        // With unified model approach, we no longer need to determine provider/model here
+        // The buildChatYaml function will handle this based on settings.selectedModel
         await saveChatAsNote({
             app,
             messages: messagesContainer.querySelectorAll('.ai-chat-message'),
             settings: plugin.settings,
-            provider,
-            model,
             chatSeparator: plugin.settings.chatSeparator,
             chatNoteFolder: plugin.settings.chatNoteFolder
         });

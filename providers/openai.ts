@@ -40,13 +40,14 @@ interface OpenAIResponse {
  */
 export class OpenAIProvider extends BaseProvider {
     protected apiKey: string;
-    protected baseUrl = 'https://api.openai.com/v1';
+    protected baseUrl: string;
     protected model: string;
 
-    constructor(apiKey: string, model: string = 'gpt-4') {
+    constructor(apiKey: string, model: string = 'gpt-4', baseUrl?: string) {
         super();
         this.apiKey = apiKey;
         this.model = model;
+        this.baseUrl = baseUrl || 'https://api.openai.com/v1';
     }
 
     /**

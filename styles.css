@@ -339,3 +339,47 @@
     display: none !important;
     /* Use !important to ensure override */
 }
+
+/* === COLLAPSIBLE SECTIONS ===
+   Styles for collapsible section headers and content in modals.
+   Provides consistent styling and smooth interactions.
+   -------------------------------------------------------------------------- */
+.ai-collapsible-section {
+    margin-bottom: var(--spacing-md);
+}
+
+.ai-collapsible-header {
+    cursor: pointer;
+    padding: var(--spacing-md) 0;
+    font-weight: bold;
+    user-select: none;
+    border-radius: var(--border-radius);
+    transition: var(--transition);
+    display: flex;
+    align-items: center;
+}
+
+.ai-collapsible-header:hover {
+    background-color: var(--background-modifier-hover);
+}
+
+.ai-collapsible-arrow {
+    margin-right: var(--spacing-md);
+    font-size: 0.8em;
+    width: 12px;
+    text-align: center;
+    transition: var(--transition);
+}
+
+.ai-collapsible-content {
+    line-height: var(--lineheight);
+    padding-left: calc(12px + var(--spacing-md));
+    transition: var(--transition);
+}
+
+.ai-collapsible-content code {
+    background-color: var(--background-modifier-border);
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border-radius: var(--border-radius);
+    font-family: var(--font-monospace);
+}

@@ -1,6 +1,6 @@
 import { App, Plugin, Setting, WorkspaceLeaf, ItemView, Notice, TFile } from 'obsidian';
 import { MyPluginSettings, Message, DEFAULT_SETTINGS } from './types';
-import { createProvider } from '../providers';
+import { createProvider, createProviderFromUnifiedModel } from '../providers';
 import { MyPluginSettingTab } from './settings';
 import { ChatView, VIEW_TYPE_CHAT } from './components/chat';
 import { parseSelection } from './components/parseSelection';
@@ -32,6 +32,20 @@ export default class MyPlugin extends Plugin {
     modelSettingsView: ModelSettingsView | null = null;
     activeStream: AbortController | null = null;
     private _yamlAttributeCommandIds: string[] = [];
+
+    // --- Settings change event emitter ---
+    private settingsListeners: Array<() => void> = [];
+    onSettingsChange(listener: () => void) {
+        this.settingsListeners.push(listener);
+    }
+    offSettingsChange(listener: () => void) {
+        this.settingsListeners = this.settingsListeners.filter(l => l !== listener);
+    }
+    private emitSettingsChange() {
+        for (const listener of this.settingsListeners) {
+            try { listener(); } catch (e) { console.error(e); }
+        }
+    }
 
     async onload() {
         await this.loadSettings();
@@ -137,10 +151,11 @@ export default class MyPlugin extends Plugin {
                     ch: 0
                 };
 
-                this.activeStream = new AbortController();
-
-                try {
-                    const provider = createProvider(this.settings);
+                this.activeStream = new AbortController();                try {
+                    // Use unified model if available, fallback to legacy provider selection
+                    const provider = this.settings.selectedModel 
+                        ? createProviderFromUnifiedModel(this.settings, this.settings.selectedModel)
+                        : createProvider(this.settings);
                     const processedMessages = await this.processMessages([
                         { role: 'system', content: this.getSystemMessage() },
                         ...messages
@@ -417,6 +432,7 @@ export default class MyPlugin extends Plugin {
     async saveSettings() {
         await this.saveData(this.settings);
         this.registerYamlAttributeCommands(); // Update commands after saving settings
+        this.emitSettingsChange(); // Notify listeners
     }
 
     private async processMessages(messages: Message[]): Promise<Message[]> {

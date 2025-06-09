@@ -1,7 +1,7 @@
 import { ItemView, WorkspaceLeaf, Notice, MarkdownRenderer, App } from 'obsidian';
 import MyPlugin from '../main';
 import { Message } from '../types';
-import { createProvider } from '../../providers';
+import { createProvider, createProviderFromUnifiedModel } from '../../providers';
 import { ChatHistoryManager, ChatMessage } from './chat/ChatHistoryManager';
 import { createMessageElement } from './chat/Message';
 import { createChatUI, ChatUIElements } from './chat/ui';
@@ -351,10 +351,11 @@ export class ChatView extends ItemView {
         originalContent?: string
     ): Promise<string> {
         let responseContent = '';
-        this.activeStream = new AbortController();
-
-        try {
-            const provider = createProvider(this.plugin.settings);
+        this.activeStream = new AbortController();        try {
+            // Use unified model if available, fallback to legacy provider selection
+            const provider = this.plugin.settings.selectedModel 
+                ? createProviderFromUnifiedModel(this.plugin.settings, this.plugin.settings.selectedModel)
+                : createProvider(this.plugin.settings);
             await provider.getCompletion(
                 messages,
                 {
