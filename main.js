@@ -7193,6 +7193,31 @@ var init_ChatHelpModal = __esm({
                 You can also use the buttons at the top of the chat window.
             `;
         }));
+        this.contentEl.appendChild(this.createCollapsibleSection("Reference Current Note", () => {
+          this.contentEl.innerHTML = `
+                <strong>What is it?</strong><br>
+                When enabled, the AI can see the content of your currently active note during chat. This helps the AI give more relevant, context-aware responses.<br><br>
+
+                <strong>How to use:</strong><br>
+                <ul style="margin-top:0;margin-bottom:0.5em;">
+                  <li>Click the <code>\u{1F4DD}</code> button at the top of the chat window to toggle referencing the current note.</li>
+                  <li>The name of the referenced note will appear in faded small text below the buttons when enabled.</li>
+                </ul>
+
+                <strong>Notes:</strong><br>
+                - When referencing is enabled, the AI receives:<br>
+                <ul style="margin-top:0;margin-bottom:0.5em;">
+                  <li>The system prompt (always)</li>
+                  <li>Context notes (if enabled in settings)</li>
+                  <li>The content of the currently active note</li>
+                  <li>The chat history (all previous user/assistant messages)</li>
+                </ul>
+                - Only the currently active note is shared in addition to the above context.<br>
+                - You can turn this on or off at any time.<br>
+                - No other notes or personal data are accessed.<br>
+                - The <code>\u{1F4DD}</code> button will show "On" or "Off" to indicate the current state.
+            `;
+        }));
       }
     };
   }
@@ -8812,6 +8837,13 @@ function createChatUI(app, contentEl) {
   fadedHelp.style.opacity = "0.6";
   fadedHelp.style.fontSize = "0.95em";
   fadedHelp.style.margin = "0.5em 0 0.2em 0";
+  const referenceNoteIndicator = contentEl.createDiv();
+  referenceNoteIndicator.style.textAlign = "center";
+  referenceNoteIndicator.style.opacity = "0.5";
+  referenceNoteIndicator.style.fontSize = "0.85em";
+  referenceNoteIndicator.style.margin = "0.2em 0";
+  referenceNoteIndicator.style.display = "none";
+  referenceNoteIndicator.addClass("ai-reference-note-indicator");
   const topButtonContainer = contentEl.createDiv("ai-chat-buttons");
   const settingsButton = document.createElement("button");
   settingsButton.setText("Settings");
@@ -8826,6 +8858,11 @@ function createChatUI(app, contentEl) {
   const clearButton = document.createElement("button");
   clearButton.textContent = "Clear Chat";
   topButtonContainer.appendChild(clearButton);
+  const referenceNoteButton = document.createElement("button");
+  referenceNoteButton.setText("\u{1F4DD} Off");
+  referenceNoteButton.setAttribute("aria-label", "Toggle referencing current note");
+  referenceNoteButton.addClass("ai-chat-reference-button");
+  topButtonContainer.appendChild(referenceNoteButton);
   const messagesContainer = contentEl.createDiv("ai-chat-messages");
   const inputContainer = contentEl.createDiv("ai-chat-input-container");
   const textarea = inputContainer.createEl("textarea", {
@@ -8870,7 +8907,9 @@ function createChatUI(app, contentEl) {
     textarea,
     sendButton,
     stopButton,
-    helpButton
+    helpButton,
+    referenceNoteButton,
+    referenceNoteIndicator
   };
 }
 
@@ -8912,13 +8951,15 @@ async function renderChatHistory({
 // src/components/chat.ts
 var VIEW_TYPE_CHAT = "chat-view";
 var ChatView = class extends import_obsidian11.ItemView {
+  // Add this property
   constructor(leaf, plugin) {
     super(leaf);
     __publicField(this, "plugin");
+    __publicField(this, "chatHistoryManager");
     __publicField(this, "messagesContainer");
     __publicField(this, "inputContainer");
     __publicField(this, "activeStream", null);
-    __publicField(this, "chatHistoryManager");
+    __publicField(this, "referenceNoteIndicator");
     this.plugin = plugin;
     this.chatHistoryManager = new ChatHistoryManager(this.app.vault, this.plugin.manifest.id, "chat-history.json");
   }
@@ -8945,6 +8986,8 @@ var ChatView = class extends import_obsidian11.ItemView {
     const ui = createChatUI(this.app, contentEl);
     this.messagesContainer = ui.messagesContainer;
     this.inputContainer = ui.inputContainer;
+    this.referenceNoteIndicator = ui.referenceNoteIndicator;
+    this.updateReferenceNoteIndicator();
     const textarea = ui.textarea;
     const sendButton = ui.sendButton;
     const stopButton = ui.stopButton;
@@ -8953,6 +8996,11 @@ var ChatView = class extends import_obsidian11.ItemView {
     ui.clearButton.addEventListener("click", handleClearChat(this.messagesContainer, this.chatHistoryManager));
     ui.settingsButton.addEventListener("click", handleSettings(this.app, this.plugin));
     ui.helpButton.addEventListener("click", handleHelp(this.app));
+    ui.referenceNoteButton.addEventListener("click", () => {
+      this.plugin.settings.referenceCurrentNote = !this.plugin.settings.referenceCurrentNote;
+      this.plugin.saveSettings();
+      this.updateReferenceNoteIndicator();
+    });
     const sendMessage = async () => {
       const content = textarea.value.trim();
       if (!content) return;
@@ -9061,6 +9109,13 @@ var ChatView = class extends import_obsidian11.ItemView {
         scrollToBottom: true
       });
     }
+    this.updateReferenceNoteIndicator();
+    this.registerEvent(this.app.workspace.on("active-leaf-change", () => {
+      this.updateReferenceNoteIndicator();
+    }));
+    this.plugin.onSettingsChange(() => {
+      this.updateReferenceNoteIndicator();
+    });
   }
   async addMessage(role, content, isError = false) {
     const messageEl = await createMessageElement(this.app, role, content, this.chatHistoryManager, this.plugin, (el) => this.regenerateResponse(el), this);
@@ -9154,6 +9209,28 @@ var ChatView = class extends import_obsidian11.ItemView {
       this.activeStream = null;
     }
   }
+  updateReferenceNoteIndicator() {
+    var _a2, _b;
+    if (!this.referenceNoteIndicator) return;
+    const currentFile = this.app.workspace.getActiveFile();
+    const isReferenceEnabled = this.plugin.settings.referenceCurrentNote;
+    if (isReferenceEnabled && currentFile) {
+      this.referenceNoteIndicator.setText(`\u{1F4DD} Referencing: ${currentFile.basename}`);
+      this.referenceNoteIndicator.style.display = "block";
+      const button = (_a2 = this.inputContainer.parentElement) == null ? void 0 : _a2.querySelector('[aria-label="Toggle referencing current note"]');
+      if (button) {
+        button.setText("\u{1F4DD} On");
+        button.addClass("active");
+      }
+    } else {
+      this.referenceNoteIndicator.style.display = "none";
+      const button = (_b = this.inputContainer.parentElement) == null ? void 0 : _b.querySelector('[aria-label="Toggle referencing current note"]');
+      if (button) {
+        button.setText("\u{1F4DD} Off");
+        button.removeClass("active");
+      }
+    }
+  }
   async buildContextMessages() {
     const messages = [
       { role: "system", content: this.plugin.getSystemMessage() }
@@ -9223,6 +9300,12 @@ ${currentNoteContent}`
       }
       return "";
     }
+  }
+  clearMessages() {
+    this.messagesContainer.empty();
+  }
+  scrollMessagesToBottom() {
+    this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
   }
 };
 
@@ -10047,13 +10130,13 @@ ${this.settings.chatSeparator}
           return;
         }
         const chatView = leaves[0].view;
-        chatView.messagesContainer.empty();
+        chatView.clearMessages();
         for (const msg of messages) {
           if (msg.role === "user" || msg.role === "assistant") {
             await chatView["addMessage"](msg.role, msg.content);
           }
         }
-        chatView.messagesContainer.scrollTop = chatView.messagesContainer.scrollHeight;
+        chatView.scrollMessagesToBottom();
         new import_obsidian15.Notice("Loaded chat note into chat.");
       }
     });

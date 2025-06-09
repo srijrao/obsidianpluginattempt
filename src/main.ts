@@ -346,14 +346,14 @@ export default class MyPlugin extends Plugin {
                 }
                 const chatView = leaves[0].view as ChatView;
                 // Clear chat UI (and history will be rebuilt as we add messages)
-                chatView.messagesContainer.empty();
+                chatView.clearMessages();
                 // Add each parsed message
                 for (const msg of messages) {
                     if (msg.role === 'user' || msg.role === 'assistant') {
                         await chatView["addMessage"](msg.role, msg.content);
                     }
                 }
-                chatView.messagesContainer.scrollTop = chatView.messagesContainer.scrollHeight;
+                chatView.scrollMessagesToBottom();
                 new Notice('Loaded chat note into chat.');
             }
         });

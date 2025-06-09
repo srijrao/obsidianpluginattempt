@@ -13,11 +13,12 @@ import { ChatHelpModal } from './chat/ChatHelpModal';
 export const VIEW_TYPE_CHAT = 'chat-view';
 
 export class ChatView extends ItemView {
-    plugin: MyPlugin;
-    messagesContainer: HTMLElement;
-    inputContainer: HTMLElement;
-    activeStream: AbortController | null = null;
+    private plugin: MyPlugin;
     private chatHistoryManager: ChatHistoryManager;
+    private messagesContainer: HTMLElement;
+    private inputContainer: HTMLElement;
+    private activeStream: AbortController | null = null;
+    private referenceNoteIndicator: HTMLElement; // Add this property
 
     constructor(leaf: WorkspaceLeaf, plugin: MyPlugin) {
         super(leaf);
@@ -49,21 +50,28 @@ export class ChatView extends ItemView {
         } catch (e) {
             new Notice("Failed to load chat history.");
             loadedHistory = [];
-        }
-
-        // Modular UI creation
+        }        // Modular UI creation
         const ui: ChatUIElements = createChatUI(this.app, contentEl);
         this.messagesContainer = ui.messagesContainer;
         this.inputContainer = ui.inputContainer;
+        this.referenceNoteIndicator = ui.referenceNoteIndicator;
+        
+        // Update reference note indicator
+        this.updateReferenceNoteIndicator();
         const textarea = ui.textarea;
         const sendButton = ui.sendButton;
         const stopButton = ui.stopButton;
         // Attach event handlers
         ui.copyAllButton.addEventListener('click', handleCopyAll(this.messagesContainer, this.plugin));
-        ui.saveNoteButton.addEventListener('click', handleSaveNote(this.messagesContainer, this.plugin, this.app));
-        ui.clearButton.addEventListener('click', handleClearChat(this.messagesContainer, this.chatHistoryManager));
+        ui.saveNoteButton.addEventListener('click', handleSaveNote(this.messagesContainer, this.plugin, this.app));        ui.clearButton.addEventListener('click', handleClearChat(this.messagesContainer, this.chatHistoryManager));
         ui.settingsButton.addEventListener('click', handleSettings(this.app, this.plugin));
         ui.helpButton.addEventListener('click', handleHelp(this.app));
+        // ui.referenceNoteButton.addEventListener('click', handleReferenceNote(this.app, this.plugin));
+        ui.referenceNoteButton.addEventListener('click', () => {
+            this.plugin.settings.referenceCurrentNote = !this.plugin.settings.referenceCurrentNote;
+            this.plugin.saveSettings();
+            this.updateReferenceNoteIndicator();
+        });
         // All styling for messagesContainer and textarea is handled by CSS
 
         // --- HANDLE SEND MESSAGE ---
@@ -195,8 +203,19 @@ export class ChatView extends ItemView {
                 plugin: this.plugin,
                 regenerateResponse: (el) => this.regenerateResponse(el),
                 scrollToBottom: true
-            });
-        }
+            });        }
+
+        this.updateReferenceNoteIndicator(); // Update indicator on open
+        
+        // Listen for active file changes to update the indicator
+        this.registerEvent(this.app.workspace.on('active-leaf-change', () => {
+            this.updateReferenceNoteIndicator();
+        }));
+        
+        // Listen for settings changes to update the indicator  
+        this.plugin.onSettingsChange(() => {
+            this.updateReferenceNoteIndicator();
+        });
     }
 
     private async addMessage(role: 'user' | 'assistant', content: string, isError: boolean = false) {
@@ -318,6 +337,32 @@ export class ChatView extends ItemView {
         }
     }
 
+    private updateReferenceNoteIndicator() {
+        if (!this.referenceNoteIndicator) return;
+        
+        const currentFile = this.app.workspace.getActiveFile();
+        const isReferenceEnabled = this.plugin.settings.referenceCurrentNote;
+        
+        if (isReferenceEnabled && currentFile) {
+            this.referenceNoteIndicator.setText(`📝 Referencing: ${currentFile.basename}`);
+            this.referenceNoteIndicator.style.display = 'block';
+            // Update button text/style to indicate "on" state
+            const button = this.inputContainer.parentElement?.querySelector('[aria-label="Toggle referencing current note"]') as HTMLButtonElement;
+            if (button) {
+                button.setText('📝 On'); // Or some other visual cue
+                button.addClass('active');
+            }
+        } else {
+            this.referenceNoteIndicator.style.display = 'none';
+            // Update button text/style to indicate "off" state
+            const button = this.inputContainer.parentElement?.querySelector('[aria-label="Toggle referencing current note"]') as HTMLButtonElement;
+            if (button) {
+                button.setText('📝 Off'); // Or some other visual cue
+                button.removeClass('active');
+            }
+        }
+    }
+
     private async buildContextMessages(): Promise<Message[]> {
         const messages: Message[] = [
             { role: 'system', content: this.plugin.getSystemMessage() }
@@ -398,6 +443,14 @@ export class ChatView extends ItemView {
             }
             return '';
         }
+    }
+
+    public clearMessages() {
+        this.messagesContainer.empty();
+    }
+
+    public scrollMessagesToBottom() {
+        this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
     }
 }
 

@@ -14,6 +14,8 @@ export interface ChatUIElements {
     sendButton: HTMLButtonElement;
     stopButton: HTMLButtonElement;
     helpButton: HTMLButtonElement;
+    referenceNoteButton: HTMLButtonElement;
+    referenceNoteIndicator: HTMLElement;
 }
 
 export function createChatUI(app: App, contentEl: HTMLElement): ChatUIElements {
@@ -24,6 +26,15 @@ export function createChatUI(app: App, contentEl: HTMLElement): ChatUIElements {
     fadedHelp.style.opacity = '0.6';
     fadedHelp.style.fontSize = '0.95em';
     fadedHelp.style.margin = '0.5em 0 0.2em 0';
+
+    // --- REFERENCE NOTE INDICATOR ---
+    const referenceNoteIndicator = contentEl.createDiv();
+    referenceNoteIndicator.style.textAlign = 'center';
+    referenceNoteIndicator.style.opacity = '0.5';
+    referenceNoteIndicator.style.fontSize = '0.85em';
+    referenceNoteIndicator.style.margin = '0.2em 0';
+    referenceNoteIndicator.style.display = 'none'; // Hidden by default
+    referenceNoteIndicator.addClass('ai-reference-note-indicator');
 
     // --- BUTTONS ABOVE CHAT WINDOW ---
     const topButtonContainer = contentEl.createDiv('ai-chat-buttons');
@@ -44,6 +55,14 @@ export function createChatUI(app: App, contentEl: HTMLElement): ChatUIElements {
     const clearButton = document.createElement('button');
     clearButton.textContent = 'Clear Chat';
     topButtonContainer.appendChild(clearButton);
+
+    // --- REFERENCE NOTE BUTTON ---
+    const referenceNoteButton = document.createElement('button');
+    referenceNoteButton.setText('📝 Off');
+    referenceNoteButton.setAttribute('aria-label', 'Toggle referencing current note');
+    referenceNoteButton.addClass('ai-chat-reference-button'); // Add a class for styling
+    topButtonContainer.appendChild(referenceNoteButton);
+
 
     // Messages container
     const messagesContainer = contentEl.createDiv('ai-chat-messages');
@@ -68,9 +87,7 @@ export function createChatUI(app: App, contentEl: HTMLElement): ChatUIElements {
     const stopButton = inputContainer.createEl('button', {
         text: 'Stop',
     });
-    stopButton.classList.add('hidden');
-
-    // --- TINY HELP BUTTON ABOVE SEND BUTTON ---
+    stopButton.classList.add('hidden');    // --- TINY HELP BUTTON ABOVE SEND BUTTON ---
     const helpButton = inputContainer.createEl('button', {
         text: '?',
     });
@@ -84,9 +101,23 @@ export function createChatUI(app: App, contentEl: HTMLElement): ChatUIElements {
     helpButton.style.right = '0.5em';
     helpButton.style.top = '-2.2em';
     helpButton.style.zIndex = '2';
-    inputContainer.style.position = 'relative';
 
-    return {
+    // --- TINY REFERENCE NOTE BUTTON NEXT TO HELP BUTTON ---
+    // const referenceNoteButton = inputContainer.createEl('button', {
+    //     text: '📝',
+    // });
+    // referenceNoteButton.setAttr('aria-label', 'Reference current note settings');
+    // referenceNoteButton.style.fontSize = '0.9em';
+    // referenceNoteButton.style.width = '1.8em';
+    // referenceNoteButton.style.height = '1.8em';
+    // referenceNoteButton.style.marginBottom = '0.2em';
+    // referenceNoteButton.style.opacity = '0.7';
+    // referenceNoteButton.style.position = 'absolute';
+    // referenceNoteButton.style.right = '2.8em'; // Position to the left of help button
+    // referenceNoteButton.style.top = '-2.2em';
+    // referenceNoteButton.style.zIndex = '2';
+    
+    inputContainer.style.position = 'relative';    return {
         contentEl,
         fadedHelp,
         topButtonContainer,
@@ -100,5 +131,7 @@ export function createChatUI(app: App, contentEl: HTMLElement): ChatUIElements {
         sendButton,
         stopButton,
         helpButton,
+        referenceNoteButton,
+        referenceNoteIndicator,
     };
 }

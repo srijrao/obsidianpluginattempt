@@ -69,8 +69,7 @@ export class ChatHelpModal extends Modal {
                 <br>
             `;
         }));
-        
-        // Other Section
+          // Other Section
         this.contentEl.appendChild(this.createCollapsibleSection('Other', () => {
             this.contentEl.innerHTML = `
                 <code>Enter</code> – Send message<br>
@@ -79,5 +78,41 @@ export class ChatHelpModal extends Modal {
                 You can also use the buttons at the top of the chat window.
             `;
         }));
+
+        // Reference Current Note Section
+        this.contentEl.appendChild(this.createCollapsibleSection('Reference Current Note', () => {
+            this.contentEl.innerHTML = `
+                <strong>What is it?</strong><br>
+                When enabled, the AI can see the content of your currently active note during chat. This helps the AI give more relevant, context-aware responses.<br><br>
+
+                <strong>How to use:</strong><br>
+                <ul style="margin-top:0;margin-bottom:0.5em;">
+                  <li>Click the <code>📝</code> button at the top of the chat window to toggle referencing the current note.</li>
+                  <li>The name of the referenced note will appear in faded small text below the buttons when enabled.</li>
+                </ul>
+
+                <strong>Notes:</strong><br>
+                - When referencing is enabled, the AI receives:<br>
+                <ul style="margin-top:0;margin-bottom:0.5em;">
+                  <li>The system prompt (always)</li>
+                  <li>Context notes (if enabled in settings)</li>
+                  <li>The content of the currently active note</li>
+                  <li>The chat history (all previous user/assistant messages)</li>
+                </ul>
+                - Only the currently active note is shared in addition to the above context.<br>
+                - You can turn this on or off at any time.<br>
+                - No other notes or personal data are accessed.<br>
+                - The <code>📝</code> button will show "On" or "Off" to indicate the current state.
+            `;
+        }));
     }
 }
+
+/**
+ * Chat Help Modal
+ *
+ * Reference Current Note:
+ * - Use the "Reference Current Note" button at the top of the chat to toggle including the current note's content in the AI context.
+ * - When enabled, the note name appears next to the button.
+ * - Other context (system prompt, context notes, chat history) may also be sent.
+ */

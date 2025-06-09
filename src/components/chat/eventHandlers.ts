@@ -59,3 +59,17 @@ export function handleHelp(app: App) {
         new ChatHelpModal(app).open();
     };
 }
+
+export function handleReferenceNote(app: App, plugin: MyPlugin) {
+    return () => {
+        // Toggle the setting
+        plugin.settings.referenceCurrentNote = !plugin.settings.referenceCurrentNote;
+        plugin.saveSettings();
+        // The ChatView component will listen for settings changes and update the indicator.
+        // Optionally, trigger a custom event if more immediate/decoupled updates are needed.
+        // app.workspace.trigger('ai-assistant:reference-note-toggled');
+        
+        // Display a notice
+        new Notice(`Reference current note: ${plugin.settings.referenceCurrentNote ? 'ON' : 'OFF'}`);
+    };
+}
