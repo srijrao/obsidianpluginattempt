@@ -7201,6 +7201,7 @@ var init_ChatHelpModal = __esm({
                 <strong>How to use:</strong><br>
                 <ul style="margin-top:0;margin-bottom:0.5em;">
                   <li>Click the <code>\u{1F4DD}</code> button at the top of the chat window to toggle referencing the current note.</li>
+                  <li>Or use the slash command <code>/ref</code> or keyboard shortcut <code>Ctrl+Shift+R</code>.</li>
                   <li>The name of the referenced note will appear in faded small text below the buttons when enabled.</li>
                 </ul>
 
@@ -8152,10 +8153,15 @@ function setupInputHandler(textarea, sendMessage, handleSlashCommand, app, plugi
         handleHelp(app)();
         return;
       }
+      if (e.key.toLowerCase() === "r") {
+        e.preventDefault();
+        await handleSlashCommand("/ref");
+        return;
+      }
     }
     if (e.key === "Enter" && !e.shiftKey) {
       const val = textarea.value.trim();
-      if (val === "/clear" || val === "/copy" || val === "/save" || val === "/settings" || val === "/help") {
+      if (val === "/clear" || val === "/copy" || val === "/save" || val === "/settings" || val === "/help" || val === "/ref") {
         e.preventDefault();
         await handleSlashCommand(val);
         textarea.value = "";
@@ -9093,6 +9099,9 @@ var ChatView = class extends import_obsidian11.ItemView {
               break;
             case "/help":
               ui.helpButton.click();
+              break;
+            case "/ref":
+              ui.referenceNoteButton.click();
               break;
           }
         },

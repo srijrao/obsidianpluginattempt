@@ -21,11 +21,12 @@ export function setupInputHandler(
             if (e.key.toLowerCase() === 's') { e.preventDefault(); await handleSlashCommand('/save'); return; }
             if (e.key.toLowerCase() === 'o') { e.preventDefault(); await handleSlashCommand('/settings'); return; }
             if (e.key.toLowerCase() === 'h') { e.preventDefault(); handleHelp(app)(); return; }
+            if (e.key.toLowerCase() === 'r') { e.preventDefault(); await handleSlashCommand('/ref'); return; }
         }
         // Slash commands
         if (e.key === 'Enter' && !e.shiftKey) {
             const val = textarea.value.trim();
-            if (val === '/clear' || val === '/copy' || val === '/save' || val === '/settings' || val === '/help') {
+            if (val === '/clear' || val === '/copy' || val === '/save' || val === '/settings' || val === '/help' || val === '/ref') {
                 e.preventDefault();
                 await handleSlashCommand(val);
                 textarea.value = '';

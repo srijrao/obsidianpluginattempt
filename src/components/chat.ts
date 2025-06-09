@@ -5,7 +5,7 @@ import { createProvider, createProviderFromUnifiedModel } from '../../providers'
 import { ChatHistoryManager, ChatMessage } from './chat/ChatHistoryManager';
 import { createMessageElement } from './chat/Message';
 import { createChatUI, ChatUIElements } from './chat/ui';
-import { handleCopyAll, handleSaveNote, handleClearChat, handleSettings, handleHelp } from './chat/eventHandlers';
+import { handleCopyAll, handleSaveNote, handleClearChat, handleSettings, handleHelp, handleReferenceNote } from './chat/eventHandlers';
 import { saveChatAsNote, loadChatYamlAndApplySettings } from './chat/chatPersistence';
 import { renderChatHistory } from './chat/chatHistoryUtils';
 import { ChatHelpModal } from './chat/ChatHelpModal';
@@ -173,6 +173,9 @@ export class ChatView extends ItemView {
                             break;
                         case '/help':
                             ui.helpButton.click();
+                            break;
+                        case '/ref':
+                            ui.referenceNoteButton.click();
                             break;
                     }
                 },

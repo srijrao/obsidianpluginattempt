@@ -88,6 +88,7 @@ export class ChatHelpModal extends Modal {
                 <strong>How to use:</strong><br>
                 <ul style="margin-top:0;margin-bottom:0.5em;">
                   <li>Click the <code>📝</code> button at the top of the chat window to toggle referencing the current note.</li>
+                  <li>Or use the slash command <code>/ref</code> or keyboard shortcut <code>Ctrl+Shift+R</code>.</li>
                   <li>The name of the referenced note will appear in faded small text below the buttons when enabled.</li>
                 </ul>
 
@@ -112,7 +113,8 @@ export class ChatHelpModal extends Modal {
  * Chat Help Modal
  *
  * Reference Current Note:
- * - Use the "Reference Current Note" button at the top of the chat to toggle including the current note's content in the AI context.
- * - When enabled, the note name appears next to the button.
+ * - Use the "📝" button at the top of the chat to toggle referencing the current note.
+ * - You can also use the slash command "/ref" or the keyboard shortcut Ctrl+Shift+R.
+ * - When enabled, the note name appears below the button.
  * - Other context (system prompt, context notes, chat history) may also be sent.
  */
