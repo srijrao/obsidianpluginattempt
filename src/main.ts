@@ -47,21 +47,30 @@ export default class MyPlugin extends Plugin {
         }
     }
 
+    // Track view registration to prevent duplicate registration errors
+    private static registeredViewTypes = new Set<string>();
+
     async onload() {
         await this.loadSettings();
 
         this.addSettingTab(new MyPluginSettingTab(this.app, this));
 
-        // Register views
-        this.registerView(
-            VIEW_TYPE_MODEL_SETTINGS,
-            (leaf) => new ModelSettingsView(leaf, this)
-        );
+        // Register views only if not already registered
+        if (!MyPlugin.registeredViewTypes.has(VIEW_TYPE_MODEL_SETTINGS)) {
+            this.registerView(
+                VIEW_TYPE_MODEL_SETTINGS,
+                (leaf) => new ModelSettingsView(leaf, this)
+            );
+            MyPlugin.registeredViewTypes.add(VIEW_TYPE_MODEL_SETTINGS);
+        }
 
-        this.registerView(
-            VIEW_TYPE_CHAT,
-            (leaf) => new ChatView(leaf, this)
-        );
+        if (!MyPlugin.registeredViewTypes.has(VIEW_TYPE_CHAT)) {
+            this.registerView(
+                VIEW_TYPE_CHAT,
+                (leaf) => new ChatView(leaf, this)
+            );
+            MyPlugin.registeredViewTypes.add(VIEW_TYPE_CHAT);
+        }
 
         // Add ribbon icons
         this.addRibbonIcon('file-sliders', 'Open AI Settings', () => {
@@ -441,5 +450,11 @@ export default class MyPlugin extends Plugin {
 
     public async getContextNotesContent(contextNotesText: string): Promise<string> {
         return getContextNotesContent(contextNotesText, this.app);
+    }
+
+    onunload() {
+        // Unregister views to allow re-registration on reload
+        MyPlugin.registeredViewTypes.delete(VIEW_TYPE_MODEL_SETTINGS);
+        MyPlugin.registeredViewTypes.delete(VIEW_TYPE_CHAT);
     }
 }

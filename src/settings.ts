@@ -167,16 +167,46 @@ export class MyPluginSettingTab extends PluginSettingTab {
                     const openaiKey = this.plugin.settings.openaiSettings.apiKey;
                     const anthropicKey = this.plugin.settings.anthropicSettings.apiKey;
                     const geminiKey = this.plugin.settings.geminiSettings.apiKey;
-                    // Reset all settings
-                    this.plugin.settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+                    // Mutate all settings in place except API keys
+                    Object.keys(DEFAULT_SETTINGS).forEach(key => {
+                        if (key === 'openaiSettings' || key === 'anthropicSettings' || key === 'geminiSettings' || key === 'modelSettingPresets' || key === 'yamlAttributeGenerators') return;
+                        // @ts-ignore
+                        this.plugin.settings[key] = DEFAULT_SETTINGS[key];
+                    });
+                    // Explicitly reset openaiSettings except apiKey
+                    this.plugin.settings.openaiSettings.baseUrl = DEFAULT_SETTINGS.openaiSettings.baseUrl;
+                    this.plugin.settings.openaiSettings.model = DEFAULT_SETTINGS.openaiSettings.model;
+                    this.plugin.settings.openaiSettings.availableModels = [...DEFAULT_SETTINGS.openaiSettings.availableModels];
+                    this.plugin.settings.openaiSettings.lastTestResult = DEFAULT_SETTINGS.openaiSettings.lastTestResult;
+                    // Explicitly reset anthropicSettings except apiKey
+                    this.plugin.settings.anthropicSettings.model = DEFAULT_SETTINGS.anthropicSettings.model;
+                    this.plugin.settings.anthropicSettings.availableModels = [...DEFAULT_SETTINGS.anthropicSettings.availableModels];
+                    this.plugin.settings.anthropicSettings.lastTestResult = DEFAULT_SETTINGS.anthropicSettings.lastTestResult;
+                    // Explicitly reset geminiSettings except apiKey
+                    this.plugin.settings.geminiSettings.model = DEFAULT_SETTINGS.geminiSettings.model;
+                    this.plugin.settings.geminiSettings.availableModels = [...DEFAULT_SETTINGS.geminiSettings.availableModels];
+                    this.plugin.settings.geminiSettings.lastTestResult = DEFAULT_SETTINGS.geminiSettings.lastTestResult;
                     // Restore API keys
                     this.plugin.settings.openaiSettings.apiKey = openaiKey;
                     this.plugin.settings.anthropicSettings.apiKey = anthropicKey;
                     this.plugin.settings.geminiSettings.apiKey = geminiKey;
                     // Restore title prompt from prompts.ts
                     this.plugin.settings.titlePrompt = DEFAULT_TITLE_PROMPT;
+                    // Mutate modelSettingPresets and yamlAttributeGenerators in place
+                    if (this.plugin.settings.modelSettingPresets && DEFAULT_SETTINGS.modelSettingPresets) {
+                        this.plugin.settings.modelSettingPresets.splice(0, this.plugin.settings.modelSettingPresets.length, ...DEFAULT_SETTINGS.modelSettingPresets);
+                    }
+                    if (this.plugin.settings.yamlAttributeGenerators && DEFAULT_SETTINGS.yamlAttributeGenerators) {
+                        this.plugin.settings.yamlAttributeGenerators.splice(0, this.plugin.settings.yamlAttributeGenerators.length, ...DEFAULT_SETTINGS.yamlAttributeGenerators);
+                    }
                     await this.plugin.saveSettings();
                     this.display(); // Re-render the settings to show updated values
+                    // Force ModelSettingsView to refresh if open
+                    if (typeof this.plugin.activateView === 'function') {
+                        setTimeout(() => {
+                            this.plugin.activateView();
+                        }, 100);
+                    }
                     new Notice('All settings (except API keys) reset to default.');
                 }));
 

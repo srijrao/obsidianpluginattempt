@@ -8182,13 +8182,37 @@ var MyPluginSettingTab = class extends import_obsidian2.PluginSettingTab {
       const openaiKey = this.plugin.settings.openaiSettings.apiKey;
       const anthropicKey = this.plugin.settings.anthropicSettings.apiKey;
       const geminiKey = this.plugin.settings.geminiSettings.apiKey;
-      this.plugin.settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS2));
+      Object.keys(DEFAULT_SETTINGS2).forEach((key) => {
+        if (key === "openaiSettings" || key === "anthropicSettings" || key === "geminiSettings" || key === "modelSettingPresets" || key === "yamlAttributeGenerators") return;
+        this.plugin.settings[key] = DEFAULT_SETTINGS2[key];
+      });
+      this.plugin.settings.openaiSettings.baseUrl = DEFAULT_SETTINGS2.openaiSettings.baseUrl;
+      this.plugin.settings.openaiSettings.model = DEFAULT_SETTINGS2.openaiSettings.model;
+      this.plugin.settings.openaiSettings.availableModels = [...DEFAULT_SETTINGS2.openaiSettings.availableModels];
+      this.plugin.settings.openaiSettings.lastTestResult = DEFAULT_SETTINGS2.openaiSettings.lastTestResult;
+      this.plugin.settings.anthropicSettings.model = DEFAULT_SETTINGS2.anthropicSettings.model;
+      this.plugin.settings.anthropicSettings.availableModels = [...DEFAULT_SETTINGS2.anthropicSettings.availableModels];
+      this.plugin.settings.anthropicSettings.lastTestResult = DEFAULT_SETTINGS2.anthropicSettings.lastTestResult;
+      this.plugin.settings.geminiSettings.model = DEFAULT_SETTINGS2.geminiSettings.model;
+      this.plugin.settings.geminiSettings.availableModels = [...DEFAULT_SETTINGS2.geminiSettings.availableModels];
+      this.plugin.settings.geminiSettings.lastTestResult = DEFAULT_SETTINGS2.geminiSettings.lastTestResult;
       this.plugin.settings.openaiSettings.apiKey = openaiKey;
       this.plugin.settings.anthropicSettings.apiKey = anthropicKey;
       this.plugin.settings.geminiSettings.apiKey = geminiKey;
       this.plugin.settings.titlePrompt = DEFAULT_TITLE_PROMPT2;
+      if (this.plugin.settings.modelSettingPresets && DEFAULT_SETTINGS2.modelSettingPresets) {
+        this.plugin.settings.modelSettingPresets.splice(0, this.plugin.settings.modelSettingPresets.length, ...DEFAULT_SETTINGS2.modelSettingPresets);
+      }
+      if (this.plugin.settings.yamlAttributeGenerators && DEFAULT_SETTINGS2.yamlAttributeGenerators) {
+        this.plugin.settings.yamlAttributeGenerators.splice(0, this.plugin.settings.yamlAttributeGenerators.length, ...DEFAULT_SETTINGS2.yamlAttributeGenerators);
+      }
       await this.plugin.saveSettings();
       this.display();
+      if (typeof this.plugin.activateView === "function") {
+        setTimeout(() => {
+          this.plugin.activateView();
+        }, 100);
+      }
       new import_obsidian2.Notice("All settings (except API keys) reset to default.");
     }));
     new import_obsidian2.Setting(containerEl).setName("Title Output Mode").setDesc("Choose what to do with the generated note title.").addDropdown((drop) => {
@@ -9359,7 +9383,7 @@ The current time is ${currentTime} ${timeZoneString}.`;
 
 // src/main.ts
 var VIEW_TYPE_MODEL_SETTINGS2 = "model-settings-view";
-var MyPlugin = class extends import_obsidian15.Plugin {
+var _MyPlugin = class _MyPlugin extends import_obsidian15.Plugin {
   constructor() {
     super(...arguments);
     __publicField(this, "settings");
@@ -9387,14 +9411,20 @@ var MyPlugin = class extends import_obsidian15.Plugin {
   async onload() {
     await this.loadSettings();
     this.addSettingTab(new MyPluginSettingTab(this.app, this));
-    this.registerView(
-      VIEW_TYPE_MODEL_SETTINGS2,
-      (leaf) => new ModelSettingsView(leaf, this)
-    );
-    this.registerView(
-      VIEW_TYPE_CHAT,
-      (leaf) => new ChatView(leaf, this)
-    );
+    if (!_MyPlugin.registeredViewTypes.has(VIEW_TYPE_MODEL_SETTINGS2)) {
+      this.registerView(
+        VIEW_TYPE_MODEL_SETTINGS2,
+        (leaf) => new ModelSettingsView(leaf, this)
+      );
+      _MyPlugin.registeredViewTypes.add(VIEW_TYPE_MODEL_SETTINGS2);
+    }
+    if (!_MyPlugin.registeredViewTypes.has(VIEW_TYPE_CHAT)) {
+      this.registerView(
+        VIEW_TYPE_CHAT,
+        (leaf) => new ChatView(leaf, this)
+      );
+      _MyPlugin.registeredViewTypes.add(VIEW_TYPE_CHAT);
+    }
     this.addRibbonIcon("file-sliders", "Open AI Settings", () => {
       this.activateView();
     });
@@ -9699,7 +9729,14 @@ ${this.settings.chatSeparator}
   async getContextNotesContent(contextNotesText) {
     return getContextNotesContent(contextNotesText, this.app);
   }
+  onunload() {
+    _MyPlugin.registeredViewTypes.delete(VIEW_TYPE_MODEL_SETTINGS2);
+    _MyPlugin.registeredViewTypes.delete(VIEW_TYPE_CHAT);
+  }
 };
+// Track view registration to prevent duplicate registration errors
+__publicField(_MyPlugin, "registeredViewTypes", /* @__PURE__ */ new Set());
+var MyPlugin = _MyPlugin;
 /*! Bundled license information:
 
 js-yaml/dist/js-yaml.mjs:
