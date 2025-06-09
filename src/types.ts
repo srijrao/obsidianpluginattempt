@@ -100,6 +100,19 @@ export interface YamlAttributeGenerator {
 }
 
 /**
+ * Represents a preset for model settings
+ */
+export interface ModelSettingPreset {
+    name: string; // Display name for the preset
+    selectedModel?: string;
+    systemMessage?: string;
+    temperature?: number;
+    maxTokens?: number;
+    enableStreaming?: boolean;
+    // Add more fields as needed
+}
+
+/**
  * Plugin Settings
  * 
  * These settings control how the AI Assistant plugin works.
@@ -218,6 +231,9 @@ export interface MyPluginSettings {
 
     /** Stores the expanded state of general collapsible sections in settings */
     generalSectionsExpanded?: Record<string, boolean>;
+
+    /** Model setting presets */
+    modelSettingPresets?: ModelSettingPreset[];
 }
 
 /**
@@ -297,7 +313,17 @@ export const DEFAULT_SETTINGS: MyPluginSettings = {
         "Note Reference Settings": true,
         "Provider Configuration": true, // For the main group of provider configs
         "AI Model Configuration": true 
-    }
+    },
+    modelSettingPresets: [
+        {
+            name: "Default",
+            selectedModel: undefined,
+            systemMessage: DEFAULT_GENERAL_SYSTEM_PROMPT,
+            temperature: 0.7,
+            maxTokens: 1000,
+            enableStreaming: true
+        }
+    ],
 };
 
 /**

@@ -124,7 +124,17 @@ var init_types = __esm({
         "Provider Configuration": true,
         // For the main group of provider configs
         "AI Model Configuration": true
-      }
+      },
+      modelSettingPresets: [
+        {
+          name: "Default",
+          selectedModel: void 0,
+          systemMessage: DEFAULT_GENERAL_SYSTEM_PROMPT,
+          temperature: 0.7,
+          maxTokens: 1e3,
+          enableStreaming: true
+        }
+      ]
     };
   }
 });
@@ -4388,6 +4398,34 @@ var init_SettingsSections = __esm({
        * AI Model Settings Section
        */
       async renderAIModelSettings(containerEl, onRefresh) {
+        while (containerEl.firstChild) containerEl.removeChild(containerEl.firstChild);
+        if (this.plugin.settings.modelSettingPresets && this.plugin.settings.modelSettingPresets.length > 0) {
+          const presetContainer = containerEl.createDiv();
+          presetContainer.addClass("model-preset-buttons");
+          presetContainer.createEl("div", { text: "Presets:", cls: "setting-item-name" });
+          this.plugin.settings.modelSettingPresets.forEach((preset, idx) => {
+            const btn = presetContainer.createEl("button", { text: preset.name });
+            btn.style.marginRight = "0.5em";
+            btn.onclick = async () => {
+              if (preset.selectedModel !== void 0) this.plugin.settings.selectedModel = preset.selectedModel;
+              if (preset.systemMessage !== void 0) this.plugin.settings.systemMessage = preset.systemMessage;
+              if (preset.temperature !== void 0) this.plugin.settings.temperature = preset.temperature;
+              if (preset.maxTokens !== void 0) this.plugin.settings.maxTokens = preset.maxTokens;
+              if (preset.enableStreaming !== void 0) this.plugin.settings.enableStreaming = preset.enableStreaming;
+              await this.plugin.saveSettings();
+              if (onRefresh) {
+                if (window._aiModelSettingsRefreshTimeout) {
+                  clearTimeout(window._aiModelSettingsRefreshTimeout);
+                }
+                window._aiModelSettingsRefreshTimeout = setTimeout(() => {
+                  onRefresh();
+                  window._aiModelSettingsRefreshTimeout = null;
+                }, 50);
+              }
+              new import_obsidian.Notice(`Applied preset: ${preset.name}`);
+            };
+          });
+        }
         new import_obsidian.Setting(containerEl).setName("System Message").setDesc("Set the system message for the AI").addTextArea((text) => text.setPlaceholder("You are a helpful assistant.").setValue(this.plugin.settings.systemMessage).onChange(async (value) => {
           this.plugin.settings.systemMessage = value;
           await this.plugin.saveSettings();
@@ -8249,6 +8287,77 @@ var MyPluginSettingTab = class extends import_obsidian2.PluginSettingTab {
         this.display();
       });
     });
+    containerEl.createEl("h3", { text: "Model Setting Presets" });
+    containerEl.createEl("div", {
+      text: "Presets let you save and quickly apply common model settings (model, temperature, system message, etc). You can add, edit, or remove presets here. In the AI Model Settings panel, you will see buttons for each preset above the model selection. Clicking a preset button will instantly apply those settings. This is useful for switching between different model configurations with one click.",
+      cls: "setting-item-description",
+      attr: { style: "margin-bottom: 0.5em;" }
+    });
+    const presetList = this.plugin.settings.modelSettingPresets || [];
+    presetList.forEach((preset, idx) => {
+      const setting = new import_obsidian2.Setting(containerEl).setName(preset.name).setDesc("Edit or remove this preset").addText(
+        (text) => text.setValue(preset.name).onChange(async (value) => {
+          preset.name = value;
+          await this.plugin.saveSettings();
+          this.display();
+        })
+      ).addText(
+        (text) => text.setPlaceholder("Model ID (provider:model)").setValue(preset.selectedModel || "").onChange(async (value) => {
+          preset.selectedModel = value;
+          await this.plugin.saveSettings();
+        })
+      ).addTextArea(
+        (text) => text.setPlaceholder("System message").setValue(preset.systemMessage || "").onChange(async (value) => {
+          preset.systemMessage = value;
+          await this.plugin.saveSettings();
+        })
+      ).addSlider((slider) => {
+        var _a3;
+        slider.setLimits(0, 1, 0.1).setValue((_a3 = preset.temperature) != null ? _a3 : 0.7).setDynamicTooltip().onChange(async (value) => {
+          preset.temperature = value;
+          await this.plugin.saveSettings();
+        });
+      }).addText(
+        (text) => {
+          var _a3;
+          return text.setPlaceholder("Max tokens").setValue(((_a3 = preset.maxTokens) == null ? void 0 : _a3.toString()) || "").onChange(async (value) => {
+            const num = parseInt(value, 10);
+            preset.maxTokens = isNaN(num) ? void 0 : num;
+            await this.plugin.saveSettings();
+          });
+        }
+      ).addToggle(
+        (toggle) => {
+          var _a3;
+          return toggle.setValue((_a3 = preset.enableStreaming) != null ? _a3 : true).onChange(async (value) => {
+            preset.enableStreaming = value;
+            await this.plugin.saveSettings();
+          });
+        }
+      ).addExtraButton(
+        (btn) => btn.setIcon("cross").setTooltip("Delete").onClick(async () => {
+          var _a3;
+          (_a3 = this.plugin.settings.modelSettingPresets) == null ? void 0 : _a3.splice(idx, 1);
+          await this.plugin.saveSettings();
+          this.display();
+        })
+      );
+    });
+    new import_obsidian2.Setting(containerEl).addButton(
+      (btn) => btn.setButtonText("Add Preset").setCta().onClick(async () => {
+        if (!this.plugin.settings.modelSettingPresets) this.plugin.settings.modelSettingPresets = [];
+        this.plugin.settings.modelSettingPresets.push(JSON.parse(JSON.stringify({
+          name: `Preset ${this.plugin.settings.modelSettingPresets.length + 1}`,
+          selectedModel: this.plugin.settings.selectedModel,
+          systemMessage: this.plugin.settings.systemMessage,
+          temperature: this.plugin.settings.temperature,
+          maxTokens: this.plugin.settings.maxTokens,
+          enableStreaming: this.plugin.settings.enableStreaming
+        })));
+        await this.plugin.saveSettings();
+        this.display();
+      })
+    );
   }
 };
 

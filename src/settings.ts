@@ -322,5 +322,96 @@ export class MyPluginSettingTab extends PluginSettingTab {
                         this.display();
                     });
             });
+
+        // --- Model Setting Presets Management ---
+        containerEl.createEl('h3', { text: 'Model Setting Presets' });
+        containerEl.createEl('div', {
+            text: 'Presets let you save and quickly apply common model settings (model, temperature, system message, etc). You can add, edit, or remove presets here. In the AI Model Settings panel, you will see buttons for each preset above the model selection. Clicking a preset button will instantly apply those settings. This is useful for switching between different model configurations with one click.',
+            cls: 'setting-item-description',
+            attr: { style: 'margin-bottom: 0.5em;' }
+        });
+        const presetList = this.plugin.settings.modelSettingPresets || [];
+        presetList.forEach((preset, idx) => {
+            const setting = new Setting(containerEl)
+                .setName(preset.name)
+                .setDesc('Edit or remove this preset')
+                .addText(text => text
+                    .setValue(preset.name)
+                    .onChange(async (value) => {
+                        preset.name = value;
+                        await this.plugin.saveSettings();
+                        this.display();
+                    })
+                )
+                .addText(text => text
+                    .setPlaceholder('Model ID (provider:model)')
+                    .setValue(preset.selectedModel || '')
+                    .onChange(async (value) => {
+                        preset.selectedModel = value;
+                        await this.plugin.saveSettings();
+                    })
+                )
+                .addTextArea(text => text
+                    .setPlaceholder('System message')
+                    .setValue(preset.systemMessage || '')
+                    .onChange(async (value) => {
+                        preset.systemMessage = value;
+                        await this.plugin.saveSettings();
+                    })
+                )
+                .addSlider(slider => {
+                    slider.setLimits(0, 1, 0.1)
+                        .setValue(preset.temperature ?? 0.7)
+                        .setDynamicTooltip()
+                        .onChange(async (value) => {
+                            preset.temperature = value;
+                            await this.plugin.saveSettings();
+                        });
+                })
+                .addText(text => text
+                    .setPlaceholder('Max tokens')
+                    .setValue(preset.maxTokens?.toString() || '')
+                    .onChange(async (value) => {
+                        const num = parseInt(value, 10);
+                        preset.maxTokens = isNaN(num) ? undefined : num;
+                        await this.plugin.saveSettings();
+                    })
+                )
+                .addToggle(toggle => toggle
+                    .setValue(preset.enableStreaming ?? true)
+                    .onChange(async (value) => {
+                        preset.enableStreaming = value;
+                        await this.plugin.saveSettings();
+                    })
+                )
+                .addExtraButton(btn => btn
+                    .setIcon('cross')
+                    .setTooltip('Delete')
+                    .onClick(async () => {
+                        this.plugin.settings.modelSettingPresets?.splice(idx, 1);
+                        await this.plugin.saveSettings();
+                        this.display();
+                    })
+                );
+        });
+        new Setting(containerEl)
+            .addButton(btn => btn
+                .setButtonText('Add Preset')
+                .setCta()
+                .onClick(async () => {
+                    if (!this.plugin.settings.modelSettingPresets) this.plugin.settings.modelSettingPresets = [];
+                    // Deep copy current settings for the new preset
+                    this.plugin.settings.modelSettingPresets.push(JSON.parse(JSON.stringify({
+                        name: `Preset ${this.plugin.settings.modelSettingPresets.length + 1}`,
+                        selectedModel: this.plugin.settings.selectedModel,
+                        systemMessage: this.plugin.settings.systemMessage,
+                        temperature: this.plugin.settings.temperature,
+                        maxTokens: this.plugin.settings.maxTokens,
+                        enableStreaming: this.plugin.settings.enableStreaming
+                    })));
+                    await this.plugin.saveSettings();
+                    this.display();
+                })
+            );
     }
 }

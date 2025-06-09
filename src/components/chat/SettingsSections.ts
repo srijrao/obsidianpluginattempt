@@ -17,6 +17,40 @@ export class SettingsSections {
      * AI Model Settings Section
      */
     async renderAIModelSettings(containerEl: HTMLElement, onRefresh?: () => void): Promise<void> {
+        // Prevent duplicate UI: clear container first
+        while (containerEl.firstChild) containerEl.removeChild(containerEl.firstChild);
+
+        // --- Model Setting Presets UI ---
+        if (this.plugin.settings.modelSettingPresets && this.plugin.settings.modelSettingPresets.length > 0) {
+            const presetContainer = containerEl.createDiv();
+            presetContainer.addClass('model-preset-buttons');
+            presetContainer.createEl('div', { text: 'Presets:', cls: 'setting-item-name' });
+            this.plugin.settings.modelSettingPresets.forEach((preset, idx) => {
+                const btn = presetContainer.createEl('button', { text: preset.name });
+                btn.style.marginRight = '0.5em';
+                btn.onclick = async () => {
+                    // Apply preset fields to current settings
+                    if (preset.selectedModel !== undefined) this.plugin.settings.selectedModel = preset.selectedModel;
+                    if (preset.systemMessage !== undefined) this.plugin.settings.systemMessage = preset.systemMessage;
+                    if (preset.temperature !== undefined) this.plugin.settings.temperature = preset.temperature;
+                    if (preset.maxTokens !== undefined) this.plugin.settings.maxTokens = preset.maxTokens;
+                    if (preset.enableStreaming !== undefined) this.plugin.settings.enableStreaming = preset.enableStreaming;
+                    await this.plugin.saveSettings();
+                    // Debounce onRefresh to prevent duplicate UI
+                    if (onRefresh) {
+                        if ((window as any)._aiModelSettingsRefreshTimeout) {
+                            clearTimeout((window as any)._aiModelSettingsRefreshTimeout);
+                        }
+                        (window as any)._aiModelSettingsRefreshTimeout = setTimeout(() => {
+                            onRefresh();
+                            (window as any)._aiModelSettingsRefreshTimeout = null;
+                        }, 50);
+                    }
+                    new Notice(`Applied preset: ${preset.name}`);
+                };
+            });
+        }
+
         new Setting(containerEl)
             .setName('System Message')
             .setDesc('Set the system message for the AI')
