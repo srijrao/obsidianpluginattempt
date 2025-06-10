@@ -8016,7 +8016,6 @@ var CollapsibleSectionRenderer = class {
 
 // src/settings.ts
 var MyPluginSettingTab = class extends import_obsidian2.PluginSettingTab {
-  // Added
   constructor(app, plugin) {
     super(app, plugin);
     __publicField(this, "plugin");
@@ -8025,174 +8024,121 @@ var MyPluginSettingTab = class extends import_obsidian2.PluginSettingTab {
     this.settingsSections = new SettingsSections(this.plugin);
   }
   /**
-   * Display the settings tab
-   * 
-   * Shows only the auto-open setting here since all other settings
-   * are managed in the model settings view for better organization.
+   * Creates a text input setting.
+   * @param containerEl The HTML element to append the setting to.
+   * @param name The name of the setting.
+   * @param desc The description of the setting.
+   * @param placeholder The placeholder text for the input.
+   * @param getValue A function to get the current value of the setting.
+   * @param setValue A function to set the new value of the setting.
+   * @param options Additional options for the text input (e.g., trim, undefinedIfEmpty, isTextArea).
    */
-  display() {
+  createTextSetting(containerEl, name, desc, placeholder, getValue, setValue, options) {
+    new import_obsidian2.Setting(containerEl).setName(name).setDesc(desc).then((setting) => {
+      const textInputOptions = {
+        trim: options == null ? void 0 : options.trim,
+        undefinedIfEmpty: options == null ? void 0 : options.undefinedIfEmpty
+      };
+      if (options == null ? void 0 : options.isTextArea) {
+        setting.addTextArea((text) => this.configureTextInput(text, placeholder, getValue, setValue, textInputOptions));
+      } else {
+        setting.addText((text) => this.configureTextInput(text, placeholder, getValue, setValue, textInputOptions));
+      }
+    });
+  }
+  /**
+   * Configures a text input (either single-line or multi-line).
+   * @param textComponent The TextComponent or TextAreaComponent to configure.
+   * @param placeholder The placeholder text.
+   * @param getValue A function to get the current value.
+   * @param setValue A function to set the new value.
+   * @param options Additional options for processing the input value (e.g., trim, undefinedIfEmpty).
+   */
+  configureTextInput(textComponent, placeholder, getValue, setValue, options) {
     var _a2;
-    const { containerEl } = this;
-    containerEl.empty();
-    containerEl.createEl("h2", { text: "AI Assistant Settings" });
-    containerEl.createEl("h3", { text: "API Keys" });
-    new import_obsidian2.Setting(containerEl).setName("OpenAI API Key").setDesc("Enter your OpenAI API key").addText((text) => text.setPlaceholder("Enter your API key").setValue(this.plugin.settings.openaiSettings.apiKey).onChange(async (value) => {
-      this.plugin.settings.openaiSettings.apiKey = value;
-      await this.plugin.saveSettings();
-    }));
-    new import_obsidian2.Setting(containerEl).setName("OpenAI Base URL").setDesc("Custom base URL for OpenAI API (optional, leave empty for default)").addText((text) => text.setPlaceholder("https://api.openai.com/v1").setValue(this.plugin.settings.openaiSettings.baseUrl || "").onChange(async (value) => {
-      this.plugin.settings.openaiSettings.baseUrl = value.trim() || void 0;
-      await this.plugin.saveSettings();
-    }));
-    new import_obsidian2.Setting(containerEl).setName("Anthropic API Key").setDesc("Enter your Anthropic API key").addText((text) => text.setPlaceholder("Enter your API key").setValue(this.plugin.settings.anthropicSettings.apiKey).onChange(async (value) => {
-      this.plugin.settings.anthropicSettings.apiKey = value;
-      await this.plugin.saveSettings();
-    }));
-    new import_obsidian2.Setting(containerEl).setName("Google API Key").setDesc("Enter your Google API key").addText((text) => text.setPlaceholder("Enter your API key").setValue(this.plugin.settings.geminiSettings.apiKey).onChange(async (value) => {
-      this.plugin.settings.geminiSettings.apiKey = value;
-      await this.plugin.saveSettings();
-    }));
-    new import_obsidian2.Setting(containerEl).setName("Ollama Server URL").setDesc("Enter your Ollama server URL (default: http://localhost:11434)").addText((text) => text.setPlaceholder("http://localhost:11434").setValue(this.plugin.settings.ollamaSettings.serverUrl).onChange(async (value) => {
-      this.plugin.settings.ollamaSettings.serverUrl = value;
-      await this.plugin.saveSettings();
-    }));
-    CollapsibleSectionRenderer.createCollapsibleSection(
-      containerEl,
-      "AI Model Settings",
-      // Title matches the chat modal
-      async (sectionEl) => {
-        await this.settingsSections.renderAIModelSettings(sectionEl, () => this.display());
-      },
-      this.plugin,
-      "generalSectionsExpanded"
-    );
-    new import_obsidian2.Setting(containerEl).setName("Chat Separator").setDesc("The string used to separate chat messages.").addText((text) => {
-      var _a3;
-      text.setPlaceholder("----").setValue((_a3 = this.plugin.settings.chatSeparator) != null ? _a3 : "").onChange(async (value) => {
-        this.plugin.settings.chatSeparator = value;
-        await this.plugin.saveSettings();
-      });
-    });
-    new import_obsidian2.Setting(containerEl).setName("Chat Start String").setDesc("The string that indicates where to start taking the note for context.").addText((text) => {
-      var _a3;
-      text.setPlaceholder("===START===").setValue((_a3 = this.plugin.settings.chatStartString) != null ? _a3 : "").onChange(async (value) => {
-        this.plugin.settings.chatStartString = value;
-        await this.plugin.saveSettings();
-      });
-    });
-    new import_obsidian2.Setting(containerEl).setName("Chat End String").setDesc("The string that indicates where to end taking the note for context.").addText((text) => {
-      var _a3;
-      text.setPlaceholder("===END===").setValue((_a3 = this.plugin.settings.chatEndString) != null ? _a3 : "").onChange(async (value) => {
-        this.plugin.settings.chatEndString = value;
-        await this.plugin.saveSettings();
-      });
-    });
-    new import_obsidian2.Setting(containerEl).setName("Title Prompt").setDesc("The prompt used for generating note titles.").addTextArea((text) => {
-      text.setPlaceholder("You are a title generator...").setValue(this.plugin.settings.titlePrompt).onChange(async (value) => {
-        this.plugin.settings.titlePrompt = value;
-        await this.plugin.saveSettings();
-      });
-    });
-    new import_obsidian2.Setting(containerEl).setName("Reset All Settings to Default").setDesc("Reset all plugin settings (except API keys) to their original default values.").addButton((button) => button.setButtonText("Reset").onClick(async () => {
-      const { DEFAULT_TITLE_PROMPT: DEFAULT_TITLE_PROMPT2 } = await Promise.resolve().then(() => (init_prompts(), prompts_exports));
-      const { DEFAULT_SETTINGS: DEFAULT_SETTINGS2 } = await Promise.resolve().then(() => (init_types(), types_exports));
-      const openaiKey = this.plugin.settings.openaiSettings.apiKey;
-      const anthropicKey = this.plugin.settings.anthropicSettings.apiKey;
-      const geminiKey = this.plugin.settings.geminiSettings.apiKey;
-      Object.keys(DEFAULT_SETTINGS2).forEach((key) => {
-        if (key === "openaiSettings" || key === "anthropicSettings" || key === "geminiSettings" || key === "modelSettingPresets" || key === "yamlAttributeGenerators") return;
-        this.plugin.settings[key] = DEFAULT_SETTINGS2[key];
-      });
-      this.plugin.settings.openaiSettings.baseUrl = DEFAULT_SETTINGS2.openaiSettings.baseUrl;
-      this.plugin.settings.openaiSettings.model = DEFAULT_SETTINGS2.openaiSettings.model;
-      this.plugin.settings.openaiSettings.availableModels = [...DEFAULT_SETTINGS2.openaiSettings.availableModels];
-      this.plugin.settings.openaiSettings.lastTestResult = DEFAULT_SETTINGS2.openaiSettings.lastTestResult;
-      this.plugin.settings.anthropicSettings.model = DEFAULT_SETTINGS2.anthropicSettings.model;
-      this.plugin.settings.anthropicSettings.availableModels = [...DEFAULT_SETTINGS2.anthropicSettings.availableModels];
-      this.plugin.settings.anthropicSettings.lastTestResult = DEFAULT_SETTINGS2.anthropicSettings.lastTestResult;
-      this.plugin.settings.geminiSettings.model = DEFAULT_SETTINGS2.geminiSettings.model;
-      this.plugin.settings.geminiSettings.availableModels = [...DEFAULT_SETTINGS2.geminiSettings.availableModels];
-      this.plugin.settings.geminiSettings.lastTestResult = DEFAULT_SETTINGS2.geminiSettings.lastTestResult;
-      this.plugin.settings.openaiSettings.apiKey = openaiKey;
-      this.plugin.settings.anthropicSettings.apiKey = anthropicKey;
-      this.plugin.settings.geminiSettings.apiKey = geminiKey;
-      this.plugin.settings.titlePrompt = DEFAULT_TITLE_PROMPT2;
-      if (this.plugin.settings.modelSettingPresets && DEFAULT_SETTINGS2.modelSettingPresets) {
-        this.plugin.settings.modelSettingPresets.splice(0, this.plugin.settings.modelSettingPresets.length, ...DEFAULT_SETTINGS2.modelSettingPresets);
+    textComponent.setPlaceholder(placeholder).setValue((_a2 = getValue()) != null ? _a2 : "").onChange(async (value) => {
+      let processedValue = value;
+      if (options == null ? void 0 : options.trim) {
+        processedValue = processedValue.trim();
       }
-      if (this.plugin.settings.yamlAttributeGenerators && DEFAULT_SETTINGS2.yamlAttributeGenerators) {
-        this.plugin.settings.yamlAttributeGenerators.splice(0, this.plugin.settings.yamlAttributeGenerators.length, ...DEFAULT_SETTINGS2.yamlAttributeGenerators);
+      if ((options == null ? void 0 : options.undefinedIfEmpty) && processedValue === "") {
+        processedValue = void 0;
       }
-      await this.plugin.saveSettings();
-      this.display();
-      if (typeof this.plugin.activateView === "function") {
-        setTimeout(() => {
-          this.plugin.activateView();
-        }, 100);
-      }
-      new import_obsidian2.Notice("All settings (except API keys) reset to default.");
-    }));
-    new import_obsidian2.Setting(containerEl).setName("Title Output Mode").setDesc("Choose what to do with the generated note title.").addDropdown((drop) => {
-      var _a3;
-      drop.addOption("clipboard", "Copy to clipboard");
-      drop.addOption("replace-filename", "Replace note filename");
-      drop.addOption("metadata", "Insert into metadata");
-      drop.setValue((_a3 = this.plugin.settings.titleOutputMode) != null ? _a3 : "clipboard");
+      await setValue(processedValue);
+    });
+  }
+  /**
+   * Creates a dropdown setting.
+   * @param containerEl The HTML element to append the setting to.
+   * @param name The name of the setting.
+   * @param desc The description of the setting.
+   * @param options A record of option values to display names.
+   * @param getValue A function to get the current value of the setting.
+   * @param setValue A function to set the new value of the setting.
+   */
+  createDropdownSetting(containerEl, name, desc, options, getValue, setValue) {
+    new import_obsidian2.Setting(containerEl).setName(name).setDesc(desc).addDropdown((drop) => {
+      Object.entries(options).forEach(([key, display]) => drop.addOption(key, display));
+      drop.setValue(getValue());
       drop.onChange(async (value) => {
-        this.plugin.settings.titleOutputMode = value;
-        await this.plugin.saveSettings();
+        await setValue(value);
       });
     });
-    new import_obsidian2.Setting(containerEl).setName("Summary Output Mode").setDesc("Choose what to do with the generated note summary.").addDropdown((drop) => {
-      var _a3;
-      drop.addOption("clipboard", "Copy to clipboard");
-      drop.addOption("metadata", "Insert into metadata");
-      drop.setValue((_a3 = this.plugin.settings.summaryOutputMode) != null ? _a3 : "clipboard");
-      drop.onChange(async (value) => {
-        this.plugin.settings.summaryOutputMode = value;
-        await this.plugin.saveSettings();
+  }
+  /**
+   * Creates a toggle (checkbox) setting.
+   * @param containerEl The HTML element to append the setting to.
+   * @param name The name of the setting.
+   * @param desc The description of the setting.
+   * @param getValue A function to get the current boolean value.
+   * @param setValue A function to set the new boolean value.
+   * @param onChangeCallback An optional callback to run after the value changes and settings are saved.
+   */
+  createToggleSetting(containerEl, name, desc, getValue, setValue, onChangeCallback) {
+    new import_obsidian2.Setting(containerEl).setName(name).setDesc(desc).addToggle((toggle) => toggle.setValue(getValue()).onChange(async (value) => {
+      await setValue(value);
+      if (onChangeCallback) {
+        onChangeCallback();
+      }
+    }));
+  }
+  /**
+   * Creates a slider setting.
+   * @param containerEl The HTML element to append the setting to.
+   * @param name The name of the setting.
+   * @param desc The description of the setting.
+   * @param limits An object defining min, max, and step for the slider.
+   * @param getValue A function to get the current numeric value.
+   * @param setValue A function to set the new numeric value.
+   */
+  createSliderSetting(containerEl, name, desc, limits, getValue, setValue) {
+    new import_obsidian2.Setting(containerEl).setName(name).setDesc(desc).addSlider((slider) => {
+      slider.setLimits(limits.min, limits.max, limits.step).setValue(getValue()).setDynamicTooltip().onChange(async (value) => {
+        await setValue(value);
       });
     });
-    new import_obsidian2.Setting(containerEl).setName("Expand Linked Notes Recursively").setDesc("If enabled, when fetching a note, also fetch and expand links within that note recursively (prevents infinite loops).").addToggle((toggle) => {
-      var _a3;
-      return toggle.setValue((_a3 = this.plugin.settings.expandLinkedNotesRecursively) != null ? _a3 : false).onChange(async (value) => {
-        this.plugin.settings.expandLinkedNotesRecursively = value;
-        await this.plugin.saveSettings();
-        this.display();
-      });
-    });
-    if (this.plugin.settings.expandLinkedNotesRecursively) {
-      new import_obsidian2.Setting(containerEl).setName("Max Link Expansion Depth").setDesc("Maximum depth for recursively expanding linked notes (1-3).").addSlider((slider) => {
-        var _a3;
-        slider.setLimits(1, 3, 1).setValue((_a3 = this.plugin.settings.maxLinkExpansionDepth) != null ? _a3 : 2).setDynamicTooltip().onChange(async (value) => {
-          this.plugin.settings.maxLinkExpansionDepth = value;
-          await this.plugin.saveSettings();
-        });
-      });
-    }
-    new import_obsidian2.Setting(containerEl).setName("Chat Note Folder").setDesc("Folder to save exported chat notes (relative to vault root, leave blank for root)").addText((text) => {
-      var _a3;
-      text.setPlaceholder("e.g. AI Chats").setValue((_a3 = this.plugin.settings.chatNoteFolder) != null ? _a3 : "").onChange(async (value) => {
-        this.plugin.settings.chatNoteFolder = value.trim();
-        await this.plugin.saveSettings();
-      });
-    });
+  }
+  /**
+   * Renders the YAML Attribute Generators section.
+   * @param containerEl The HTML element to append the section to.
+   */
+  renderYamlAttributeGenerators(containerEl) {
+    var _a2;
     containerEl.createEl("h3", { text: "YAML Attribute Generators" });
-    const yamlGenDesc = containerEl.createEl("div", { text: "Configure custom YAML attribute generators. Each entry will create a command to generate and insert/update a YAML field in your notes." });
-    yamlGenDesc.style.marginBottom = "1em";
+    containerEl.createEl("div", { text: "Configure custom YAML attribute generators. Each entry will create a command to generate and insert/update a YAML field in your notes." }).style.marginBottom = "1em";
     const yamlGens = (_a2 = this.plugin.settings.yamlAttributeGenerators) != null ? _a2 : [];
     yamlGens.forEach((gen, idx) => {
       const autoCommandName = gen.attributeName ? `Generate YAML: ${gen.attributeName}` : `YAML Generator #${idx + 1}`;
-      const setting = new import_obsidian2.Setting(containerEl).setName(autoCommandName).setDesc(`YAML field: ${gen.attributeName}`).addText((text) => text.setPlaceholder("YAML Attribute Name").setValue(gen.attributeName).onChange(async (value) => {
+      new import_obsidian2.Setting(containerEl).setName(autoCommandName).setDesc(`YAML field: ${gen.attributeName}`).addText((text) => this.configureTextInput(text, "YAML Attribute Name", () => gen.attributeName, async (value) => {
         if (this.plugin.settings.yamlAttributeGenerators) {
-          this.plugin.settings.yamlAttributeGenerators[idx].attributeName = value;
+          this.plugin.settings.yamlAttributeGenerators[idx].attributeName = value != null ? value : "";
           this.plugin.settings.yamlAttributeGenerators[idx].commandName = value ? `Generate YAML: ${value}` : "";
           await this.plugin.saveSettings();
           this.display();
         }
-      })).addTextArea((text) => text.setPlaceholder("Prompt for LLM").setValue(gen.prompt).onChange(async (value) => {
+      })).addTextArea((text) => this.configureTextInput(text, "Prompt for LLM", () => gen.prompt, async (value) => {
         if (this.plugin.settings.yamlAttributeGenerators) {
-          this.plugin.settings.yamlAttributeGenerators[idx].prompt = value;
+          this.plugin.settings.yamlAttributeGenerators[idx].prompt = value != null ? value : "";
           await this.plugin.saveSettings();
         }
       })).addDropdown((drop) => {
@@ -8228,6 +8174,12 @@ var MyPluginSettingTab = class extends import_obsidian2.PluginSettingTab {
         this.display();
       });
     });
+  }
+  /**
+   * Renders the Model Setting Presets section.
+   * @param containerEl The HTML element to append the section to.
+   */
+  renderModelSettingPresets(containerEl) {
     containerEl.createEl("h3", { text: "Model Setting Presets" });
     containerEl.createEl("div", {
       text: "Presets let you save and quickly apply common model settings (model, temperature, system message, etc). You can add, edit, or remove presets here. In the AI Model Settings panel, you will see buttons for each preset above the model selection. Clicking a preset button will instantly apply those settings. This is useful for switching between different model configurations with one click.",
@@ -8236,49 +8188,46 @@ var MyPluginSettingTab = class extends import_obsidian2.PluginSettingTab {
     });
     const presetList = this.plugin.settings.modelSettingPresets || [];
     presetList.forEach((preset, idx) => {
-      const setting = new import_obsidian2.Setting(containerEl).setName(preset.name).setDesc("Edit or remove this preset").addText(
-        (text) => text.setValue(preset.name).onChange(async (value) => {
-          preset.name = value;
-          await this.plugin.saveSettings();
-          this.display();
-        })
-      ).addText(
-        (text) => text.setPlaceholder("Model ID (provider:model)").setValue(preset.selectedModel || "").onChange(async (value) => {
-          preset.selectedModel = value;
-          await this.plugin.saveSettings();
-        })
-      ).addTextArea(
-        (text) => text.setPlaceholder("System message").setValue(preset.systemMessage || "").onChange(async (value) => {
-          preset.systemMessage = value;
-          await this.plugin.saveSettings();
-        })
-      ).addSlider((slider) => {
-        var _a3;
-        slider.setLimits(0, 1, 0.1).setValue((_a3 = preset.temperature) != null ? _a3 : 0.7).setDynamicTooltip().onChange(async (value) => {
-          preset.temperature = value;
-          await this.plugin.saveSettings();
-        });
-      }).addText(
-        (text) => {
-          var _a3;
-          return text.setPlaceholder("Max tokens").setValue(((_a3 = preset.maxTokens) == null ? void 0 : _a3.toString()) || "").onChange(async (value) => {
-            const num = parseInt(value, 10);
-            preset.maxTokens = isNaN(num) ? void 0 : num;
-            await this.plugin.saveSettings();
-          });
-        }
-      ).addToggle(
-        (toggle) => {
-          var _a3;
-          return toggle.setValue((_a3 = preset.enableStreaming) != null ? _a3 : true).onChange(async (value) => {
-            preset.enableStreaming = value;
-            await this.plugin.saveSettings();
-          });
-        }
-      ).addExtraButton(
+      const setting = new import_obsidian2.Setting(containerEl).setName(preset.name).setDesc("Edit or remove this preset");
+      this.configureTextInput(setting.addText((text) => text), "Preset Name", () => preset.name, async (value) => {
+        preset.name = value != null ? value : "";
+        await this.plugin.saveSettings();
+        this.display();
+      });
+      this.configureTextInput(setting.addText((text) => text), "Model ID (provider:model)", () => preset.selectedModel || "", async (value) => {
+        preset.selectedModel = value != null ? value : "";
+        await this.plugin.saveSettings();
+      });
+      this.configureTextInput(setting.addTextArea((text) => text), "System message", () => preset.systemMessage || "", async (value) => {
+        preset.systemMessage = value != null ? value : "";
+        await this.plugin.saveSettings();
+      });
+      this.createSliderSetting(setting.controlEl, "Temperature", "", { min: 0, max: 1, step: 0.1 }, () => {
+        var _a2;
+        return (_a2 = preset.temperature) != null ? _a2 : 0.7;
+      }, async (value) => {
+        preset.temperature = value;
+        await this.plugin.saveSettings();
+      });
+      this.configureTextInput(setting.addText((text) => text), "Max tokens", () => {
+        var _a2;
+        return ((_a2 = preset.maxTokens) == null ? void 0 : _a2.toString()) || "";
+      }, async (value) => {
+        const num = parseInt(value != null ? value : "", 10);
+        preset.maxTokens = isNaN(num) ? void 0 : num;
+        await this.plugin.saveSettings();
+      });
+      this.createToggleSetting(setting.controlEl, "Enable Streaming", "", () => {
+        var _a2;
+        return (_a2 = preset.enableStreaming) != null ? _a2 : true;
+      }, async (value) => {
+        preset.enableStreaming = value;
+        await this.plugin.saveSettings();
+      });
+      setting.addExtraButton(
         (btn) => btn.setIcon("cross").setTooltip("Delete").onClick(async () => {
-          var _a3;
-          (_a3 = this.plugin.settings.modelSettingPresets) == null ? void 0 : _a3.splice(idx, 1);
+          var _a2;
+          (_a2 = this.plugin.settings.modelSettingPresets) == null ? void 0 : _a2.splice(idx, 1);
           await this.plugin.saveSettings();
           this.display();
         })
@@ -8299,6 +8248,232 @@ var MyPluginSettingTab = class extends import_obsidian2.PluginSettingTab {
         this.display();
       })
     );
+  }
+  /**
+   * Display the settings tab.
+   * This method orchestrates the rendering of all setting sections.
+   */
+  display() {
+    const { containerEl } = this;
+    containerEl.empty();
+    containerEl.createEl("h2", { text: "AI Assistant Settings" });
+    containerEl.createEl("h3", { text: "API Keys" });
+    this.createTextSetting(
+      containerEl,
+      "OpenAI API Key",
+      "Enter your OpenAI API key",
+      "Enter your API key",
+      () => this.plugin.settings.openaiSettings.apiKey,
+      async (value) => {
+        this.plugin.settings.openaiSettings.apiKey = value != null ? value : "";
+        await this.plugin.saveSettings();
+      }
+    );
+    this.createTextSetting(
+      containerEl,
+      "OpenAI Base URL",
+      "Custom base URL for OpenAI API (optional, leave empty for default)",
+      "https://api.openai.com/v1",
+      () => this.plugin.settings.openaiSettings.baseUrl || "",
+      async (value) => {
+        this.plugin.settings.openaiSettings.baseUrl = value;
+        await this.plugin.saveSettings();
+      },
+      { trim: true, undefinedIfEmpty: true }
+    );
+    this.createTextSetting(
+      containerEl,
+      "Anthropic API Key",
+      "Enter your Anthropic API key",
+      "Enter your API key",
+      () => this.plugin.settings.anthropicSettings.apiKey,
+      async (value) => {
+        this.plugin.settings.anthropicSettings.apiKey = value != null ? value : "";
+        await this.plugin.saveSettings();
+      }
+    );
+    this.createTextSetting(
+      containerEl,
+      "Google API Key",
+      "Enter your Google API key",
+      "Enter your API key",
+      () => this.plugin.settings.geminiSettings.apiKey,
+      async (value) => {
+        this.plugin.settings.geminiSettings.apiKey = value != null ? value : "";
+        await this.plugin.saveSettings();
+      }
+    );
+    this.createTextSetting(
+      containerEl,
+      "Ollama Server URL",
+      "Enter your Ollama server URL (default: http://localhost:11434)",
+      "http://localhost:11434",
+      () => this.plugin.settings.ollamaSettings.serverUrl,
+      async (value) => {
+        this.plugin.settings.ollamaSettings.serverUrl = value != null ? value : "";
+        await this.plugin.saveSettings();
+      }
+    );
+    CollapsibleSectionRenderer.createCollapsibleSection(
+      containerEl,
+      "AI Model Settings",
+      async (sectionEl) => {
+        await this.settingsSections.renderAIModelSettings(sectionEl, () => this.display());
+      },
+      this.plugin,
+      "generalSectionsExpanded"
+    );
+    this.createTextSetting(
+      containerEl,
+      "Chat Separator",
+      "The string used to separate chat messages.",
+      "----",
+      () => {
+        var _a2;
+        return (_a2 = this.plugin.settings.chatSeparator) != null ? _a2 : "";
+      },
+      async (value) => {
+        this.plugin.settings.chatSeparator = value != null ? value : "";
+        await this.plugin.saveSettings();
+      }
+    );
+    this.createTextSetting(
+      containerEl,
+      "Chat Start String",
+      "The string that indicates where to start taking the note for context.",
+      "===START===",
+      () => {
+        var _a2;
+        return (_a2 = this.plugin.settings.chatStartString) != null ? _a2 : "";
+      },
+      async (value) => {
+        this.plugin.settings.chatStartString = value != null ? value : "";
+        await this.plugin.saveSettings();
+      }
+    );
+    this.createTextSetting(
+      containerEl,
+      "Chat End String",
+      "The string that indicates where to end taking the note for context.",
+      "===END===",
+      () => {
+        var _a2;
+        return (_a2 = this.plugin.settings.chatEndString) != null ? _a2 : "";
+      },
+      async (value) => {
+        this.plugin.settings.chatEndString = value != null ? value : "";
+        await this.plugin.saveSettings();
+      }
+    );
+    this.createTextSetting(
+      containerEl,
+      "Title Prompt",
+      "The prompt used for generating note titles.",
+      "You are a title generator...",
+      () => this.plugin.settings.titlePrompt,
+      async (value) => {
+        this.plugin.settings.titlePrompt = value != null ? value : "";
+        await this.plugin.saveSettings();
+      },
+      { isTextArea: true }
+    );
+    new import_obsidian2.Setting(containerEl).setName("Reset All Settings to Default").setDesc("Reset all plugin settings (except API keys) to their original default values.").addButton((button) => button.setButtonText("Reset").onClick(async () => {
+      const { DEFAULT_SETTINGS: DEFAULT_SETTINGS2 } = await Promise.resolve().then(() => (init_types(), types_exports));
+      const { DEFAULT_TITLE_PROMPT: DEFAULT_TITLE_PROMPT2 } = await Promise.resolve().then(() => (init_prompts(), prompts_exports));
+      const preservedApiKeys = {
+        openai: this.plugin.settings.openaiSettings.apiKey,
+        anthropic: this.plugin.settings.anthropicSettings.apiKey,
+        gemini: this.plugin.settings.geminiSettings.apiKey
+      };
+      this.plugin.settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS2));
+      this.plugin.settings.openaiSettings.apiKey = preservedApiKeys.openai;
+      this.plugin.settings.anthropicSettings.apiKey = preservedApiKeys.anthropic;
+      this.plugin.settings.geminiSettings.apiKey = preservedApiKeys.gemini;
+      this.plugin.settings.titlePrompt = DEFAULT_TITLE_PROMPT2;
+      await this.plugin.saveSettings();
+      this.display();
+      if (typeof this.plugin.activateView === "function") {
+        setTimeout(() => {
+          this.plugin.activateView();
+        }, 100);
+      }
+      new import_obsidian2.Notice("All settings (except API keys) reset to default.");
+    }));
+    this.createDropdownSetting(
+      containerEl,
+      "Title Output Mode",
+      "Choose what to do with the generated note title.",
+      { "clipboard": "Copy to clipboard", "replace-filename": "Replace note filename", "metadata": "Insert into metadata" },
+      () => {
+        var _a2;
+        return (_a2 = this.plugin.settings.titleOutputMode) != null ? _a2 : "clipboard";
+      },
+      async (value) => {
+        this.plugin.settings.titleOutputMode = value;
+        await this.plugin.saveSettings();
+      }
+    );
+    this.createDropdownSetting(
+      containerEl,
+      "Summary Output Mode",
+      "Choose what to do with the generated note summary.",
+      { "clipboard": "Copy to clipboard", "metadata": "Insert into metadata" },
+      () => {
+        var _a2;
+        return (_a2 = this.plugin.settings.summaryOutputMode) != null ? _a2 : "clipboard";
+      },
+      async (value) => {
+        this.plugin.settings.summaryOutputMode = value;
+        await this.plugin.saveSettings();
+      }
+    );
+    this.createToggleSetting(
+      containerEl,
+      "Expand Linked Notes Recursively",
+      "If enabled, when fetching a note, also fetch and expand links within that note recursively (prevents infinite loops).",
+      () => {
+        var _a2;
+        return (_a2 = this.plugin.settings.expandLinkedNotesRecursively) != null ? _a2 : false;
+      },
+      async (value) => {
+        this.plugin.settings.expandLinkedNotesRecursively = value;
+        await this.plugin.saveSettings();
+      },
+      () => this.display()
+    );
+    if (this.plugin.settings.expandLinkedNotesRecursively) {
+      this.createSliderSetting(
+        containerEl,
+        "Max Link Expansion Depth",
+        "Maximum depth for recursively expanding linked notes (1-3).",
+        { min: 1, max: 3, step: 1 },
+        () => {
+          var _a2;
+          return (_a2 = this.plugin.settings.maxLinkExpansionDepth) != null ? _a2 : 2;
+        },
+        async (value) => {
+          this.plugin.settings.maxLinkExpansionDepth = value;
+          await this.plugin.saveSettings();
+        }
+      );
+    }
+    this.createTextSetting(
+      containerEl,
+      "Chat Note Folder",
+      "Folder to save exported chat notes (relative to vault root, leave blank for root)",
+      "e.g. AI Chats",
+      () => {
+        var _a2;
+        return (_a2 = this.plugin.settings.chatNoteFolder) != null ? _a2 : "";
+      },
+      async (value) => {
+        this.plugin.settings.chatNoteFolder = value != null ? value : "";
+        await this.plugin.saveSettings();
+      },
+      { trim: true }
+    );
+    this.renderYamlAttributeGenerators(containerEl);
+    this.renderModelSettingPresets(containerEl);
   }
 };
 
