@@ -31,30 +31,38 @@ export default class MyPlugin extends Plugin {
     modelSettingsView: ModelSettingsView | null = null;
     activeStream: AbortController | null = null;
     private _yamlAttributeCommandIds: string[] = [];
-
-    // --- Settings change event emitter ---
     private settingsListeners: Array<() => void> = [];
+
     onSettingsChange(listener: () => void) {
         this.settingsListeners.push(listener);
     }
+
     offSettingsChange(listener: () => void) {
         this.settingsListeners = this.settingsListeners.filter(l => l !== listener);
     }
+
     private emitSettingsChange() {
         for (const listener of this.settingsListeners) {
             try { listener(); } catch (e) { console.error(e); }
         }
     }
 
-    // Track view registration to prevent duplicate registration errors
     private static registeredViewTypes = new Set<string>();
 
-    // DRY: Helper to add a ribbon icon
+    /**
+     * Helper to add a ribbon icon.
+     * @param icon The icon ID.
+     * @param title The tooltip title.
+     * @param callback The function to call when the icon is clicked.
+     */
     private addRibbon(icon: string, title: string, callback: () => void) {
         this.addRibbonIcon(icon, title, callback);
     }
 
-    // DRY: Helper to add a command
+    /**
+     * Helper to add a command.
+     * @param options Command options including id, name, and callback/editorCallback.
+     */
     private addPluginCommand(options: {
         id: string;
         name: string;
@@ -64,18 +72,26 @@ export default class MyPlugin extends Plugin {
         this.addCommand(options);
     }
 
-    // DRY: Helper to insert separator with correct spacing
-    private insertSeparator(editor: any, position: any, separator: string) {
+    /**
+     * Helper to insert a separator with correct spacing in the editor.
+     * @param editor The editor instance.
+     * @param position The position to insert the separator.
+     * @param separator The separator string.
+     * @returns The line number after the inserted separator.
+     */
+    private insertSeparator(editor: any, position: any, separator: string): number {
         const lineContent = editor.getLine(position.line) ?? '';
-        let prefix = '';
-        if (lineContent.trim() !== '') {
-            prefix = '\n';
-        }
+        const prefix = lineContent.trim() !== '' ? '\n' : '';
         editor.replaceRange(`${prefix}\n${separator}\n`, position);
         return position.line + (prefix ? 1 : 0) + 2;
     }
 
-    // DRY: Helper to move cursor after inserting text
+    /**
+     * Helper to move the cursor after inserting text in the editor.
+     * @param editor The editor instance.
+     * @param startPos The starting position of the insertion.
+     * @param insertText The text that was inserted.
+     */
     private moveCursorAfterInsert(editor: any, startPos: any, insertText: string) {
         const lines = insertText.split('\n');
         if (lines.length === 1) {
@@ -91,12 +107,20 @@ export default class MyPlugin extends Plugin {
         }
     }
 
-    // DRY: Helper to show a notice
+    /**
+     * Helper to show an Obsidian notice.
+     * @param message The message to display.
+     */
     private showNotice(message: string) {
         new Notice(message);
     }
 
-    // DRY: Helper for clipboard actions with notice
+    /**
+     * Helper for clipboard actions with a notice.
+     * @param text The text to copy.
+     * @param successMsg The message to show on success.
+     * @param failMsg The message to show on failure.
+     */
     private async copyToClipboard(text: string, successMsg: string, failMsg: string) {
         try {
             await navigator.clipboard.writeText(text);
@@ -107,7 +131,10 @@ export default class MyPlugin extends Plugin {
         }
     }
 
-    // DRY: Helper to activate chat view and load messages
+    /**
+     * Helper to activate the chat view and load messages into it.
+     * @param messages An array of messages to load.
+     */
     private async activateChatViewAndLoadMessages(messages: Message[]) {
         await this.activateChatView();
         const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_CHAT);
@@ -126,28 +153,119 @@ export default class MyPlugin extends Plugin {
         this.showNotice('Loaded chat note into chat.');
     }
 
+    /**
+     * Registers a view type with Obsidian.
+     * @param viewType The type of the view.
+     * @param viewCreator The function that creates the view.
+     */
+    private registerPluginView(viewType: string, viewCreator: (leaf: any) => any) {
+        if (!MyPlugin.registeredViewTypes.has(viewType)) {
+            this.registerView(viewType, viewCreator);
+            MyPlugin.registeredViewTypes.add(viewType);
+        }
+    }
+
+    /**
+     * Handles the AI completion logic for the editor.
+     * Extracts text, sends to AI, and streams response back to editor.
+     * @param editor The editor instance.
+     */
+    private async handleAICompletion(editor: any) {
+        let text: string;
+        let insertPosition;
+
+        if (editor.somethingSelected()) {
+            text = editor.getSelection();
+            insertPosition = editor.getCursor('to');
+        } else {
+            const currentLineNumber = editor.getCursor().line;
+            let lines: string[] = [];
+            for (let i = 0; i <= currentLineNumber; i++) {
+                lines.push(editor.getLine(i));
+            }
+
+            const chatStartString = this.settings.chatStartString;
+            if (chatStartString) {
+                const startIdx = lines.findIndex(line => line.trim() === chatStartString.trim());
+                if (startIdx !== -1) {
+                    lines = lines.slice(startIdx + 1);
+                }
+            }
+            text = lines.join('\n');
+            insertPosition = { line: currentLineNumber + 1, ch: 0 };
+        }
+
+        console.log('Extracted text for completion:', text);
+
+        const messages = parseSelection(text, this.settings.chatSeparator);
+        if (messages.length === 0) {
+            this.showNotice('No valid messages found in the selection.');
+            return;
+        }
+
+        const sepLine = this.insertSeparator(editor, insertPosition, this.settings.chatSeparator);
+        let currentPosition = { line: sepLine, ch: 0 };
+
+        this.activeStream = new AbortController();
+        try {
+            const provider = this.settings.selectedModel
+                ? createProviderFromUnifiedModel(this.settings, this.settings.selectedModel)
+                : createProvider(this.settings);
+            const processedMessages = await this.processMessages([
+                { role: 'system', content: this.getSystemMessage() },
+                ...messages
+            ]);
+
+            let bufferedChunk = '';
+            const flushBuffer = () => {
+                if (bufferedChunk) {
+                    editor.replaceRange(bufferedChunk, currentPosition);
+                    currentPosition = editor.offsetToPos(
+                        editor.posToOffset(currentPosition) + bufferedChunk.length
+                    );
+                    bufferedChunk = '';
+                }
+            };
+
+            await provider.getCompletion(
+                processedMessages,
+                {
+                    temperature: this.settings.temperature,
+                    maxTokens: this.settings.maxTokens,
+                    streamCallback: (chunk: string) => {
+                        bufferedChunk += chunk;
+                        setTimeout(flushBuffer, 100);
+                    },
+                    abortController: this.activeStream
+                }
+            );
+
+            flushBuffer();
+
+            const endLineContent = editor.getLine(currentPosition.line) ?? '';
+            const endPrefix = endLineContent.trim() !== '' ? '\n' : '';
+            editor.replaceRange(`${endPrefix}\n${this.settings.chatSeparator}\n\n`, currentPosition);
+            const newCursorPos = editor.offsetToPos(
+                editor.posToOffset(currentPosition) + (endPrefix ? 1 : 0) + 1 + this.settings.chatSeparator.length + 1
+            );
+            editor.setCursor(newCursorPos);
+        } catch (error: any) {
+            this.showNotice(`Error: ${error.message}`);
+            const errLineContent = editor.getLine(currentPosition.line) ?? '';
+            const errPrefix = errLineContent.trim() !== '' ? '\n' : '';
+            editor.replaceRange(`Error: ${error.message}\n${errPrefix}\n${this.settings.chatSeparator}\n\n`, currentPosition);
+        } finally {
+            this.activeStream = null;
+        }
+    }
+
     async onload() {
         await this.loadSettings();
         this.addSettingTab(new MyPluginSettingTab(this.app, this));
 
-        // Register views only if not already registered
-        if (!MyPlugin.registeredViewTypes.has(VIEW_TYPE_MODEL_SETTINGS)) {
-            this.registerView(
-                VIEW_TYPE_MODEL_SETTINGS,
-                (leaf) => new ModelSettingsView(leaf, this)
-            );
-            MyPlugin.registeredViewTypes.add(VIEW_TYPE_MODEL_SETTINGS);
-        }
+        this.registerPluginView(VIEW_TYPE_MODEL_SETTINGS, (leaf) => new ModelSettingsView(leaf, this));
+        this.registerPluginView(VIEW_TYPE_CHAT, (leaf) => new ChatView(leaf, this));
 
-        if (!MyPlugin.registeredViewTypes.has(VIEW_TYPE_CHAT)) {
-            this.registerView(
-                VIEW_TYPE_CHAT,
-                (leaf) => new ChatView(leaf, this)
-            );
-            MyPlugin.registeredViewTypes.add(VIEW_TYPE_CHAT);
-        }
-
-        // DRY: Add ribbon icons
         this.addRibbon('file-sliders', 'Open AI Settings', () => this.activateView());
         this.addRibbon('message-square', 'Open AI Chat', () => this.activateChatView());
 
@@ -157,123 +275,10 @@ export default class MyPlugin extends Plugin {
             }
         });
 
-        // DRY: Add commands
         this.addPluginCommand({
             id: 'ai-completion',
             name: 'Get AI Completion',
-            editorCallback: async (editor) => {
-                let text: string;
-                let insertPosition;
-
-                if (editor.somethingSelected()) {
-                    // Use the selected text
-                    text = editor.getSelection();
-                    insertPosition = editor.getCursor('to');
-                } else {
-                    // Use the current cursor line as the request
-                    const currentLineNumber = editor.getCursor().line;
-                    // Get all lines from the top of the file up to and including the current line
-                    let lines: string[] = [];
-                    for (let i = 0; i <= currentLineNumber; i++) {
-                        lines.push(editor.getLine(i));
-                    }
-
-                    // Check for chatStartString in the lines and slice if found
-                    const chatStartString = this.settings.chatStartString;
-                    if (chatStartString) {
-                        const startIdx = lines.findIndex(line => line.trim() === chatStartString.trim());
-                        if (startIdx !== -1) {
-                            // Exclude the chatStartString line itself from the context
-                            lines = lines.slice(startIdx + 1);
-                        }
-                    }
-
-                    text = lines.join('\n');
-
-                    // Set insertion point to be immediately after the current line
-                    insertPosition = { line: currentLineNumber + 1, ch: 0 };
-                }
-
-                // Debugging: Log the extracted text
-                console.log('Extracted text for completion:', text);
-
-                // Parse the selection into messages
-                const messages = parseSelection(text, this.settings.chatSeparator);
-
-                // Ensure there are messages to send
-                if (messages.length === 0) {
-                    new Notice('No valid messages found in the selection.');
-                    return;
-                }
-
-                // Ensure there's a clear separation between user request and AI response
-                
-                // Use DRY helper for separator insertion
-                const sepLine = this.insertSeparator(editor, insertPosition, this.settings.chatSeparator);
-                let currentPosition = { line: sepLine, ch: 0 };
-
-                this.activeStream = new AbortController();                try {
-                    // Use unified model if available, fallback to legacy provider selection
-                    const provider = this.settings.selectedModel 
-                        ? createProviderFromUnifiedModel(this.settings, this.settings.selectedModel)
-                        : createProvider(this.settings);
-                    const processedMessages = await this.processMessages([
-                        { role: 'system', content: this.getSystemMessage() },
-                        ...messages
-                    ]);
-
-                    let bufferedChunk = ''; // Accumulate chunks
-                    const flushBuffer = () => {
-                        if (bufferedChunk) {
-                            editor.replaceRange(bufferedChunk, currentPosition);
-                            currentPosition = editor.offsetToPos(
-                                editor.posToOffset(currentPosition) + bufferedChunk.length
-                            );
-                            bufferedChunk = ''; // Clear buffer
-                        }
-                    };
-
-                    await provider.getCompletion(
-                        processedMessages,
-                        {
-                            temperature: this.settings.temperature,
-                            maxTokens: this.settings.maxTokens,
-                            streamCallback: (chunk: string) => {
-                                bufferedChunk += chunk; // Accumulate the chunk
-                                // Flush buffer every 100ms
-                                setTimeout(flushBuffer, 100);
-                            },
-                            abortController: this.activeStream
-                        }
-                    );
-
-                    // Final flush after completion
-                    flushBuffer();
-
-                    // Insert the separator after the AI response with correct spacing
-                    const endLineContent = editor.getLine(currentPosition.line) ?? '';
-                    let endPrefix = '';
-                    if (endLineContent.trim() !== '') {
-                        endPrefix = '\n';
-                    }
-                    editor.replaceRange(`${endPrefix}\n${this.settings.chatSeparator}\n\n`, currentPosition);
-                    const newCursorPos = editor.offsetToPos(
-                        editor.posToOffset(currentPosition) + (endPrefix ? 1 : 0) + 1 + this.settings.chatSeparator.length + 1
-                    );
-                    editor.setCursor(newCursorPos);
-                } catch (error) {
-                    new Notice(`Error: ${error.message}`);
-                    // Insert error with correct spacing
-                    const errLineContent = editor.getLine(currentPosition.line) ?? '';
-                    let errPrefix = '';
-                    if (errLineContent.trim() !== '') {
-                        errPrefix = '\n';
-                    }
-                    editor.replaceRange(`Error: ${error.message}\n${errPrefix}\n${this.settings.chatSeparator}\n\n`, currentPosition);
-                } finally {
-                    this.activeStream = null;
-                }
-            }
+            editorCallback: (editor) => this.handleAICompletion(editor)
         });
 
         this.addPluginCommand({
@@ -344,18 +349,6 @@ export default class MyPlugin extends Plugin {
             }
         });
 
-        // this.addPluginCommand({
-        //     id: 'generate-note-summary',
-        //     name: 'Generate Note Summary',
-        //     callback: async () => {
-        //         const { generateNoteSummary } = await import("./filechanger");
-        //         await generateNoteSummary(
-        //             this.app,
-        //             this.settings,
-        //             (messages) => this.processMessages(messages)
-        //         );
-        //     }
-        // });
         this.addPluginCommand({
             id: 'load-chat-note-into-chat',
             name: 'Load Chat Note into Chat',
@@ -374,7 +367,6 @@ export default class MyPlugin extends Plugin {
                 await this.activateChatViewAndLoadMessages(messages);
             }
         });
-        // --- Register YAML Attribute Generator Commands ---
         this.registerYamlAttributeCommands();
     }
 
@@ -383,7 +375,6 @@ export default class MyPlugin extends Plugin {
      * Unregisters previous commands before registering new ones.
      */
     private registerYamlAttributeCommands() {
-        // Unregister previous commands
         if (this._yamlAttributeCommandIds && this._yamlAttributeCommandIds.length > 0) {
             for (const id of this._yamlAttributeCommandIds) {
                 // @ts-ignore: Obsidian Plugin API has undocumented method
@@ -415,10 +406,19 @@ export default class MyPlugin extends Plugin {
         }
     }
 
+    /**
+     * Retrieves the system message based on current plugin settings.
+     * @returns The system message string.
+     */
     public getSystemMessage(): string {
         return getSystemMessage(this.settings);
     }
 
+    /**
+     * Activates and reveals a specific view type in the workspace.
+     * Defaults to the model settings view.
+     * @param viewType The type of view to activate.
+     */
     async activateView(viewType: string = VIEW_TYPE_MODEL_SETTINGS) {
         this.app.workspace.detachLeavesOfType(viewType);
 
@@ -438,30 +438,53 @@ export default class MyPlugin extends Plugin {
         }
     }
 
+    /**
+     * Activates and reveals the chat view.
+     */
     async activateChatView() {
         await this.activateView(VIEW_TYPE_CHAT);
     }
 
+    /**
+     * Loads plugin settings from data.
+     */
     async loadSettings() {
         this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
     }
 
+    /**
+     * Saves plugin settings to data.
+     * Also re-registers YAML attribute commands and emits a settings change event.
+     */
     async saveSettings() {
         await this.saveData(this.settings);
         this.registerYamlAttributeCommands(); // Update commands after saving settings
         this.emitSettingsChange(); // Notify listeners
     }
 
+    /**
+     * Processes an array of messages, potentially adding context notes.
+     * @param messages The messages to process.
+     * @returns A promise that resolves to the processed messages.
+     */
     private async processMessages(messages: Message[]): Promise<Message[]> {
         return processMessages(messages, this.app, this.settings);
     }
 
+    /**
+     * Retrieves content from context notes.
+     * @param contextNotesText The text containing context note links.
+     * @returns A promise that resolves to the combined content of context notes.
+     */
     public async getContextNotesContent(contextNotesText: string): Promise<string> {
         return getContextNotesContent(contextNotesText, this.app);
     }
 
+    /**
+     * Called when the plugin is unloaded.
+     * Unregisters views to prevent issues on reload.
+     */
     onunload() {
-        // Unregister views to allow re-registration on reload
         MyPlugin.registeredViewTypes.delete(VIEW_TYPE_MODEL_SETTINGS);
         MyPlugin.registeredViewTypes.delete(VIEW_TYPE_CHAT);
     }

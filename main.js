@@ -9390,7 +9390,6 @@ var _MyPlugin = class _MyPlugin extends import_obsidian15.Plugin {
     __publicField(this, "modelSettingsView", null);
     __publicField(this, "activeStream", null);
     __publicField(this, "_yamlAttributeCommandIds", []);
-    // --- Settings change event emitter ---
     __publicField(this, "settingsListeners", []);
   }
   onSettingsChange(listener) {
@@ -9408,28 +9407,44 @@ var _MyPlugin = class _MyPlugin extends import_obsidian15.Plugin {
       }
     }
   }
-  // DRY: Helper to add a ribbon icon
+  /**
+   * Helper to add a ribbon icon.
+   * @param icon The icon ID.
+   * @param title The tooltip title.
+   * @param callback The function to call when the icon is clicked.
+   */
   addRibbon(icon, title, callback) {
     this.addRibbonIcon(icon, title, callback);
   }
-  // DRY: Helper to add a command
+  /**
+   * Helper to add a command.
+   * @param options Command options including id, name, and callback/editorCallback.
+   */
   addPluginCommand(options) {
     this.addCommand(options);
   }
-  // DRY: Helper to insert separator with correct spacing
+  /**
+   * Helper to insert a separator with correct spacing in the editor.
+   * @param editor The editor instance.
+   * @param position The position to insert the separator.
+   * @param separator The separator string.
+   * @returns The line number after the inserted separator.
+   */
   insertSeparator(editor, position, separator) {
     var _a2;
     const lineContent = (_a2 = editor.getLine(position.line)) != null ? _a2 : "";
-    let prefix = "";
-    if (lineContent.trim() !== "") {
-      prefix = "\n";
-    }
+    const prefix = lineContent.trim() !== "" ? "\n" : "";
     editor.replaceRange(`${prefix}
 ${separator}
 `, position);
     return position.line + (prefix ? 1 : 0) + 2;
   }
-  // DRY: Helper to move cursor after inserting text
+  /**
+   * Helper to move the cursor after inserting text in the editor.
+   * @param editor The editor instance.
+   * @param startPos The starting position of the insertion.
+   * @param insertText The text that was inserted.
+   */
   moveCursorAfterInsert(editor, startPos, insertText) {
     const lines = insertText.split("\n");
     if (lines.length === 1) {
@@ -9444,11 +9459,19 @@ ${separator}
       });
     }
   }
-  // DRY: Helper to show a notice
+  /**
+   * Helper to show an Obsidian notice.
+   * @param message The message to display.
+   */
   showNotice(message) {
     new import_obsidian15.Notice(message);
   }
-  // DRY: Helper for clipboard actions with notice
+  /**
+   * Helper for clipboard actions with a notice.
+   * @param text The text to copy.
+   * @param successMsg The message to show on success.
+   * @param failMsg The message to show on failure.
+   */
   async copyToClipboard(text, successMsg, failMsg) {
     try {
       await navigator.clipboard.writeText(text);
@@ -9458,7 +9481,10 @@ ${separator}
       console.error("Clipboard error:", error);
     }
   }
-  // DRY: Helper to activate chat view and load messages
+  /**
+   * Helper to activate the chat view and load messages into it.
+   * @param messages An array of messages to load.
+   */
   async activateChatViewAndLoadMessages(messages) {
     await this.activateChatView();
     const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_CHAT);
@@ -9476,23 +9502,111 @@ ${separator}
     chatView.scrollMessagesToBottom();
     this.showNotice("Loaded chat note into chat.");
   }
+  /**
+   * Registers a view type with Obsidian.
+   * @param viewType The type of the view.
+   * @param viewCreator The function that creates the view.
+   */
+  registerPluginView(viewType, viewCreator) {
+    if (!_MyPlugin.registeredViewTypes.has(viewType)) {
+      this.registerView(viewType, viewCreator);
+      _MyPlugin.registeredViewTypes.add(viewType);
+    }
+  }
+  /**
+   * Handles the AI completion logic for the editor.
+   * Extracts text, sends to AI, and streams response back to editor.
+   * @param editor The editor instance.
+   */
+  async handleAICompletion(editor) {
+    var _a2, _b;
+    let text;
+    let insertPosition;
+    if (editor.somethingSelected()) {
+      text = editor.getSelection();
+      insertPosition = editor.getCursor("to");
+    } else {
+      const currentLineNumber = editor.getCursor().line;
+      let lines = [];
+      for (let i = 0; i <= currentLineNumber; i++) {
+        lines.push(editor.getLine(i));
+      }
+      const chatStartString = this.settings.chatStartString;
+      if (chatStartString) {
+        const startIdx = lines.findIndex((line) => line.trim() === chatStartString.trim());
+        if (startIdx !== -1) {
+          lines = lines.slice(startIdx + 1);
+        }
+      }
+      text = lines.join("\n");
+      insertPosition = { line: currentLineNumber + 1, ch: 0 };
+    }
+    console.log("Extracted text for completion:", text);
+    const messages = parseSelection(text, this.settings.chatSeparator);
+    if (messages.length === 0) {
+      this.showNotice("No valid messages found in the selection.");
+      return;
+    }
+    const sepLine = this.insertSeparator(editor, insertPosition, this.settings.chatSeparator);
+    let currentPosition = { line: sepLine, ch: 0 };
+    this.activeStream = new AbortController();
+    try {
+      const provider = this.settings.selectedModel ? createProviderFromUnifiedModel(this.settings, this.settings.selectedModel) : createProvider(this.settings);
+      const processedMessages = await this.processMessages([
+        { role: "system", content: this.getSystemMessage() },
+        ...messages
+      ]);
+      let bufferedChunk = "";
+      const flushBuffer = () => {
+        if (bufferedChunk) {
+          editor.replaceRange(bufferedChunk, currentPosition);
+          currentPosition = editor.offsetToPos(
+            editor.posToOffset(currentPosition) + bufferedChunk.length
+          );
+          bufferedChunk = "";
+        }
+      };
+      await provider.getCompletion(
+        processedMessages,
+        {
+          temperature: this.settings.temperature,
+          maxTokens: this.settings.maxTokens,
+          streamCallback: (chunk) => {
+            bufferedChunk += chunk;
+            setTimeout(flushBuffer, 100);
+          },
+          abortController: this.activeStream
+        }
+      );
+      flushBuffer();
+      const endLineContent = (_a2 = editor.getLine(currentPosition.line)) != null ? _a2 : "";
+      const endPrefix = endLineContent.trim() !== "" ? "\n" : "";
+      editor.replaceRange(`${endPrefix}
+${this.settings.chatSeparator}
+
+`, currentPosition);
+      const newCursorPos = editor.offsetToPos(
+        editor.posToOffset(currentPosition) + (endPrefix ? 1 : 0) + 1 + this.settings.chatSeparator.length + 1
+      );
+      editor.setCursor(newCursorPos);
+    } catch (error) {
+      this.showNotice(`Error: ${error.message}`);
+      const errLineContent = (_b = editor.getLine(currentPosition.line)) != null ? _b : "";
+      const errPrefix = errLineContent.trim() !== "" ? "\n" : "";
+      editor.replaceRange(`Error: ${error.message}
+${errPrefix}
+${this.settings.chatSeparator}
+
+`, currentPosition);
+    } finally {
+      this.activeStream = null;
+    }
+  }
   async onload() {
     await this.loadSettings();
     this.addSettingTab(new MyPluginSettingTab(this.app, this));
-    if (!_MyPlugin.registeredViewTypes.has(VIEW_TYPE_MODEL_SETTINGS2)) {
-      this.registerView(
-        VIEW_TYPE_MODEL_SETTINGS2,
-        (leaf) => new ModelSettingsView(leaf, this)
-      );
-      _MyPlugin.registeredViewTypes.add(VIEW_TYPE_MODEL_SETTINGS2);
-    }
-    if (!_MyPlugin.registeredViewTypes.has(VIEW_TYPE_CHAT)) {
-      this.registerView(
-        VIEW_TYPE_CHAT,
-        (leaf) => new ChatView(leaf, this)
-      );
-      _MyPlugin.registeredViewTypes.add(VIEW_TYPE_CHAT);
-    }
+    this.registerPluginView(VIEW_TYPE_MODEL_SETTINGS2, (leaf) => new ModelSettingsView(leaf, this));
+    this.registerPluginView(VIEW_TYPE_CHAT, (leaf) => new ChatView(leaf, this));
     this.addRibbon("file-sliders", "Open AI Settings", () => this.activateView());
     this.addRibbon("message-square", "Open AI Chat", () => this.activateChatView());
     this.app.workspace.onLayoutReady(() => {
@@ -9503,96 +9617,7 @@ ${separator}
     this.addPluginCommand({
       id: "ai-completion",
       name: "Get AI Completion",
-      editorCallback: async (editor) => {
-        var _a2, _b;
-        let text;
-        let insertPosition;
-        if (editor.somethingSelected()) {
-          text = editor.getSelection();
-          insertPosition = editor.getCursor("to");
-        } else {
-          const currentLineNumber = editor.getCursor().line;
-          let lines = [];
-          for (let i = 0; i <= currentLineNumber; i++) {
-            lines.push(editor.getLine(i));
-          }
-          const chatStartString = this.settings.chatStartString;
-          if (chatStartString) {
-            const startIdx = lines.findIndex((line) => line.trim() === chatStartString.trim());
-            if (startIdx !== -1) {
-              lines = lines.slice(startIdx + 1);
-            }
-          }
-          text = lines.join("\n");
-          insertPosition = { line: currentLineNumber + 1, ch: 0 };
-        }
-        console.log("Extracted text for completion:", text);
-        const messages = parseSelection(text, this.settings.chatSeparator);
-        if (messages.length === 0) {
-          new import_obsidian15.Notice("No valid messages found in the selection.");
-          return;
-        }
-        const sepLine = this.insertSeparator(editor, insertPosition, this.settings.chatSeparator);
-        let currentPosition = { line: sepLine, ch: 0 };
-        this.activeStream = new AbortController();
-        try {
-          const provider = this.settings.selectedModel ? createProviderFromUnifiedModel(this.settings, this.settings.selectedModel) : createProvider(this.settings);
-          const processedMessages = await this.processMessages([
-            { role: "system", content: this.getSystemMessage() },
-            ...messages
-          ]);
-          let bufferedChunk = "";
-          const flushBuffer = () => {
-            if (bufferedChunk) {
-              editor.replaceRange(bufferedChunk, currentPosition);
-              currentPosition = editor.offsetToPos(
-                editor.posToOffset(currentPosition) + bufferedChunk.length
-              );
-              bufferedChunk = "";
-            }
-          };
-          await provider.getCompletion(
-            processedMessages,
-            {
-              temperature: this.settings.temperature,
-              maxTokens: this.settings.maxTokens,
-              streamCallback: (chunk) => {
-                bufferedChunk += chunk;
-                setTimeout(flushBuffer, 100);
-              },
-              abortController: this.activeStream
-            }
-          );
-          flushBuffer();
-          const endLineContent = (_a2 = editor.getLine(currentPosition.line)) != null ? _a2 : "";
-          let endPrefix = "";
-          if (endLineContent.trim() !== "") {
-            endPrefix = "\n";
-          }
-          editor.replaceRange(`${endPrefix}
-${this.settings.chatSeparator}
-
-`, currentPosition);
-          const newCursorPos = editor.offsetToPos(
-            editor.posToOffset(currentPosition) + (endPrefix ? 1 : 0) + 1 + this.settings.chatSeparator.length + 1
-          );
-          editor.setCursor(newCursorPos);
-        } catch (error) {
-          new import_obsidian15.Notice(`Error: ${error.message}`);
-          const errLineContent = (_b = editor.getLine(currentPosition.line)) != null ? _b : "";
-          let errPrefix = "";
-          if (errLineContent.trim() !== "") {
-            errPrefix = "\n";
-          }
-          editor.replaceRange(`Error: ${error.message}
-${errPrefix}
-${this.settings.chatSeparator}
-
-`, currentPosition);
-        } finally {
-          this.activeStream = null;
-        }
-      }
+      editorCallback: (editor) => this.handleAICompletion(editor)
     });
     this.addPluginCommand({
       id: "end-ai-stream",
@@ -9711,9 +9736,18 @@ ${this.settings.chatSeparator}
       }
     }
   }
+  /**
+   * Retrieves the system message based on current plugin settings.
+   * @returns The system message string.
+   */
   getSystemMessage() {
     return getSystemMessage(this.settings);
   }
+  /**
+   * Activates and reveals a specific view type in the workspace.
+   * Defaults to the model settings view.
+   * @param viewType The type of view to activate.
+   */
   async activateView(viewType = VIEW_TYPE_MODEL_SETTINGS2) {
     this.app.workspace.detachLeavesOfType(viewType);
     let leaf = this.app.workspace.getRightLeaf(false);
@@ -9731,29 +9765,52 @@ ${this.settings.chatSeparator}
       });
     }
   }
+  /**
+   * Activates and reveals the chat view.
+   */
   async activateChatView() {
     await this.activateView(VIEW_TYPE_CHAT);
   }
+  /**
+   * Loads plugin settings from data.
+   */
   async loadSettings() {
     this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
   }
+  /**
+   * Saves plugin settings to data.
+   * Also re-registers YAML attribute commands and emits a settings change event.
+   */
   async saveSettings() {
     await this.saveData(this.settings);
     this.registerYamlAttributeCommands();
     this.emitSettingsChange();
   }
+  /**
+   * Processes an array of messages, potentially adding context notes.
+   * @param messages The messages to process.
+   * @returns A promise that resolves to the processed messages.
+   */
   async processMessages(messages) {
     return processMessages(messages, this.app, this.settings);
   }
+  /**
+   * Retrieves content from context notes.
+   * @param contextNotesText The text containing context note links.
+   * @returns A promise that resolves to the combined content of context notes.
+   */
   async getContextNotesContent(contextNotesText) {
     return getContextNotesContent(contextNotesText, this.app);
   }
+  /**
+   * Called when the plugin is unloaded.
+   * Unregisters views to prevent issues on reload.
+   */
   onunload() {
     _MyPlugin.registeredViewTypes.delete(VIEW_TYPE_MODEL_SETTINGS2);
     _MyPlugin.registeredViewTypes.delete(VIEW_TYPE_CHAT);
   }
 };
-// Track view registration to prevent duplicate registration errors
 __publicField(_MyPlugin, "registeredViewTypes", /* @__PURE__ */ new Set());
 var MyPlugin = _MyPlugin;
 /*! Bundled license information:
