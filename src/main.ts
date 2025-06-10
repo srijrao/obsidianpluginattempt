@@ -1,5 +1,5 @@
 import { App, Plugin, Notice, TFile, Editor } from 'obsidian';
-import { MyPluginSettings, Message, DEFAULT_SETTINGS } from './types';
+import { MyPluginSettings, Message, DEFAULT_SETTINGS, AgentModeSettings } from './types';
 import { createProvider, createProviderFromUnifiedModel } from '../providers';
 import { MyPluginSettingTab } from './settings';
 import { ChatView, VIEW_TYPE_CHAT } from './components/chat';
@@ -7,6 +7,8 @@ import { parseSelection } from './components/parseSelection';
 import { ModelSettingsView } from './components/ModelSettingsView';
 import { processMessages, getContextNotesContent } from './components/noteUtils';
 import { getSystemMessage } from './components/systemMessage';
+ 
+// Removed import of prompts.ts as per user request
 
 export const VIEW_TYPE_MODEL_SETTINGS = 'model-settings-view';
 
@@ -65,6 +67,23 @@ export default class MyPlugin extends Plugin {
         if (ribbonIcon && ribbonTitle) {
             this.addRibbonIcon(ribbonIcon, ribbonTitle, options.callback || (() => {}));
         }
+    }
+
+    // --- Agent Mode State Integration ---
+
+    private agentModeSettings: AgentModeSettings = {
+        enabled: false,
+        maxToolCalls: 5,
+        timeoutMs: 30000,
+    };
+
+    private agentModeEnabled(): boolean {
+        return this.agentModeSettings.enabled;
+    }
+
+    private setAgentModeEnabled(enabled: boolean) {
+        this.agentModeSettings.enabled = enabled;
+        this.emitSettingsChange();
     }
 
     /**

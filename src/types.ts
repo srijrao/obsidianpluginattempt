@@ -342,3 +342,22 @@ export interface ChatSession {
     lastUpdated: number;
     messages: Message[];
 }
+
+export interface AgentModeSettings {
+    enabled: boolean;
+    maxToolCalls: number;
+    timeoutMs: number;
+}
+
+export interface ToolCommand {
+    action: string;
+    parameters: Record<string, any>;
+    requestId?: string;
+}
+
+export interface ToolResult {
+    success: boolean;
+    data?: any;
+    error?: string;
+    requestId?: string;
+}
