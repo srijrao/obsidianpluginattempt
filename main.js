@@ -4560,84 +4560,27 @@ var init_SettingsSections = __esm({
        */
       async refreshAllAvailableModels() {
         const providers = ["openai", "anthropic", "gemini", "ollama"];
-        const results = [];
         for (const providerType of providers) {
           try {
             const originalProvider = this.plugin.settings.provider;
             this.plugin.settings.provider = providerType;
-            const provider = createProvider(this.plugin.settings);
-            const result = await provider.testConnection();
+            const providerInstance = createProvider(this.plugin.settings);
+            const result = await providerInstance.testConnection();
             this.plugin.settings.provider = originalProvider;
+            const providerSettings = this.plugin.settings[`${providerType}Settings`];
             if (result.success && result.models) {
-              switch (providerType) {
-                case "openai":
-                  this.plugin.settings.openaiSettings.availableModels = result.models;
-                  this.plugin.settings.openaiSettings.lastTestResult = {
-                    timestamp: Date.now(),
-                    success: true,
-                    message: result.message
-                  };
-                  results.push(`OpenAI: ${result.models.length} models`);
-                  break;
-                case "anthropic":
-                  this.plugin.settings.anthropicSettings.availableModels = result.models;
-                  this.plugin.settings.anthropicSettings.lastTestResult = {
-                    timestamp: Date.now(),
-                    success: true,
-                    message: result.message
-                  };
-                  results.push(`Anthropic: ${result.models.length} models`);
-                  break;
-                case "gemini":
-                  this.plugin.settings.geminiSettings.availableModels = result.models;
-                  this.plugin.settings.geminiSettings.lastTestResult = {
-                    timestamp: Date.now(),
-                    success: true,
-                    message: result.message
-                  };
-                  results.push(`Gemini: ${result.models.length} models`);
-                  break;
-                case "ollama":
-                  this.plugin.settings.ollamaSettings.availableModels = result.models;
-                  this.plugin.settings.ollamaSettings.lastTestResult = {
-                    timestamp: Date.now(),
-                    success: true,
-                    message: result.message
-                  };
-                  results.push(`Ollama: ${result.models.length} models`);
-                  break;
-              }
+              providerSettings.availableModels = result.models;
+              providerSettings.lastTestResult = {
+                timestamp: Date.now(),
+                success: true,
+                message: result.message
+              };
             } else {
-              switch (providerType) {
-                case "openai":
-                  this.plugin.settings.openaiSettings.lastTestResult = {
-                    timestamp: Date.now(),
-                    success: false,
-                    message: result.message
-                  };
-                  break;
-                case "anthropic":
-                  this.plugin.settings.anthropicSettings.lastTestResult = {
-                    timestamp: Date.now(),
-                    success: false,
-                    message: result.message
-                  };
-                  break;
-                case "gemini":
-                  this.plugin.settings.geminiSettings.lastTestResult = {
-                    timestamp: Date.now(),
-                    success: false,
-                    message: result.message
-                  };
-                  break;
-                case "ollama":
-                  this.plugin.settings.ollamaSettings.lastTestResult = {
-                    timestamp: Date.now(),
-                    success: false,
-                    message: result.message
-                  };
-                  break;
-              }
+              providerSettings.lastTestResult = {
+                timestamp: Date.now(),
+                success: false,
+                message: result.message
+              };
             }
           } catch (error) {
             console.error(`Error testing ${providerType}:`, error);
@@ -4646,123 +4589,95 @@ var init_SettingsSections = __esm({
         this.plugin.settings.availableModels = await getAllAvailableModels(this.plugin.settings);
         await this.plugin.saveSettings();
       }
+      /**
+       * Renders a collapsible section for provider configuration.
+       * @param containerEl The HTML element to render the section into.
+       * @param providerType The type of the provider (e.g., 'openai', 'anthropic').
+       * @param displayName The display name of the provider (e.g., 'OpenAI', 'Anthropic').
+       * @param renderSpecificSettings A callback function to render provider-specific settings.
+       */
+      _renderCollapsibleProviderConfig(containerEl, providerType, displayName, renderSpecificSettings) {
+        const collapsibleContainer = containerEl.createDiv({ cls: "provider-collapsible" });
+        const headerEl = collapsibleContainer.createEl("div", {
+          cls: "provider-header",
+          text: `\u25B6 ${displayName} Configuration`
+        });
+        Object.assign(headerEl.style, {
+          cursor: "pointer",
+          userSelect: "none",
+          padding: "8px 0",
+          fontWeight: "bold"
+        });
+        const contentEl = collapsibleContainer.createDiv({ cls: "provider-content" });
+        contentEl.style.display = "none";
+        contentEl.style.paddingLeft = "16px";
+        let isExpanded = false;
+        headerEl.addEventListener("click", () => {
+          isExpanded = !isExpanded;
+          contentEl.style.display = isExpanded ? "block" : "none";
+          headerEl.textContent = `${isExpanded ? "\u25BC" : "\u25B6"} ${displayName} Configuration`;
+        });
+        const settings = this.plugin.settings[`${providerType}Settings`];
+        const apiKeyStatus = settings.apiKey ? `API Key: ${settings.apiKey.substring(0, 8)}...` : "No API Key configured";
+        const serverUrlStatus = settings.serverUrl ? `Server URL: ${settings.serverUrl}` : "No Server URL configured";
+        contentEl.createEl("div", {
+          cls: "setting-item-description",
+          text: `${settings.apiKey ? apiKeyStatus : serverUrlStatus} (Configure in main plugin settings)`
+        });
+        if (renderSpecificSettings) {
+          renderSpecificSettings(contentEl);
+        }
+        this.renderProviderTestSection(contentEl, providerType, displayName);
+      }
+      /**
+       * Renders the OpenAI configuration section.
+       * @param containerEl The HTML element to render the section into.
+       */
       renderOpenAIConfig(containerEl) {
-        const collapsibleContainer = containerEl.createEl("div", { cls: "provider-collapsible" });
-        const headerEl = collapsibleContainer.createEl("div", {
-          cls: "provider-header",
-          text: "\u25B6 OpenAI Configuration"
+        this._renderCollapsibleProviderConfig(containerEl, "openai", "OpenAI", (contentEl) => {
+          new import_obsidian.Setting(contentEl).setName("OpenAI Base URL").setDesc("Custom base URL for OpenAI API (optional)").addText((text) => text.setPlaceholder("https://api.openai.com/v1").setValue(this.plugin.settings.openaiSettings.baseUrl || "").onChange(async (value) => {
+            this.plugin.settings.openaiSettings.baseUrl = value;
+            await this.plugin.saveSettings();
+          }));
         });
-        headerEl.style.cursor = "pointer";
-        headerEl.style.userSelect = "none";
-        headerEl.style.padding = "8px 0";
-        headerEl.style.fontWeight = "bold";
-        const contentEl = collapsibleContainer.createEl("div", { cls: "provider-content" });
-        contentEl.style.display = "none";
-        contentEl.style.paddingLeft = "16px";
-        let isExpanded = false;
-        headerEl.addEventListener("click", () => {
-          isExpanded = !isExpanded;
-          contentEl.style.display = isExpanded ? "block" : "none";
-          headerEl.textContent = `${isExpanded ? "\u25BC" : "\u25B6"} OpenAI Configuration`;
-        });
-        const apiKeyStatus = this.plugin.settings.openaiSettings.apiKey ? `API Key: ${this.plugin.settings.openaiSettings.apiKey.substring(0, 8)}...` : "No API Key configured";
-        contentEl.createEl("div", {
-          cls: "setting-item-description",
-          text: `${apiKeyStatus} (Configure in main plugin settings)`
-        });
-        new import_obsidian.Setting(contentEl).setName("OpenAI Base URL").setDesc("Custom base URL for OpenAI API (optional)").addText((text) => text.setPlaceholder("https://api.openai.com/v1").setValue(this.plugin.settings.openaiSettings.baseUrl || "").onChange(async (value) => {
-          this.plugin.settings.openaiSettings.baseUrl = value;
-          await this.plugin.saveSettings();
-        }));
-        this.renderProviderTestSection(contentEl, "openai", "OpenAI");
       }
+      /**
+       * Renders the Anthropic configuration section.
+       * @param containerEl The HTML element to render the section into.
+       */
       renderAnthropicConfig(containerEl) {
-        const collapsibleContainer = containerEl.createEl("div", { cls: "provider-collapsible" });
-        const headerEl = collapsibleContainer.createEl("div", {
-          cls: "provider-header",
-          text: "\u25B6 Anthropic Configuration"
-        });
-        headerEl.style.cursor = "pointer";
-        headerEl.style.userSelect = "none";
-        headerEl.style.padding = "8px 0";
-        headerEl.style.fontWeight = "bold";
-        const contentEl = collapsibleContainer.createEl("div", { cls: "provider-content" });
-        contentEl.style.display = "none";
-        contentEl.style.paddingLeft = "16px";
-        let isExpanded = false;
-        headerEl.addEventListener("click", () => {
-          isExpanded = !isExpanded;
-          contentEl.style.display = isExpanded ? "block" : "none";
-          headerEl.textContent = `${isExpanded ? "\u25BC" : "\u25B6"} Anthropic Configuration`;
-        });
-        const apiKeyStatus = this.plugin.settings.anthropicSettings.apiKey ? `API Key: ${this.plugin.settings.anthropicSettings.apiKey.substring(0, 8)}...` : "No API Key configured";
-        contentEl.createEl("div", {
-          cls: "setting-item-description",
-          text: `${apiKeyStatus} (Configure in main plugin settings)`
-        });
-        this.renderProviderTestSection(contentEl, "anthropic", "Anthropic");
+        this._renderCollapsibleProviderConfig(containerEl, "anthropic", "Anthropic");
       }
+      /**
+       * Renders the Gemini configuration section.
+       * @param containerEl The HTML element to render the section into.
+       */
       renderGeminiConfig(containerEl) {
-        const collapsibleContainer = containerEl.createEl("div", { cls: "provider-collapsible" });
-        const headerEl = collapsibleContainer.createEl("div", {
-          cls: "provider-header",
-          text: "\u25B6 Gemini Configuration"
-        });
-        headerEl.style.cursor = "pointer";
-        headerEl.style.userSelect = "none";
-        headerEl.style.padding = "8px 0";
-        headerEl.style.fontWeight = "bold";
-        const contentEl = collapsibleContainer.createEl("div", { cls: "provider-content" });
-        contentEl.style.display = "none";
-        contentEl.style.paddingLeft = "16px";
-        let isExpanded = false;
-        headerEl.addEventListener("click", () => {
-          isExpanded = !isExpanded;
-          contentEl.style.display = isExpanded ? "block" : "none";
-          headerEl.textContent = `${isExpanded ? "\u25BC" : "\u25B6"} Gemini Configuration`;
-        });
-        const apiKeyStatus = this.plugin.settings.geminiSettings.apiKey ? `API Key: ${this.plugin.settings.geminiSettings.apiKey.substring(0, 8)}...` : "No API Key configured";
-        contentEl.createEl("div", {
-          cls: "setting-item-description",
-          text: `${apiKeyStatus} (Configure in main plugin settings)`
-        });
-        this.renderProviderTestSection(contentEl, "gemini", "Gemini");
+        this._renderCollapsibleProviderConfig(containerEl, "gemini", "Gemini");
       }
+      /**
+       * Renders the Ollama configuration section.
+       * @param containerEl The HTML element to render the section into.
+       */
       renderOllamaConfig(containerEl) {
-        const collapsibleContainer = containerEl.createEl("div", { cls: "provider-collapsible" });
-        const headerEl = collapsibleContainer.createEl("div", {
-          cls: "provider-header",
-          text: "\u25B6 Ollama Configuration"
+        this._renderCollapsibleProviderConfig(containerEl, "ollama", "Ollama", (contentEl) => {
+          contentEl.createEl("div", {
+            cls: "setting-item-description",
+            text: "To use Ollama:"
+          });
+          const steps = contentEl.createEl("ol");
+          steps.createEl("li", { text: "Install Ollama from https://ollama.ai" });
+          steps.createEl("li", { text: "Start the Ollama server" });
+          steps.createEl("li", { text: 'Pull models using "ollama pull model-name"' });
+          steps.createEl("li", { text: "Test connection to see available models" });
         });
-        headerEl.style.cursor = "pointer";
-        headerEl.style.userSelect = "none";
-        headerEl.style.padding = "8px 0";
-        headerEl.style.fontWeight = "bold";
-        const contentEl = collapsibleContainer.createEl("div", { cls: "provider-content" });
-        contentEl.style.display = "none";
-        contentEl.style.paddingLeft = "16px";
-        let isExpanded = false;
-        headerEl.addEventListener("click", () => {
-          isExpanded = !isExpanded;
-          contentEl.style.display = isExpanded ? "block" : "none";
-          headerEl.textContent = `${isExpanded ? "\u25BC" : "\u25B6"} Ollama Configuration`;
-        });
-        const serverStatus = this.plugin.settings.ollamaSettings.serverUrl ? `Server URL: ${this.plugin.settings.ollamaSettings.serverUrl}` : "No Server URL configured";
-        contentEl.createEl("div", {
-          cls: "setting-item-description",
-          text: `${serverStatus} (Configure in main plugin settings)`
-        });
-        this.renderProviderTestSection(contentEl, "ollama", "Ollama");
-        contentEl.createEl("div", {
-          cls: "setting-item-description",
-          text: "To use Ollama:"
-        });
-        const steps = contentEl.createEl("ol");
-        steps.createEl("li", { text: "Install Ollama from https://ollama.ai" });
-        steps.createEl("li", { text: "Start the Ollama server" });
-        steps.createEl("li", { text: 'Pull models using "ollama pull model-name"' });
-        steps.createEl("li", { text: "Test connection to see available models" });
       }
+      /**
+       * Renders the provider connection test section.
+       * @param containerEl The HTML element to render the section into.
+       * @param provider The internal identifier for the provider (e.g., 'openai').
+       * @param displayName The user-friendly name of the provider (e.g., 'OpenAI').
+       */
       renderProviderTestSection(containerEl, provider, displayName) {
         const settings = this.plugin.settings[`${provider}Settings`];
         new import_obsidian.Setting(containerEl).setName("Test Connection").setDesc(`Verify your API key and fetch available models for ${displayName}`).addButton((button) => button.setButtonText("Test").onClick(async () => {
@@ -4809,13 +4724,15 @@ var init_SettingsSections = __esm({
         }
         if (settings.availableModels && settings.availableModels.length > 0) {
           containerEl.createEl("div", {
-            text: `Available models: ${settings.availableModels.join(", ")}`,
+            text: `Available models: ${settings.availableModels.map((m) => m.name || m.id).join(", ")}`,
             cls: "setting-item-description"
           });
         }
       }
       /**
-       * Render all settings sections in order (for modal or view)
+       * Renders all settings sections in order for a modal or view.
+       * @param containerEl The HTML element to render the sections into.
+       * @param options Optional settings, e.g., onRefresh callback.
        */
       async renderAllSettings(containerEl, options) {
         await this.renderAIModelSettings(containerEl, options == null ? void 0 : options.onRefresh);

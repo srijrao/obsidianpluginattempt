@@ -273,282 +273,158 @@ export class SettingsSections {
      */
     private async refreshAllAvailableModels(): Promise<void> {
         const providers = ['openai', 'anthropic', 'gemini', 'ollama'] as const;
-        const results: string[] = [];
 
         for (const providerType of providers) {
             try {
-                // Temporarily set provider to test connection
                 const originalProvider = this.plugin.settings.provider;
-                this.plugin.settings.provider = providerType;
-                
-                const provider = createProvider(this.plugin.settings);
-                const result = await provider.testConnection();
-                
-                // Restore original provider
-                this.plugin.settings.provider = originalProvider;
-                
+                this.plugin.settings.provider = providerType; // Temporarily set provider to test connection
+
+                const providerInstance = createProvider(this.plugin.settings);
+                const result = await providerInstance.testConnection();
+
+                this.plugin.settings.provider = originalProvider; // Restore original provider
+
+                const providerSettings = this.plugin.settings[`${providerType}Settings` as keyof typeof this.plugin.settings] as any;
+
                 if (result.success && result.models) {
-                    // Update the provider's available models
-                    switch (providerType) {
-                        case 'openai':
-                            this.plugin.settings.openaiSettings.availableModels = result.models;
-                            this.plugin.settings.openaiSettings.lastTestResult = {
-                                timestamp: Date.now(),
-                                success: true,
-                                message: result.message
-                            };
-                            results.push(`OpenAI: ${result.models.length} models`);
-                            break;
-                        case 'anthropic':
-                            this.plugin.settings.anthropicSettings.availableModels = result.models;
-                            this.plugin.settings.anthropicSettings.lastTestResult = {
-                                timestamp: Date.now(),
-                                success: true,
-                                message: result.message
-                            };
-                            results.push(`Anthropic: ${result.models.length} models`);
-                            break;
-                        case 'gemini':
-                            this.plugin.settings.geminiSettings.availableModels = result.models;
-                            this.plugin.settings.geminiSettings.lastTestResult = {
-                                timestamp: Date.now(),
-                                success: true,
-                                message: result.message
-                            };
-                            results.push(`Gemini: ${result.models.length} models`);
-                            break;
-                        case 'ollama':
-                            this.plugin.settings.ollamaSettings.availableModels = result.models;
-                            this.plugin.settings.ollamaSettings.lastTestResult = {
-                                timestamp: Date.now(),
-                                success: true,
-                                message: result.message
-                            };
-                            results.push(`Ollama: ${result.models.length} models`);
-                            break;
-                    }
+                    providerSettings.availableModels = result.models;
+                    providerSettings.lastTestResult = {
+                        timestamp: Date.now(),
+                        success: true,
+                        message: result.message
+                    };
                 } else {
-                    // Update failed test results
-                    switch (providerType) {
-                        case 'openai':
-                            this.plugin.settings.openaiSettings.lastTestResult = {
-                                timestamp: Date.now(),
-                                success: false,
-                                message: result.message
-                            };
-                            break;
-                        case 'anthropic':
-                            this.plugin.settings.anthropicSettings.lastTestResult = {
-                                timestamp: Date.now(),
-                                success: false,
-                                message: result.message
-                            };
-                            break;
-                        case 'gemini':
-                            this.plugin.settings.geminiSettings.lastTestResult = {
-                                timestamp: Date.now(),
-                                success: false,
-                                message: result.message
-                            };
-                            break;
-                        case 'ollama':
-                            this.plugin.settings.ollamaSettings.lastTestResult = {
-                                timestamp: Date.now(),
-                                success: false,
-                                message: result.message
-                            };
-                            break;
-                    }
+                    providerSettings.lastTestResult = {
+                        timestamp: Date.now(),
+                        success: false,
+                        message: result.message
+                    };
                 }
             } catch (error) {
                 console.error(`Error testing ${providerType}:`, error);
             }
         }
 
-        // Update unified available models
         this.plugin.settings.availableModels = await getAllAvailableModels(this.plugin.settings);
         await this.plugin.saveSettings();
     }
 
-    private renderOpenAIConfig(containerEl: HTMLElement): void {
-        // Create collapsible container
-        const collapsibleContainer = containerEl.createEl('div', { cls: 'provider-collapsible' });
-        
-        // Create header that can be clicked to toggle
-        const headerEl = collapsibleContainer.createEl('div', { 
+    /**
+     * Renders a collapsible section for provider configuration.
+     * @param containerEl The HTML element to render the section into.
+     * @param providerType The type of the provider (e.g., 'openai', 'anthropic').
+     * @param displayName The display name of the provider (e.g., 'OpenAI', 'Anthropic').
+     * @param renderSpecificSettings A callback function to render provider-specific settings.
+     */
+    private _renderCollapsibleProviderConfig(
+        containerEl: HTMLElement,
+        providerType: 'openai' | 'anthropic' | 'gemini' | 'ollama',
+        displayName: string,
+        renderSpecificSettings?: (contentEl: HTMLElement) => void
+    ): void {
+        const collapsibleContainer = containerEl.createDiv({ cls: 'provider-collapsible' });
+        const headerEl = collapsibleContainer.createEl('div', {
             cls: 'provider-header',
-            text: '▶ OpenAI Configuration'
+            text: `▶ ${displayName} Configuration`
         });
-        headerEl.style.cursor = 'pointer';
-        headerEl.style.userSelect = 'none';
-        headerEl.style.padding = '8px 0';
-        headerEl.style.fontWeight = 'bold';
-        
-        // Create content container (initially hidden)
-        const contentEl = collapsibleContainer.createEl('div', { cls: 'provider-content' });
+        Object.assign(headerEl.style, {
+            cursor: 'pointer',
+            userSelect: 'none',
+            padding: '8px 0',
+            fontWeight: 'bold'
+        });
+
+        const contentEl = collapsibleContainer.createDiv({ cls: 'provider-content' });
         contentEl.style.display = 'none';
         contentEl.style.paddingLeft = '16px';
-        
-        // Toggle functionality
+
         let isExpanded = false;
         headerEl.addEventListener('click', () => {
             isExpanded = !isExpanded;
             contentEl.style.display = isExpanded ? 'block' : 'none';
-            headerEl.textContent = `${isExpanded ? '▼' : '▶'} OpenAI Configuration`;
+            headerEl.textContent = `${isExpanded ? '▼' : '▶'} ${displayName} Configuration`;
         });
-        
-        // Show current API key status
-        const apiKeyStatus = this.plugin.settings.openaiSettings.apiKey ? 
-            `API Key: ${this.plugin.settings.openaiSettings.apiKey.substring(0, 8)}...` : 
+
+        const settings = this.plugin.settings[`${providerType}Settings` as keyof typeof this.plugin.settings] as any;
+        const apiKeyStatus = settings.apiKey ?
+            `API Key: ${settings.apiKey.substring(0, 8)}...` :
             'No API Key configured';
-        contentEl.createEl('div', { 
-            cls: 'setting-item-description',
-            text: `${apiKeyStatus} (Configure in main plugin settings)`
-        });
-
-        new Setting(contentEl)
-            .setName('OpenAI Base URL')
-            .setDesc('Custom base URL for OpenAI API (optional)')
-            .addText(text => text
-                .setPlaceholder('https://api.openai.com/v1')
-                .setValue(this.plugin.settings.openaiSettings.baseUrl || '')
-                .onChange(async (value) => {
-                    this.plugin.settings.openaiSettings.baseUrl = value;
-                    await this.plugin.saveSettings();
-                }));
-
-        this.renderProviderTestSection(contentEl, 'openai', 'OpenAI');
-    }
-
-    private renderAnthropicConfig(containerEl: HTMLElement): void {
-        // Create collapsible container
-        const collapsibleContainer = containerEl.createEl('div', { cls: 'provider-collapsible' });
-        
-        // Create header that can be clicked to toggle
-        const headerEl = collapsibleContainer.createEl('div', { 
-            cls: 'provider-header',
-            text: '▶ Anthropic Configuration'
-        });
-        headerEl.style.cursor = 'pointer';
-        headerEl.style.userSelect = 'none';
-        headerEl.style.padding = '8px 0';
-        headerEl.style.fontWeight = 'bold';
-        
-        // Create content container (initially hidden)
-        const contentEl = collapsibleContainer.createEl('div', { cls: 'provider-content' });
-        contentEl.style.display = 'none';
-        contentEl.style.paddingLeft = '16px';
-        
-        // Toggle functionality
-        let isExpanded = false;
-        headerEl.addEventListener('click', () => {
-            isExpanded = !isExpanded;
-            contentEl.style.display = isExpanded ? 'block' : 'none';
-            headerEl.textContent = `${isExpanded ? '▼' : '▶'} Anthropic Configuration`;
-        });
-        
-        // Show current API key status
-        const apiKeyStatus = this.plugin.settings.anthropicSettings.apiKey ? 
-            `API Key: ${this.plugin.settings.anthropicSettings.apiKey.substring(0, 8)}...` : 
-            'No API Key configured';
-        contentEl.createEl('div', { 
-            cls: 'setting-item-description',
-            text: `${apiKeyStatus} (Configure in main plugin settings)`
-        });
-
-        this.renderProviderTestSection(contentEl, 'anthropic', 'Anthropic');
-    }
-
-    private renderGeminiConfig(containerEl: HTMLElement): void {
-        // Create collapsible container
-        const collapsibleContainer = containerEl.createEl('div', { cls: 'provider-collapsible' });
-        
-        // Create header that can be clicked to toggle
-        const headerEl = collapsibleContainer.createEl('div', { 
-            cls: 'provider-header',
-            text: '▶ Gemini Configuration'
-        });
-        headerEl.style.cursor = 'pointer';
-        headerEl.style.userSelect = 'none';
-        headerEl.style.padding = '8px 0';
-        headerEl.style.fontWeight = 'bold';
-        
-        // Create content container (initially hidden)
-        const contentEl = collapsibleContainer.createEl('div', { cls: 'provider-content' });
-        contentEl.style.display = 'none';
-        contentEl.style.paddingLeft = '16px';
-        
-        // Toggle functionality
-        let isExpanded = false;
-        headerEl.addEventListener('click', () => {
-            isExpanded = !isExpanded;
-            contentEl.style.display = isExpanded ? 'block' : 'none';
-            headerEl.textContent = `${isExpanded ? '▼' : '▶'} Gemini Configuration`;
-        });
-        
-        // Show current API key status
-        const apiKeyStatus = this.plugin.settings.geminiSettings.apiKey ? 
-            `API Key: ${this.plugin.settings.geminiSettings.apiKey.substring(0, 8)}...` : 
-            'No API Key configured';
-        contentEl.createEl('div', { 
-            cls: 'setting-item-description',
-            text: `${apiKeyStatus} (Configure in main plugin settings)`
-        });
-
-        this.renderProviderTestSection(contentEl, 'gemini', 'Gemini');
-    }
-
-    private renderOllamaConfig(containerEl: HTMLElement): void {
-        // Create collapsible container
-        const collapsibleContainer = containerEl.createEl('div', { cls: 'provider-collapsible' });
-        
-        // Create header that can be clicked to toggle
-        const headerEl = collapsibleContainer.createEl('div', { 
-            cls: 'provider-header',
-            text: '▶ Ollama Configuration'
-        });
-        headerEl.style.cursor = 'pointer';
-        headerEl.style.userSelect = 'none';
-        headerEl.style.padding = '8px 0';
-        headerEl.style.fontWeight = 'bold';
-        
-        // Create content container (initially hidden)
-        const contentEl = collapsibleContainer.createEl('div', { cls: 'provider-content' });
-        contentEl.style.display = 'none';
-        contentEl.style.paddingLeft = '16px';
-        
-        // Toggle functionality
-        let isExpanded = false;
-        headerEl.addEventListener('click', () => {
-            isExpanded = !isExpanded;
-            contentEl.style.display = isExpanded ? 'block' : 'none';
-            headerEl.textContent = `${isExpanded ? '▼' : '▶'} Ollama Configuration`;
-        });
-        
-        // Show current server URL status
-        const serverStatus = this.plugin.settings.ollamaSettings.serverUrl ? 
-            `Server URL: ${this.plugin.settings.ollamaSettings.serverUrl}` : 
+        const serverUrlStatus = settings.serverUrl ?
+            `Server URL: ${settings.serverUrl}` :
             'No Server URL configured';
-        contentEl.createEl('div', { 
-            cls: 'setting-item-description',
-            text: `${serverStatus} (Configure in main plugin settings)`
-        });
 
-        this.renderProviderTestSection(contentEl, 'ollama', 'Ollama');
-        
-        // Add help text for Ollama setup
         contentEl.createEl('div', {
             cls: 'setting-item-description',
-            text: 'To use Ollama:'
+            text: `${settings.apiKey ? apiKeyStatus : serverUrlStatus} (Configure in main plugin settings)`
         });
-        const steps = contentEl.createEl('ol');
-        steps.createEl('li', { text: 'Install Ollama from https://ollama.ai' });
-        steps.createEl('li', { text: 'Start the Ollama server' });
-        steps.createEl('li', { text: 'Pull models using "ollama pull model-name"' });
-        steps.createEl('li', { text: 'Test connection to see available models' });
+
+        if (renderSpecificSettings) {
+            renderSpecificSettings(contentEl);
+        }
+
+        this.renderProviderTestSection(contentEl, providerType, displayName);
     }
 
-    private renderProviderTestSection(containerEl: HTMLElement, provider: string, displayName: string): void {
+    /**
+     * Renders the OpenAI configuration section.
+     * @param containerEl The HTML element to render the section into.
+     */
+    private renderOpenAIConfig(containerEl: HTMLElement): void {
+        this._renderCollapsibleProviderConfig(containerEl, 'openai', 'OpenAI', (contentEl) => {
+            new Setting(contentEl)
+                .setName('OpenAI Base URL')
+                .setDesc('Custom base URL for OpenAI API (optional)')
+                .addText(text => text
+                    .setPlaceholder('https://api.openai.com/v1')
+                    .setValue(this.plugin.settings.openaiSettings.baseUrl || '')
+                    .onChange(async (value) => {
+                        this.plugin.settings.openaiSettings.baseUrl = value;
+                        await this.plugin.saveSettings();
+                    }));
+        });
+    }
+
+    /**
+     * Renders the Anthropic configuration section.
+     * @param containerEl The HTML element to render the section into.
+     */
+    private renderAnthropicConfig(containerEl: HTMLElement): void {
+        this._renderCollapsibleProviderConfig(containerEl, 'anthropic', 'Anthropic');
+    }
+
+    /**
+     * Renders the Gemini configuration section.
+     * @param containerEl The HTML element to render the section into.
+     */
+    private renderGeminiConfig(containerEl: HTMLElement): void {
+        this._renderCollapsibleProviderConfig(containerEl, 'gemini', 'Gemini');
+    }
+
+    /**
+     * Renders the Ollama configuration section.
+     * @param containerEl The HTML element to render the section into.
+     */
+    private renderOllamaConfig(containerEl: HTMLElement): void {
+        this._renderCollapsibleProviderConfig(containerEl, 'ollama', 'Ollama', (contentEl) => {
+            contentEl.createEl('div', {
+                cls: 'setting-item-description',
+                text: 'To use Ollama:'
+            });
+            const steps = contentEl.createEl('ol');
+            steps.createEl('li', { text: 'Install Ollama from https://ollama.ai' });
+            steps.createEl('li', { text: 'Start the Ollama server' });
+            steps.createEl('li', { text: 'Pull models using "ollama pull model-name"' });
+            steps.createEl('li', { text: 'Test connection to see available models' });
+        });
+    }
+
+    /**
+     * Renders the provider connection test section.
+     * @param containerEl The HTML element to render the section into.
+     * @param provider The internal identifier for the provider (e.g., 'openai').
+     * @param displayName The user-friendly name of the provider (e.g., 'OpenAI').
+     */
+    private renderProviderTestSection(containerEl: HTMLElement, provider: 'openai' | 'anthropic' | 'gemini' | 'ollama', displayName: string): void {
         const settings = this.plugin.settings[`${provider}Settings` as keyof typeof this.plugin.settings] as any;
         
         new Setting(containerEl)
@@ -562,7 +438,7 @@ export class SettingsSections {
                     try {
                         // Temporarily set provider to test connection
                         const originalProvider = this.plugin.settings.provider;
-                        this.plugin.settings.provider = provider as any;
+                        this.plugin.settings.provider = provider;
                         
                         const providerInstance = createProvider(this.plugin.settings);
                         const result = await providerInstance.testConnection();
@@ -610,14 +486,16 @@ export class SettingsSections {
 
         if (settings.availableModels && settings.availableModels.length > 0) {
             containerEl.createEl('div', {
-                text: `Available models: ${settings.availableModels.join(', ')}`,
+                text: `Available models: ${settings.availableModels.map((m: any) => m.name || m.id).join(', ')}`,
                 cls: 'setting-item-description'
             });
         }
     }
 
     /**
-     * Render all settings sections in order (for modal or view)
+     * Renders all settings sections in order for a modal or view.
+     * @param containerEl The HTML element to render the sections into.
+     * @param options Optional settings, e.g., onRefresh callback.
      */
     async renderAllSettings(containerEl: HTMLElement, options?: { onRefresh?: () => void }) {
         await this.renderAIModelSettings(containerEl, options?.onRefresh);
