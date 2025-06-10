@@ -71,18 +71,28 @@ export default class MyPlugin extends Plugin {
 
     // --- Agent Mode State Integration ---
 
-    private agentModeSettings: AgentModeSettings = {
-        enabled: false,
-        maxToolCalls: 5,
-        timeoutMs: 30000,
-    };
-
-    private agentModeEnabled(): boolean {
-        return this.agentModeSettings.enabled;
+    getAgentModeSettings(): AgentModeSettings {
+        return this.settings.agentMode || {
+            enabled: false,
+            maxToolCalls: 5,
+            timeoutMs: 30000
+        };
     }
 
-    private setAgentModeEnabled(enabled: boolean) {
-        this.agentModeSettings.enabled = enabled;
+    isAgentModeEnabled(): boolean {
+        return this.getAgentModeSettings().enabled;
+    }
+
+    async setAgentModeEnabled(enabled: boolean) {
+        if (!this.settings.agentMode) {
+            this.settings.agentMode = {
+                enabled: false,
+                maxToolCalls: 5,
+                timeoutMs: 30000
+            };
+        }
+        this.settings.agentMode.enabled = enabled;
+        await this.saveSettings();
         this.emitSettingsChange();
     }
 

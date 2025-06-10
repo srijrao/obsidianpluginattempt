@@ -234,6 +234,9 @@ export interface MyPluginSettings {
 
     /** Model setting presets */
     modelSettingPresets?: ModelSettingPreset[];
+
+    /** Agent Mode settings */
+    agentMode?: AgentModeSettings;
 }
 
 /**
@@ -324,6 +327,11 @@ export const DEFAULT_SETTINGS: MyPluginSettings = {
             enableStreaming: true
         }
     ],
+    agentMode: {
+        enabled: false,
+        maxToolCalls: 5,
+        timeoutMs: 30000
+    }
 };
 
 /**

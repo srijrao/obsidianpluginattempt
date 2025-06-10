@@ -9,6 +9,8 @@ import { handleCopyAll, handleSaveNote, handleClearChat, handleSettings, handleH
 import { saveChatAsNote, loadChatYamlAndApplySettings } from './chat/chatPersistence';
 import { renderChatHistory } from './chat/chatHistoryUtils';
 import { ChatHelpModal } from './chat/ChatHelpModal';
+import { AgentResponseHandler, AgentContext } from './chat/AgentResponseHandler';
+import { ToolCommand, ToolResult } from '../types';
 
 export const VIEW_TYPE_CHAT = 'chat-view';
 
@@ -19,6 +21,7 @@ export class ChatView extends ItemView {
     private inputContainer: HTMLElement;
     private activeStream: AbortController | null = null;
     private referenceNoteIndicator: HTMLElement; // Add this property
+    private agentResponseHandler: AgentResponseHandler | null = null;
 
     constructor(leaf: WorkspaceLeaf, plugin: MyPlugin) {
         super(leaf);
@@ -72,18 +75,51 @@ export class ChatView extends ItemView {
             this.plugin.saveSettings();
             this.updateReferenceNoteIndicator();
         });
-        // --- AGENT MODE BUTTON HANDLER (UI only) ---
-        if (!(this.plugin as any).agentModeEnabled) (this.plugin as any).agentModeEnabled = false;
-        ui.agentModeButton.addEventListener('click', () => {
-            (this.plugin as any).agentModeEnabled = !(this.plugin as any).agentModeEnabled;
-            if ((this.plugin as any).agentModeEnabled) {
-                ui.agentModeButton.classList.add('active');
-                new Notice('Agent Mode enabled (UI only)');
-            } else {
-                ui.agentModeButton.classList.remove('active');
-                new Notice('Agent Mode disabled (UI only)');
+        // --- AGENT MODE INTEGRATION ---
+        // Initialize agent response handler
+        this.agentResponseHandler = new AgentResponseHandler({
+            app: this.app,
+            plugin: this.plugin,
+            messagesContainer: this.messagesContainer,
+            onToolResult: (toolResult: ToolResult, command: ToolCommand) => {
+                // Handle tool results (could display inline notifications, etc.)
+                if (toolResult.success) {
+                    console.log(`Tool ${command.action} completed successfully`, toolResult.data);
+                } else {
+                    console.error(`Tool ${command.action} failed:`, toolResult.error);
+                }
             }
         });
+
+        // Agent mode button handler
+        ui.agentModeButton.addEventListener('click', async () => {
+            const isCurrentlyEnabled = this.plugin.isAgentModeEnabled();
+            await this.plugin.setAgentModeEnabled(!isCurrentlyEnabled);
+            
+            if (this.plugin.isAgentModeEnabled()) {
+                ui.agentModeButton.classList.add('active');
+                ui.agentModeButton.setAttribute('title', 'Agent Mode: ON - AI can use tools');
+                new Notice('Agent Mode enabled - AI can now use tools');
+                
+                // Reset execution count for new session
+                if (this.agentResponseHandler) {
+                    this.agentResponseHandler.resetExecutionCount();
+                }
+            } else {
+                ui.agentModeButton.classList.remove('active');
+                ui.agentModeButton.setAttribute('title', 'Agent Mode: OFF - Regular chat');
+                new Notice('Agent Mode disabled');
+            }
+        });
+
+        // Initialize button state
+        if (this.plugin.isAgentModeEnabled()) {
+            ui.agentModeButton.classList.add('active');
+            ui.agentModeButton.setAttribute('title', 'Agent Mode: ON - AI can use tools');
+        } else {
+            ui.agentModeButton.classList.remove('active');
+            ui.agentModeButton.setAttribute('title', 'Agent Mode: OFF - Regular chat');
+        }
         // All styling for messagesContainer and textarea is handled by CSS
 
         // --- HANDLE SEND MESSAGE ---
@@ -407,7 +443,19 @@ export class ChatView extends ItemView {
         originalContent?: string
     ): Promise<string> {
         let responseContent = '';
-        this.activeStream = new AbortController();        try {
+        this.activeStream = new AbortController();
+
+        // Add agent system prompt if agent mode is enabled
+        if (this.plugin.isAgentModeEnabled()) {
+            // Import agent system prompt and prepend to system message
+            const { AGENT_SYSTEM_PROMPT } = await import('../promptConstants');
+            const systemMessageIndex = messages.findIndex(msg => msg.role === 'system');
+            if (systemMessageIndex !== -1) {
+                messages[systemMessageIndex].content = AGENT_SYSTEM_PROMPT + '\n\n' + messages[systemMessageIndex].content;
+            }
+        }
+
+        try {
             // Use unified model if available, fallback to legacy provider selection
             const provider = this.plugin.settings.selectedModel 
                 ? createProviderFromUnifiedModel(this.plugin.settings, this.plugin.settings.selectedModel)
@@ -436,6 +484,40 @@ export class ChatView extends ItemView {
                     abortController: this.activeStream
                 }
             );
+
+            // Process response for agent tools if agent mode is enabled
+            if (this.plugin.isAgentModeEnabled() && this.agentResponseHandler) {
+                const agentResult = await this.agentResponseHandler.processResponse(responseContent);
+                
+                if (agentResult.hasTools) {
+                    // Update the display with processed text and tool execution results
+                    const finalContent = agentResult.processedText + 
+                        this.agentResponseHandler.formatToolResultsForDisplay(agentResult.toolResults);
+                    
+                    const contentEl = container.querySelector('.message-content') as HTMLElement;
+                    if (contentEl) {
+                        container.dataset.rawContent = finalContent;
+                        contentEl.empty();
+                        await MarkdownRenderer.render(
+                            this.app,
+                            finalContent,
+                            contentEl,
+                            '',
+                            this
+                        );
+                        this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+                    }
+
+                    // Add tool results to context for future messages
+                    const toolResultMessage = this.agentResponseHandler.createToolResultMessage(agentResult.toolResults);
+                    if (toolResultMessage) {
+                        // This could be used to add context for follow-up messages
+                        console.log('Tool results for context:', toolResultMessage);
+                    }
+
+                    responseContent = finalContent;
+                }
+            }
 
             // Update chat history if we have a timestamp
             if (originalTimestamp && responseContent.trim() !== "") {

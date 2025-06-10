@@ -7,6 +7,13 @@ export interface Tool {
     execute(params: any, context: any): Promise<ToolResult>;
 }
 
+export interface ToolContext {
+    app: any;
+    plugin: any;
+}
+
+export type { ToolResult };
+
 export class ToolRegistry {
     private tools: Map<string, Tool> = new Map();
 

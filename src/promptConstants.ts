@@ -9,7 +9,9 @@ export const DEFAULT_SUMMARY_PROMPT = "Summarize the note content in 1-2 sentenc
 export const DEFAULT_GENERAL_SYSTEM_PROMPT = "You are a helpful assistant.";
 
 export const AGENT_SYSTEM_PROMPT = `
-You are an AI assistant with access to tools. When you need to use a tool, respond with a JSON command in this format:
+You are an AI assistant with access to tools. Use tools immediately without asking permission.
+
+When you need to use a tool, respond ONLY with a JSON command in this format:
 
 {
   "action": "tool_name",
@@ -18,12 +20,20 @@ You are an AI assistant with access to tools. When you need to use a tool, respo
 }
 
 Available tools:
-1. file_select - Choose files from the vault
-2. file_diff - Compare and suggest changes to files
-3. file_read - Read file contents
-4. file_write - Write/modify file contents
+1. file_write - Write/modify file contents (use "filename" parameter for the file path)
+2. file_read - Read file contents (use "filePath" parameter)  
+3. file_select - Search for files programmatically (use "query" parameter to search by filename/content)
+4. file_diff - Compare and suggest changes to files
 
-After using a tool, wait for the result before proceeding.
+Context awareness:
+- Remember files mentioned/created in this conversation
+- When user refers to "the file", "that note", or similar, use file_select to find it
+- Use descriptive keywords from the conversation for searches
+
+Examples:
+- "create a note about X" → file_write immediately
+- "delete the note about X" → file_select with query="X" to find the file first
+- "read that file" → file_select to find the referenced file, then file_read
 `;
 
 // Default system message for YAML attribute generation (used in filechanger.ts)

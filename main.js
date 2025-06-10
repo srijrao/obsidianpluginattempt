@@ -29,17 +29,45 @@ var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "sy
 // src/promptConstants.ts
 var promptConstants_exports = {};
 __export(promptConstants_exports, {
+  AGENT_SYSTEM_PROMPT: () => AGENT_SYSTEM_PROMPT,
   DEFAULT_GENERAL_SYSTEM_PROMPT: () => DEFAULT_GENERAL_SYSTEM_PROMPT,
   DEFAULT_SUMMARY_PROMPT: () => DEFAULT_SUMMARY_PROMPT,
   DEFAULT_TITLE_PROMPT: () => DEFAULT_TITLE_PROMPT,
   DEFAULT_YAML_SYSTEM_MESSAGE: () => DEFAULT_YAML_SYSTEM_MESSAGE
 });
-var DEFAULT_TITLE_PROMPT, DEFAULT_SUMMARY_PROMPT, DEFAULT_GENERAL_SYSTEM_PROMPT, DEFAULT_YAML_SYSTEM_MESSAGE;
+var DEFAULT_TITLE_PROMPT, DEFAULT_SUMMARY_PROMPT, DEFAULT_GENERAL_SYSTEM_PROMPT, AGENT_SYSTEM_PROMPT, DEFAULT_YAML_SYSTEM_MESSAGE;
 var init_promptConstants = __esm({
   "src/promptConstants.ts"() {
     DEFAULT_TITLE_PROMPT = "You are a title generator. You will give succinct titles that do not contain backslashes, forward slashes, or colons. Only generate a title as your response.";
     DEFAULT_SUMMARY_PROMPT = "Summarize the note content in 1-2 sentences, focusing on the main ideas and purpose.";
     DEFAULT_GENERAL_SYSTEM_PROMPT = "You are a helpful assistant.";
+    AGENT_SYSTEM_PROMPT = `
+You are an AI assistant with access to tools. Use tools immediately without asking permission.
+
+When you need to use a tool, respond ONLY with a JSON command in this format:
+
+{
+  "action": "tool_name",
+  "parameters": { /* tool-specific parameters */ },
+  "requestId": "unique_id"
+}
+
+Available tools:
+1. file_write - Write/modify file contents (use "filename" parameter for the file path)
+2. file_read - Read file contents (use "filePath" parameter)  
+3. file_select - Search for files programmatically (use "query" parameter to search by filename/content)
+4. file_diff - Compare and suggest changes to files
+
+Context awareness:
+- Remember files mentioned/created in this conversation
+- When user refers to "the file", "that note", or similar, use file_select to find it
+- Use descriptive keywords from the conversation for searches
+
+Examples:
+- "create a note about X" \u2192 file_write immediately
+- "delete the note about X" \u2192 file_select with query="X" to find the file first
+- "read that file" \u2192 file_select to find the referenced file, then file_read
+`;
     DEFAULT_YAML_SYSTEM_MESSAGE = "You are an assistant that generates YAML attribute values for Obsidian notes. Read the note and generate a value for the specified YAML field. Only output the value, not the key or extra text.";
   }
 });
@@ -134,7 +162,12 @@ var init_types = __esm({
           maxTokens: 1e3,
           enableStreaming: true
         }
-      ]
+      ],
+      agentMode: {
+        enabled: false,
+        maxToolCalls: 5,
+        timeoutMs: 3e4
+      }
     };
   }
 });
@@ -7780,7 +7813,7 @@ async function generateNoteTitle(app, settings, processMessages2) {
   debug2("Starting generateNoteTitle");
   const activeFile = app.workspace.getActiveFile();
   if (!activeFile) {
-    new import_obsidian14.Notice("No active note found.");
+    new import_obsidian21.Notice("No active note found.");
     return;
   }
   let noteContent = await app.vault.cachedRead(activeFile);
@@ -7805,7 +7838,7 @@ async function generateNoteTitle(app, settings, processMessages2) {
       settings.enableContextNotes = originalEnableContextNotes;
       if (!processedMessages || processedMessages.length === 0) {
         debug2("No processed messages!");
-        new import_obsidian14.Notice("No valid messages to send to the model. Please check your note content.");
+        new import_obsidian21.Notice("No valid messages to send to the model. Please check your note content.");
         return;
       }
       debug2("Calling provider.getCompletion");
@@ -7833,28 +7866,28 @@ async function generateNoteTitle(app, settings, processMessages2) {
             const newPath = parentPath ? parentPath + "/" + sanitized + ext : sanitized + ext;
             if (file.path !== newPath) {
               await app.fileManager.renameFile(file, newPath);
-              new import_obsidian14.Notice(`Note renamed to: ${sanitized}${ext}`);
+              new import_obsidian21.Notice(`Note renamed to: ${sanitized}${ext}`);
             } else {
-              new import_obsidian14.Notice(`Note title is already: ${sanitized}${ext}`);
+              new import_obsidian21.Notice(`Note title is already: ${sanitized}${ext}`);
             }
           }
         } else if (outputMode === "metadata") {
           const file = app.workspace.getActiveFile();
           if (file) {
             await upsertYamlField(app, file, "title", title);
-            new import_obsidian14.Notice(`Inserted title into metadata: ${title}`);
+            new import_obsidian21.Notice(`Inserted title into metadata: ${title}`);
           }
         } else {
           try {
             await navigator.clipboard.writeText(title);
-            new import_obsidian14.Notice(`Generated title (copied): ${title}`);
+            new import_obsidian21.Notice(`Generated title (copied): ${title}`);
           } catch (e) {
-            new import_obsidian14.Notice(`Generated title: ${title}`);
+            new import_obsidian21.Notice(`Generated title: ${title}`);
           }
         }
       } else {
         debug2("No title generated after sanitization.");
-        new import_obsidian14.Notice("No title generated.");
+        new import_obsidian21.Notice("No title generated.");
       }
     } catch (processError) {
       debug2("Error in processMessages or provider.getCompletion:", processError);
@@ -7862,14 +7895,14 @@ async function generateNoteTitle(app, settings, processMessages2) {
       throw processError;
     }
   } catch (err) {
-    new import_obsidian14.Notice("Error generating title: " + ((_b = err == null ? void 0 : err.message) != null ? _b : err));
+    new import_obsidian21.Notice("Error generating title: " + ((_b = err == null ? void 0 : err.message) != null ? _b : err));
   }
 }
 async function generateYamlAttribute(app, settings, processMessages2, attributeName, prompt, outputMode = "metadata") {
   debug2(`Starting generateYamlAttribute for ${attributeName}`);
   const activeFile = app.workspace.getActiveFile();
   if (!activeFile) {
-    new import_obsidian14.Notice("No active note found.");
+    new import_obsidian21.Notice("No active note found.");
     return;
   }
   let noteContent = await app.vault.cachedRead(activeFile);
@@ -7888,7 +7921,7 @@ async function generateYamlAttribute(app, settings, processMessages2, attributeN
     settings.enableContextNotes = originalEnableContextNotes;
     if (!processedMessages || processedMessages.length === 0) {
       debug2("No processed messages!");
-      new import_obsidian14.Notice("No valid messages to send to the model. Please check your note content.");
+      new import_obsidian21.Notice("No valid messages to send to the model. Please check your note content.");
       return;
     }
     debug2("Calling provider.getCompletion");
@@ -7909,18 +7942,18 @@ async function generateYamlAttribute(app, settings, processMessages2, attributeN
       debug2("Output mode:", outputMode);
       if (outputMode === "metadata") {
         await upsertYamlField(app, activeFile, attributeName, value);
-        new import_obsidian14.Notice(`Inserted ${attributeName} into metadata: ${value}`);
+        new import_obsidian21.Notice(`Inserted ${attributeName} into metadata: ${value}`);
       } else {
         try {
           await navigator.clipboard.writeText(value);
-          new import_obsidian14.Notice(`Generated ${attributeName} (copied): ${value}`);
+          new import_obsidian21.Notice(`Generated ${attributeName} (copied): ${value}`);
         } catch (e) {
-          new import_obsidian14.Notice(`Generated ${attributeName}: ${value}`);
+          new import_obsidian21.Notice(`Generated ${attributeName}: ${value}`);
         }
       }
     } else {
       debug2(`No value generated for ${attributeName} after sanitization.`);
-      new import_obsidian14.Notice(`No value generated for ${attributeName}.`);
+      new import_obsidian21.Notice(`No value generated for ${attributeName}.`);
     }
   } catch (processError) {
     debug2("Error in processMessages or provider.getCompletion:", processError);
@@ -7954,10 +7987,10 @@ ${newYaml}
   }
   await app.vault.modify(file, newContent);
 }
-var import_obsidian14, DEBUG;
+var import_obsidian21, DEBUG;
 var init_filechanger = __esm({
   "src/filechanger.ts"() {
-    import_obsidian14 = require("obsidian");
+    import_obsidian21 = require("obsidian");
     init_providers();
     init_promptConstants();
     init_js_yaml();
@@ -7972,7 +8005,7 @@ __export(main_exports, {
   default: () => MyPlugin
 });
 module.exports = __toCommonJS(main_exports);
-var import_obsidian15 = require("obsidian");
+var import_obsidian22 = require("obsidian");
 init_types();
 init_providers();
 
@@ -8479,7 +8512,7 @@ var MyPluginSettingTab = class extends import_obsidian2.PluginSettingTab {
 };
 
 // src/components/chat.ts
-var import_obsidian11 = require("obsidian");
+var import_obsidian18 = require("obsidian");
 init_providers();
 
 // src/components/chat/ChatHistoryManager.ts
@@ -8871,10 +8904,895 @@ async function renderChatHistory({
   }
 }
 
+// src/components/chat/AgentResponseHandler.ts
+var import_obsidian17 = require("obsidian");
+
+// src/components/chat/CommandParser.ts
+var CommandParser = class {
+  /**
+   * Parse AI response to extract tool commands and regular text
+   * @param response The AI response string
+   * @returns Object containing separated text and commands
+   */
+  parseResponse(response) {
+    const commands = [];
+    let cleanText = response;
+    console.log("CommandParser: Parsing response:", response);
+    const extractedCommands = this.extractCommands(response);
+    console.log("CommandParser: Extracted commands:", extractedCommands);
+    for (const command of extractedCommands) {
+      if (this.validateCommand(command.command)) {
+        console.log("CommandParser: Valid command found:", command.command);
+        commands.push(command.command);
+        cleanText = cleanText.replace(command.originalText, "").trim();
+      } else {
+        console.log("CommandParser: Invalid command:", command.command);
+      }
+    }
+    console.log("CommandParser: Final result - text:", cleanText, "commands:", commands);
+    return {
+      text: cleanText,
+      commands
+    };
+  }
+  /**
+   * Validate that a command has the required structure
+   * @param command The command to validate
+   * @returns True if command is valid
+   */
+  validateCommand(command) {
+    if (!command || typeof command !== "object") {
+      return false;
+    }
+    if (!command.action || typeof command.action !== "string") {
+      return false;
+    }
+    if (!command.parameters || typeof command.parameters !== "object") {
+      return false;
+    }
+    const validActions = ["file_select", "file_diff", "file_read", "file_write"];
+    if (!validActions.includes(command.action)) {
+      return false;
+    }
+    return true;
+  }
+  /**
+   * Extract JSON commands from text
+   * @param text The text to extract commands from
+   * @returns Array of extracted commands with their original text
+   */
+  extractCommands(text) {
+    const commands = [];
+    try {
+      const parsed = JSON.parse(text.trim());
+      if (parsed.action && parsed.parameters) {
+        commands.push({
+          command: {
+            action: parsed.action,
+            parameters: parsed.parameters,
+            requestId: parsed.requestId || this.generateRequestId()
+          },
+          originalText: text.trim()
+        });
+        return commands;
+      }
+    } catch (error) {
+    }
+    const patterns = [
+      /```json\s*(\{[\s\S]*?\})\s*```/g,
+      // JSON in code blocks
+      /```\s*(\{[\s\S]*?\})\s*```/g,
+      // JSON in generic code blocks
+      /(\{[\s\S]*?\})/g
+      // Any JSON-like objects
+    ];
+    for (const pattern of patterns) {
+      let match;
+      while ((match = pattern.exec(text)) !== null) {
+        const jsonText = match[1];
+        const originalText = match[0];
+        try {
+          const parsed = JSON.parse(jsonText);
+          if (parsed.action && parsed.parameters) {
+            commands.push({
+              command: {
+                action: parsed.action,
+                parameters: parsed.parameters,
+                requestId: parsed.requestId || this.generateRequestId()
+              },
+              originalText
+            });
+          }
+        } catch (error) {
+          continue;
+        }
+      }
+      pattern.lastIndex = 0;
+    }
+    return commands;
+  }
+  /**
+   * Generate a unique request ID
+   * @returns A unique request ID string
+   */
+  generateRequestId() {
+    return `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  }
+};
+
+// src/components/chat/ToolRegistry.ts
+var ToolRegistry = class {
+  constructor() {
+    __publicField(this, "tools", /* @__PURE__ */ new Map());
+  }
+  register(tool) {
+    this.tools.set(tool.name, tool);
+  }
+  async execute(command) {
+    const tool = this.tools.get(command.action);
+    if (!tool) {
+      return {
+        success: false,
+        error: `Tool not found: ${command.action}`,
+        requestId: command.requestId
+      };
+    }
+    try {
+      const result = await tool.execute(command.parameters, {});
+      return {
+        ...result,
+        requestId: command.requestId
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message || String(error),
+        requestId: command.requestId
+      };
+    }
+  }
+  getAvailableTools() {
+    return Array.from(this.tools.values());
+  }
+};
+
+// src/components/chat/tools/FileSelectTool.ts
+var import_obsidian12 = require("obsidian");
+
+// src/components/FileChooserModal.ts
+var import_obsidian11 = require("obsidian");
+init_js_yaml();
+function getVaultItem(app, path, type2) {
+  const item = app.vault.getAbstractFileByPath(path);
+  if (!item) {
+    return null;
+  }
+  if (type2 === "file" && item instanceof import_obsidian11.TFile) {
+    return item;
+  }
+  if (type2 === "folder" && item instanceof import_obsidian11.TFolder) {
+    return item;
+  }
+  return null;
+}
+function itemNotFoundError(path, type2) {
+  return `${type2.charAt(0).toUpperCase() + type2.slice(1)} not found or is not a ${type2}: "${path}"`;
+}
+function filterAndFormatResults(items, query, getItemText, options, noResultsMessage) {
+  const lowerQuery = query.toLowerCase();
+  const results = items.filter((item) => getItemText(item).toLowerCase().includes(lowerQuery));
+  if (!results.length) {
+    return noResultsMessage || `No results found matching: "${query}"`;
+  }
+  return results.slice(0, options == null ? void 0 : options.maxResults).map((item) => `- ${item.path}`).join("\n");
+}
+function searchFiles(app, query, options) {
+  const files = (options == null ? void 0 : options.markdownOnly) === false ? app.vault.getFiles() : app.vault.getMarkdownFiles();
+  return filterAndFormatResults(
+    files,
+    query,
+    (f) => `${f.path} ${f.basename}`,
+    options,
+    `No files found matching: "${query}"`
+  );
+}
+async function createFile(app, filePath, content = "") {
+  try {
+    await app.vault.create(filePath, content);
+    return `Created file '${filePath}'.`;
+  } catch (err) {
+    return `Failed to create file: ${(err == null ? void 0 : err.message) || err}`;
+  }
+}
+async function readFile(app, filePath) {
+  const file = getVaultItem(app, filePath, "file");
+  if (!file) return itemNotFoundError(filePath, "file");
+  try {
+    return await app.vault.read(file);
+  } catch (err) {
+    return `Failed to read file: ${(err == null ? void 0 : err.message) || err}`;
+  }
+}
+async function writeFile(app, filePath, content) {
+  const file = getVaultItem(app, filePath, "file");
+  if (!file) return itemNotFoundError(filePath, "file");
+  try {
+    await app.vault.modify(file, content);
+    return `Wrote to file '${filePath}'.`;
+  } catch (err) {
+    return `Failed to write file: ${(err == null ? void 0 : err.message) || err}`;
+  }
+}
+
+// src/components/chat/tools/FileSelectTool.ts
+var FileSelectTool = class {
+  constructor(app) {
+    this.app = app;
+    __publicField(this, "name", "file_select");
+    __publicField(this, "description", "Search and select files from the vault programmatically");
+    __publicField(this, "parameters", {
+      query: {
+        type: "string",
+        description: "Search query to find files (searches filename and path)",
+        required: false
+      },
+      filterType: {
+        type: "string",
+        enum: ["markdown", "image", "all"],
+        description: "Type of files to show",
+        default: "markdown"
+      },
+      maxResults: {
+        type: "number",
+        description: "Maximum number of results to return",
+        default: 10
+      }
+    });
+  }
+  async execute(params, context) {
+    const { query = "", filterType = "markdown", maxResults = 10 } = params;
+    try {
+      const searchResult = searchFiles(this.app, query, {
+        maxResults,
+        markdownOnly: filterType === "markdown"
+      });
+      if (searchResult.startsWith("No files found")) {
+        return {
+          success: false,
+          error: `No files found matching query: "${query}"`
+        };
+      }
+      const filePaths = searchResult.split("\n").filter((line) => line.startsWith("- ")).map((line) => line.substring(2));
+      if (filePaths.length === 0) {
+        return {
+          success: false,
+          error: `No files found matching query: "${query}"`
+        };
+      }
+      const files = filePaths.map((path) => {
+        var _a2, _b, _c;
+        const file = this.app.vault.getAbstractFileByPath(path);
+        if (file instanceof import_obsidian12.TFile) {
+          return {
+            path: file.path,
+            name: file.name,
+            basename: file.basename,
+            extension: file.extension,
+            size: ((_a2 = file.stat) == null ? void 0 : _a2.size) || 0,
+            created: ((_b = file.stat) == null ? void 0 : _b.ctime) || 0,
+            modified: ((_c = file.stat) == null ? void 0 : _c.mtime) || 0
+          };
+        }
+        return null;
+      }).filter((file) => file !== null);
+      return {
+        success: true,
+        data: {
+          files,
+          count: files.length,
+          query: query || "all files"
+        }
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: `Failed to search files: ${error.message}`
+      };
+    }
+  }
+  getFileFilter(filterType) {
+    switch (filterType) {
+      case "markdown":
+        return (file) => file.extension === "md";
+      case "image":
+        return (file) => {
+          var _a2;
+          return ["png", "jpg", "jpeg", "gif", "svg", "webp"].includes((_a2 = file.extension) == null ? void 0 : _a2.toLowerCase());
+        };
+      case "all":
+      default:
+        return () => true;
+    }
+  }
+};
+
+// src/components/chat/tools/FileReadTool.ts
+var import_obsidian13 = require("obsidian");
+var FileReadTool = class {
+  constructor(app) {
+    this.app = app;
+    __publicField(this, "name", "file_read");
+    __publicField(this, "description", "Read file contents from the vault");
+    __publicField(this, "parameters", {
+      filePath: {
+        type: "string",
+        description: "Path to the file to read (relative to vault root)",
+        required: true
+      },
+      maxSize: {
+        type: "number",
+        description: "Maximum file size in bytes (default 1MB)",
+        default: 1024 * 1024
+      }
+    });
+  }
+  async execute(params, context) {
+    var _a2, _b, _c;
+    const { filePath, maxSize = 1024 * 1024 } = params;
+    if (!filePath) {
+      return {
+        success: false,
+        error: "filePath parameter is required"
+      };
+    }
+    try {
+      const file = this.app.vault.getAbstractFileByPath(filePath);
+      if (file && file instanceof import_obsidian13.TFile && ((_a2 = file.stat) == null ? void 0 : _a2.size) && file.stat.size > maxSize) {
+        return {
+          success: false,
+          error: `File too large (${file.stat.size} bytes, max ${maxSize} bytes): ${filePath}`
+        };
+      }
+      const content = await readFile(this.app, filePath);
+      if (content.startsWith("File not found") || content.startsWith("Failed to read")) {
+        return {
+          success: false,
+          error: content
+        };
+      }
+      return {
+        success: true,
+        data: {
+          content,
+          filePath,
+          size: file instanceof import_obsidian13.TFile ? ((_b = file.stat) == null ? void 0 : _b.size) || 0 : 0,
+          modified: file instanceof import_obsidian13.TFile ? ((_c = file.stat) == null ? void 0 : _c.mtime) || 0 : 0,
+          extension: file instanceof import_obsidian13.TFile ? file.extension : void 0
+        }
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: `Failed to read file: ${error.message}`
+      };
+    }
+  }
+};
+
+// src/components/chat/tools/FileWriteTool.ts
+var import_obsidian14 = require("obsidian");
+var FileWriteTool = class {
+  constructor(app) {
+    this.app = app;
+    __publicField(this, "name", "file_write");
+    __publicField(this, "description", "Write/modify file contents in the vault");
+    __publicField(this, "parameters", {
+      filePath: {
+        type: "string",
+        description: "Path to the file to write (relative to vault root)",
+        required: true
+      },
+      content: {
+        type: "string",
+        description: "Content to write to the file",
+        required: true
+      },
+      createIfNotExists: {
+        type: "boolean",
+        description: "Whether to create the file if it does not exist",
+        default: true
+      },
+      backup: {
+        type: "boolean",
+        description: "Whether to create a backup before modifying existing files",
+        default: true
+      }
+    });
+  }
+  async execute(params, context) {
+    const filePath = params.filePath || params.filename;
+    const { content, createIfNotExists = true, backup = true } = params;
+    if (!filePath) {
+      return {
+        success: false,
+        error: "filePath or filename parameter is required"
+      };
+    }
+    if (content === void 0 || content === null) {
+      return {
+        success: false,
+        error: "content parameter is required"
+      };
+    }
+    try {
+      const file = this.app.vault.getAbstractFileByPath(filePath);
+      if (!file) {
+        if (!createIfNotExists) {
+          return {
+            success: false,
+            error: `File not found and createIfNotExists is false: ${filePath}`
+          };
+        }
+        const result2 = await createFile(this.app, filePath, content);
+        if (result2.startsWith("Failed to create")) {
+          return {
+            success: false,
+            error: result2
+          };
+        }
+        return {
+          success: true,
+          data: {
+            action: "created",
+            filePath,
+            size: content.length
+          }
+        };
+      }
+      if (!(file instanceof import_obsidian14.TFile)) {
+        return {
+          success: false,
+          error: `Path is not a file: ${filePath}`
+        };
+      }
+      if (backup) {
+        const backupPath = `${filePath}.backup.${Date.now()}`;
+        const originalContent = await this.app.vault.read(file);
+        try {
+          await createFile(this.app, backupPath, originalContent);
+        } catch (error) {
+          console.warn(`Failed to create backup for ${filePath}:`, error);
+        }
+      }
+      const result = await writeFile(this.app, filePath, content);
+      if (result.startsWith("Failed to write")) {
+        return {
+          success: false,
+          error: result
+        };
+      }
+      return {
+        success: true,
+        data: {
+          action: "modified",
+          filePath,
+          size: content.length,
+          backupCreated: backup
+        }
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: `Failed to write file: ${error.message}`
+      };
+    }
+  }
+};
+
+// src/components/chat/tools/FileDiffTool.ts
+var import_obsidian16 = require("obsidian");
+
+// src/components/chat/filediffhandler.ts
+var import_obsidian15 = require("obsidian");
+function createSuggestionBlock(suggestionText) {
+  return `\`\`\`suggestion
+${suggestionText}
+\`\`\``;
+}
+async function insertFileChangeSuggestion(vault, file, suggestionText, position) {
+  const content = await vault.read(file);
+  const lines = content.split("\n");
+  const suggestionBlock = createSuggestionBlock(suggestionText);
+  if (position !== void 0 && position >= 0 && position <= lines.length) {
+    lines.splice(position, 0, suggestionBlock);
+  } else {
+    lines.push(suggestionBlock);
+  }
+  await vault.modify(file, lines.join("\n"));
+}
+var FileChangeSuggestionsModal = class extends import_obsidian15.Modal {
+  constructor(app, suggestions) {
+    super(app);
+    __publicField(this, "suggestions");
+    this.suggestions = suggestions;
+  }
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.createEl("h2", { text: "File Change Suggestions" });
+    this.suggestions.forEach((s) => {
+      const container = contentEl.createDiv("suggestion-container");
+      container.createEl("h4", { text: s.file.path });
+      container.createEl("pre", { text: s.suggestionText });
+      const btnRow = container.createDiv("suggestion-btn-row");
+      const acceptBtn = btnRow.createEl("button", { text: "Accept" });
+      const rejectBtn = btnRow.createEl("button", { text: "Reject" });
+      acceptBtn.onclick = () => {
+        var _a2;
+        (_a2 = s.onAccept) == null ? void 0 : _a2.call(s);
+        new import_obsidian15.Notice("Suggestion accepted");
+        this.close();
+      };
+      rejectBtn.onclick = () => {
+        var _a2;
+        (_a2 = s.onReject) == null ? void 0 : _a2.call(s);
+        new import_obsidian15.Notice("Suggestion rejected");
+        this.close();
+      };
+    });
+  }
+  onClose() {
+    this.contentEl.empty();
+  }
+};
+function showFileChangeSuggestionsModal(app, suggestions) {
+  new FileChangeSuggestionsModal(app, suggestions).open();
+}
+function formatSuggestionForDisplay(suggestionText) {
+  const html = suggestionText.split("\n").map((line) => {
+    if (line.startsWith("+")) return `<span class="suggestion-add">${line}</span>`;
+    if (line.startsWith("-")) return `<span class="suggestion-remove">${line}</span>`;
+    return line;
+  }).join("<br>");
+  return `<pre>${html}</pre>`;
+}
+
+// src/components/chat/tools/FileDiffTool.ts
+var FileDiffTool = class {
+  constructor(app) {
+    this.app = app;
+    __publicField(this, "name", "file_diff");
+    __publicField(this, "description", "Compare and suggest changes to files");
+    __publicField(this, "parameters", {
+      filePath: {
+        type: "string",
+        description: "Path to the file to compare/modify (relative to vault root)",
+        required: true
+      },
+      originalContent: {
+        type: "string",
+        description: "Original content for comparison (if not provided, reads from file)",
+        required: false
+      },
+      suggestedContent: {
+        type: "string",
+        description: "Suggested new content for the file",
+        required: true
+      },
+      action: {
+        type: "string",
+        enum: ["compare", "apply", "suggest"],
+        description: "Action to perform: compare files, apply changes, or show suggestion UI",
+        default: "suggest"
+      },
+      insertPosition: {
+        type: "number",
+        description: "Line number to insert suggestion at (for suggest action)",
+        required: false
+      }
+    });
+  }
+  async execute(params, context) {
+    const { filePath, originalContent, suggestedContent, action = "suggest", insertPosition } = params;
+    if (!filePath) {
+      return {
+        success: false,
+        error: "filePath parameter is required"
+      };
+    }
+    if (!suggestedContent) {
+      return {
+        success: false,
+        error: "suggestedContent parameter is required"
+      };
+    }
+    try {
+      const file = this.app.vault.getAbstractFileByPath(filePath);
+      if (!file || !(file instanceof import_obsidian16.TFile)) {
+        return {
+          success: false,
+          error: `File not found: ${filePath}`
+        };
+      }
+      const currentContent = originalContent || await this.app.vault.read(file);
+      switch (action) {
+        case "compare":
+          return this.compareFiles(currentContent, suggestedContent, filePath);
+        case "apply":
+          return this.applyChanges(file, suggestedContent);
+        case "suggest":
+        default:
+          return this.showSuggestion(file, currentContent, suggestedContent, insertPosition);
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: `Failed to process file diff: ${error.message}`
+      };
+    }
+  }
+  compareFiles(originalContent, suggestedContent, filePath) {
+    const diff = this.generateDiff(originalContent, suggestedContent);
+    return {
+      success: true,
+      data: {
+        action: "compare",
+        filePath,
+        diff,
+        formattedDiff: formatSuggestionForDisplay(diff),
+        hasChanges: diff.length > 0
+      }
+    };
+  }
+  async applyChanges(file, suggestedContent) {
+    try {
+      await this.app.vault.modify(file, suggestedContent);
+      return {
+        success: true,
+        data: {
+          action: "apply",
+          filePath: file.path,
+          size: suggestedContent.length
+        }
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: `Failed to apply changes: ${error.message}`
+      };
+    }
+  }
+  async showSuggestion(file, originalContent, suggestedContent, insertPosition) {
+    const diff = this.generateDiff(originalContent, suggestedContent);
+    if (diff.length === 0) {
+      return {
+        success: true,
+        data: {
+          action: "suggest",
+          filePath: file.path,
+          message: "No changes detected"
+        }
+      };
+    }
+    try {
+      const suggestion = {
+        file,
+        suggestionText: diff,
+        onAccept: () => {
+          this.app.vault.modify(file, suggestedContent);
+        },
+        onReject: () => {
+        }
+      };
+      showFileChangeSuggestionsModal(this.app, [suggestion]);
+      if (insertPosition !== void 0) {
+        await insertFileChangeSuggestion(this.app.vault, file, diff, insertPosition);
+      }
+      return {
+        success: true,
+        data: {
+          action: "suggest",
+          filePath: file.path,
+          diff,
+          suggestionInserted: insertPosition !== void 0
+        }
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: `Failed to show suggestion: ${error.message}`
+      };
+    }
+  }
+  generateDiff(original, suggested) {
+    const originalLines = original.split("\n");
+    const suggestedLines = suggested.split("\n");
+    const diff = [];
+    const maxLines = Math.max(originalLines.length, suggestedLines.length);
+    for (let i = 0; i < maxLines; i++) {
+      const originalLine = originalLines[i] || "";
+      const suggestedLine = suggestedLines[i] || "";
+      if (originalLine !== suggestedLine) {
+        if (originalLine && !suggestedLine) {
+          diff.push(`-${originalLine}`);
+        } else if (!originalLine && suggestedLine) {
+          diff.push(`+${suggestedLine}`);
+        } else if (originalLine !== suggestedLine) {
+          diff.push(`-${originalLine}`);
+          diff.push(`+${suggestedLine}`);
+        }
+      }
+    }
+    return diff.join("\n");
+  }
+};
+
+// src/components/chat/AgentResponseHandler.ts
+var AgentResponseHandler = class {
+  constructor(context) {
+    this.context = context;
+    __publicField(this, "commandParser");
+    __publicField(this, "toolRegistry");
+    __publicField(this, "executionCount", 0);
+    this.commandParser = new CommandParser();
+    this.toolRegistry = new ToolRegistry();
+    this.initializeTools();
+  }
+  initializeTools() {
+    this.toolRegistry.register(new FileSelectTool(this.context.app));
+    this.toolRegistry.register(new FileReadTool(this.context.app));
+    this.toolRegistry.register(new FileWriteTool(this.context.app));
+    this.toolRegistry.register(new FileDiffTool(this.context.app));
+  }
+  /**
+   * Process an AI response and handle any tool commands
+   * @param response The AI response text
+   * @returns Object containing processed text and execution results
+   */
+  async processResponse(response) {
+    console.log("AgentResponseHandler: Processing response, agent mode enabled:", this.context.plugin.isAgentModeEnabled());
+    console.log("AgentResponseHandler: Response content:", response);
+    if (!this.context.plugin.isAgentModeEnabled()) {
+      console.log("AgentResponseHandler: Agent mode disabled, returning original response");
+      return {
+        processedText: response,
+        toolResults: [],
+        hasTools: false
+      };
+    }
+    const { text, commands } = this.commandParser.parseResponse(response);
+    console.log("AgentResponseHandler: Parsed text:", text);
+    console.log("AgentResponseHandler: Found commands:", commands);
+    if (commands.length === 0) {
+      console.log("AgentResponseHandler: No commands found, returning original text");
+      return {
+        processedText: text,
+        toolResults: [],
+        hasTools: false
+      };
+    }
+    const agentSettings = this.context.plugin.getAgentModeSettings();
+    if (this.executionCount >= agentSettings.maxToolCalls) {
+      new import_obsidian17.Notice(`Agent mode: Maximum tool calls (${agentSettings.maxToolCalls}) reached`);
+      return {
+        processedText: text + "\n\n*[Tool execution limit reached]*",
+        toolResults: [],
+        hasTools: true
+      };
+    }
+    const toolResults = [];
+    for (const command of commands) {
+      try {
+        const result = await this.executeToolWithTimeout(command, agentSettings.timeoutMs);
+        toolResults.push({ command, result });
+        this.executionCount++;
+        this.context.onToolResult(result, command);
+        if (this.executionCount >= agentSettings.maxToolCalls) {
+          break;
+        }
+      } catch (error) {
+        const errorResult = {
+          success: false,
+          error: `Tool execution failed: ${error.message}`,
+          requestId: command.requestId
+        };
+        toolResults.push({ command, result: errorResult });
+        this.context.onToolResult(errorResult, command);
+      }
+    }
+    return {
+      processedText: text,
+      toolResults,
+      hasTools: true
+    };
+  }
+  /**
+   * Execute a tool command with timeout
+   */
+  async executeToolWithTimeout(command, timeoutMs) {
+    return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error(`Tool execution timed out after ${timeoutMs}ms`));
+      }, timeoutMs);
+      this.toolRegistry.execute(command).then((result) => {
+        clearTimeout(timeout);
+        resolve(result);
+      }).catch((error) => {
+        clearTimeout(timeout);
+        reject(error);
+      });
+    });
+  }
+  /**
+   * Reset execution count (call at start of new conversation)
+   */
+  resetExecutionCount() {
+    this.executionCount = 0;
+  }
+  /**
+   * Get available tools information
+   */
+  getAvailableTools() {
+    return this.toolRegistry.getAvailableTools();
+  }
+  /**
+   * Get tool execution statistics
+   */
+  getExecutionStats() {
+    const agentSettings = this.context.plugin.getAgentModeSettings();
+    return {
+      executionCount: this.executionCount,
+      maxToolCalls: agentSettings.maxToolCalls,
+      remaining: Math.max(0, agentSettings.maxToolCalls - this.executionCount)
+    };
+  }
+  /**
+   * Create a message with tool execution results for context
+   */
+  createToolResultMessage(toolResults) {
+    if (toolResults.length === 0) {
+      return null;
+    }
+    const resultText = toolResults.map(({ command, result }) => {
+      const status = result.success ? "\u2713" : "\u2717";
+      const data = result.success ? JSON.stringify(result.data, null, 2) : result.error;
+      return `${status} Tool: ${command.action}
+Parameters: ${JSON.stringify(command.parameters, null, 2)}
+Result: ${data}`;
+    }).join("\n\n");
+    return {
+      role: "system",
+      content: `Tool execution results:
+
+${resultText}`
+    };
+  }
+  /**
+   * Format tool results for display in chat
+   */
+  formatToolResultsForDisplay(toolResults) {
+    if (toolResults.length === 0) {
+      return "";
+    }
+    const resultText = toolResults.map(({ command, result }) => {
+      const status = result.success ? "\u2705" : "\u274C";
+      const action = command.action.replace("_", " ");
+      if (result.success) {
+        return `${status} **${action}** completed successfully`;
+      } else {
+        return `${status} **${action}** failed: ${result.error}`;
+      }
+    }).join("\n");
+    return `
+
+**Tool Execution:**
+${resultText}`;
+  }
+};
+
 // src/components/chat.ts
 var VIEW_TYPE_CHAT = "chat-view";
-var ChatView = class extends import_obsidian11.ItemView {
-  // Add this property
+var ChatView = class extends import_obsidian18.ItemView {
   constructor(leaf, plugin) {
     super(leaf);
     __publicField(this, "plugin");
@@ -8883,6 +9801,8 @@ var ChatView = class extends import_obsidian11.ItemView {
     __publicField(this, "inputContainer");
     __publicField(this, "activeStream", null);
     __publicField(this, "referenceNoteIndicator");
+    // Add this property
+    __publicField(this, "agentResponseHandler", null);
     this.plugin = plugin;
     this.chatHistoryManager = new ChatHistoryManager(this.app.vault, this.plugin.manifest.id, "chat-history.json");
   }
@@ -8903,7 +9823,7 @@ var ChatView = class extends import_obsidian11.ItemView {
     try {
       loadedHistory = await this.chatHistoryManager.getHistory();
     } catch (e) {
-      new import_obsidian11.Notice("Failed to load chat history.");
+      new import_obsidian18.Notice("Failed to load chat history.");
       loadedHistory = [];
     }
     const ui = createChatUI(this.app, contentEl);
@@ -8924,17 +9844,41 @@ var ChatView = class extends import_obsidian11.ItemView {
       this.plugin.saveSettings();
       this.updateReferenceNoteIndicator();
     });
-    if (!this.plugin.agentModeEnabled) this.plugin.agentModeEnabled = false;
-    ui.agentModeButton.addEventListener("click", () => {
-      this.plugin.agentModeEnabled = !this.plugin.agentModeEnabled;
-      if (this.plugin.agentModeEnabled) {
-        ui.agentModeButton.classList.add("active");
-        new import_obsidian11.Notice("Agent Mode enabled (UI only)");
-      } else {
-        ui.agentModeButton.classList.remove("active");
-        new import_obsidian11.Notice("Agent Mode disabled (UI only)");
+    this.agentResponseHandler = new AgentResponseHandler({
+      app: this.app,
+      plugin: this.plugin,
+      messagesContainer: this.messagesContainer,
+      onToolResult: (toolResult, command) => {
+        if (toolResult.success) {
+          console.log(`Tool ${command.action} completed successfully`, toolResult.data);
+        } else {
+          console.error(`Tool ${command.action} failed:`, toolResult.error);
+        }
       }
     });
+    ui.agentModeButton.addEventListener("click", async () => {
+      const isCurrentlyEnabled = this.plugin.isAgentModeEnabled();
+      await this.plugin.setAgentModeEnabled(!isCurrentlyEnabled);
+      if (this.plugin.isAgentModeEnabled()) {
+        ui.agentModeButton.classList.add("active");
+        ui.agentModeButton.setAttribute("title", "Agent Mode: ON - AI can use tools");
+        new import_obsidian18.Notice("Agent Mode enabled - AI can now use tools");
+        if (this.agentResponseHandler) {
+          this.agentResponseHandler.resetExecutionCount();
+        }
+      } else {
+        ui.agentModeButton.classList.remove("active");
+        ui.agentModeButton.setAttribute("title", "Agent Mode: OFF - Regular chat");
+        new import_obsidian18.Notice("Agent Mode disabled");
+      }
+    });
+    if (this.plugin.isAgentModeEnabled()) {
+      ui.agentModeButton.classList.add("active");
+      ui.agentModeButton.setAttribute("title", "Agent Mode: ON - AI can use tools");
+    } else {
+      ui.agentModeButton.classList.remove("active");
+      ui.agentModeButton.setAttribute("title", "Agent Mode: OFF - Regular chat");
+    }
     const sendMessage = async () => {
       const content = textarea.value.trim();
       if (!content) return;
@@ -8972,7 +9916,7 @@ var ChatView = class extends import_obsidian11.ItemView {
         }
       } catch (error) {
         if (error.name !== "AbortError") {
-          new import_obsidian11.Notice(`Error: ${error.message}`);
+          new import_obsidian18.Notice(`Error: ${error.message}`);
           await createMessageElement(this.app, "assistant", `Error: ${error.message}`, this.chatHistoryManager, this.plugin, (el) => this.regenerateResponse(el), this);
         }
       } finally {
@@ -9066,7 +10010,7 @@ var ChatView = class extends import_obsidian11.ItemView {
         content
       });
     } catch (e) {
-      new import_obsidian11.Notice("Failed to save chat message: " + e.message);
+      new import_obsidian18.Notice("Failed to save chat message: " + e.message);
     }
   }
   async onClose() {
@@ -9135,7 +10079,7 @@ var ChatView = class extends import_obsidian11.ItemView {
       await this.streamAssistantResponse(messages, assistantContainer, originalTimestamp, originalContent);
     } catch (error) {
       if (error.name !== "AbortError") {
-        new import_obsidian11.Notice(`Error: ${error.message}`);
+        new import_obsidian18.Notice(`Error: ${error.message}`);
         assistantContainer.remove();
       }
     } finally {
@@ -9194,6 +10138,13 @@ ${currentNoteContent}`
   async streamAssistantResponse(messages, container, originalTimestamp, originalContent) {
     let responseContent = "";
     this.activeStream = new AbortController();
+    if (this.plugin.isAgentModeEnabled()) {
+      const { AGENT_SYSTEM_PROMPT: AGENT_SYSTEM_PROMPT2 } = await Promise.resolve().then(() => (init_promptConstants(), promptConstants_exports));
+      const systemMessageIndex = messages.findIndex((msg) => msg.role === "system");
+      if (systemMessageIndex !== -1) {
+        messages[systemMessageIndex].content = AGENT_SYSTEM_PROMPT2 + "\n\n" + messages[systemMessageIndex].content;
+      }
+    }
     try {
       const provider = this.plugin.settings.selectedModel ? createProviderFromUnifiedModel(this.plugin.settings, this.plugin.settings.selectedModel) : createProvider(this.plugin.settings);
       await provider.getCompletion(
@@ -9207,7 +10158,7 @@ ${currentNoteContent}`
             if (contentEl) {
               container.dataset.rawContent = responseContent;
               contentEl.empty();
-              await import_obsidian11.MarkdownRenderer.render(
+              await import_obsidian18.MarkdownRenderer.render(
                 this.app,
                 responseContent,
                 contentEl,
@@ -9220,6 +10171,30 @@ ${currentNoteContent}`
           abortController: this.activeStream
         }
       );
+      if (this.plugin.isAgentModeEnabled() && this.agentResponseHandler) {
+        const agentResult = await this.agentResponseHandler.processResponse(responseContent);
+        if (agentResult.hasTools) {
+          const finalContent = agentResult.processedText + this.agentResponseHandler.formatToolResultsForDisplay(agentResult.toolResults);
+          const contentEl = container.querySelector(".message-content");
+          if (contentEl) {
+            container.dataset.rawContent = finalContent;
+            contentEl.empty();
+            await import_obsidian18.MarkdownRenderer.render(
+              this.app,
+              finalContent,
+              contentEl,
+              "",
+              this
+            );
+            this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+          }
+          const toolResultMessage = this.agentResponseHandler.createToolResultMessage(agentResult.toolResults);
+          if (toolResultMessage) {
+            console.log("Tool results for context:", toolResultMessage);
+          }
+          responseContent = finalContent;
+        }
+      }
       if (originalTimestamp && responseContent.trim() !== "") {
         await this.chatHistoryManager.updateMessage(
           originalTimestamp,
@@ -9278,9 +10253,9 @@ function parseSelection(selection, chatSeparator, chatBoundaryString) {
 }
 
 // src/components/ModelSettingsView.ts
-var import_obsidian12 = require("obsidian");
+var import_obsidian19 = require("obsidian");
 var VIEW_TYPE_MODEL_SETTINGS2 = "model-settings-view";
-var ModelSettingsView = class extends import_obsidian12.ItemView {
+var ModelSettingsView = class extends import_obsidian19.ItemView {
   constructor(leaf, plugin) {
     super(leaf);
     __publicField(this, "plugin");
@@ -9312,7 +10287,7 @@ var ModelSettingsView = class extends import_obsidian12.ItemView {
 };
 
 // src/components/noteUtils.ts
-var import_obsidian13 = require("obsidian");
+var import_obsidian20 = require("obsidian");
 function extractContentUnderHeader(content, headerText) {
   const lines = content.split("\n");
   let foundHeader = false;
@@ -9360,7 +10335,7 @@ async function processObsidianLinks(content, app, settings, visitedNotes = /* @_
         }
         const headerMatch = filePath.match(/(.*?)#(.*)/);
         let extractedContent = "";
-        if (file && file instanceof import_obsidian13.TFile) {
+        if (file && file instanceof import_obsidian20.TFile) {
           if (visitedNotes.has(file.path)) {
             extractedContent = "[Recursive link omitted: already included]";
           } else {
@@ -9387,10 +10362,10 @@ ${extractedContent}
 `
           );
         } else {
-          new import_obsidian13.Notice(`File not found: ${filePath}. Ensure the file name and path are correct.`);
+          new import_obsidian20.Notice(`File not found: ${filePath}. Ensure the file name and path are correct.`);
         }
       } catch (error) {
-        new import_obsidian13.Notice(`Error processing link for ${filePath}: ${error.message}`);
+        new import_obsidian20.Notice(`Error processing link for ${filePath}: ${error.message}`);
       }
     }
   }
@@ -9414,7 +10389,7 @@ async function processContextNotes(contextNotesText, app) {
             (f) => f.basename.toLowerCase() === baseFileName.toLowerCase() || f.name.toLowerCase() === `${baseFileName.toLowerCase()}.md`
           ) || null;
         }
-        if (file && file instanceof import_obsidian13.TFile) {
+        if (file && file instanceof import_obsidian20.TFile) {
           const noteContent = await app.vault.cachedRead(file);
           contextContent += `---
 From note: ${file.basename}
@@ -9503,7 +10478,7 @@ The current time is ${currentTime} ${timeZoneString}.`;
 
 // src/main.ts
 var VIEW_TYPE_MODEL_SETTINGS = "model-settings-view";
-var _MyPlugin = class _MyPlugin extends import_obsidian15.Plugin {
+var _MyPlugin = class _MyPlugin extends import_obsidian22.Plugin {
   constructor() {
     super(...arguments);
     __publicField(this, "settings");
@@ -9539,6 +10514,29 @@ var _MyPlugin = class _MyPlugin extends import_obsidian15.Plugin {
       this.addRibbonIcon(ribbonIcon, ribbonTitle, options.callback || (() => {
       }));
     }
+  }
+  // --- Agent Mode State Integration ---
+  getAgentModeSettings() {
+    return this.settings.agentMode || {
+      enabled: false,
+      maxToolCalls: 5,
+      timeoutMs: 3e4
+    };
+  }
+  isAgentModeEnabled() {
+    return this.getAgentModeSettings().enabled;
+  }
+  async setAgentModeEnabled(enabled) {
+    if (!this.settings.agentMode) {
+      this.settings.agentMode = {
+        enabled: false,
+        maxToolCalls: 5,
+        timeoutMs: 3e4
+      };
+    }
+    this.settings.agentMode.enabled = enabled;
+    await this.saveSettings();
+    this.emitSettingsChange();
   }
   /**
    * Helper to insert a separator with correct spacing in the editor.
@@ -9581,7 +10579,7 @@ ${separator}
    * @param message The message to display.
    */
   showNotice(message) {
-    new import_obsidian15.Notice(message);
+    new import_obsidian22.Notice(message);
   }
   /**
    * Helper for clipboard actions with a notice.
