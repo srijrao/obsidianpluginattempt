@@ -1,4 +1,4 @@
-import { App, Plugin, Setting, WorkspaceLeaf, ItemView, Notice, TFile } from 'obsidian';
+import { App, Plugin, Notice, TFile } from 'obsidian';
 import { MyPluginSettings, Message, DEFAULT_SETTINGS } from './types';
 import { createProvider, createProviderFromUnifiedModel } from '../providers';
 import { MyPluginSettingTab } from './settings';
@@ -6,7 +6,6 @@ import { ChatView, VIEW_TYPE_CHAT } from './components/chat';
 import { parseSelection } from './components/parseSelection';
 import { ModelSettingsView } from './components/ModelSettingsView';
 import { processMessages, getContextNotesContent } from './components/noteUtils';
-import { debounce } from './components/utils';
 import { getSystemMessage } from './components/systemMessage';
 
 const VIEW_TYPE_MODEL_SETTINGS = 'model-settings-view';
@@ -50,9 +49,85 @@ export default class MyPlugin extends Plugin {
     // Track view registration to prevent duplicate registration errors
     private static registeredViewTypes = new Set<string>();
 
+    // DRY: Helper to add a ribbon icon
+    private addRibbon(icon: string, title: string, callback: () => void) {
+        this.addRibbonIcon(icon, title, callback);
+    }
+
+    // DRY: Helper to add a command
+    private addPluginCommand(options: {
+        id: string;
+        name: string;
+        callback?: () => void;
+        editorCallback?: (editor: any) => void;
+    }) {
+        this.addCommand(options);
+    }
+
+    // DRY: Helper to insert separator with correct spacing
+    private insertSeparator(editor: any, position: any, separator: string) {
+        const lineContent = editor.getLine(position.line) ?? '';
+        let prefix = '';
+        if (lineContent.trim() !== '') {
+            prefix = '\n';
+        }
+        editor.replaceRange(`${prefix}\n${separator}\n`, position);
+        return position.line + (prefix ? 1 : 0) + 2;
+    }
+
+    // DRY: Helper to move cursor after inserting text
+    private moveCursorAfterInsert(editor: any, startPos: any, insertText: string) {
+        const lines = insertText.split('\n');
+        if (lines.length === 1) {
+            editor.setCursor({
+                line: startPos.line,
+                ch: startPos.ch + insertText.length
+            });
+        } else {
+            editor.setCursor({
+                line: startPos.line + lines.length - 1,
+                ch: lines[lines.length - 1].length
+            });
+        }
+    }
+
+    // DRY: Helper to show a notice
+    private showNotice(message: string) {
+        new Notice(message);
+    }
+
+    // DRY: Helper for clipboard actions with notice
+    private async copyToClipboard(text: string, successMsg: string, failMsg: string) {
+        try {
+            await navigator.clipboard.writeText(text);
+            this.showNotice(successMsg);
+        } catch (error) {
+            this.showNotice(failMsg);
+            console.error('Clipboard error:', error);
+        }
+    }
+
+    // DRY: Helper to activate chat view and load messages
+    private async activateChatViewAndLoadMessages(messages: Message[]) {
+        await this.activateChatView();
+        const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_CHAT);
+        if (!leaves.length) {
+            this.showNotice('Could not find chat view.');
+            return;
+        }
+        const chatView = leaves[0].view as ChatView;
+        chatView.clearMessages();
+        for (const msg of messages) {
+            if (msg.role === 'user' || msg.role === 'assistant') {
+                await chatView["addMessage"](msg.role, msg.content);
+            }
+        }
+        chatView.scrollMessagesToBottom();
+        this.showNotice('Loaded chat note into chat.');
+    }
+
     async onload() {
         await this.loadSettings();
-
         this.addSettingTab(new MyPluginSettingTab(this.app, this));
 
         // Register views only if not already registered
@@ -72,14 +147,9 @@ export default class MyPlugin extends Plugin {
             MyPlugin.registeredViewTypes.add(VIEW_TYPE_CHAT);
         }
 
-        // Add ribbon icons
-        this.addRibbonIcon('file-sliders', 'Open AI Settings', () => {
-            this.activateView();
-        });
-
-        this.addRibbonIcon('message-square', 'Open AI Chat', () => {
-            this.activateChatView();
-        });
+        // DRY: Add ribbon icons
+        this.addRibbon('file-sliders', 'Open AI Settings', () => this.activateView());
+        this.addRibbon('message-square', 'Open AI Chat', () => this.activateChatView());
 
         this.app.workspace.onLayoutReady(() => {
             if (this.settings.autoOpenModelSettings) {
@@ -87,7 +157,8 @@ export default class MyPlugin extends Plugin {
             }
         });
 
-        this.addCommand({
+        // DRY: Add commands
+        this.addPluginCommand({
             id: 'ai-completion',
             name: 'Get AI Completion',
             editorCallback: async (editor) => {
@@ -137,28 +208,9 @@ export default class MyPlugin extends Plugin {
 
                 // Ensure there's a clear separation between user request and AI response
                 
-                // Get the content of the line where we want to insert the separator
-                const lineContent = editor.getLine(insertPosition.line) ?? '';
-                
-                // This variable will hold a newline character if we need to add one before the separator
-                let prefix = '';
-                
-                // If the current line is not empty (has text), add a newline before the separator
-                if (lineContent.trim() !== '') {
-                    prefix = '\n';
-                }
-                
-                // Insert the separator with a single blank line before and after
-                editor.replaceRange(`${prefix}\n${this.settings.chatSeparator}\n`, insertPosition);
-                
-                // Calculate the new position for the cursor after inserting the separator
-                // - If we added a prefix, move down one line
-                // - Move down one line for the newline before separator
-                // - Move down one line for the separator itself
-                let currentPosition = {
-                    line: insertPosition.line + (prefix ? 1 : 0) + 2,
-                    ch: 0
-                };
+                // Use DRY helper for separator insertion
+                const sepLine = this.insertSeparator(editor, insertPosition, this.settings.chatSeparator);
+                let currentPosition = { line: sepLine, ch: 0 };
 
                 this.activeStream = new AbortController();                try {
                     // Use unified model if available, fallback to legacy provider selection
@@ -224,92 +276,65 @@ export default class MyPlugin extends Plugin {
             }
         });
 
-        this.addCommand({
+        this.addPluginCommand({
             id: 'end-ai-stream',
             name: 'End AI Stream',
             callback: () => {
                 if (this.activeStream) {
                     this.activeStream.abort();
                     this.activeStream = null;
-                    new Notice('AI stream ended');
+                    this.showNotice('AI stream ended');
                 } else {
-                    new Notice('No active AI stream to end');
+                    this.showNotice('No active AI stream to end');
                 }
             }
         });
 
-        this.addCommand({
+        this.addPluginCommand({
             id: 'show-ai-settings',
             name: 'Show AI Settings',
-            callback: () => {
-                this.activateView();
-            }
+            callback: () => this.activateView()
         });
 
-        this.addCommand({
+        this.addPluginCommand({
             id: 'show-ai-chat',
             name: 'Show AI Chat',
-            callback: () => {
-                this.activateChatView();
-            }
+            callback: () => this.activateChatView()
         });
 
-        this.addCommand({
+        this.addPluginCommand({
             id: 'copy-active-note-name',
             name: 'Copy Active Note Name',
             callback: async () => {
                 const activeFile = this.app.workspace.getActiveFile();
                 if (activeFile) {
                     const noteName = `[[${activeFile.basename}]]`;
-                    try {
-                        await navigator.clipboard.writeText(noteName);
-                        new Notice(`Copied to clipboard: ${noteName}`);
-                    } catch (error) {
-                        new Notice('Failed to copy to clipboard');
-                        console.error('Clipboard error:', error);
-                    }
+                    await this.copyToClipboard(noteName, `Copied to clipboard: ${noteName}`, 'Failed to copy to clipboard');
                 } else {
-                    new Notice('No active note found');
+                    this.showNotice('No active note found');
                 }
             }
         });
 
-        this.addCommand({
+        this.addPluginCommand({
             id: 'insert-chat-start-string',
             name: 'Insert Chat Start String',
             editorCallback: (editor) => {
                 const chatStartString = this.settings.chatStartString ?? '';
                 if (!chatStartString) {
-                    new Notice('chatStartString is not set in settings.');
+                    this.showNotice('chatStartString is not set in settings.');
                     return;
                 }
                 const cursor = editor.getCursor();
                 editor.replaceRange(chatStartString, cursor);
-
-                // Move cursor to the end of the inserted chatStartString
-                const lines = chatStartString.split('\n');
-                if (lines.length === 1) {
-                    // Single line insert
-                    editor.setCursor({
-                        line: cursor.line,
-                        ch: cursor.ch + chatStartString.length
-                    });
-                } else {
-                    // Multi-line insert
-                    editor.setCursor({
-                        line: cursor.line + lines.length - 1,
-                        ch: lines[lines.length - 1].length
-                    });
-                }
+                this.moveCursorAfterInsert(editor, cursor, chatStartString);
             }
         });
 
-        // Generate Note Title Command
-        this.addCommand({
+        this.addPluginCommand({
             id: 'generate-note-title',
             name: 'Generate Note Title',
             callback: async () => {
-                // Import here to avoid circular dependency issues if any
                 const { generateNoteTitle } = await import("./filechanger");
                 await generateNoteTitle(
                     this.app,
@@ -319,7 +344,7 @@ export default class MyPlugin extends Plugin {
             }
         });
 
-        // this.addCommand({
+        // this.addPluginCommand({
         //     id: 'generate-note-summary',
         //     name: 'Generate Note Summary',
         //     callback: async () => {
@@ -331,39 +356,22 @@ export default class MyPlugin extends Plugin {
         //         );
         //     }
         // });
-
-        this.addCommand({
+        this.addPluginCommand({
             id: 'load-chat-note-into-chat',
             name: 'Load Chat Note into Chat',
             callback: async () => {
                 let file: TFile | null = this.app.workspace.getActiveFile();
                 if (!file) {
-                    new Notice('No active note found. Please open a note to load as chat.');
+                    this.showNotice('No active note found. Please open a note to load as chat.');
                     return;
                 }
                 let content = await this.app.vault.read(file);
                 const messages = parseSelection(content, this.settings.chatSeparator);
                 if (!messages.length) {
-                    new Notice('No chat messages found in the selected note.');
+                    this.showNotice('No chat messages found in the selected note.');
                     return;
                 }
-                await this.activateChatView();
-                const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_CHAT);
-                if (!leaves.length) {
-                    new Notice('Could not find chat view.');
-                    return;
-                }
-                const chatView = leaves[0].view as ChatView;
-                // Clear chat UI (and history will be rebuilt as we add messages)
-                chatView.clearMessages();
-                // Add each parsed message
-                for (const msg of messages) {
-                    if (msg.role === 'user' || msg.role === 'assistant') {
-                        await chatView["addMessage"](msg.role, msg.content);
-                    }
-                }
-                chatView.scrollMessagesToBottom();
-                new Notice('Loaded chat note into chat.');
+                await this.activateChatViewAndLoadMessages(messages);
             }
         });
         // --- Register YAML Attribute Generator Commands ---
@@ -387,7 +395,7 @@ export default class MyPlugin extends Plugin {
             for (const gen of this.settings.yamlAttributeGenerators) {
                 if (!gen.attributeName || !gen.prompt || !gen.commandName) continue;
                 const id = `generate-yaml-attribute-${gen.attributeName}`;
-                this.addCommand({
+                this.addPluginCommand({
                     id,
                     name: gen.commandName,
                     callback: async () => {

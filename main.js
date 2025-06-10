@@ -9408,6 +9408,74 @@ var _MyPlugin = class _MyPlugin extends import_obsidian15.Plugin {
       }
     }
   }
+  // DRY: Helper to add a ribbon icon
+  addRibbon(icon, title, callback) {
+    this.addRibbonIcon(icon, title, callback);
+  }
+  // DRY: Helper to add a command
+  addPluginCommand(options) {
+    this.addCommand(options);
+  }
+  // DRY: Helper to insert separator with correct spacing
+  insertSeparator(editor, position, separator) {
+    var _a2;
+    const lineContent = (_a2 = editor.getLine(position.line)) != null ? _a2 : "";
+    let prefix = "";
+    if (lineContent.trim() !== "") {
+      prefix = "\n";
+    }
+    editor.replaceRange(`${prefix}
+${separator}
+`, position);
+    return position.line + (prefix ? 1 : 0) + 2;
+  }
+  // DRY: Helper to move cursor after inserting text
+  moveCursorAfterInsert(editor, startPos, insertText) {
+    const lines = insertText.split("\n");
+    if (lines.length === 1) {
+      editor.setCursor({
+        line: startPos.line,
+        ch: startPos.ch + insertText.length
+      });
+    } else {
+      editor.setCursor({
+        line: startPos.line + lines.length - 1,
+        ch: lines[lines.length - 1].length
+      });
+    }
+  }
+  // DRY: Helper to show a notice
+  showNotice(message) {
+    new import_obsidian15.Notice(message);
+  }
+  // DRY: Helper for clipboard actions with notice
+  async copyToClipboard(text, successMsg, failMsg) {
+    try {
+      await navigator.clipboard.writeText(text);
+      this.showNotice(successMsg);
+    } catch (error) {
+      this.showNotice(failMsg);
+      console.error("Clipboard error:", error);
+    }
+  }
+  // DRY: Helper to activate chat view and load messages
+  async activateChatViewAndLoadMessages(messages) {
+    await this.activateChatView();
+    const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_CHAT);
+    if (!leaves.length) {
+      this.showNotice("Could not find chat view.");
+      return;
+    }
+    const chatView = leaves[0].view;
+    chatView.clearMessages();
+    for (const msg of messages) {
+      if (msg.role === "user" || msg.role === "assistant") {
+        await chatView["addMessage"](msg.role, msg.content);
+      }
+    }
+    chatView.scrollMessagesToBottom();
+    this.showNotice("Loaded chat note into chat.");
+  }
   async onload() {
     await this.loadSettings();
     this.addSettingTab(new MyPluginSettingTab(this.app, this));
@@ -9425,22 +9493,18 @@ var _MyPlugin = class _MyPlugin extends import_obsidian15.Plugin {
       );
       _MyPlugin.registeredViewTypes.add(VIEW_TYPE_CHAT);
     }
-    this.addRibbonIcon("file-sliders", "Open AI Settings", () => {
-      this.activateView();
-    });
-    this.addRibbonIcon("message-square", "Open AI Chat", () => {
-      this.activateChatView();
-    });
+    this.addRibbon("file-sliders", "Open AI Settings", () => this.activateView());
+    this.addRibbon("message-square", "Open AI Chat", () => this.activateChatView());
     this.app.workspace.onLayoutReady(() => {
       if (this.settings.autoOpenModelSettings) {
         this.activateView();
       }
     });
-    this.addCommand({
+    this.addPluginCommand({
       id: "ai-completion",
       name: "Get AI Completion",
       editorCallback: async (editor) => {
-        var _a2, _b, _c;
+        var _a2, _b;
         let text;
         let insertPosition;
         if (editor.somethingSelected()) {
@@ -9468,18 +9532,8 @@ var _MyPlugin = class _MyPlugin extends import_obsidian15.Plugin {
           new import_obsidian15.Notice("No valid messages found in the selection.");
           return;
         }
-        const lineContent = (_a2 = editor.getLine(insertPosition.line)) != null ? _a2 : "";
-        let prefix = "";
-        if (lineContent.trim() !== "") {
-          prefix = "\n";
-        }
-        editor.replaceRange(`${prefix}
-${this.settings.chatSeparator}
-`, insertPosition);
-        let currentPosition = {
-          line: insertPosition.line + (prefix ? 1 : 0) + 2,
-          ch: 0
-        };
+        const sepLine = this.insertSeparator(editor, insertPosition, this.settings.chatSeparator);
+        let currentPosition = { line: sepLine, ch: 0 };
         this.activeStream = new AbortController();
         try {
           const provider = this.settings.selectedModel ? createProviderFromUnifiedModel(this.settings, this.settings.selectedModel) : createProvider(this.settings);
@@ -9510,7 +9564,7 @@ ${this.settings.chatSeparator}
             }
           );
           flushBuffer();
-          const endLineContent = (_b = editor.getLine(currentPosition.line)) != null ? _b : "";
+          const endLineContent = (_a2 = editor.getLine(currentPosition.line)) != null ? _a2 : "";
           let endPrefix = "";
           if (endLineContent.trim() !== "") {
             endPrefix = "\n";
@@ -9525,7 +9579,7 @@ ${this.settings.chatSeparator}
           editor.setCursor(newCursorPos);
         } catch (error) {
           new import_obsidian15.Notice(`Error: ${error.message}`);
-          const errLineContent = (_c = editor.getLine(currentPosition.line)) != null ? _c : "";
+          const errLineContent = (_b = editor.getLine(currentPosition.line)) != null ? _b : "";
           let errPrefix = "";
           if (errLineContent.trim() !== "") {
             errPrefix = "\n";
@@ -9540,79 +9594,58 @@ ${this.settings.chatSeparator}
         }
       }
     });
-    this.addCommand({
+    this.addPluginCommand({
       id: "end-ai-stream",
       name: "End AI Stream",
       callback: () => {
         if (this.activeStream) {
           this.activeStream.abort();
           this.activeStream = null;
-          new import_obsidian15.Notice("AI stream ended");
+          this.showNotice("AI stream ended");
         } else {
-          new import_obsidian15.Notice("No active AI stream to end");
+          this.showNotice("No active AI stream to end");
         }
       }
     });
-    this.addCommand({
+    this.addPluginCommand({
       id: "show-ai-settings",
       name: "Show AI Settings",
-      callback: () => {
-        this.activateView();
-      }
+      callback: () => this.activateView()
     });
-    this.addCommand({
+    this.addPluginCommand({
       id: "show-ai-chat",
       name: "Show AI Chat",
-      callback: () => {
-        this.activateChatView();
-      }
+      callback: () => this.activateChatView()
     });
-    this.addCommand({
+    this.addPluginCommand({
       id: "copy-active-note-name",
       name: "Copy Active Note Name",
       callback: async () => {
         const activeFile = this.app.workspace.getActiveFile();
         if (activeFile) {
           const noteName = `[[${activeFile.basename}]]`;
-          try {
-            await navigator.clipboard.writeText(noteName);
-            new import_obsidian15.Notice(`Copied to clipboard: ${noteName}`);
-          } catch (error) {
-            new import_obsidian15.Notice("Failed to copy to clipboard");
-            console.error("Clipboard error:", error);
-          }
+          await this.copyToClipboard(noteName, `Copied to clipboard: ${noteName}`, "Failed to copy to clipboard");
         } else {
-          new import_obsidian15.Notice("No active note found");
+          this.showNotice("No active note found");
         }
       }
     });
-    this.addCommand({
+    this.addPluginCommand({
       id: "insert-chat-start-string",
       name: "Insert Chat Start String",
       editorCallback: (editor) => {
         var _a2;
         const chatStartString = (_a2 = this.settings.chatStartString) != null ? _a2 : "";
         if (!chatStartString) {
-          new import_obsidian15.Notice("chatStartString is not set in settings.");
+          this.showNotice("chatStartString is not set in settings.");
           return;
         }
         const cursor = editor.getCursor();
         editor.replaceRange(chatStartString, cursor);
-        const lines = chatStartString.split("\n");
-        if (lines.length === 1) {
-          editor.setCursor({
-            line: cursor.line,
-            ch: cursor.ch + chatStartString.length
-          });
-        } else {
-          editor.setCursor({
-            line: cursor.line + lines.length - 1,
-            ch: lines[lines.length - 1].length
-          });
-        }
+        this.moveCursorAfterInsert(editor, cursor, chatStartString);
       }
     });
-    this.addCommand({
+    this.addPluginCommand({
       id: "generate-note-title",
       name: "Generate Note Title",
       callback: async () => {
@@ -9624,36 +9657,22 @@ ${this.settings.chatSeparator}
         );
       }
     });
-    this.addCommand({
+    this.addPluginCommand({
       id: "load-chat-note-into-chat",
       name: "Load Chat Note into Chat",
       callback: async () => {
         let file = this.app.workspace.getActiveFile();
         if (!file) {
-          new import_obsidian15.Notice("No active note found. Please open a note to load as chat.");
+          this.showNotice("No active note found. Please open a note to load as chat.");
           return;
         }
         let content = await this.app.vault.read(file);
         const messages = parseSelection(content, this.settings.chatSeparator);
         if (!messages.length) {
-          new import_obsidian15.Notice("No chat messages found in the selected note.");
+          this.showNotice("No chat messages found in the selected note.");
           return;
         }
-        await this.activateChatView();
-        const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_CHAT);
-        if (!leaves.length) {
-          new import_obsidian15.Notice("Could not find chat view.");
-          return;
-        }
-        const chatView = leaves[0].view;
-        chatView.clearMessages();
-        for (const msg of messages) {
-          if (msg.role === "user" || msg.role === "assistant") {
-            await chatView["addMessage"](msg.role, msg.content);
-          }
-        }
-        chatView.scrollMessagesToBottom();
-        new import_obsidian15.Notice("Loaded chat note into chat.");
+        await this.activateChatViewAndLoadMessages(messages);
       }
     });
     this.registerYamlAttributeCommands();
@@ -9673,7 +9692,7 @@ ${this.settings.chatSeparator}
       for (const gen of this.settings.yamlAttributeGenerators) {
         if (!gen.attributeName || !gen.prompt || !gen.commandName) continue;
         const id = `generate-yaml-attribute-${gen.attributeName}`;
-        this.addCommand({
+        this.addPluginCommand({
           id,
           name: gen.commandName,
           callback: async () => {
