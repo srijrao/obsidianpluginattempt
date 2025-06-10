@@ -26,17 +26,17 @@ var __copyProps = (to, from, except, desc) => {
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
 
-// src/prompts.ts
-var prompts_exports = {};
-__export(prompts_exports, {
+// src/promptConstants.ts
+var promptConstants_exports = {};
+__export(promptConstants_exports, {
   DEFAULT_GENERAL_SYSTEM_PROMPT: () => DEFAULT_GENERAL_SYSTEM_PROMPT,
   DEFAULT_SUMMARY_PROMPT: () => DEFAULT_SUMMARY_PROMPT,
   DEFAULT_TITLE_PROMPT: () => DEFAULT_TITLE_PROMPT,
   DEFAULT_YAML_SYSTEM_MESSAGE: () => DEFAULT_YAML_SYSTEM_MESSAGE
 });
 var DEFAULT_TITLE_PROMPT, DEFAULT_SUMMARY_PROMPT, DEFAULT_GENERAL_SYSTEM_PROMPT, DEFAULT_YAML_SYSTEM_MESSAGE;
-var init_prompts = __esm({
-  "src/prompts.ts"() {
+var init_promptConstants = __esm({
+  "src/promptConstants.ts"() {
     DEFAULT_TITLE_PROMPT = "You are a title generator. You will give succinct titles that do not contain backslashes, forward slashes, or colons. Only generate a title as your response.";
     DEFAULT_SUMMARY_PROMPT = "Summarize the note content in 1-2 sentences, focusing on the main ideas and purpose.";
     DEFAULT_GENERAL_SYSTEM_PROMPT = "You are a helpful assistant.";
@@ -52,7 +52,7 @@ __export(types_exports, {
 var DEFAULT_SETTINGS;
 var init_types = __esm({
   "src/types.ts"() {
-    init_prompts();
+    init_promptConstants();
     DEFAULT_SETTINGS = {
       referenceCurrentNote: false,
       provider: "openai",
@@ -7959,7 +7959,7 @@ var init_filechanger = __esm({
   "src/filechanger.ts"() {
     import_obsidian14 = require("obsidian");
     init_providers();
-    init_prompts();
+    init_promptConstants();
     init_js_yaml();
     DEBUG = true;
   }
@@ -8380,7 +8380,7 @@ var MyPluginSettingTab = class extends import_obsidian2.PluginSettingTab {
     );
     new import_obsidian2.Setting(containerEl).setName("Reset All Settings to Default").setDesc("Reset all plugin settings (except API keys) to their original default values.").addButton((button) => button.setButtonText("Reset").onClick(async () => {
       const { DEFAULT_SETTINGS: DEFAULT_SETTINGS2 } = await Promise.resolve().then(() => (init_types(), types_exports));
-      const { DEFAULT_TITLE_PROMPT: DEFAULT_TITLE_PROMPT2 } = await Promise.resolve().then(() => (init_prompts(), prompts_exports));
+      const { DEFAULT_TITLE_PROMPT: DEFAULT_TITLE_PROMPT2 } = await Promise.resolve().then(() => (init_promptConstants(), promptConstants_exports));
       const preservedApiKeys = {
         openai: this.plugin.settings.openaiSettings.apiKey,
         anthropic: this.plugin.settings.anthropicSettings.apiKey,
@@ -8794,6 +8794,20 @@ function createChatUI(app, contentEl) {
   helpButton.style.right = "0.5em";
   helpButton.style.top = "-2.2em";
   helpButton.style.zIndex = "2";
+  const agentModeButton = inputContainer.createEl("button", {
+    text: "\u{1F916}"
+  });
+  agentModeButton.setAttr("aria-label", "Toggle Agent Mode");
+  agentModeButton.style.fontSize = "0.9em";
+  agentModeButton.style.width = "1.8em";
+  agentModeButton.style.height = "1.8em";
+  agentModeButton.style.marginBottom = "0.2em";
+  agentModeButton.style.opacity = "0.7";
+  agentModeButton.style.position = "absolute";
+  agentModeButton.style.right = "2.8em";
+  agentModeButton.style.top = "-2.2em";
+  agentModeButton.style.zIndex = "2";
+  inputContainer.appendChild(agentModeButton);
   inputContainer.style.position = "relative";
   [topButtonContainer.querySelectorAll("button")].forEach((btns) => {
     btns.forEach((btn) => {
@@ -8815,6 +8829,8 @@ function createChatUI(app, contentEl) {
     sendButton,
     stopButton,
     helpButton,
+    agentModeButton,
+    // <-- add to return object
     referenceNoteButton,
     referenceNoteIndicator
   };
@@ -8907,6 +8923,17 @@ var ChatView = class extends import_obsidian11.ItemView {
       this.plugin.settings.referenceCurrentNote = !this.plugin.settings.referenceCurrentNote;
       this.plugin.saveSettings();
       this.updateReferenceNoteIndicator();
+    });
+    if (!this.plugin.agentModeEnabled) this.plugin.agentModeEnabled = false;
+    ui.agentModeButton.addEventListener("click", () => {
+      this.plugin.agentModeEnabled = !this.plugin.agentModeEnabled;
+      if (this.plugin.agentModeEnabled) {
+        ui.agentModeButton.classList.add("active");
+        new import_obsidian11.Notice("Agent Mode enabled (UI only)");
+      } else {
+        ui.agentModeButton.classList.remove("active");
+        new import_obsidian11.Notice("Agent Mode disabled (UI only)");
+      }
     });
     const sendMessage = async () => {
       const content = textarea.value.trim();

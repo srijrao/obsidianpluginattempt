@@ -4,7 +4,7 @@ import MyPlugin from './main';
 import { VIEW_TYPE_MODEL_SETTINGS } from './main'; // Import the constant
 import { SettingsSections } from './components/chat/SettingsSections';
 import { CollapsibleSectionRenderer } from './components/chat/CollapsibleSection';
-import { DEFAULT_TITLE_PROMPT } from './prompts';
+import { DEFAULT_TITLE_PROMPT } from './promptConstants';
 import { DEFAULT_SETTINGS } from './types';
 
 /**
@@ -384,7 +384,7 @@ export class MyPluginSettingTab extends PluginSettingTab {
                 .setButtonText('Reset')
                 .onClick(async () => {
                     const { DEFAULT_SETTINGS } = await import('./types');
-                    const { DEFAULT_TITLE_PROMPT } = await import('./prompts');
+                    const { DEFAULT_TITLE_PROMPT } = await import('./promptConstants');
 
                     // Preserve API keys
                     const preservedApiKeys = {

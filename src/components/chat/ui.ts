@@ -14,6 +14,7 @@ export interface ChatUIElements {
     sendButton: HTMLButtonElement;
     stopButton: HTMLButtonElement;
     helpButton: HTMLButtonElement;
+    agentModeButton: HTMLButtonElement; // <-- add to interface
     referenceNoteButton: HTMLButtonElement;
     referenceNoteIndicator: HTMLElement;
 }
@@ -106,6 +107,23 @@ export function createChatUI(app: App, contentEl: HTMLElement): ChatUIElements {
     helpButton.style.top = '-2.2em';
     helpButton.style.zIndex = '2';
 
+    // --- AGENT MODE BUTTON NEXT TO HELP BUTTON ---
+    const agentModeButton = inputContainer.createEl('button', {
+        text: '🤖',
+    });
+    agentModeButton.setAttr('aria-label', 'Toggle Agent Mode');
+    agentModeButton.style.fontSize = '0.9em';
+    agentModeButton.style.width = '1.8em';
+    agentModeButton.style.height = '1.8em';
+    agentModeButton.style.marginBottom = '0.2em';
+    agentModeButton.style.opacity = '0.7';
+    agentModeButton.style.position = 'absolute';
+    agentModeButton.style.right = '2.8em'; // Position to the left of help button
+    agentModeButton.style.top = '-2.2em';
+    agentModeButton.style.zIndex = '2';
+
+    inputContainer.appendChild(agentModeButton);
+
     // --- TINY REFERENCE NOTE BUTTON NEXT TO HELP BUTTON ---
     // const referenceNoteButton = inputContainer.createEl('button', {
     //     text: '📝',
@@ -145,6 +163,7 @@ export function createChatUI(app: App, contentEl: HTMLElement): ChatUIElements {
         sendButton,
         stopButton,
         helpButton,
+        agentModeButton, // <-- add to return object
         referenceNoteButton,
         referenceNoteIndicator,
     };

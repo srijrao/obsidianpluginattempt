@@ -1,7 +1,7 @@
 import { Notice, TFile, App } from "obsidian";
 import { createProvider, createProviderFromUnifiedModel } from "../providers";
 import { Message, MyPluginSettings } from "./types";
-import { DEFAULT_TITLE_PROMPT, DEFAULT_SUMMARY_PROMPT, DEFAULT_YAML_SYSTEM_MESSAGE } from "./prompts";
+import { DEFAULT_TITLE_PROMPT, DEFAULT_SUMMARY_PROMPT, DEFAULT_YAML_SYSTEM_MESSAGE } from "./promptConstants";
 import * as yaml from "js-yaml";
 
 /**
@@ -48,7 +48,7 @@ export async function generateNoteTitle(
     // Generate Table of Contents from all headers in the note
     const toc = generateTableOfContents(noteContent);
 
-    // Use the default title prompt from prompts.ts
+    // Use the default title prompt from promptConstants.ts
     const prompt = DEFAULT_TITLE_PROMPT;
     const userContent = (toc && toc.trim().length > 0 ? "Table of Contents:\n" + toc + "\n\n" : "") + noteContent;    try {
         debug("Provider:", settings.provider);

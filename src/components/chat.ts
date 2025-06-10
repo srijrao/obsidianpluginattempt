@@ -72,6 +72,18 @@ export class ChatView extends ItemView {
             this.plugin.saveSettings();
             this.updateReferenceNoteIndicator();
         });
+        // --- AGENT MODE BUTTON HANDLER (UI only) ---
+        if (!(this.plugin as any).agentModeEnabled) (this.plugin as any).agentModeEnabled = false;
+        ui.agentModeButton.addEventListener('click', () => {
+            (this.plugin as any).agentModeEnabled = !(this.plugin as any).agentModeEnabled;
+            if ((this.plugin as any).agentModeEnabled) {
+                ui.agentModeButton.classList.add('active');
+                new Notice('Agent Mode enabled (UI only)');
+            } else {
+                ui.agentModeButton.classList.remove('active');
+                new Notice('Agent Mode disabled (UI only)');
+            }
+        });
         // All styling for messagesContainer and textarea is handled by CSS
 
         // --- HANDLE SEND MESSAGE ---

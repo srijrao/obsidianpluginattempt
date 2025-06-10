@@ -9,3 +9,4 @@ providers/**/*.js
 !esbuild.config.mjs
 !version-bump.mjs
 chat-history.json
+AGENT_MODE_IMPLEMENTATION_PLAN.md
