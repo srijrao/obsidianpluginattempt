@@ -7968,6 +7968,7 @@ var init_filechanger = __esm({
 // src/main.ts
 var main_exports = {};
 __export(main_exports, {
+  VIEW_TYPE_MODEL_SETTINGS: () => VIEW_TYPE_MODEL_SETTINGS,
   default: () => MyPlugin
 });
 module.exports = __toCommonJS(main_exports);
@@ -8394,7 +8395,7 @@ var MyPluginSettingTab = class extends import_obsidian2.PluginSettingTab {
       this.display();
       if (typeof this.plugin.activateView === "function") {
         setTimeout(() => {
-          this.plugin.activateView();
+          this.plugin.activateView(VIEW_TYPE_MODEL_SETTINGS);
         }, 100);
       }
       new import_obsidian2.Notice("All settings (except API keys) reset to default.");
@@ -9251,7 +9252,7 @@ function parseSelection(selection, chatSeparator, chatBoundaryString) {
 
 // src/components/ModelSettingsView.ts
 var import_obsidian12 = require("obsidian");
-var VIEW_TYPE_MODEL_SETTINGS = "model-settings-view";
+var VIEW_TYPE_MODEL_SETTINGS2 = "model-settings-view";
 var ModelSettingsView = class extends import_obsidian12.ItemView {
   constructor(leaf, plugin) {
     super(leaf);
@@ -9262,7 +9263,7 @@ var ModelSettingsView = class extends import_obsidian12.ItemView {
     this.plugin = plugin;
   }
   getViewType() {
-    return VIEW_TYPE_MODEL_SETTINGS;
+    return VIEW_TYPE_MODEL_SETTINGS2;
   }
   getDisplayText() {
     return "AI Model Settings";
@@ -9474,7 +9475,7 @@ The current time is ${currentTime} ${timeZoneString}.`;
 }
 
 // src/main.ts
-var VIEW_TYPE_MODEL_SETTINGS2 = "model-settings-view";
+var VIEW_TYPE_MODEL_SETTINGS = "model-settings-view";
 var _MyPlugin = class _MyPlugin extends import_obsidian15.Plugin {
   constructor() {
     super(...arguments);
@@ -9500,20 +9501,17 @@ var _MyPlugin = class _MyPlugin extends import_obsidian15.Plugin {
     }
   }
   /**
-   * Helper to add a ribbon icon.
-   * @param icon The icon ID.
-   * @param title The tooltip title.
-   * @param callback The function to call when the icon is clicked.
+   * Registers a command with Obsidian, optionally adding a ribbon icon.
+   * @param options Command options including id, name, callback/editorCallback.
+   * @param ribbonIcon Optional icon ID for a ribbon button.
+   * @param ribbonTitle Optional tooltip title for the ribbon button.
    */
-  addRibbon(icon, title, callback) {
-    this.addRibbonIcon(icon, title, callback);
-  }
-  /**
-   * Helper to add a command.
-   * @param options Command options including id, name, and callback/editorCallback.
-   */
-  addPluginCommand(options) {
+  registerCommand(options, ribbonIcon, ribbonTitle) {
     this.addCommand(options);
+    if (ribbonIcon && ribbonTitle) {
+      this.addRibbonIcon(ribbonIcon, ribbonTitle, options.callback || (() => {
+      }));
+    }
   }
   /**
    * Helper to insert a separator with correct spacing in the editor.
@@ -9578,7 +9576,7 @@ ${separator}
    * @param messages An array of messages to load.
    */
   async activateChatViewAndLoadMessages(messages) {
-    await this.activateChatView();
+    await this.activateView(VIEW_TYPE_CHAT);
     const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_CHAT);
     if (!leaves.length) {
       this.showNotice("Could not find chat view.");
@@ -9633,7 +9631,6 @@ ${separator}
       text = lines.join("\n");
       insertPosition = { line: currentLineNumber + 1, ch: 0 };
     }
-    console.log("Extracted text for completion:", text);
     const messages = parseSelection(text, this.settings.chatSeparator);
     if (messages.length === 0) {
       this.showNotice("No valid messages found in the selection.");
@@ -9697,21 +9694,29 @@ ${this.settings.chatSeparator}
   async onload() {
     await this.loadSettings();
     this.addSettingTab(new MyPluginSettingTab(this.app, this));
-    this.registerPluginView(VIEW_TYPE_MODEL_SETTINGS2, (leaf) => new ModelSettingsView(leaf, this));
+    this.registerPluginView(VIEW_TYPE_MODEL_SETTINGS, (leaf) => new ModelSettingsView(leaf, this));
     this.registerPluginView(VIEW_TYPE_CHAT, (leaf) => new ChatView(leaf, this));
-    this.addRibbon("file-sliders", "Open AI Settings", () => this.activateView());
-    this.addRibbon("message-square", "Open AI Chat", () => this.activateChatView());
+    this.registerCommand({
+      id: "show-ai-settings",
+      name: "Show AI Settings",
+      callback: () => this.activateView(VIEW_TYPE_MODEL_SETTINGS)
+    }, "file-sliders", "Open AI Settings");
+    this.registerCommand({
+      id: "show-ai-chat",
+      name: "Show AI Chat",
+      callback: () => this.activateView(VIEW_TYPE_CHAT)
+    }, "message-square", "Open AI Chat");
     this.app.workspace.onLayoutReady(() => {
       if (this.settings.autoOpenModelSettings) {
-        this.activateView();
+        this.activateView(VIEW_TYPE_MODEL_SETTINGS);
       }
     });
-    this.addPluginCommand({
+    this.registerCommand({
       id: "ai-completion",
       name: "Get AI Completion",
       editorCallback: (editor) => this.handleAICompletion(editor)
     });
-    this.addPluginCommand({
+    this.registerCommand({
       id: "end-ai-stream",
       name: "End AI Stream",
       callback: () => {
@@ -9724,17 +9729,7 @@ ${this.settings.chatSeparator}
         }
       }
     });
-    this.addPluginCommand({
-      id: "show-ai-settings",
-      name: "Show AI Settings",
-      callback: () => this.activateView()
-    });
-    this.addPluginCommand({
-      id: "show-ai-chat",
-      name: "Show AI Chat",
-      callback: () => this.activateChatView()
-    });
-    this.addPluginCommand({
+    this.registerCommand({
       id: "copy-active-note-name",
       name: "Copy Active Note Name",
       callback: async () => {
@@ -9747,7 +9742,7 @@ ${this.settings.chatSeparator}
         }
       }
     });
-    this.addPluginCommand({
+    this.registerCommand({
       id: "insert-chat-start-string",
       name: "Insert Chat Start String",
       editorCallback: (editor) => {
@@ -9762,7 +9757,7 @@ ${this.settings.chatSeparator}
         this.moveCursorAfterInsert(editor, cursor, chatStartString);
       }
     });
-    this.addPluginCommand({
+    this.registerCommand({
       id: "generate-note-title",
       name: "Generate Note Title",
       callback: async () => {
@@ -9774,7 +9769,7 @@ ${this.settings.chatSeparator}
         );
       }
     });
-    this.addPluginCommand({
+    this.registerCommand({
       id: "load-chat-note-into-chat",
       name: "Load Chat Note into Chat",
       callback: async () => {
@@ -9809,7 +9804,8 @@ ${this.settings.chatSeparator}
       for (const gen of this.settings.yamlAttributeGenerators) {
         if (!gen.attributeName || !gen.prompt || !gen.commandName) continue;
         const id = `generate-yaml-attribute-${gen.attributeName}`;
-        this.addPluginCommand({
+        this.registerCommand({
+          // Use the new registerCommand
           id,
           name: gen.commandName,
           callback: async () => {
@@ -9837,31 +9833,19 @@ ${this.settings.chatSeparator}
   }
   /**
    * Activates and reveals a specific view type in the workspace.
-   * Defaults to the model settings view.
    * @param viewType The type of view to activate.
+   * @param reveal Whether to reveal the leaf after setting its view state. Defaults to true.
    */
-  async activateView(viewType = VIEW_TYPE_MODEL_SETTINGS2) {
+  async activateView(viewType, reveal = true) {
     this.app.workspace.detachLeavesOfType(viewType);
-    let leaf = this.app.workspace.getRightLeaf(false);
-    if (leaf) {
-      await leaf.setViewState({
-        type: viewType,
-        active: true
-      });
+    let leaf = this.app.workspace.getRightLeaf(false) || this.app.workspace.getLeaf(true);
+    await leaf.setViewState({
+      type: viewType,
+      active: true
+    });
+    if (reveal) {
       this.app.workspace.revealLeaf(leaf);
-    } else {
-      leaf = this.app.workspace.getLeaf(true);
-      await leaf.setViewState({
-        type: viewType,
-        active: true
-      });
     }
-  }
-  /**
-   * Activates and reveals the chat view.
-   */
-  async activateChatView() {
-    await this.activateView(VIEW_TYPE_CHAT);
   }
   /**
    * Loads plugin settings from data.
@@ -9899,7 +9883,7 @@ ${this.settings.chatSeparator}
    * Unregisters views to prevent issues on reload.
    */
   onunload() {
-    _MyPlugin.registeredViewTypes.delete(VIEW_TYPE_MODEL_SETTINGS2);
+    _MyPlugin.registeredViewTypes.delete(VIEW_TYPE_MODEL_SETTINGS);
     _MyPlugin.registeredViewTypes.delete(VIEW_TYPE_CHAT);
   }
 };

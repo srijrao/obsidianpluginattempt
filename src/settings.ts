@@ -1,6 +1,7 @@
 import { App, PluginSettingTab, Setting, Notice } from 'obsidian';
 import { MyPluginSettings } from './types';
 import MyPlugin from './main';
+import { VIEW_TYPE_MODEL_SETTINGS } from './main'; // Import the constant
 import { SettingsSections } from './components/chat/SettingsSections';
 import { CollapsibleSectionRenderer } from './components/chat/CollapsibleSection';
 import { DEFAULT_TITLE_PROMPT } from './prompts';
@@ -405,7 +406,7 @@ export class MyPluginSettingTab extends PluginSettingTab {
                     // Force ModelSettingsView to refresh if open
                     if (typeof this.plugin.activateView === 'function') {
                         setTimeout(() => {
-                            this.plugin.activateView();
+                            this.plugin.activateView(VIEW_TYPE_MODEL_SETTINGS);
                         }, 100);
                     }
                     new Notice('All settings (except API keys) reset to default.');

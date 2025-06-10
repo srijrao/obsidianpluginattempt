@@ -1,4 +1,4 @@
-import { App, Plugin, Notice, TFile } from 'obsidian';
+import { App, Plugin, Notice, TFile, Editor } from 'obsidian';
 import { MyPluginSettings, Message, DEFAULT_SETTINGS } from './types';
 import { createProvider, createProviderFromUnifiedModel } from '../providers';
 import { MyPluginSettingTab } from './settings';
@@ -8,7 +8,7 @@ import { ModelSettingsView } from './components/ModelSettingsView';
 import { processMessages, getContextNotesContent } from './components/noteUtils';
 import { getSystemMessage } from './components/systemMessage';
 
-const VIEW_TYPE_MODEL_SETTINGS = 'model-settings-view';
+export const VIEW_TYPE_MODEL_SETTINGS = 'model-settings-view';
 
 /**
  * AI Assistant Plugin
@@ -50,26 +50,21 @@ export default class MyPlugin extends Plugin {
     private static registeredViewTypes = new Set<string>();
 
     /**
-     * Helper to add a ribbon icon.
-     * @param icon The icon ID.
-     * @param title The tooltip title.
-     * @param callback The function to call when the icon is clicked.
+     * Registers a command with Obsidian, optionally adding a ribbon icon.
+     * @param options Command options including id, name, callback/editorCallback.
+     * @param ribbonIcon Optional icon ID for a ribbon button.
+     * @param ribbonTitle Optional tooltip title for the ribbon button.
      */
-    private addRibbon(icon: string, title: string, callback: () => void) {
-        this.addRibbonIcon(icon, title, callback);
-    }
-
-    /**
-     * Helper to add a command.
-     * @param options Command options including id, name, and callback/editorCallback.
-     */
-    private addPluginCommand(options: {
+    private registerCommand(options: {
         id: string;
         name: string;
         callback?: () => void;
-        editorCallback?: (editor: any) => void;
-    }) {
+        editorCallback?: (editor: Editor) => void;
+    }, ribbonIcon?: string, ribbonTitle?: string) {
         this.addCommand(options);
+        if (ribbonIcon && ribbonTitle) {
+            this.addRibbonIcon(ribbonIcon, ribbonTitle, options.callback || (() => {}));
+        }
     }
 
     /**
@@ -79,7 +74,7 @@ export default class MyPlugin extends Plugin {
      * @param separator The separator string.
      * @returns The line number after the inserted separator.
      */
-    private insertSeparator(editor: any, position: any, separator: string): number {
+    private insertSeparator(editor: Editor, position: any, separator: string): number {
         const lineContent = editor.getLine(position.line) ?? '';
         const prefix = lineContent.trim() !== '' ? '\n' : '';
         editor.replaceRange(`${prefix}\n${separator}\n`, position);
@@ -92,7 +87,7 @@ export default class MyPlugin extends Plugin {
      * @param startPos The starting position of the insertion.
      * @param insertText The text that was inserted.
      */
-    private moveCursorAfterInsert(editor: any, startPos: any, insertText: string) {
+    private moveCursorAfterInsert(editor: Editor, startPos: any, insertText: string) {
         const lines = insertText.split('\n');
         if (lines.length === 1) {
             editor.setCursor({
@@ -136,7 +131,7 @@ export default class MyPlugin extends Plugin {
      * @param messages An array of messages to load.
      */
     private async activateChatViewAndLoadMessages(messages: Message[]) {
-        await this.activateChatView();
+        await this.activateView(VIEW_TYPE_CHAT);
         const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_CHAT);
         if (!leaves.length) {
             this.showNotice('Could not find chat view.');
@@ -170,7 +165,7 @@ export default class MyPlugin extends Plugin {
      * Extracts text, sends to AI, and streams response back to editor.
      * @param editor The editor instance.
      */
-    private async handleAICompletion(editor: any) {
+    private async handleAICompletion(editor: Editor) {
         let text: string;
         let insertPosition;
 
@@ -194,8 +189,6 @@ export default class MyPlugin extends Plugin {
             text = lines.join('\n');
             insertPosition = { line: currentLineNumber + 1, ch: 0 };
         }
-
-        console.log('Extracted text for completion:', text);
 
         const messages = parseSelection(text, this.settings.chatSeparator);
         if (messages.length === 0) {
@@ -266,22 +259,31 @@ export default class MyPlugin extends Plugin {
         this.registerPluginView(VIEW_TYPE_MODEL_SETTINGS, (leaf) => new ModelSettingsView(leaf, this));
         this.registerPluginView(VIEW_TYPE_CHAT, (leaf) => new ChatView(leaf, this));
 
-        this.addRibbon('file-sliders', 'Open AI Settings', () => this.activateView());
-        this.addRibbon('message-square', 'Open AI Chat', () => this.activateChatView());
+        this.registerCommand({
+            id: 'show-ai-settings',
+            name: 'Show AI Settings',
+            callback: () => this.activateView(VIEW_TYPE_MODEL_SETTINGS)
+        }, 'file-sliders', 'Open AI Settings');
+
+        this.registerCommand({
+            id: 'show-ai-chat',
+            name: 'Show AI Chat',
+            callback: () => this.activateView(VIEW_TYPE_CHAT)
+        }, 'message-square', 'Open AI Chat');
 
         this.app.workspace.onLayoutReady(() => {
             if (this.settings.autoOpenModelSettings) {
-                this.activateView();
+                this.activateView(VIEW_TYPE_MODEL_SETTINGS);
             }
         });
 
-        this.addPluginCommand({
+        this.registerCommand({
             id: 'ai-completion',
             name: 'Get AI Completion',
             editorCallback: (editor) => this.handleAICompletion(editor)
         });
 
-        this.addPluginCommand({
+        this.registerCommand({
             id: 'end-ai-stream',
             name: 'End AI Stream',
             callback: () => {
@@ -295,19 +297,7 @@ export default class MyPlugin extends Plugin {
             }
         });
 
-        this.addPluginCommand({
-            id: 'show-ai-settings',
-            name: 'Show AI Settings',
-            callback: () => this.activateView()
-        });
-
-        this.addPluginCommand({
-            id: 'show-ai-chat',
-            name: 'Show AI Chat',
-            callback: () => this.activateChatView()
-        });
-
-        this.addPluginCommand({
+        this.registerCommand({
             id: 'copy-active-note-name',
             name: 'Copy Active Note Name',
             callback: async () => {
@@ -321,10 +311,10 @@ export default class MyPlugin extends Plugin {
             }
         });
 
-        this.addPluginCommand({
+        this.registerCommand({
             id: 'insert-chat-start-string',
             name: 'Insert Chat Start String',
-            editorCallback: (editor) => {
+            editorCallback: (editor: Editor) => {
                 const chatStartString = this.settings.chatStartString ?? '';
                 if (!chatStartString) {
                     this.showNotice('chatStartString is not set in settings.');
@@ -336,7 +326,7 @@ export default class MyPlugin extends Plugin {
             }
         });
 
-        this.addPluginCommand({
+        this.registerCommand({
             id: 'generate-note-title',
             name: 'Generate Note Title',
             callback: async () => {
@@ -349,7 +339,7 @@ export default class MyPlugin extends Plugin {
             }
         });
 
-        this.addPluginCommand({
+        this.registerCommand({
             id: 'load-chat-note-into-chat',
             name: 'Load Chat Note into Chat',
             callback: async () => {
@@ -386,7 +376,7 @@ export default class MyPlugin extends Plugin {
             for (const gen of this.settings.yamlAttributeGenerators) {
                 if (!gen.attributeName || !gen.prompt || !gen.commandName) continue;
                 const id = `generate-yaml-attribute-${gen.attributeName}`;
-                this.addPluginCommand({
+                this.registerCommand({ // Use the new registerCommand
                     id,
                     name: gen.commandName,
                     callback: async () => {
@@ -416,48 +406,37 @@ export default class MyPlugin extends Plugin {
 
     /**
      * Activates and reveals a specific view type in the workspace.
-     * Defaults to the model settings view.
      * @param viewType The type of view to activate.
+     * @param reveal Whether to reveal the leaf after setting its view state. Defaults to true.
      */
-    async activateView(viewType: string = VIEW_TYPE_MODEL_SETTINGS) {
+    async activateView(viewType: string, reveal: boolean = true) {
         this.app.workspace.detachLeavesOfType(viewType);
 
-        let leaf = this.app.workspace.getRightLeaf(false);
-        if (leaf) {
-            await leaf.setViewState({
-                type: viewType,
-                active: true,
-            });
+        let leaf = this.app.workspace.getRightLeaf(false) || this.app.workspace.getLeaf(true);
+        await leaf.setViewState({
+            type: viewType,
+            active: true,
+        });
+
+        if (reveal) {
             this.app.workspace.revealLeaf(leaf);
-        } else {
-            leaf = this.app.workspace.getLeaf(true);
-            await leaf.setViewState({
-                type: viewType,
-                active: true,
-            });
         }
     }
 
-    /**
-     * Activates and reveals the chat view.
-     */
-    async activateChatView() {
-        await this.activateView(VIEW_TYPE_CHAT);
-    }
 
     /**
      * Loads plugin settings from data.
      */
-    async loadSettings() {
-        this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    public async loadSettings() {
+        this.settings = Object.assign({}, DEFAULT_SETTINGS, await (this as Plugin).loadData());
     }
 
     /**
      * Saves plugin settings to data.
      * Also re-registers YAML attribute commands and emits a settings change event.
      */
-    async saveSettings() {
-        await this.saveData(this.settings);
+    public async saveSettings() {
+        await (this as Plugin).saveData(this.settings);
         this.registerYamlAttributeCommands(); // Update commands after saving settings
         this.emitSettingsChange(); // Notify listeners
     }
