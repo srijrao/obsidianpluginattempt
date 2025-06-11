@@ -4,6 +4,7 @@ import { FileSelectTool } from './FileSelectTool';
 import { FileReadTool } from './FileReadTool';
 import { FileWriteTool } from './FileWriteTool';
 import { FileDiffTool } from './FileDiffTool';
+import { FileMoveTool } from './FileMoveTool';
 import { ThoughtTool } from './ThoughtTool';
 
 export function getAllToolClasses(): any[] {
@@ -13,6 +14,7 @@ export function getAllToolClasses(): any[] {
         FileReadTool,
         FileWriteTool,
         FileDiffTool,
+        FileMoveTool,
         ThoughtTool
     ];
     
@@ -55,6 +57,15 @@ export function getToolMetadata(): Array<{name: string, description: string, par
             parameters: {
                 filePath: { type: 'string', description: 'Path to the file to analyze', required: true },
                 compareWith: { type: 'string', description: 'Content to compare against (optional)' }
+            }
+        },        {
+            name: 'file_move',
+            description: 'Move or rename files within the vault',
+            parameters: {
+                sourcePath: { type: 'string', description: 'Path to the source file (relative to vault root)', required: true },
+                destinationPath: { type: 'string', description: 'Destination path for the file (relative to vault root)', required: true },
+                createFolders: { type: 'boolean', description: 'Create parent directories if they don\'t exist (default true)' },
+                overwrite: { type: 'boolean', description: 'Whether to overwrite destination if it exists (default false)' }
             }
         },
         {
