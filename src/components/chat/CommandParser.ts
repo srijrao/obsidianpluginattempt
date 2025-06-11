@@ -95,7 +95,8 @@ export class CommandParser {
                     command: {
                         action: parsed.action,
                         parameters: parameters,
-                        requestId: parsed.requestId || this.generateRequestId()
+                        requestId: parsed.requestId || this.generateRequestId(),
+                        finished: parsed.finished || false
                     },
                     originalText: text.trim()
                 });
@@ -136,7 +137,8 @@ export class CommandParser {
                             command: {
                                 action: parsed.action,
                                 parameters: parameters,
-                                requestId: parsed.requestId || this.generateRequestId()
+                                requestId: parsed.requestId || this.generateRequestId(),
+                                finished: parsed.finished || false
                             },
                             originalText
                         });

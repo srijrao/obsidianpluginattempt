@@ -329,7 +329,7 @@ export const DEFAULT_SETTINGS: MyPluginSettings = {
     ],
     agentMode: {
         enabled: false,
-        maxToolCalls: 5,
+        maxToolCalls: 10,
         timeoutMs: 30000
     }
 };
@@ -361,6 +361,7 @@ export interface ToolCommand {
     action: string;
     parameters: Record<string, any>;
     requestId?: string;
+    finished?: boolean;
 }
 
 export interface ToolResult {

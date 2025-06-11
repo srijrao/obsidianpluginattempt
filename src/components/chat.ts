@@ -127,6 +127,11 @@ export class ChatView extends ItemView {
             const content = textarea.value.trim();
             if (!content) return;
 
+            // Reset tool execution count for new user message
+            if (this.agentResponseHandler) {
+                this.agentResponseHandler.resetExecutionCount();
+            }
+
             // Disable input and show stop button
             textarea.disabled = true;
             sendButton.classList.add('hidden');
@@ -482,7 +487,7 @@ export class ChatView extends ItemView {
                             this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
                         }
                     },
-                    abortController: this.activeStream
+                    abortController: this.activeStream || undefined
                 }
             );
 
@@ -509,14 +514,40 @@ export class ChatView extends ItemView {
                         this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
                     }
 
-                    // Add tool results to context for future messages
-                    const toolResultMessage = this.agentResponseHandler.createToolResultMessage(agentResult.toolResults);
-                    if (toolResultMessage) {
-                        // This could be used to add context for follow-up messages
-                        console.log('Tool results for context:', toolResultMessage);
+                    // Continue task execution until finished
+                    responseContent = await this.continueTaskUntilFinished(
+                        messages, 
+                        container, 
+                        responseContent, 
+                        finalContent, 
+                        agentResult.toolResults
+                    );
+                } else {
+                    // No tools used, check if this was just a reasoning step and we need to continue
+                    if (responseContent.includes('"action"') && responseContent.includes('"thought"')) {
+                        // This looks like a tool command that wasn't properly formatted, continue anyway
+                        messages.push({ role: 'assistant', content: responseContent });
+                        messages.push({ role: 'system', content: 'Please continue with the actual task execution based on your reasoning.' });
+                        
+                        const continuationContent = await this.getContinuationResponse(messages, container);
+                        if (continuationContent.trim()) {
+                            const updatedContent = responseContent + '\n\n' + continuationContent;
+                            container.dataset.rawContent = updatedContent;
+                            const contentEl = container.querySelector('.message-content') as HTMLElement;
+                            if (contentEl) {
+                                contentEl.empty();
+                                await MarkdownRenderer.render(
+                                    this.app,
+                                    updatedContent,
+                                    contentEl,
+                                    '',
+                                    this
+                                );
+                                this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+                            }
+                            responseContent = updatedContent;
+                        }
                     }
-
-                    responseContent = finalContent;
                 }
             }
 
@@ -541,10 +572,178 @@ export class ChatView extends ItemView {
 
     public clearMessages() {
         this.messagesContainer.empty();
+        // Reset tool execution count when chat is cleared
+        if (this.agentResponseHandler) {
+            this.agentResponseHandler.resetExecutionCount();
+        }
     }
 
     public scrollMessagesToBottom() {
         this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+    }
+
+    /**
+     * Continue task execution until finished parameter is true
+     */
+    private async continueTaskUntilFinished(
+        messages: Message[],
+        container: HTMLElement,
+        initialResponseContent: string,
+        currentContent: string,
+        initialToolResults: Array<{ command: ToolCommand; result: ToolResult }>
+    ): Promise<string> {
+        let responseContent = currentContent;
+        let maxIterations = 10; // Prevent infinite loops
+        let iteration = 0;
+        
+        // Check if any of the initial tool results indicate finished: true
+        let isFinished = this.checkIfTaskFinished(initialToolResults);
+        
+        while (!isFinished && iteration < maxIterations) {
+            iteration++;
+            console.log(`ChatView: Task continuation iteration ${iteration}`);
+            
+            // Add tool results to context and continue conversation
+            const toolResultMessage = this.agentResponseHandler?.createToolResultMessage(initialToolResults);
+            if (toolResultMessage) {
+                console.log('Tool results for context:', toolResultMessage);
+                
+                // Continue the conversation with tool results
+                messages.push({ role: 'assistant', content: initialResponseContent });
+                messages.push(toolResultMessage);
+                messages.push({ 
+                    role: 'system', 
+                    content: 'Continue with the remaining parts of the task. Check your progress and continue until ALL parts of the user\'s request are complete. Set finished: true only when everything is done.'
+                });
+                
+                // Get continuation response
+                const continuationContent = await this.getContinuationResponse(messages, container);
+                if (continuationContent.trim()) {
+                    // Process continuation for additional tool commands
+                    if (this.agentResponseHandler) {
+                        const continuationResult = await this.agentResponseHandler.processResponse(continuationContent);
+                        let continuationDisplay = continuationContent;
+                        
+                        if (continuationResult.hasTools) {
+                            continuationDisplay = continuationResult.processedText + 
+                                this.agentResponseHandler.formatToolResultsForDisplay(continuationResult.toolResults);
+                            
+                            // Check if this iteration is finished
+                            isFinished = this.checkIfTaskFinished(continuationResult.toolResults);
+                            
+                            // Use the new tool results for next iteration
+                            initialToolResults.push(...continuationResult.toolResults);
+                        } else {
+                            // If no tools were used, assume the task might be finished
+                            isFinished = true;
+                        }
+                        
+                        const updatedContent = responseContent + '\n\n' + continuationDisplay;
+                        container.dataset.rawContent = updatedContent;
+                        const contentEl = container.querySelector('.message-content') as HTMLElement;
+                        if (contentEl) {
+                            contentEl.empty();
+                            await MarkdownRenderer.render(
+                                this.app,
+                                updatedContent,
+                                contentEl,
+                                '',
+                                this
+                            );
+                            this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+                        }
+                        responseContent = updatedContent;
+                        
+                        // Update initialResponseContent for next iteration
+                        initialResponseContent = continuationContent;
+                    } else {
+                        const updatedContent = responseContent + '\n\n' + continuationContent;
+                        container.dataset.rawContent = updatedContent;
+                        const contentEl = container.querySelector('.message-content') as HTMLElement;
+                        if (contentEl) {
+                            contentEl.empty();
+                            await MarkdownRenderer.render(
+                                this.app,
+                                updatedContent,
+                                contentEl,
+                                '',
+                                this
+                            );
+                            this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+                        }
+                        responseContent = updatedContent;
+                        isFinished = true; // If no agent handler, consider finished
+                    }
+                } else {
+                    // No continuation content, task might be finished
+                    isFinished = true;
+                }
+            } else {
+                // No tool results to continue with
+                isFinished = true;
+            }
+        }
+        
+        if (iteration >= maxIterations) {
+            console.warn('ChatView: Task continuation reached maximum iterations');
+            responseContent += '\n\n*[Task continuation reached maximum iterations - stopping to prevent infinite loop]*';
+        }
+        
+        console.log(`ChatView: Task continuation completed after ${iteration} iterations`);
+        return responseContent;
+    }
+
+    /**
+     * Check if any tool results indicate the task is finished
+     */
+    private checkIfTaskFinished(toolResults: Array<{ command: ToolCommand; result: ToolResult }>): boolean {
+        return toolResults.some(({ command }) => {
+            // Check if the command has finished: true parameter
+            return (command as any).finished === true;
+        });
+    }
+
+    /**
+     * Get continuation response after tool execution
+     */
+    private async getContinuationResponse(
+        messages: Message[],
+        container: HTMLElement
+    ): Promise<string> {
+        try {
+            console.log('ChatView: Getting continuation response after tool execution');
+            
+            // Use the same provider setup as the main response
+            const provider = this.plugin.settings.selectedModel 
+                ? createProviderFromUnifiedModel(this.plugin.settings, this.plugin.settings.selectedModel)
+                : createProvider(this.plugin.settings);
+
+            let continuationContent = '';
+            
+            await provider.getCompletion(
+                messages,
+                {
+                    temperature: this.plugin.settings.temperature,
+                    maxTokens: this.plugin.settings.maxTokens,
+                    streamCallback: async (chunk: string) => {
+                        continuationContent += chunk;
+                        // Don't update the UI during continuation streaming
+                        // The caller will handle the final update
+                    },
+                    abortController: this.activeStream || undefined
+                }
+            );
+
+            console.log('ChatView: Continuation response received:', continuationContent.length, 'characters');
+            return continuationContent;
+        } catch (error) {
+            console.error('ChatView: Error getting continuation response:', error);
+            if (error.name !== 'AbortError') {
+                // Return a fallback message instead of throwing
+                return `*[Error getting continuation: ${error.message}]*`;
+            }
+            return '';
+        }
     }
 }
 

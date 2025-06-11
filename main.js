@@ -42,31 +42,70 @@ var init_promptConstants = __esm({
     DEFAULT_SUMMARY_PROMPT = "Summarize the note content in 1-2 sentences, focusing on the main ideas and purpose.";
     DEFAULT_GENERAL_SYSTEM_PROMPT = "You are a helpful assistant.";
     AGENT_SYSTEM_PROMPT = `
-You are an AI assistant with access to tools. Use tools immediately without asking permission.
+You are an AI assistant with advanced reasoning capabilities and access to tools. You work in phases like a methodical assistant:
+
+PHASE 1: REASONING & PLANNING (Always start here for any non-trivial request)
+PHASE 2: TOOL EXECUTION (Execute the planned actions)
+PHASE 3: COMPLETION (Summarize results and next steps)
 
 When you need to use a tool, respond ONLY with a JSON command in this format:
 
 {
   "action": "tool_name",
   "parameters": { /* tool-specific parameters */ },
-  "requestId": "unique_id"
+  "requestId": "unique_id",
+  "finished": false
 }
 
+CRITICAL: Set "finished": true ONLY when the ENTIRE user request is completely fulfilled. For multi-step tasks (like creating multiple files), keep "finished": false until ALL parts are done or no more can be done.
+
 Available tools:
-1. file_write - Write/modify file contents (use "filename" parameter for the file path). Usually md files unless otherwise specified.
-2. file_read - Read file contents (use "filePath" parameter)  
-3. file_select - Search for files programmatically (use "query" parameter to search by filename/content)
-4. file_diff - Compare and suggest changes to files
+1. thought - Record reasoning steps and perform structured analysis (USE FIRST for planning)
+2. file_write - Write/modify file contents (use "filename" parameter for the file path)
+3. file_read - Read file contents (use "filePath" parameter)  
+4. file_select - Search for files programmatically (use "query" parameter to search by filename/content)
+5. file_diff - Compare and suggest changes to files
+
+MANDATORY WORKFLOW:
+For ANY user request beyond simple questions, ALWAYS start with reasoning, then IMMEDIATELY continue with execution:
+
+Step 1 - REASONING FIRST:
+{
+  "action": "thought",
+  "parameters": {
+    "thought": "User request: [describe the request]. I need to analyze what tools and steps are required to complete this task effectively.",
+    "enableStructuredReasoning": true,
+    "reasoningDepth": "medium", // "shallow" (4 steps), "medium" (6 steps), "deep" (8 steps)
+    "category": "planning"
+  },
+  "requestId": "reasoning_phase"
+}
+
+Step 2 - EXECUTE PLANNED ACTIONS (IMMEDIATELY AFTER REASONING):
+Continue with multiple tool commands to complete the task. DO NOT STOP after reasoning - execute the plan!
+
+Step 3 - COMPLETION:
+Provide final summary without additional tool usage
+
+CRITICAL: After reasoning, you MUST continue executing tools to complete the user's request. Reasoning alone is not completion!
+
+MULTI-STEP TASK HANDLING:
+- For tasks requiring multiple actions (e.g., "create notes about X, Y, and Z"), execute ALL actions before setting "finished": true
+- Track your progress: if asked to create 3 files, create all 3 before finishing
+- Continue with additional tool commands until the complete request is satisfied
+- Only set "finished": true when you have fully completed every aspect of the user's request
+
+REASONING DEPTH GUIDE:
+- "shallow" (4 steps): Simple tasks, clear requirements
+- "medium" (6 steps): Most requests, moderate complexity  
+- "deep" (8 steps): Complex analysis, multiple considerations, high-stakes decisions
 
 Context awareness:
 - Remember files mentioned/created in this conversation
 - When user refers to "the file", "that note", or similar, use file_select to find it
 - Use descriptive keywords from the conversation for searches
 
-Examples:
-- "create a note about X" \u2192 file_write immediately
-- "delete the note about X" \u2192 file_select with query="X" to find the file first
-- "read that file" \u2192 file_select to find the referenced file, then file_read
+ALWAYS REASON FIRST - The user is in agent mode because they want thoughtful, planned responses, not reactive ones.
 `;
     DEFAULT_YAML_SYSTEM_MESSAGE = "You are an assistant that generates YAML attribute values for Obsidian notes. Read the note and generate a value for the specified YAML field. Only output the value, not the key or extra text.";
   }
@@ -165,7 +204,7 @@ var init_types = __esm({
       ],
       agentMode: {
         enabled: false,
-        maxToolCalls: 5,
+        maxToolCalls: 10,
         timeoutMs: 3e4
       }
     };
@@ -8514,6 +8553,69 @@ var MyPluginSettingTab = class extends import_obsidian2.PluginSettingTab {
       },
       { trim: true }
     );
+    CollapsibleSectionRenderer.createCollapsibleSection(
+      containerEl,
+      "Agent Mode Settings",
+      async (sectionEl) => {
+        sectionEl.createEl("div", {
+          text: "Agent Mode allows the AI to use tools like file creation, reading, and modification. Configure the limits and behavior for tool usage.",
+          cls: "setting-item-description",
+          attr: { style: "margin-bottom: 1em;" }
+        });
+        this.createToggleSetting(
+          sectionEl,
+          "Enable Agent Mode by Default",
+          "Start new conversations with Agent Mode enabled.",
+          () => {
+            var _a2, _b;
+            return (_b = (_a2 = this.plugin.settings.agentMode) == null ? void 0 : _a2.enabled) != null ? _b : false;
+          },
+          async (value) => {
+            if (!this.plugin.settings.agentMode) {
+              this.plugin.settings.agentMode = { enabled: false, maxToolCalls: 10, timeoutMs: 3e4 };
+            }
+            this.plugin.settings.agentMode.enabled = value;
+            await this.plugin.saveSettings();
+          }
+        );
+        this.createSliderSetting(
+          sectionEl,
+          "Max Tool Calls per Conversation",
+          "Maximum number of tools the AI can use in a single conversation to prevent runaway execution.",
+          { min: 1, max: 50, step: 1 },
+          () => {
+            var _a2, _b;
+            return (_b = (_a2 = this.plugin.settings.agentMode) == null ? void 0 : _a2.maxToolCalls) != null ? _b : 10;
+          },
+          async (value) => {
+            if (!this.plugin.settings.agentMode) {
+              this.plugin.settings.agentMode = { enabled: false, maxToolCalls: 10, timeoutMs: 3e4 };
+            }
+            this.plugin.settings.agentMode.maxToolCalls = value;
+            await this.plugin.saveSettings();
+          }
+        );
+        this.createSliderSetting(
+          sectionEl,
+          "Tool Execution Timeout (seconds)",
+          "Maximum time to wait for each tool to complete before timing out.",
+          { min: 5, max: 300, step: 5 },
+          () => {
+            var _a2, _b;
+            return ((_b = (_a2 = this.plugin.settings.agentMode) == null ? void 0 : _a2.timeoutMs) != null ? _b : 3e4) / 1e3;
+          },
+          async (value) => {
+            if (!this.plugin.settings.agentMode) {
+              this.plugin.settings.agentMode = { enabled: false, maxToolCalls: 10, timeoutMs: 3e4 };
+            }
+            this.plugin.settings.agentMode.timeoutMs = value * 1e3;
+            await this.plugin.saveSettings();
+          }
+        );
+      },
+      this.plugin,
+      "generalSectionsExpanded"
+    );
     containerEl.createEl("h3", { text: "UI Behavior" });
     this.createToggleSetting(
       containerEl,
@@ -9005,7 +9107,8 @@ var CommandParser = class {
           command: {
             action: parsed.action,
             parameters,
-            requestId: parsed.requestId || this.generateRequestId()
+            requestId: parsed.requestId || this.generateRequestId(),
+            finished: parsed.finished || false
           },
           originalText: text.trim()
         });
@@ -9039,7 +9142,8 @@ var CommandParser = class {
               command: {
                 action: parsed.action,
                 parameters,
-                requestId: parsed.requestId || this.generateRequestId()
+                requestId: parsed.requestId || this.generateRequestId(),
+                finished: parsed.finished || false
               },
               originalText
             });
@@ -9684,7 +9788,7 @@ var ThoughtTool = class {
       },
       category: {
         type: "string",
-        enum: ["analysis", "planning", "problem-solving", "reflection", "conclusion"],
+        enum: ["analysis", "planning", "problem-solving", "reflection", "conclusion", "reasoning"],
         description: "Category of thought for better organization",
         default: "analysis"
       },
@@ -9694,6 +9798,17 @@ var ThoughtTool = class {
         default: 7,
         minimum: 1,
         maximum: 10
+      },
+      enableStructuredReasoning: {
+        type: "boolean",
+        description: "Enable multi-step structured reasoning for complex problems",
+        default: false
+      },
+      reasoningDepth: {
+        type: "string",
+        enum: ["shallow", "medium", "deep"],
+        description: "Depth of structured reasoning (shallow: 3 steps, medium: 5 steps, deep: 7+ steps)",
+        default: "medium"
       }
     });
   }
@@ -9703,7 +9818,9 @@ var ThoughtTool = class {
       step,
       totalSteps,
       category = "analysis",
-      confidence = 7
+      confidence = 7,
+      enableStructuredReasoning = false,
+      reasoningDepth = "medium"
     } = params;
     if (!thought || thought.trim().length === 0) {
       return {
@@ -9712,9 +9829,11 @@ var ThoughtTool = class {
       };
     }
     try {
+      if (enableStructuredReasoning) {
+        return await this.performStructuredReasoning(thought.trim(), reasoningDepth, context);
+      }
       const timestamp2 = (/* @__PURE__ */ new Date()).toLocaleTimeString();
       const stepInfo = step && totalSteps ? `Step ${step}/${totalSteps}` : step ? `Step ${step}` : "";
-      const confidenceBar = "\u25CF".repeat(Math.floor(confidence)) + "\u25CB".repeat(10 - Math.floor(confidence));
       const thoughtData = {
         timestamp: timestamp2,
         thought: thought.trim(),
@@ -9760,6 +9879,8 @@ var ThoughtTool = class {
         return "\u{1F914}";
       case "conclusion":
         return "\u2705";
+      case "reasoning":
+        return "\u{1F9E0}";
       default:
         return "\u{1F4AD}";
     }
@@ -9769,6 +9890,153 @@ var ThoughtTool = class {
    */
   validateConfidence(confidence) {
     return Math.max(1, Math.min(10, Math.floor(confidence)));
+  }
+  /**
+   * Perform structured multi-step reasoning
+   */
+  async performStructuredReasoning(problem, depth, context) {
+    const timestamp2 = (/* @__PURE__ */ new Date()).toLocaleTimeString();
+    const stepCount = depth === "shallow" ? 4 : depth === "medium" ? 6 : 8;
+    const steps = [];
+    steps.push({
+      step: 1,
+      category: "analysis",
+      title: "Problem Analysis",
+      content: `Breaking down the problem: "${problem}"
+
+Key elements identified:
+- Core question/challenge
+- Relevant factors and constraints
+- Required outcome or decision`,
+      confidence: 8
+    });
+    steps.push({
+      step: 2,
+      category: "information",
+      title: "Information Assessment",
+      content: `Evaluating available information:
+- What we know about this problem
+- What assumptions we're making
+- What additional information might be helpful
+- Relevant patterns or similar scenarios`,
+      confidence: 7
+    });
+    steps.push({
+      step: 3,
+      category: "approach",
+      title: "Approach Development",
+      content: `Considering different approaches:
+- Multiple possible solutions or perspectives
+- Pros and cons of each approach
+- Feasibility and resource considerations
+- Potential risks and benefits`,
+      confidence: 7
+    });
+    if (stepCount >= 6) {
+      steps.push({
+        step: 4,
+        category: "evaluation",
+        title: "Detailed Evaluation",
+        content: `Deep dive into promising approaches:
+- Detailed examination of key options
+- Impact assessment and trade-offs
+- Implementation challenges and opportunities`,
+        confidence: 8
+      });
+      steps.push({
+        step: 5,
+        category: "synthesis",
+        title: "Solution Synthesis",
+        content: `Combining insights to develop best approach:
+- Integrating analysis from previous steps
+- Balancing competing factors and constraints
+- Identifying optimal path forward`,
+        confidence: 8
+      });
+    }
+    if (stepCount >= 8) {
+      steps.push({
+        step: 6,
+        category: "validation",
+        title: "Solution Validation",
+        content: `Testing proposed solution:
+- Does it address the core problem?
+- Is it feasible and realistic?
+- What are potential unintended consequences?
+- How robust is it to different scenarios?`,
+        confidence: 7
+      });
+      steps.push({
+        step: 7,
+        category: "refinement",
+        title: "Refinement & Optimization",
+        content: `Final optimization:
+- Addressing identified weaknesses
+- Enhancing strengths and benefits
+- Preparing for implementation challenges
+- Building in flexibility and adaptability`,
+        confidence: 8
+      });
+    }
+    const finalStep = stepCount;
+    steps.push({
+      step: finalStep,
+      category: "conclusion",
+      title: "Conclusion & Recommendation",
+      content: `Based on structured analysis:
+
+**Recommended approach:** [Synthesized from analysis]
+**Key considerations:** [Critical factors to remember]
+**Next steps:** [Immediate actions needed]
+**Confidence level:** High - systematic reasoning process`,
+      confidence: 9
+    });
+    const formattedResult = this.formatStructuredReasoning(problem, steps, timestamp2);
+    return {
+      success: true,
+      data: {
+        problem,
+        reasoning: "structured",
+        steps,
+        totalSteps: steps.length,
+        depth,
+        formattedThought: formattedResult
+      }
+    };
+  }
+  /**
+   * Format structured reasoning steps for display
+   */
+  formatStructuredReasoning(problem, steps, timestamp2) {
+    let formatted = `\u{1F9E0} **STRUCTURED REASONING SESSION** | ${timestamp2}
+`;
+    formatted += `**Problem:** ${problem}
+`;
+    formatted += `**Analysis Depth:** ${steps.length} reasoning steps
+
+`;
+    formatted += `---
+
+`;
+    steps.forEach((step) => {
+      const categoryEmoji = this.getCategoryEmoji(step.category);
+      const confidenceBar = "\u25CF".repeat(Math.floor(step.confidence)) + "\u25CB".repeat(10 - Math.floor(step.confidence));
+      formatted += `${categoryEmoji} **STEP ${step.step}: ${step.title.toUpperCase()}**
+`;
+      formatted += `*Confidence: ${step.confidence}/10 ${confidenceBar}*
+
+`;
+      formatted += `${step.content}
+
+`;
+      formatted += `---
+
+`;
+    });
+    formatted += `\u2705 **REASONING COMPLETE**
+`;
+    formatted += `*Analysis completed in ${steps.length} structured steps*`;
+    return formatted;
   }
 };
 
@@ -9809,29 +10077,10 @@ var AgentResponseHandler = class {
     const { text, commands } = this.commandParser.parseResponse(response);
     console.log("AgentResponseHandler: Parsed text:", text);
     console.log("AgentResponseHandler: Found commands:", commands);
-    let thoughtResultDisplay = "";
-    const userRequest = text && text.trim().length > 0 ? text : response;
-    const thoughtTool = new ThoughtTool(this.context.app);
-    const thoughtResult = await thoughtTool.execute({
-      thought: `Agent reasoning: Received user request: "${userRequest}". Determining next actions.`,
-      category: "analysis",
-      confidence: 7
-    }, this.context);
-    if (thoughtResult.success && thoughtResult.data && thoughtResult.data.formattedThought) {
-      thoughtResultDisplay = `
-${thoughtResult.data.formattedThought}
-`;
-      if (this.context.messagesContainer) {
-        const div = document.createElement("div");
-        div.className = "ai-chat-message thought-tool";
-        div.innerHTML = `<div class="message-content">${thoughtResult.data.formattedThought}</div>`;
-        this.context.messagesContainer.appendChild(div);
-      }
-    }
     if (commands.length === 0) {
       console.log("AgentResponseHandler: No commands found, returning original text");
       return {
-        processedText: (thoughtResultDisplay ? thoughtResultDisplay + "\n" : "") + text,
+        processedText: text,
         toolResults: [],
         hasTools: false
       };
@@ -9847,15 +10096,25 @@ ${thoughtResult.data.formattedThought}
     }
     const toolResults = [];
     for (const command of commands) {
+      console.log(`AgentResponseHandler: Executing tool '${command.action}' with parameters:`, command.parameters);
       try {
+        const startTime = Date.now();
         const result = await this.executeToolWithTimeout(command, agentSettings.timeoutMs);
+        const executionTime = Date.now() - startTime;
+        console.log(`AgentResponseHandler: Tool '${command.action}' completed in ${executionTime}ms:`, {
+          success: result.success,
+          hasData: !!result.data,
+          error: result.error
+        });
         toolResults.push({ command, result });
         this.executionCount++;
         this.context.onToolResult(result, command);
         if (this.executionCount >= agentSettings.maxToolCalls) {
+          console.log(`AgentResponseHandler: Reached maximum tool calls limit (${agentSettings.maxToolCalls})`);
           break;
         }
       } catch (error) {
+        console.error(`AgentResponseHandler: Tool '${command.action}' failed with error:`, error);
         const errorResult = {
           success: false,
           error: `Tool execution failed: ${error.message}`,
@@ -9866,7 +10125,7 @@ ${thoughtResult.data.formattedThought}
       }
     }
     return {
-      processedText: (thoughtResultDisplay ? thoughtResultDisplay + "\n" : "") + text,
+      processedText: text,
       toolResults,
       hasTools: true
     };
@@ -9977,6 +10236,9 @@ ${resultText}`
               break;
             case "thought":
               if (result.data && result.data.formattedThought) {
+                if (result.data.reasoning === "structured") {
+                  return this.createCollapsibleReasoning(result.data);
+                }
                 return result.data.formattedThought;
               }
               break;
@@ -9991,6 +10253,139 @@ ${resultText}`
 
 **Tool Execution:**
 ${resultText}`;
+  }
+  /**
+   * Create a collapsible reasoning display for structured reasoning results
+   */
+  createCollapsibleReasoning(reasoningData) {
+    const { problem, steps, totalSteps, depth } = reasoningData;
+    const collapsibleId = "reasoning-" + Date.now() + "-" + Math.random().toString(36).substr(2, 9);
+    let html = `<div id="reasoning-placeholder-${collapsibleId}" class="reasoning-placeholder">`;
+    html += `\u{1F9E0} REASONING SESSION (${totalSteps} steps, ${depth} depth) - Loading interactive display...`;
+    html += `</div>`;
+    setTimeout(() => {
+      this.injectReasoningUI(collapsibleId, problem, steps, totalSteps, depth);
+    }, 100);
+    return html;
+  }
+  /**
+   * Inject interactive reasoning UI into the DOM
+   */
+  injectReasoningUI(collapsibleId, problem, steps, totalSteps, depth) {
+    const placeholder = this.context.messagesContainer.querySelector(`#reasoning-placeholder-${collapsibleId}`);
+    if (!placeholder) return;
+    const container = document.createElement("div");
+    container.className = "reasoning-container";
+    const summary = document.createElement("div");
+    summary.className = "reasoning-summary";
+    const toggle = document.createElement("span");
+    toggle.className = "reasoning-toggle";
+    toggle.textContent = "\u25B6";
+    const summaryText = document.createElement("span");
+    summaryText.innerHTML = `<strong>\u{1F9E0} REASONING SESSION</strong> (${totalSteps} steps, ${depth} depth) - <em>Click to view details</em>`;
+    summary.appendChild(toggle);
+    summary.appendChild(summaryText);
+    const details = document.createElement("div");
+    details.className = "reasoning-details";
+    const problemDiv = document.createElement("div");
+    problemDiv.className = "reasoning-problem";
+    problemDiv.innerHTML = `<strong>Problem:</strong> ${problem || "No problem statement provided"}`;
+    details.appendChild(problemDiv);
+    if (steps && steps.length > 0) {
+      steps.forEach((step) => {
+        var _a2;
+        const stepDiv = document.createElement("div");
+        stepDiv.className = `reasoning-step ${step.category}`;
+        const categoryEmoji = this.getStepEmoji(step.category);
+        const confidenceBar = "\u25CF".repeat(Math.floor(step.confidence || 5)) + "\u25CB".repeat(10 - Math.floor(step.confidence || 5));
+        stepDiv.innerHTML = `
+                    <div class="step-header">
+                        ${categoryEmoji} Step ${step.step}: ${((_a2 = step.title) == null ? void 0 : _a2.toUpperCase()) || "UNTITLED"}
+                    </div>
+                    <div class="step-confidence">
+                        Confidence: ${step.confidence || 5}/10 <span class="confidence-bar">${confidenceBar}</span>
+                    </div>
+                    <div class="step-content">
+                        ${step.content || "No content provided"}
+                    </div>
+                `;
+        details.appendChild(stepDiv);
+      });
+    }
+    const completion = document.createElement("div");
+    completion.className = "reasoning-completion";
+    completion.textContent = `\u2705 Analysis completed in ${totalSteps} structured steps`;
+    details.appendChild(completion);
+    let isExpanded = false;
+    summary.addEventListener("click", () => {
+      isExpanded = !isExpanded;
+      if (isExpanded) {
+        details.classList.add("expanded");
+        toggle.textContent = "\u25BC";
+        summaryText.innerHTML = `<strong>\u{1F9E0} REASONING SESSION</strong> (${totalSteps} steps, ${depth} depth) - <em>Click to collapse</em>`;
+      } else {
+        details.classList.remove("expanded");
+        toggle.textContent = "\u25B6";
+        summaryText.innerHTML = `<strong>\u{1F9E0} REASONING SESSION</strong> (${totalSteps} steps, ${depth} depth) - <em>Click to view details</em>`;
+      }
+    });
+    container.appendChild(summary);
+    container.appendChild(details);
+    placeholder.replaceWith(container);
+  }
+  /**
+   * Get color for reasoning step categories
+   */
+  getStepColor(category) {
+    switch (category) {
+      case "analysis":
+        return "#4f46e5";
+      case "information":
+        return "#059669";
+      case "approach":
+        return "#dc2626";
+      case "evaluation":
+        return "#7c2d12";
+      case "synthesis":
+        return "#7c3aed";
+      case "validation":
+        return "#16a34a";
+      case "refinement":
+        return "#ea580c";
+      case "conclusion":
+        return "#1d4ed8";
+      case "planning":
+        return "#be123c";
+      default:
+        return "#6b7280";
+    }
+  }
+  /**
+   * Get emoji for reasoning step categories
+   */
+  getStepEmoji(category) {
+    switch (category) {
+      case "analysis":
+        return "\u{1F50D}";
+      case "information":
+        return "\u{1F4CA}";
+      case "approach":
+        return "\u{1F3AF}";
+      case "evaluation":
+        return "\u2696\uFE0F";
+      case "synthesis":
+        return "\u{1F517}";
+      case "validation":
+        return "\u2705";
+      case "refinement":
+        return "\u26A1";
+      case "conclusion":
+        return "\u{1F3AF}";
+      case "planning":
+        return "\u{1F4CB}";
+      default:
+        return "\u{1F4AD}";
+    }
   }
 };
 
@@ -10086,6 +10481,9 @@ var ChatView = class extends import_obsidian17.ItemView {
     const sendMessage = async () => {
       const content = textarea.value.trim();
       if (!content) return;
+      if (this.agentResponseHandler) {
+        this.agentResponseHandler.resetExecutionCount();
+      }
       textarea.disabled = true;
       sendButton.classList.add("hidden");
       stopButton.classList.remove("hidden");
@@ -10374,7 +10772,7 @@ ${currentNoteContent}`
               this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
             }
           },
-          abortController: this.activeStream
+          abortController: this.activeStream || void 0
         }
       );
       if (this.plugin.isAgentModeEnabled() && this.agentResponseHandler) {
@@ -10394,11 +10792,36 @@ ${currentNoteContent}`
             );
             this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
           }
-          const toolResultMessage = this.agentResponseHandler.createToolResultMessage(agentResult.toolResults);
-          if (toolResultMessage) {
-            console.log("Tool results for context:", toolResultMessage);
+          responseContent = await this.continueTaskUntilFinished(
+            messages,
+            container,
+            responseContent,
+            finalContent,
+            agentResult.toolResults
+          );
+        } else {
+          if (responseContent.includes('"action"') && responseContent.includes('"thought"')) {
+            messages.push({ role: "assistant", content: responseContent });
+            messages.push({ role: "system", content: "Please continue with the actual task execution based on your reasoning." });
+            const continuationContent = await this.getContinuationResponse(messages, container);
+            if (continuationContent.trim()) {
+              const updatedContent = responseContent + "\n\n" + continuationContent;
+              container.dataset.rawContent = updatedContent;
+              const contentEl = container.querySelector(".message-content");
+              if (contentEl) {
+                contentEl.empty();
+                await import_obsidian17.MarkdownRenderer.render(
+                  this.app,
+                  updatedContent,
+                  contentEl,
+                  "",
+                  this
+                );
+                this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+              }
+              responseContent = updatedContent;
+            }
           }
-          responseContent = finalContent;
         }
       }
       if (originalTimestamp && responseContent.trim() !== "") {
@@ -10419,9 +10842,130 @@ ${currentNoteContent}`
   }
   clearMessages() {
     this.messagesContainer.empty();
+    if (this.agentResponseHandler) {
+      this.agentResponseHandler.resetExecutionCount();
+    }
   }
   scrollMessagesToBottom() {
     this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+  }
+  /**
+   * Continue task execution until finished parameter is true
+   */
+  async continueTaskUntilFinished(messages, container, initialResponseContent, currentContent, initialToolResults) {
+    var _a2;
+    let responseContent = currentContent;
+    let maxIterations = 10;
+    let iteration = 0;
+    let isFinished = this.checkIfTaskFinished(initialToolResults);
+    while (!isFinished && iteration < maxIterations) {
+      iteration++;
+      console.log(`ChatView: Task continuation iteration ${iteration}`);
+      const toolResultMessage = (_a2 = this.agentResponseHandler) == null ? void 0 : _a2.createToolResultMessage(initialToolResults);
+      if (toolResultMessage) {
+        console.log("Tool results for context:", toolResultMessage);
+        messages.push({ role: "assistant", content: initialResponseContent });
+        messages.push(toolResultMessage);
+        messages.push({
+          role: "system",
+          content: "Continue with the remaining parts of the task. Check your progress and continue until ALL parts of the user's request are complete. Set finished: true only when everything is done."
+        });
+        const continuationContent = await this.getContinuationResponse(messages, container);
+        if (continuationContent.trim()) {
+          if (this.agentResponseHandler) {
+            const continuationResult = await this.agentResponseHandler.processResponse(continuationContent);
+            let continuationDisplay = continuationContent;
+            if (continuationResult.hasTools) {
+              continuationDisplay = continuationResult.processedText + this.agentResponseHandler.formatToolResultsForDisplay(continuationResult.toolResults);
+              isFinished = this.checkIfTaskFinished(continuationResult.toolResults);
+              initialToolResults.push(...continuationResult.toolResults);
+            } else {
+              isFinished = true;
+            }
+            const updatedContent = responseContent + "\n\n" + continuationDisplay;
+            container.dataset.rawContent = updatedContent;
+            const contentEl = container.querySelector(".message-content");
+            if (contentEl) {
+              contentEl.empty();
+              await import_obsidian17.MarkdownRenderer.render(
+                this.app,
+                updatedContent,
+                contentEl,
+                "",
+                this
+              );
+              this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+            }
+            responseContent = updatedContent;
+            initialResponseContent = continuationContent;
+          } else {
+            const updatedContent = responseContent + "\n\n" + continuationContent;
+            container.dataset.rawContent = updatedContent;
+            const contentEl = container.querySelector(".message-content");
+            if (contentEl) {
+              contentEl.empty();
+              await import_obsidian17.MarkdownRenderer.render(
+                this.app,
+                updatedContent,
+                contentEl,
+                "",
+                this
+              );
+              this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+            }
+            responseContent = updatedContent;
+            isFinished = true;
+          }
+        } else {
+          isFinished = true;
+        }
+      } else {
+        isFinished = true;
+      }
+    }
+    if (iteration >= maxIterations) {
+      console.warn("ChatView: Task continuation reached maximum iterations");
+      responseContent += "\n\n*[Task continuation reached maximum iterations - stopping to prevent infinite loop]*";
+    }
+    console.log(`ChatView: Task continuation completed after ${iteration} iterations`);
+    return responseContent;
+  }
+  /**
+   * Check if any tool results indicate the task is finished
+   */
+  checkIfTaskFinished(toolResults) {
+    return toolResults.some(({ command }) => {
+      return command.finished === true;
+    });
+  }
+  /**
+   * Get continuation response after tool execution
+   */
+  async getContinuationResponse(messages, container) {
+    try {
+      console.log("ChatView: Getting continuation response after tool execution");
+      const provider = this.plugin.settings.selectedModel ? createProviderFromUnifiedModel(this.plugin.settings, this.plugin.settings.selectedModel) : createProvider(this.plugin.settings);
+      let continuationContent = "";
+      await provider.getCompletion(
+        messages,
+        {
+          temperature: this.plugin.settings.temperature,
+          maxTokens: this.plugin.settings.maxTokens,
+          streamCallback: async (chunk) => {
+            continuationContent += chunk;
+          },
+          abortController: this.activeStream || void 0
+        }
+      );
+      console.log("ChatView: Continuation response received:", continuationContent.length, "characters");
+      return continuationContent;
+    } catch (error) {
+      console.error("ChatView: Error getting continuation response:", error);
+      if (error.name !== "AbortError") {
+        return `*[Error getting continuation: ${error.message}]*`;
+      }
+      return "";
+    }
   }
 };
 

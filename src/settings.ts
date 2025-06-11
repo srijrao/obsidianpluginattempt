@@ -439,6 +439,53 @@ export class MyPluginSettingTab extends PluginSettingTab {
             async (value) => { this.plugin.settings.chatNoteFolder = value ?? ''; await this.plugin.saveSettings(); },
             { trim: true });
             
+        // Agent Mode Settings
+        CollapsibleSectionRenderer.createCollapsibleSection(
+            containerEl,
+            'Agent Mode Settings',
+            async (sectionEl: HTMLElement) => {
+                sectionEl.createEl('div', {
+                    text: 'Agent Mode allows the AI to use tools like file creation, reading, and modification. Configure the limits and behavior for tool usage.',
+                    cls: 'setting-item-description',
+                    attr: { style: 'margin-bottom: 1em;' }
+                });
+
+                this.createToggleSetting(sectionEl, 'Enable Agent Mode by Default', 'Start new conversations with Agent Mode enabled.',
+                    () => this.plugin.settings.agentMode?.enabled ?? false,
+                    async (value) => { 
+                        if (!this.plugin.settings.agentMode) {
+                            this.plugin.settings.agentMode = { enabled: false, maxToolCalls: 10, timeoutMs: 30000 };
+                        }
+                        this.plugin.settings.agentMode.enabled = value; 
+                        await this.plugin.saveSettings(); 
+                    });
+
+                this.createSliderSetting(sectionEl, 'Max Tool Calls per Conversation', 'Maximum number of tools the AI can use in a single conversation to prevent runaway execution.',
+                    { min: 1, max: 50, step: 1 },
+                    () => this.plugin.settings.agentMode?.maxToolCalls ?? 10,
+                    async (value) => { 
+                        if (!this.plugin.settings.agentMode) {
+                            this.plugin.settings.agentMode = { enabled: false, maxToolCalls: 10, timeoutMs: 30000 };
+                        }
+                        this.plugin.settings.agentMode.maxToolCalls = value; 
+                        await this.plugin.saveSettings(); 
+                    });
+
+                this.createSliderSetting(sectionEl, 'Tool Execution Timeout (seconds)', 'Maximum time to wait for each tool to complete before timing out.',
+                    { min: 5, max: 300, step: 5 },
+                    () => (this.plugin.settings.agentMode?.timeoutMs ?? 30000) / 1000,
+                    async (value) => { 
+                        if (!this.plugin.settings.agentMode) {
+                            this.plugin.settings.agentMode = { enabled: false, maxToolCalls: 10, timeoutMs: 30000 };
+                        }
+                        this.plugin.settings.agentMode.timeoutMs = value * 1000; 
+                        await this.plugin.saveSettings(); 
+                    });
+            },
+            this.plugin,
+            'generalSectionsExpanded'
+        );
+
         // UI Behavior Settings
         containerEl.createEl('h3', { text: 'UI Behavior' });
         

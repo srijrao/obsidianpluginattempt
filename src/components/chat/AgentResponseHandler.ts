@@ -65,30 +65,10 @@ export class AgentResponseHandler {
         console.log('AgentResponseHandler: Parsed text:', text);
         console.log('AgentResponseHandler: Found commands:', commands);
 
-        // --- Always use ThoughtTool to determine what to do ---
-        let thoughtResultDisplay = '';
-        const userRequest = text && text.trim().length > 0 ? text : response;
-        const thoughtTool = new ThoughtTool(this.context.app);
-        const thoughtResult = await thoughtTool.execute({
-            thought: `Agent reasoning: Received user request: "${userRequest}". Determining next actions.`,
-            category: 'analysis',
-            confidence: 7
-        }, this.context);
-        if (thoughtResult.success && thoughtResult.data && thoughtResult.data.formattedThought) {
-            thoughtResultDisplay = `\n${thoughtResult.data.formattedThought}\n`;
-            // Optionally, display in chat UI
-            if (this.context.messagesContainer) {
-                const div = document.createElement('div');
-                div.className = 'ai-chat-message thought-tool';
-                div.innerHTML = `<div class="message-content">${thoughtResult.data.formattedThought}</div>`;
-                this.context.messagesContainer.appendChild(div);
-            }
-        }
-        // --- End ThoughtTool integration ---
         if (commands.length === 0) {
             console.log('AgentResponseHandler: No commands found, returning original text');
             return {
-                processedText: (thoughtResultDisplay ? thoughtResultDisplay + '\n' : '') + text,
+                processedText: text,
                 toolResults: [],
                 hasTools: false
             };
@@ -109,8 +89,19 @@ export class AgentResponseHandler {
         const toolResults: Array<{ command: ToolCommand; result: ToolResult }> = [];
         
         for (const command of commands) {
+            console.log(`AgentResponseHandler: Executing tool '${command.action}' with parameters:`, command.parameters);
+            
             try {
+                const startTime = Date.now();
                 const result = await this.executeToolWithTimeout(command, agentSettings.timeoutMs);
+                const executionTime = Date.now() - startTime;
+                
+                console.log(`AgentResponseHandler: Tool '${command.action}' completed in ${executionTime}ms:`, {
+                    success: result.success,
+                    hasData: !!result.data,
+                    error: result.error
+                });
+                
                 toolResults.push({ command, result });
                 this.executionCount++;
 
@@ -119,9 +110,12 @@ export class AgentResponseHandler {
 
                 // Stop if we hit the limit
                 if (this.executionCount >= agentSettings.maxToolCalls) {
+                    console.log(`AgentResponseHandler: Reached maximum tool calls limit (${agentSettings.maxToolCalls})`);
                     break;
                 }
             } catch (error: any) {
+                console.error(`AgentResponseHandler: Tool '${command.action}' failed with error:`, error);
+                
                 const errorResult: ToolResult = {
                     success: false,
                     error: `Tool execution failed: ${error.message}`,
@@ -133,7 +127,7 @@ export class AgentResponseHandler {
         }
 
         return {
-            processedText: (thoughtResultDisplay ? thoughtResultDisplay + '\n' : '') + text,
+            processedText: text,
             toolResults,
             hasTools: true
         };
@@ -257,6 +251,10 @@ export class AgentResponseHandler {
                             break;
                         case 'thought':
                             if (result.data && result.data.formattedThought) {
+                                // Check if this was structured reasoning
+                                if (result.data.reasoning === 'structured') {
+                                    return this.createCollapsibleReasoning(result.data);
+                                }
                                 return result.data.formattedThought;
                             }
                             break;
@@ -270,5 +268,156 @@ export class AgentResponseHandler {
         }).join('\n');
 
         return `\n\n**Tool Execution:**\n${resultText}`;
+    }
+
+    /**
+     * Create a collapsible reasoning display for structured reasoning results
+     */
+    private createCollapsibleReasoning(reasoningData: any): string {
+        const { problem, steps, totalSteps, depth } = reasoningData;
+        const collapsibleId = 'reasoning-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+        
+        // Create placeholder that will be replaced with interactive UI
+        let html = `<div id="reasoning-placeholder-${collapsibleId}" class="reasoning-placeholder">`;
+        html += `🧠 REASONING SESSION (${totalSteps} steps, ${depth} depth) - Loading interactive display...`;
+        html += `</div>`;
+        
+        // Inject the interactive UI asynchronously
+        setTimeout(() => {
+            this.injectReasoningUI(collapsibleId, problem, steps, totalSteps, depth);
+        }, 100);
+        
+        return html;
+    }
+
+    /**
+     * Inject interactive reasoning UI into the DOM
+     */
+    private injectReasoningUI(
+        collapsibleId: string, 
+        problem: string, 
+        steps: any[], 
+        totalSteps: number, 
+        depth: string
+    ) {
+        const placeholder = this.context.messagesContainer.querySelector(`#reasoning-placeholder-${collapsibleId}`);
+        if (!placeholder) return;
+
+        // Create the main container
+        const container = document.createElement('div');
+        container.className = 'reasoning-container';
+
+        // Create the summary/header (clickable)
+        const summary = document.createElement('div');
+        summary.className = 'reasoning-summary';
+        
+        const toggle = document.createElement('span');
+        toggle.className = 'reasoning-toggle';
+        toggle.textContent = '▶';
+
+        const summaryText = document.createElement('span');
+        summaryText.innerHTML = `<strong>🧠 REASONING SESSION</strong> (${totalSteps} steps, ${depth} depth) - <em>Click to view details</em>`;
+        
+        summary.appendChild(toggle);
+        summary.appendChild(summaryText);
+
+        // Create the details container (initially hidden)
+        const details = document.createElement('div');
+        details.className = 'reasoning-details';
+
+        // Add problem statement
+        const problemDiv = document.createElement('div');
+        problemDiv.className = 'reasoning-problem';
+        problemDiv.innerHTML = `<strong>Problem:</strong> ${problem || 'No problem statement provided'}`;
+        details.appendChild(problemDiv);
+
+        // Add reasoning steps
+        if (steps && steps.length > 0) {
+            steps.forEach((step: any) => {
+                const stepDiv = document.createElement('div');
+                stepDiv.className = `reasoning-step ${step.category}`;
+
+                const categoryEmoji = this.getStepEmoji(step.category);
+                const confidenceBar = '●'.repeat(Math.floor(step.confidence || 5)) + '○'.repeat(10 - Math.floor(step.confidence || 5));
+
+                stepDiv.innerHTML = `
+                    <div class="step-header">
+                        ${categoryEmoji} Step ${step.step}: ${step.title?.toUpperCase() || 'UNTITLED'}
+                    </div>
+                    <div class="step-confidence">
+                        Confidence: ${step.confidence || 5}/10 <span class="confidence-bar">${confidenceBar}</span>
+                    </div>
+                    <div class="step-content">
+                        ${step.content || 'No content provided'}
+                    </div>
+                `;
+
+                details.appendChild(stepDiv);
+            });
+        }
+
+        // Add completion message
+        const completion = document.createElement('div');
+        completion.className = 'reasoning-completion';
+        completion.textContent = `✅ Analysis completed in ${totalSteps} structured steps`;
+        details.appendChild(completion);
+
+        // Add click handler for toggle
+        let isExpanded = false;
+        summary.addEventListener('click', () => {
+            isExpanded = !isExpanded;
+            if (isExpanded) {
+                details.classList.add('expanded');
+                toggle.textContent = '▼';
+                summaryText.innerHTML = `<strong>🧠 REASONING SESSION</strong> (${totalSteps} steps, ${depth} depth) - <em>Click to collapse</em>`;
+            } else {
+                details.classList.remove('expanded');
+                toggle.textContent = '▶';
+                summaryText.innerHTML = `<strong>🧠 REASONING SESSION</strong> (${totalSteps} steps, ${depth} depth) - <em>Click to view details</em>`;
+            }
+        });
+
+        // Assemble the UI
+        container.appendChild(summary);
+        container.appendChild(details);
+
+        // Replace the placeholder
+        placeholder.replaceWith(container);
+    }
+
+    /**
+     * Get color for reasoning step categories
+     */
+    private getStepColor(category: string): string {
+        switch (category) {
+            case 'analysis': return '#4f46e5';
+            case 'information': return '#059669';
+            case 'approach': return '#dc2626';
+            case 'evaluation': return '#7c2d12';
+            case 'synthesis': return '#7c3aed';
+            case 'validation': return '#16a34a';
+            case 'refinement': return '#ea580c';
+            case 'conclusion': return '#1d4ed8';
+            case 'planning': return '#be123c';
+            default: return '#6b7280';
+        }
+    }
+
+    /**
+     * Get emoji for reasoning step categories
+     */
+    private getStepEmoji(category: string): string {
+        switch (category) {
+            case 'analysis': return '🔍';
+            case 'information': return '📊';
+            case 'approach': return '🎯';
+            case 'evaluation': return '⚖️';
+            case 'synthesis': return '🔗';
+            case 'validation': return '✅';
+            case 'refinement': return '⚡';
+            case 'conclusion': return '🎯';
+            case 'planning': return '📋';
+            default: return '💭';
+        }
     }
 }
