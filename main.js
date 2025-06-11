@@ -7578,9 +7578,9 @@ async function saveChatAsNote({
   }
   try {
     await app.vault.create(filePath, noteContent);
-    new import_obsidian7.Notice(`Chat saved as note: ${filePath}`);
+    new import_obsidian8.Notice(`Chat saved as note: ${filePath}`);
   } catch (e) {
-    new import_obsidian7.Notice("Failed to save chat as note.");
+    new import_obsidian8.Notice("Failed to save chat as note.");
   }
 }
 async function loadChatYamlAndApplySettings({
@@ -7639,21 +7639,21 @@ async function loadChatYamlAndApplySettings({
     temperature: newTemperature
   };
 }
-var import_obsidian7;
+var import_obsidian8;
 var init_chatPersistence = __esm({
   "src/components/chat/chatPersistence.ts"() {
-    import_obsidian7 = require("obsidian");
+    import_obsidian8 = require("obsidian");
     init_js_yaml();
     init_providers();
   }
 });
 
 // src/components/chat/ChatHelpModal.ts
-var import_obsidian8, ChatHelpModal;
+var import_obsidian9, ChatHelpModal;
 var init_ChatHelpModal = __esm({
   "src/components/chat/ChatHelpModal.ts"() {
-    import_obsidian8 = require("obsidian");
-    ChatHelpModal = class extends import_obsidian8.Modal {
+    import_obsidian9 = require("obsidian");
+    ChatHelpModal = class extends import_obsidian9.Modal {
       constructor(app) {
         super(app);
       }
@@ -7753,12 +7753,12 @@ var SettingsModal_exports = {};
 __export(SettingsModal_exports, {
   SettingsModal: () => SettingsModal
 });
-var import_obsidian9, SettingsModal;
+var import_obsidian10, SettingsModal;
 var init_SettingsModal = __esm({
   "src/components/chat/SettingsModal.ts"() {
-    import_obsidian9 = require("obsidian");
+    import_obsidian10 = require("obsidian");
     init_SettingsSections();
-    SettingsModal = class extends import_obsidian9.Modal {
+    SettingsModal = class extends import_obsidian10.Modal {
       constructor(app, plugin) {
         super(app);
         __publicField(this, "plugin");
@@ -7818,7 +7818,7 @@ function handleClearChat(messagesContainer, chatHistoryManager) {
     try {
       await chatHistoryManager.clearHistory();
     } catch (e) {
-      new import_obsidian10.Notice("Failed to clear chat history.");
+      new import_obsidian11.Notice("Failed to clear chat history.");
     }
   };
 }
@@ -7834,13 +7834,13 @@ function handleHelp(app) {
     new ChatHelpModal(app).open();
   };
 }
-var import_obsidian10;
+var import_obsidian11;
 var init_eventHandlers = __esm({
   "src/components/chat/eventHandlers.ts"() {
     init_Buttons();
     init_chatPersistence();
     init_ChatHelpModal();
-    import_obsidian10 = require("obsidian");
+    import_obsidian11 = require("obsidian");
   }
 });
 
@@ -8746,7 +8746,6 @@ var MyPluginSettingTab = class extends import_obsidian2.PluginSettingTab {
 
 // src/components/chat.ts
 var import_obsidian16 = require("obsidian");
-init_providers();
 
 // src/components/chat/ChatHistoryManager.ts
 var import_obsidian3 = require("obsidian");
@@ -8867,7 +8866,7 @@ var ChatHistoryManager = class {
 };
 
 // src/components/chat/Message.ts
-var import_obsidian6 = require("obsidian");
+var import_obsidian7 = require("obsidian");
 init_Buttons();
 
 // src/components/chat/ConfirmationModal.ts
@@ -8903,6 +8902,237 @@ var ConfirmationModal = class extends import_obsidian5.Modal {
   }
 };
 
+// src/components/chat/MessageRenderer.ts
+var import_obsidian6 = require("obsidian");
+var MessageRenderer = class {
+  constructor(app) {
+    this.app = app;
+  }
+  /**
+   * Update message container with enhanced reasoning and task status data
+   */
+  updateMessageWithEnhancedData(container, messageData, component) {
+    const existingReasoning = container.querySelector(".reasoning-container");
+    const existingTaskStatus = container.querySelector(".task-status-container");
+    if (existingReasoning) existingReasoning.remove();
+    if (existingTaskStatus) existingTaskStatus.remove();
+    const messageContainer = container.querySelector(".message-container");
+    if (!messageContainer) return;
+    if (messageData.reasoning) {
+      const reasoningEl = this.createReasoningSection(messageData.reasoning);
+      messageContainer.insertBefore(reasoningEl, messageContainer.firstChild);
+    }
+    if (messageData.taskStatus) {
+      const taskStatusEl = this.createTaskStatusSection(messageData.taskStatus);
+      messageContainer.insertBefore(taskStatusEl, messageContainer.firstChild);
+    }
+    const contentEl = container.querySelector(".message-content");
+    if (contentEl) {
+      contentEl.empty();
+      import_obsidian6.MarkdownRenderer.render(
+        this.app,
+        messageData.content,
+        contentEl,
+        "",
+        component || null
+      ).catch((error) => {
+        contentEl.textContent = messageData.content;
+      });
+    }
+  }
+  /**
+   * Create reasoning section element
+   */
+  createReasoningSection(reasoning) {
+    var _a2;
+    const reasoningContainer = document.createElement("div");
+    reasoningContainer.className = "reasoning-container";
+    const header = document.createElement("div");
+    header.className = "reasoning-summary";
+    const toggle = document.createElement("span");
+    toggle.className = "reasoning-toggle";
+    toggle.textContent = reasoning.isCollapsed ? "\u25B6" : "\u25BC";
+    const headerText = document.createElement("span");
+    const typeLabel = reasoning.type === "structured" ? "STRUCTURED REASONING" : "REASONING";
+    const stepCount = ((_a2 = reasoning.steps) == null ? void 0 : _a2.length) || 0;
+    headerText.innerHTML = `<strong>\u{1F9E0} ${typeLabel}</strong>`;
+    if (stepCount > 0) {
+      headerText.innerHTML += ` (${stepCount} steps)`;
+    }
+    headerText.innerHTML += ` - <em>Click to ${reasoning.isCollapsed ? "expand" : "collapse"}</em>`;
+    header.appendChild(toggle);
+    header.appendChild(headerText);
+    const details = document.createElement("div");
+    details.className = "reasoning-details";
+    if (!reasoning.isCollapsed) {
+      details.classList.add("expanded");
+    }
+    if (reasoning.type === "structured" && reasoning.steps) {
+      if (reasoning.problem) {
+        const problemDiv = document.createElement("div");
+        problemDiv.className = "reasoning-problem";
+        problemDiv.innerHTML = `<strong>Problem:</strong> ${reasoning.problem}`;
+        details.appendChild(problemDiv);
+      }
+      reasoning.steps.forEach((step) => {
+        const stepDiv = document.createElement("div");
+        stepDiv.className = `reasoning-step ${step.category}`;
+        stepDiv.innerHTML = `
+                    <div class="step-header">
+                        ${this.getStepEmoji(step.category)} Step ${step.step}: ${step.title.toUpperCase()}
+                    </div>
+                    <div class="step-confidence">
+                        Confidence: ${step.confidence}/10
+                    </div>
+                    <div class="step-content">
+                        ${step.content}
+                    </div>
+                `;
+        details.appendChild(stepDiv);
+      });
+    } else if (reasoning.summary) {
+      const summaryDiv = document.createElement("div");
+      summaryDiv.className = "reasoning-completion";
+      summaryDiv.textContent = reasoning.summary;
+      details.appendChild(summaryDiv);
+    }
+    header.addEventListener("click", () => {
+      const isExpanded = details.classList.contains("expanded");
+      if (isExpanded) {
+        details.classList.remove("expanded");
+        toggle.textContent = "\u25B6";
+        reasoning.isCollapsed = true;
+      } else {
+        details.classList.add("expanded");
+        toggle.textContent = "\u25BC";
+        reasoning.isCollapsed = false;
+      }
+    });
+    reasoningContainer.appendChild(header);
+    reasoningContainer.appendChild(details);
+    return reasoningContainer;
+  }
+  /**
+   * Create task status section element
+   */
+  createTaskStatusSection(taskStatus) {
+    const statusContainer = document.createElement("div");
+    statusContainer.className = "task-status-container";
+    statusContainer.dataset.taskStatus = taskStatus.status;
+    const statusText = this.getTaskStatusText(taskStatus);
+    const statusIcon = this.getTaskStatusIcon(taskStatus.status);
+    statusContainer.innerHTML = `
+            <div class="task-status-header">
+                ${statusIcon} <strong>${statusText}</strong>
+            </div>
+        `;
+    if (taskStatus.progress) {
+      const progressContainer = document.createElement("div");
+      progressContainer.className = "task-progress-container";
+      if (taskStatus.progress.total) {
+        const progressBar = document.createElement("div");
+        progressBar.className = "task-progress-bar";
+        const progressFill = document.createElement("div");
+        progressFill.className = "task-progress-fill";
+        const progressPercent = taskStatus.progress.current / taskStatus.progress.total * 100;
+        progressFill.style.width = `${progressPercent}%`;
+        progressBar.appendChild(progressFill);
+        progressContainer.appendChild(progressBar);
+        const progressText = document.createElement("div");
+        progressText.className = "task-progress-text";
+        progressText.textContent = `${taskStatus.progress.current}/${taskStatus.progress.total}`;
+        if (taskStatus.progress.description) {
+          progressText.textContent += ` - ${taskStatus.progress.description}`;
+        }
+        progressContainer.appendChild(progressText);
+      }
+      statusContainer.appendChild(progressContainer);
+    }
+    if (taskStatus.toolExecutionCount > 0) {
+      const toolInfo = document.createElement("div");
+      toolInfo.className = "task-tool-info";
+      toolInfo.textContent = `Tools used: ${taskStatus.toolExecutionCount}/${taskStatus.maxToolExecutions}`;
+      statusContainer.appendChild(toolInfo);
+    }
+    return statusContainer;
+  }
+  /**
+   * Get emoji for reasoning step categories
+   */
+  getStepEmoji(category) {
+    switch (category) {
+      case "analysis":
+        return "\u{1F50D}";
+      case "planning":
+        return "\u{1F4CB}";
+      case "problem-solving":
+        return "\u{1F9E9}";
+      case "reflection":
+        return "\u{1F914}";
+      case "conclusion":
+        return "\u2705";
+      case "reasoning":
+        return "\u{1F9E0}";
+      case "information":
+        return "\u{1F4CA}";
+      case "approach":
+        return "\u{1F3AF}";
+      case "evaluation":
+        return "\u2696\uFE0F";
+      case "synthesis":
+        return "\u{1F517}";
+      case "validation":
+        return "\u2705";
+      case "refinement":
+        return "\u26A1";
+      default:
+        return "\u{1F4AD}";
+    }
+  }
+  /**
+   * Get task status text
+   */
+  getTaskStatusText(taskStatus) {
+    switch (taskStatus.status) {
+      case "idle":
+        return "Task Ready";
+      case "running":
+        return "Task In Progress";
+      case "stopped":
+        return "Task Stopped";
+      case "completed":
+        return "Task Completed";
+      case "limit_reached":
+        return "Tool Limit Reached";
+      case "waiting_for_user":
+        return "Waiting for User Input";
+      default:
+        return "Unknown Status";
+    }
+  }
+  /**
+   * Get task status icon
+   */
+  getTaskStatusIcon(status) {
+    switch (status) {
+      case "idle":
+        return "\u23F8\uFE0F";
+      case "running":
+        return "\u{1F504}";
+      case "stopped":
+        return "\u23F9\uFE0F";
+      case "completed":
+        return "\u2705";
+      case "limit_reached":
+        return "\u26A0\uFE0F";
+      case "waiting_for_user":
+        return "\u23F3";
+      default:
+        return "\u2753";
+    }
+  }
+};
+
 // src/components/chat/Message.ts
 function createMessageElement(app, role, content, chatHistoryManager, plugin, regenerateCallback, parentComponent, messageData) {
   const messageEl = document.createElement("div");
@@ -8913,18 +9143,21 @@ function createMessageElement(app, role, content, chatHistoryManager, plugin, re
   if (messageData) {
     messageEl.dataset.messageData = JSON.stringify(messageData);
   }
-  if (role === "assistant" && (messageData == null ? void 0 : messageData.reasoning)) {
-    const reasoningEl = createReasoningSection(messageData.reasoning, plugin);
-    messageContainer.appendChild(reasoningEl);
+  const messageRenderer = new MessageRenderer(app);
+  if (role === "assistant" && ((messageData == null ? void 0 : messageData.reasoning) || (messageData == null ? void 0 : messageData.taskStatus))) {
+    messageRenderer.updateMessageWithEnhancedData(messageEl, {
+      ...messageData,
+      role: "assistant",
+      content
+    }, parentComponent);
   }
-  if (role === "assistant" && (messageData == null ? void 0 : messageData.taskStatus)) {
-    const statusEl = createTaskStatusSection(messageData.taskStatus);
-    messageContainer.appendChild(statusEl);
+  let contentEl = messageEl.querySelector(".message-content");
+  if (!contentEl) {
+    contentEl = messageContainer.createDiv("message-content");
+    import_obsidian7.MarkdownRenderer.render(app, content, contentEl, "", parentComponent).catch((error) => {
+      contentEl.textContent = content;
+    });
   }
-  const contentEl = messageContainer.createDiv("message-content");
-  import_obsidian6.MarkdownRenderer.render(app, content, contentEl, "", parentComponent).catch((error) => {
-    contentEl.textContent = content;
-  });
   const actionsEl = messageContainer.createDiv("message-actions");
   actionsEl.classList.add("hidden");
   messageEl.addEventListener("mouseenter", () => {
@@ -8936,9 +9169,9 @@ function createMessageElement(app, role, content, chatHistoryManager, plugin, re
     actionsEl.classList.add("hidden");
   });
   actionsEl.appendChild(createActionButton("Copy", "Copy message (including reasoning)", () => {
-    const fullContent = getFullMessageContent(messageEl, plugin);
+    const fullContent = content;
     if (fullContent.trim() === "") {
-      new import_obsidian6.Notice("No content to copy");
+      new import_obsidian7.Notice("No content to copy");
       return;
     }
     copyToClipboard(fullContent);
@@ -8975,17 +9208,16 @@ function createMessageElement(app, role, content, chatHistoryManager, plugin, re
             oldContent || "",
             newContent,
             enhancedData
-            // Pass enhanced data if present
           );
           messageEl.dataset.rawContent = newContent;
           contentEl.empty();
-          await import_obsidian6.MarkdownRenderer.render(app, newContent, contentEl, "", parentComponent);
+          await import_obsidian7.MarkdownRenderer.render(app, newContent, contentEl, "", parentComponent);
           contentEl.removeClass("editing");
         } catch (e) {
-          new import_obsidian6.Notice("Failed to save edited message.");
+          new import_obsidian7.Notice("Failed to save edited message.");
           messageEl.dataset.rawContent = oldContent || "";
           contentEl.empty();
-          await import_obsidian6.MarkdownRenderer.render(app, oldContent || "", contentEl, "", parentComponent);
+          await import_obsidian7.MarkdownRenderer.render(app, oldContent || "", contentEl, "", parentComponent);
           contentEl.removeClass("editing");
         }
       });
@@ -9001,7 +9233,7 @@ function createMessageElement(app, role, content, chatHistoryManager, plugin, re
         ).then(() => {
           messageEl.remove();
         }).catch(() => {
-          new import_obsidian6.Notice("Failed to delete message from history.");
+          new import_obsidian7.Notice("Failed to delete message from history.");
         });
       }
     });
@@ -9012,265 +9244,6 @@ function createMessageElement(app, role, content, chatHistoryManager, plugin, re
   }));
   messageContainer.appendChild(actionsEl);
   return messageEl;
-}
-function createReasoningSection(reasoning, plugin) {
-  var _a2;
-  const reasoningContainer = document.createElement("div");
-  reasoningContainer.className = "reasoning-container";
-  reasoningContainer.dataset.reasoningId = reasoning.id;
-  const header = document.createElement("div");
-  header.className = "reasoning-summary";
-  const toggle = document.createElement("span");
-  toggle.className = "reasoning-toggle";
-  toggle.textContent = reasoning.isCollapsed ? "\u25B6" : "\u25BC";
-  const headerText = document.createElement("span");
-  const typeLabel = reasoning.type === "structured" ? "STRUCTURED REASONING" : "REASONING";
-  const stepCount = ((_a2 = reasoning.steps) == null ? void 0 : _a2.length) || 0;
-  headerText.innerHTML = `<strong>\u{1F9E0} ${typeLabel}</strong>`;
-  if (stepCount > 0) {
-    headerText.innerHTML += ` (${stepCount} steps)`;
-  }
-  if (reasoning.confidence) {
-    headerText.innerHTML += ` | Confidence: ${reasoning.confidence}/10`;
-  }
-  headerText.innerHTML += ` - <em>Click to ${reasoning.isCollapsed ? "expand" : "collapse"}</em>`;
-  header.appendChild(toggle);
-  header.appendChild(headerText);
-  const details = document.createElement("div");
-  details.className = "reasoning-details";
-  if (!reasoning.isCollapsed) {
-    details.classList.add("expanded");
-  }
-  if (reasoning.problem) {
-    const problemDiv = document.createElement("div");
-    problemDiv.className = "reasoning-problem";
-    problemDiv.innerHTML = `<strong>Problem:</strong> ${reasoning.problem}`;
-    details.appendChild(problemDiv);
-  }
-  if (reasoning.steps && reasoning.steps.length > 0) {
-    reasoning.steps.forEach((step) => {
-      const stepEl = createReasoningStepElement(step);
-      details.appendChild(stepEl);
-    });
-  }
-  if (reasoning.summary) {
-    const summaryDiv = document.createElement("div");
-    summaryDiv.className = "reasoning-completion";
-    summaryDiv.textContent = reasoning.summary;
-    details.appendChild(summaryDiv);
-  }
-  header.addEventListener("click", () => {
-    const isExpanded = details.classList.contains("expanded");
-    if (isExpanded) {
-      details.classList.remove("expanded");
-      toggle.textContent = "\u25B6";
-      headerText.innerHTML = headerText.innerHTML.replace("collapse", "expand");
-      reasoning.isCollapsed = true;
-    } else {
-      details.classList.add("expanded");
-      toggle.textContent = "\u25BC";
-      headerText.innerHTML = headerText.innerHTML.replace("expand", "collapse");
-      reasoning.isCollapsed = false;
-    }
-    updateStoredMessageData(reasoningContainer, reasoning);
-  });
-  reasoningContainer.appendChild(header);
-  reasoningContainer.appendChild(details);
-  return reasoningContainer;
-}
-function createReasoningStepElement(step) {
-  const stepDiv = document.createElement("div");
-  stepDiv.className = `reasoning-step ${step.category}`;
-  const categoryEmoji = getStepEmoji(step.category);
-  const confidenceBar = "\u25CF".repeat(Math.floor(step.confidence)) + "\u25CB".repeat(10 - Math.floor(step.confidence));
-  stepDiv.innerHTML = `
-        <div class="step-header">
-            ${categoryEmoji} Step ${step.step}: ${step.title.toUpperCase()}
-        </div>
-        <div class="step-confidence">
-            Confidence: ${step.confidence}/10 <span class="confidence-bar">${confidenceBar}</span>
-        </div>
-        <div class="step-content">
-            ${step.content}
-        </div>
-    `;
-  return stepDiv;
-}
-function createTaskStatusSection(taskStatus) {
-  const statusContainer = document.createElement("div");
-  statusContainer.className = "task-status-container";
-  statusContainer.dataset.taskStatus = taskStatus.status;
-  const statusText = getTaskStatusText(taskStatus);
-  const statusIcon = getTaskStatusIcon(taskStatus.status);
-  statusContainer.innerHTML = `
-        <div class="task-status-header">
-            ${statusIcon} <strong>${statusText}</strong>
-        </div>
-    `;
-  if (taskStatus.progress) {
-    const progressContainer = document.createElement("div");
-    progressContainer.className = "task-progress-container";
-    if (taskStatus.progress.total) {
-      const progressBar = document.createElement("div");
-      progressBar.className = "task-progress-bar";
-      const progressFill = document.createElement("div");
-      progressFill.className = "task-progress-fill";
-      const progressPercent = taskStatus.progress.current / taskStatus.progress.total * 100;
-      progressFill.style.width = `${progressPercent}%`;
-      progressBar.appendChild(progressFill);
-      progressContainer.appendChild(progressBar);
-      const progressText = document.createElement("div");
-      progressText.className = "task-progress-text";
-      progressText.textContent = `${taskStatus.progress.current}/${taskStatus.progress.total}`;
-      if (taskStatus.progress.description) {
-        progressText.textContent += ` - ${taskStatus.progress.description}`;
-      }
-      progressContainer.appendChild(progressText);
-    } else if (taskStatus.progress.description) {
-      const progressText = document.createElement("div");
-      progressText.className = "task-progress-text";
-      progressText.textContent = taskStatus.progress.description;
-      progressContainer.appendChild(progressText);
-    }
-    statusContainer.appendChild(progressContainer);
-  }
-  if (taskStatus.toolExecutionCount > 0) {
-    const toolInfo = document.createElement("div");
-    toolInfo.className = "task-tool-info";
-    toolInfo.textContent = `Tools used: ${taskStatus.toolExecutionCount}/${taskStatus.maxToolExecutions}`;
-    statusContainer.appendChild(toolInfo);
-  }
-  return statusContainer;
-}
-function getFullMessageContent(messageEl, plugin) {
-  var _a2, _b;
-  const includeReasoning = ((_b = (_a2 = plugin == null ? void 0 : plugin.settings) == null ? void 0 : _a2.uiBehavior) == null ? void 0 : _b.includeReasoningInExports) !== false;
-  let content = messageEl.dataset.rawContent || "";
-  if (includeReasoning) {
-    const messageData = messageEl.dataset.messageData;
-    if (messageData) {
-      try {
-        const parsed = JSON.parse(messageData);
-        if (parsed.reasoning) {
-          content = formatReasoningForExport(parsed.reasoning) + "\n\n" + content;
-        }
-      } catch (e) {
-      }
-    }
-  }
-  return content;
-}
-function formatReasoningForExport(reasoning) {
-  let formatted = `## \u{1F9E0} ${reasoning.type === "structured" ? "STRUCTURED REASONING" : "REASONING"}
-
-`;
-  if (reasoning.problem) {
-    formatted += `**Problem:** ${reasoning.problem}
-
-`;
-  }
-  if (reasoning.steps && reasoning.steps.length > 0) {
-    formatted += `### Reasoning Steps
-
-`;
-    reasoning.steps.forEach((step) => {
-      const emoji = getStepEmoji(step.category);
-      formatted += `${emoji} **Step ${step.step}: ${step.title}**
-`;
-      formatted += `*Confidence: ${step.confidence}/10*
-
-`;
-      formatted += `${step.content}
-
-`;
-      formatted += `---
-
-`;
-    });
-  }
-  if (reasoning.summary) {
-    formatted += `**Summary:** ${reasoning.summary}
-
-`;
-  }
-  return formatted;
-}
-function updateStoredMessageData(container, reasoning) {
-  const messageEl = container.closest(".ai-chat-message");
-  if (messageEl && messageEl.dataset.messageData) {
-    try {
-      const messageData = JSON.parse(messageEl.dataset.messageData);
-      messageData.reasoning = reasoning;
-      messageEl.dataset.messageData = JSON.stringify(messageData);
-    } catch (e) {
-    }
-  }
-}
-function getStepEmoji(category) {
-  switch (category) {
-    case "analysis":
-      return "\u{1F50D}";
-    case "planning":
-      return "\u{1F4CB}";
-    case "problem-solving":
-      return "\u{1F9E9}";
-    case "reflection":
-      return "\u{1F914}";
-    case "conclusion":
-      return "\u2705";
-    case "reasoning":
-      return "\u{1F9E0}";
-    case "information":
-      return "\u{1F4CA}";
-    case "approach":
-      return "\u{1F3AF}";
-    case "evaluation":
-      return "\u2696\uFE0F";
-    case "synthesis":
-      return "\u{1F517}";
-    case "validation":
-      return "\u2705";
-    case "refinement":
-      return "\u26A1";
-    default:
-      return "\u{1F4AD}";
-  }
-}
-function getTaskStatusText(taskStatus) {
-  switch (taskStatus.status) {
-    case "idle":
-      return "Task Ready";
-    case "running":
-      return "Task In Progress";
-    case "stopped":
-      return "Task Stopped";
-    case "completed":
-      return "Task Completed";
-    case "limit_reached":
-      return "Tool Limit Reached";
-    case "waiting_for_user":
-      return "Waiting for User Input";
-    default:
-      return "Unknown Status";
-  }
-}
-function getTaskStatusIcon(status) {
-  switch (status) {
-    case "idle":
-      return "\u23F8\uFE0F";
-    case "running":
-      return "\u{1F504}";
-    case "stopped":
-      return "\u23F9\uFE0F";
-    case "completed":
-      return "\u2705";
-    case "limit_reached":
-      return "\u26A0\uFE0F";
-    case "waiting_for_user":
-      return "\u23F3";
-    default:
-      return "\u2753";
-  }
 }
 
 // src/components/chat/ui.ts
@@ -9434,7 +9407,7 @@ async function renderChatHistory({
 }
 
 // src/components/chat/AgentResponseHandler.ts
-var import_obsidian11 = require("obsidian");
+var import_obsidian12 = require("obsidian");
 
 // src/components/chat/CommandParser.ts
 var CommandParser = class {
@@ -9646,7 +9619,7 @@ var AgentResponseHandler = class {
     }
     const agentSettings = this.context.plugin.getAgentModeSettings();
     if (this.executionCount >= agentSettings.maxToolCalls) {
-      new import_obsidian11.Notice(`Agent mode: Maximum tool calls (${agentSettings.maxToolCalls}) reached`);
+      new import_obsidian12.Notice(`Agent mode: Maximum tool calls (${agentSettings.maxToolCalls}) reached`);
       return {
         processedText: text + "\n\n*[Tool execution limit reached]*",
         toolResults: [],
@@ -9851,7 +9824,7 @@ ${resultText}`;
                 `;
         const contentDiv = stepDiv.querySelector(".step-content");
         if (contentDiv) {
-          await import_obsidian11.MarkdownRenderer.render(
+          await import_obsidian12.MarkdownRenderer.render(
             this.context.app,
             step.content || "No content provided",
             contentDiv,
@@ -10200,237 +10173,6 @@ var import_obsidian15 = require("obsidian");
 // src/components/chat/ResponseStreamer.ts
 var import_obsidian14 = require("obsidian");
 init_providers();
-
-// src/components/chat/MessageRenderer.ts
-var import_obsidian12 = require("obsidian");
-var MessageRenderer = class {
-  constructor(app) {
-    this.app = app;
-  }
-  /**
-   * Update message container with enhanced reasoning and task status data
-   */
-  updateMessageWithEnhancedData(container, messageData, component) {
-    const existingReasoning = container.querySelector(".reasoning-container");
-    const existingTaskStatus = container.querySelector(".task-status-container");
-    if (existingReasoning) existingReasoning.remove();
-    if (existingTaskStatus) existingTaskStatus.remove();
-    const messageContainer = container.querySelector(".message-container");
-    if (!messageContainer) return;
-    if (messageData.reasoning) {
-      const reasoningEl = this.createReasoningSection(messageData.reasoning);
-      messageContainer.insertBefore(reasoningEl, messageContainer.firstChild);
-    }
-    if (messageData.taskStatus) {
-      const taskStatusEl = this.createTaskStatusSection(messageData.taskStatus);
-      messageContainer.insertBefore(taskStatusEl, messageContainer.firstChild);
-    }
-    const contentEl = container.querySelector(".message-content");
-    if (contentEl) {
-      contentEl.empty();
-      import_obsidian12.MarkdownRenderer.render(
-        this.app,
-        messageData.content,
-        contentEl,
-        "",
-        component || null
-      ).catch((error) => {
-        contentEl.textContent = messageData.content;
-      });
-    }
-  }
-  /**
-   * Create reasoning section element
-   */
-  createReasoningSection(reasoning) {
-    var _a2;
-    const reasoningContainer = document.createElement("div");
-    reasoningContainer.className = "reasoning-container";
-    const header = document.createElement("div");
-    header.className = "reasoning-summary";
-    const toggle = document.createElement("span");
-    toggle.className = "reasoning-toggle";
-    toggle.textContent = reasoning.isCollapsed ? "\u25B6" : "\u25BC";
-    const headerText = document.createElement("span");
-    const typeLabel = reasoning.type === "structured" ? "STRUCTURED REASONING" : "REASONING";
-    const stepCount = ((_a2 = reasoning.steps) == null ? void 0 : _a2.length) || 0;
-    headerText.innerHTML = `<strong>\u{1F9E0} ${typeLabel}</strong>`;
-    if (stepCount > 0) {
-      headerText.innerHTML += ` (${stepCount} steps)`;
-    }
-    headerText.innerHTML += ` - <em>Click to ${reasoning.isCollapsed ? "expand" : "collapse"}</em>`;
-    header.appendChild(toggle);
-    header.appendChild(headerText);
-    const details = document.createElement("div");
-    details.className = "reasoning-details";
-    if (!reasoning.isCollapsed) {
-      details.classList.add("expanded");
-    }
-    if (reasoning.type === "structured" && reasoning.steps) {
-      if (reasoning.problem) {
-        const problemDiv = document.createElement("div");
-        problemDiv.className = "reasoning-problem";
-        problemDiv.innerHTML = `<strong>Problem:</strong> ${reasoning.problem}`;
-        details.appendChild(problemDiv);
-      }
-      reasoning.steps.forEach((step) => {
-        const stepDiv = document.createElement("div");
-        stepDiv.className = `reasoning-step ${step.category}`;
-        stepDiv.innerHTML = `
-                    <div class="step-header">
-                        ${this.getStepEmoji(step.category)} Step ${step.step}: ${step.title.toUpperCase()}
-                    </div>
-                    <div class="step-confidence">
-                        Confidence: ${step.confidence}/10
-                    </div>
-                    <div class="step-content">
-                        ${step.content}
-                    </div>
-                `;
-        details.appendChild(stepDiv);
-      });
-    } else if (reasoning.summary) {
-      const summaryDiv = document.createElement("div");
-      summaryDiv.className = "reasoning-completion";
-      summaryDiv.textContent = reasoning.summary;
-      details.appendChild(summaryDiv);
-    }
-    header.addEventListener("click", () => {
-      const isExpanded = details.classList.contains("expanded");
-      if (isExpanded) {
-        details.classList.remove("expanded");
-        toggle.textContent = "\u25B6";
-        reasoning.isCollapsed = true;
-      } else {
-        details.classList.add("expanded");
-        toggle.textContent = "\u25BC";
-        reasoning.isCollapsed = false;
-      }
-    });
-    reasoningContainer.appendChild(header);
-    reasoningContainer.appendChild(details);
-    return reasoningContainer;
-  }
-  /**
-   * Create task status section element
-   */
-  createTaskStatusSection(taskStatus) {
-    const statusContainer = document.createElement("div");
-    statusContainer.className = "task-status-container";
-    statusContainer.dataset.taskStatus = taskStatus.status;
-    const statusText = this.getTaskStatusText(taskStatus);
-    const statusIcon = this.getTaskStatusIcon(taskStatus.status);
-    statusContainer.innerHTML = `
-            <div class="task-status-header">
-                ${statusIcon} <strong>${statusText}</strong>
-            </div>
-        `;
-    if (taskStatus.progress) {
-      const progressContainer = document.createElement("div");
-      progressContainer.className = "task-progress-container";
-      if (taskStatus.progress.total) {
-        const progressBar = document.createElement("div");
-        progressBar.className = "task-progress-bar";
-        const progressFill = document.createElement("div");
-        progressFill.className = "task-progress-fill";
-        const progressPercent = taskStatus.progress.current / taskStatus.progress.total * 100;
-        progressFill.style.width = `${progressPercent}%`;
-        progressBar.appendChild(progressFill);
-        progressContainer.appendChild(progressBar);
-        const progressText = document.createElement("div");
-        progressText.className = "task-progress-text";
-        progressText.textContent = `${taskStatus.progress.current}/${taskStatus.progress.total}`;
-        if (taskStatus.progress.description) {
-          progressText.textContent += ` - ${taskStatus.progress.description}`;
-        }
-        progressContainer.appendChild(progressText);
-      }
-      statusContainer.appendChild(progressContainer);
-    }
-    if (taskStatus.toolExecutionCount > 0) {
-      const toolInfo = document.createElement("div");
-      toolInfo.className = "task-tool-info";
-      toolInfo.textContent = `Tools used: ${taskStatus.toolExecutionCount}/${taskStatus.maxToolExecutions}`;
-      statusContainer.appendChild(toolInfo);
-    }
-    return statusContainer;
-  }
-  /**
-   * Get emoji for reasoning step categories
-   */
-  getStepEmoji(category) {
-    switch (category) {
-      case "analysis":
-        return "\u{1F50D}";
-      case "planning":
-        return "\u{1F4CB}";
-      case "problem-solving":
-        return "\u{1F9E9}";
-      case "reflection":
-        return "\u{1F914}";
-      case "conclusion":
-        return "\u2705";
-      case "reasoning":
-        return "\u{1F9E0}";
-      case "information":
-        return "\u{1F4CA}";
-      case "approach":
-        return "\u{1F3AF}";
-      case "evaluation":
-        return "\u2696\uFE0F";
-      case "synthesis":
-        return "\u{1F517}";
-      case "validation":
-        return "\u2705";
-      case "refinement":
-        return "\u26A1";
-      default:
-        return "\u{1F4AD}";
-    }
-  }
-  /**
-   * Get task status text
-   */
-  getTaskStatusText(taskStatus) {
-    switch (taskStatus.status) {
-      case "idle":
-        return "Task Ready";
-      case "running":
-        return "Task In Progress";
-      case "stopped":
-        return "Task Stopped";
-      case "completed":
-        return "Task Completed";
-      case "limit_reached":
-        return "Tool Limit Reached";
-      case "waiting_for_user":
-        return "Waiting for User Input";
-      default:
-        return "Unknown Status";
-    }
-  }
-  /**
-   * Get task status icon
-   */
-  getTaskStatusIcon(status) {
-    switch (status) {
-      case "idle":
-        return "\u23F8\uFE0F";
-      case "running":
-        return "\u{1F504}";
-      case "stopped":
-        return "\u23F9\uFE0F";
-      case "completed":
-        return "\u2705";
-      case "limit_reached":
-        return "\u26A0\uFE0F";
-      case "waiting_for_user":
-        return "\u23F3";
-      default:
-        return "\u2753";
-    }
-  }
-};
 
 // src/components/chat/TaskContinuation.ts
 var import_obsidian13 = require("obsidian");
@@ -11208,157 +10950,34 @@ var ChatView = class extends import_obsidian16.ItemView {
   async buildContextMessages() {
     return await this.contextBuilder.buildContextMessages();
   }
+  // Delegated to ResponseStreamer for DRY and clarity
   async streamAssistantResponse(messages, container, originalTimestamp, originalContent) {
-    let responseContent = "";
-    this.activeStream = new AbortController();
-    if (this.plugin.isAgentModeEnabled()) {
-      const { AGENT_SYSTEM_PROMPT: AGENT_SYSTEM_PROMPT2 } = await Promise.resolve().then(() => (init_promptConstants(), promptConstants_exports));
-      const systemMessageIndex = messages.findIndex((msg) => msg.role === "system");
-      if (systemMessageIndex !== -1) {
-        messages[systemMessageIndex].content = AGENT_SYSTEM_PROMPT2 + "\n\n" + messages[systemMessageIndex].content;
-      }
+    if (!this.responseStreamer) {
+      throw new Error("ResponseStreamer not initialized");
     }
-    try {
-      const provider = this.plugin.settings.selectedModel ? createProviderFromUnifiedModel(this.plugin.settings, this.plugin.settings.selectedModel) : createProvider(this.plugin.settings);
-      await provider.getCompletion(
-        messages,
-        {
-          temperature: this.plugin.settings.temperature,
-          maxTokens: this.plugin.settings.maxTokens,
-          streamCallback: async (chunk) => {
-            responseContent += chunk;
-            const contentEl = container.querySelector(".message-content");
-            if (contentEl) {
-              container.dataset.rawContent = responseContent;
-              contentEl.empty();
-              await import_obsidian16.MarkdownRenderer.render(
-                this.app,
-                responseContent,
-                contentEl,
-                "",
-                this
-              );
-              this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
-            }
-          },
-          abortController: this.activeStream || void 0
-        }
-      );
-      if (this.plugin.isAgentModeEnabled() && this.agentResponseHandler) {
-        this.agentResponseHandler.hideTaskProgress();
-        this.agentResponseHandler.updateTaskProgress(1, void 0, "Processing AI response...");
+    const responseContent = await this.responseStreamer.streamAssistantResponse(
+      messages,
+      container,
+      originalTimestamp,
+      originalContent
+    );
+    if (originalTimestamp && responseContent.trim() !== "") {
+      let messageData = void 0;
+      if (container.dataset.messageData) {
         try {
-          const agentResult = await this.agentResponseHandler.processResponseWithUI(responseContent);
-          this.agentResponseHandler.hideTaskProgress();
-          if (agentResult.hasTools) {
-            const finalContent = agentResult.processedText + this.agentResponseHandler.formatToolResultsForDisplay(agentResult.toolResults);
-            const enhancedMessageData = {
-              role: "assistant",
-              content: finalContent,
-              reasoning: agentResult.reasoning,
-              taskStatus: agentResult.taskStatus,
-              toolResults: agentResult.toolResults.map(({ command, result }) => ({
-                command,
-                result,
-                timestamp: (/* @__PURE__ */ new Date()).toISOString()
-              }))
-            };
-            container.dataset.messageData = JSON.stringify(enhancedMessageData);
-            container.dataset.rawContent = finalContent;
-            this.updateMessageWithEnhancedData(container, enhancedMessageData);
-            if (agentResult.shouldShowLimitWarning) {
-              const warning = this.agentResponseHandler.createToolLimitWarning();
-              this.messagesContainer.appendChild(warning);
-              this.messagesContainer.addEventListener("continueTask", () => {
-                this.handleContinueTask(messages, container, responseContent, finalContent, agentResult.toolResults);
-              });
-            }
-            if (agentResult.taskStatus.status === "completed") {
-              this.agentResponseHandler.showTaskCompletionNotification(
-                `Task completed successfully! Used ${agentResult.taskStatus.toolExecutionCount} tools.`,
-                "success"
-              );
-              responseContent = finalContent;
-              return responseContent;
-            } else if (agentResult.taskStatus.status === "limit_reached") {
-              this.agentResponseHandler.showTaskCompletionNotification(
-                "Tool execution limit reached. You can continue the task or increase the limit in settings.",
-                "warning"
-              );
-            }
-            if (!agentResult.shouldShowLimitWarning) {
-              responseContent = await this.continueTaskUntilFinished(
-                messages,
-                container,
-                responseContent,
-                finalContent,
-                agentResult.toolResults
-              );
-            } else {
-              responseContent = finalContent;
-            }
-          } else {
-            if (agentResult.reasoning) {
-              const enhancedMessageData = {
-                role: "assistant",
-                content: responseContent,
-                reasoning: agentResult.reasoning,
-                taskStatus: agentResult.taskStatus
-              };
-              container.dataset.messageData = JSON.stringify(enhancedMessageData);
-              this.updateMessageWithEnhancedData(container, enhancedMessageData);
-            }
-            if (responseContent.includes('"action"') && responseContent.includes('"thought"')) {
-              messages.push({ role: "assistant", content: responseContent });
-              messages.push({ role: "system", content: "Please continue with the actual task execution based on your reasoning." });
-              const continuationContent = await this.getContinuationResponse(messages, container);
-              if (continuationContent.trim()) {
-                const updatedContent = responseContent + "\n\n" + continuationContent;
-                container.dataset.rawContent = updatedContent;
-                const contentEl = container.querySelector(".message-content");
-                if (contentEl) {
-                  contentEl.empty();
-                  await import_obsidian16.MarkdownRenderer.render(
-                    this.app,
-                    updatedContent,
-                    contentEl,
-                    "",
-                    this
-                  );
-                  this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
-                }
-                responseContent = updatedContent;
-              }
-            }
-          }
-        } finally {
-          this.agentResponseHandler.hideTaskProgress();
+          messageData = JSON.parse(container.dataset.messageData);
+        } catch (e) {
         }
       }
-      if (originalTimestamp && responseContent.trim() !== "") {
-        let messageData = void 0;
-        if (container.dataset.messageData) {
-          try {
-            messageData = JSON.parse(container.dataset.messageData);
-          } catch (e) {
-          }
-        }
-        await this.chatHistoryManager.updateMessage(
-          originalTimestamp,
-          "assistant",
-          originalContent || "",
-          responseContent,
-          messageData
-          // Pass enhanced data (reasoning, taskStatus, toolResults)
-        );
-      }
-      return responseContent;
-    } catch (error) {
-      if (error.name !== "AbortError") {
-        throw error;
-      }
-      return "";
+      await this.chatHistoryManager.updateMessage(
+        originalTimestamp,
+        "assistant",
+        originalContent || "",
+        responseContent,
+        messageData
+      );
     }
+    return responseContent;
   }
   clearMessages() {
     this.messagesContainer.empty();
@@ -11369,348 +10988,8 @@ var ChatView = class extends import_obsidian16.ItemView {
   scrollMessagesToBottom() {
     this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
   }
-  /**
-   * Continue task execution until finished parameter is true
-   */
-  async continueTaskUntilFinished(messages, container, initialResponseContent, currentContent, initialToolResults) {
-    var _a2;
-    let responseContent = currentContent;
-    let maxIterations = 10;
-    let iteration = 0;
-    let isFinished = this.checkIfTaskFinished(initialToolResults);
-    while (!isFinished && iteration < maxIterations) {
-      iteration++;
-      console.log(`ChatView: Task continuation iteration ${iteration}`);
-      const toolResultMessage = (_a2 = this.agentResponseHandler) == null ? void 0 : _a2.createToolResultMessage(initialToolResults);
-      if (toolResultMessage) {
-        messages.push({ role: "assistant", content: initialResponseContent });
-        messages.push(toolResultMessage);
-        messages.push({
-          role: "system",
-          content: "Continue with the remaining parts of the task. Check your progress and continue until ALL parts of the user's request are complete. Set finished: true only when everything is done."
-        });
-        const continuationContent = await this.getContinuationResponse(messages, container);
-        if (continuationContent.trim()) {
-          if (this.agentResponseHandler) {
-            const continuationResult = await this.agentResponseHandler.processResponse(continuationContent);
-            let continuationDisplay = continuationContent;
-            if (continuationResult.hasTools) {
-              continuationDisplay = continuationResult.processedText + this.agentResponseHandler.formatToolResultsForDisplay(continuationResult.toolResults);
-              isFinished = this.checkIfTaskFinished(continuationResult.toolResults);
-              initialToolResults.push(...continuationResult.toolResults);
-            } else {
-              isFinished = true;
-            }
-            const updatedContent = responseContent + "\n\n" + continuationDisplay;
-            container.dataset.rawContent = updatedContent;
-            const contentEl = container.querySelector(".message-content");
-            if (contentEl) {
-              contentEl.empty();
-              await import_obsidian16.MarkdownRenderer.render(
-                this.app,
-                updatedContent,
-                contentEl,
-                "",
-                this
-              );
-              this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
-            }
-            responseContent = updatedContent;
-            initialResponseContent = continuationContent;
-          } else {
-            const updatedContent = responseContent + "\n\n" + continuationContent;
-            container.dataset.rawContent = updatedContent;
-            const contentEl = container.querySelector(".message-content");
-            if (contentEl) {
-              contentEl.empty();
-              await import_obsidian16.MarkdownRenderer.render(
-                this.app,
-                updatedContent,
-                contentEl,
-                "",
-                this
-              );
-              this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
-            }
-            responseContent = updatedContent;
-            isFinished = true;
-          }
-        } else {
-          isFinished = true;
-        }
-      } else {
-        isFinished = true;
-      }
-    }
-    if (iteration >= maxIterations) {
-      console.warn("ChatView: Task continuation reached maximum iterations");
-      responseContent += "\n\n*[Task continuation reached maximum iterations - stopping to prevent infinite loop]*";
-    }
-    console.log(`ChatView: Task continuation completed after ${iteration} iterations`);
-    return responseContent;
-  }
-  /**
-   * Check if any tool results indicate the task is finished
-   */
-  checkIfTaskFinished(toolResults) {
-    return toolResults.some(({ command }) => {
-      return command.finished === true;
-    });
-  }
-  /**
-   * Get continuation response after tool execution
-   */
-  async getContinuationResponse(messages, container) {
-    try {
-      console.log("ChatView: Getting continuation response after tool execution");
-      const provider = this.plugin.settings.selectedModel ? createProviderFromUnifiedModel(this.plugin.settings, this.plugin.settings.selectedModel) : createProvider(this.plugin.settings);
-      let continuationContent = "";
-      await provider.getCompletion(
-        messages,
-        {
-          temperature: this.plugin.settings.temperature,
-          maxTokens: this.plugin.settings.maxTokens,
-          streamCallback: async (chunk) => {
-            continuationContent += chunk;
-          },
-          abortController: this.activeStream || void 0
-        }
-      );
-      console.log("ChatView: Continuation response received:", continuationContent.length, "characters");
-      return continuationContent;
-    } catch (error) {
-      console.error("ChatView: Error getting continuation response:", error);
-      if (error.name !== "AbortError") {
-        return `*[Error getting continuation: ${error.message}]*`;
-      }
-      return "";
-    }
-  }
-  /**
-   * Update message container with enhanced reasoning and task status data
-   */
-  updateMessageWithEnhancedData(container, messageData) {
-    this.messageRenderer.updateMessageWithEnhancedData(container, messageData, this);
-  }
-  /**
-   * Create reasoning section element
-   */
-  createReasoningSection(reasoning) {
-    var _a2;
-    const reasoningContainer = document.createElement("div");
-    reasoningContainer.className = "reasoning-container";
-    const header = document.createElement("div");
-    header.className = "reasoning-summary";
-    const toggle = document.createElement("span");
-    toggle.className = "reasoning-toggle";
-    toggle.textContent = reasoning.isCollapsed ? "\u25B6" : "\u25BC";
-    const headerText = document.createElement("span");
-    const typeLabel = reasoning.type === "structured" ? "STRUCTURED REASONING" : "REASONING";
-    const stepCount = ((_a2 = reasoning.steps) == null ? void 0 : _a2.length) || 0;
-    headerText.innerHTML = `<strong>\u{1F9E0} ${typeLabel}</strong>`;
-    if (stepCount > 0) {
-      headerText.innerHTML += ` (${stepCount} steps)`;
-    }
-    headerText.innerHTML += ` - <em>Click to ${reasoning.isCollapsed ? "expand" : "collapse"}</em>`;
-    header.appendChild(toggle);
-    header.appendChild(headerText);
-    const details = document.createElement("div");
-    details.className = "reasoning-details";
-    if (!reasoning.isCollapsed) {
-      details.classList.add("expanded");
-    }
-    if (reasoning.type === "structured" && reasoning.steps) {
-      if (reasoning.problem) {
-        const problemDiv = document.createElement("div");
-        problemDiv.className = "reasoning-problem";
-        problemDiv.innerHTML = `<strong>Problem:</strong> ${reasoning.problem}`;
-        details.appendChild(problemDiv);
-      }
-      reasoning.steps.forEach((step) => {
-        const stepDiv = document.createElement("div");
-        stepDiv.className = `reasoning-step ${step.category}`;
-        stepDiv.innerHTML = `
-                    <div class="step-header">
-                        ${this.getStepEmoji(step.category)} Step ${step.step}: ${step.title.toUpperCase()}
-                    </div>
-                    <div class="step-confidence">
-                        Confidence: ${step.confidence}/10
-                    </div>
-                    <div class="step-content">
-                        ${step.content}
-                    </div>
-                `;
-        details.appendChild(stepDiv);
-      });
-    } else if (reasoning.summary) {
-      const summaryDiv = document.createElement("div");
-      summaryDiv.className = "reasoning-completion";
-      summaryDiv.textContent = reasoning.summary;
-      details.appendChild(summaryDiv);
-    }
-    header.addEventListener("click", () => {
-      const isExpanded = details.classList.contains("expanded");
-      if (isExpanded) {
-        details.classList.remove("expanded");
-        toggle.textContent = "\u25B6";
-        reasoning.isCollapsed = true;
-      } else {
-        details.classList.add("expanded");
-        toggle.textContent = "\u25BC";
-        reasoning.isCollapsed = false;
-      }
-    });
-    reasoningContainer.appendChild(header);
-    reasoningContainer.appendChild(details);
-    return reasoningContainer;
-  }
-  /**
-   * Create task status section element
-   */
-  createTaskStatusSection(taskStatus) {
-    const statusContainer = document.createElement("div");
-    statusContainer.className = "task-status-container";
-    statusContainer.dataset.taskStatus = taskStatus.status;
-    const statusText = this.getTaskStatusText(taskStatus);
-    const statusIcon = this.getTaskStatusIcon(taskStatus.status);
-    statusContainer.innerHTML = `
-            <div class="task-status-header">
-                ${statusIcon} <strong>${statusText}</strong>
-            </div>
-        `;
-    if (taskStatus.progress) {
-      const progressContainer = document.createElement("div");
-      progressContainer.className = "task-progress-container";
-      if (taskStatus.progress.total) {
-        const progressBar = document.createElement("div");
-        progressBar.className = "task-progress-bar";
-        const progressFill = document.createElement("div");
-        progressFill.className = "task-progress-fill";
-        const progressPercent = taskStatus.progress.current / taskStatus.progress.total * 100;
-        progressFill.style.width = `${progressPercent}%`;
-        progressBar.appendChild(progressFill);
-        progressContainer.appendChild(progressBar);
-        const progressText = document.createElement("div");
-        progressText.className = "task-progress-text";
-        progressText.textContent = `${taskStatus.progress.current}/${taskStatus.progress.total}`;
-        if (taskStatus.progress.description) {
-          progressText.textContent += ` - ${taskStatus.progress.description}`;
-        }
-        progressContainer.appendChild(progressText);
-      }
-      statusContainer.appendChild(progressContainer);
-    }
-    if (taskStatus.toolExecutionCount > 0) {
-      const toolInfo = document.createElement("div");
-      toolInfo.className = "task-tool-info";
-      toolInfo.textContent = `Tools used: ${taskStatus.toolExecutionCount}/${taskStatus.maxToolExecutions}`;
-      statusContainer.appendChild(toolInfo);
-    }
-    return statusContainer;
-  }
-  /**
-   * Handle continue task after tool limit reached
-   */
-  async handleContinueTask(messages, container, responseContent, finalContent, toolResults) {
-    if (this.agentResponseHandler) {
-      this.agentResponseHandler.resetExecutionCount();
-      const continuedContent = await this.continueTaskUntilFinished(
-        messages,
-        container,
-        responseContent,
-        finalContent,
-        toolResults
-      );
-      container.dataset.rawContent = continuedContent;
-      const contentEl = container.querySelector(".message-content");
-      if (contentEl) {
-        contentEl.empty();
-        await import_obsidian16.MarkdownRenderer.render(
-          this.app,
-          continuedContent,
-          contentEl,
-          "",
-          this
-        );
-        this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
-      }
-    }
-  }
-  /**
-   * Get emoji for reasoning step categories
-   */
-  getStepEmoji(category) {
-    switch (category) {
-      case "analysis":
-        return "\u{1F50D}";
-      case "planning":
-        return "\u{1F4CB}";
-      case "problem-solving":
-        return "\u{1F9E9}";
-      case "reflection":
-        return "\u{1F914}";
-      case "conclusion":
-        return "\u2705";
-      case "reasoning":
-        return "\u{1F9E0}";
-      case "information":
-        return "\u{1F4CA}";
-      case "approach":
-        return "\u{1F3AF}";
-      case "evaluation":
-        return "\u2696\uFE0F";
-      case "synthesis":
-        return "\u{1F517}";
-      case "validation":
-        return "\u2705";
-      case "refinement":
-        return "\u26A1";
-      default:
-        return "\u{1F4AD}";
-    }
-  }
-  /**
-   * Get task status text
-   */
-  getTaskStatusText(taskStatus) {
-    switch (taskStatus.status) {
-      case "idle":
-        return "Task Ready";
-      case "running":
-        return "Task In Progress";
-      case "stopped":
-        return "Task Stopped";
-      case "completed":
-        return "Task Completed";
-      case "limit_reached":
-        return "Tool Limit Reached";
-      case "waiting_for_user":
-        return "Waiting for User Input";
-      default:
-        return "Unknown Status";
-    }
-  }
-  /**
-   * Get task status icon
-   */
-  getTaskStatusIcon(status) {
-    switch (status) {
-      case "idle":
-        return "\u23F8\uFE0F";
-      case "running":
-        return "\u{1F504}";
-      case "stopped":
-        return "\u23F9\uFE0F";
-      case "completed":
-        return "\u2705";
-      case "limit_reached":
-        return "\u26A0\uFE0F";
-      case "waiting_for_user":
-        return "\u23F3";
-      default:
-        return "\u2753";
-    }
-  }
+  // Task continuation logic is now delegated to TaskContinuation and ResponseStreamer
+  // All reasoning/task status rendering and helpers are now handled by MessageRenderer
 };
 
 // src/components/parseSelection.ts
