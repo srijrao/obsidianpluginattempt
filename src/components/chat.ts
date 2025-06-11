@@ -1,6 +1,6 @@
 import { ItemView, WorkspaceLeaf, Notice, MarkdownRenderer, App } from 'obsidian';
 import MyPlugin from '../main';
-import { Message } from '../types';
+import { Message, TaskStatus } from '../types';
 import { createProvider, createProviderFromUnifiedModel } from '../../providers';
 import { ChatHistoryManager, ChatMessage } from './chat/ChatHistoryManager';
 import { createMessageElement } from './chat/Message';
@@ -200,6 +200,10 @@ export class ChatView extends ItemView {
                 textarea.focus();
                 stopButton.classList.add('hidden');
                 sendButton.classList.remove('hidden');
+                // Hide progress indicator if present
+                if (this.agentResponseHandler) {
+                    this.agentResponseHandler.hideTaskProgress();
+                }
             }
         });
 
@@ -275,22 +279,17 @@ export class ChatView extends ItemView {
         });
     }
 
-    private async addMessage(role: 'user' | 'assistant', content: string, isError: boolean = false) {
-        const messageEl = await createMessageElement(this.app, role, content, this.chatHistoryManager, this.plugin, (el) => this.regenerateResponse(el), this);
-        // The timestamp for the UI element is set within createMessageElement
-        const uiTimestamp = messageEl.dataset.timestamp || new Date().toISOString(); // Fallback, though createMessageElement should set it
-        
+    private async addMessage(role: 'user' | 'assistant', content: string, isError: boolean = false, enhancedData?: Partial<Pick<Message, 'reasoning' | 'taskStatus' | 'toolResults'>>): Promise<void> {
+        const messageEl = await createMessageElement(this.app, role, content, this.chatHistoryManager, this.plugin, (el) => this.regenerateResponse(el), this, enhancedData ? { role, content, ...enhancedData } : undefined);
+        const uiTimestamp = messageEl.dataset.timestamp || new Date().toISOString();
         this.messagesContainer.appendChild(messageEl);
         this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
-
-        // Persist the message, using the timestamp from the UI element for consistency
-        // unless it's an error message that shouldn't be persisted as a regular chat entry.
-        // However, the current requirement is to persist error messages too.
         try {
             await this.chatHistoryManager.addMessage({
-                timestamp: uiTimestamp, 
+                timestamp: uiTimestamp,
                 sender: role,
-                content
+                content,
+                ...(enhancedData || {})
             });
         } catch (e) {
             new Notice("Failed to save chat message: " + e.message);
@@ -493,71 +492,140 @@ export class ChatView extends ItemView {
 
             // Process response for agent tools if agent mode is enabled
             if (this.plugin.isAgentModeEnabled() && this.agentResponseHandler) {
-                const agentResult = await this.agentResponseHandler.processResponse(responseContent);
-                
-                if (agentResult.hasTools) {
-                    // Update the display with processed text and tool execution results
-                    const finalContent = agentResult.processedText + 
-                        this.agentResponseHandler.formatToolResultsForDisplay(agentResult.toolResults);
-                    
-                    const contentEl = container.querySelector('.message-content') as HTMLElement;
-                    if (contentEl) {
-                        container.dataset.rawContent = finalContent;
-                        contentEl.empty();
-                        await MarkdownRenderer.render(
-                            this.app,
-                            finalContent,
-                            contentEl,
-                            '',
-                            this
-                        );
-                        this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
-                    }
-
-                    // Continue task execution until finished
-                    responseContent = await this.continueTaskUntilFinished(
-                        messages, 
-                        container, 
-                        responseContent, 
-                        finalContent, 
-                        agentResult.toolResults
-                    );
-                } else {
-                    // No tools used, check if this was just a reasoning step and we need to continue
-                    if (responseContent.includes('"action"') && responseContent.includes('"thought"')) {
-                        // This looks like a tool command that wasn't properly formatted, continue anyway
-                        messages.push({ role: 'assistant', content: responseContent });
-                        messages.push({ role: 'system', content: 'Please continue with the actual task execution based on your reasoning.' });
+                // Always hide any previous progress indicator before starting a new one
+                this.agentResponseHandler.hideTaskProgress();
+                // Show task progress indicator
+                this.agentResponseHandler.updateTaskProgress(1, undefined, 'Processing AI response...');
+                try {
+                    // Use enhanced processing with UI integration
+                    const agentResult = await this.agentResponseHandler.processResponseWithUI(responseContent);
+                    // Hide task progress after processing
+                    this.agentResponseHandler.hideTaskProgress();
+                    if (agentResult.hasTools) {
+                        // Update the display with processed text and tool execution results
+                        const finalContent = agentResult.processedText + 
+                            this.agentResponseHandler.formatToolResultsForDisplay(agentResult.toolResults);
                         
-                        const continuationContent = await this.getContinuationResponse(messages, container);
-                        if (continuationContent.trim()) {
-                            const updatedContent = responseContent + '\n\n' + continuationContent;
-                            container.dataset.rawContent = updatedContent;
-                            const contentEl = container.querySelector('.message-content') as HTMLElement;
-                            if (contentEl) {
-                                contentEl.empty();
-                                await MarkdownRenderer.render(
-                                    this.app,
-                                    updatedContent,
-                                    contentEl,
-                                    '',
-                                    this
-                                );
-                                this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+                        // Update container with enhanced message data
+                        const enhancedMessageData: Message = {
+                            role: 'assistant',
+                            content: finalContent,
+                            reasoning: agentResult.reasoning,
+                            taskStatus: agentResult.taskStatus,
+                            toolResults: agentResult.toolResults.map(({ command, result }) => ({
+                                command,
+                                result,
+                                timestamp: new Date().toISOString()
+                            }))
+                        };
+                        
+                        // Store enhanced message data in container
+                        container.dataset.messageData = JSON.stringify(enhancedMessageData);
+                        container.dataset.rawContent = finalContent;
+                        
+                        // Update UI to show reasoning and task status
+                        this.updateMessageWithEnhancedData(container, enhancedMessageData);
+                        
+                        // Show tool limit warning if needed
+                        if (agentResult.shouldShowLimitWarning) {
+                            const warning = this.agentResponseHandler.createToolLimitWarning();
+                            this.messagesContainer.appendChild(warning);
+                            
+                            // Add continue task event listener
+                            this.messagesContainer.addEventListener('continueTask', () => {
+                                this.handleContinueTask(messages, container, responseContent, finalContent, agentResult.toolResults);
+                            });
+                        }
+                        
+                        // Show completion notification if task completed
+                        if (agentResult.taskStatus.status === 'completed') {
+                            this.agentResponseHandler.showTaskCompletionNotification(
+                                `Task completed successfully! Used ${agentResult.taskStatus.toolExecutionCount} tools.`,
+                                'success'
+                            );
+                            // Stop further processing if task is completed
+                            responseContent = finalContent;
+                            return responseContent;
+                        } else if (agentResult.taskStatus.status === 'limit_reached') {
+                            this.agentResponseHandler.showTaskCompletionNotification(
+                                'Tool execution limit reached. You can continue the task or increase the limit in settings.',
+                                'warning'
+                            );
+                        }
+
+                        // Continue task execution until finished (only if not at limit)
+                        if (!agentResult.shouldShowLimitWarning) {
+                            responseContent = await this.continueTaskUntilFinished(
+                                messages, 
+                                container, 
+                                responseContent, 
+                                finalContent, 
+                                agentResult.toolResults
+                            );
+                        } else {
+                            responseContent = finalContent;
+                        }
+                    } else {
+                        // No tools used, but may have reasoning
+                        if (agentResult.reasoning) {
+                            const enhancedMessageData: Message = {
+                                role: 'assistant',
+                                content: responseContent,
+                                reasoning: agentResult.reasoning,
+                                taskStatus: agentResult.taskStatus
+                            };
+                            
+                            container.dataset.messageData = JSON.stringify(enhancedMessageData);
+                            this.updateMessageWithEnhancedData(container, enhancedMessageData);
+                        }
+                        
+                        // Check if this was just a reasoning step and we need to continue
+                        if (responseContent.includes('"action"') && responseContent.includes('"thought"')) {
+                            // This looks like a tool command that wasn't properly formatted, continue anyway
+                            messages.push({ role: 'assistant', content: responseContent });
+                            messages.push({ role: 'system', content: 'Please continue with the actual task execution based on your reasoning.' });
+                            
+                            const continuationContent = await this.getContinuationResponse(messages, container);
+                            if (continuationContent.trim()) {
+                                const updatedContent = responseContent + '\n\n' + continuationContent;
+                                container.dataset.rawContent = updatedContent;
+                                const contentEl = container.querySelector('.message-content') as HTMLElement;
+                                if (contentEl) {
+                                    contentEl.empty();
+                                    await MarkdownRenderer.render(
+                                        this.app,
+                                        updatedContent,
+                                        contentEl,
+                                        '',
+                                        this
+                                    );
+                                    this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+                                }
+                                responseContent = updatedContent;
                             }
-                            responseContent = updatedContent;
                         }
                     }
+                } finally {
+                    // Ensure progress indicator is always hidden, even on error
+                    this.agentResponseHandler.hideTaskProgress();
                 }
             }
 
             // Update chat history if we have a timestamp
             if (originalTimestamp && responseContent.trim() !== "") {
+                // If enhanced message data exists, save it to history
+                let messageData: any = undefined;
+                if (container.dataset.messageData) {
+                    try {
+                        messageData = JSON.parse(container.dataset.messageData);
+                    } catch {}
+                }
                 await this.chatHistoryManager.updateMessage(
                     originalTimestamp,
                     'assistant',
                     originalContent || '',
-                    responseContent
+                    responseContent,
+                    messageData // Pass enhanced data (reasoning, taskStatus, toolResults)
                 );
             }
 
@@ -601,12 +669,13 @@ export class ChatView extends ItemView {
         
         while (!isFinished && iteration < maxIterations) {
             iteration++;
+            // Only log high-level iteration info here
             console.log(`ChatView: Task continuation iteration ${iteration}`);
             
             // Add tool results to context and continue conversation
             const toolResultMessage = this.agentResponseHandler?.createToolResultMessage(initialToolResults);
             if (toolResultMessage) {
-                console.log('Tool results for context:', toolResultMessage);
+                // Removed redundant: console.log('Tool results for context:', toolResultMessage);
                 
                 // Continue the conversation with tool results
                 messages.push({ role: 'assistant', content: initialResponseContent });
@@ -689,6 +758,7 @@ export class ChatView extends ItemView {
             responseContent += '\n\n*[Task continuation reached maximum iterations - stopping to prevent infinite loop]*';
         }
         
+        // Only log once at the end
         console.log(`ChatView: Task continuation completed after ${iteration} iterations`);
         return responseContent;
     }
@@ -743,6 +813,279 @@ export class ChatView extends ItemView {
                 return `*[Error getting continuation: ${error.message}]*`;
             }
             return '';
+        }
+    }
+
+    /**
+     * Update message container with enhanced reasoning and task status data
+     */
+    private updateMessageWithEnhancedData(container: HTMLElement, messageData: Message): void {
+        // Remove existing reasoning and task status elements
+        const existingReasoning = container.querySelector('.reasoning-container');
+        const existingTaskStatus = container.querySelector('.task-status-container');
+        if (existingReasoning) existingReasoning.remove();
+        if (existingTaskStatus) existingTaskStatus.remove();
+
+        const messageContainer = container.querySelector('.message-container');
+        if (!messageContainer) return;
+
+        // Add reasoning section if present
+        if (messageData.reasoning) {
+            const reasoningEl = this.createReasoningSection(messageData.reasoning);
+            messageContainer.insertBefore(reasoningEl, messageContainer.firstChild);
+        }
+
+        // Add task status section if present
+        if (messageData.taskStatus) {
+            const taskStatusEl = this.createTaskStatusSection(messageData.taskStatus);
+            messageContainer.insertBefore(taskStatusEl, messageContainer.firstChild);
+        }
+
+        // Update main content
+        const contentEl = container.querySelector('.message-content') as HTMLElement;
+        if (contentEl) {
+            contentEl.empty();
+            MarkdownRenderer.render(
+                this.app,
+                messageData.content,
+                contentEl,
+                '',
+                this
+            ).catch((error) => {
+                contentEl.textContent = messageData.content;
+            });
+        }
+    }
+
+    /**
+     * Create reasoning section element
+     */
+    private createReasoningSection(reasoning: any): HTMLElement {
+        // Import the helper function from Message.ts (we'll need to export it)
+        // For now, create a simplified version
+        const reasoningContainer = document.createElement('div');
+        reasoningContainer.className = 'reasoning-container';
+        
+        const header = document.createElement('div');
+        header.className = 'reasoning-summary';
+        
+        const toggle = document.createElement('span');
+        toggle.className = 'reasoning-toggle';
+        toggle.textContent = reasoning.isCollapsed ? '▶' : '▼';
+
+        const headerText = document.createElement('span');
+        const typeLabel = reasoning.type === 'structured' ? 'STRUCTURED REASONING' : 'REASONING';
+        const stepCount = reasoning.steps?.length || 0;
+        headerText.innerHTML = `<strong>🧠 ${typeLabel}</strong>`;
+        if (stepCount > 0) {
+            headerText.innerHTML += ` (${stepCount} steps)`;
+        }
+        headerText.innerHTML += ` - <em>Click to ${reasoning.isCollapsed ? 'expand' : 'collapse'}</em>`;
+
+        header.appendChild(toggle);
+        header.appendChild(headerText);
+
+        const details = document.createElement('div');
+        details.className = 'reasoning-details';
+        if (!reasoning.isCollapsed) {
+            details.classList.add('expanded');
+        }
+
+        // Add reasoning content based on type
+        if (reasoning.type === 'structured' && reasoning.steps) {
+            if (reasoning.problem) {
+                const problemDiv = document.createElement('div');
+                problemDiv.className = 'reasoning-problem';
+                problemDiv.innerHTML = `<strong>Problem:</strong> ${reasoning.problem}`;
+                details.appendChild(problemDiv);
+            }
+
+            reasoning.steps.forEach((step: any) => {
+                const stepDiv = document.createElement('div');
+                stepDiv.className = `reasoning-step ${step.category}`;
+                stepDiv.innerHTML = `
+                    <div class="step-header">
+                        ${this.getStepEmoji(step.category)} Step ${step.step}: ${step.title.toUpperCase()}
+                    </div>
+                    <div class="step-confidence">
+                        Confidence: ${step.confidence}/10
+                    </div>
+                    <div class="step-content">
+                        ${step.content}
+                    </div>
+                `;
+                details.appendChild(stepDiv);
+            });
+        } else if (reasoning.summary) {
+            const summaryDiv = document.createElement('div');
+            summaryDiv.className = 'reasoning-completion';
+            summaryDiv.textContent = reasoning.summary;
+            details.appendChild(summaryDiv);
+        }
+
+        // Add toggle functionality
+        header.addEventListener('click', () => {
+            const isExpanded = details.classList.contains('expanded');
+            if (isExpanded) {
+                details.classList.remove('expanded');
+                toggle.textContent = '▶';
+                reasoning.isCollapsed = true;
+            } else {
+                details.classList.add('expanded');
+                toggle.textContent = '▼';
+                reasoning.isCollapsed = false;
+            }
+        });
+
+        reasoningContainer.appendChild(header);
+        reasoningContainer.appendChild(details);
+        
+        return reasoningContainer;
+    }
+
+    /**
+     * Create task status section element
+     */
+    private createTaskStatusSection(taskStatus: TaskStatus): HTMLElement {
+        const statusContainer = document.createElement('div');
+        statusContainer.className = 'task-status-container';
+        statusContainer.dataset.taskStatus = taskStatus.status;
+
+        const statusText = this.getTaskStatusText(taskStatus);
+        const statusIcon = this.getTaskStatusIcon(taskStatus.status);
+
+        statusContainer.innerHTML = `
+            <div class="task-status-header">
+                ${statusIcon} <strong>${statusText}</strong>
+            </div>
+        `;
+
+        // Add progress bar if available
+        if (taskStatus.progress) {
+            const progressContainer = document.createElement('div');
+            progressContainer.className = 'task-progress-container';
+            
+            if (taskStatus.progress.total) {
+                const progressBar = document.createElement('div');
+                progressBar.className = 'task-progress-bar';
+                const progressFill = document.createElement('div');
+                progressFill.className = 'task-progress-fill';
+                const progressPercent = (taskStatus.progress.current / taskStatus.progress.total) * 100;
+                progressFill.style.width = `${progressPercent}%`;
+                progressBar.appendChild(progressFill);
+                progressContainer.appendChild(progressBar);
+                
+                const progressText = document.createElement('div');
+                progressText.className = 'task-progress-text';
+                progressText.textContent = `${taskStatus.progress.current}/${taskStatus.progress.total}`;
+                if (taskStatus.progress.description) {
+                    progressText.textContent += ` - ${taskStatus.progress.description}`;
+                }
+                progressContainer.appendChild(progressText);
+            }
+            
+            statusContainer.appendChild(progressContainer);
+        }
+
+        // Add tool execution count
+        if (taskStatus.toolExecutionCount > 0) {
+            const toolInfo = document.createElement('div');
+            toolInfo.className = 'task-tool-info';
+            toolInfo.textContent = `Tools used: ${taskStatus.toolExecutionCount}/${taskStatus.maxToolExecutions}`;
+            statusContainer.appendChild(toolInfo);
+        }
+
+        return statusContainer;
+    }
+
+    /**
+     * Handle continue task after tool limit reached
+     */
+    private async handleContinueTask(
+        messages: Message[], 
+        container: HTMLElement, 
+        responseContent: string, 
+        finalContent: string, 
+        toolResults: Array<{ command: ToolCommand; result: ToolResult }>
+    ): Promise<void> {
+        // Reset execution count and continue task
+        if (this.agentResponseHandler) {
+            this.agentResponseHandler.resetExecutionCount();
+            
+            // Continue task execution
+            const continuedContent = await this.continueTaskUntilFinished(
+                messages,
+                container,
+                responseContent,
+                finalContent,
+                toolResults
+            );
+            
+            // Update the container with continued content
+            container.dataset.rawContent = continuedContent;
+            const contentEl = container.querySelector('.message-content') as HTMLElement;
+            if (contentEl) {
+                contentEl.empty();
+                await MarkdownRenderer.render(
+                    this.app,
+                    continuedContent,
+                    contentEl,
+                    '',
+                    this
+                );
+                this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+            }
+        }
+    }
+
+    /**
+     * Get emoji for reasoning step categories
+     */
+    private getStepEmoji(category: string): string {
+        switch (category) {
+            case 'analysis': return '🔍';
+            case 'planning': return '📋';
+            case 'problem-solving': return '🧩';
+            case 'reflection': return '🤔';
+            case 'conclusion': return '✅';
+            case 'reasoning': return '🧠';
+            case 'information': return '📊';
+            case 'approach': return '🎯';
+            case 'evaluation': return '⚖️';
+            case 'synthesis': return '🔗';
+            case 'validation': return '✅';
+            case 'refinement': return '⚡';
+            default: return '💭';
+        }
+    }
+
+    /**
+     * Get task status text
+     */
+    private getTaskStatusText(taskStatus: TaskStatus): string {
+        switch (taskStatus.status) {
+            case 'idle': return 'Task Ready';
+            case 'running': return 'Task In Progress';
+            case 'stopped': return 'Task Stopped';
+            case 'completed': return 'Task Completed';
+            case 'limit_reached': return 'Tool Limit Reached';
+            case 'waiting_for_user': return 'Waiting for User Input';
+            default: return 'Unknown Status';
+        }
+    }
+
+    /**
+     * Get task status icon
+     */
+    private getTaskStatusIcon(status: string): string {
+        switch (status) {
+            case 'idle': return '⏸️';
+            case 'running': return '🔄';
+            case 'stopped': return '⏹️';
+            case 'completed': return '✅';
+            case 'limit_reached': return '⚠️';
+            case 'waiting_for_user': return '⏳';
+            default: return '❓';
         }
     }
 }

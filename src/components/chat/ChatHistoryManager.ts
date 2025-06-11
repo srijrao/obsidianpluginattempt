@@ -1,9 +1,13 @@
 import { Vault, TFile, TFolder, normalizePath } from "obsidian";
+import { ReasoningData, TaskStatus, ToolExecutionResult } from '../../types';
 
 export interface ChatMessage {
   timestamp: string;
   sender: string;
   content: string;
+  reasoning?: ReasoningData;
+  taskStatus?: TaskStatus;
+  toolResults?: ToolExecutionResult[];
 }
 
 export class ChatHistoryManager {
@@ -113,7 +117,13 @@ export class ChatHistoryManager {
     }
   }
 
-  async updateMessage(timestamp: string, sender: string, oldContent: string, newContent: string): Promise<void> {
+  async updateMessage(
+    timestamp: string,
+    sender: string,
+    oldContent: string,
+    newContent: string,
+    enhancedData?: Partial<Pick<ChatMessage, 'reasoning' | 'taskStatus' | 'toolResults'>>
+  ): Promise<void> {
     await this.loadHistory();
     const message = this.history.find(msg => 
       msg.timestamp === timestamp && 
@@ -122,6 +132,11 @@ export class ChatHistoryManager {
     );
     if (message) {
       message.content = newContent;
+      if (enhancedData) {
+        if ('reasoning' in enhancedData) message.reasoning = enhancedData.reasoning;
+        if ('taskStatus' in enhancedData) message.taskStatus = enhancedData.taskStatus;
+        if ('toolResults' in enhancedData) message.toolResults = enhancedData.toolResults;
+      }
       await this.saveHistory();
     } else {
       console.warn("ChatHistoryManager: updateMessage did not find a matching message to update.", {timestamp, sender, oldContent});
