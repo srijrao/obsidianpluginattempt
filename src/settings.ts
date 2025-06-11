@@ -438,6 +438,13 @@ export class MyPluginSettingTab extends PluginSettingTab {
             () => this.plugin.settings.chatNoteFolder ?? '',
             async (value) => { this.plugin.settings.chatNoteFolder = value ?? ''; await this.plugin.saveSettings(); },
             { trim: true });
+            
+        // UI Behavior Settings
+        containerEl.createEl('h3', { text: 'UI Behavior' });
+        
+        this.createToggleSetting(containerEl, 'Auto-Open Model Settings', 'Automatically open the AI model settings panel when the plugin loads.',
+            () => this.plugin.settings.autoOpenModelSettings,
+            async (value) => { this.plugin.settings.autoOpenModelSettings = value; await this.plugin.saveSettings(); });
 
         this.renderYamlAttributeGenerators(containerEl);
         this.renderModelSettingPresets(containerEl);

@@ -273,7 +273,7 @@ export const DEFAULT_SETTINGS: MyPluginSettings = {
     includeDateWithSystemMessage: false,
     includeTimeWithSystemMessage: false,
     enableStreaming: true,
-    autoOpenModelSettings: true,
+    autoOpenModelSettings: false,
     enableObsidianLinks: true,
     titleOutputMode: "clipboard",
     summaryOutputMode: "clipboard",

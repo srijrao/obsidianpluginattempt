@@ -112,7 +112,7 @@ var init_types = __esm({
       includeDateWithSystemMessage: false,
       includeTimeWithSystemMessage: false,
       enableStreaming: true,
-      autoOpenModelSettings: true,
+      autoOpenModelSettings: false,
       enableObsidianLinks: true,
       titleOutputMode: "clipboard",
       summaryOutputMode: "clipboard",
@@ -8513,6 +8513,17 @@ var MyPluginSettingTab = class extends import_obsidian2.PluginSettingTab {
         await this.plugin.saveSettings();
       },
       { trim: true }
+    );
+    containerEl.createEl("h3", { text: "UI Behavior" });
+    this.createToggleSetting(
+      containerEl,
+      "Auto-Open Model Settings",
+      "Automatically open the AI model settings panel when the plugin loads.",
+      () => this.plugin.settings.autoOpenModelSettings,
+      async (value) => {
+        this.plugin.settings.autoOpenModelSettings = value;
+        await this.plugin.saveSettings();
+      }
     );
     this.renderYamlAttributeGenerators(containerEl);
     this.renderModelSettingPresets(containerEl);
