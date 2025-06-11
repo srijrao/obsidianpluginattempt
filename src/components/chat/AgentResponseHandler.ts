@@ -64,11 +64,31 @@ export class AgentResponseHandler {
         
         console.log('AgentResponseHandler: Parsed text:', text);
         console.log('AgentResponseHandler: Found commands:', commands);
-        
+
+        // --- Always use ThoughtTool to determine what to do ---
+        let thoughtResultDisplay = '';
+        const userRequest = text && text.trim().length > 0 ? text : response;
+        const thoughtTool = new ThoughtTool(this.context.app);
+        const thoughtResult = await thoughtTool.execute({
+            thought: `Agent reasoning: Received user request: "${userRequest}". Determining next actions.`,
+            category: 'analysis',
+            confidence: 7
+        }, this.context);
+        if (thoughtResult.success && thoughtResult.data && thoughtResult.data.formattedThought) {
+            thoughtResultDisplay = `\n${thoughtResult.data.formattedThought}\n`;
+            // Optionally, display in chat UI
+            if (this.context.messagesContainer) {
+                const div = document.createElement('div');
+                div.className = 'ai-chat-message thought-tool';
+                div.innerHTML = `<div class="message-content">${thoughtResult.data.formattedThought}</div>`;
+                this.context.messagesContainer.appendChild(div);
+            }
+        }
+        // --- End ThoughtTool integration ---
         if (commands.length === 0) {
             console.log('AgentResponseHandler: No commands found, returning original text');
             return {
-                processedText: text,
+                processedText: (thoughtResultDisplay ? thoughtResultDisplay + '\n' : '') + text,
                 toolResults: [],
                 hasTools: false
             };
@@ -113,7 +133,7 @@ export class AgentResponseHandler {
         }
 
         return {
-            processedText: text,
+            processedText: (thoughtResultDisplay ? thoughtResultDisplay + '\n' : '') + text,
             toolResults,
             hasTools: true
         };
@@ -187,6 +207,24 @@ export class AgentResponseHandler {
     }
 
     /**
+     * Helper to ensure a file path is relative to the vault root and strips .md extension for Obsidian links
+     */
+    private getRelativePath(filePath: string): string {
+        const adapter: any = this.context.app.vault.adapter;
+        const vaultRoot = adapter?.basePath ? adapter.basePath.replace(/\\/g, '/') : '';
+        let relPath = filePath.replace(/\\/g, '/');
+        if (vaultRoot && relPath.startsWith(vaultRoot)) {
+            relPath = relPath.slice(vaultRoot.length);
+            if (relPath.startsWith('/')) relPath = relPath.slice(1);
+        }
+        // Strip .md extension for Obsidian links
+        if (relPath.toLowerCase().endsWith('.md')) {
+            relPath = relPath.slice(0, -3);
+        }
+        return relPath;
+    }
+
+    /**
      * Format tool results for display in chat
      */
     formatToolResultsForDisplay(toolResults: Array<{ command: ToolCommand; result: ToolResult }>): string {
@@ -205,13 +243,11 @@ export class AgentResponseHandler {
                 if (result.data) {
                     switch (command.action) {
                         case 'file_write':
-                            if (result.data.filePath) {
-                                context = ` [[${result.data.filePath}]]`;
-                            }
-                            break;
                         case 'file_read':
+                        case 'file_diff':
                             if (result.data.filePath) {
-                                context = ` [[${result.data.filePath}]]`;
+                                const relPath = this.getRelativePath(result.data.filePath);
+                                context = ` [[${relPath}]]`;
                             }
                             break;
                         case 'file_select':
@@ -219,13 +255,7 @@ export class AgentResponseHandler {
                                 context = ` [[${result.data.count} files found]]`;
                             }
                             break;
-                        case 'file_diff':
-                            if (result.data.filePath) {
-                                context = ` [[${result.data.filePath}]]`;
-                            }
-                            break;
                         case 'thought':
-                            // For thought tool, display the formatted thought content instead of just "completed successfully"
                             if (result.data && result.data.formattedThought) {
                                 return result.data.formattedThought;
                             }

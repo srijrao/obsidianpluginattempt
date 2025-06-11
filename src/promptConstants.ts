@@ -20,7 +20,7 @@ When you need to use a tool, respond ONLY with a JSON command in this format:
 }
 
 Available tools:
-1. file_write - Write/modify file contents (use "filename" parameter for the file path)
+1. file_write - Write/modify file contents (use "filename" parameter for the file path). Usually md files unless otherwise specified.
 2. file_read - Read file contents (use "filePath" parameter)  
 3. file_select - Search for files programmatically (use "query" parameter to search by filename/content)
 4. file_diff - Compare and suggest changes to files
