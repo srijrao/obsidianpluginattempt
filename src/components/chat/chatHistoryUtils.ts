@@ -27,7 +27,8 @@ export async function renderChatHistory({
                 chatHistoryManager,
                 plugin,
                 regenerateResponse,
-                plugin // parentComponent
+                plugin, // parentComponent
+                msg // Pass full message object for enhanced data
             );
             messageEl.dataset.timestamp = msg.timestamp;
             messagesContainer.appendChild(messageEl);

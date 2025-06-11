@@ -138,21 +138,6 @@ export function createChatUI(app: App, contentEl: HTMLElement): ChatUIElements {
     (agentModeButton as any).setActive = setAgentModeActive;
 
     inputContainer.appendChild(agentModeButton);
-
-    // --- TINY REFERENCE NOTE BUTTON NEXT TO HELP BUTTON ---
-    // const referenceNoteButton = inputContainer.createEl('button', {
-    //     text: '📝',
-    // });
-    // referenceNoteButton.setAttr('aria-label', 'Reference current note settings');
-    // referenceNoteButton.style.fontSize = '0.9em';
-    // referenceNoteButton.style.width = '1.8em';
-    // referenceNoteButton.style.height = '1.8em';
-    // referenceNoteButton.style.marginBottom = '0.2em';
-    // referenceNoteButton.style.opacity = '0.7';
-    // referenceNoteButton.style.position = 'absolute';
-    // referenceNoteButton.style.right = '2.8em'; // Position to the left of help button
-    // referenceNoteButton.style.top = '-2.2em';
-    // referenceNoteButton.style.zIndex = '2';
     
     inputContainer.style.position = 'relative';
 

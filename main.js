@@ -206,6 +206,12 @@ var init_types = __esm({
         enabled: false,
         maxToolCalls: 10,
         timeoutMs: 3e4
+      },
+      uiBehavior: {
+        collapseOldReasoning: true,
+        showTaskProgress: true,
+        showCompletionNotifications: true,
+        includeReasoningInExports: true
       }
     };
   }
@@ -8718,13 +8724,18 @@ var ChatHistoryManager = class {
       await this.saveHistory();
     }
   }
-  async updateMessage(timestamp2, sender, oldContent, newContent) {
+  async updateMessage(timestamp2, sender, oldContent, newContent, enhancedData) {
     await this.loadHistory();
     const message = this.history.find(
       (msg) => msg.timestamp === timestamp2 && msg.sender === sender && msg.content === oldContent
     );
     if (message) {
       message.content = newContent;
+      if (enhancedData) {
+        if ("reasoning" in enhancedData) message.reasoning = enhancedData.reasoning;
+        if ("taskStatus" in enhancedData) message.taskStatus = enhancedData.taskStatus;
+        if ("toolResults" in enhancedData) message.toolResults = enhancedData.toolResults;
+      }
       await this.saveHistory();
     } else {
       console.warn("ChatHistoryManager: updateMessage did not find a matching message to update.", { timestamp: timestamp2, sender, oldContent });
@@ -8787,13 +8798,24 @@ var ConfirmationModal = class extends import_obsidian5.Modal {
 };
 
 // src/components/chat/Message.ts
-function createMessageElement(app, role, content, chatHistoryManager, plugin, regenerateCallback, parentComponent) {
+function createMessageElement(app, role, content, chatHistoryManager, plugin, regenerateCallback, parentComponent, messageData) {
   const messageEl = document.createElement("div");
   messageEl.addClass("ai-chat-message", role);
   const messageContainer = messageEl.createDiv("message-container");
-  const contentEl = messageContainer.createDiv("message-content");
   messageEl.dataset.rawContent = content;
   messageEl.dataset.timestamp = (/* @__PURE__ */ new Date()).toISOString();
+  if (messageData) {
+    messageEl.dataset.messageData = JSON.stringify(messageData);
+  }
+  if (role === "assistant" && (messageData == null ? void 0 : messageData.reasoning)) {
+    const reasoningEl = createReasoningSection(messageData.reasoning, plugin);
+    messageContainer.appendChild(reasoningEl);
+  }
+  if (role === "assistant" && (messageData == null ? void 0 : messageData.taskStatus)) {
+    const statusEl = createTaskStatusSection(messageData.taskStatus);
+    messageContainer.appendChild(statusEl);
+  }
+  const contentEl = messageContainer.createDiv("message-content");
   import_obsidian6.MarkdownRenderer.render(app, content, contentEl, "", parentComponent).catch((error) => {
     contentEl.textContent = content;
   });
@@ -8807,13 +8829,13 @@ function createMessageElement(app, role, content, chatHistoryManager, plugin, re
     actionsEl.classList.remove("visible");
     actionsEl.classList.add("hidden");
   });
-  actionsEl.appendChild(createActionButton("Copy", "Copy message", () => {
-    const currentContent = messageEl.dataset.rawContent || "";
-    if (currentContent.trim() === "") {
+  actionsEl.appendChild(createActionButton("Copy", "Copy message (including reasoning)", () => {
+    const fullContent = getFullMessageContent(messageEl, plugin);
+    if (fullContent.trim() === "") {
       new import_obsidian6.Notice("No content to copy");
       return;
     }
-    copyToClipboard(currentContent);
+    copyToClipboard(fullContent);
   }));
   actionsEl.appendChild(createActionButton("Edit", "Edit message", async () => {
     if (!contentEl.hasClass("editing")) {
@@ -8833,12 +8855,21 @@ function createMessageElement(app, role, content, chatHistoryManager, plugin, re
       textarea.addEventListener("blur", async () => {
         const oldContent = messageEl.dataset.rawContent;
         const newContent = textarea.value;
+        let enhancedData = void 0;
+        if (messageEl.dataset.messageData) {
+          try {
+            enhancedData = JSON.parse(messageEl.dataset.messageData);
+          } catch (e) {
+          }
+        }
         try {
           await chatHistoryManager.updateMessage(
             messageEl.dataset.timestamp || (/* @__PURE__ */ new Date()).toISOString(),
             messageEl.classList.contains("user") ? "user" : "assistant",
             oldContent || "",
-            newContent
+            newContent,
+            enhancedData
+            // Pass enhanced data if present
           );
           messageEl.dataset.rawContent = newContent;
           contentEl.empty();
@@ -8875,6 +8906,265 @@ function createMessageElement(app, role, content, chatHistoryManager, plugin, re
   }));
   messageContainer.appendChild(actionsEl);
   return messageEl;
+}
+function createReasoningSection(reasoning, plugin) {
+  var _a2;
+  const reasoningContainer = document.createElement("div");
+  reasoningContainer.className = "reasoning-container";
+  reasoningContainer.dataset.reasoningId = reasoning.id;
+  const header = document.createElement("div");
+  header.className = "reasoning-summary";
+  const toggle = document.createElement("span");
+  toggle.className = "reasoning-toggle";
+  toggle.textContent = reasoning.isCollapsed ? "\u25B6" : "\u25BC";
+  const headerText = document.createElement("span");
+  const typeLabel = reasoning.type === "structured" ? "STRUCTURED REASONING" : "REASONING";
+  const stepCount = ((_a2 = reasoning.steps) == null ? void 0 : _a2.length) || 0;
+  headerText.innerHTML = `<strong>\u{1F9E0} ${typeLabel}</strong>`;
+  if (stepCount > 0) {
+    headerText.innerHTML += ` (${stepCount} steps)`;
+  }
+  if (reasoning.confidence) {
+    headerText.innerHTML += ` | Confidence: ${reasoning.confidence}/10`;
+  }
+  headerText.innerHTML += ` - <em>Click to ${reasoning.isCollapsed ? "expand" : "collapse"}</em>`;
+  header.appendChild(toggle);
+  header.appendChild(headerText);
+  const details = document.createElement("div");
+  details.className = "reasoning-details";
+  if (!reasoning.isCollapsed) {
+    details.classList.add("expanded");
+  }
+  if (reasoning.problem) {
+    const problemDiv = document.createElement("div");
+    problemDiv.className = "reasoning-problem";
+    problemDiv.innerHTML = `<strong>Problem:</strong> ${reasoning.problem}`;
+    details.appendChild(problemDiv);
+  }
+  if (reasoning.steps && reasoning.steps.length > 0) {
+    reasoning.steps.forEach((step) => {
+      const stepEl = createReasoningStepElement(step);
+      details.appendChild(stepEl);
+    });
+  }
+  if (reasoning.summary) {
+    const summaryDiv = document.createElement("div");
+    summaryDiv.className = "reasoning-completion";
+    summaryDiv.textContent = reasoning.summary;
+    details.appendChild(summaryDiv);
+  }
+  header.addEventListener("click", () => {
+    const isExpanded = details.classList.contains("expanded");
+    if (isExpanded) {
+      details.classList.remove("expanded");
+      toggle.textContent = "\u25B6";
+      headerText.innerHTML = headerText.innerHTML.replace("collapse", "expand");
+      reasoning.isCollapsed = true;
+    } else {
+      details.classList.add("expanded");
+      toggle.textContent = "\u25BC";
+      headerText.innerHTML = headerText.innerHTML.replace("expand", "collapse");
+      reasoning.isCollapsed = false;
+    }
+    updateStoredMessageData(reasoningContainer, reasoning);
+  });
+  reasoningContainer.appendChild(header);
+  reasoningContainer.appendChild(details);
+  return reasoningContainer;
+}
+function createReasoningStepElement(step) {
+  const stepDiv = document.createElement("div");
+  stepDiv.className = `reasoning-step ${step.category}`;
+  const categoryEmoji = getStepEmoji(step.category);
+  const confidenceBar = "\u25CF".repeat(Math.floor(step.confidence)) + "\u25CB".repeat(10 - Math.floor(step.confidence));
+  stepDiv.innerHTML = `
+        <div class="step-header">
+            ${categoryEmoji} Step ${step.step}: ${step.title.toUpperCase()}
+        </div>
+        <div class="step-confidence">
+            Confidence: ${step.confidence}/10 <span class="confidence-bar">${confidenceBar}</span>
+        </div>
+        <div class="step-content">
+            ${step.content}
+        </div>
+    `;
+  return stepDiv;
+}
+function createTaskStatusSection(taskStatus) {
+  const statusContainer = document.createElement("div");
+  statusContainer.className = "task-status-container";
+  statusContainer.dataset.taskStatus = taskStatus.status;
+  const statusText = getTaskStatusText(taskStatus);
+  const statusIcon = getTaskStatusIcon(taskStatus.status);
+  statusContainer.innerHTML = `
+        <div class="task-status-header">
+            ${statusIcon} <strong>${statusText}</strong>
+        </div>
+    `;
+  if (taskStatus.progress) {
+    const progressContainer = document.createElement("div");
+    progressContainer.className = "task-progress-container";
+    if (taskStatus.progress.total) {
+      const progressBar = document.createElement("div");
+      progressBar.className = "task-progress-bar";
+      const progressFill = document.createElement("div");
+      progressFill.className = "task-progress-fill";
+      const progressPercent = taskStatus.progress.current / taskStatus.progress.total * 100;
+      progressFill.style.width = `${progressPercent}%`;
+      progressBar.appendChild(progressFill);
+      progressContainer.appendChild(progressBar);
+      const progressText = document.createElement("div");
+      progressText.className = "task-progress-text";
+      progressText.textContent = `${taskStatus.progress.current}/${taskStatus.progress.total}`;
+      if (taskStatus.progress.description) {
+        progressText.textContent += ` - ${taskStatus.progress.description}`;
+      }
+      progressContainer.appendChild(progressText);
+    } else if (taskStatus.progress.description) {
+      const progressText = document.createElement("div");
+      progressText.className = "task-progress-text";
+      progressText.textContent = taskStatus.progress.description;
+      progressContainer.appendChild(progressText);
+    }
+    statusContainer.appendChild(progressContainer);
+  }
+  if (taskStatus.toolExecutionCount > 0) {
+    const toolInfo = document.createElement("div");
+    toolInfo.className = "task-tool-info";
+    toolInfo.textContent = `Tools used: ${taskStatus.toolExecutionCount}/${taskStatus.maxToolExecutions}`;
+    statusContainer.appendChild(toolInfo);
+  }
+  return statusContainer;
+}
+function getFullMessageContent(messageEl, plugin) {
+  var _a2, _b;
+  const includeReasoning = ((_b = (_a2 = plugin == null ? void 0 : plugin.settings) == null ? void 0 : _a2.uiBehavior) == null ? void 0 : _b.includeReasoningInExports) !== false;
+  let content = messageEl.dataset.rawContent || "";
+  if (includeReasoning) {
+    const messageData = messageEl.dataset.messageData;
+    if (messageData) {
+      try {
+        const parsed = JSON.parse(messageData);
+        if (parsed.reasoning) {
+          content = formatReasoningForExport(parsed.reasoning) + "\n\n" + content;
+        }
+      } catch (e) {
+      }
+    }
+  }
+  return content;
+}
+function formatReasoningForExport(reasoning) {
+  let formatted = `## \u{1F9E0} ${reasoning.type === "structured" ? "STRUCTURED REASONING" : "REASONING"}
+
+`;
+  if (reasoning.problem) {
+    formatted += `**Problem:** ${reasoning.problem}
+
+`;
+  }
+  if (reasoning.steps && reasoning.steps.length > 0) {
+    formatted += `### Reasoning Steps
+
+`;
+    reasoning.steps.forEach((step) => {
+      const emoji = getStepEmoji(step.category);
+      formatted += `${emoji} **Step ${step.step}: ${step.title}**
+`;
+      formatted += `*Confidence: ${step.confidence}/10*
+
+`;
+      formatted += `${step.content}
+
+`;
+      formatted += `---
+
+`;
+    });
+  }
+  if (reasoning.summary) {
+    formatted += `**Summary:** ${reasoning.summary}
+
+`;
+  }
+  return formatted;
+}
+function updateStoredMessageData(container, reasoning) {
+  const messageEl = container.closest(".ai-chat-message");
+  if (messageEl && messageEl.dataset.messageData) {
+    try {
+      const messageData = JSON.parse(messageEl.dataset.messageData);
+      messageData.reasoning = reasoning;
+      messageEl.dataset.messageData = JSON.stringify(messageData);
+    } catch (e) {
+    }
+  }
+}
+function getStepEmoji(category) {
+  switch (category) {
+    case "analysis":
+      return "\u{1F50D}";
+    case "planning":
+      return "\u{1F4CB}";
+    case "problem-solving":
+      return "\u{1F9E9}";
+    case "reflection":
+      return "\u{1F914}";
+    case "conclusion":
+      return "\u2705";
+    case "reasoning":
+      return "\u{1F9E0}";
+    case "information":
+      return "\u{1F4CA}";
+    case "approach":
+      return "\u{1F3AF}";
+    case "evaluation":
+      return "\u2696\uFE0F";
+    case "synthesis":
+      return "\u{1F517}";
+    case "validation":
+      return "\u2705";
+    case "refinement":
+      return "\u26A1";
+    default:
+      return "\u{1F4AD}";
+  }
+}
+function getTaskStatusText(taskStatus) {
+  switch (taskStatus.status) {
+    case "idle":
+      return "Task Ready";
+    case "running":
+      return "Task In Progress";
+    case "stopped":
+      return "Task Stopped";
+    case "completed":
+      return "Task Completed";
+    case "limit_reached":
+      return "Tool Limit Reached";
+    case "waiting_for_user":
+      return "Waiting for User Input";
+    default:
+      return "Unknown Status";
+  }
+}
+function getTaskStatusIcon(status) {
+  switch (status) {
+    case "idle":
+      return "\u23F8\uFE0F";
+    case "running":
+      return "\u{1F504}";
+    case "stopped":
+      return "\u23F9\uFE0F";
+    case "completed":
+      return "\u2705";
+    case "limit_reached":
+      return "\u26A0\uFE0F";
+    case "waiting_for_user":
+      return "\u23F3";
+    default:
+      return "\u2753";
+  }
 }
 
 // src/components/chat/ui.ts
@@ -9023,8 +9313,10 @@ async function renderChatHistory({
         chatHistoryManager,
         plugin,
         regenerateResponse,
-        plugin
+        plugin,
         // parentComponent
+        msg
+        // Pass full message object for enhanced data
       );
       messageEl.dataset.timestamp = msg.timestamp;
       messagesContainer.appendChild(messageEl);
@@ -10237,7 +10529,7 @@ ${resultText}`
             case "thought":
               if (result.data && result.data.formattedThought) {
                 if (result.data.reasoning === "structured") {
-                  return this.createCollapsibleReasoning(result.data);
+                  return this.createCollapsibleReasoningElement(result.data);
                 }
                 return result.data.formattedThought;
               }
@@ -10255,27 +10547,15 @@ ${resultText}`
 ${resultText}`;
   }
   /**
-   * Create a collapsible reasoning display for structured reasoning results
+   * Create a collapsible reasoning display for structured reasoning results (returns DOM element, not HTML string)
    */
-  createCollapsibleReasoning(reasoningData) {
+  async createCollapsibleReasoningElement(reasoningData) {
+    var _a2;
     const { problem, steps, totalSteps, depth } = reasoningData;
     const collapsibleId = "reasoning-" + Date.now() + "-" + Math.random().toString(36).substr(2, 9);
-    let html = `<div id="reasoning-placeholder-${collapsibleId}" class="reasoning-placeholder">`;
-    html += `\u{1F9E0} REASONING SESSION (${totalSteps} steps, ${depth} depth) - Loading interactive display...`;
-    html += `</div>`;
-    setTimeout(() => {
-      this.injectReasoningUI(collapsibleId, problem, steps, totalSteps, depth);
-    }, 100);
-    return html;
-  }
-  /**
-   * Inject interactive reasoning UI into the DOM
-   */
-  injectReasoningUI(collapsibleId, problem, steps, totalSteps, depth) {
-    const placeholder = this.context.messagesContainer.querySelector(`#reasoning-placeholder-${collapsibleId}`);
-    if (!placeholder) return;
     const container = document.createElement("div");
     container.className = "reasoning-container";
+    container.id = collapsibleId;
     const summary = document.createElement("div");
     summary.className = "reasoning-summary";
     const toggle = document.createElement("span");
@@ -10292,46 +10572,41 @@ ${resultText}`;
     problemDiv.innerHTML = `<strong>Problem:</strong> ${problem || "No problem statement provided"}`;
     details.appendChild(problemDiv);
     if (steps && steps.length > 0) {
-      steps.forEach((step) => {
-        var _a2;
+      for (const step of steps) {
         const stepDiv = document.createElement("div");
         stepDiv.className = `reasoning-step ${step.category}`;
         const categoryEmoji = this.getStepEmoji(step.category);
         const confidenceBar = "\u25CF".repeat(Math.floor(step.confidence || 5)) + "\u25CB".repeat(10 - Math.floor(step.confidence || 5));
         stepDiv.innerHTML = `
-                    <div class="step-header">
-                        ${categoryEmoji} Step ${step.step}: ${((_a2 = step.title) == null ? void 0 : _a2.toUpperCase()) || "UNTITLED"}
-                    </div>
-                    <div class="step-confidence">
-                        Confidence: ${step.confidence || 5}/10 <span class="confidence-bar">${confidenceBar}</span>
-                    </div>
-                    <div class="step-content">
-                        ${step.content || "No content provided"}
-                    </div>
+                    <div class="step-header">${categoryEmoji} Step ${step.step}: ${((_a2 = step.title) == null ? void 0 : _a2.toUpperCase()) || "UNTITLED"}</div>
+                    <div class="step-confidence">Confidence: ${step.confidence || 5}/10 <span class="confidence-bar">${confidenceBar}</span></div>
+                    <div class="step-content"></div>
                 `;
+        const contentDiv = stepDiv.querySelector(".step-content");
+        if (contentDiv) {
+          await import_obsidian16.MarkdownRenderer.render(
+            this.context.app,
+            step.content || "No content provided",
+            contentDiv,
+            "",
+            this.context.plugin
+          );
+        }
         details.appendChild(stepDiv);
-      });
+      }
     }
     const completion = document.createElement("div");
     completion.className = "reasoning-completion";
     completion.textContent = `\u2705 Analysis completed in ${totalSteps} structured steps`;
     details.appendChild(completion);
-    let isExpanded = false;
     summary.addEventListener("click", () => {
-      isExpanded = !isExpanded;
-      if (isExpanded) {
-        details.classList.add("expanded");
-        toggle.textContent = "\u25BC";
-        summaryText.innerHTML = `<strong>\u{1F9E0} REASONING SESSION</strong> (${totalSteps} steps, ${depth} depth) - <em>Click to collapse</em>`;
-      } else {
-        details.classList.remove("expanded");
-        toggle.textContent = "\u25B6";
-        summaryText.innerHTML = `<strong>\u{1F9E0} REASONING SESSION</strong> (${totalSteps} steps, ${depth} depth) - <em>Click to view details</em>`;
-      }
+      const isExpanded = details.classList.toggle("expanded");
+      toggle.textContent = isExpanded ? "\u25BC" : "\u25B6";
+      summaryText.innerHTML = `<strong>\u{1F9E0} REASONING SESSION</strong> (${totalSteps} steps, ${depth} depth) - <em>Click to ${isExpanded ? "collapse" : "view details"}</em>`;
     });
     container.appendChild(summary);
     container.appendChild(details);
-    placeholder.replaceWith(container);
+    return container;
   }
   /**
    * Get color for reasoning step categories
@@ -10386,6 +10661,213 @@ ${resultText}`;
       default:
         return "\u{1F4AD}";
     }
+  }
+  /**
+   * Process tool results and extract reasoning data for enhanced message display
+   */
+  processToolResultsForMessage(toolResults) {
+    const toolExecutionResults = toolResults.map(({ command, result }) => ({
+      command,
+      result,
+      timestamp: (/* @__PURE__ */ new Date()).toISOString()
+    }));
+    let reasoning;
+    for (const { command, result } of toolResults) {
+      if (command.action === "thought" && result.success && result.data) {
+        reasoning = this.convertThoughtToolResultToReasoning(result.data);
+        break;
+      }
+    }
+    return {
+      reasoning,
+      toolExecutionResults
+    };
+  }
+  /**
+   * Convert ThoughtTool result data to structured ReasoningData
+   */
+  convertThoughtToolResultToReasoning(thoughtData) {
+    var _a2, _b, _c;
+    const reasoningId = "reasoning-" + Date.now() + "-" + Math.random().toString(36).substr(2, 9);
+    if (thoughtData.reasoning === "structured" && thoughtData.steps) {
+      return {
+        id: reasoningId,
+        timestamp: thoughtData.timestamp || (/* @__PURE__ */ new Date()).toISOString(),
+        type: "structured",
+        problem: thoughtData.problem,
+        steps: thoughtData.steps.map((step) => ({
+          step: step.step,
+          category: step.category,
+          title: step.title,
+          content: step.content,
+          confidence: step.confidence
+        })),
+        confidence: ((_a2 = thoughtData.steps[thoughtData.steps.length - 1]) == null ? void 0 : _a2.confidence) || 7,
+        depth: thoughtData.depth,
+        isCollapsed: ((_b = this.context.plugin.settings.uiBehavior) == null ? void 0 : _b.collapseOldReasoning) || false
+      };
+    } else {
+      return {
+        id: reasoningId,
+        timestamp: thoughtData.timestamp || (/* @__PURE__ */ new Date()).toISOString(),
+        type: "simple",
+        summary: thoughtData.thought || thoughtData.formattedThought,
+        confidence: thoughtData.confidence || 7,
+        isCollapsed: ((_c = this.context.plugin.settings.uiBehavior) == null ? void 0 : _c.collapseOldReasoning) || false
+      };
+    }
+  }
+  /**
+   * Create task status object based on current execution state
+   */
+  createTaskStatus(status, progress) {
+    const agentSettings = this.context.plugin.getAgentModeSettings();
+    return {
+      status,
+      progress,
+      toolExecutionCount: this.executionCount,
+      maxToolExecutions: agentSettings.maxToolCalls,
+      canContinue: status === "limit_reached" || status === "stopped",
+      lastUpdateTime: (/* @__PURE__ */ new Date()).toISOString()
+    };
+  }
+  /**
+   * Check if tool execution limit has been reached
+   */
+  isToolLimitReached() {
+    const agentSettings = this.context.plugin.getAgentModeSettings();
+    return this.executionCount >= agentSettings.maxToolCalls;
+  }
+  /**
+   * Get remaining tool executions
+   */
+  getRemainingToolExecutions() {
+    const agentSettings = this.context.plugin.getAgentModeSettings();
+    return Math.max(0, agentSettings.maxToolCalls - this.executionCount);
+  }
+  /**
+   * Create tool limit warning UI element
+   */
+  createToolLimitWarning() {
+    const warning = document.createElement("div");
+    warning.className = "tool-limit-warning";
+    const agentSettings = this.context.plugin.getAgentModeSettings();
+    warning.innerHTML = `
+            <div class="tool-limit-warning-text">
+                <strong>\u26A0\uFE0F Tool execution limit reached</strong><br>
+                Used ${this.executionCount}/${agentSettings.maxToolCalls} tool calls. 
+                You can increase the limit in settings or continue to resume the task.
+            </div>
+            <div class="tool-limit-warning-actions">
+                <span class="tool-limit-settings-link" onclick="this.openSettings()">Settings</span>
+                <button class="ai-chat-continue-button" onclick="this.continueTask()">Continue</button>
+            </div>
+        `;
+    const settingsLink = warning.querySelector(".tool-limit-settings-link");
+    if (settingsLink) {
+      settingsLink.onclick = () => {
+        this.context.app.setting.open();
+        this.context.app.setting.openTabById(this.context.plugin.manifest.id);
+      };
+    }
+    const continueButton = warning.querySelector(".ai-chat-continue-button");
+    if (continueButton) {
+      continueButton.onclick = () => {
+        this.resetExecutionCount();
+        warning.remove();
+        this.context.messagesContainer.dispatchEvent(new CustomEvent("continueTask"));
+      };
+    }
+    return warning;
+  }
+  /**
+   * Create task completion notification
+   */
+  createTaskCompletionNotification(message, type2 = "success") {
+    const notification = document.createElement("div");
+    notification.className = `task-completion-notification ${type2}`;
+    notification.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <span>${type2 === "success" ? "\u2705" : type2 === "error" ? "\u274C" : "\u26A0\uFE0F"}</span>
+                <span>${message}</span>
+            </div>
+        `;
+    setTimeout(() => {
+      notification.classList.add("show");
+    }, 100);
+    setTimeout(() => {
+      notification.classList.remove("show");
+      setTimeout(() => notification.remove(), 300);
+    }, 5e3);
+    return notification;
+  }
+  /**
+   * Show task completion notification
+   */
+  showTaskCompletionNotification(message, type2 = "success") {
+    var _a2;
+    if (!((_a2 = this.context.plugin.settings.uiBehavior) == null ? void 0 : _a2.showCompletionNotifications)) {
+      return;
+    }
+    const notification = this.createTaskCompletionNotification(message, type2);
+    document.body.appendChild(notification);
+  }
+  /**
+   * Update task progress in UI
+   */
+  updateTaskProgress(current, total, description) {
+    var _a2, _b;
+    let progressEl = this.context.messagesContainer.querySelector(".ai-chat-task-progress");
+    if (!progressEl) {
+      progressEl = document.createElement("div");
+      progressEl.className = "ai-chat-task-progress";
+      const inputContainer = (_a2 = this.context.messagesContainer.parentElement) == null ? void 0 : _a2.querySelector(".ai-chat-input-container");
+      if (inputContainer) {
+        (_b = inputContainer.parentElement) == null ? void 0 : _b.insertBefore(progressEl, inputContainer);
+      }
+    }
+    let progressText = description || "Processing...";
+    if (total) {
+      progressText = `${progressText} (${current}/${total})`;
+    }
+    progressEl.innerHTML = `
+            <div class="spinner"></div>
+            <span>${progressText}</span>
+        `;
+    progressEl.classList.add("active");
+  }
+  /**
+   * Hide task progress indicator
+   */
+  hideTaskProgress() {
+    const progressEl = this.context.messagesContainer.querySelector(".ai-chat-task-progress");
+    if (progressEl) {
+      progressEl.classList.remove("active");
+      setTimeout(() => progressEl.remove(), 300);
+    }
+  }
+  /**
+   * Enhanced tool result processing with UI integration
+   */
+  async processResponseWithUI(response) {
+    const result = await this.processResponse(response);
+    let status = "completed";
+    if (result.hasTools) {
+      if (this.isToolLimitReached()) {
+        status = "limit_reached";
+      } else {
+        status = "running";
+      }
+    }
+    const taskStatus = this.createTaskStatus(status);
+    const { reasoning } = this.processToolResultsForMessage(result.toolResults);
+    const shouldShowLimitWarning = this.isToolLimitReached() && result.hasTools;
+    return {
+      ...result,
+      reasoning,
+      taskStatus,
+      shouldShowLimitWarning
+    };
   }
 };
 
@@ -10492,6 +10974,15 @@ var ChatView = class extends import_obsidian17.ItemView {
       this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
       textarea.value = "";
       try {
+        await this.chatHistoryManager.addMessage({
+          timestamp: userMessageEl.dataset.timestamp || (/* @__PURE__ */ new Date()).toISOString(),
+          sender: "user",
+          content
+        });
+      } catch (e) {
+        new import_obsidian17.Notice("Failed to save user message: " + e.message);
+      }
+      try {
         const messages = await this.buildContextMessages();
         const messageElements = this.messagesContainer.querySelectorAll(".ai-chat-message");
         messageElements.forEach((el) => {
@@ -10538,6 +11029,9 @@ var ChatView = class extends import_obsidian17.ItemView {
         textarea.focus();
         stopButton.classList.add("hidden");
         sendButton.classList.remove("hidden");
+        if (this.agentResponseHandler) {
+          this.agentResponseHandler.hideTaskProgress();
+        }
       }
     });
     Promise.resolve().then(() => (init_inputHandler(), inputHandler_exports)).then(({ setupInputHandler: setupInputHandler2 }) => {
@@ -10602,8 +11096,8 @@ var ChatView = class extends import_obsidian17.ItemView {
       this.updateReferenceNoteIndicator();
     });
   }
-  async addMessage(role, content, isError = false) {
-    const messageEl = await createMessageElement(this.app, role, content, this.chatHistoryManager, this.plugin, (el) => this.regenerateResponse(el), this);
+  async addMessage(role, content, isError = false, enhancedData) {
+    const messageEl = await createMessageElement(this.app, role, content, this.chatHistoryManager, this.plugin, (el) => this.regenerateResponse(el), this, enhancedData ? { role, content, ...enhancedData } : void 0);
     const uiTimestamp = messageEl.dataset.timestamp || (/* @__PURE__ */ new Date()).toISOString();
     this.messagesContainer.appendChild(messageEl);
     this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
@@ -10611,7 +11105,8 @@ var ChatView = class extends import_obsidian17.ItemView {
       await this.chatHistoryManager.addMessage({
         timestamp: uiTimestamp,
         sender: role,
-        content
+        content,
+        ...enhancedData || {}
       });
     } catch (e) {
       new import_obsidian17.Notice("Failed to save chat message: " + e.message);
@@ -10776,60 +11271,111 @@ ${currentNoteContent}`
         }
       );
       if (this.plugin.isAgentModeEnabled() && this.agentResponseHandler) {
-        const agentResult = await this.agentResponseHandler.processResponse(responseContent);
-        if (agentResult.hasTools) {
-          const finalContent = agentResult.processedText + this.agentResponseHandler.formatToolResultsForDisplay(agentResult.toolResults);
-          const contentEl = container.querySelector(".message-content");
-          if (contentEl) {
+        this.agentResponseHandler.hideTaskProgress();
+        this.agentResponseHandler.updateTaskProgress(1, void 0, "Processing AI response...");
+        try {
+          const agentResult = await this.agentResponseHandler.processResponseWithUI(responseContent);
+          this.agentResponseHandler.hideTaskProgress();
+          if (agentResult.hasTools) {
+            const finalContent = agentResult.processedText + this.agentResponseHandler.formatToolResultsForDisplay(agentResult.toolResults);
+            const enhancedMessageData = {
+              role: "assistant",
+              content: finalContent,
+              reasoning: agentResult.reasoning,
+              taskStatus: agentResult.taskStatus,
+              toolResults: agentResult.toolResults.map(({ command, result }) => ({
+                command,
+                result,
+                timestamp: (/* @__PURE__ */ new Date()).toISOString()
+              }))
+            };
+            container.dataset.messageData = JSON.stringify(enhancedMessageData);
             container.dataset.rawContent = finalContent;
-            contentEl.empty();
-            await import_obsidian17.MarkdownRenderer.render(
-              this.app,
-              finalContent,
-              contentEl,
-              "",
-              this
-            );
-            this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
-          }
-          responseContent = await this.continueTaskUntilFinished(
-            messages,
-            container,
-            responseContent,
-            finalContent,
-            agentResult.toolResults
-          );
-        } else {
-          if (responseContent.includes('"action"') && responseContent.includes('"thought"')) {
-            messages.push({ role: "assistant", content: responseContent });
-            messages.push({ role: "system", content: "Please continue with the actual task execution based on your reasoning." });
-            const continuationContent = await this.getContinuationResponse(messages, container);
-            if (continuationContent.trim()) {
-              const updatedContent = responseContent + "\n\n" + continuationContent;
-              container.dataset.rawContent = updatedContent;
-              const contentEl = container.querySelector(".message-content");
-              if (contentEl) {
-                contentEl.empty();
-                await import_obsidian17.MarkdownRenderer.render(
-                  this.app,
-                  updatedContent,
-                  contentEl,
-                  "",
-                  this
-                );
-                this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+            this.updateMessageWithEnhancedData(container, enhancedMessageData);
+            if (agentResult.shouldShowLimitWarning) {
+              const warning = this.agentResponseHandler.createToolLimitWarning();
+              this.messagesContainer.appendChild(warning);
+              this.messagesContainer.addEventListener("continueTask", () => {
+                this.handleContinueTask(messages, container, responseContent, finalContent, agentResult.toolResults);
+              });
+            }
+            if (agentResult.taskStatus.status === "completed") {
+              this.agentResponseHandler.showTaskCompletionNotification(
+                `Task completed successfully! Used ${agentResult.taskStatus.toolExecutionCount} tools.`,
+                "success"
+              );
+              responseContent = finalContent;
+              return responseContent;
+            } else if (agentResult.taskStatus.status === "limit_reached") {
+              this.agentResponseHandler.showTaskCompletionNotification(
+                "Tool execution limit reached. You can continue the task or increase the limit in settings.",
+                "warning"
+              );
+            }
+            if (!agentResult.shouldShowLimitWarning) {
+              responseContent = await this.continueTaskUntilFinished(
+                messages,
+                container,
+                responseContent,
+                finalContent,
+                agentResult.toolResults
+              );
+            } else {
+              responseContent = finalContent;
+            }
+          } else {
+            if (agentResult.reasoning) {
+              const enhancedMessageData = {
+                role: "assistant",
+                content: responseContent,
+                reasoning: agentResult.reasoning,
+                taskStatus: agentResult.taskStatus
+              };
+              container.dataset.messageData = JSON.stringify(enhancedMessageData);
+              this.updateMessageWithEnhancedData(container, enhancedMessageData);
+            }
+            if (responseContent.includes('"action"') && responseContent.includes('"thought"')) {
+              messages.push({ role: "assistant", content: responseContent });
+              messages.push({ role: "system", content: "Please continue with the actual task execution based on your reasoning." });
+              const continuationContent = await this.getContinuationResponse(messages, container);
+              if (continuationContent.trim()) {
+                const updatedContent = responseContent + "\n\n" + continuationContent;
+                container.dataset.rawContent = updatedContent;
+                const contentEl = container.querySelector(".message-content");
+                if (contentEl) {
+                  contentEl.empty();
+                  await import_obsidian17.MarkdownRenderer.render(
+                    this.app,
+                    updatedContent,
+                    contentEl,
+                    "",
+                    this
+                  );
+                  this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+                }
+                responseContent = updatedContent;
               }
-              responseContent = updatedContent;
             }
           }
+        } finally {
+          this.agentResponseHandler.hideTaskProgress();
         }
       }
       if (originalTimestamp && responseContent.trim() !== "") {
+        let messageData = void 0;
+        if (container.dataset.messageData) {
+          try {
+            messageData = JSON.parse(container.dataset.messageData);
+          } catch (e) {
+          }
+        }
         await this.chatHistoryManager.updateMessage(
           originalTimestamp,
           "assistant",
           originalContent || "",
-          responseContent
+          responseContent,
+          messageData
+          // Pass enhanced data (reasoning, taskStatus, toolResults)
         );
       }
       return responseContent;
@@ -10863,7 +11409,6 @@ ${currentNoteContent}`
       console.log(`ChatView: Task continuation iteration ${iteration}`);
       const toolResultMessage = (_a2 = this.agentResponseHandler) == null ? void 0 : _a2.createToolResultMessage(initialToolResults);
       if (toolResultMessage) {
-        console.log("Tool results for context:", toolResultMessage);
         messages.push({ role: "assistant", content: initialResponseContent });
         messages.push(toolResultMessage);
         messages.push({
@@ -10965,6 +11510,257 @@ ${currentNoteContent}`
         return `*[Error getting continuation: ${error.message}]*`;
       }
       return "";
+    }
+  }
+  /**
+   * Update message container with enhanced reasoning and task status data
+   */
+  updateMessageWithEnhancedData(container, messageData) {
+    const existingReasoning = container.querySelector(".reasoning-container");
+    const existingTaskStatus = container.querySelector(".task-status-container");
+    if (existingReasoning) existingReasoning.remove();
+    if (existingTaskStatus) existingTaskStatus.remove();
+    const messageContainer = container.querySelector(".message-container");
+    if (!messageContainer) return;
+    if (messageData.reasoning) {
+      const reasoningEl = this.createReasoningSection(messageData.reasoning);
+      messageContainer.insertBefore(reasoningEl, messageContainer.firstChild);
+    }
+    if (messageData.taskStatus) {
+      const taskStatusEl = this.createTaskStatusSection(messageData.taskStatus);
+      messageContainer.insertBefore(taskStatusEl, messageContainer.firstChild);
+    }
+    const contentEl = container.querySelector(".message-content");
+    if (contentEl) {
+      contentEl.empty();
+      import_obsidian17.MarkdownRenderer.render(
+        this.app,
+        messageData.content,
+        contentEl,
+        "",
+        this
+      ).catch((error) => {
+        contentEl.textContent = messageData.content;
+      });
+    }
+  }
+  /**
+   * Create reasoning section element
+   */
+  createReasoningSection(reasoning) {
+    var _a2;
+    const reasoningContainer = document.createElement("div");
+    reasoningContainer.className = "reasoning-container";
+    const header = document.createElement("div");
+    header.className = "reasoning-summary";
+    const toggle = document.createElement("span");
+    toggle.className = "reasoning-toggle";
+    toggle.textContent = reasoning.isCollapsed ? "\u25B6" : "\u25BC";
+    const headerText = document.createElement("span");
+    const typeLabel = reasoning.type === "structured" ? "STRUCTURED REASONING" : "REASONING";
+    const stepCount = ((_a2 = reasoning.steps) == null ? void 0 : _a2.length) || 0;
+    headerText.innerHTML = `<strong>\u{1F9E0} ${typeLabel}</strong>`;
+    if (stepCount > 0) {
+      headerText.innerHTML += ` (${stepCount} steps)`;
+    }
+    headerText.innerHTML += ` - <em>Click to ${reasoning.isCollapsed ? "expand" : "collapse"}</em>`;
+    header.appendChild(toggle);
+    header.appendChild(headerText);
+    const details = document.createElement("div");
+    details.className = "reasoning-details";
+    if (!reasoning.isCollapsed) {
+      details.classList.add("expanded");
+    }
+    if (reasoning.type === "structured" && reasoning.steps) {
+      if (reasoning.problem) {
+        const problemDiv = document.createElement("div");
+        problemDiv.className = "reasoning-problem";
+        problemDiv.innerHTML = `<strong>Problem:</strong> ${reasoning.problem}`;
+        details.appendChild(problemDiv);
+      }
+      reasoning.steps.forEach((step) => {
+        const stepDiv = document.createElement("div");
+        stepDiv.className = `reasoning-step ${step.category}`;
+        stepDiv.innerHTML = `
+                    <div class="step-header">
+                        ${this.getStepEmoji(step.category)} Step ${step.step}: ${step.title.toUpperCase()}
+                    </div>
+                    <div class="step-confidence">
+                        Confidence: ${step.confidence}/10
+                    </div>
+                    <div class="step-content">
+                        ${step.content}
+                    </div>
+                `;
+        details.appendChild(stepDiv);
+      });
+    } else if (reasoning.summary) {
+      const summaryDiv = document.createElement("div");
+      summaryDiv.className = "reasoning-completion";
+      summaryDiv.textContent = reasoning.summary;
+      details.appendChild(summaryDiv);
+    }
+    header.addEventListener("click", () => {
+      const isExpanded = details.classList.contains("expanded");
+      if (isExpanded) {
+        details.classList.remove("expanded");
+        toggle.textContent = "\u25B6";
+        reasoning.isCollapsed = true;
+      } else {
+        details.classList.add("expanded");
+        toggle.textContent = "\u25BC";
+        reasoning.isCollapsed = false;
+      }
+    });
+    reasoningContainer.appendChild(header);
+    reasoningContainer.appendChild(details);
+    return reasoningContainer;
+  }
+  /**
+   * Create task status section element
+   */
+  createTaskStatusSection(taskStatus) {
+    const statusContainer = document.createElement("div");
+    statusContainer.className = "task-status-container";
+    statusContainer.dataset.taskStatus = taskStatus.status;
+    const statusText = this.getTaskStatusText(taskStatus);
+    const statusIcon = this.getTaskStatusIcon(taskStatus.status);
+    statusContainer.innerHTML = `
+            <div class="task-status-header">
+                ${statusIcon} <strong>${statusText}</strong>
+            </div>
+        `;
+    if (taskStatus.progress) {
+      const progressContainer = document.createElement("div");
+      progressContainer.className = "task-progress-container";
+      if (taskStatus.progress.total) {
+        const progressBar = document.createElement("div");
+        progressBar.className = "task-progress-bar";
+        const progressFill = document.createElement("div");
+        progressFill.className = "task-progress-fill";
+        const progressPercent = taskStatus.progress.current / taskStatus.progress.total * 100;
+        progressFill.style.width = `${progressPercent}%`;
+        progressBar.appendChild(progressFill);
+        progressContainer.appendChild(progressBar);
+        const progressText = document.createElement("div");
+        progressText.className = "task-progress-text";
+        progressText.textContent = `${taskStatus.progress.current}/${taskStatus.progress.total}`;
+        if (taskStatus.progress.description) {
+          progressText.textContent += ` - ${taskStatus.progress.description}`;
+        }
+        progressContainer.appendChild(progressText);
+      }
+      statusContainer.appendChild(progressContainer);
+    }
+    if (taskStatus.toolExecutionCount > 0) {
+      const toolInfo = document.createElement("div");
+      toolInfo.className = "task-tool-info";
+      toolInfo.textContent = `Tools used: ${taskStatus.toolExecutionCount}/${taskStatus.maxToolExecutions}`;
+      statusContainer.appendChild(toolInfo);
+    }
+    return statusContainer;
+  }
+  /**
+   * Handle continue task after tool limit reached
+   */
+  async handleContinueTask(messages, container, responseContent, finalContent, toolResults) {
+    if (this.agentResponseHandler) {
+      this.agentResponseHandler.resetExecutionCount();
+      const continuedContent = await this.continueTaskUntilFinished(
+        messages,
+        container,
+        responseContent,
+        finalContent,
+        toolResults
+      );
+      container.dataset.rawContent = continuedContent;
+      const contentEl = container.querySelector(".message-content");
+      if (contentEl) {
+        contentEl.empty();
+        await import_obsidian17.MarkdownRenderer.render(
+          this.app,
+          continuedContent,
+          contentEl,
+          "",
+          this
+        );
+        this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+      }
+    }
+  }
+  /**
+   * Get emoji for reasoning step categories
+   */
+  getStepEmoji(category) {
+    switch (category) {
+      case "analysis":
+        return "\u{1F50D}";
+      case "planning":
+        return "\u{1F4CB}";
+      case "problem-solving":
+        return "\u{1F9E9}";
+      case "reflection":
+        return "\u{1F914}";
+      case "conclusion":
+        return "\u2705";
+      case "reasoning":
+        return "\u{1F9E0}";
+      case "information":
+        return "\u{1F4CA}";
+      case "approach":
+        return "\u{1F3AF}";
+      case "evaluation":
+        return "\u2696\uFE0F";
+      case "synthesis":
+        return "\u{1F517}";
+      case "validation":
+        return "\u2705";
+      case "refinement":
+        return "\u26A1";
+      default:
+        return "\u{1F4AD}";
+    }
+  }
+  /**
+   * Get task status text
+   */
+  getTaskStatusText(taskStatus) {
+    switch (taskStatus.status) {
+      case "idle":
+        return "Task Ready";
+      case "running":
+        return "Task In Progress";
+      case "stopped":
+        return "Task Stopped";
+      case "completed":
+        return "Task Completed";
+      case "limit_reached":
+        return "Tool Limit Reached";
+      case "waiting_for_user":
+        return "Waiting for User Input";
+      default:
+        return "Unknown Status";
+    }
+  }
+  /**
+   * Get task status icon
+   */
+  getTaskStatusIcon(status) {
+    switch (status) {
+      case "idle":
+        return "\u23F8\uFE0F";
+      case "running":
+        return "\u{1F504}";
+      case "stopped":
+        return "\u23F9\uFE0F";
+      case "completed":
+        return "\u2705";
+      case "limit_reached":
+        return "\u26A0\uFE0F";
+      case "waiting_for_user":
+        return "\u23F3";
+      default:
+        return "\u2753";
     }
   }
 };

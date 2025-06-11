@@ -13,10 +13,67 @@ import { DEFAULT_TITLE_PROMPT, DEFAULT_SUMMARY_PROMPT, DEFAULT_YAML_SYSTEM_MESSA
  * 
  * @property role - Who sent the message ('system', 'user', or 'assistant')
  * @property content - The actual text content of the message
+ * @property reasoning - Optional structured reasoning/planning data for assistant messages
+ * @property toolResults - Optional tool execution results for assistant messages
+ * @property taskStatus - Optional task status information
  */
 export interface Message {
     role: 'system' | 'user' | 'assistant';
     content: string;
+    reasoning?: ReasoningData;
+    toolResults?: ToolExecutionResult[];
+    taskStatus?: TaskStatus;
+}
+
+/**
+ * Represents reasoning/planning data attached to a message
+ */
+export interface ReasoningData {
+    id: string;
+    timestamp: string;
+    type: 'simple' | 'structured';
+    problem?: string;
+    steps?: ReasoningStep[];
+    summary?: string;
+    confidence?: number;
+    depth?: 'shallow' | 'medium' | 'deep';
+    isCollapsed?: boolean;
+}
+
+/**
+ * Represents a single reasoning step
+ */
+export interface ReasoningStep {
+    step: number;
+    category: 'analysis' | 'planning' | 'problem-solving' | 'reflection' | 'conclusion' | 'reasoning' | 'information' | 'approach' | 'evaluation' | 'synthesis' | 'validation' | 'refinement';
+    title: string;
+    content: string;
+    confidence: number;
+}
+
+/**
+ * Represents tool execution results
+ */
+export interface ToolExecutionResult {
+    command: ToolCommand;
+    result: ToolResult;
+    timestamp: string;
+}
+
+/**
+ * Represents task status and progress
+ */
+export interface TaskStatus {
+    status: 'idle' | 'running' | 'stopped' | 'completed' | 'limit_reached' | 'waiting_for_user';
+    progress?: {
+        current: number;
+        total?: number;
+        description?: string;
+    };
+    toolExecutionCount: number;
+    maxToolExecutions: number;
+    canContinue?: boolean;
+    lastUpdateTime: string;
 }
 
 /**
@@ -127,7 +184,9 @@ export interface MyPluginSettings {
     selectedModel?: string; // Format: "provider:modelId" (e.g., "openai:gpt-4")
     
     /** Available unified models from all providers */
-    availableModels?: UnifiedModel[];    /** OpenAI-specific settings */
+    availableModels?: UnifiedModel[];
+
+    /** OpenAI-specific settings */
     openaiSettings: {
         apiKey: string;
         baseUrl?: string;
@@ -237,6 +296,23 @@ export interface MyPluginSettings {
 
     /** Agent Mode settings */
     agentMode?: AgentModeSettings;
+
+    /** UI Behavior settings */
+    uiBehavior?: UIBehaviorSettings;
+}
+
+/**
+ * Settings for UI behavior and user experience enhancements
+ */
+export interface UIBehaviorSettings {
+    /** Always show reasoning in collapsed state for older messages */
+    collapseOldReasoning?: boolean;
+    /** Show progress indicators during task execution */
+    showTaskProgress?: boolean;
+    /** Show completion notifications */
+    showCompletionNotifications?: boolean;
+    /** Include reasoning in exports and copies */
+    includeReasoningInExports?: boolean;
 }
 
 /**
@@ -331,6 +407,12 @@ export const DEFAULT_SETTINGS: MyPluginSettings = {
         enabled: false,
         maxToolCalls: 10,
         timeoutMs: 30000
+    },
+    uiBehavior: {
+        collapseOldReasoning: true,
+        showTaskProgress: true,
+        showCompletionNotifications: true,
+        includeReasoningInExports: true
     }
 };
 
