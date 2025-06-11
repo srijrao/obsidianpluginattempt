@@ -11,6 +11,10 @@ import { renderChatHistory } from './chat/chatHistoryUtils';
 import { ChatHelpModal } from './chat/ChatHelpModal';
 import { AgentResponseHandler, AgentContext } from './chat/AgentResponseHandler';
 import { ToolCommand, ToolResult } from '../types';
+import { ContextBuilder } from './chat/ContextBuilder';
+import { MessageRegenerator } from './chat/MessageRegenerator';
+import { ResponseStreamer } from './chat/ResponseStreamer';
+import { MessageRenderer } from './chat/MessageRenderer';
 
 export const VIEW_TYPE_CHAT = 'chat-view';
 
@@ -22,11 +26,21 @@ export class ChatView extends ItemView {
     private activeStream: AbortController | null = null;
     private referenceNoteIndicator: HTMLElement; // Add this property
     private agentResponseHandler: AgentResponseHandler | null = null;
+    
+    // Helper classes for refactoring
+    private contextBuilder: ContextBuilder;
+    private messageRegenerator: MessageRegenerator | null = null;
+    private responseStreamer: ResponseStreamer | null = null;
+    private messageRenderer: MessageRenderer;
 
     constructor(leaf: WorkspaceLeaf, plugin: MyPlugin) {
         super(leaf);
         this.plugin = plugin;
         this.chatHistoryManager = new ChatHistoryManager(this.app.vault, this.plugin.manifest.id, "chat-history.json");
+        
+        // Initialize helper classes
+        this.contextBuilder = new ContextBuilder(this.app, this.plugin);
+        this.messageRenderer = new MessageRenderer(this.app);
     }
 
     getViewType(): string {
@@ -90,6 +104,24 @@ export class ChatView extends ItemView {
                 }
             }
         });
+        
+        // Initialize helper classes that depend on agentResponseHandler
+        this.responseStreamer = new ResponseStreamer(
+            this.plugin,
+            this.agentResponseHandler,
+            this.messagesContainer,
+            this.activeStream,
+            this
+        );
+        
+        this.messageRegenerator = new MessageRegenerator(
+            this.plugin,
+            this.messagesContainer,
+            this.inputContainer,
+            this.chatHistoryManager,
+            this.agentResponseHandler,
+            this.activeStream
+        );
 
         // Agent mode button handler
         ui.agentModeButton.addEventListener('click', async () => {
@@ -315,141 +347,17 @@ export class ChatView extends ItemView {
     }
 
     private async regenerateResponse(messageEl: HTMLElement) {
-        // Disable input during regeneration
-        const textarea = this.inputContainer.querySelector('textarea');
-        if (textarea) textarea.disabled = true;
-
-        // Find all message elements
-        const allMessages = Array.from(this.messagesContainer.querySelectorAll('.ai-chat-message'));
-        const currentIndex = allMessages.indexOf(messageEl);
-        const isUserClicked = messageEl.classList.contains('user');
-
-        // Find the target AI message to overwrite
-        let targetIndex = -1;
-        if (isUserClicked) {
-            // If user message: find the next AI message after this user message
-            for (let i = currentIndex + 1; i < allMessages.length; i++) {
-                if (allMessages[i].classList.contains('assistant')) {
-                    targetIndex = i;
-                    break;
-                }
-                if (allMessages[i].classList.contains('user')) {
-                    break; // Stop if another user message is found first
-                }
-            }
-        } else {
-            // If AI message: target is this message
-            targetIndex = currentIndex;
-        }
-
-        // Gather context up to and including the relevant user message
-        let userMsgIndex = currentIndex;
-        if (!isUserClicked) {
-            userMsgIndex = currentIndex - 1;
-            while (userMsgIndex >= 0 && !allMessages[userMsgIndex].classList.contains('user')) {
-                userMsgIndex--;
-            }
-        }
-
-        // Build context messages and include prior chat history
-        const messages = await this.buildContextMessages();
-        for (let i = 0; i <= userMsgIndex; i++) {
-            const el = allMessages[i];
-            const role = el.classList.contains('user') ? 'user' : 'assistant';
-            const content = (el as HTMLElement).dataset.rawContent || '';
-            messages.push({ role, content });
-        }
-
-        // Remove the old AI message if overwriting
-        let originalTimestamp = new Date().toISOString();
-        let originalContent = '';
-        let insertAfterNode: HTMLElement | null = null;
-        if (targetIndex !== -1) {
-            const targetEl = allMessages[targetIndex] as HTMLElement;
-            originalTimestamp = targetEl.dataset.timestamp || originalTimestamp;
-            originalContent = targetEl.dataset.rawContent || '';
-            insertAfterNode = targetEl.previousElementSibling as HTMLElement;
-            targetEl.remove();
-        } else if (isUserClicked) {
-            // No AI message to overwrite, insert after user message
-            insertAfterNode = messageEl;
-        } else {
-            // No user message found, insert at top
-            insertAfterNode = null;
-        }
-
-        // Create new assistant message container for streaming
-        const assistantContainer = await createMessageElement(this.app, 'assistant', '', this.chatHistoryManager, this.plugin, (el) => this.regenerateResponse(el), this);
-        assistantContainer.dataset.timestamp = originalTimestamp;
-        if (insertAfterNode && insertAfterNode.nextSibling) {
-            this.messagesContainer.insertBefore(assistantContainer, insertAfterNode.nextSibling);
-        } else {
-            this.messagesContainer.appendChild(assistantContainer);
-        }
-        this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
-
-        try {
-            await this.streamAssistantResponse(messages, assistantContainer, originalTimestamp, originalContent);
-        } catch (error) {
-            if (error.name !== 'AbortError') {
-                new Notice(`Error: ${error.message}`);
-                assistantContainer.remove();
-            }
-        } finally {
-            if (textarea) {
-                textarea.disabled = false;
-                textarea.focus();
-            }
-            this.activeStream = null;
+        if (this.messageRegenerator) {
+            await this.messageRegenerator.regenerateResponse(messageEl, () => this.buildContextMessages());
         }
     }
 
     private updateReferenceNoteIndicator() {
-        if (!this.referenceNoteIndicator) return;
-        
-        const currentFile = this.app.workspace.getActiveFile();
-        const isReferenceEnabled = this.plugin.settings.referenceCurrentNote;
-        const button = this.referenceNoteIndicator.previousElementSibling as HTMLButtonElement;
-        if (isReferenceEnabled && currentFile) {
-            this.referenceNoteIndicator.setText(`📝 Referencing: ${currentFile.basename}`);
-            this.referenceNoteIndicator.style.display = 'block';
-            if (button && button.getAttribute('aria-label') === 'Toggle referencing current note') {
-                button.setText('📝');
-                button.classList.add('active');
-            }
-        } else {
-            this.referenceNoteIndicator.style.display = 'none';
-            if (button && button.getAttribute('aria-label') === 'Toggle referencing current note') {
-                button.setText('📝');
-                button.classList.remove('active');
-            }
-        }
+        this.contextBuilder.updateReferenceNoteIndicator(this.referenceNoteIndicator);
     }
 
     private async buildContextMessages(): Promise<Message[]> {
-        const messages: Message[] = [
-            { role: 'system', content: this.plugin.getSystemMessage() }
-        ];
-
-        // Add context notes if enabled
-        if (this.plugin.settings.enableContextNotes && this.plugin.settings.contextNotes) {
-            const contextContent = await this.plugin.getContextNotesContent(this.plugin.settings.contextNotes);
-            messages[0].content += `\n\nContext Notes:\n${contextContent}`;
-        }
-
-        // Add current note content if enabled
-        if (this.plugin.settings.referenceCurrentNote) {
-            const currentFile = this.app.workspace.getActiveFile();
-            if (currentFile) {
-                const currentNoteContent = await this.app.vault.cachedRead(currentFile);
-                messages.push({
-                    role: 'system',
-                    content: `Here is the content of the current note:\n\n${currentNoteContent}`
-                });
-            }
-        }
-
-        return messages;
+        return await this.contextBuilder.buildContextMessages();
     }
 
     private async streamAssistantResponse(
@@ -831,41 +739,7 @@ export class ChatView extends ItemView {
      * Update message container with enhanced reasoning and task status data
      */
     private updateMessageWithEnhancedData(container: HTMLElement, messageData: Message): void {
-        // Remove existing reasoning and task status elements
-        const existingReasoning = container.querySelector('.reasoning-container');
-        const existingTaskStatus = container.querySelector('.task-status-container');
-        if (existingReasoning) existingReasoning.remove();
-        if (existingTaskStatus) existingTaskStatus.remove();
-
-        const messageContainer = container.querySelector('.message-container');
-        if (!messageContainer) return;
-
-        // Add reasoning section if present
-        if (messageData.reasoning) {
-            const reasoningEl = this.createReasoningSection(messageData.reasoning);
-            messageContainer.insertBefore(reasoningEl, messageContainer.firstChild);
-        }
-
-        // Add task status section if present
-        if (messageData.taskStatus) {
-            const taskStatusEl = this.createTaskStatusSection(messageData.taskStatus);
-            messageContainer.insertBefore(taskStatusEl, messageContainer.firstChild);
-        }
-
-        // Update main content
-        const contentEl = container.querySelector('.message-content') as HTMLElement;
-        if (contentEl) {
-            contentEl.empty();
-            MarkdownRenderer.render(
-                this.app,
-                messageData.content,
-                contentEl,
-                '',
-                this
-            ).catch((error) => {
-                contentEl.textContent = messageData.content;
-            });
-        }
+        this.messageRenderer.updateMessageWithEnhancedData(container, messageData, this);
     }
 
     /**
