@@ -62,7 +62,7 @@ export class CommandParser {
         }
 
         // Check for valid action names
-        const validActions = ['file_select', 'file_diff', 'file_read', 'file_write'];
+        const validActions = ['file_select', 'file_diff', 'file_read', 'file_write', 'thought'];
         if (!validActions.includes(command.action)) {
             return false;
         }
@@ -81,11 +81,20 @@ export class CommandParser {
         // First try to parse the entire text as JSON (for raw JSON responses)
         try {
             const parsed = JSON.parse(text.trim());
-            if (parsed.action && parsed.parameters) {
+            if (parsed.action) {
+                let parameters = parsed.parameters;
+                
+                // Handle legacy format where parameters are at the root level
+                if (!parameters) {
+                    parameters = { ...parsed };
+                    delete parameters.action;
+                    delete parameters.requestId;
+                }
+                
                 commands.push({
                     command: {
                         action: parsed.action,
-                        parameters: parsed.parameters,
+                        parameters: parameters,
                         requestId: parsed.requestId || this.generateRequestId()
                     },
                     originalText: text.trim()
@@ -113,11 +122,20 @@ export class CommandParser {
                     const parsed = JSON.parse(jsonText);
                     
                     // Check if this looks like a tool command
-                    if (parsed.action && parsed.parameters) {
+                    if (parsed.action) {
+                        let parameters = parsed.parameters;
+                        
+                        // Handle legacy format where parameters are at the root level
+                        if (!parameters) {
+                            parameters = { ...parsed };
+                            delete parameters.action;
+                            delete parameters.requestId;
+                        }
+                        
                         commands.push({
                             command: {
                                 action: parsed.action,
-                                parameters: parsed.parameters,
+                                parameters: parameters,
                                 requestId: parsed.requestId || this.generateRequestId()
                             },
                             originalText

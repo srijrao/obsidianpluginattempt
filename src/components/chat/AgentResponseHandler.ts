@@ -7,6 +7,7 @@ import { FileSelectTool } from './tools/FileSelectTool';
 import { FileReadTool } from './tools/FileReadTool';
 import { FileWriteTool } from './tools/FileWriteTool';
 import { FileDiffTool } from './tools/FileDiffTool';
+import { ThoughtTool } from './tools/ThoughtTool';
 
 export interface AgentContext {
     app: App;
@@ -32,6 +33,7 @@ export class AgentResponseHandler {
         this.toolRegistry.register(new FileReadTool(this.context.app));
         this.toolRegistry.register(new FileWriteTool(this.context.app));
         this.toolRegistry.register(new FileDiffTool(this.context.app));
+        this.toolRegistry.register(new ThoughtTool(this.context.app));
     }
 
     /**
@@ -197,7 +199,41 @@ export class AgentResponseHandler {
             const action = command.action.replace('_', ' ');
             
             if (result.success) {
-                return `${status} **${action}** completed successfully`;
+                let context = '';
+                
+                // Add specific context based on the tool and result data
+                if (result.data) {
+                    switch (command.action) {
+                        case 'file_write':
+                            if (result.data.filePath) {
+                                context = ` [[${result.data.filePath}]]`;
+                            }
+                            break;
+                        case 'file_read':
+                            if (result.data.filePath) {
+                                context = ` [[${result.data.filePath}]]`;
+                            }
+                            break;
+                        case 'file_select':
+                            if (result.data.count !== undefined) {
+                                context = ` [[${result.data.count} files found]]`;
+                            }
+                            break;
+                        case 'file_diff':
+                            if (result.data.filePath) {
+                                context = ` [[${result.data.filePath}]]`;
+                            }
+                            break;
+                        case 'thought':
+                            // For thought tool, display the formatted thought content instead of just "completed successfully"
+                            if (result.data && result.data.formattedThought) {
+                                return result.data.formattedThought;
+                            }
+                            break;
+                    }
+                }
+                
+                return `${status} **${action}** completed successfully${context}`;
             } else {
                 return `${status} **${action}** failed: ${result.error}`;
             }
