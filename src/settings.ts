@@ -360,6 +360,43 @@ export class MyPluginSettingTab extends PluginSettingTab {
     }
 
     /**
+     * Renders the Tool Enable/Disable section.
+     * @param containerEl The HTML element to append the section to.
+     */
+    private renderToolToggles(containerEl: HTMLElement): void {
+        containerEl.createEl('h3', { text: 'Agent Tools' });
+        containerEl.createEl('div', {
+            text: 'Enable or disable individual agent tools. Disabled tools will not be available to the agent or appear in the system prompt.',
+            cls: 'setting-item-description',
+            attr: { style: 'margin-bottom: 0.5em;' }
+        });
+
+        // Dynamically import tool classes for names/descriptions
+        const toolClasses = [
+            require('./components/chat/tools/ThoughtTool').ThoughtTool,
+            require('./components/chat/tools/FileWriteTool').FileWriteTool,
+            require('./components/chat/tools/FileReadTool').FileReadTool,
+            require('./components/chat/tools/FileSelectTool').FileSelectTool,
+            require('./components/chat/tools/FileDiffTool').FileDiffTool,
+        ];
+        if (!this.plugin.settings.enabledTools) this.plugin.settings.enabledTools = {};
+        toolClasses.forEach(ToolClass => {
+            const tool = new ToolClass();
+            this.createToggleSetting(
+                containerEl,
+                `${tool.name} (${tool.description})`,
+                `Enable or disable the "${tool.name}" tool.`,
+                () => !!this.plugin.settings.enabledTools && this.plugin.settings.enabledTools[tool.name] !== false,
+                async (value) => {
+                    if (!this.plugin.settings.enabledTools) this.plugin.settings.enabledTools = {};
+                    this.plugin.settings.enabledTools[tool.name] = value;
+                    await this.plugin.saveSettings();
+                }
+            );
+        });
+    }
+
+    /**
      * Display the settings tab.
      * This method orchestrates the rendering of all setting sections.
      */
@@ -531,6 +568,7 @@ export class MyPluginSettingTab extends PluginSettingTab {
             async (value) => { this.plugin.settings.autoOpenModelSettings = value; await this.plugin.saveSettings(); });
 
         this.renderYamlAttributeGenerators(containerEl);
+        this.renderToolToggles(containerEl);
         this.renderModelSettingPresets(containerEl);
     }
 }

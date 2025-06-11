@@ -1,6 +1,5 @@
 import { App, TFile } from 'obsidian';
 import { Tool, ToolResult } from '../ToolRegistry';
-import { searchFiles } from '../../FileChooserModal';
 
 export interface FileSelectParams {
     query?: string;

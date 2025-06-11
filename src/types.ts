@@ -299,6 +299,11 @@ export interface MyPluginSettings {
 
     /** UI Behavior settings */
     uiBehavior?: UIBehaviorSettings;
+
+    /**
+     * Map of tool name to enabled/disabled state. If false, tool is disabled.
+     */
+    enabledTools?: Record<string, boolean>;
 }
 
 /**
