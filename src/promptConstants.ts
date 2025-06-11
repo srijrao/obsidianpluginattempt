@@ -1,3 +1,7 @@
+import * as fs from 'fs';
+import * as path from 'path';
+import { getAllToolClasses } from './components/chat/tools/toolcollect';
+
 export const DEFAULT_TITLE_PROMPT = "You are a title generator. You will give succinct titles that do not contain backslashes, forward slashes, or colons. Only generate a title as your response.";
 
 // The YAML system message now covers conciseness, forbidden characters, and output format.
@@ -9,16 +13,8 @@ export const DEFAULT_SUMMARY_PROMPT = "Summarize the note content in 1-2 sentenc
 export const DEFAULT_GENERAL_SYSTEM_PROMPT = "You are a helpful assistant.";
 
 export const getDynamicToolList = (enabledTools?: Record<string, boolean>) => {
-    // This function dynamically returns the available tool definitions
-    // (name, description, parameters) by importing all tool classes.
-    // If enabledTools is provided, only include enabled tools.
-    const toolClasses = [
-        require('./components/chat/tools/ThoughtTool').ThoughtTool,
-        require('./components/chat/tools/FileWriteTool').FileWriteTool,
-        require('./components/chat/tools/FileReadTool').FileReadTool,
-        require('./components/chat/tools/FileSelectTool').FileSelectTool,
-        require('./components/chat/tools/FileDiffTool').FileDiffTool,
-    ];
+    // Use centralized dynamic tool loader
+    const toolClasses = getAllToolClasses();
     return toolClasses
         .map(ToolClass => new ToolClass())
         .filter(tool => !enabledTools || enabledTools[tool.name] !== false)

@@ -8,6 +8,9 @@ import { FileReadTool } from './tools/FileReadTool';
 import { FileWriteTool } from './tools/FileWriteTool';
 import { FileDiffTool } from './tools/FileDiffTool';
 import { ThoughtTool } from './tools/ThoughtTool';
+import * as fs from 'fs';
+import * as path from 'path';
+import { getAllToolClasses } from './tools/toolcollect';
 
 export interface AgentContext {
     app: App;
@@ -28,12 +31,11 @@ export class AgentResponseHandler {
     }
 
     private initializeTools() {
-        // Register all available tools
-        this.toolRegistry.register(new FileSelectTool(this.context.app));
-        this.toolRegistry.register(new FileReadTool(this.context.app));
-        this.toolRegistry.register(new FileWriteTool(this.context.app));
-        this.toolRegistry.register(new FileDiffTool(this.context.app));
-        this.toolRegistry.register(new ThoughtTool(this.context.app));
+        // Register all available tools dynamically using toolcollect
+        const toolClasses = getAllToolClasses();
+        for (const ToolClass of toolClasses) {
+            this.toolRegistry.register(new ToolClass(this.context.app));
+        }
     }
 
     /**

@@ -6,6 +6,9 @@ import { SettingsSections } from './components/chat/SettingsSections';
 import { CollapsibleSectionRenderer } from './components/chat/CollapsibleSection';
 import { DEFAULT_TITLE_PROMPT } from './promptConstants';
 import { DEFAULT_SETTINGS } from './types';
+import * as fs from 'fs';
+import * as path from 'path';
+import { getAllToolClasses } from './components/chat/tools/toolcollect';
 
 /**
  * Plugin Settings Tab
@@ -371,14 +374,8 @@ export class MyPluginSettingTab extends PluginSettingTab {
             attr: { style: 'margin-bottom: 0.5em;' }
         });
 
-        // Dynamically import tool classes for names/descriptions
-        const toolClasses = [
-            require('./components/chat/tools/ThoughtTool').ThoughtTool,
-            require('./components/chat/tools/FileWriteTool').FileWriteTool,
-            require('./components/chat/tools/FileReadTool').FileReadTool,
-            require('./components/chat/tools/FileSelectTool').FileSelectTool,
-            require('./components/chat/tools/FileDiffTool').FileDiffTool,
-        ];
+        // Use centralized dynamic tool loader
+        const toolClasses = getAllToolClasses();
         if (!this.plugin.settings.enabledTools) this.plugin.settings.enabledTools = {};
         toolClasses.forEach(ToolClass => {
             const tool = new ToolClass();
