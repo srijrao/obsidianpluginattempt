@@ -1,41 +1,9 @@
 import { Notice, TFile, App } from 'obsidian';
 import { Message, MyPluginSettings } from '../types';
+import { findFile, extractContentUnderHeader } from './utils';
 
 /**
- * Extract content under a specific header in a note
- */
-export function extractContentUnderHeader(content: string, headerText: string): string {
-    const lines = content.split('\n');
-    let foundHeader = false;
-    let extractedContent = [];
-    let headerLevel = 0;
-
-    for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
-        const headerMatch = line.match(/^(#+)\s+(.*?)$/);
-        if (headerMatch) {
-            const currentHeaderLevel = headerMatch[1].length;
-            const currentHeaderText = headerMatch[2].trim();
-            if (foundHeader) {
-                if (currentHeaderLevel <= headerLevel) {
-                    break;
-                }
-            } else if (currentHeaderText.toLowerCase() === headerText.toLowerCase()) {
-                foundHeader = true;
-                headerLevel = currentHeaderLevel;
-                extractedContent.push(line);
-                continue;
-            }
-        }
-        if (foundHeader) {
-            extractedContent.push(line);
-        }
-    }
-    return extractedContent.join('\n');
-}
-
-/**
- * Process a single message content to include Obsidian note contents, recursively if enabled
+ * Process a single message content to include Obsidian note contents, recursively if enabled.
  */
 export async function processObsidianLinks(
     content: string,
@@ -52,15 +20,8 @@ export async function processObsidianLinks(
         if (match && match[0] && match[1]) {
             const parts = match[1].split('|');
             const filePath = parts[0].trim();
-            const displayText = parts.length > 1 ? parts[1].trim() : filePath;
             try {
-                let file = app.vault.getAbstractFileByPath(filePath) || app.vault.getAbstractFileByPath(`${filePath}.md`);
-                if (!file) {
-                    const allFiles = app.vault.getFiles();
-                    file = allFiles.find(f => f.name === filePath || f.name === `${filePath}.md` ||
-                        f.basename.toLowerCase() === filePath.toLowerCase() ||
-                        f.path === filePath || f.path === `${filePath}.md`) || null;
-                }
+                let file = findFile(app, filePath);
                 const headerMatch = filePath.match(/(.*?)#(.*)/);
                 let extractedContent = "";
                 if (file && file instanceof TFile) {
@@ -96,7 +57,7 @@ export async function processObsidianLinks(
 }
 
 /**
- * Process context notes specified in the settings
+ * Process context notes specified in the settings.
  */
 export async function processContextNotes(contextNotesText: string, app: App): Promise<string> {
     const linkRegex = /\[\[(.*?)\]\]/g;
@@ -109,15 +70,7 @@ export async function processContextNotes(contextNotesText: string, app: App): P
                 const headerMatch = fileName.match(/(.*?)#(.*)/);
                 const baseFileName = headerMatch ? headerMatch[1].trim() : fileName;
                 const headerName = headerMatch ? headerMatch[2].trim() : null;
-                let file = app.vault.getAbstractFileByPath(baseFileName) ||
-                    app.vault.getAbstractFileByPath(`${baseFileName}.md`);
-                if (!file) {
-                    const allFiles = app.vault.getFiles();
-                    file = allFiles.find(f =>
-                        f.basename.toLowerCase() === baseFileName.toLowerCase() ||
-                        f.name.toLowerCase() === `${baseFileName.toLowerCase()}.md`
-                    ) || null;
-                }
+                let file = findFile(app, baseFileName);
                 if (file && file instanceof TFile) {
                     const noteContent = await app.vault.cachedRead(file);
                     contextContent += `---\nFrom note: ${file.basename}\n\n`;
@@ -140,7 +93,7 @@ export async function processContextNotes(contextNotesText: string, app: App): P
 }
 
 /**
- * Process an array of messages to include Obsidian note contents
+ * Process an array of messages to include Obsidian note contents.
  */
 export async function processMessages(messages: Message[], app: App, settings: MyPluginSettings): Promise<Message[]> {
     const processedMessages: Message[] = [];
@@ -171,6 +124,9 @@ export async function processMessages(messages: Message[], app: App, settings: M
     return processedMessages;
 }
 
+/**
+ * Retrieves content from context notes.
+ */
 export async function getContextNotesContent(contextNotesText: string, app: App): Promise<string> {
     return processContextNotes(contextNotesText, app);
 }

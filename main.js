@@ -11061,6 +11061,54 @@ var ModelSettingsView = class extends import_obsidian17.ItemView {
 
 // src/components/noteUtils.ts
 var import_obsidian18 = require("obsidian");
+
+// src/components/utils.ts
+function showNotice(message) {
+  const { Notice: Notice15 } = require("obsidian");
+  new Notice15(message);
+}
+async function copyToClipboard2(text, successMsg = "Copied to clipboard", failMsg = "Failed to copy to clipboard") {
+  try {
+    await navigator.clipboard.writeText(text);
+    showNotice(successMsg);
+  } catch (error) {
+    showNotice(failMsg);
+    console.error("Clipboard error:", error);
+  }
+}
+function moveCursorAfterInsert(editor, startPos, insertText) {
+  const lines = insertText.split("\n");
+  if (lines.length === 1) {
+    editor.setCursor({
+      line: startPos.line,
+      ch: startPos.ch + insertText.length
+    });
+  } else {
+    editor.setCursor({
+      line: startPos.line + lines.length - 1,
+      ch: lines[lines.length - 1].length
+    });
+  }
+}
+function insertSeparator(editor, position, separator) {
+  var _a2;
+  const lineContent = (_a2 = editor.getLine(position.line)) != null ? _a2 : "";
+  const prefix = lineContent.trim() !== "" ? "\n" : "";
+  editor.replaceRange(`${prefix}
+${separator}
+`, position);
+  return position.line + (prefix ? 1 : 0) + 2;
+}
+function findFile(app, filePath) {
+  let file = app.vault.getAbstractFileByPath(filePath) || app.vault.getAbstractFileByPath(`${filePath}.md`);
+  if (!file) {
+    const allFiles = app.vault.getFiles();
+    file = allFiles.find(
+      (f) => f.name === filePath || f.name === `${filePath}.md` || f.basename.toLowerCase() === filePath.toLowerCase() || f.path === filePath || f.path === `${filePath}.md`
+    ) || null;
+  }
+  return file;
+}
 function extractContentUnderHeader(content, headerText) {
   const lines = content.split("\n");
   let foundHeader = false;
@@ -11089,6 +11137,8 @@ function extractContentUnderHeader(content, headerText) {
   }
   return extractedContent.join("\n");
 }
+
+// src/components/noteUtils.ts
 async function processObsidianLinks(content, app, settings, visitedNotes = /* @__PURE__ */ new Set(), currentDepth = 0) {
   var _a2;
   if (!settings.enableObsidianLinks) return content;
@@ -11099,13 +11149,8 @@ async function processObsidianLinks(content, app, settings, visitedNotes = /* @_
     if (match && match[0] && match[1]) {
       const parts = match[1].split("|");
       const filePath = parts[0].trim();
-      const displayText = parts.length > 1 ? parts[1].trim() : filePath;
       try {
-        let file = app.vault.getAbstractFileByPath(filePath) || app.vault.getAbstractFileByPath(`${filePath}.md`);
-        if (!file) {
-          const allFiles = app.vault.getFiles();
-          file = allFiles.find((f) => f.name === filePath || f.name === `${filePath}.md` || f.basename.toLowerCase() === filePath.toLowerCase() || f.path === filePath || f.path === `${filePath}.md`) || null;
-        }
+        let file = findFile(app, filePath);
         const headerMatch = filePath.match(/(.*?)#(.*)/);
         let extractedContent = "";
         if (file && file instanceof import_obsidian18.TFile) {
@@ -11155,13 +11200,7 @@ async function processContextNotes(contextNotesText, app) {
         const headerMatch = fileName.match(/(.*?)#(.*)/);
         const baseFileName = headerMatch ? headerMatch[1].trim() : fileName;
         const headerName = headerMatch ? headerMatch[2].trim() : null;
-        let file = app.vault.getAbstractFileByPath(baseFileName) || app.vault.getAbstractFileByPath(`${baseFileName}.md`);
-        if (!file) {
-          const allFiles = app.vault.getFiles();
-          file = allFiles.find(
-            (f) => f.basename.toLowerCase() === baseFileName.toLowerCase() || f.name.toLowerCase() === `${baseFileName.toLowerCase()}.md`
-          ) || null;
-        }
+        let file = findFile(app, baseFileName);
         if (file && file instanceof import_obsidian18.TFile) {
           const noteContent = await app.vault.cachedRead(file);
           contextContent += `---
@@ -11312,64 +11351,6 @@ var _MyPlugin = class _MyPlugin extends import_obsidian20.Plugin {
     this.emitSettingsChange();
   }
   /**
-   * Helper to insert a separator with correct spacing in the editor.
-   * @param editor The editor instance.
-   * @param position The position to insert the separator.
-   * @param separator The separator string.
-   * @returns The line number after the inserted separator.
-   */
-  insertSeparator(editor, position, separator) {
-    var _a2;
-    const lineContent = (_a2 = editor.getLine(position.line)) != null ? _a2 : "";
-    const prefix = lineContent.trim() !== "" ? "\n" : "";
-    editor.replaceRange(`${prefix}
-${separator}
-`, position);
-    return position.line + (prefix ? 1 : 0) + 2;
-  }
-  /**
-   * Helper to move the cursor after inserting text in the editor.
-   * @param editor The editor instance.
-   * @param startPos The starting position of the insertion.
-   * @param insertText The text that was inserted.
-   */
-  moveCursorAfterInsert(editor, startPos, insertText) {
-    const lines = insertText.split("\n");
-    if (lines.length === 1) {
-      editor.setCursor({
-        line: startPos.line,
-        ch: startPos.ch + insertText.length
-      });
-    } else {
-      editor.setCursor({
-        line: startPos.line + lines.length - 1,
-        ch: lines[lines.length - 1].length
-      });
-    }
-  }
-  /**
-   * Helper to show an Obsidian notice.
-   * @param message The message to display.
-   */
-  showNotice(message) {
-    new import_obsidian20.Notice(message);
-  }
-  /**
-   * Helper for clipboard actions with a notice.
-   * @param text The text to copy.
-   * @param successMsg The message to show on success.
-   * @param failMsg The message to show on failure.
-   */
-  async copyToClipboard(text, successMsg, failMsg) {
-    try {
-      await navigator.clipboard.writeText(text);
-      this.showNotice(successMsg);
-    } catch (error) {
-      this.showNotice(failMsg);
-      console.error("Clipboard error:", error);
-    }
-  }
-  /**
    * Helper to activate the chat view and load messages into it.
    * @param messages An array of messages to load.
    */
@@ -11377,7 +11358,7 @@ ${separator}
     await this.activateView(VIEW_TYPE_CHAT);
     const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_CHAT);
     if (!leaves.length) {
-      this.showNotice("Could not find chat view.");
+      showNotice("Could not find chat view.");
       return;
     }
     const chatView = leaves[0].view;
@@ -11388,7 +11369,7 @@ ${separator}
       }
     }
     chatView.scrollMessagesToBottom();
-    this.showNotice("Loaded chat note into chat.");
+    showNotice("Loaded chat note into chat.");
   }
   /**
    * Registers a view type with Obsidian.
@@ -11431,10 +11412,10 @@ ${separator}
     }
     const messages = parseSelection(text, this.settings.chatSeparator);
     if (messages.length === 0) {
-      this.showNotice("No valid messages found in the selection.");
+      showNotice("No valid messages found in the selection.");
       return;
     }
-    const sepLine = this.insertSeparator(editor, insertPosition, this.settings.chatSeparator);
+    const sepLine = insertSeparator(editor, insertPosition, this.settings.chatSeparator);
     let currentPosition = { line: sepLine, ch: 0 };
     this.activeStream = new AbortController();
     try {
@@ -11477,7 +11458,7 @@ ${this.settings.chatSeparator}
       );
       editor.setCursor(newCursorPos);
     } catch (error) {
-      this.showNotice(`Error: ${error.message}`);
+      showNotice(`Error: ${error.message}`);
       const errLineContent = (_b = editor.getLine(currentPosition.line)) != null ? _b : "";
       const errPrefix = errLineContent.trim() !== "" ? "\n" : "";
       editor.replaceRange(`Error: ${error.message}
@@ -11521,9 +11502,9 @@ ${this.settings.chatSeparator}
         if (this.activeStream) {
           this.activeStream.abort();
           this.activeStream = null;
-          this.showNotice("AI stream ended");
+          showNotice("AI stream ended");
         } else {
-          this.showNotice("No active AI stream to end");
+          showNotice("No active AI stream to end");
         }
       }
     });
@@ -11534,9 +11515,9 @@ ${this.settings.chatSeparator}
         const activeFile = this.app.workspace.getActiveFile();
         if (activeFile) {
           const noteName = `[[${activeFile.basename}]]`;
-          await this.copyToClipboard(noteName, `Copied to clipboard: ${noteName}`, "Failed to copy to clipboard");
+          await copyToClipboard2(noteName, `Copied to clipboard: ${noteName}`, "Failed to copy to clipboard");
         } else {
-          this.showNotice("No active note found");
+          showNotice("No active note found");
         }
       }
     });
@@ -11547,12 +11528,12 @@ ${this.settings.chatSeparator}
         var _a2;
         const chatStartString = (_a2 = this.settings.chatStartString) != null ? _a2 : "";
         if (!chatStartString) {
-          this.showNotice("chatStartString is not set in settings.");
+          showNotice("chatStartString is not set in settings.");
           return;
         }
         const cursor = editor.getCursor();
         editor.replaceRange(chatStartString, cursor);
-        this.moveCursorAfterInsert(editor, cursor, chatStartString);
+        moveCursorAfterInsert(editor, cursor, chatStartString);
       }
     });
     this.registerCommand({
@@ -11573,13 +11554,13 @@ ${this.settings.chatSeparator}
       callback: async () => {
         let file = this.app.workspace.getActiveFile();
         if (!file) {
-          this.showNotice("No active note found. Please open a note to load as chat.");
+          showNotice("No active note found. Please open a note to load as chat.");
           return;
         }
         let content = await this.app.vault.read(file);
         const messages = parseSelection(content, this.settings.chatSeparator);
         if (!messages.length) {
-          this.showNotice("No chat messages found in the selected note.");
+          showNotice("No chat messages found in the selected note.");
           return;
         }
         await this.activateChatViewAndLoadMessages(messages);

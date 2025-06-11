@@ -7,8 +7,7 @@ import { parseSelection } from './components/parseSelection';
 import { ModelSettingsView } from './components/ModelSettingsView';
 import { processMessages, getContextNotesContent } from './components/noteUtils';
 import { getSystemMessage } from './components/systemMessage';
- 
-// Removed import of prompts.ts as per user request
+import { showNotice, copyToClipboard, moveCursorAfterInsert, insertSeparator } from './components/utils';
 
 export const VIEW_TYPE_MODEL_SETTINGS = 'model-settings-view';
 
@@ -96,64 +95,7 @@ export default class MyPlugin extends Plugin {
         this.emitSettingsChange();
     }
 
-    /**
-     * Helper to insert a separator with correct spacing in the editor.
-     * @param editor The editor instance.
-     * @param position The position to insert the separator.
-     * @param separator The separator string.
-     * @returns The line number after the inserted separator.
-     */
-    private insertSeparator(editor: Editor, position: any, separator: string): number {
-        const lineContent = editor.getLine(position.line) ?? '';
-        const prefix = lineContent.trim() !== '' ? '\n' : '';
-        editor.replaceRange(`${prefix}\n${separator}\n`, position);
-        return position.line + (prefix ? 1 : 0) + 2;
-    }
 
-    /**
-     * Helper to move the cursor after inserting text in the editor.
-     * @param editor The editor instance.
-     * @param startPos The starting position of the insertion.
-     * @param insertText The text that was inserted.
-     */
-    private moveCursorAfterInsert(editor: Editor, startPos: any, insertText: string) {
-        const lines = insertText.split('\n');
-        if (lines.length === 1) {
-            editor.setCursor({
-                line: startPos.line,
-                ch: startPos.ch + insertText.length
-            });
-        } else {
-            editor.setCursor({
-                line: startPos.line + lines.length - 1,
-                ch: lines[lines.length - 1].length
-            });
-        }
-    }
-
-    /**
-     * Helper to show an Obsidian notice.
-     * @param message The message to display.
-     */
-    private showNotice(message: string) {
-        new Notice(message);
-    }
-
-    /**
-     * Helper for clipboard actions with a notice.
-     * @param text The text to copy.
-     * @param successMsg The message to show on success.
-     * @param failMsg The message to show on failure.
-     */
-    private async copyToClipboard(text: string, successMsg: string, failMsg: string) {
-        try {
-            await navigator.clipboard.writeText(text);
-            this.showNotice(successMsg);
-        } catch (error) {
-            this.showNotice(failMsg);
-            console.error('Clipboard error:', error);
-        }
-    }
 
     /**
      * Helper to activate the chat view and load messages into it.
@@ -163,7 +105,7 @@ export default class MyPlugin extends Plugin {
         await this.activateView(VIEW_TYPE_CHAT);
         const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_CHAT);
         if (!leaves.length) {
-            this.showNotice('Could not find chat view.');
+            showNotice('Could not find chat view.');
             return;
         }
         const chatView = leaves[0].view as ChatView;
@@ -174,7 +116,7 @@ export default class MyPlugin extends Plugin {
             }
         }
         chatView.scrollMessagesToBottom();
-        this.showNotice('Loaded chat note into chat.');
+        showNotice('Loaded chat note into chat.');
     }
 
     /**
@@ -221,11 +163,11 @@ export default class MyPlugin extends Plugin {
 
         const messages = parseSelection(text, this.settings.chatSeparator);
         if (messages.length === 0) {
-            this.showNotice('No valid messages found in the selection.');
+            showNotice('No valid messages found in the selection.');
             return;
         }
 
-        const sepLine = this.insertSeparator(editor, insertPosition, this.settings.chatSeparator);
+        const sepLine = insertSeparator(editor, insertPosition, this.settings.chatSeparator);
         let currentPosition = { line: sepLine, ch: 0 };
 
         this.activeStream = new AbortController();
@@ -272,7 +214,7 @@ export default class MyPlugin extends Plugin {
             );
             editor.setCursor(newCursorPos);
         } catch (error: any) {
-            this.showNotice(`Error: ${error.message}`);
+            showNotice(`Error: ${error.message}`);
             const errLineContent = editor.getLine(currentPosition.line) ?? '';
             const errPrefix = errLineContent.trim() !== '' ? '\n' : '';
             editor.replaceRange(`Error: ${error.message}\n${errPrefix}\n${this.settings.chatSeparator}\n\n`, currentPosition);
@@ -319,9 +261,9 @@ export default class MyPlugin extends Plugin {
                 if (this.activeStream) {
                     this.activeStream.abort();
                     this.activeStream = null;
-                    this.showNotice('AI stream ended');
+                    showNotice('AI stream ended');
                 } else {
-                    this.showNotice('No active AI stream to end');
+                    showNotice('No active AI stream to end');
                 }
             }
         });
@@ -333,9 +275,9 @@ export default class MyPlugin extends Plugin {
                 const activeFile = this.app.workspace.getActiveFile();
                 if (activeFile) {
                     const noteName = `[[${activeFile.basename}]]`;
-                    await this.copyToClipboard(noteName, `Copied to clipboard: ${noteName}`, 'Failed to copy to clipboard');
+                    await copyToClipboard(noteName, `Copied to clipboard: ${noteName}`, 'Failed to copy to clipboard');
                 } else {
-                    this.showNotice('No active note found');
+                    showNotice('No active note found');
                 }
             }
         });
@@ -346,12 +288,12 @@ export default class MyPlugin extends Plugin {
             editorCallback: (editor: Editor) => {
                 const chatStartString = this.settings.chatStartString ?? '';
                 if (!chatStartString) {
-                    this.showNotice('chatStartString is not set in settings.');
+                    showNotice('chatStartString is not set in settings.');
                     return;
                 }
                 const cursor = editor.getCursor();
                 editor.replaceRange(chatStartString, cursor);
-                this.moveCursorAfterInsert(editor, cursor, chatStartString);
+                moveCursorAfterInsert(editor, cursor, chatStartString);
             }
         });
 
@@ -374,13 +316,13 @@ export default class MyPlugin extends Plugin {
             callback: async () => {
                 let file: TFile | null = this.app.workspace.getActiveFile();
                 if (!file) {
-                    this.showNotice('No active note found. Please open a note to load as chat.');
+                    showNotice('No active note found. Please open a note to load as chat.');
                     return;
                 }
                 let content = await this.app.vault.read(file);
                 const messages = parseSelection(content, this.settings.chatSeparator);
                 if (!messages.length) {
-                    this.showNotice('No chat messages found in the selected note.');
+                    showNotice('No chat messages found in the selected note.');
                     return;
                 }
                 await this.activateChatViewAndLoadMessages(messages);
