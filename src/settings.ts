@@ -260,46 +260,83 @@ export class MyPluginSettingTab extends PluginSettingTab {
 
         const presetList = this.plugin.settings.modelSettingPresets || [];
         presetList.forEach((preset, idx) => {
-            const setting = new Setting(containerEl)
-                .setName(preset.name)
-                .setDesc('Edit or remove this preset');
+            // Preset Name
+            new Setting(containerEl)
+                .setName('Preset Name')
+                .setDesc('Edit the name of this preset')
+                .addText(text => {
+                    text.setPlaceholder('Preset Name')
+                        .setValue(preset.name)
+                        .onChange(async (value) => {
+                            preset.name = value ?? '';
+                            await this.plugin.saveSettings();
+                            this.display();
+                        });
+                });
 
-            this.configureTextInput(setting.addText(text => text), 'Preset Name', () => preset.name, async (value) => {
-                preset.name = value ?? '';
-                await this.plugin.saveSettings();
-                this.display();
-            });
-            this.configureTextInput(setting.addText(text => text), 'Model ID (provider:model)', () => preset.selectedModel || '', async (value) => {
-                preset.selectedModel = value ?? '';
-                await this.plugin.saveSettings();
-            });
-            this.configureTextInput(setting.addTextArea(text => text), 'System message', () => preset.systemMessage || '', async (value) => {
-                preset.systemMessage = value ?? '';
-                await this.plugin.saveSettings();
-            });
-            this.createSliderSetting(setting.controlEl, 'Temperature', '', { min: 0, max: 1, step: 0.1 }, () => preset.temperature ?? 0.7, async (value) => {
+            // Model ID
+            new Setting(containerEl)
+                .setName('Model ID (provider:model)')
+                .setDesc('Edit the model for this preset')
+                .addText(text => {
+                    text.setPlaceholder('Model ID (provider:model)')
+                        .setValue(preset.selectedModel || '')
+                        .onChange(async (value) => {
+                            preset.selectedModel = value ?? '';
+                            await this.plugin.saveSettings();
+                        });
+                });
+
+            // System Message
+            new Setting(containerEl)
+                .setName('System Message')
+                .setDesc('Edit the system message for this preset')
+                .addTextArea(text => {
+                    text.setPlaceholder('System message')
+                        .setValue(preset.systemMessage || '')
+                        .onChange(async (value) => {
+                            preset.systemMessage = value ?? '';
+                            await this.plugin.saveSettings();
+                        });
+                });
+
+            // Temperature
+            this.createSliderSetting(containerEl, 'Temperature', '', { min: 0, max: 1, step: 0.1 }, () => preset.temperature ?? 0.7, async (value) => {
                 preset.temperature = value;
                 await this.plugin.saveSettings();
             });
-            this.configureTextInput(setting.addText(text => text), 'Max tokens', () => preset.maxTokens?.toString() || '', async (value) => {
-                const num = parseInt(value ?? '', 10);
-                preset.maxTokens = isNaN(num) ? undefined : num;
-                await this.plugin.saveSettings();
-            });
-            this.createToggleSetting(setting.controlEl, 'Enable Streaming', '', () => preset.enableStreaming ?? true, async (value) => {
+
+            // Max Tokens
+            new Setting(containerEl)
+                .setName('Max Tokens')
+                .setDesc('Edit the max tokens for this preset')
+                .addText(text => {
+                    text.setPlaceholder('Max tokens')
+                        .setValue(preset.maxTokens?.toString() || '')
+                        .onChange(async (value) => {
+                            const num = parseInt(value ?? '', 10);
+                            preset.maxTokens = isNaN(num) ? undefined : num;
+                            await this.plugin.saveSettings();
+                        });
+                });
+
+            // Enable Streaming
+            this.createToggleSetting(containerEl, 'Enable Streaming', '', () => preset.enableStreaming ?? true, async (value) => {
                 preset.enableStreaming = value;
                 await this.plugin.saveSettings();
             });
 
-            setting.addExtraButton(btn => btn
-                .setIcon('cross')
-                .setTooltip('Delete')
-                .onClick(async () => {
-                    this.plugin.settings.modelSettingPresets?.splice(idx, 1);
-                    await this.plugin.saveSettings();
-                    this.display();
-                })
-            );
+            // Delete button
+            new Setting(containerEl)
+                .addExtraButton(btn => btn
+                    .setIcon('cross')
+                    .setTooltip('Delete')
+                    .onClick(async () => {
+                        this.plugin.settings.modelSettingPresets?.splice(idx, 1);
+                        await this.plugin.saveSettings();
+                        this.display();
+                    })
+                );
         });
 
         new Setting(containerEl)

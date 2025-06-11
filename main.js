@@ -8275,43 +8275,48 @@ var MyPluginSettingTab = class extends import_obsidian2.PluginSettingTab {
     });
     const presetList = this.plugin.settings.modelSettingPresets || [];
     presetList.forEach((preset, idx) => {
-      const setting = new import_obsidian2.Setting(containerEl).setName(preset.name).setDesc("Edit or remove this preset");
-      this.configureTextInput(setting.addText((text) => text), "Preset Name", () => preset.name, async (value) => {
-        preset.name = value != null ? value : "";
-        await this.plugin.saveSettings();
-        this.display();
+      new import_obsidian2.Setting(containerEl).setName("Preset Name").setDesc("Edit the name of this preset").addText((text) => {
+        text.setPlaceholder("Preset Name").setValue(preset.name).onChange(async (value) => {
+          preset.name = value != null ? value : "";
+          await this.plugin.saveSettings();
+          this.display();
+        });
       });
-      this.configureTextInput(setting.addText((text) => text), "Model ID (provider:model)", () => preset.selectedModel || "", async (value) => {
-        preset.selectedModel = value != null ? value : "";
-        await this.plugin.saveSettings();
+      new import_obsidian2.Setting(containerEl).setName("Model ID (provider:model)").setDesc("Edit the model for this preset").addText((text) => {
+        text.setPlaceholder("Model ID (provider:model)").setValue(preset.selectedModel || "").onChange(async (value) => {
+          preset.selectedModel = value != null ? value : "";
+          await this.plugin.saveSettings();
+        });
       });
-      this.configureTextInput(setting.addTextArea((text) => text), "System message", () => preset.systemMessage || "", async (value) => {
-        preset.systemMessage = value != null ? value : "";
-        await this.plugin.saveSettings();
+      new import_obsidian2.Setting(containerEl).setName("System Message").setDesc("Edit the system message for this preset").addTextArea((text) => {
+        text.setPlaceholder("System message").setValue(preset.systemMessage || "").onChange(async (value) => {
+          preset.systemMessage = value != null ? value : "";
+          await this.plugin.saveSettings();
+        });
       });
-      this.createSliderSetting(setting.controlEl, "Temperature", "", { min: 0, max: 1, step: 0.1 }, () => {
+      this.createSliderSetting(containerEl, "Temperature", "", { min: 0, max: 1, step: 0.1 }, () => {
         var _a2;
         return (_a2 = preset.temperature) != null ? _a2 : 0.7;
       }, async (value) => {
         preset.temperature = value;
         await this.plugin.saveSettings();
       });
-      this.configureTextInput(setting.addText((text) => text), "Max tokens", () => {
+      new import_obsidian2.Setting(containerEl).setName("Max Tokens").setDesc("Edit the max tokens for this preset").addText((text) => {
         var _a2;
-        return ((_a2 = preset.maxTokens) == null ? void 0 : _a2.toString()) || "";
-      }, async (value) => {
-        const num = parseInt(value != null ? value : "", 10);
-        preset.maxTokens = isNaN(num) ? void 0 : num;
-        await this.plugin.saveSettings();
+        text.setPlaceholder("Max tokens").setValue(((_a2 = preset.maxTokens) == null ? void 0 : _a2.toString()) || "").onChange(async (value) => {
+          const num = parseInt(value != null ? value : "", 10);
+          preset.maxTokens = isNaN(num) ? void 0 : num;
+          await this.plugin.saveSettings();
+        });
       });
-      this.createToggleSetting(setting.controlEl, "Enable Streaming", "", () => {
+      this.createToggleSetting(containerEl, "Enable Streaming", "", () => {
         var _a2;
         return (_a2 = preset.enableStreaming) != null ? _a2 : true;
       }, async (value) => {
         preset.enableStreaming = value;
         await this.plugin.saveSettings();
       });
-      setting.addExtraButton(
+      new import_obsidian2.Setting(containerEl).addExtraButton(
         (btn) => btn.setIcon("cross").setTooltip("Delete").onClick(async () => {
           var _a2;
           (_a2 = this.plugin.settings.modelSettingPresets) == null ? void 0 : _a2.splice(idx, 1);
