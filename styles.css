@@ -421,3 +421,12 @@
     border-radius: var(--border-radius);
     font-family: var(--font-monospace);
 }
+
+/* Highlight agent mode button when active */
+.ai-agent-mode-btn.active {
+  background: #4caf50 !important;
+  color: white !important;
+  border: 2px solid #388e3c !important;
+  box-shadow: 0 0 4px #388e3c33;
+  opacity: 1 !important;
+}

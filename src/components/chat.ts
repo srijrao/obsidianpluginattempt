@@ -204,6 +204,7 @@ export class ChatView extends ItemView {
         import('./chat/inputHandler').then(({ setupInputHandler }) => {
             setupInputHandler(
                 textarea,
+                this.messagesContainer, // Pass messagesContainer for keyboard shortcuts
                 sendMessage,
                 async (cmd: string) => {
                     switch (cmd) {

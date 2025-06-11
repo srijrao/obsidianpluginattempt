@@ -22,7 +22,7 @@ export interface ChatUIElements {
 export function createChatUI(app: App, contentEl: HTMLElement): ChatUIElements {
     // --- FADED HELP MESSAGE NEAR TOP ---
     const fadedHelp = contentEl.createDiv();
-    fadedHelp.setText('Tip: Type /help or press Ctrl+Shift+H for chat commands and shortcuts.');
+    fadedHelp.setText('Tip: Type /help or press Ctrl+Shift+H for chat commands and shortcuts. Use Ctrl+Shift+X to clear chat and Ctrl+Shift+C to copy.');
     fadedHelp.style.textAlign = 'center';
     fadedHelp.style.opacity = '0.6';
     fadedHelp.style.fontSize = '0.95em';
@@ -69,8 +69,9 @@ export function createChatUI(app: App, contentEl: HTMLElement): ChatUIElements {
     referenceNoteIndicator.style.display = 'none';
     topButtonContainer.appendChild(referenceNoteIndicator);
 
-    // Messages container
+    // Messages container - add tabindex to make it focusable for keyboard events
     const messagesContainer = contentEl.createDiv('ai-chat-messages');
+    messagesContainer.setAttribute('tabindex', '0');
 
     // --- INPUT CONTAINER AT BOTTOM ---
     const inputContainer = contentEl.createDiv('ai-chat-input-container');
@@ -121,6 +122,20 @@ export function createChatUI(app: App, contentEl: HTMLElement): ChatUIElements {
     agentModeButton.style.right = '2.8em'; // Position to the left of help button
     agentModeButton.style.top = '-2.2em';
     agentModeButton.style.zIndex = '2';
+
+    // Add a class for agent mode active state
+    agentModeButton.classList.add('ai-agent-mode-btn');
+
+    // Utility to set agent mode button appearance
+    function setAgentModeActive(isActive: boolean) {
+        if (isActive) {
+            agentModeButton.classList.add('active');
+        } else {
+            agentModeButton.classList.remove('active');
+        }
+    }
+    // Expose the setter on the button for easy access
+    (agentModeButton as any).setActive = setAgentModeActive;
 
     inputContainer.appendChild(agentModeButton);
 
