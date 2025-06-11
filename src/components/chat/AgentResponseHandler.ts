@@ -10,7 +10,7 @@ import { FileDiffTool } from './tools/FileDiffTool';
 import { ThoughtTool } from './tools/ThoughtTool';
 import * as fs from 'fs';
 import * as path from 'path';
-import { getAllToolClasses } from './tools/toolcollect';
+import { getAllToolClasses, createToolInstances } from './tools/toolcollect';
 
 export interface AgentContext {
     app: App;
@@ -28,13 +28,11 @@ export class AgentResponseHandler {
         this.commandParser = new CommandParser();
         this.toolRegistry = new ToolRegistry();
         this.initializeTools();
-    }
-
-    private initializeTools() {
-        // Register all available tools dynamically using toolcollect
-        const toolClasses = getAllToolClasses();
-        for (const ToolClass of toolClasses) {
-            this.toolRegistry.register(new ToolClass(this.context.app));
+    }    private initializeTools() {
+        // Register all available tools using the centralized tool creation function
+        const tools = createToolInstances(this.context.app);
+        for (const tool of tools) {
+            this.toolRegistry.register(tool);
         }
     }
 

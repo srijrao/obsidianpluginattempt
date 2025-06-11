@@ -8,7 +8,7 @@ import { DEFAULT_TITLE_PROMPT } from './promptConstants';
 import { DEFAULT_SETTINGS } from './types';
 import * as fs from 'fs';
 import * as path from 'path';
-import { getAllToolClasses } from './components/chat/tools/toolcollect';
+import { getAllToolClasses, createToolInstances } from './components/chat/tools/toolcollect';
 
 /**
  * Plugin Settings Tab
@@ -365,8 +365,7 @@ export class MyPluginSettingTab extends PluginSettingTab {
     /**
      * Renders the Tool Enable/Disable section.
      * @param containerEl The HTML element to append the section to.
-     */
-    private renderToolToggles(containerEl: HTMLElement): void {
+     */    private renderToolToggles(containerEl: HTMLElement): void {
         containerEl.createEl('h3', { text: 'Agent Tools' });
         containerEl.createEl('div', {
             text: 'Enable or disable individual agent tools. Disabled tools will not be available to the agent or appear in the system prompt.',
@@ -374,11 +373,10 @@ export class MyPluginSettingTab extends PluginSettingTab {
             attr: { style: 'margin-bottom: 0.5em;' }
         });
 
-        // Use centralized dynamic tool loader
-        const toolClasses = getAllToolClasses();
+        // Use centralized tool creation function to get properly instantiated tools
+        const tools = createToolInstances(this.app);
         if (!this.plugin.settings.enabledTools) this.plugin.settings.enabledTools = {};
-        toolClasses.forEach(ToolClass => {
-            const tool = new ToolClass();
+        tools.forEach(tool => {
             this.createToggleSetting(
                 containerEl,
                 `${tool.name} (${tool.description})`,

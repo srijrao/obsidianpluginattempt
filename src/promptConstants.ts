@@ -1,6 +1,4 @@
-import * as fs from 'fs';
-import * as path from 'path';
-import { getAllToolClasses } from './components/chat/tools/toolcollect';
+import { getAllToolClasses, getToolMetadata } from './components/chat/tools/toolcollect';
 
 export const DEFAULT_TITLE_PROMPT = "You are a title generator. You will give succinct titles that do not contain backslashes, forward slashes, or colons. Only generate a title as your response.";
 
@@ -13,10 +11,9 @@ export const DEFAULT_SUMMARY_PROMPT = "Summarize the note content in 1-2 sentenc
 export const DEFAULT_GENERAL_SYSTEM_PROMPT = "You are a helpful assistant.";
 
 export const getDynamicToolList = (enabledTools?: Record<string, boolean>) => {
-    // Use centralized dynamic tool loader
-    const toolClasses = getAllToolClasses();
-    return toolClasses
-        .map(ToolClass => new ToolClass())
+    // Use static tool metadata to avoid instantiation issues
+    const toolMetadata = getToolMetadata();
+    return toolMetadata
         .filter(tool => !enabledTools || enabledTools[tool.name] !== false)
         .map(tool => ({
             name: tool.name,
