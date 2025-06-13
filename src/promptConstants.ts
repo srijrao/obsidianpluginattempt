@@ -8,7 +8,7 @@ export const DEFAULT_SUMMARY_PROMPT = "Summarize the note content in 1-2 sentenc
 
 // General system prompt for the assistant
 
-export const DEFAULT_GENERAL_SYSTEM_PROMPT = "You are a helpful assistant.";
+export const DEFAULT_GENERAL_SYSTEM_PROMPT = "You are a helpful assistant in an Obsidian Vault.";
 
 export const getDynamicToolList = (enabledTools?: Record<string, boolean>) => {
     // Use static tool metadata to avoid instantiation issues

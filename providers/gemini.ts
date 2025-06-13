@@ -36,13 +36,16 @@ interface GeminiResponse {
  */
 export class GeminiProvider extends BaseProvider {
     protected apiKey: string;
-    protected baseUrl = 'https://generativelanguage.googleapis.com/v1';
+    protected apiVersion: string;
+    protected baseUrl: string;
     protected model: string;
 
-    constructor(apiKey: string, model: string = 'gemini-pro') {
+    constructor(apiKey: string, model: string = 'gemini-2.0-flash', apiVersion: string = 'v1') {
         super();
         this.apiKey = apiKey;
         this.model = model;
+        this.apiVersion = apiVersion;
+        this.baseUrl = `https://generativelanguage.googleapis.com/${this.apiVersion}`;
     }
 
     /**
@@ -109,30 +112,30 @@ export class GeminiProvider extends BaseProvider {
     }
 
     /**
-     * Get available Gemini models
-     * 
-     * Fetches the list of available models from Google's API.
-     * Filters to only include Gemini models.
-     * 
-     * @returns List of available model names
+     * Get available Gemini models from both v1 and v1beta endpoints by default
+     *
+     * @returns List of available model names (deduplicated)
      */
     async getAvailableModels(): Promise<string[]> {
-        try {
-            const response = await fetch(`${this.baseUrl}/models?key=${this.apiKey}`, {
+        // Helper to fetch models from a given version
+        const fetchModels = async (version: string): Promise<string[]> => {
+            const url = `https://generativelanguage.googleapis.com/${version}/models?key=${this.apiKey}`;
+            const response = await fetch(url, {
                 method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json'
-                }
+                headers: { 'Content-Type': 'application/json' }
             });
-
-            if (!response.ok) {
-                throw this.handleHttpError(response);
-            }
-
+            if (!response.ok) throw this.handleHttpError(response);
             const data = await response.json();
-            return data.models
-                .map((model: any) => model.name.split('/').pop())
-                .filter((id: string) => id.startsWith('gemini-'));
+            return data.models?.map((model: any) => model.name.split('/').pop()) || [];
+        };
+        try {
+            // Fetch both v1 and v1beta models in parallel
+            const [v1Models, v1betaModels] = await Promise.all([
+                fetchModels('v1'),
+                fetchModels('v1beta')
+            ]);
+            // Merge and deduplicate
+            return Array.from(new Set([...v1Models, ...v1betaModels]));
         } catch (error) {
             console.error('Error fetching Gemini models:', error);
             throw error;
