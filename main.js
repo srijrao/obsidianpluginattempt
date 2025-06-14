@@ -3865,7 +3865,9 @@ var init_types = __esm({
         showTaskProgress: true,
         showCompletionNotifications: true,
         includeReasoningInExports: true
-      }
+      },
+      enabledTools: {},
+      enabledModels: {}
     };
   }
 });
@@ -8294,7 +8296,9 @@ var init_SettingsSections = __esm({
           } else {
             dropdown.addOption("", "Select a model...");
             const modelsByProvider = {};
-            this.plugin.settings.availableModels.forEach((model) => {
+            const enabledModels = this.plugin.settings.enabledModels || {};
+            const filteredModels = this.plugin.settings.availableModels.filter((model) => enabledModels[model.id] !== false);
+            filteredModels.forEach((model) => {
               if (!modelsByProvider[model.provider]) {
                 modelsByProvider[model.provider] = [];
               }
@@ -9208,6 +9212,7 @@ var CollapsibleSectionRenderer = class {
 
 // src/settings.ts
 init_toolcollect();
+init_providers();
 var MyPluginSettingTab = class extends import_obsidian8.PluginSettingTab {
   constructor(app, plugin) {
     super(app, plugin);
@@ -9475,6 +9480,97 @@ var MyPluginSettingTab = class extends import_obsidian8.PluginSettingTab {
     });
   }
   /**
+   * Renders the Available Models section with checkboxes for each model.
+   * @param containerEl The HTML element to append the section to.
+   */
+  renderAvailableModelsSection(containerEl) {
+    CollapsibleSectionRenderer.createCollapsibleSection(
+      containerEl,
+      "Available Models",
+      async (sectionEl) => {
+        sectionEl.createEl("div", {
+          text: "Choose which models are available in model selection menus throughout the plugin.",
+          cls: "setting-item-description",
+          attr: { style: "margin-bottom: 1em;" }
+        });
+        const buttonRow = sectionEl.createDiv({ cls: "ai-models-button-row" });
+        new import_obsidian8.Setting(buttonRow).addButton((btn) => {
+          btn.setButtonText("Refresh Models").setCta().onClick(async () => {
+            btn.setButtonText("Refreshing...");
+            btn.setDisabled(true);
+            try {
+              this.plugin.settings.availableModels = await getAllAvailableModels(this.plugin.settings);
+              await this.plugin.saveSettings();
+              new import_obsidian8.Notice("Available models refreshed.");
+              this.display();
+            } catch (e) {
+              new import_obsidian8.Notice("Error refreshing models: " + ((e == null ? void 0 : e.message) || e));
+            } finally {
+              btn.setButtonText("Refresh Models");
+              btn.setDisabled(false);
+            }
+          });
+        }).addButton((btn) => {
+          btn.setButtonText("All On").onClick(async () => {
+            let allModels2 = this.plugin.settings.availableModels || [];
+            if (allModels2.length === 0) {
+              allModels2 = await getAllAvailableModels(this.plugin.settings);
+            }
+            if (!this.plugin.settings.enabledModels) this.plugin.settings.enabledModels = {};
+            allModels2.forEach((model) => {
+              this.plugin.settings.enabledModels[model.id] = true;
+            });
+            await this.plugin.saveSettings();
+            this.display();
+          });
+        }).addButton((btn) => {
+          btn.setButtonText("All Off").onClick(async () => {
+            let allModels2 = this.plugin.settings.availableModels || [];
+            if (allModels2.length === 0) {
+              allModels2 = await getAllAvailableModels(this.plugin.settings);
+            }
+            if (!this.plugin.settings.enabledModels) this.plugin.settings.enabledModels = {};
+            allModels2.forEach((model) => {
+              this.plugin.settings.enabledModels[model.id] = false;
+            });
+            await this.plugin.saveSettings();
+            this.display();
+          });
+        });
+        let allModels = this.plugin.settings.availableModels || [];
+        if (allModels.length === 0) {
+          allModels = await getAllAvailableModels(this.plugin.settings);
+        }
+        if (!this.plugin.settings.enabledModels) this.plugin.settings.enabledModels = {};
+        if (allModels.length === 0) {
+          sectionEl.createEl("div", { text: "No models found. Please configure your providers and refresh available models.", cls: "setting-item-description" });
+        } else {
+          allModels = allModels.slice().sort((a, b) => {
+            if (a.provider !== b.provider) {
+              return a.provider.localeCompare(b.provider);
+            }
+            return (a.name || a.id).localeCompare(b.name || b.id);
+          });
+          allModels.forEach((model) => {
+            this.createToggleSetting(
+              sectionEl,
+              model.name || model.id,
+              `Enable or disable "${model.name || model.id}" (${model.id}) in model selection menus.`,
+              () => this.plugin.settings.enabledModels[model.id] !== false,
+              // default to true
+              async (value) => {
+                this.plugin.settings.enabledModels[model.id] = value;
+                await this.plugin.saveSettings();
+              }
+            );
+          });
+        }
+      },
+      this.plugin,
+      "generalSectionsExpanded"
+    );
+  }
+  /**
    * Display the settings tab.
    * This method orchestrates the rendering of all setting sections.
    */
@@ -9539,6 +9635,7 @@ var MyPluginSettingTab = class extends import_obsidian8.PluginSettingTab {
         await this.plugin.saveSettings();
       }
     );
+    this.renderAvailableModelsSection(containerEl);
     CollapsibleSectionRenderer.createCollapsibleSection(
       containerEl,
       "AI Model Settings",

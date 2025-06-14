@@ -304,6 +304,11 @@ export interface MyPluginSettings {
      * Map of tool name to enabled/disabled state. If false, tool is disabled.
      */
     enabledTools?: Record<string, boolean>;
+
+    /**
+     * Map of model id (provider:model) to enabled/disabled state. If false, model is hidden from selection menus.
+     */
+    enabledModels?: Record<string, boolean>;
 }
 
 /**
@@ -418,7 +423,9 @@ export const DEFAULT_SETTINGS: MyPluginSettings = {
         showTaskProgress: true,
         showCompletionNotifications: true,
         includeReasoningInExports: true
-    }
+    },
+    enabledTools: {},
+    enabledModels: {},
 };
 
 /**

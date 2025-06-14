@@ -223,16 +223,17 @@ export class SettingsSections {
                     dropdown.addOption('', 'No models available - configure providers below');
                 } else {
                     dropdown.addOption('', 'Select a model...');
-                    
                     // Group models by provider for better organization
                     const modelsByProvider: Record<string, any[]> = {};
-                    this.plugin.settings.availableModels.forEach(model => {
+                    // Filter models by enabledModels
+                    const enabledModels = this.plugin.settings.enabledModels || {};
+                    const filteredModels = this.plugin.settings.availableModels.filter(model => enabledModels[model.id] !== false);
+                    filteredModels.forEach(model => {
                         if (!modelsByProvider[model.provider]) {
                             modelsByProvider[model.provider] = [];
                         }
                         modelsByProvider[model.provider].push(model);
                     });
-
                     // Add models grouped by provider
                     Object.entries(modelsByProvider).forEach(([provider, models]) => {
                         models.forEach(model => {
@@ -240,22 +241,18 @@ export class SettingsSections {
                         });
                     });
                 }
-                
                 dropdown
                     .setValue(this.plugin.settings.selectedModel || '')
                     .onChange(async (value) => {
                         this.plugin.settings.selectedModel = value;
-                        
                         // Update the provider setting based on selected model
                         if (value) {
                             const provider = getProviderFromUnifiedModel(value);
                             this.plugin.settings.provider = provider;
                         }
-                        
                         await this.plugin.saveSettings();
                     });
             });
-
         // Show current selection info if a model is selected
         if (this.plugin.settings.selectedModel && this.plugin.settings.availableModels) {
             const selectedModel = this.plugin.settings.availableModels.find(

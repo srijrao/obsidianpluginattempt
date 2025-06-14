@@ -9,6 +9,7 @@ import { DEFAULT_SETTINGS } from './types';
 import * as fs from 'fs';
 import * as path from 'path';
 import { getAllToolClasses, createToolInstances } from './components/chat/tools/toolcollect';
+import { getAllAvailableModels } from '../providers';
 
 /**
  * Plugin Settings Tab
@@ -392,6 +393,112 @@ export class MyPluginSettingTab extends PluginSettingTab {
     }
 
     /**
+     * Renders the Available Models section with checkboxes for each model.
+     * @param containerEl The HTML element to append the section to.
+     */
+    private renderAvailableModelsSection(containerEl: HTMLElement): void {
+        CollapsibleSectionRenderer.createCollapsibleSection(
+            containerEl,
+            'Available Models',
+            async (sectionEl: HTMLElement) => {
+                sectionEl.createEl('div', {
+                    text: 'Choose which models are available in model selection menus throughout the plugin.',
+                    cls: 'setting-item-description',
+                    attr: { style: 'margin-bottom: 1em;' }
+                });
+
+                // Add a refresh button and all-on/all-off buttons
+                const buttonRow = sectionEl.createDiv({ cls: 'ai-models-button-row' });
+                new Setting(buttonRow)
+                    .addButton(btn => {
+                        btn.setButtonText('Refresh Models')
+                            .setCta()
+                            .onClick(async () => {
+                                btn.setButtonText('Refreshing...');
+                                btn.setDisabled(true);
+                                try {
+                                    this.plugin.settings.availableModels = await getAllAvailableModels(this.plugin.settings);
+                                    await this.plugin.saveSettings();
+                                    new Notice('Available models refreshed.');
+                                    this.display();
+                                } catch (e) {
+                                    new Notice('Error refreshing models: ' + (e?.message || e));
+                                } finally {
+                                    btn.setButtonText('Refresh Models');
+                                    btn.setDisabled(false);
+                                }
+                            });
+                    })
+                    .addButton(btn => {
+                        btn.setButtonText('All On')
+                            .onClick(async () => {
+                                let allModels = this.plugin.settings.availableModels || [];
+                                if (allModels.length === 0) {
+                                    allModels = await getAllAvailableModels(this.plugin.settings);
+                                }
+                                if (!this.plugin.settings.enabledModels) this.plugin.settings.enabledModels = {};
+                                allModels.forEach(model => {
+                                    this.plugin.settings.enabledModels![model.id] = true;
+                                });
+                                await this.plugin.saveSettings();
+                                this.display();
+                            });
+                    })
+                    .addButton(btn => {
+                        btn.setButtonText('All Off')
+                            .onClick(async () => {
+                                let allModels = this.plugin.settings.availableModels || [];
+                                if (allModels.length === 0) {
+                                    allModels = await getAllAvailableModels(this.plugin.settings);
+                                }
+                                if (!this.plugin.settings.enabledModels) this.plugin.settings.enabledModels = {};
+                                allModels.forEach(model => {
+                                    this.plugin.settings.enabledModels![model.id] = false;
+                                });
+                                await this.plugin.saveSettings();
+                                this.display();
+                            });
+                    });
+
+                // Dynamically get all available models from settings (populated by providers)
+                let allModels = this.plugin.settings.availableModels || [];
+                // If not yet loaded, try to fetch them
+                if (allModels.length === 0) {
+                    allModels = await getAllAvailableModels(this.plugin.settings);
+                }
+
+                if (!this.plugin.settings.enabledModels) this.plugin.settings.enabledModels = {};
+
+                if (allModels.length === 0) {
+                    sectionEl.createEl('div', { text: 'No models found. Please configure your providers and refresh available models.', cls: 'setting-item-description' });
+                } else {
+                    // Sort models by provider, then alphabetically by name
+                    allModels = allModels.slice().sort((a, b) => {
+                        if (a.provider !== b.provider) {
+                            return a.provider.localeCompare(b.provider);
+                        }
+                        return (a.name || a.id).localeCompare(b.name || b.id);
+                    });
+                    allModels.forEach(model => {
+                        this.createToggleSetting(
+                            sectionEl,
+                            model.name || model.id,
+                            `Enable or disable "${model.name || model.id}" (${model.id}) in model selection menus.`,
+                            () => this.plugin.settings.enabledModels![model.id] !== false, // default to true
+                            async (value) => {
+                                this.plugin.settings.enabledModels![model.id] = value;
+                                await this.plugin.saveSettings();
+                            }
+                        );
+                    });
+                }
+            },
+            this.plugin,
+            'generalSectionsExpanded'
+        );
+    }
+
+    /**
      * Display the settings tab.
      * This method orchestrates the rendering of all setting sections.
      */
@@ -419,6 +526,9 @@ export class MyPluginSettingTab extends PluginSettingTab {
         this.createTextSetting(containerEl, 'Ollama Server URL', 'Enter your Ollama server URL (default: http://localhost:11434)', 'http://localhost:11434',
             () => this.plugin.settings.ollamaSettings.serverUrl,
             async (value) => { this.plugin.settings.ollamaSettings.serverUrl = value ?? ''; await this.plugin.saveSettings(); });
+
+        // Available Models Section
+        this.renderAvailableModelsSection(containerEl);
 
         // Unified AI Model Settings Section
         CollapsibleSectionRenderer.createCollapsibleSection(
