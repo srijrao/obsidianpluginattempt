@@ -49,6 +49,18 @@ export class GeminiProvider extends BaseProvider {
     }
 
     /**
+     * Determines the correct API version for a given model name.
+     * Uses v1beta for preview/experimental/beta models, otherwise v1.
+     */
+    private getBaseUrlForModel(model: string): string {
+        // Models with preview, exp, experimental, or beta in the name should use v1beta
+        if (/preview|exp|experimental|beta/i.test(model)) {
+            return 'https://generativelanguage.googleapis.com/v1beta';
+        }
+        return 'https://generativelanguage.googleapis.com/v1';
+    }
+
+    /**
      * Get a completion from Google Gemini
      * 
      * Sends the conversation to Gemini and streams back the response.
@@ -60,10 +72,11 @@ export class GeminiProvider extends BaseProvider {
         try {
             // Format messages for Gemini API
             const formattedMessages = this.formatMessages(messages);
-            
-            // For chat models, we should use the generateContent endpoint
-            const url = `${this.baseUrl}/models/${this.model}:generateContent?key=${this.apiKey}`;
-            
+
+            // Dynamically select the correct base URL for the model
+            const baseUrl = this.getBaseUrlForModel(this.model);
+            const url = `${baseUrl}/models/${this.model}:generateContent?key=${this.apiKey}`;
+
             // Use non-streaming version for chat completions
             const response = await fetch(url, {
                 method: 'POST',

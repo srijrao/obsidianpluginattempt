@@ -7727,6 +7727,16 @@ var init_gemini = __esm({
         this.baseUrl = `https://generativelanguage.googleapis.com/${this.apiVersion}`;
       }
       /**
+       * Determines the correct API version for a given model name.
+       * Uses v1beta for preview/experimental/beta models, otherwise v1.
+       */
+      getBaseUrlForModel(model) {
+        if (/preview|exp|experimental|beta/i.test(model)) {
+          return "https://generativelanguage.googleapis.com/v1beta";
+        }
+        return "https://generativelanguage.googleapis.com/v1";
+      }
+      /**
        * Get a completion from Google Gemini
        * 
        * Sends the conversation to Gemini and streams back the response.
@@ -7738,7 +7748,8 @@ var init_gemini = __esm({
         var _a2, _b, _c, _d, _e, _f, _g, _h;
         try {
           const formattedMessages = this.formatMessages(messages);
-          const url = `${this.baseUrl}/models/${this.model}:generateContent?key=${this.apiKey}`;
+          const baseUrl = this.getBaseUrlForModel(this.model);
+          const url = `${baseUrl}/models/${this.model}:generateContent?key=${this.apiKey}`;
           const response = await fetch(url, {
             method: "POST",
             headers: {
