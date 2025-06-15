@@ -3701,6 +3701,7 @@ var init_FileRenameTool = __esm({
               error: "Parent folder not found for file: " + path
             };
           }
+<<<<<<< HEAD
           const newPathFull = parent.path ? `${parent.path}/${finalNewName}` : finalNewName;
           if (!overwrite && vault.getAbstractFileByPath(newPathFull)) {
             return {
@@ -3712,6 +3713,19 @@ var init_FileRenameTool = __esm({
           return {
             success: true,
             data: { oldPath: path, newPath: newPathFull }
+=======
+          const newAbsolutePath = parent.isRoot() ? finalNewName : `${parent.path}/${finalNewName}`;
+          if (!overwrite && vault.getAbstractFileByPath(newAbsolutePath)) {
+            return {
+              success: false,
+              error: "A file with the new name already exists: " + newAbsolutePath
+            };
+          }
+          await vault.rename(file, newAbsolutePath);
+          return {
+            success: true,
+            data: { oldPath: path, newPath: newAbsolutePath }
+>>>>>>> 52844ca7b8f5ecaf93cebedb3ee4ff145a04b817
           };
         } catch (error) {
           return {
