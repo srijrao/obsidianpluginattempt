@@ -3,13 +3,7 @@ import MyPlugin from '../../main';
 import { ToolCommand, ToolResult, Message, ReasoningData, TaskStatus, ToolExecutionResult } from '../../types';
 import { CommandParser } from './CommandParser';
 import { ToolRegistry } from './ToolRegistry';
-import { FileSelectTool } from './tools/FileSelectTool';
-import { FileReadTool } from './tools/FileReadTool';
-import { FileWriteTool } from './tools/FileWriteTool';
-import { FileDiffTool } from './tools/FileDiffTool';
-import { ThoughtTool } from './tools/ThoughtTool';
-import * as fs from 'fs';
-import * as path from 'path';
+// Import all tool management from toolcollect for dynamic tool loading
 import { getAllToolClasses, createToolInstances } from './tools/toolcollect';
 
 export interface AgentContext {

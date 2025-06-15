@@ -2,7 +2,8 @@ import { App } from 'obsidian';
 import { Tool, ToolResult } from '../ToolRegistry';
 
 export interface ThoughtParams {
-    thought: string;
+    thought?: string;
+    reasoning?: string; // Legacy alias for thought
     step?: number;
     totalSteps?: number;
     category?: 'analysis' | 'planning' | 'problem-solving' | 'reflection' | 'conclusion' | 'reasoning';
@@ -13,12 +14,16 @@ export interface ThoughtParams {
 
 export class ThoughtTool implements Tool {
     name = 'thought';
-    description = 'Record and display AI reasoning steps and thought processes';
-    parameters = {
+    description = 'Record and display AI reasoning steps and thought processes';    parameters = {
         thought: {
             type: 'string',
             description: 'The thought or reasoning step to record',
-            required: true
+            required: false
+        },
+        reasoning: {
+            type: 'string',
+            description: 'Alias for thought parameter (legacy support)',
+            required: false
         },
         step: {
             type: 'number',
@@ -56,11 +61,9 @@ export class ThoughtTool implements Tool {
         }
     };
 
-    constructor(private app: App) {}
-
-    async execute(params: ThoughtParams, context: any): Promise<ToolResult> {
+    constructor(private app: App) {}    async execute(params: ThoughtParams, context: any): Promise<ToolResult> {
         const { 
-            thought, 
+            thought: originalThought, 
             step, 
             totalSteps, 
             category = 'analysis', 
@@ -69,10 +72,11 @@ export class ThoughtTool implements Tool {
             reasoningDepth = 'medium'
         } = params;
 
-        if (!thought || thought.trim().length === 0) {
+        // Handle legacy parameter name 'reasoning' as 'thought'
+        const thought = originalThought || (params as any).reasoning;        if (!thought || thought.trim().length === 0) {
             return {
                 success: false,
-                error: 'Thought content cannot be empty'
+                error: 'Thought content cannot be empty. Please provide either "thought" or "reasoning" parameter with content.'
             };
         }
 

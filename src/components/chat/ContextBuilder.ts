@@ -20,16 +20,14 @@ export class ContextBuilder {
         if (this.plugin.settings.enableContextNotes && this.plugin.settings.contextNotes) {
             const contextContent = await this.plugin.getContextNotesContent(this.plugin.settings.contextNotes);
             messages[0].content += `\n\nContext Notes:\n${contextContent}`;
-        }
-
-        // Add current note content if enabled
+        }        // Add current note content if enabled
         if (this.plugin.settings.referenceCurrentNote) {
             const currentFile = this.app.workspace.getActiveFile();
             if (currentFile) {
                 const currentNoteContent = await this.app.vault.cachedRead(currentFile);
                 messages.push({
                     role: 'system',
-                    content: `Here is the content of the current note:\n\n${currentNoteContent}`
+                    content: `Here is the content of the current note (${currentFile.path}):\n\n${currentNoteContent}`
                 });
             }
         }

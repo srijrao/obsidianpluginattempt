@@ -1,15 +1,15 @@
 import { App, TFile } from 'obsidian';
 import { Tool, ToolResult } from '../ToolRegistry';
 
-export interface FileSelectParams {
+export interface FileSearchParams {
     query?: string;
     filterType?: 'markdown' | 'image' | 'all';
     maxResults?: number;
 }
 
-export class FileSelectTool implements Tool {
-    name = 'file_select';
-    description = 'Search and select files from the vault programmatically';
+export class FileSearchTool implements Tool {
+    name = 'file_search';
+    description = 'Search for files in the vault by name or path';
     parameters = {
         query: {
             type: 'string',
@@ -31,7 +31,7 @@ export class FileSelectTool implements Tool {
 
     constructor(private app: App) {}
 
-    async execute(params: FileSelectParams, context: any): Promise<ToolResult> {
+    async execute(params: FileSearchParams, context: any): Promise<ToolResult> {
         const { query = '', filterType = 'markdown', maxResults = 10 } = params;
 
         try {

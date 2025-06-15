@@ -38,6 +38,10 @@ export class FileWriteTool implements Tool {
     constructor(private app: App) {}
 
     async execute(params: any, context: any): Promise<ToolResult> {
+        // Normalize parameter names for compatibility
+        if (params.path && !params.filePath && !params.filename) {
+            params.filePath = params.path;
+        }
         // Handle both filePath and filename parameters for compatibility
         const filePath = params.filePath || params.filename;
         const { content, createIfNotExists = true, backup = true } = params;
