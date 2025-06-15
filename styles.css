@@ -774,27 +774,91 @@
     padding: 12px;
     margin: 12px 0;
     display: flex;
-    align-items: center;
-    justify-content: space-between;
+    flex-direction: column;
     gap: 12px;
 }
 
 .tool-limit-warning-text {
-    flex: 1;
     color: var(--text-normal);
     font-size: 0.9em;
+    line-height: 1.4;
 }
 
 .tool-limit-warning-actions {
     display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.tool-limit-input-group {
+    display: flex;
+    align-items: center;
     gap: 8px;
+    padding: 8px;
+    background: var(--background-secondary);
+    border-radius: 4px;
+}
+
+.tool-limit-input-group label {
+    font-size: 0.85em;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+.tool-limit-input-group input {
+    width: 60px;
+    padding: 4px 8px;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 3px;
+    background: var(--background-primary);
+    color: var(--text-normal);
+    font-size: 0.85em;
+}
+
+.tool-limit-input-group input:focus {
+    outline: none;
+    border-color: var(--interactive-accent);
+}
+
+.tool-limit-button-group {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.ai-chat-add-tools-button,
+.ai-chat-continue-button {
+    padding: 6px 12px;
+    border: 1px solid var(--interactive-accent);
+    background: var(--interactive-accent);
+    color: var(--text-on-accent);
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.85em;
+    transition: all 0.2s ease;
+}
+
+.ai-chat-add-tools-button:hover,
+.ai-chat-continue-button:hover {
+    background: var(--interactive-accent-hover);
+    border-color: var(--interactive-accent-hover);
+}
+
+.ai-chat-add-tools-button {
+    background: var(--color-green);
+    border-color: var(--color-green);
+}
+
+.ai-chat-add-tools-button:hover {
+    background: var(--color-green);
+    opacity: 0.8;
 }
 
 .tool-limit-settings-link {
     color: var(--text-accent);
     text-decoration: underline;
     cursor: pointer;
-    font-size: 0.9em;
+    font-size: 0.85em;
 }
 
 .tool-limit-settings-link:hover {

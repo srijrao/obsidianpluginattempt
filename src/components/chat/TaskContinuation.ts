@@ -12,9 +12,7 @@ export class TaskContinuation {
         private agentResponseHandler: AgentResponseHandler | null,
         private messagesContainer: HTMLElement,
         private component?: Component
-    ) {}
-
-    /**
+    ) {}    /**
      * Continue task execution until finished parameter is true
      */
     async continueTaskUntilFinished(
@@ -23,18 +21,35 @@ export class TaskContinuation {
         initialResponseContent: string,
         currentContent: string,
         initialToolResults: Array<{ command: ToolCommand; result: ToolResult }>
-    ): Promise<string> {
+    ): Promise<{ content: string; limitReachedDuringContinuation: boolean; }> {
         let responseContent = currentContent;
         let maxIterations = 10; // Prevent infinite loops
         let iteration = 0;
+        let limitReachedDuringContinuation = false;
         
         // Check if any of the initial tool results indicate finished: true
         let isFinished = this.checkIfTaskFinished(initialToolResults);
         
-        while (!isFinished && iteration < maxIterations) {
+        // Check if tool limit is reached before starting continuation
+        if (this.agentResponseHandler?.isToolLimitReached()) {
+            console.log('TaskContinuation: Tool limit reached, stopping task continuation');
+            return { 
+                content: responseContent + '\n\n*[Tool execution limit reached - task continuation stopped]*',
+                limitReachedDuringContinuation: true 
+            };
+        }while (!isFinished && iteration < maxIterations) {
             iteration++;
             // Only log high-level iteration info here
             console.log(`TaskContinuation: Task continuation iteration ${iteration}`);
+              // Check if tool limit is reached before each iteration
+            if (this.agentResponseHandler?.isToolLimitReached()) {
+                console.log('TaskContinuation: Tool limit reached during iteration, need to show UI warning');
+                // Instead of just stopping, we need to trigger the UI warning
+                // Break out of the loop and let the caller handle the UI
+                responseContent += '\n\n*[Tool execution limit reached during continuation]*';
+                limitReachedDuringContinuation = true;
+                break;
+            }
             
             // Add tool results to context and continue conversation
             const toolResultMessage = this.agentResponseHandler?.createToolResultMessage(initialToolResults);
@@ -69,15 +84,14 @@ export class TaskContinuation {
                 isFinished = true;
             }
         }
-        
-        if (iteration >= maxIterations) {
+          if (iteration >= maxIterations) {
             console.warn('TaskContinuation: Task continuation reached maximum iterations');
             responseContent += '\n\n*[Task continuation reached maximum iterations - stopping to prevent infinite loop]*';
         }
         
         // Only log once at the end
         console.log(`TaskContinuation: Task continuation completed after ${iteration} iterations`);
-        return responseContent;
+        return { content: responseContent, limitReachedDuringContinuation };
     }
 
     /**
@@ -150,9 +164,7 @@ export class TaskContinuation {
             // Check if the command has finished: true parameter
             return (command as any).finished === true;
         });
-    }
-
-    /**
+    }    /**
      * Get continuation response after tool execution
      */
     private async getContinuationResponse(
@@ -160,6 +172,12 @@ export class TaskContinuation {
         container: HTMLElement
     ): Promise<string> {
         try {
+            // Check if tool limit is reached before making API call
+            if (this.agentResponseHandler?.isToolLimitReached()) {
+                console.log('TaskContinuation: Tool limit reached, skipping continuation API call');
+                return '*[Tool execution limit reached - no continuation response]*';
+            }
+            
             console.log('TaskContinuation: Getting continuation response after tool execution');
             
             // Import provider utilities

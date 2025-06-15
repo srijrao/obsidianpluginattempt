@@ -317,8 +317,6 @@ export interface MyPluginSettings {
 export interface UIBehaviorSettings {
     /** Always show reasoning in collapsed state for older messages */
     collapseOldReasoning?: boolean;
-    /** Show progress indicators during task execution */
-    showTaskProgress?: boolean;
     /** Show completion notifications */
     showCompletionNotifications?: boolean;
     /** Include reasoning in exports and copies */
@@ -420,7 +418,6 @@ export const DEFAULT_SETTINGS: MyPluginSettings = {
     },
     uiBehavior: {
         collapseOldReasoning: true,
-        showTaskProgress: true,
         showCompletionNotifications: true,
         includeReasoningInExports: true
     },

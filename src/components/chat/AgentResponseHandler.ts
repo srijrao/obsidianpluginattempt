@@ -17,6 +17,7 @@ export class AgentResponseHandler {
     private commandParser: CommandParser;
     private toolRegistry: ToolRegistry;
     private executionCount: number = 0;
+    private temporaryMaxToolCalls?: number; // Temporary increase for tool call limit
 
     constructor(private context: AgentContext) {
         this.commandParser = new CommandParser();
@@ -66,12 +67,11 @@ export class AgentResponseHandler {
                 toolResults: [],
                 hasTools: false
             };
-        }
-
-        // Check execution limits
+        }        // Check execution limits
         const agentSettings = this.context.plugin.getAgentModeSettings();
-        if (this.executionCount >= agentSettings.maxToolCalls) {
-            new Notice(`Agent mode: Maximum tool calls (${agentSettings.maxToolCalls}) reached`);
+        const effectiveLimit = this.getEffectiveToolLimit();
+        if (this.executionCount >= effectiveLimit) {
+            new Notice(`Agent mode: Maximum tool calls (${effectiveLimit}) reached`);
             return {
                 processedText: text + '\n\n*[Tool execution limit reached]*',
                 toolResults: [],
@@ -102,9 +102,9 @@ export class AgentResponseHandler {
                 // Notify context about tool result
                 this.context.onToolResult(result, command);
 
-                // Stop if we hit the limit
-                if (this.executionCount >= agentSettings.maxToolCalls) {
-                    console.log(`AgentResponseHandler: Reached maximum tool calls limit (${agentSettings.maxToolCalls})`);
+                // Stop if we hit the effective limit
+                if (this.executionCount >= effectiveLimit) {
+                    console.log(`AgentResponseHandler: Reached maximum tool calls limit (${effectiveLimit})`);
                     break;
                 }
             } catch (error: any) {
@@ -146,13 +146,13 @@ export class AgentResponseHandler {
                     reject(error);
                 });
         });
-    }
-
-    /**
+    }    /**
      * Reset execution count (call at start of new conversation)
      */
     resetExecutionCount() {
         this.executionCount = 0;
+        this.temporaryMaxToolCalls = undefined; // Also reset temporary limit
+        console.log('AgentResponseHandler: Execution count and temporary limits reset');
     }
 
     /**
@@ -160,17 +160,15 @@ export class AgentResponseHandler {
      */
     getAvailableTools() {
         return this.toolRegistry.getAvailableTools();
-    }
-
-    /**
+    }    /**
      * Get tool execution statistics
      */
     getExecutionStats() {
-        const agentSettings = this.context.plugin.getAgentModeSettings();
+        const effectiveLimit = this.getEffectiveToolLimit();
         return {
             executionCount: this.executionCount,
-            maxToolCalls: agentSettings.maxToolCalls,
-            remaining: Math.max(0, agentSettings.maxToolCalls - this.executionCount)
+            maxToolCalls: effectiveLimit,
+            remaining: Math.max(0, effectiveLimit - this.executionCount)
         };
     }
 
@@ -455,25 +453,21 @@ export class AgentResponseHandler {
             canContinue: status === 'limit_reached' || status === 'stopped',
             lastUpdateTime: new Date().toISOString()
         };
-    }
-
-    /**
+    }    /**
      * Check if tool execution limit has been reached
      */
     isToolLimitReached(): boolean {
-        const agentSettings = this.context.plugin.getAgentModeSettings();
-        return this.executionCount >= agentSettings.maxToolCalls;
+        const effectiveLimit = this.getEffectiveToolLimit();
+        return this.executionCount >= effectiveLimit;
     }
 
     /**
      * Get remaining tool executions
      */
     getRemainingToolExecutions(): number {
-        const agentSettings = this.context.plugin.getAgentModeSettings();
-        return Math.max(0, agentSettings.maxToolCalls - this.executionCount);
-    }
-
-    /**
+        const effectiveLimit = this.getEffectiveToolLimit();
+        return Math.max(0, effectiveLimit - this.executionCount);
+    }    /**
      * Create tool limit warning UI element
      */
     createToolLimitWarning(): HTMLElement {
@@ -481,16 +475,24 @@ export class AgentResponseHandler {
         warning.className = 'tool-limit-warning';
         
         const agentSettings = this.context.plugin.getAgentModeSettings();
+        const effectiveLimit = this.getEffectiveToolLimit();
         
         warning.innerHTML = `
             <div class="tool-limit-warning-text">
                 <strong>⚠️ Tool execution limit reached</strong><br>
-                Used ${this.executionCount}/${agentSettings.maxToolCalls} tool calls. 
-                You can increase the limit in settings or continue to resume the task.
+                Used ${this.executionCount}/${effectiveLimit} tool calls. 
+                Choose how to proceed:
             </div>
             <div class="tool-limit-warning-actions">
-                <span class="tool-limit-settings-link" onclick="this.openSettings()">Settings</span>
-                <button class="ai-chat-continue-button" onclick="this.continueTask()">Continue</button>
+                <div class="tool-limit-input-group">
+                    <label for="additional-tools">Add more executions:</label>
+                    <input type="number" id="additional-tools" min="1" max="50" value="${agentSettings.maxToolCalls}" placeholder="5">
+                    <button class="ai-chat-add-tools-button">Add & Continue</button>
+                </div>
+                <div class="tool-limit-button-group">
+                    <button class="ai-chat-continue-button">Reset & Continue</button>
+                    <span class="tool-limit-settings-link">Open Settings</span>
+                </div>
             </div>
         `;
 
@@ -501,6 +503,23 @@ export class AgentResponseHandler {
                 // Open plugin settings
                 (this.context.app as any).setting.open();
                 (this.context.app as any).setting.openTabById(this.context.plugin.manifest.id);
+            };
+        }
+
+        const addToolsButton = warning.querySelector('.ai-chat-add-tools-button') as HTMLElement;
+        if (addToolsButton) {
+            addToolsButton.onclick = () => {
+                const input = warning.querySelector('#additional-tools') as HTMLInputElement;
+                const additionalTools = parseInt(input.value) || agentSettings.maxToolCalls;
+                
+                if (additionalTools > 0) {
+                    this.addToolExecutions(additionalTools);
+                    warning.remove();
+                    // Trigger task continuation with additional tools
+                    this.context.messagesContainer.dispatchEvent(new CustomEvent('continueTaskWithAdditionalTools', {
+                        detail: { additionalTools }
+                    }));
+                }
             };
         }
 
@@ -566,44 +585,14 @@ export class AgentResponseHandler {
      * Update task progress in UI
      */
     updateTaskProgress(current: number, total?: number, description?: string): void {
-        // Find existing progress indicator or create new one
-        let progressEl = this.context.messagesContainer.querySelector('.ai-chat-task-progress') as HTMLElement;
-        
-        if (!progressEl) {
-            progressEl = document.createElement('div');
-            progressEl.className = 'ai-chat-task-progress';
-            
-            // Insert before the input container
-            const inputContainer = this.context.messagesContainer.parentElement?.querySelector('.ai-chat-input-container');
-            if (inputContainer) {
-                inputContainer.parentElement?.insertBefore(progressEl, inputContainer);
-            }
-        }
-
-        // Update progress content
-        let progressText = description || 'Processing...';
-        if (total) {
-            progressText = `${progressText} (${current}/${total})`;
-        }
-
-        progressEl.innerHTML = `
-            <div class="spinner"></div>
-            <span>${progressText}</span>
-        `;
-
-        progressEl.classList.add('active');
+        // Progress indicator removed
     }
 
     /**
      * Hide task progress indicator
      */
     hideTaskProgress(): void {
-        const progressEl = this.context.messagesContainer.querySelector('.ai-chat-task-progress') as HTMLElement;
-        if (progressEl) {
-            progressEl.classList.remove('active');
-            // Remove after animation
-            setTimeout(() => progressEl.remove(), 300);
-        }
+        // Progress indicator removed
     }
 
     /**
@@ -644,5 +633,23 @@ export class AgentResponseHandler {
             taskStatus,
             shouldShowLimitWarning
         };
+    }
+
+    /**
+     * Add additional tool executions to the current limit (temporary increase)
+     */
+    addToolExecutions(additionalCount: number) {
+        const agentSettings = this.context.plugin.getAgentModeSettings();
+        // Temporarily increase the limit for this session
+        this.temporaryMaxToolCalls = (this.temporaryMaxToolCalls || agentSettings.maxToolCalls) + additionalCount;
+        console.log(`AgentResponseHandler: Added ${additionalCount} tool executions. New limit: ${this.temporaryMaxToolCalls}`);
+    }
+
+    /**
+     * Get current effective tool limit (considering temporary increases)
+     */
+    private getEffectiveToolLimit(): number {
+        const agentSettings = this.context.plugin.getAgentModeSettings();
+        return this.temporaryMaxToolCalls || agentSettings.maxToolCalls;
     }
 }

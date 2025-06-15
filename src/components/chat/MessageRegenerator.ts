@@ -124,13 +124,13 @@ export class MessageRegenerator {
             if (error.name !== 'AbortError') {
                 new Notice(`Error: ${error.message}`);
                 assistantContainer.remove();
-            }
-        } finally {
+            }        } finally {
             if (textarea) {
                 textarea.disabled = false;
                 textarea.focus();
             }
             this.activeStream = null;
+            // Progress indicator removed
         }
     }
 }

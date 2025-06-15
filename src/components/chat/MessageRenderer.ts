@@ -149,33 +149,6 @@ export class MessageRenderer {
             </div>
         `;
 
-        // Add progress bar if available
-        if (taskStatus.progress) {
-            const progressContainer = document.createElement('div');
-            progressContainer.className = 'task-progress-container';
-            
-            if (taskStatus.progress.total) {
-                const progressBar = document.createElement('div');
-                progressBar.className = 'task-progress-bar';
-                const progressFill = document.createElement('div');
-                progressFill.className = 'task-progress-fill';
-                const progressPercent = (taskStatus.progress.current / taskStatus.progress.total) * 100;
-                progressFill.style.width = `${progressPercent}%`;
-                progressBar.appendChild(progressFill);
-                progressContainer.appendChild(progressBar);
-                
-                const progressText = document.createElement('div');
-                progressText.className = 'task-progress-text';
-                progressText.textContent = `${taskStatus.progress.current}/${taskStatus.progress.total}`;
-                if (taskStatus.progress.description) {
-                    progressText.textContent += ` - ${taskStatus.progress.description}`;
-                }
-                progressContainer.appendChild(progressText);
-            }
-            
-            statusContainer.appendChild(progressContainer);
-        }
-
         // Add tool execution count
         if (taskStatus.toolExecutionCount > 0) {
             const toolInfo = document.createElement('div');

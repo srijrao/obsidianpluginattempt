@@ -3901,7 +3901,6 @@ var init_types = __esm({
       },
       uiBehavior: {
         collapseOldReasoning: true,
-        showTaskProgress: true,
         showCompletionNotifications: true,
         includeReasoningInExports: true
       },
@@ -10195,28 +10194,6 @@ var MessageRenderer = class {
                 ${statusIcon} <strong>${statusText}</strong>
             </div>
         `;
-    if (taskStatus.progress) {
-      const progressContainer = document.createElement("div");
-      progressContainer.className = "task-progress-container";
-      if (taskStatus.progress.total) {
-        const progressBar = document.createElement("div");
-        progressBar.className = "task-progress-bar";
-        const progressFill = document.createElement("div");
-        progressFill.className = "task-progress-fill";
-        const progressPercent = taskStatus.progress.current / taskStatus.progress.total * 100;
-        progressFill.style.width = `${progressPercent}%`;
-        progressBar.appendChild(progressFill);
-        progressContainer.appendChild(progressBar);
-        const progressText = document.createElement("div");
-        progressText.className = "task-progress-text";
-        progressText.textContent = `${taskStatus.progress.current}/${taskStatus.progress.total}`;
-        if (taskStatus.progress.description) {
-          progressText.textContent += ` - ${taskStatus.progress.description}`;
-        }
-        progressContainer.appendChild(progressText);
-      }
-      statusContainer.appendChild(progressContainer);
-    }
     if (taskStatus.toolExecutionCount > 0) {
       const toolInfo = document.createElement("div");
       toolInfo.className = "task-tool-info";
@@ -10744,11 +10721,13 @@ var ToolRegistry = class {
 // src/components/chat/AgentResponseHandler.ts
 init_toolcollect();
 var AgentResponseHandler = class {
+  // Temporary increase for tool call limit
   constructor(context) {
     this.context = context;
     __publicField(this, "commandParser");
     __publicField(this, "toolRegistry");
     __publicField(this, "executionCount", 0);
+    __publicField(this, "temporaryMaxToolCalls");
     this.commandParser = new CommandParser();
     this.toolRegistry = new ToolRegistry();
     this.initializeTools();
@@ -10787,8 +10766,9 @@ var AgentResponseHandler = class {
       };
     }
     const agentSettings = this.context.plugin.getAgentModeSettings();
-    if (this.executionCount >= agentSettings.maxToolCalls) {
-      new import_obsidian19.Notice(`Agent mode: Maximum tool calls (${agentSettings.maxToolCalls}) reached`);
+    const effectiveLimit = this.getEffectiveToolLimit();
+    if (this.executionCount >= effectiveLimit) {
+      new import_obsidian19.Notice(`Agent mode: Maximum tool calls (${effectiveLimit}) reached`);
       return {
         processedText: text + "\n\n*[Tool execution limit reached]*",
         toolResults: [],
@@ -10810,8 +10790,8 @@ var AgentResponseHandler = class {
         toolResults.push({ command, result });
         this.executionCount++;
         this.context.onToolResult(result, command);
-        if (this.executionCount >= agentSettings.maxToolCalls) {
-          console.log(`AgentResponseHandler: Reached maximum tool calls limit (${agentSettings.maxToolCalls})`);
+        if (this.executionCount >= effectiveLimit) {
+          console.log(`AgentResponseHandler: Reached maximum tool calls limit (${effectiveLimit})`);
           break;
         }
       } catch (error) {
@@ -10849,10 +10829,12 @@ var AgentResponseHandler = class {
     });
   }
   /**
-   * Reset execution count (call at start of new conversation)
-   */
+  * Reset execution count (call at start of new conversation)
+  */
   resetExecutionCount() {
     this.executionCount = 0;
+    this.temporaryMaxToolCalls = void 0;
+    console.log("AgentResponseHandler: Execution count and temporary limits reset");
   }
   /**
    * Get available tools information
@@ -10861,14 +10843,14 @@ var AgentResponseHandler = class {
     return this.toolRegistry.getAvailableTools();
   }
   /**
-   * Get tool execution statistics
-   */
+  * Get tool execution statistics
+  */
   getExecutionStats() {
-    const agentSettings = this.context.plugin.getAgentModeSettings();
+    const effectiveLimit = this.getEffectiveToolLimit();
     return {
       executionCount: this.executionCount,
-      maxToolCalls: agentSettings.maxToolCalls,
-      remaining: Math.max(0, agentSettings.maxToolCalls - this.executionCount)
+      maxToolCalls: effectiveLimit,
+      remaining: Math.max(0, effectiveLimit - this.executionCount)
     };
   }
   /**
@@ -11141,35 +11123,43 @@ ${resultText}`;
     };
   }
   /**
-   * Check if tool execution limit has been reached
-   */
+  * Check if tool execution limit has been reached
+  */
   isToolLimitReached() {
-    const agentSettings = this.context.plugin.getAgentModeSettings();
-    return this.executionCount >= agentSettings.maxToolCalls;
+    const effectiveLimit = this.getEffectiveToolLimit();
+    return this.executionCount >= effectiveLimit;
   }
   /**
    * Get remaining tool executions
    */
   getRemainingToolExecutions() {
-    const agentSettings = this.context.plugin.getAgentModeSettings();
-    return Math.max(0, agentSettings.maxToolCalls - this.executionCount);
+    const effectiveLimit = this.getEffectiveToolLimit();
+    return Math.max(0, effectiveLimit - this.executionCount);
   }
   /**
-   * Create tool limit warning UI element
-   */
+  * Create tool limit warning UI element
+  */
   createToolLimitWarning() {
     const warning = document.createElement("div");
     warning.className = "tool-limit-warning";
     const agentSettings = this.context.plugin.getAgentModeSettings();
+    const effectiveLimit = this.getEffectiveToolLimit();
     warning.innerHTML = `
             <div class="tool-limit-warning-text">
                 <strong>\u26A0\uFE0F Tool execution limit reached</strong><br>
-                Used ${this.executionCount}/${agentSettings.maxToolCalls} tool calls. 
-                You can increase the limit in settings or continue to resume the task.
+                Used ${this.executionCount}/${effectiveLimit} tool calls. 
+                Choose how to proceed:
             </div>
             <div class="tool-limit-warning-actions">
-                <span class="tool-limit-settings-link" onclick="this.openSettings()">Settings</span>
-                <button class="ai-chat-continue-button" onclick="this.continueTask()">Continue</button>
+                <div class="tool-limit-input-group">
+                    <label for="additional-tools">Add more executions:</label>
+                    <input type="number" id="additional-tools" min="1" max="50" value="${agentSettings.maxToolCalls}" placeholder="5">
+                    <button class="ai-chat-add-tools-button">Add & Continue</button>
+                </div>
+                <div class="tool-limit-button-group">
+                    <button class="ai-chat-continue-button">Reset & Continue</button>
+                    <span class="tool-limit-settings-link">Open Settings</span>
+                </div>
             </div>
         `;
     const settingsLink = warning.querySelector(".tool-limit-settings-link");
@@ -11177,6 +11167,20 @@ ${resultText}`;
       settingsLink.onclick = () => {
         this.context.app.setting.open();
         this.context.app.setting.openTabById(this.context.plugin.manifest.id);
+      };
+    }
+    const addToolsButton = warning.querySelector(".ai-chat-add-tools-button");
+    if (addToolsButton) {
+      addToolsButton.onclick = () => {
+        const input = warning.querySelector("#additional-tools");
+        const additionalTools = parseInt(input.value) || agentSettings.maxToolCalls;
+        if (additionalTools > 0) {
+          this.addToolExecutions(additionalTools);
+          warning.remove();
+          this.context.messagesContainer.dispatchEvent(new CustomEvent("continueTaskWithAdditionalTools", {
+            detail: { additionalTools }
+          }));
+        }
       };
     }
     const continueButton = warning.querySelector(".ai-chat-continue-button");
@@ -11225,35 +11229,11 @@ ${resultText}`;
    * Update task progress in UI
    */
   updateTaskProgress(current, total, description) {
-    var _a2, _b;
-    let progressEl = this.context.messagesContainer.querySelector(".ai-chat-task-progress");
-    if (!progressEl) {
-      progressEl = document.createElement("div");
-      progressEl.className = "ai-chat-task-progress";
-      const inputContainer = (_a2 = this.context.messagesContainer.parentElement) == null ? void 0 : _a2.querySelector(".ai-chat-input-container");
-      if (inputContainer) {
-        (_b = inputContainer.parentElement) == null ? void 0 : _b.insertBefore(progressEl, inputContainer);
-      }
-    }
-    let progressText = description || "Processing...";
-    if (total) {
-      progressText = `${progressText} (${current}/${total})`;
-    }
-    progressEl.innerHTML = `
-            <div class="spinner"></div>
-            <span>${progressText}</span>
-        `;
-    progressEl.classList.add("active");
   }
   /**
    * Hide task progress indicator
    */
   hideTaskProgress() {
-    const progressEl = this.context.messagesContainer.querySelector(".ai-chat-task-progress");
-    if (progressEl) {
-      progressEl.classList.remove("active");
-      setTimeout(() => progressEl.remove(), 300);
-    }
   }
   /**
    * Enhanced tool result processing with UI integration
@@ -11277,6 +11257,21 @@ ${resultText}`;
       taskStatus,
       shouldShowLimitWarning
     };
+  }
+  /**
+   * Add additional tool executions to the current limit (temporary increase)
+   */
+  addToolExecutions(additionalCount) {
+    const agentSettings = this.context.plugin.getAgentModeSettings();
+    this.temporaryMaxToolCalls = (this.temporaryMaxToolCalls || agentSettings.maxToolCalls) + additionalCount;
+    console.log(`AgentResponseHandler: Added ${additionalCount} tool executions. New limit: ${this.temporaryMaxToolCalls}`);
+  }
+  /**
+   * Get current effective tool limit (considering temporary increases)
+   */
+  getEffectiveToolLimit() {
+    const agentSettings = this.context.plugin.getAgentModeSettings();
+    return this.temporaryMaxToolCalls || agentSettings.maxToolCalls;
   }
 };
 
@@ -11353,18 +11348,32 @@ var TaskContinuation = class {
     this.component = component;
   }
   /**
-   * Continue task execution until finished parameter is true
-   */
+  * Continue task execution until finished parameter is true
+  */
   async continueTaskUntilFinished(messages, container, initialResponseContent, currentContent, initialToolResults) {
-    var _a2;
+    var _a2, _b, _c;
     let responseContent = currentContent;
     let maxIterations = 10;
     let iteration = 0;
+    let limitReachedDuringContinuation = false;
     let isFinished = this.checkIfTaskFinished(initialToolResults);
+    if ((_a2 = this.agentResponseHandler) == null ? void 0 : _a2.isToolLimitReached()) {
+      console.log("TaskContinuation: Tool limit reached, stopping task continuation");
+      return {
+        content: responseContent + "\n\n*[Tool execution limit reached - task continuation stopped]*",
+        limitReachedDuringContinuation: true
+      };
+    }
     while (!isFinished && iteration < maxIterations) {
       iteration++;
       console.log(`TaskContinuation: Task continuation iteration ${iteration}`);
-      const toolResultMessage = (_a2 = this.agentResponseHandler) == null ? void 0 : _a2.createToolResultMessage(initialToolResults);
+      if ((_b = this.agentResponseHandler) == null ? void 0 : _b.isToolLimitReached()) {
+        console.log("TaskContinuation: Tool limit reached during iteration, need to show UI warning");
+        responseContent += "\n\n*[Tool execution limit reached during continuation]*";
+        limitReachedDuringContinuation = true;
+        break;
+      }
+      const toolResultMessage = (_c = this.agentResponseHandler) == null ? void 0 : _c.createToolResultMessage(initialToolResults);
       if (toolResultMessage) {
         messages.push({ role: "assistant", content: initialResponseContent });
         messages.push(toolResultMessage);
@@ -11395,7 +11404,7 @@ var TaskContinuation = class {
       responseContent += "\n\n*[Task continuation reached maximum iterations - stopping to prevent infinite loop]*";
     }
     console.log(`TaskContinuation: Task continuation completed after ${iteration} iterations`);
-    return responseContent;
+    return { content: responseContent, limitReachedDuringContinuation };
   }
   /**
    * Process continuation response and update UI
@@ -11449,10 +11458,15 @@ var TaskContinuation = class {
     });
   }
   /**
-   * Get continuation response after tool execution
-   */
+  * Get continuation response after tool execution
+  */
   async getContinuationResponse(messages, container) {
+    var _a2;
     try {
+      if ((_a2 = this.agentResponseHandler) == null ? void 0 : _a2.isToolLimitReached()) {
+        console.log("TaskContinuation: Tool limit reached, skipping continuation API call");
+        return "*[Tool execution limit reached - no continuation response]*";
+      }
       console.log("TaskContinuation: Getting continuation response after tool execution");
       const { createProvider: createProvider2, createProviderFromUnifiedModel: createProviderFromUnifiedModel2 } = await Promise.resolve().then(() => (init_providers(), providers_exports));
       const provider = this.plugin.settings.selectedModel ? createProviderFromUnifiedModel2(this.plugin.settings, this.plugin.settings.selectedModel) : createProvider2(this.plugin.settings);
@@ -11540,15 +11554,16 @@ var ResponseStreamer = class {
         throw error;
       }
       return "";
+    } finally {
+      if (this.agentResponseHandler) {
+        this.agentResponseHandler.hideTaskProgress();
+      }
     }
   }
   async processAgentResponse(responseContent, container, messages) {
     if (!this.agentResponseHandler) return responseContent;
-    this.agentResponseHandler.hideTaskProgress();
-    this.agentResponseHandler.updateTaskProgress(1, void 0, "Processing AI response...");
     try {
       const agentResult = await this.agentResponseHandler.processResponseWithUI(responseContent);
-      this.agentResponseHandler.hideTaskProgress();
       if (agentResult.hasTools) {
         return await this.handleToolExecution(
           agentResult,
@@ -11565,7 +11580,6 @@ var ResponseStreamer = class {
         );
       }
     } finally {
-      this.agentResponseHandler.hideTaskProgress();
     }
   }
   async handleToolExecution(agentResult, container, responseContent, messages) {
@@ -11609,12 +11623,28 @@ var ResponseStreamer = class {
     return responseContent;
   }
   async handleTaskCompletion(agentResult, finalContent, responseContent, messages, container) {
+    var _a2;
     if (agentResult.shouldShowLimitWarning) {
       const warning = this.agentResponseHandler.createToolLimitWarning();
       this.messagesContainer.appendChild(warning);
       this.messagesContainer.addEventListener("continueTask", () => {
         this.handleContinueTask(messages, container, responseContent, finalContent, agentResult.toolResults);
       });
+      this.messagesContainer.addEventListener("continueTaskWithAdditionalTools", (event) => {
+        this.handleContinueTaskWithAdditionalTools(
+          messages,
+          container,
+          responseContent,
+          finalContent,
+          agentResult.toolResults,
+          event.detail.additionalTools
+        );
+      });
+      this.agentResponseHandler.showTaskCompletionNotification(
+        "Tool execution limit reached. Choose how to continue above.",
+        "warning"
+      );
+      return finalContent;
     }
     if (agentResult.taskStatus.status === "completed") {
       this.agentResponseHandler.showTaskCompletionNotification(
@@ -11622,31 +11652,53 @@ var ResponseStreamer = class {
         "success"
       );
       return finalContent;
-    } else if (agentResult.taskStatus.status === "limit_reached") {
-      this.agentResponseHandler.showTaskCompletionNotification(
-        "Tool execution limit reached. You can continue the task or increase the limit in settings.",
-        "warning"
-      );
     }
-    if (!agentResult.shouldShowLimitWarning) {
+    if (!agentResult.shouldShowLimitWarning && !((_a2 = this.agentResponseHandler) == null ? void 0 : _a2.isToolLimitReached())) {
       const taskContinuation = new TaskContinuation(
         this.plugin,
         this.agentResponseHandler,
         this.messagesContainer,
         this.component
       );
-      return await taskContinuation.continueTaskUntilFinished(
+      const continuationResult = await taskContinuation.continueTaskUntilFinished(
         messages,
         container,
         responseContent,
         finalContent,
         agentResult.toolResults
       );
-    } else {
-      return finalContent;
+      if (continuationResult.limitReachedDuringContinuation) {
+        const warning = this.agentResponseHandler.createToolLimitWarning();
+        this.messagesContainer.appendChild(warning);
+        this.messagesContainer.addEventListener("continueTask", () => {
+          this.handleContinueTask(messages, container, responseContent, continuationResult.content, agentResult.toolResults);
+        });
+        this.messagesContainer.addEventListener("continueTaskWithAdditionalTools", (event) => {
+          this.handleContinueTaskWithAdditionalTools(
+            messages,
+            container,
+            responseContent,
+            continuationResult.content,
+            agentResult.toolResults,
+            event.detail.additionalTools
+          );
+        });
+        this.agentResponseHandler.showTaskCompletionNotification(
+          "Tool execution limit reached during task continuation. Choose how to continue above.",
+          "warning"
+        );
+        return continuationResult.content;
+      }
+      return continuationResult.content;
     }
+    return finalContent;
   }
   async handleReasoningContinuation(responseContent, messages, container) {
+    var _a2;
+    if ((_a2 = this.agentResponseHandler) == null ? void 0 : _a2.isToolLimitReached()) {
+      console.log("ResponseStreamer: Tool limit reached, skipping reasoning continuation API call");
+      return responseContent + "\n\n*[Tool execution limit reached - reasoning continuation stopped]*";
+    }
     messages.push({ role: "assistant", content: responseContent });
     messages.push({ role: "system", content: "Please continue with the actual task execution based on your reasoning." });
     const continuationContent = await this.getContinuationResponse(messages, container);
@@ -11670,10 +11722,15 @@ var ResponseStreamer = class {
     return responseContent;
   }
   /**
-   * Get continuation response after tool execution
-   */
+  * Get continuation response after tool execution
+  */
   async getContinuationResponse(messages, container) {
+    var _a2;
     try {
+      if ((_a2 = this.agentResponseHandler) == null ? void 0 : _a2.isToolLimitReached()) {
+        console.log("ResponseStreamer: Tool limit reached, skipping continuation API call");
+        return "*[Tool execution limit reached - no continuation response]*";
+      }
       console.log("ResponseStreamer: Getting continuation response after tool execution");
       const provider = this.plugin.settings.selectedModel ? createProviderFromUnifiedModel(this.plugin.settings, this.plugin.settings.selectedModel) : createProvider(this.plugin.settings);
       let continuationContent = "";
@@ -11699,24 +11756,61 @@ var ResponseStreamer = class {
     }
   }
   /**
-   * Handle continue task after tool limit reached
-   */
+  * Handle continue task after tool limit reached
+  */
   async handleContinueTask(messages, container, responseContent, finalContent, toolResults) {
     if (this.agentResponseHandler) {
       this.agentResponseHandler.resetExecutionCount();
+      console.log("ResponseStreamer: Execution count reset, continuing task after user request");
       const taskContinuation = new TaskContinuation(
         this.plugin,
         this.agentResponseHandler,
         this.messagesContainer,
         this.component
       );
-      const continuedContent = await taskContinuation.continueTaskUntilFinished(
+      const continuationResult = await taskContinuation.continueTaskUntilFinished(
         messages,
         container,
         responseContent,
         finalContent,
         toolResults
       );
+      const continuedContent = continuationResult.content;
+      container.dataset.rawContent = continuedContent;
+      const contentEl = container.querySelector(".message-content");
+      if (contentEl) {
+        contentEl.empty();
+        await import_obsidian21.MarkdownRenderer.render(
+          this.plugin.app,
+          continuedContent,
+          contentEl,
+          "",
+          this.component || null
+        );
+        this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+      }
+    }
+  }
+  /**
+   * Handle continue task with additional tool executions
+   */
+  async handleContinueTaskWithAdditionalTools(messages, container, responseContent, finalContent, toolResults, additionalTools) {
+    if (this.agentResponseHandler) {
+      console.log(`ResponseStreamer: Continuing task with ${additionalTools} additional tool executions`);
+      const taskContinuation = new TaskContinuation(
+        this.plugin,
+        this.agentResponseHandler,
+        this.messagesContainer,
+        this.component
+      );
+      const continuationResult = await taskContinuation.continueTaskUntilFinished(
+        messages,
+        container,
+        responseContent,
+        finalContent,
+        toolResults
+      );
+      const continuedContent = continuationResult.content;
       container.dataset.rawContent = continuedContent;
       const contentEl = container.querySelector(".message-content");
       if (contentEl) {
@@ -12019,9 +12113,6 @@ var ChatView = class extends import_obsidian23.ItemView {
         textarea.focus();
         stopButton.classList.add("hidden");
         sendButton.classList.remove("hidden");
-        if (this.agentResponseHandler) {
-          this.agentResponseHandler.hideTaskProgress();
-        }
       }
     });
     Promise.resolve().then(() => (init_inputHandler(), inputHandler_exports)).then(({ setupInputHandler: setupInputHandler2 }) => {

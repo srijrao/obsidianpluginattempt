@@ -222,14 +222,14 @@ export class ChatView extends ItemView {
                 if (error.name !== 'AbortError') {
                     new Notice(`Error: ${error.message}`);
                     await createMessageElement(this.app, 'assistant', `Error: ${error.message}`, this.chatHistoryManager, this.plugin, (el) => this.regenerateResponse(el), this);
-                }
-            } finally {
+                }            } finally {
                 // Re-enable input and hide stop button
                 textarea.disabled = false;
                 textarea.focus();
                 stopButton.classList.add('hidden');
                 sendButton.classList.remove('hidden');
                 this.activeStream = null;
+                // Progress indicator removed
             }
         };
 
@@ -244,9 +244,6 @@ export class ChatView extends ItemView {
                 stopButton.classList.add('hidden');
                 sendButton.classList.remove('hidden');
                 // Hide progress indicator if present
-                if (this.agentResponseHandler) {
-                    this.agentResponseHandler.hideTaskProgress();
-                }
             }
         });
 
