@@ -8,7 +8,8 @@ import {
 } from '../filediffhandler';
 
 export interface FileDiffParams {
-    filePath: string;
+    path: string;
+    filePath?: string; // Legacy support
     originalContent?: string;
     suggestedContent: string;
     action?: 'compare' | 'apply' | 'suggest';
@@ -17,9 +18,8 @@ export interface FileDiffParams {
 
 export class FileDiffTool implements Tool {
     name = 'file_diff';
-    description = 'Compare and suggest changes to files';
-    parameters = {
-        filePath: {
+    description = 'Compare and suggest changes to files';    parameters = {
+        path: {
             type: 'string',
             description: 'Path to the file to compare/modify (relative to vault root)',
             required: true
@@ -47,15 +47,16 @@ export class FileDiffTool implements Tool {
         }
     };
 
-    constructor(private app: App) {}
-
-    async execute(params: FileDiffParams, context: any): Promise<ToolResult> {
-        const { filePath, originalContent, suggestedContent, action = 'suggest', insertPosition } = params;
+    constructor(private app: App) {}    async execute(params: FileDiffParams, context: any): Promise<ToolResult> {
+        // Normalize parameter names for backward compatibility
+        const filePath = params.path || params.filePath;
+        
+        const { originalContent, suggestedContent, action = 'suggest', insertPosition } = params;
 
         if (!filePath) {
             return {
                 success: false,
-                error: 'filePath parameter is required'
+                error: 'path parameter is required'
             };
         }
 

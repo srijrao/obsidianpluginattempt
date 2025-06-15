@@ -2785,7 +2785,7 @@ var init_FileReadTool = __esm({
         __publicField(this, "name", "file_read");
         __publicField(this, "description", "Read file contents from the vault");
         __publicField(this, "parameters", {
-          filePath: {
+          path: {
             type: "string",
             description: "Path to the file to read (relative to vault root)",
             required: true
@@ -2799,11 +2799,12 @@ var init_FileReadTool = __esm({
       }
       async execute(params, context) {
         var _a2, _b, _c;
-        const { filePath, maxSize = 1024 * 1024 } = params;
+        const filePath = params.path || params.filePath;
+        const { maxSize = 1024 * 1024 } = params;
         if (!filePath) {
           return {
             success: false,
-            error: "filePath parameter is required"
+            error: "path parameter is required"
           };
         }
         try {
@@ -2854,7 +2855,7 @@ var init_FileWriteTool = __esm({
         __publicField(this, "name", "file_write");
         __publicField(this, "description", "Write/modify file contents in the vault");
         __publicField(this, "parameters", {
-          filePath: {
+          path: {
             type: "string",
             description: "Path to the file to write (relative to vault root)",
             required: true
@@ -2877,10 +2878,7 @@ var init_FileWriteTool = __esm({
         });
       }
       async execute(params, context) {
-        if (params.path && !params.filePath && !params.filename) {
-          params.filePath = params.path;
-        }
-        const filePath = params.filePath || params.filename;
+        const filePath = params.path || params.filePath || params.filename;
         const { content, createIfNotExists = true, backup = true } = params;
         if (!filePath) {
           return {
@@ -3043,7 +3041,7 @@ var init_FileDiffTool = __esm({
         __publicField(this, "name", "file_diff");
         __publicField(this, "description", "Compare and suggest changes to files");
         __publicField(this, "parameters", {
-          filePath: {
+          path: {
             type: "string",
             description: "Path to the file to compare/modify (relative to vault root)",
             required: true
@@ -3072,11 +3070,12 @@ var init_FileDiffTool = __esm({
         });
       }
       async execute(params, context) {
-        const { filePath, originalContent, suggestedContent, action = "suggest", insertPosition } = params;
+        const filePath = params.path || params.filePath;
+        const { originalContent, suggestedContent, action = "suggest", insertPosition } = params;
         if (!filePath) {
           return {
             success: false,
-            error: "filePath parameter is required"
+            error: "path parameter is required"
           };
         }
         if (!suggestedContent) {
@@ -3601,7 +3600,11 @@ var init_FileListTool = __esm({
         this.app = app;
       }
       async run(params) {
-        const { folderPath, recursive = false } = params;
+        const folderPath = params.path || params.folderPath;
+        const { recursive = false } = params;
+        if (!folderPath) {
+          throw new Error("path parameter is required");
+        }
         const vault = this.app.vault;
         const folder = vault.getAbstractFileByPath(folderPath);
         if (!folder || !(folder instanceof import_obsidian7.TFolder)) {
@@ -3624,7 +3627,7 @@ var init_FileListTool = __esm({
     __publicField(FileListTool, "toolName", "file_list");
     __publicField(FileListTool, "description", "List all files in a specified folder in the vault");
     __publicField(FileListTool, "parameters", {
-      folderPath: { type: "string", description: "Path to the folder (relative to vault root)", required: true },
+      path: { type: "string", description: "Path to the folder (relative to vault root)", required: true },
       recursive: { type: "boolean", description: "Whether to list files recursively", default: false }
     });
   }
@@ -3659,7 +3662,7 @@ function getToolMetadata() {
       name: "file_read",
       description: "Read file contents from the vault",
       parameters: {
-        filePath: { type: "string", description: "Path to the file to read (relative to vault root)", required: true },
+        path: { type: "string", description: "Path to the file to read (relative to vault root)", required: true },
         maxSize: { type: "number", description: "Maximum file size in bytes (default 1MB)", default: 1024 * 1024 }
       }
     },
@@ -3667,7 +3670,7 @@ function getToolMetadata() {
       name: "file_write",
       description: "Write or create files in the vault",
       parameters: {
-        filePath: { type: "string", description: "Path where to write the file (relative to vault root)", required: true },
+        path: { type: "string", description: "Path where to write the file (relative to vault root)", required: true },
         content: { type: "string", description: "Content to write to the file", required: true },
         createIfNotExists: { type: "boolean", description: "Whether to create the file if it does not exist", default: true },
         backup: { type: "boolean", description: "Whether to create a backup before modifying existing files", default: true }
@@ -3677,7 +3680,7 @@ function getToolMetadata() {
       name: "file_diff",
       description: "Compare and suggest changes to files",
       parameters: {
-        filePath: { type: "string", description: "Path to the file to compare/modify (relative to vault root)", required: true },
+        path: { type: "string", description: "Path to the file to compare/modify (relative to vault root)", required: true },
         originalContent: { type: "string", description: "Original content for comparison (if not provided, reads from file)", required: false },
         suggestedContent: { type: "string", description: "Suggested new content for the file", required: true },
         action: { type: "string", enum: ["compare", "apply", "suggest"], description: "Action to perform: compare files, apply changes, or show suggestion UI", required: false },
@@ -3712,7 +3715,7 @@ function getToolMetadata() {
       name: "file_list",
       description: "List all files in a specified folder in the vault",
       parameters: {
-        folderPath: { type: "string", description: "Path to the folder (relative to vault root)", required: true },
+        path: { type: "string", description: "Path to the folder (relative to vault root)", required: true },
         recursive: { type: "boolean", description: "Whether to list files recursively", default: false }
       }
     }
@@ -3772,22 +3775,29 @@ You are an AI assistant in an Obsidian Vault with access to powerful tools for f
 1. **Natural Response**: For questions, discussions, or when providing information that doesn't require file operations
 2. **Tool Usage**: For file creation, editing, searching, moving, or other vault operations
 
-When using tools, respond ONLY with a JSON object:
+When using tools, respond ONLY with a JSON object using these EXACT parameter names:
 {
   "action": "tool_name",
-  "parameters": { /* tool-specific parameters */ },
+  "parameters": { 
+    "path": "path/to/file.md",  // Use "path" for all file operations
+    /* other tool-specific parameters */
+  },
   "requestId": "unique_id",
   "finished": false
 }
 
-Set "finished": true ONLY when the entire request is fully completed.
+**IMPORTANT PARAMETER RULES:**
+- For file operations, ALWAYS use "path" (follows MCP standard)
+- Use relative paths from vault root (e.g., "MyNote.md" or "folder/MyNote.md")
+- Set "finished": true ONLY when the entire request is fully completed
 
 **Tool Usage Guidelines:**
 - Use tools when the user asks to create, edit, search, or manage files
 - Start with "thought" action for planning complex tasks
-- For file creation requests, use "file_write" tool
+- For file creation requests, use "file_write" tool with "path" and "content"
 - For searching files, use "file_search" tool
-- For reading files, use "file_read" tool
+- For reading files, use "file_read" tool with "path"
+- For listing folder contents, use "file_list" tool with "path"
 
 **Natural Response Guidelines:**
 - Answer questions directly without tools when no file operations are needed
@@ -3798,12 +3808,12 @@ Available tools:
 {{TOOL_DESCRIPTIONS}}
 
 Examples:
-- "Create a note about cats" \u2192 Use file_write tool
+- "Create a note about cats" \u2192 Use file_write with {"path": "cats.md", "content": "..."}
 - "What do you know about cats?" \u2192 Natural response
-- "Find my notes about projects" \u2192 Use file_search tool
-- "Tell me about Obsidian features" \u2192 Natural response
+- "Find my notes about projects" \u2192 Use file_search with {"query": "projects"}
+- "Read the meeting notes" \u2192 Use file_read with {"path": "meeting-notes.md"}
 
-Remember: Only use JSON format when performing file operations. Respond naturally for information requests.
+Remember: Only use JSON format when performing file operations. Use "path" parameter for all file paths.
 `;
     AGENT_SYSTEM_PROMPT = buildAgentSystemPrompt();
     DEFAULT_YAML_SYSTEM_MESSAGE = "You are an assistant that generates YAML attribute values for Obsidian notes. Read the note and generate a value for the specified YAML field. Only output the value, not the key or extra text.";

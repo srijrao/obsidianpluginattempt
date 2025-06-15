@@ -3,15 +3,15 @@ import { Tool, ToolResult } from '../ToolRegistry';
 import { readFile } from '../../FileChooserModal';
 
 export interface FileReadParams {
-    filePath: string;
+    path: string;
+    filePath?: string; // Legacy support
     maxSize?: number; // Maximum file size in bytes (default 1MB)
 }
 
 export class FileReadTool implements Tool {
     name = 'file_read';
-    description = 'Read file contents from the vault';
-    parameters = {
-        filePath: {
+    description = 'Read file contents from the vault';    parameters = {
+        path: {
             type: 'string',
             description: 'Path to the file to read (relative to vault root)',
             required: true
@@ -23,15 +23,16 @@ export class FileReadTool implements Tool {
         }
     };
 
-    constructor(private app: App) {}
-
-    async execute(params: FileReadParams, context: any): Promise<ToolResult> {
-        const { filePath, maxSize = 1024 * 1024 } = params;
+    constructor(private app: App) {}    async execute(params: FileReadParams, context: any): Promise<ToolResult> {
+        // Normalize parameter names for backward compatibility
+        const filePath = params.path || params.filePath;
+        
+        const { maxSize = 1024 * 1024 } = params;
 
         if (!filePath) {
             return {
                 success: false,
-                error: 'filePath parameter is required'
+                error: 'path parameter is required'
             };
         }
 

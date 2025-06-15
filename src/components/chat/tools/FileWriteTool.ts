@@ -3,7 +3,8 @@ import { Tool, ToolResult } from '../ToolRegistry';
 import { createFile, writeFile } from '../../FileChooserModal';
 
 export interface FileWriteParams {
-    filePath: string;
+    path: string;
+    filePath?: string; // Legacy support
     content: string;
     createIfNotExists?: boolean;
     backup?: boolean;
@@ -11,9 +12,8 @@ export interface FileWriteParams {
 
 export class FileWriteTool implements Tool {
     name = 'file_write';
-    description = 'Write/modify file contents in the vault';
-    parameters = {
-        filePath: {
+    description = 'Write/modify file contents in the vault';    parameters = {
+        path: {
             type: 'string',
             description: 'Path to the file to write (relative to vault root)',
             required: true
@@ -35,15 +35,9 @@ export class FileWriteTool implements Tool {
         }
     };
 
-    constructor(private app: App) {}
-
-    async execute(params: any, context: any): Promise<ToolResult> {
-        // Normalize parameter names for compatibility
-        if (params.path && !params.filePath && !params.filename) {
-            params.filePath = params.path;
-        }
-        // Handle both filePath and filename parameters for compatibility
-        const filePath = params.filePath || params.filename;
+    constructor(private app: App) {}    async execute(params: any, context: any): Promise<ToolResult> {
+        // Normalize parameter names for backward compatibility
+        const filePath = params.path || params.filePath || params.filename;
         const { content, createIfNotExists = true, backup = true } = params;
 
         if (!filePath) {

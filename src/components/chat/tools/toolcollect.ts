@@ -35,30 +35,27 @@ export function getToolMetadata(): Array<{name: string, description: string, par
                 filterType: { type: 'string', enum: ['markdown', 'image', 'all'], description: 'Type of files to show', default: 'markdown' },
                 maxResults: { type: 'number', description: 'Maximum number of results to return', default: 10 }
             }
-        },
-        {
+        },        {
             name: 'file_read',
             description: 'Read file contents from the vault',
             parameters: {
-                filePath: { type: 'string', description: 'Path to the file to read (relative to vault root)', required: true },
+                path: { type: 'string', description: 'Path to the file to read (relative to vault root)', required: true },
                 maxSize: { type: 'number', description: 'Maximum file size in bytes (default 1MB)', default: 1024 * 1024 }
             }
-        },
-        {
+        },        {
             name: 'file_write',
             description: 'Write or create files in the vault',
             parameters: {
-                filePath: { type: 'string', description: 'Path where to write the file (relative to vault root)', required: true },
+                path: { type: 'string', description: 'Path where to write the file (relative to vault root)', required: true },
                 content: { type: 'string', description: 'Content to write to the file', required: true },
                 createIfNotExists: { type: 'boolean', description: 'Whether to create the file if it does not exist', default: true },
                 backup: { type: 'boolean', description: 'Whether to create a backup before modifying existing files', default: true }
             }
-        },
-        {
+        },        {
             name: 'file_diff',
             description: 'Compare and suggest changes to files',
             parameters: {
-                filePath: { type: 'string', description: 'Path to the file to compare/modify (relative to vault root)', required: true },
+                path: { type: 'string', description: 'Path to the file to compare/modify (relative to vault root)', required: true },
                 originalContent: { type: 'string', description: 'Original content for comparison (if not provided, reads from file)', required: false },
                 suggestedContent: { type: 'string', description: 'Suggested new content for the file', required: true },
                 action: { type: 'string', enum: ['compare', 'apply', 'suggest'], description: 'Action to perform: compare files, apply changes, or show suggestion UI', required: false },
@@ -87,12 +84,11 @@ export function getToolMetadata(): Array<{name: string, description: string, par
                 enableStructuredReasoning: { type: 'boolean', description: 'Enable structured multi-step reasoning', required: false },
                 reasoningDepth: { type: 'string', enum: ['shallow', 'medium', 'deep'], description: 'Depth of reasoning: shallow, medium, or deep', required: false }
             }
-        },
-        {
+        },        {
             name: 'file_list',
             description: 'List all files in a specified folder in the vault',
             parameters: {
-                folderPath: { type: 'string', description: 'Path to the folder (relative to vault root)', required: true },
+                path: { type: 'string', description: 'Path to the folder (relative to vault root)', required: true },
                 recursive: { type: 'boolean', description: 'Whether to list files recursively', default: false }
             }
         }
