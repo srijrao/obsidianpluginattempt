@@ -1,3 +1,21 @@
+// TOOL DEVELOPMENT GUIDELINES FOR AI ASSISTANT PLUGIN
+// ----------------------------------------------------
+// To add a new tool for the agent system:
+// 1. Create a new file in this folder (e.g., FileExampleTool.ts).
+// 2. Implement the Tool interface from '../ToolRegistry':
+//    - name: string (unique tool name, e.g., 'file_example')
+//    - description: string (short summary for system prompt)
+//    - parameters: object (parameter schema for the tool)
+//    - execute(params, context): Promise<ToolResult> (main logic)
+// 3. Use only instance properties (not static) for name/description/parameters.
+// 4. Return ToolResult objects for all outcomes (no thrown errors).
+// 5. Import and add your tool to getAllToolClasses() below.
+// 6. Add tool metadata to getToolMetadata() for prompt generation.
+// 7. Test tool registration and agent access in the plugin UI.
+// 
+// See FileMoveTool.ts or FileWriteTool.ts for good examples.
+// ----------------------------------------------------
+
 // toolcollect.ts
 // Centralized static tool loader for all agent tool consumers
 import { FileSearchTool } from './FileSearchTool';
@@ -7,6 +25,7 @@ import { FileDiffTool } from './FileDiffTool';
 import { FileMoveTool } from './FileMoveTool';
 import { ThoughtTool } from './ThoughtTool';
 import { FileListTool } from './FileListTool';
+import { FileRenameTool } from './FileRenameTool';
 
 export function getAllToolClasses(): any[] {
     // Static list of all available tool classes
@@ -17,10 +36,18 @@ export function getAllToolClasses(): any[] {
         FileDiffTool,
         FileMoveTool,
         ThoughtTool,
-        FileListTool
+        FileListTool,
+        FileRenameTool
     ];
     
-    console.log('[AI Assistant] Loading agent tools:', toolClasses.map(tc => tc.name));
+    console.log('[AI Assistant] getAllToolClasses: Checking tool classes...');
+    toolClasses.forEach(tc => {
+        // tc.name here refers to the class's actual name (e.g., "FileSearchTool")
+        console.log(`[AI Assistant] Tool Class Name: ${tc.name}`); 
+    });
+    // The map tc => tc.name was for the console.log output, not for functionality.
+    // It was intended to show the class names, which is what tc.name provides.
+    console.log('[AI Assistant] Loading agent tools (class names):', toolClasses.map(tc => tc.name));
     return toolClasses;
 }
 
@@ -91,6 +118,14 @@ export function getToolMetadata(): Array<{name: string, description: string, par
                 path: { type: 'string', description: 'Path to the folder (relative to vault root)', required: true },
                 recursive: { type: 'boolean', description: 'Whether to list files recursively', default: false }
             }
+        },        {
+            name: 'file_rename',
+            description: 'Rename a file within the vault (does not move directories)',
+            parameters: {
+                path: { type: 'string', description: 'Current path to the file (relative to vault root)', required: true },
+                newName: { type: 'string', description: 'New name for the file (not a path, just the filename)', required: true },
+                overwrite: { type: 'boolean', description: 'Whether to overwrite if a file with the new name exists', default: false }
+            }
         }
     ];
 }
@@ -98,5 +133,11 @@ export function getToolMetadata(): Array<{name: string, description: string, par
 // Create tool instances with proper app context
 export function createToolInstances(app: any): any[] {
     const toolClasses = getAllToolClasses();
-    return toolClasses.map(ToolClass => new ToolClass(app));
+    console.log('[AI Assistant] createToolInstances: Instantiating tools...');
+    return toolClasses.map(ToolClass => {
+        const instance = new ToolClass(app);
+        // instance.name here refers to the 'file_search' style name property of the instance
+        console.log(`[AI Assistant] Instantiated Tool instance name: ${instance.name}, from Class: ${ToolClass.name}`);
+        return instance;
+    });
 }

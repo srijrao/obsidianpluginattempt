@@ -60,7 +60,7 @@ export class CommandParser {
         if (!command.parameters || typeof command.parameters !== 'object') {
             return false;
         }        // Check for valid action names
-        const validActions = ['file_search', 'file_read', 'file_write', 'file_diff', 'file_move', 'thought', 'file_list'];
+        const validActions = ['file_search', 'file_read', 'file_write', 'file_diff', 'file_move', 'thought', 'file_list', 'file_rename'];
         if (!validActions.includes(command.action)) {
             return false;
         }
