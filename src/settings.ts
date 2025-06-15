@@ -6,9 +6,7 @@ import { SettingsSections } from './components/chat/SettingsSections';
 import { CollapsibleSectionRenderer } from './components/chat/CollapsibleSection';
 import { DEFAULT_TITLE_PROMPT } from './promptConstants';
 import { DEFAULT_SETTINGS } from './types';
-import * as fs from 'fs';
-import * as path from 'path';
-import { getAllToolClasses, createToolInstances } from './components/chat/tools/toolcollect';
+import { createToolInstances } from './components/chat/tools/toolcollect'; // getAllToolClasses was unused
 import { getAllAvailableModels } from '../providers';
 
 /**
@@ -541,32 +539,66 @@ export class MyPluginSettingTab extends PluginSettingTab {
 
         containerEl.createEl('h2', { text: 'AI Assistant Settings' });
 
-        // API Keys Section
-        containerEl.createEl('h3', { text: 'API Keys' });
-        this.createTextSetting(containerEl, 'OpenAI API Key', 'Enter your OpenAI API key', 'Enter your API key',
-            () => this.plugin.settings.openaiSettings.apiKey,
-            async (value) => { this.plugin.settings.openaiSettings.apiKey = value ?? ''; await this.plugin.saveSettings(); });
-        this.createTextSetting(containerEl, 'OpenAI Base URL', 'Custom base URL for OpenAI API (optional, leave empty for default)', 'https://api.openai.com/v1',
-            () => this.plugin.settings.openaiSettings.baseUrl || '',
-            async (value) => { this.plugin.settings.openaiSettings.baseUrl = value; await this.plugin.saveSettings(); },
-            { trim: true, undefinedIfEmpty: true });
-        this.createTextSetting(containerEl, 'Anthropic API Key', 'Enter your Anthropic API key', 'Enter your API key',
-            () => this.plugin.settings.anthropicSettings.apiKey,
-            async (value) => { this.plugin.settings.anthropicSettings.apiKey = value ?? ''; await this.plugin.saveSettings(); });
-        this.createTextSetting(containerEl, 'Google API Key', 'Enter your Google API key', 'Enter your API key',
-            () => this.plugin.settings.geminiSettings.apiKey,
-            async (value) => { this.plugin.settings.geminiSettings.apiKey = value ?? ''; await this.plugin.saveSettings(); });
-        this.createTextSetting(containerEl, 'Ollama Server URL', 'Enter your Ollama server URL (default: http://localhost:11434)', 'http://localhost:11434',
-            () => this.plugin.settings.ollamaSettings.serverUrl,
-            async (value) => { this.plugin.settings.ollamaSettings.serverUrl = value ?? ''; await this.plugin.saveSettings(); });
+        // Note: You will need to add the following boolean keys to your MyPluginSettings interface in src/types.ts:
+        // apiKeysSectionExpanded: boolean;
+        // modelManagementSectionExpanded: boolean; // This can be a parent or use specific ones below
+        // availableModelsSectionExpanded: boolean; // Used by renderAvailableModelsSection
+        // modelPresetsSectionExpanded: boolean;
+        // defaultModelSettingsSectionExpanded: boolean;
+        // agentConfigSectionExpanded: boolean; // This can be a parent or use specific ones below
+        // agentModeSettingsSectionExpanded: boolean;
+        // agentToolsSectionExpanded: boolean;
+        // contentChatSettingsSectionExpanded: boolean;
+        // noteLinkHandlingSectionExpanded: boolean;
+        // yamlGeneratorsSectionExpanded: boolean;
+        // pluginBehaviorSectionExpanded: boolean;
 
-        // Available Models Section
-        this.renderAvailableModelsSection(containerEl);
 
-        // Unified AI Model Settings Section
+        // Section 1: API Keys & Providers
         CollapsibleSectionRenderer.createCollapsibleSection(
             containerEl,
-            'AI Model Settings',
+            'API Keys & Providers',
+            async (sectionEl: HTMLElement) => {
+                this.createTextSetting(sectionEl, 'OpenAI API Key', 'Enter your OpenAI API key', 'Enter your API key',
+                    () => this.plugin.settings.openaiSettings.apiKey,
+                    async (value) => { this.plugin.settings.openaiSettings.apiKey = value ?? ''; await this.plugin.saveSettings(); });
+                this.createTextSetting(sectionEl, 'OpenAI Base URL', 'Custom base URL for OpenAI API (optional, leave empty for default)', 'https://api.openai.com/v1',
+                    () => this.plugin.settings.openaiSettings.baseUrl || '',
+                    async (value) => { this.plugin.settings.openaiSettings.baseUrl = value; await this.plugin.saveSettings(); },
+                    { trim: true, undefinedIfEmpty: true });
+                this.createTextSetting(sectionEl, 'Anthropic API Key', 'Enter your Anthropic API key', 'Enter your API key',
+                    () => this.plugin.settings.anthropicSettings.apiKey,
+                    async (value) => { this.plugin.settings.anthropicSettings.apiKey = value ?? ''; await this.plugin.saveSettings(); });
+                this.createTextSetting(sectionEl, 'Google API Key', 'Enter your Google API key', 'Enter your API key',
+                    () => this.plugin.settings.geminiSettings.apiKey,
+                    async (value) => { this.plugin.settings.geminiSettings.apiKey = value ?? ''; await this.plugin.saveSettings(); });
+                this.createTextSetting(sectionEl, 'Ollama Server URL', 'Enter your Ollama server URL (default: http://localhost:11434)', 'http://localhost:11434',
+                    () => this.plugin.settings.ollamaSettings.serverUrl,
+                    async (value) => { this.plugin.settings.ollamaSettings.serverUrl = value ?? ''; await this.plugin.saveSettings(); });
+            },
+            this.plugin,
+            'generalSectionsExpanded'
+        );
+
+        // Section 2: Model Management
+        // This section will contain "Available Models" and "Model Setting Presets"
+        // "Available Models" is already collapsible via its own render method.
+        this.renderAvailableModelsSection(containerEl); // Ensure its sectionKey is unique
+
+        CollapsibleSectionRenderer.createCollapsibleSection(
+            containerEl,
+            'Model Setting Presets',
+            async (sectionEl: HTMLElement) => {
+                this.renderModelSettingPresets(sectionEl);
+            },
+            this.plugin,
+            'generalSectionsExpanded'
+        );
+
+        // Section 3: Core AI Settings (Default Model Settings)
+        CollapsibleSectionRenderer.createCollapsibleSection(
+            containerEl,
+            'Default AI Model Settings',
             async (sectionEl: HTMLElement) => {
                 await this.settingsSections.renderAIModelSettings(sectionEl, () => this.display());
             },
@@ -574,21 +606,138 @@ export class MyPluginSettingTab extends PluginSettingTab {
             'generalSectionsExpanded'
         );
 
-        this.createTextSetting(containerEl, 'Chat Separator', 'The string used to separate chat messages.', '----',
-            () => this.plugin.settings.chatSeparator ?? '',
-            async (value) => { this.plugin.settings.chatSeparator = value ?? ''; await this.plugin.saveSettings(); });
-        this.createTextSetting(containerEl, 'Chat Start String', 'The string that indicates where to start taking the note for context.', '===START===',
-            () => this.plugin.settings.chatStartString ?? '',
-            async (value) => { this.plugin.settings.chatStartString = value ?? ''; await this.plugin.saveSettings(); });
-        this.createTextSetting(containerEl, 'Chat End String', 'The string that indicates where to end taking the note for context.', '===END===',
-            () => this.plugin.settings.chatEndString ?? '',
-            async (value) => { this.plugin.settings.chatEndString = value ?? ''; await this.plugin.saveSettings(); });
-        this.createTextSetting(containerEl, 'Title Prompt', 'The prompt used for generating note titles.', 'You are a title generator...',
-            () => this.plugin.settings.titlePrompt,
-            async (value) => { this.plugin.settings.titlePrompt = value ?? ''; await this.plugin.saveSettings(); },
-            { isTextArea: true });
+        // Section 4: Agent Configuration
+        CollapsibleSectionRenderer.createCollapsibleSection(
+            containerEl,
+            'Agent Mode Settings',
+            async (sectionEl: HTMLElement) => {
+                sectionEl.createEl('div', {
+                    text: 'Agent Mode allows the AI to use tools like file creation, reading, and modification. Configure the limits and behavior for tool usage.',
+                    cls: 'setting-item-description',
+                    attr: { style: 'margin-bottom: 1em;' }
+                });
 
-        // Reset All Settings to Default
+                this.createToggleSetting(sectionEl, 'Enable Agent Mode by Default', 'Start new conversations with Agent Mode enabled.',
+                    () => this.plugin.settings.agentMode?.enabled ?? false,
+                    async (value) => {
+                        if (!this.plugin.settings.agentMode) {
+                            this.plugin.settings.agentMode = { enabled: false, maxToolCalls: 10, timeoutMs: 30000 };
+                        }
+                        this.plugin.settings.agentMode.enabled = value;
+                        await this.plugin.saveSettings();
+                    });
+
+                this.createSliderSetting(sectionEl, 'Max Tool Calls per Conversation', 'Maximum number of tools the AI can use in a single conversation to prevent runaway execution.',
+                    { min: 1, max: 50, step: 1 },
+                    () => this.plugin.settings.agentMode?.maxToolCalls ?? 10,
+                    async (value) => {
+                        if (!this.plugin.settings.agentMode) {
+                            this.plugin.settings.agentMode = { enabled: false, maxToolCalls: 10, timeoutMs: 30000 };
+                        }
+                        this.plugin.settings.agentMode.maxToolCalls = value;
+                        await this.plugin.saveSettings();
+                    });
+
+                this.createSliderSetting(sectionEl, 'Tool Execution Timeout (seconds)', 'Maximum time to wait for each tool to complete before timing out.',
+                    { min: 5, max: 300, step: 5 },
+                    () => (this.plugin.settings.agentMode?.timeoutMs ?? 30000) / 1000,
+                    async (value) => {
+                        if (!this.plugin.settings.agentMode) {
+                            this.plugin.settings.agentMode = { enabled: false, maxToolCalls: 10, timeoutMs: 30000 };
+                        }
+                        this.plugin.settings.agentMode.timeoutMs = value * 1000;
+                        await this.plugin.saveSettings();
+                    });
+            },
+            this.plugin,
+            'generalSectionsExpanded'
+        );
+
+        CollapsibleSectionRenderer.createCollapsibleSection(
+            containerEl,
+            'Agent Tools',
+            async (sectionEl: HTMLElement) => {
+                this.renderToolToggles(sectionEl);
+            },
+            this.plugin,
+            'generalSectionsExpanded'
+        );
+
+        // Section 5: Content & Chat Customization
+        CollapsibleSectionRenderer.createCollapsibleSection(
+            containerEl,
+            'Content & Chat Customization',
+            async (sectionEl: HTMLElement) => {
+                this.createTextSetting(sectionEl, 'Chat Separator', 'The string used to separate chat messages.', '----',
+                    () => this.plugin.settings.chatSeparator ?? '',
+                    async (value) => { this.plugin.settings.chatSeparator = value ?? ''; await this.plugin.saveSettings(); });
+                this.createTextSetting(sectionEl, 'Chat Start String', 'The string that indicates where to start taking the note for context.', '===START===',
+                    () => this.plugin.settings.chatStartString ?? '',
+                    async (value) => { this.plugin.settings.chatStartString = value ?? ''; await this.plugin.saveSettings(); });
+                this.createTextSetting(sectionEl, 'Chat End String', 'The string that indicates where to end taking the note for context.', '===END===',
+                    () => this.plugin.settings.chatEndString ?? '',
+                    async (value) => { this.plugin.settings.chatEndString = value ?? ''; await this.plugin.saveSettings(); });
+                this.createTextSetting(sectionEl, 'Title Prompt', 'The prompt used for generating note titles.', 'You are a title generator...',
+                    () => this.plugin.settings.titlePrompt,
+                    async (value) => { this.plugin.settings.titlePrompt = value ?? ''; await this.plugin.saveSettings(); },
+                    { isTextArea: true });
+                this.createDropdownSetting(sectionEl, 'Title Output Mode', 'Choose what to do with the generated note title.',
+                    { 'clipboard': 'Copy to clipboard', 'replace-filename': 'Replace note filename', 'metadata': 'Insert into metadata' },
+                    () => this.plugin.settings.titleOutputMode ?? 'clipboard',
+                    async (value) => { this.plugin.settings.titleOutputMode = value as any; await this.plugin.saveSettings(); });
+                this.createDropdownSetting(sectionEl, 'Summary Output Mode', 'Choose what to do with the generated note summary.',
+                    { 'clipboard': 'Copy to clipboard', 'metadata': 'Insert into metadata' },
+                    () => this.plugin.settings.summaryOutputMode ?? 'clipboard',
+                    async (value) => { this.plugin.settings.summaryOutputMode = value as any; await this.plugin.saveSettings(); });
+            },
+            this.plugin,
+            'generalSectionsExpanded'
+        );
+
+        // Section 6: Note & Data Handling
+        CollapsibleSectionRenderer.createCollapsibleSection(
+            containerEl,
+            'Note & Data Handling',
+            async (sectionEl: HTMLElement) => {
+                this.createToggleSetting(sectionEl, 'Expand Linked Notes Recursively', 'If enabled, when fetching a note, also fetch and expand links within that note recursively (prevents infinite loops).',
+                    () => this.plugin.settings.expandLinkedNotesRecursively ?? false,
+                    async (value) => { this.plugin.settings.expandLinkedNotesRecursively = value; await this.plugin.saveSettings(); this.display(); }, // Re-render to show/hide slider
+                    () => this.display());
+
+                if (this.plugin.settings.expandLinkedNotesRecursively) {
+                    this.createSliderSetting(sectionEl, 'Max Link Expansion Depth', 'Maximum depth for recursively expanding linked notes (1-3).',
+                        { min: 1, max: 3, step: 1 },
+                        () => this.plugin.settings.maxLinkExpansionDepth ?? 2,
+                        async (value) => { this.plugin.settings.maxLinkExpansionDepth = value; await this.plugin.saveSettings(); });
+                }
+
+                this.createTextSetting(sectionEl, 'Chat Note Folder', 'Folder to save exported chat notes (relative to vault root, leave blank for root)', 'e.g. AI Chats',
+                    () => this.plugin.settings.chatNoteFolder ?? '',
+                    async (value) => { this.plugin.settings.chatNoteFolder = value ?? ''; await this.plugin.saveSettings(); },
+                    { trim: true });
+
+                // YAML Attribute Generators will be a sub-section here conceptually, rendered by its own method
+                this.renderYamlAttributeGenerators(sectionEl); // This method creates its own h3, which is fine as a sub-header
+            },
+            this.plugin,
+            'generalSectionsExpanded'
+        );
+        
+        // Section 7: Plugin Behavior
+        CollapsibleSectionRenderer.createCollapsibleSection(
+            containerEl,
+            'Plugin Behavior',
+            async (sectionEl: HTMLElement) => {
+                this.createToggleSetting(sectionEl, 'Auto-Open Model Settings', 'Automatically open the AI model settings panel when the plugin loads.',
+                    () => this.plugin.settings.autoOpenModelSettings,
+                    async (value) => { this.plugin.settings.autoOpenModelSettings = value; await this.plugin.saveSettings(); });
+            },
+            this.plugin,
+            'generalSectionsExpanded'
+        );
+
+
+        // Reset All Settings to Default (remains at the bottom, not collapsible)
         new Setting(containerEl)
             .setName('Reset All Settings to Default')
             .setDesc('Reset all plugin settings (except API keys) to their original default values.')
@@ -624,89 +773,16 @@ export class MyPluginSettingTab extends PluginSettingTab {
                     new Notice('All settings (except API keys) reset to default.');
                 }));
 
-        this.createDropdownSetting(containerEl, 'Title Output Mode', 'Choose what to do with the generated note title.',
-            { 'clipboard': 'Copy to clipboard', 'replace-filename': 'Replace note filename', 'metadata': 'Insert into metadata' },
-            () => this.plugin.settings.titleOutputMode ?? 'clipboard',
-            async (value) => { this.plugin.settings.titleOutputMode = value as any; await this.plugin.saveSettings(); });
-
-        this.createDropdownSetting(containerEl, 'Summary Output Mode', 'Choose what to do with the generated note summary.',
-            { 'clipboard': 'Copy to clipboard', 'metadata': 'Insert into metadata' },
-            () => this.plugin.settings.summaryOutputMode ?? 'clipboard',
-            async (value) => { this.plugin.settings.summaryOutputMode = value as any; await this.plugin.saveSettings(); });
-
-        this.createToggleSetting(containerEl, 'Expand Linked Notes Recursively', 'If enabled, when fetching a note, also fetch and expand links within that note recursively (prevents infinite loops).',
-            () => this.plugin.settings.expandLinkedNotesRecursively ?? false,
-            async (value) => { this.plugin.settings.expandLinkedNotesRecursively = value; await this.plugin.saveSettings(); },
-            () => this.display()); // Re-render to show/hide the slider
-
-        if (this.plugin.settings.expandLinkedNotesRecursively) {
-            this.createSliderSetting(containerEl, 'Max Link Expansion Depth', 'Maximum depth for recursively expanding linked notes (1-3).',
-                { min: 1, max: 3, step: 1 },
-                () => this.plugin.settings.maxLinkExpansionDepth ?? 2,
-                async (value) => { this.plugin.settings.maxLinkExpansionDepth = value; await this.plugin.saveSettings(); });
-        }
-
-        this.createTextSetting(containerEl, 'Chat Note Folder', 'Folder to save exported chat notes (relative to vault root, leave blank for root)', 'e.g. AI Chats',
-            () => this.plugin.settings.chatNoteFolder ?? '',
-            async (value) => { this.plugin.settings.chatNoteFolder = value ?? ''; await this.plugin.saveSettings(); },
-            { trim: true });
-            
-        // Agent Mode Settings
-        CollapsibleSectionRenderer.createCollapsibleSection(
-            containerEl,
-            'Agent Mode Settings',
-            async (sectionEl: HTMLElement) => {
-                sectionEl.createEl('div', {
-                    text: 'Agent Mode allows the AI to use tools like file creation, reading, and modification. Configure the limits and behavior for tool usage.',
-                    cls: 'setting-item-description',
-                    attr: { style: 'margin-bottom: 1em;' }
-                });
-
-                this.createToggleSetting(sectionEl, 'Enable Agent Mode by Default', 'Start new conversations with Agent Mode enabled.',
-                    () => this.plugin.settings.agentMode?.enabled ?? false,
-                    async (value) => { 
-                        if (!this.plugin.settings.agentMode) {
-                            this.plugin.settings.agentMode = { enabled: false, maxToolCalls: 10, timeoutMs: 30000 };
-                        }
-                        this.plugin.settings.agentMode.enabled = value; 
-                        await this.plugin.saveSettings(); 
-                    });
-
-                this.createSliderSetting(sectionEl, 'Max Tool Calls per Conversation', 'Maximum number of tools the AI can use in a single conversation to prevent runaway execution.',
-                    { min: 1, max: 50, step: 1 },
-                    () => this.plugin.settings.agentMode?.maxToolCalls ?? 10,
-                    async (value) => { 
-                        if (!this.plugin.settings.agentMode) {
-                            this.plugin.settings.agentMode = { enabled: false, maxToolCalls: 10, timeoutMs: 30000 };
-                        }
-                        this.plugin.settings.agentMode.maxToolCalls = value; 
-                        await this.plugin.saveSettings(); 
-                    });
-
-                this.createSliderSetting(sectionEl, 'Tool Execution Timeout (seconds)', 'Maximum time to wait for each tool to complete before timing out.',
-                    { min: 5, max: 300, step: 5 },
-                    () => (this.plugin.settings.agentMode?.timeoutMs ?? 30000) / 1000,
-                    async (value) => { 
-                        if (!this.plugin.settings.agentMode) {
-                            this.plugin.settings.agentMode = { enabled: false, maxToolCalls: 10, timeoutMs: 30000 };
-                        }
-                        this.plugin.settings.agentMode.timeoutMs = value * 1000; 
-                        await this.plugin.saveSettings(); 
-                    });
-            },
-            this.plugin,
-            'generalSectionsExpanded'
-        );
-
-        // UI Behavior Settings
-        containerEl.createEl('h3', { text: 'UI Behavior' });
-        
-        this.createToggleSetting(containerEl, 'Auto-Open Model Settings', 'Automatically open the AI model settings panel when the plugin loads.',
-            () => this.plugin.settings.autoOpenModelSettings,
-            async (value) => { this.plugin.settings.autoOpenModelSettings = value; await this.plugin.saveSettings(); });
-
-        this.renderYamlAttributeGenerators(containerEl);
-        this.renderToolToggles(containerEl);
-        this.renderModelSettingPresets(containerEl);
+        // The following settings were previously at the end or mixed in.
+        // They are now grouped into the collapsible sections above.
+        // - Title Output Mode (moved to Content & Chat Customization)
+        // - Summary Output Mode (moved to Content & Chat Customization)
+        // - Expand Linked Notes Recursively & Max Depth (moved to Note & Data Handling)
+        // - Chat Note Folder (moved to Note & Data Handling)
+        // - Agent Mode Settings (now its own collapsible section under Agent Configuration)
+        // - Auto-Open Model Settings (moved to Plugin Behavior)
+        // - renderYamlAttributeGenerators (called within Note & Data Handling)
+        // - renderToolToggles (now its own collapsible section Agent Tools)
+        // - renderModelSettingPresets (now its own collapsible section Model Setting Presets)
     }
 }

@@ -3701,7 +3701,6 @@ var init_FileRenameTool = __esm({
               error: "Parent folder not found for file: " + path
             };
           }
-<<<<<<< HEAD
           const newPathFull = parent.path ? `${parent.path}/${finalNewName}` : finalNewName;
           if (!overwrite && vault.getAbstractFileByPath(newPathFull)) {
             return {
@@ -3713,19 +3712,6 @@ var init_FileRenameTool = __esm({
           return {
             success: true,
             data: { oldPath: path, newPath: newPathFull }
-=======
-          const newAbsolutePath = parent.isRoot() ? finalNewName : `${parent.path}/${finalNewName}`;
-          if (!overwrite && vault.getAbstractFileByPath(newAbsolutePath)) {
-            return {
-              success: false,
-              error: "A file with the new name already exists: " + newAbsolutePath
-            };
-          }
-          await vault.rename(file, newAbsolutePath);
-          return {
-            success: true,
-            data: { oldPath: path, newPath: newAbsolutePath }
->>>>>>> 52844ca7b8f5ecaf93cebedb3ee4ff145a04b817
           };
         } catch (error) {
           return {
@@ -10014,221 +10000,88 @@ var MyPluginSettingTab = class extends import_obsidian10.PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
     containerEl.createEl("h2", { text: "AI Assistant Settings" });
-    containerEl.createEl("h3", { text: "API Keys" });
-    this.createTextSetting(
+    CollapsibleSectionRenderer.createCollapsibleSection(
       containerEl,
-      "OpenAI API Key",
-      "Enter your OpenAI API key",
-      "Enter your API key",
-      () => this.plugin.settings.openaiSettings.apiKey,
-      async (value) => {
-        this.plugin.settings.openaiSettings.apiKey = value != null ? value : "";
-        await this.plugin.saveSettings();
-      }
-    );
-    this.createTextSetting(
-      containerEl,
-      "OpenAI Base URL",
-      "Custom base URL for OpenAI API (optional, leave empty for default)",
-      "https://api.openai.com/v1",
-      () => this.plugin.settings.openaiSettings.baseUrl || "",
-      async (value) => {
-        this.plugin.settings.openaiSettings.baseUrl = value;
-        await this.plugin.saveSettings();
+      "API Keys & Providers",
+      async (sectionEl) => {
+        this.createTextSetting(
+          sectionEl,
+          "OpenAI API Key",
+          "Enter your OpenAI API key",
+          "Enter your API key",
+          () => this.plugin.settings.openaiSettings.apiKey,
+          async (value) => {
+            this.plugin.settings.openaiSettings.apiKey = value != null ? value : "";
+            await this.plugin.saveSettings();
+          }
+        );
+        this.createTextSetting(
+          sectionEl,
+          "OpenAI Base URL",
+          "Custom base URL for OpenAI API (optional, leave empty for default)",
+          "https://api.openai.com/v1",
+          () => this.plugin.settings.openaiSettings.baseUrl || "",
+          async (value) => {
+            this.plugin.settings.openaiSettings.baseUrl = value;
+            await this.plugin.saveSettings();
+          },
+          { trim: true, undefinedIfEmpty: true }
+        );
+        this.createTextSetting(
+          sectionEl,
+          "Anthropic API Key",
+          "Enter your Anthropic API key",
+          "Enter your API key",
+          () => this.plugin.settings.anthropicSettings.apiKey,
+          async (value) => {
+            this.plugin.settings.anthropicSettings.apiKey = value != null ? value : "";
+            await this.plugin.saveSettings();
+          }
+        );
+        this.createTextSetting(
+          sectionEl,
+          "Google API Key",
+          "Enter your Google API key",
+          "Enter your API key",
+          () => this.plugin.settings.geminiSettings.apiKey,
+          async (value) => {
+            this.plugin.settings.geminiSettings.apiKey = value != null ? value : "";
+            await this.plugin.saveSettings();
+          }
+        );
+        this.createTextSetting(
+          sectionEl,
+          "Ollama Server URL",
+          "Enter your Ollama server URL (default: http://localhost:11434)",
+          "http://localhost:11434",
+          () => this.plugin.settings.ollamaSettings.serverUrl,
+          async (value) => {
+            this.plugin.settings.ollamaSettings.serverUrl = value != null ? value : "";
+            await this.plugin.saveSettings();
+          }
+        );
       },
-      { trim: true, undefinedIfEmpty: true }
-    );
-    this.createTextSetting(
-      containerEl,
-      "Anthropic API Key",
-      "Enter your Anthropic API key",
-      "Enter your API key",
-      () => this.plugin.settings.anthropicSettings.apiKey,
-      async (value) => {
-        this.plugin.settings.anthropicSettings.apiKey = value != null ? value : "";
-        await this.plugin.saveSettings();
-      }
-    );
-    this.createTextSetting(
-      containerEl,
-      "Google API Key",
-      "Enter your Google API key",
-      "Enter your API key",
-      () => this.plugin.settings.geminiSettings.apiKey,
-      async (value) => {
-        this.plugin.settings.geminiSettings.apiKey = value != null ? value : "";
-        await this.plugin.saveSettings();
-      }
-    );
-    this.createTextSetting(
-      containerEl,
-      "Ollama Server URL",
-      "Enter your Ollama server URL (default: http://localhost:11434)",
-      "http://localhost:11434",
-      () => this.plugin.settings.ollamaSettings.serverUrl,
-      async (value) => {
-        this.plugin.settings.ollamaSettings.serverUrl = value != null ? value : "";
-        await this.plugin.saveSettings();
-      }
+      this.plugin,
+      "generalSectionsExpanded"
     );
     this.renderAvailableModelsSection(containerEl);
     CollapsibleSectionRenderer.createCollapsibleSection(
       containerEl,
-      "AI Model Settings",
+      "Model Setting Presets",
+      async (sectionEl) => {
+        this.renderModelSettingPresets(sectionEl);
+      },
+      this.plugin,
+      "generalSectionsExpanded"
+    );
+    CollapsibleSectionRenderer.createCollapsibleSection(
+      containerEl,
+      "Default AI Model Settings",
       async (sectionEl) => {
         await this.settingsSections.renderAIModelSettings(sectionEl, () => this.display());
       },
       this.plugin,
       "generalSectionsExpanded"
-    );
-    this.createTextSetting(
-      containerEl,
-      "Chat Separator",
-      "The string used to separate chat messages.",
-      "----",
-      () => {
-        var _a2;
-        return (_a2 = this.plugin.settings.chatSeparator) != null ? _a2 : "";
-      },
-      async (value) => {
-        this.plugin.settings.chatSeparator = value != null ? value : "";
-        await this.plugin.saveSettings();
-      }
-    );
-    this.createTextSetting(
-      containerEl,
-      "Chat Start String",
-      "The string that indicates where to start taking the note for context.",
-      "===START===",
-      () => {
-        var _a2;
-        return (_a2 = this.plugin.settings.chatStartString) != null ? _a2 : "";
-      },
-      async (value) => {
-        this.plugin.settings.chatStartString = value != null ? value : "";
-        await this.plugin.saveSettings();
-      }
-    );
-    this.createTextSetting(
-      containerEl,
-      "Chat End String",
-      "The string that indicates where to end taking the note for context.",
-      "===END===",
-      () => {
-        var _a2;
-        return (_a2 = this.plugin.settings.chatEndString) != null ? _a2 : "";
-      },
-      async (value) => {
-        this.plugin.settings.chatEndString = value != null ? value : "";
-        await this.plugin.saveSettings();
-      }
-    );
-    this.createTextSetting(
-      containerEl,
-      "Title Prompt",
-      "The prompt used for generating note titles.",
-      "You are a title generator...",
-      () => this.plugin.settings.titlePrompt,
-      async (value) => {
-        this.plugin.settings.titlePrompt = value != null ? value : "";
-        await this.plugin.saveSettings();
-      },
-      { isTextArea: true }
-    );
-    new import_obsidian10.Setting(containerEl).setName("Reset All Settings to Default").setDesc("Reset all plugin settings (except API keys) to their original default values.").addButton((button) => button.setButtonText("Reset").onClick(async () => {
-      const { DEFAULT_SETTINGS: DEFAULT_SETTINGS2 } = await Promise.resolve().then(() => (init_types(), types_exports));
-      const { DEFAULT_TITLE_PROMPT: DEFAULT_TITLE_PROMPT2 } = await Promise.resolve().then(() => (init_promptConstants(), promptConstants_exports));
-      const preservedApiKeys = {
-        openai: this.plugin.settings.openaiSettings.apiKey,
-        anthropic: this.plugin.settings.anthropicSettings.apiKey,
-        gemini: this.plugin.settings.geminiSettings.apiKey
-      };
-      this.plugin.settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS2));
-      this.plugin.settings.openaiSettings.apiKey = preservedApiKeys.openai;
-      this.plugin.settings.anthropicSettings.apiKey = preservedApiKeys.anthropic;
-      this.plugin.settings.geminiSettings.apiKey = preservedApiKeys.gemini;
-      this.plugin.settings.titlePrompt = DEFAULT_TITLE_PROMPT2;
-      await this.plugin.saveSettings();
-      this.display();
-      if (typeof this.plugin.activateView === "function") {
-        setTimeout(() => {
-          this.plugin.activateView(VIEW_TYPE_MODEL_SETTINGS);
-        }, 100);
-      }
-      new import_obsidian10.Notice("All settings (except API keys) reset to default.");
-    }));
-    this.createDropdownSetting(
-      containerEl,
-      "Title Output Mode",
-      "Choose what to do with the generated note title.",
-      { "clipboard": "Copy to clipboard", "replace-filename": "Replace note filename", "metadata": "Insert into metadata" },
-      () => {
-        var _a2;
-        return (_a2 = this.plugin.settings.titleOutputMode) != null ? _a2 : "clipboard";
-      },
-      async (value) => {
-        this.plugin.settings.titleOutputMode = value;
-        await this.plugin.saveSettings();
-      }
-    );
-    this.createDropdownSetting(
-      containerEl,
-      "Summary Output Mode",
-      "Choose what to do with the generated note summary.",
-      { "clipboard": "Copy to clipboard", "metadata": "Insert into metadata" },
-      () => {
-        var _a2;
-        return (_a2 = this.plugin.settings.summaryOutputMode) != null ? _a2 : "clipboard";
-      },
-      async (value) => {
-        this.plugin.settings.summaryOutputMode = value;
-        await this.plugin.saveSettings();
-      }
-    );
-    this.createToggleSetting(
-      containerEl,
-      "Expand Linked Notes Recursively",
-      "If enabled, when fetching a note, also fetch and expand links within that note recursively (prevents infinite loops).",
-      () => {
-        var _a2;
-        return (_a2 = this.plugin.settings.expandLinkedNotesRecursively) != null ? _a2 : false;
-      },
-      async (value) => {
-        this.plugin.settings.expandLinkedNotesRecursively = value;
-        await this.plugin.saveSettings();
-      },
-      () => this.display()
-    );
-    if (this.plugin.settings.expandLinkedNotesRecursively) {
-      this.createSliderSetting(
-        containerEl,
-        "Max Link Expansion Depth",
-        "Maximum depth for recursively expanding linked notes (1-3).",
-        { min: 1, max: 3, step: 1 },
-        () => {
-          var _a2;
-          return (_a2 = this.plugin.settings.maxLinkExpansionDepth) != null ? _a2 : 2;
-        },
-        async (value) => {
-          this.plugin.settings.maxLinkExpansionDepth = value;
-          await this.plugin.saveSettings();
-        }
-      );
-    }
-    this.createTextSetting(
-      containerEl,
-      "Chat Note Folder",
-      "Folder to save exported chat notes (relative to vault root, leave blank for root)",
-      "e.g. AI Chats",
-      () => {
-        var _a2;
-        return (_a2 = this.plugin.settings.chatNoteFolder) != null ? _a2 : "";
-      },
-      async (value) => {
-        this.plugin.settings.chatNoteFolder = value != null ? value : "";
-        await this.plugin.saveSettings();
-      },
-      { trim: true }
     );
     CollapsibleSectionRenderer.createCollapsibleSection(
       containerEl,
@@ -10293,20 +10146,201 @@ var MyPluginSettingTab = class extends import_obsidian10.PluginSettingTab {
       this.plugin,
       "generalSectionsExpanded"
     );
-    containerEl.createEl("h3", { text: "UI Behavior" });
-    this.createToggleSetting(
+    CollapsibleSectionRenderer.createCollapsibleSection(
       containerEl,
-      "Auto-Open Model Settings",
-      "Automatically open the AI model settings panel when the plugin loads.",
-      () => this.plugin.settings.autoOpenModelSettings,
-      async (value) => {
-        this.plugin.settings.autoOpenModelSettings = value;
-        await this.plugin.saveSettings();
-      }
+      "Agent Tools",
+      async (sectionEl) => {
+        this.renderToolToggles(sectionEl);
+      },
+      this.plugin,
+      "generalSectionsExpanded"
     );
-    this.renderYamlAttributeGenerators(containerEl);
-    this.renderToolToggles(containerEl);
-    this.renderModelSettingPresets(containerEl);
+    CollapsibleSectionRenderer.createCollapsibleSection(
+      containerEl,
+      "Content & Chat Customization",
+      async (sectionEl) => {
+        this.createTextSetting(
+          sectionEl,
+          "Chat Separator",
+          "The string used to separate chat messages.",
+          "----",
+          () => {
+            var _a2;
+            return (_a2 = this.plugin.settings.chatSeparator) != null ? _a2 : "";
+          },
+          async (value) => {
+            this.plugin.settings.chatSeparator = value != null ? value : "";
+            await this.plugin.saveSettings();
+          }
+        );
+        this.createTextSetting(
+          sectionEl,
+          "Chat Start String",
+          "The string that indicates where to start taking the note for context.",
+          "===START===",
+          () => {
+            var _a2;
+            return (_a2 = this.plugin.settings.chatStartString) != null ? _a2 : "";
+          },
+          async (value) => {
+            this.plugin.settings.chatStartString = value != null ? value : "";
+            await this.plugin.saveSettings();
+          }
+        );
+        this.createTextSetting(
+          sectionEl,
+          "Chat End String",
+          "The string that indicates where to end taking the note for context.",
+          "===END===",
+          () => {
+            var _a2;
+            return (_a2 = this.plugin.settings.chatEndString) != null ? _a2 : "";
+          },
+          async (value) => {
+            this.plugin.settings.chatEndString = value != null ? value : "";
+            await this.plugin.saveSettings();
+          }
+        );
+        this.createTextSetting(
+          sectionEl,
+          "Title Prompt",
+          "The prompt used for generating note titles.",
+          "You are a title generator...",
+          () => this.plugin.settings.titlePrompt,
+          async (value) => {
+            this.plugin.settings.titlePrompt = value != null ? value : "";
+            await this.plugin.saveSettings();
+          },
+          { isTextArea: true }
+        );
+        this.createDropdownSetting(
+          sectionEl,
+          "Title Output Mode",
+          "Choose what to do with the generated note title.",
+          { "clipboard": "Copy to clipboard", "replace-filename": "Replace note filename", "metadata": "Insert into metadata" },
+          () => {
+            var _a2;
+            return (_a2 = this.plugin.settings.titleOutputMode) != null ? _a2 : "clipboard";
+          },
+          async (value) => {
+            this.plugin.settings.titleOutputMode = value;
+            await this.plugin.saveSettings();
+          }
+        );
+        this.createDropdownSetting(
+          sectionEl,
+          "Summary Output Mode",
+          "Choose what to do with the generated note summary.",
+          { "clipboard": "Copy to clipboard", "metadata": "Insert into metadata" },
+          () => {
+            var _a2;
+            return (_a2 = this.plugin.settings.summaryOutputMode) != null ? _a2 : "clipboard";
+          },
+          async (value) => {
+            this.plugin.settings.summaryOutputMode = value;
+            await this.plugin.saveSettings();
+          }
+        );
+      },
+      this.plugin,
+      "generalSectionsExpanded"
+    );
+    CollapsibleSectionRenderer.createCollapsibleSection(
+      containerEl,
+      "Note & Data Handling",
+      async (sectionEl) => {
+        this.createToggleSetting(
+          sectionEl,
+          "Expand Linked Notes Recursively",
+          "If enabled, when fetching a note, also fetch and expand links within that note recursively (prevents infinite loops).",
+          () => {
+            var _a2;
+            return (_a2 = this.plugin.settings.expandLinkedNotesRecursively) != null ? _a2 : false;
+          },
+          async (value) => {
+            this.plugin.settings.expandLinkedNotesRecursively = value;
+            await this.plugin.saveSettings();
+            this.display();
+          },
+          // Re-render to show/hide slider
+          () => this.display()
+        );
+        if (this.plugin.settings.expandLinkedNotesRecursively) {
+          this.createSliderSetting(
+            sectionEl,
+            "Max Link Expansion Depth",
+            "Maximum depth for recursively expanding linked notes (1-3).",
+            { min: 1, max: 3, step: 1 },
+            () => {
+              var _a2;
+              return (_a2 = this.plugin.settings.maxLinkExpansionDepth) != null ? _a2 : 2;
+            },
+            async (value) => {
+              this.plugin.settings.maxLinkExpansionDepth = value;
+              await this.plugin.saveSettings();
+            }
+          );
+        }
+        this.createTextSetting(
+          sectionEl,
+          "Chat Note Folder",
+          "Folder to save exported chat notes (relative to vault root, leave blank for root)",
+          "e.g. AI Chats",
+          () => {
+            var _a2;
+            return (_a2 = this.plugin.settings.chatNoteFolder) != null ? _a2 : "";
+          },
+          async (value) => {
+            this.plugin.settings.chatNoteFolder = value != null ? value : "";
+            await this.plugin.saveSettings();
+          },
+          { trim: true }
+        );
+        this.renderYamlAttributeGenerators(sectionEl);
+      },
+      this.plugin,
+      "generalSectionsExpanded"
+    );
+    CollapsibleSectionRenderer.createCollapsibleSection(
+      containerEl,
+      "Plugin Behavior",
+      async (sectionEl) => {
+        this.createToggleSetting(
+          sectionEl,
+          "Auto-Open Model Settings",
+          "Automatically open the AI model settings panel when the plugin loads.",
+          () => this.plugin.settings.autoOpenModelSettings,
+          async (value) => {
+            this.plugin.settings.autoOpenModelSettings = value;
+            await this.plugin.saveSettings();
+          }
+        );
+      },
+      this.plugin,
+      "generalSectionsExpanded"
+    );
+    new import_obsidian10.Setting(containerEl).setName("Reset All Settings to Default").setDesc("Reset all plugin settings (except API keys) to their original default values.").addButton((button) => button.setButtonText("Reset").onClick(async () => {
+      const { DEFAULT_SETTINGS: DEFAULT_SETTINGS2 } = await Promise.resolve().then(() => (init_types(), types_exports));
+      const { DEFAULT_TITLE_PROMPT: DEFAULT_TITLE_PROMPT2 } = await Promise.resolve().then(() => (init_promptConstants(), promptConstants_exports));
+      const preservedApiKeys = {
+        openai: this.plugin.settings.openaiSettings.apiKey,
+        anthropic: this.plugin.settings.anthropicSettings.apiKey,
+        gemini: this.plugin.settings.geminiSettings.apiKey
+      };
+      this.plugin.settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS2));
+      this.plugin.settings.openaiSettings.apiKey = preservedApiKeys.openai;
+      this.plugin.settings.anthropicSettings.apiKey = preservedApiKeys.anthropic;
+      this.plugin.settings.geminiSettings.apiKey = preservedApiKeys.gemini;
+      this.plugin.settings.titlePrompt = DEFAULT_TITLE_PROMPT2;
+      await this.plugin.saveSettings();
+      this.display();
+      if (typeof this.plugin.activateView === "function") {
+        setTimeout(() => {
+          this.plugin.activateView(VIEW_TYPE_MODEL_SETTINGS);
+        }, 100);
+      }
+      new import_obsidian10.Notice("All settings (except API keys) reset to default.");
+    }));
   }
 };
 
