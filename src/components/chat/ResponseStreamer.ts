@@ -5,8 +5,20 @@ import MyPlugin from '../../main';
 import { AgentResponseHandler } from './AgentResponseHandler';
 import { MessageRenderer } from './MessageRenderer';
 import { TaskContinuation } from './TaskContinuation';
+
+interface ContinuationParams {
+    messages: Message[];
+    container: HTMLElement;
+    responseContent: string;
+    finalContent: string;
+    toolResults: Array<{ command: ToolCommand; result: ToolResult }>;
+    additionalTools?: number;
+}
+
 /**
- * Handles streaming responses from AI providers and processing agent tasks
+ * Handles streaming responses from AI providers and processing agent tasks.
+ * Manages the complete lifecycle of AI responses including streaming, tool execution,
+ * and task continuation with tool limit management.
  */
 export class ResponseStreamer {
     private messageRenderer: MessageRenderer;
@@ -19,8 +31,10 @@ export class ResponseStreamer {
         private component?: Component
     ) {
         this.messageRenderer = new MessageRenderer(plugin.app);
-    }
-
+    }    /**
+     * Streams AI assistant response with optional agent processing.
+     * Handles agent mode integration, tool execution, and task continuation.
+     */
     async streamAssistantResponse(
         messages: Message[],
         container: HTMLElement,
@@ -30,52 +44,23 @@ export class ResponseStreamer {
         let responseContent = '';
         this.activeStream = new AbortController();
 
-        // Add agent system prompt if agent mode is enabled
-        if (this.plugin.isAgentModeEnabled()) {
-            // Import agent system prompt and prepend to system message
-            const { AGENT_SYSTEM_PROMPT } = await import('../../promptConstants');
-            const systemMessageIndex = messages.findIndex(msg => msg.role === 'system');
-            if (systemMessageIndex !== -1) {
-                messages[systemMessageIndex].content = AGENT_SYSTEM_PROMPT + '\n\n' + messages[systemMessageIndex].content;
-            }
-        }
+        await this.addAgentSystemPrompt(messages);
 
         try {
-            // Use unified model if available, fallback to legacy provider selection
-            const provider = this.plugin.settings.selectedModel 
-                ? createProviderFromUnifiedModel(this.plugin.settings, this.plugin.settings.selectedModel)
-                : createProvider(this.plugin.settings);
+            const provider = this.createProvider();
             
-            await provider.getCompletion(
-                messages,
-                {
-                    temperature: this.plugin.settings.temperature,
-                    maxTokens: this.plugin.settings.maxTokens,
-                    streamCallback: async (chunk: string) => {
-                        responseContent += chunk;
-                        const contentEl = container.querySelector('.message-content') as HTMLElement;
-                        if (contentEl) {
-                            container.dataset.rawContent = responseContent;
-                            contentEl.empty();
-                            await MarkdownRenderer.render(
-                                this.plugin.app,
-                                responseContent,
-                                contentEl,
-                                '',
-                                this.component || null as any
-                            );
-                            this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
-                        }
-                    },
-                    abortController: this.activeStream || undefined
-                }
-            );            // Process response for agent tools if agent mode is enabled
+            await provider.getCompletion(messages, {
+                temperature: this.plugin.settings.temperature,
+                maxTokens: this.plugin.settings.maxTokens,
+                streamCallback: async (chunk: string) => {
+                    responseContent += chunk;
+                    await this.updateMessageContent(container, responseContent);
+                },
+                abortController: this.activeStream || undefined
+            });
+
             if (this.plugin.isAgentModeEnabled() && this.agentResponseHandler) {
-                responseContent = await this.processAgentResponse(
-                    responseContent, 
-                    container, 
-                    messages
-                );
+                responseContent = await this.processAgentResponse(responseContent, container, messages);
             }
 
             return responseContent;
@@ -85,254 +70,341 @@ export class ResponseStreamer {
             }
             return '';
         } finally {
-            // Ensure progress indicator is always hidden, even on error/abort
-            if (this.agentResponseHandler) {
-                this.agentResponseHandler.hideTaskProgress();
-            }
+            this.agentResponseHandler?.hideTaskProgress();
         }
     }
 
+    /**
+     * Creates AI provider instance based on current settings
+     */
+    private createProvider() {
+        return this.plugin.settings.selectedModel 
+            ? createProviderFromUnifiedModel(this.plugin.settings, this.plugin.settings.selectedModel)
+            : createProvider(this.plugin.settings);
+    }    /**
+     * Adds agent system prompt to messages if agent mode is enabled
+     */
+    private async addAgentSystemPrompt(messages: Message[]): Promise<void> {
+        if (!this.plugin.isAgentModeEnabled()) return;
+
+        const { buildAgentSystemPrompt } = await import('../../promptConstants');
+        // Build dynamic prompt based on current plugin settings
+        const agentPrompt = buildAgentSystemPrompt(this.plugin.settings.enabledTools);
+        
+        console.log('ResponseStreamer: Agent mode enabled, adding system prompt');
+        console.log('ResponseStreamer: Enabled tools:', this.plugin.settings.enabledTools);
+        
+        const systemMessageIndex = messages.findIndex(msg => msg.role === 'system');
+        if (systemMessageIndex !== -1) {
+            const originalContent = messages[systemMessageIndex].content;
+            messages[systemMessageIndex].content = agentPrompt + '\n\n' + originalContent;
+            console.log('ResponseStreamer: Updated existing system message');
+        } else {
+            // If no system message exists, create one
+            messages.unshift({
+                role: 'system',
+                content: agentPrompt
+            });
+            console.log('ResponseStreamer: Created new system message');
+        }
+        
+        // Log first part of the final system prompt for debugging
+        const finalPrompt = messages.find(msg => msg.role === 'system')?.content || '';
+        console.log('ResponseStreamer: Final system prompt preview:', finalPrompt.substring(0, 200) + '...');
+    }
+
+    /**
+     * Updates message content in the UI with markdown rendering
+     */
+    private async updateMessageContent(container: HTMLElement, content: string): Promise<void> {
+        const contentEl = container.querySelector('.message-content') as HTMLElement;
+        if (!contentEl) return;
+
+        container.dataset.rawContent = content;
+        contentEl.empty();
+        await MarkdownRenderer.render(
+            this.plugin.app,
+            content,
+            contentEl,
+            '',
+            this.component || null as any
+        );
+        this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+    }    /**
+     * Processes agent response and handles tool execution or reasoning
+     */
     private async processAgentResponse(
         responseContent: string,
         container: HTMLElement,
         messages: Message[]
     ): Promise<string> {
-        if (!this.agentResponseHandler) return responseContent;
+        if (!this.agentResponseHandler) {
+            console.log('ResponseStreamer: No agent response handler available');
+            return responseContent;
+        }
 
-        // Progress indicator removed
-        
+        console.log('ResponseStreamer: Processing agent response');
+        console.log('ResponseStreamer: Response content preview:', responseContent.substring(0, 100) + '...');
+
         try {
-            // Use enhanced processing with UI integration
             const agentResult = await this.agentResponseHandler.processResponseWithUI(responseContent);
-            // Hide task progress after processing
             
-            if (agentResult.hasTools) {
-                return await this.handleToolExecution(
-                    agentResult, 
-                    container, 
-                    responseContent, 
-                    messages
-                );
-            } else {
-                return await this.handleNonToolResponse(
-                    agentResult, 
-                    container, 
-                    responseContent, 
-                    messages
-                );
-            }
-        } finally {
-            // Progress indicator removed
+            console.log('ResponseStreamer: Agent result hasTools:', agentResult.hasTools);
+            console.log('ResponseStreamer: Agent result reasoning:', !!agentResult.reasoning);
+            console.log('ResponseStreamer: Agent result taskStatus:', agentResult.taskStatus);
+            
+            return agentResult.hasTools 
+                ? await this.handleToolExecution(agentResult, container, responseContent, messages)
+                : await this.handleNonToolResponse(agentResult, container, responseContent, messages);
+        } catch (error) {
+            console.error('ResponseStreamer: Error processing agent response:', error);
+            return responseContent;
         }
     }
 
+    /**
+     * Handles responses that include tool execution
+     */
     private async handleToolExecution(
         agentResult: any,
         container: HTMLElement,
         responseContent: string,
         messages: Message[]
     ): Promise<string> {
-        // Update the display with processed text and tool execution results
         const finalContent = agentResult.processedText + 
             this.agentResponseHandler!.formatToolResultsForDisplay(agentResult.toolResults);
         
-        // Update container with enhanced message data
-        const enhancedMessageData: Message = {
-            role: 'assistant',
-            content: finalContent,
-            reasoning: agentResult.reasoning,
-            taskStatus: agentResult.taskStatus,
-            toolResults: agentResult.toolResults.map(({ command, result }: any) => ({
-                command,
-                result,
-                timestamp: new Date().toISOString()
-            }))
-        };
-        
-        // Store enhanced message data in container
-        container.dataset.messageData = JSON.stringify(enhancedMessageData);
-        container.dataset.rawContent = finalContent;
-        
-        // Update UI to show reasoning and task status
-        this.messageRenderer.updateMessageWithEnhancedData(container, enhancedMessageData);
-        
-        // Handle task completion or continuation
-        return this.handleTaskCompletion(
-            agentResult, 
+        const enhancedMessageData = this.createEnhancedMessageData(
             finalContent, 
-            responseContent, 
-            messages, 
-            container
+            agentResult, 
+            agentResult.toolResults
         );
+        
+        this.updateContainerWithMessageData(container, enhancedMessageData, finalContent);
+        
+        return this.handleTaskCompletion(agentResult, finalContent, responseContent, messages, container);
     }
 
+    /**
+     * Handles responses without tool execution but potentially with reasoning
+     */
     private async handleNonToolResponse(
         agentResult: any,
         container: HTMLElement,
         responseContent: string,
         messages: Message[]
     ): Promise<string> {
-        // No tools used, but may have reasoning
         if (agentResult.reasoning) {
-            const enhancedMessageData: Message = {
-                role: 'assistant',
-                content: responseContent,
-                reasoning: agentResult.reasoning,
-                taskStatus: agentResult.taskStatus
-            };
-            
-            container.dataset.messageData = JSON.stringify(enhancedMessageData);
-            this.messageRenderer.updateMessageWithEnhancedData(container, enhancedMessageData);
+            const enhancedMessageData = this.createEnhancedMessageData(responseContent, agentResult);
+            this.updateContainerWithMessageData(container, enhancedMessageData, responseContent);
         }
         
-        // Check if this was just a reasoning step and we need to continue
-        if (responseContent.includes('"action"') && responseContent.includes('"thought"')) {
+        if (this.isReasoningStep(responseContent)) {
             return await this.handleReasoningContinuation(responseContent, messages, container);
         }
 
         return responseContent;
     }
 
+    /**
+     * Creates enhanced message data structure
+     */
+    private createEnhancedMessageData(
+        content: string, 
+        agentResult: any, 
+        toolResults?: any[]
+    ): Message {
+        const messageData: Message = {
+            role: 'assistant',
+            content,
+            reasoning: agentResult.reasoning,
+            taskStatus: agentResult.taskStatus
+        };
+
+        if (toolResults) {
+            messageData.toolResults = toolResults.map(({ command, result }: any) => ({
+                command,
+                result,
+                timestamp: new Date().toISOString()
+            }));
+        }
+
+        return messageData;
+    }
+
+    /**
+     * Updates container with enhanced message data
+     */
+    private updateContainerWithMessageData(
+        container: HTMLElement, 
+        messageData: Message, 
+        rawContent: string
+    ): void {
+        container.dataset.messageData = JSON.stringify(messageData);
+        container.dataset.rawContent = rawContent;
+        this.messageRenderer.updateMessageWithEnhancedData(container, messageData);
+    }
+
+    /**
+     * Checks if response content indicates a reasoning step
+     */
+    private isReasoningStep(responseContent: string): boolean {
+        return responseContent.includes('"action"') && responseContent.includes('"thought"');
+    }    /**
+     * Handles task completion, continuation, and tool limit management
+     */
     private async handleTaskCompletion(
         agentResult: any,
         finalContent: string,
         responseContent: string,
         messages: Message[],
         container: HTMLElement
-    ): Promise<string> {        // Show tool limit warning if needed
+    ): Promise<string> {
         if (agentResult.shouldShowLimitWarning) {
-            const warning = this.agentResponseHandler!.createToolLimitWarning();
-            this.messagesContainer.appendChild(warning);
-            
-            // Add continue task event listener for reset & continue
-            this.messagesContainer.addEventListener('continueTask', () => {
-                this.handleContinueTask(messages, container, responseContent, finalContent, agentResult.toolResults);
-            });
-            
-            // Add continue task event listener for add tools & continue
-            this.messagesContainer.addEventListener('continueTaskWithAdditionalTools', (event: CustomEvent) => {
-                this.handleContinueTaskWithAdditionalTools(
-                    messages, 
-                    container, 
-                    responseContent, 
-                    finalContent, 
-                    agentResult.toolResults,
-                    event.detail.additionalTools
-                );
-            });
-            
-            // Show notification and return current content (wait for user action)
-            this.agentResponseHandler!.showTaskCompletionNotification(
-                'Tool execution limit reached. Choose how to continue above.',
-                'warning'
-            );
-            return finalContent; // Stop here and wait for user interaction
+            return this.handleToolLimitReached(messages, container, responseContent, finalContent, agentResult.toolResults);
         }
         
-        // Show completion notification if task completed
         if (agentResult.taskStatus.status === 'completed') {
-            this.agentResponseHandler!.showTaskCompletionNotification(
+            this.showTaskCompletionNotification(
                 `Task completed successfully! Used ${agentResult.taskStatus.toolExecutionCount} tools.`,
                 'success'
             );
             return finalContent;
-        }        // Continue task execution until finished (only if limit not reached and no warning shown)
-        if (!agentResult.shouldShowLimitWarning && !this.agentResponseHandler?.isToolLimitReached()) {
-            // Use task continuation logic
-            const taskContinuation = new TaskContinuation(
-                this.plugin,
-                this.agentResponseHandler,
-                this.messagesContainer,
-                this.component
+        }
+
+        return await this.continueTaskIfPossible(
+            agentResult, messages, container, responseContent, finalContent
+        );
+    }
+
+    /**
+     * Handles tool limit reached scenario
+     */
+    private handleToolLimitReached(
+        messages: Message[],
+        container: HTMLElement,
+        responseContent: string,
+        finalContent: string,
+        toolResults: any[]
+    ): string {
+        const warning = this.agentResponseHandler!.createToolLimitWarning();
+        this.messagesContainer.appendChild(warning);
+        
+        this.setupContinuationEventListeners(messages, container, responseContent, finalContent, toolResults);
+        
+        this.showTaskCompletionNotification(
+            'Tool execution limit reached. Choose how to continue above.',
+            'warning'
+        );
+        
+        return finalContent;
+    }
+
+    /**
+     * Sets up event listeners for task continuation
+     */
+    private setupContinuationEventListeners(
+        messages: Message[],
+        container: HTMLElement,
+        responseContent: string,
+        finalContent: string,
+        toolResults: any[]
+    ): void {
+        const continuationParams: ContinuationParams = {
+            messages, container, responseContent, finalContent, toolResults
+        };
+
+        this.messagesContainer.addEventListener('continueTask', () => {
+            this.executeContinuation(continuationParams);
+        });
+        
+        this.messagesContainer.addEventListener('continueTaskWithAdditionalTools', (event: CustomEvent) => {
+            this.executeContinuation({
+                ...continuationParams,
+                additionalTools: event.detail.additionalTools
+            });
+        });
+    }
+
+    /**
+     * Continues task if no limits are reached
+     */
+    private async continueTaskIfPossible(
+        agentResult: any,
+        messages: Message[],
+        container: HTMLElement,
+        responseContent: string,
+        finalContent: string
+    ): Promise<string> {
+        if (agentResult.shouldShowLimitWarning || this.agentResponseHandler?.isToolLimitReached()) {
+            return finalContent;
+        }
+
+        const taskContinuation = this.createTaskContinuation();
+        const continuationResult = await taskContinuation.continueTaskUntilFinished(
+            messages, container, responseContent, finalContent, agentResult.toolResults
+        );
+        
+        if (continuationResult.limitReachedDuringContinuation) {
+            this.handleToolLimitReached(
+                messages, container, responseContent, 
+                continuationResult.content, agentResult.toolResults
             );
-            
-            const continuationResult = await taskContinuation.continueTaskUntilFinished(
-                messages, 
-                container, 
-                responseContent, 
-                finalContent, 
-                agentResult.toolResults
-            );
-            
-            // Check if limit was reached during continuation
-            if (continuationResult.limitReachedDuringContinuation) {
-                // Show the tool limit warning UI
-                const warning = this.agentResponseHandler!.createToolLimitWarning();
-                this.messagesContainer.appendChild(warning);
-                
-                // Add continue task event listeners
-                this.messagesContainer.addEventListener('continueTask', () => {
-                    this.handleContinueTask(messages, container, responseContent, continuationResult.content, agentResult.toolResults);
-                });
-                
-                this.messagesContainer.addEventListener('continueTaskWithAdditionalTools', (event: CustomEvent) => {
-                    this.handleContinueTaskWithAdditionalTools(
-                        messages, 
-                        container, 
-                        responseContent, 
-                        continuationResult.content, 
-                        agentResult.toolResults,
-                        event.detail.additionalTools
-                    );
-                });
-                
-                // Show notification
-                this.agentResponseHandler!.showTaskCompletionNotification(
-                    'Tool execution limit reached during task continuation. Choose how to continue above.',
-                    'warning'
-                );
-                
-                return continuationResult.content;
-            }
-            
-            return continuationResult.content;
         }
         
-        // If we reach here, either the task is completed or limit was reached
-        return finalContent;
-    }    private async handleReasoningContinuation(
+        return continuationResult.content;
+    }
+
+    /**
+     * Creates TaskContinuation instance
+     */
+    private createTaskContinuation(): TaskContinuation {
+        return new TaskContinuation(
+            this.plugin,
+            this.agentResponseHandler,
+            this.messagesContainer,
+            this.component
+        );
+    }
+
+    /**
+     * Shows task completion notification
+     */
+    private showTaskCompletionNotification(message: string, type: 'success' | 'warning'): void {
+        this.agentResponseHandler!.showTaskCompletionNotification(message, type);
+    }    /**
+     * Handles reasoning continuation when AI response contains reasoning steps
+     */
+    private async handleReasoningContinuation(
         responseContent: string,
         messages: Message[],
         container: HTMLElement
     ): Promise<string> {
-        // Check if tool limit is reached before making continuation API call
         if (this.agentResponseHandler?.isToolLimitReached()) {
-            console.log('ResponseStreamer: Tool limit reached, skipping reasoning continuation API call');
+            console.log('ResponseStreamer: Tool limit reached, skipping reasoning continuation');
             return responseContent + '\n\n*[Tool execution limit reached - reasoning continuation stopped]*';
         }
         
-        // This looks like a tool command that wasn't properly formatted, continue anyway
-        messages.push({ role: 'assistant', content: responseContent });
-        messages.push({ role: 'system', content: 'Please continue with the actual task execution based on your reasoning.' });
+        messages.push(
+            { role: 'assistant', content: responseContent },
+            { role: 'system', content: 'Please continue with the actual task execution based on your reasoning.' }
+        );
         
         const continuationContent = await this.getContinuationResponse(messages, container);
         if (continuationContent.trim()) {
             const updatedContent = responseContent + '\n\n' + continuationContent;
             container.dataset.rawContent = updatedContent;
-            const contentEl = container.querySelector('.message-content') as HTMLElement;
-            if (contentEl) {
-                contentEl.empty();
-                            await MarkdownRenderer.render(
-                                this.plugin.app,
-                                updatedContent,
-                                contentEl,
-                                '',
-                                this.component || null as any
-                            );
-                this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
-            }
+            await this.updateMessageContent(container, updatedContent);
             return updatedContent;
         }
         return responseContent;
-    }    /**
-     * Get continuation response after tool execution
+    }
+
+    /**
+     * Gets continuation response after tool execution with error handling
      */
-    async getContinuationResponse(
-        messages: Message[],
-        container: HTMLElement
-    ): Promise<string> {
+    async getContinuationResponse(messages: Message[], container: HTMLElement): Promise<string> {
         try {
-            // Check if tool limit is reached before making API call
             if (this.agentResponseHandler?.isToolLimitReached()) {
                 console.log('ResponseStreamer: Tool limit reached, skipping continuation API call');
                 return '*[Tool execution limit reached - no continuation response]*';
@@ -340,212 +412,108 @@ export class ResponseStreamer {
             
             console.log('ResponseStreamer: Getting continuation response after tool execution');
             
-            // Use the same provider setup as the main response
-            const provider = this.plugin.settings.selectedModel 
-                ? createProviderFromUnifiedModel(this.plugin.settings, this.plugin.settings.selectedModel)
-                : createProvider(this.plugin.settings);
-
+            const provider = this.createProvider();
             let continuationContent = '';
             
-            await provider.getCompletion(
-                messages,
-                {
-                    temperature: this.plugin.settings.temperature,
-                    maxTokens: this.plugin.settings.maxTokens,
-                    streamCallback: async (chunk: string) => {
-                        continuationContent += chunk;
-                        // Don't update the UI during continuation streaming
-                        // The caller will handle the final update
-                    },
-                    abortController: this.activeStream || undefined
-                }
-            );
+            await provider.getCompletion(messages, {
+                temperature: this.plugin.settings.temperature,
+                maxTokens: this.plugin.settings.maxTokens,
+                streamCallback: async (chunk: string) => {
+                    continuationContent += chunk;
+                },
+                abortController: this.activeStream || undefined
+            });
 
             console.log('ResponseStreamer: Continuation response received:', continuationContent.length, 'characters');
             return continuationContent;
         } catch (error) {
             console.error('ResponseStreamer: Error getting continuation response:', error);
-            if (error.name !== 'AbortError') {
-                // Return a fallback message instead of throwing
-                return `*[Error getting continuation: ${error.message}]*`;
-            }
-            return '';
-        }
-    }    /**
-     * Handle continue task after tool limit reached
-     */
-    private async handleContinueTask(
-        messages: Message[], 
-        container: HTMLElement, 
-        responseContent: string, 
-        finalContent: string, 
-        toolResults: Array<{ command: ToolCommand; result: ToolResult }>
-    ): Promise<void> {        
-        // Reset execution count and continue task
-        if (this.agentResponseHandler) {
-            // Only reset and continue if user explicitly requested it
-            this.agentResponseHandler.resetExecutionCount();
-            console.log('ResponseStreamer: Execution count reset, continuing task after user request');
-            
-            // Create a new system message to indicate continuation
-            const continueMessage: Message = {
-                role: 'system',
-                content: 'Tool execution limit was reset. Continuing with the task...'
-            };
-            
-            // Add continuation message to chat log
-            const { BotMessage } = await import('./BotMessage');
-            const continuationNotice = new BotMessage(this.plugin.app, this.plugin, continueMessage.content);
-            continuationNotice.getElement().style.opacity = '0.8';
-            continuationNotice.getElement().style.fontStyle = 'italic';
-            this.messagesContainer.appendChild(continuationNotice.getElement());
-            
-            // Update messages array for context
-            messages.push({ role: 'assistant', content: finalContent });
-            messages.push(continueMessage);
-            
-            // Create new message container for continuation response
-            const newBotMessage = new BotMessage(this.plugin.app, this.plugin, '');
-            this.messagesContainer.appendChild(newBotMessage.getElement());
-            this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
-            
-            // Use task continuation logic but stream to new message
-            const taskContinuation = new TaskContinuation(
-                this.plugin,
-                this.agentResponseHandler,
-                this.messagesContainer,
-                this.component
-            );
-              // Continue task execution and stream to the new message container
-            const continuationResult = await taskContinuation.continueTaskUntilFinished(
-                messages,
-                newBotMessage.getElement(), // Use new message container
-                responseContent,
-                '', // Start fresh for the new message
-                toolResults
-            );
-            
-            // CRITICAL FIX: Check if limit was reached again during continuation
-            if (continuationResult.limitReachedDuringContinuation) {
-                // Show the tool limit warning UI again
-                const warning = this.agentResponseHandler!.createToolLimitWarning();
-                this.messagesContainer.appendChild(warning);
-                
-                // Add continue task event listeners (need fresh listeners)
-                const continueHandler = () => {
-                    this.handleContinueTask(messages, newBotMessage.getElement(), responseContent, continuationResult.content, toolResults);
-                };
-                const continueWithToolsHandler = (event: CustomEvent) => {
-                    this.handleContinueTaskWithAdditionalTools(
-                        messages, 
-                        newBotMessage.getElement(), 
-                        responseContent, 
-                        continuationResult.content, 
-                        toolResults,
-                        event.detail.additionalTools
-                    );
-                };
-                
-                this.messagesContainer.addEventListener('continueTask', continueHandler);
-                this.messagesContainer.addEventListener('continueTaskWithAdditionalTools', continueWithToolsHandler);
-                
-                // Show notification
-                this.agentResponseHandler!.showTaskCompletionNotification(
-                    'Tool execution limit reached again during continuation. Choose how to continue above.',
-                    'warning'
-                );
-            }
-            
-            // Update the new message with the continuation content
-            newBotMessage.setContent(continuationResult.content);
-        }
-    }    /**
-     * Handle continue task with additional tool executions
-     */    private async handleContinueTaskWithAdditionalTools(
-        messages: Message[], 
-        container: HTMLElement, 
-        responseContent: string, 
-        finalContent: string, 
-        toolResults: Array<{ command: ToolCommand; result: ToolResult }>,
-        additionalTools: number
-    ): Promise<void> {        
-        // Add tool executions and continue task
-        if (this.agentResponseHandler) {
-            // The tool executions were already added in the UI handler
-            console.log(`ResponseStreamer: Continuing task with ${additionalTools} additional tool executions`);
-            
-            // Create a new system message to indicate continuation with additional tools
-            const continueMessage: Message = {
-                role: 'system',
-                content: `Added ${additionalTools} additional tool executions. Continuing with the task...`
-            };
-            
-            // Add continuation message to chat log
-            const { BotMessage } = await import('./BotMessage');
-            const continuationNotice = new BotMessage(this.plugin.app, this.plugin, continueMessage.content);
-            continuationNotice.getElement().style.opacity = '0.8';
-            continuationNotice.getElement().style.fontStyle = 'italic';
-            this.messagesContainer.appendChild(continuationNotice.getElement());
-            
-            // Update messages array for context
-            messages.push({ role: 'assistant', content: finalContent });
-            messages.push(continueMessage);
-            
-            // Create new message container for continuation response
-            const newBotMessage = new BotMessage(this.plugin.app, this.plugin, '');
-            this.messagesContainer.appendChild(newBotMessage.getElement());
-            this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
-            
-            // Use task continuation logic
-            const taskContinuation = new TaskContinuation(
-                this.plugin,
-                this.agentResponseHandler,
-                this.messagesContainer,
-                this.component
-            );
-            
-            // Continue task execution and stream to the new message container
-            const continuationResult = await taskContinuation.continueTaskUntilFinished(
-                messages,
-                newBotMessage.getElement(), // Use new message container
-                responseContent,
-                '', // Start fresh for the new message
-                toolResults
-            );
-            
-            // CRITICAL FIX: Check if limit was reached again during continuation
-            if (continuationResult.limitReachedDuringContinuation) {
-                // Show the tool limit warning UI again
-                const warning = this.agentResponseHandler!.createToolLimitWarning();
-                this.messagesContainer.appendChild(warning);
-                
-                // Add continue task event listeners (need fresh listeners)
-                const continueHandler = () => {
-                    this.handleContinueTask(messages, newBotMessage.getElement(), responseContent, continuationResult.content, toolResults);
-                };
-                const continueWithToolsHandler = (event: CustomEvent) => {
-                    this.handleContinueTaskWithAdditionalTools(
-                        messages, 
-                        newBotMessage.getElement(), 
-                        responseContent, 
-                        continuationResult.content, 
-                        toolResults,
-                        event.detail.additionalTools
-                    );
-                };
-                
-                this.messagesContainer.addEventListener('continueTask', continueHandler);
-                this.messagesContainer.addEventListener('continueTaskWithAdditionalTools', continueWithToolsHandler);
-                
-                // Show notification
-                this.agentResponseHandler!.showTaskCompletionNotification(
-                    'Tool execution limit reached again during continuation. Choose how to continue above.',
-                    'warning'
-                );
-            }
-            
-            // Update the new message with the continuation content
-            newBotMessage.setContent(continuationResult.content);
+            return error.name !== 'AbortError' 
+                ? `*[Error getting continuation: ${error.message}]*`
+                : '';
         }
     }
-}
+
+    /**
+     * Executes task continuation with proper setup and error handling
+     */
+    private async executeContinuation(params: ContinuationParams): Promise<void> {
+        if (!this.agentResponseHandler) return;
+
+        const { messages, container, responseContent, finalContent, toolResults, additionalTools } = params;
+        
+        if (additionalTools) {
+            console.log(`ResponseStreamer: Continuing task with ${additionalTools} additional tool executions`);
+        } else {
+            this.agentResponseHandler.resetExecutionCount();
+            console.log('ResponseStreamer: Execution count reset, continuing task after user request');
+        }
+
+        const continueMessage = this.createContinuationMessage(additionalTools);
+        await this.addContinuationNotice(continueMessage);
+        
+        messages.push({ role: 'assistant', content: finalContent }, continueMessage);
+        
+        const newBotMessage = await this.createNewBotMessage();
+        const continuationResult = await this.executeTaskContinuation(
+            messages, newBotMessage.getElement(), responseContent, toolResults
+        );
+        
+        if (continuationResult.limitReachedDuringContinuation) {
+            this.handleToolLimitReached(
+                messages, newBotMessage.getElement(), responseContent, 
+                continuationResult.content, toolResults
+            );
+        }
+        
+        newBotMessage.setContent(continuationResult.content);
+    }
+
+    /**
+     * Creates continuation message based on type
+     */
+    private createContinuationMessage(additionalTools?: number): Message {
+        const content = additionalTools 
+            ? `Added ${additionalTools} additional tool executions. Continuing with the task...`
+            : 'Tool execution limit was reset. Continuing with the task...';
+            
+        return { role: 'system', content };
+    }
+
+    /**
+     * Adds continuation notice to chat
+     */
+    private async addContinuationNotice(continueMessage: Message): Promise<void> {
+        const { BotMessage } = await import('./BotMessage');
+        const continuationNotice = new BotMessage(this.plugin.app, this.plugin, continueMessage.content);
+        const element = continuationNotice.getElement();
+        element.style.opacity = '0.8';
+        element.style.fontStyle = 'italic';
+        this.messagesContainer.appendChild(element);
+    }
+
+    /**
+     * Creates new bot message for continuation response
+     */
+    private async createNewBotMessage() {
+        const { BotMessage } = await import('./BotMessage');
+        const newBotMessage = new BotMessage(this.plugin.app, this.plugin, '');
+        this.messagesContainer.appendChild(newBotMessage.getElement());
+        this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+        return newBotMessage;
+    }
+
+    /**
+     * Executes task continuation logic
+     */
+    private async executeTaskContinuation(
+        messages: Message[],
+        container: HTMLElement,
+        responseContent: string,
+        toolResults: any[]
+    ) {
+        const taskContinuation = this.createTaskContinuation();
+        return await taskContinuation.continueTaskUntilFinished(
+            messages, container, responseContent, '', toolResults
+        );
+    }}

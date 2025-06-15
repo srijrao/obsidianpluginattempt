@@ -3767,36 +3767,43 @@ var init_promptConstants = __esm({
       }));
     };
     AGENT_SYSTEM_PROMPT_TEMPLATE = `
-You are an AI assistant in an Obsidian Vault, following the Model Context Protocol (MCP) for tool use and structured reasoning. For every user request, follow these phases:
+You are an AI assistant in an Obsidian Vault with access to powerful tools for file management and note creation. You can respond in two ways:
 
-1. REASONING & PLANNING: Analyze the request and plan steps/tools needed.
-2. TOOL EXECUTION: Carry out planned actions using tools.
-3. COMPLETION: Summarize results and next steps in natural language.
+1. **Natural Response**: For questions, discussions, or when providing information that doesn't require file operations
+2. **Tool Usage**: For file creation, editing, searching, moving, or other vault operations
 
-For tool use, respond ONLY with a JSON object:
+When using tools, respond ONLY with a JSON object:
 {
   "action": "tool_name",
   "parameters": { /* tool-specific parameters */ },
   "requestId": "unique_id",
   "finished": false
 }
-Set "finished": true ONLY when the entire request is fully completed (all steps done).
+
+Set "finished": true ONLY when the entire request is fully completed.
+
+**Tool Usage Guidelines:**
+- Use tools when the user asks to create, edit, search, or manage files
+- Start with "thought" action for planning complex tasks
+- For file creation requests, use "file_write" tool
+- For searching files, use "file_search" tool
+- For reading files, use "file_read" tool
+
+**Natural Response Guidelines:**
+- Answer questions directly without tools when no file operations are needed
+- Provide explanations, summaries, or discussions naturally
+- Ask clarifying questions when requests are ambiguous
 
 Available tools:
 {{TOOL_DESCRIPTIONS}}
 
-Workflow:
-- Always start with a reasoning step (action: "thought").
-- Immediately follow with tool commands to execute the plan.
-- Only set "finished": true after all required actions are complete.
-- For multi-step tasks, complete all parts before finishing.
+Examples:
+- "Create a note about cats" \u2192 Use file_write tool
+- "What do you know about cats?" \u2192 Natural response
+- "Find my notes about projects" \u2192 Use file_search tool
+- "Tell me about Obsidian features" \u2192 Natural response
 
-Context:
-- Track files and notes mentioned or created in this conversation.
-- Use file_select for references like "the file" or "that note".
-- Use keywords from the conversation for searches.
-
-Follow the MCP JSON command structure for all tool calls and reasoning steps.
+Remember: Only use JSON format when performing file operations. Respond naturally for information requests.
 `;
     AGENT_SYSTEM_PROMPT = buildAgentSystemPrompt();
     DEFAULT_YAML_SYSTEM_MESSAGE = "You are an assistant that generates YAML attribute values for Obsidian notes. Read the note and generate a value for the specified YAML field. Only output the value, not the key or extra text.";
@@ -11734,48 +11741,28 @@ var ResponseStreamer = class {
     __publicField(this, "messageRenderer");
     this.messageRenderer = new MessageRenderer(plugin.app);
   }
+  /**
+  * Streams AI assistant response with optional agent processing.
+  * Handles agent mode integration, tool execution, and task continuation.
+  */
   async streamAssistantResponse(messages, container, originalTimestamp, originalContent) {
+    var _a2;
     let responseContent = "";
     this.activeStream = new AbortController();
-    if (this.plugin.isAgentModeEnabled()) {
-      const { AGENT_SYSTEM_PROMPT: AGENT_SYSTEM_PROMPT2 } = await Promise.resolve().then(() => (init_promptConstants(), promptConstants_exports));
-      const systemMessageIndex = messages.findIndex((msg) => msg.role === "system");
-      if (systemMessageIndex !== -1) {
-        messages[systemMessageIndex].content = AGENT_SYSTEM_PROMPT2 + "\n\n" + messages[systemMessageIndex].content;
-      }
-    }
+    await this.addAgentSystemPrompt(messages);
     try {
-      const provider = this.plugin.settings.selectedModel ? createProviderFromUnifiedModel(this.plugin.settings, this.plugin.settings.selectedModel) : createProvider(this.plugin.settings);
-      await provider.getCompletion(
-        messages,
-        {
-          temperature: this.plugin.settings.temperature,
-          maxTokens: this.plugin.settings.maxTokens,
-          streamCallback: async (chunk) => {
-            responseContent += chunk;
-            const contentEl = container.querySelector(".message-content");
-            if (contentEl) {
-              container.dataset.rawContent = responseContent;
-              contentEl.empty();
-              await import_obsidian22.MarkdownRenderer.render(
-                this.plugin.app,
-                responseContent,
-                contentEl,
-                "",
-                this.component || null
-              );
-              this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
-            }
-          },
-          abortController: this.activeStream || void 0
-        }
-      );
+      const provider = this.createProvider();
+      await provider.getCompletion(messages, {
+        temperature: this.plugin.settings.temperature,
+        maxTokens: this.plugin.settings.maxTokens,
+        streamCallback: async (chunk) => {
+          responseContent += chunk;
+          await this.updateMessageContent(container, responseContent);
+        },
+        abortController: this.activeStream || void 0
+      });
       if (this.plugin.isAgentModeEnabled() && this.agentResponseHandler) {
-        responseContent = await this.processAgentResponse(
-          responseContent,
-          container,
-          messages
-        );
+        responseContent = await this.processAgentResponse(responseContent, container, messages);
       }
       return responseContent;
     } catch (error) {
@@ -11784,175 +11771,262 @@ var ResponseStreamer = class {
       }
       return "";
     } finally {
-      if (this.agentResponseHandler) {
-        this.agentResponseHandler.hideTaskProgress();
-      }
+      (_a2 = this.agentResponseHandler) == null ? void 0 : _a2.hideTaskProgress();
     }
   }
+  /**
+   * Creates AI provider instance based on current settings
+   */
+  createProvider() {
+    return this.plugin.settings.selectedModel ? createProviderFromUnifiedModel(this.plugin.settings, this.plugin.settings.selectedModel) : createProvider(this.plugin.settings);
+  }
+  /**
+  * Adds agent system prompt to messages if agent mode is enabled
+  */
+  async addAgentSystemPrompt(messages) {
+    var _a2;
+    if (!this.plugin.isAgentModeEnabled()) return;
+    const { buildAgentSystemPrompt: buildAgentSystemPrompt2 } = await Promise.resolve().then(() => (init_promptConstants(), promptConstants_exports));
+    const agentPrompt = buildAgentSystemPrompt2(this.plugin.settings.enabledTools);
+    console.log("ResponseStreamer: Agent mode enabled, adding system prompt");
+    console.log("ResponseStreamer: Enabled tools:", this.plugin.settings.enabledTools);
+    const systemMessageIndex = messages.findIndex((msg) => msg.role === "system");
+    if (systemMessageIndex !== -1) {
+      const originalContent = messages[systemMessageIndex].content;
+      messages[systemMessageIndex].content = agentPrompt + "\n\n" + originalContent;
+      console.log("ResponseStreamer: Updated existing system message");
+    } else {
+      messages.unshift({
+        role: "system",
+        content: agentPrompt
+      });
+      console.log("ResponseStreamer: Created new system message");
+    }
+    const finalPrompt = ((_a2 = messages.find((msg) => msg.role === "system")) == null ? void 0 : _a2.content) || "";
+    console.log("ResponseStreamer: Final system prompt preview:", finalPrompt.substring(0, 200) + "...");
+  }
+  /**
+   * Updates message content in the UI with markdown rendering
+   */
+  async updateMessageContent(container, content) {
+    const contentEl = container.querySelector(".message-content");
+    if (!contentEl) return;
+    container.dataset.rawContent = content;
+    contentEl.empty();
+    await import_obsidian22.MarkdownRenderer.render(
+      this.plugin.app,
+      content,
+      contentEl,
+      "",
+      this.component || null
+    );
+    this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+  }
+  /**
+  * Processes agent response and handles tool execution or reasoning
+  */
   async processAgentResponse(responseContent, container, messages) {
-    if (!this.agentResponseHandler) return responseContent;
+    if (!this.agentResponseHandler) {
+      console.log("ResponseStreamer: No agent response handler available");
+      return responseContent;
+    }
+    console.log("ResponseStreamer: Processing agent response");
+    console.log("ResponseStreamer: Response content preview:", responseContent.substring(0, 100) + "...");
     try {
       const agentResult = await this.agentResponseHandler.processResponseWithUI(responseContent);
-      if (agentResult.hasTools) {
-        return await this.handleToolExecution(
-          agentResult,
-          container,
-          responseContent,
-          messages
-        );
-      } else {
-        return await this.handleNonToolResponse(
-          agentResult,
-          container,
-          responseContent,
-          messages
-        );
-      }
-    } finally {
+      console.log("ResponseStreamer: Agent result hasTools:", agentResult.hasTools);
+      console.log("ResponseStreamer: Agent result reasoning:", !!agentResult.reasoning);
+      console.log("ResponseStreamer: Agent result taskStatus:", agentResult.taskStatus);
+      return agentResult.hasTools ? await this.handleToolExecution(agentResult, container, responseContent, messages) : await this.handleNonToolResponse(agentResult, container, responseContent, messages);
+    } catch (error) {
+      console.error("ResponseStreamer: Error processing agent response:", error);
+      return responseContent;
     }
   }
+  /**
+   * Handles responses that include tool execution
+   */
   async handleToolExecution(agentResult, container, responseContent, messages) {
     const finalContent = agentResult.processedText + this.agentResponseHandler.formatToolResultsForDisplay(agentResult.toolResults);
-    const enhancedMessageData = {
-      role: "assistant",
-      content: finalContent,
-      reasoning: agentResult.reasoning,
-      taskStatus: agentResult.taskStatus,
-      toolResults: agentResult.toolResults.map(({ command, result }) => ({
-        command,
-        result,
-        timestamp: (/* @__PURE__ */ new Date()).toISOString()
-      }))
-    };
-    container.dataset.messageData = JSON.stringify(enhancedMessageData);
-    container.dataset.rawContent = finalContent;
-    this.messageRenderer.updateMessageWithEnhancedData(container, enhancedMessageData);
-    return this.handleTaskCompletion(
-      agentResult,
+    const enhancedMessageData = this.createEnhancedMessageData(
       finalContent,
-      responseContent,
-      messages,
-      container
+      agentResult,
+      agentResult.toolResults
     );
+    this.updateContainerWithMessageData(container, enhancedMessageData, finalContent);
+    return this.handleTaskCompletion(agentResult, finalContent, responseContent, messages, container);
   }
+  /**
+   * Handles responses without tool execution but potentially with reasoning
+   */
   async handleNonToolResponse(agentResult, container, responseContent, messages) {
     if (agentResult.reasoning) {
-      const enhancedMessageData = {
-        role: "assistant",
-        content: responseContent,
-        reasoning: agentResult.reasoning,
-        taskStatus: agentResult.taskStatus
-      };
-      container.dataset.messageData = JSON.stringify(enhancedMessageData);
-      this.messageRenderer.updateMessageWithEnhancedData(container, enhancedMessageData);
+      const enhancedMessageData = this.createEnhancedMessageData(responseContent, agentResult);
+      this.updateContainerWithMessageData(container, enhancedMessageData, responseContent);
     }
-    if (responseContent.includes('"action"') && responseContent.includes('"thought"')) {
+    if (this.isReasoningStep(responseContent)) {
       return await this.handleReasoningContinuation(responseContent, messages, container);
     }
     return responseContent;
   }
+  /**
+   * Creates enhanced message data structure
+   */
+  createEnhancedMessageData(content, agentResult, toolResults) {
+    const messageData = {
+      role: "assistant",
+      content,
+      reasoning: agentResult.reasoning,
+      taskStatus: agentResult.taskStatus
+    };
+    if (toolResults) {
+      messageData.toolResults = toolResults.map(({ command, result }) => ({
+        command,
+        result,
+        timestamp: (/* @__PURE__ */ new Date()).toISOString()
+      }));
+    }
+    return messageData;
+  }
+  /**
+   * Updates container with enhanced message data
+   */
+  updateContainerWithMessageData(container, messageData, rawContent) {
+    container.dataset.messageData = JSON.stringify(messageData);
+    container.dataset.rawContent = rawContent;
+    this.messageRenderer.updateMessageWithEnhancedData(container, messageData);
+  }
+  /**
+   * Checks if response content indicates a reasoning step
+   */
+  isReasoningStep(responseContent) {
+    return responseContent.includes('"action"') && responseContent.includes('"thought"');
+  }
+  /**
+  * Handles task completion, continuation, and tool limit management
+  */
   async handleTaskCompletion(agentResult, finalContent, responseContent, messages, container) {
-    var _a2;
     if (agentResult.shouldShowLimitWarning) {
-      const warning = this.agentResponseHandler.createToolLimitWarning();
-      this.messagesContainer.appendChild(warning);
-      this.messagesContainer.addEventListener("continueTask", () => {
-        this.handleContinueTask(messages, container, responseContent, finalContent, agentResult.toolResults);
-      });
-      this.messagesContainer.addEventListener("continueTaskWithAdditionalTools", (event) => {
-        this.handleContinueTaskWithAdditionalTools(
-          messages,
-          container,
-          responseContent,
-          finalContent,
-          agentResult.toolResults,
-          event.detail.additionalTools
-        );
-      });
-      this.agentResponseHandler.showTaskCompletionNotification(
-        "Tool execution limit reached. Choose how to continue above.",
-        "warning"
-      );
-      return finalContent;
+      return this.handleToolLimitReached(messages, container, responseContent, finalContent, agentResult.toolResults);
     }
     if (agentResult.taskStatus.status === "completed") {
-      this.agentResponseHandler.showTaskCompletionNotification(
+      this.showTaskCompletionNotification(
         `Task completed successfully! Used ${agentResult.taskStatus.toolExecutionCount} tools.`,
         "success"
       );
       return finalContent;
     }
-    if (!agentResult.shouldShowLimitWarning && !((_a2 = this.agentResponseHandler) == null ? void 0 : _a2.isToolLimitReached())) {
-      const taskContinuation = new TaskContinuation(
-        this.plugin,
-        this.agentResponseHandler,
-        this.messagesContainer,
-        this.component
-      );
-      const continuationResult = await taskContinuation.continueTaskUntilFinished(
+    return await this.continueTaskIfPossible(
+      agentResult,
+      messages,
+      container,
+      responseContent,
+      finalContent
+    );
+  }
+  /**
+   * Handles tool limit reached scenario
+   */
+  handleToolLimitReached(messages, container, responseContent, finalContent, toolResults) {
+    const warning = this.agentResponseHandler.createToolLimitWarning();
+    this.messagesContainer.appendChild(warning);
+    this.setupContinuationEventListeners(messages, container, responseContent, finalContent, toolResults);
+    this.showTaskCompletionNotification(
+      "Tool execution limit reached. Choose how to continue above.",
+      "warning"
+    );
+    return finalContent;
+  }
+  /**
+   * Sets up event listeners for task continuation
+   */
+  setupContinuationEventListeners(messages, container, responseContent, finalContent, toolResults) {
+    const continuationParams = {
+      messages,
+      container,
+      responseContent,
+      finalContent,
+      toolResults
+    };
+    this.messagesContainer.addEventListener("continueTask", () => {
+      this.executeContinuation(continuationParams);
+    });
+    this.messagesContainer.addEventListener("continueTaskWithAdditionalTools", (event) => {
+      this.executeContinuation({
+        ...continuationParams,
+        additionalTools: event.detail.additionalTools
+      });
+    });
+  }
+  /**
+   * Continues task if no limits are reached
+   */
+  async continueTaskIfPossible(agentResult, messages, container, responseContent, finalContent) {
+    var _a2;
+    if (agentResult.shouldShowLimitWarning || ((_a2 = this.agentResponseHandler) == null ? void 0 : _a2.isToolLimitReached())) {
+      return finalContent;
+    }
+    const taskContinuation = this.createTaskContinuation();
+    const continuationResult = await taskContinuation.continueTaskUntilFinished(
+      messages,
+      container,
+      responseContent,
+      finalContent,
+      agentResult.toolResults
+    );
+    if (continuationResult.limitReachedDuringContinuation) {
+      this.handleToolLimitReached(
         messages,
         container,
         responseContent,
-        finalContent,
+        continuationResult.content,
         agentResult.toolResults
       );
-      if (continuationResult.limitReachedDuringContinuation) {
-        const warning = this.agentResponseHandler.createToolLimitWarning();
-        this.messagesContainer.appendChild(warning);
-        this.messagesContainer.addEventListener("continueTask", () => {
-          this.handleContinueTask(messages, container, responseContent, continuationResult.content, agentResult.toolResults);
-        });
-        this.messagesContainer.addEventListener("continueTaskWithAdditionalTools", (event) => {
-          this.handleContinueTaskWithAdditionalTools(
-            messages,
-            container,
-            responseContent,
-            continuationResult.content,
-            agentResult.toolResults,
-            event.detail.additionalTools
-          );
-        });
-        this.agentResponseHandler.showTaskCompletionNotification(
-          "Tool execution limit reached during task continuation. Choose how to continue above.",
-          "warning"
-        );
-        return continuationResult.content;
-      }
-      return continuationResult.content;
     }
-    return finalContent;
+    return continuationResult.content;
   }
+  /**
+   * Creates TaskContinuation instance
+   */
+  createTaskContinuation() {
+    return new TaskContinuation(
+      this.plugin,
+      this.agentResponseHandler,
+      this.messagesContainer,
+      this.component
+    );
+  }
+  /**
+   * Shows task completion notification
+   */
+  showTaskCompletionNotification(message, type2) {
+    this.agentResponseHandler.showTaskCompletionNotification(message, type2);
+  }
+  /**
+  * Handles reasoning continuation when AI response contains reasoning steps
+  */
   async handleReasoningContinuation(responseContent, messages, container) {
     var _a2;
     if ((_a2 = this.agentResponseHandler) == null ? void 0 : _a2.isToolLimitReached()) {
-      console.log("ResponseStreamer: Tool limit reached, skipping reasoning continuation API call");
+      console.log("ResponseStreamer: Tool limit reached, skipping reasoning continuation");
       return responseContent + "\n\n*[Tool execution limit reached - reasoning continuation stopped]*";
     }
-    messages.push({ role: "assistant", content: responseContent });
-    messages.push({ role: "system", content: "Please continue with the actual task execution based on your reasoning." });
+    messages.push(
+      { role: "assistant", content: responseContent },
+      { role: "system", content: "Please continue with the actual task execution based on your reasoning." }
+    );
     const continuationContent = await this.getContinuationResponse(messages, container);
     if (continuationContent.trim()) {
       const updatedContent = responseContent + "\n\n" + continuationContent;
       container.dataset.rawContent = updatedContent;
-      const contentEl = container.querySelector(".message-content");
-      if (contentEl) {
-        contentEl.empty();
-        await import_obsidian22.MarkdownRenderer.render(
-          this.plugin.app,
-          updatedContent,
-          contentEl,
-          "",
-          this.component || null
-        );
-        this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
-      }
+      await this.updateMessageContent(container, updatedContent);
       return updatedContent;
     }
     return responseContent;
   }
   /**
-  * Get continuation response after tool execution
-  */
+   * Gets continuation response after tool execution with error handling
+   */
   async getContinuationResponse(messages, container) {
     var _a2;
     try {
@@ -11961,151 +12035,96 @@ var ResponseStreamer = class {
         return "*[Tool execution limit reached - no continuation response]*";
       }
       console.log("ResponseStreamer: Getting continuation response after tool execution");
-      const provider = this.plugin.settings.selectedModel ? createProviderFromUnifiedModel(this.plugin.settings, this.plugin.settings.selectedModel) : createProvider(this.plugin.settings);
+      const provider = this.createProvider();
       let continuationContent = "";
-      await provider.getCompletion(
-        messages,
-        {
-          temperature: this.plugin.settings.temperature,
-          maxTokens: this.plugin.settings.maxTokens,
-          streamCallback: async (chunk) => {
-            continuationContent += chunk;
-          },
-          abortController: this.activeStream || void 0
-        }
-      );
+      await provider.getCompletion(messages, {
+        temperature: this.plugin.settings.temperature,
+        maxTokens: this.plugin.settings.maxTokens,
+        streamCallback: async (chunk) => {
+          continuationContent += chunk;
+        },
+        abortController: this.activeStream || void 0
+      });
       console.log("ResponseStreamer: Continuation response received:", continuationContent.length, "characters");
       return continuationContent;
     } catch (error) {
       console.error("ResponseStreamer: Error getting continuation response:", error);
-      if (error.name !== "AbortError") {
-        return `*[Error getting continuation: ${error.message}]*`;
-      }
-      return "";
+      return error.name !== "AbortError" ? `*[Error getting continuation: ${error.message}]*` : "";
     }
   }
   /**
-  * Handle continue task after tool limit reached
-  */
-  async handleContinueTask(messages, container, responseContent, finalContent, toolResults) {
-    if (this.agentResponseHandler) {
+   * Executes task continuation with proper setup and error handling
+   */
+  async executeContinuation(params) {
+    if (!this.agentResponseHandler) return;
+    const { messages, container, responseContent, finalContent, toolResults, additionalTools } = params;
+    if (additionalTools) {
+      console.log(`ResponseStreamer: Continuing task with ${additionalTools} additional tool executions`);
+    } else {
       this.agentResponseHandler.resetExecutionCount();
       console.log("ResponseStreamer: Execution count reset, continuing task after user request");
-      const continueMessage = {
-        role: "system",
-        content: "Tool execution limit was reset. Continuing with the task..."
-      };
-      const { BotMessage: BotMessage2 } = await Promise.resolve().then(() => (init_BotMessage(), BotMessage_exports));
-      const continuationNotice = new BotMessage2(this.plugin.app, this.plugin, continueMessage.content);
-      continuationNotice.getElement().style.opacity = "0.8";
-      continuationNotice.getElement().style.fontStyle = "italic";
-      this.messagesContainer.appendChild(continuationNotice.getElement());
-      messages.push({ role: "assistant", content: finalContent });
-      messages.push(continueMessage);
-      const newBotMessage = new BotMessage2(this.plugin.app, this.plugin, "");
-      this.messagesContainer.appendChild(newBotMessage.getElement());
-      this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
-      const taskContinuation = new TaskContinuation(
-        this.plugin,
-        this.agentResponseHandler,
-        this.messagesContainer,
-        this.component
-      );
-      const continuationResult = await taskContinuation.continueTaskUntilFinished(
+    }
+    const continueMessage = this.createContinuationMessage(additionalTools);
+    await this.addContinuationNotice(continueMessage);
+    messages.push({ role: "assistant", content: finalContent }, continueMessage);
+    const newBotMessage = await this.createNewBotMessage();
+    const continuationResult = await this.executeTaskContinuation(
+      messages,
+      newBotMessage.getElement(),
+      responseContent,
+      toolResults
+    );
+    if (continuationResult.limitReachedDuringContinuation) {
+      this.handleToolLimitReached(
         messages,
         newBotMessage.getElement(),
-        // Use new message container
         responseContent,
-        "",
-        // Start fresh for the new message
+        continuationResult.content,
         toolResults
       );
-      if (continuationResult.limitReachedDuringContinuation) {
-        const warning = this.agentResponseHandler.createToolLimitWarning();
-        this.messagesContainer.appendChild(warning);
-        const continueHandler = () => {
-          this.handleContinueTask(messages, newBotMessage.getElement(), responseContent, continuationResult.content, toolResults);
-        };
-        const continueWithToolsHandler = (event) => {
-          this.handleContinueTaskWithAdditionalTools(
-            messages,
-            newBotMessage.getElement(),
-            responseContent,
-            continuationResult.content,
-            toolResults,
-            event.detail.additionalTools
-          );
-        };
-        this.messagesContainer.addEventListener("continueTask", continueHandler);
-        this.messagesContainer.addEventListener("continueTaskWithAdditionalTools", continueWithToolsHandler);
-        this.agentResponseHandler.showTaskCompletionNotification(
-          "Tool execution limit reached again during continuation. Choose how to continue above.",
-          "warning"
-        );
-      }
-      newBotMessage.setContent(continuationResult.content);
     }
+    newBotMessage.setContent(continuationResult.content);
   }
   /**
-  * Handle continue task with additional tool executions
-  */
-  async handleContinueTaskWithAdditionalTools(messages, container, responseContent, finalContent, toolResults, additionalTools) {
-    if (this.agentResponseHandler) {
-      console.log(`ResponseStreamer: Continuing task with ${additionalTools} additional tool executions`);
-      const continueMessage = {
-        role: "system",
-        content: `Added ${additionalTools} additional tool executions. Continuing with the task...`
-      };
-      const { BotMessage: BotMessage2 } = await Promise.resolve().then(() => (init_BotMessage(), BotMessage_exports));
-      const continuationNotice = new BotMessage2(this.plugin.app, this.plugin, continueMessage.content);
-      continuationNotice.getElement().style.opacity = "0.8";
-      continuationNotice.getElement().style.fontStyle = "italic";
-      this.messagesContainer.appendChild(continuationNotice.getElement());
-      messages.push({ role: "assistant", content: finalContent });
-      messages.push(continueMessage);
-      const newBotMessage = new BotMessage2(this.plugin.app, this.plugin, "");
-      this.messagesContainer.appendChild(newBotMessage.getElement());
-      this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
-      const taskContinuation = new TaskContinuation(
-        this.plugin,
-        this.agentResponseHandler,
-        this.messagesContainer,
-        this.component
-      );
-      const continuationResult = await taskContinuation.continueTaskUntilFinished(
-        messages,
-        newBotMessage.getElement(),
-        // Use new message container
-        responseContent,
-        "",
-        // Start fresh for the new message
-        toolResults
-      );
-      if (continuationResult.limitReachedDuringContinuation) {
-        const warning = this.agentResponseHandler.createToolLimitWarning();
-        this.messagesContainer.appendChild(warning);
-        const continueHandler = () => {
-          this.handleContinueTask(messages, newBotMessage.getElement(), responseContent, continuationResult.content, toolResults);
-        };
-        const continueWithToolsHandler = (event) => {
-          this.handleContinueTaskWithAdditionalTools(
-            messages,
-            newBotMessage.getElement(),
-            responseContent,
-            continuationResult.content,
-            toolResults,
-            event.detail.additionalTools
-          );
-        };
-        this.messagesContainer.addEventListener("continueTask", continueHandler);
-        this.messagesContainer.addEventListener("continueTaskWithAdditionalTools", continueWithToolsHandler);
-        this.agentResponseHandler.showTaskCompletionNotification(
-          "Tool execution limit reached again during continuation. Choose how to continue above.",
-          "warning"
-        );
-      }
-      newBotMessage.setContent(continuationResult.content);
-    }
+   * Creates continuation message based on type
+   */
+  createContinuationMessage(additionalTools) {
+    const content = additionalTools ? `Added ${additionalTools} additional tool executions. Continuing with the task...` : "Tool execution limit was reset. Continuing with the task...";
+    return { role: "system", content };
+  }
+  /**
+   * Adds continuation notice to chat
+   */
+  async addContinuationNotice(continueMessage) {
+    const { BotMessage: BotMessage2 } = await Promise.resolve().then(() => (init_BotMessage(), BotMessage_exports));
+    const continuationNotice = new BotMessage2(this.plugin.app, this.plugin, continueMessage.content);
+    const element = continuationNotice.getElement();
+    element.style.opacity = "0.8";
+    element.style.fontStyle = "italic";
+    this.messagesContainer.appendChild(element);
+  }
+  /**
+   * Creates new bot message for continuation response
+   */
+  async createNewBotMessage() {
+    const { BotMessage: BotMessage2 } = await Promise.resolve().then(() => (init_BotMessage(), BotMessage_exports));
+    const newBotMessage = new BotMessage2(this.plugin.app, this.plugin, "");
+    this.messagesContainer.appendChild(newBotMessage.getElement());
+    this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+    return newBotMessage;
+  }
+  /**
+   * Executes task continuation logic
+   */
+  async executeTaskContinuation(messages, container, responseContent, toolResults) {
+    const taskContinuation = this.createTaskContinuation();
+    return await taskContinuation.continueTaskUntilFinished(
+      messages,
+      container,
+      responseContent,
+      "",
+      toolResults
+    );
   }
 };
 
