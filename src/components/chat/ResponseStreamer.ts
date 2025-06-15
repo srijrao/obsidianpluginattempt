@@ -387,46 +387,81 @@ export class ResponseStreamer {
             this.agentResponseHandler.resetExecutionCount();
             console.log('ResponseStreamer: Execution count reset, continuing task after user request');
             
-            // Use task continuation logic
+            // Create a new system message to indicate continuation
+            const continueMessage: Message = {
+                role: 'system',
+                content: 'Tool execution limit was reset. Continuing with the task...'
+            };
+            
+            // Add continuation message to chat log
+            const { BotMessage } = await import('./BotMessage');
+            const continuationNotice = new BotMessage(this.plugin.app, this.plugin, continueMessage.content);
+            continuationNotice.getElement().style.opacity = '0.8';
+            continuationNotice.getElement().style.fontStyle = 'italic';
+            this.messagesContainer.appendChild(continuationNotice.getElement());
+            
+            // Update messages array for context
+            messages.push({ role: 'assistant', content: finalContent });
+            messages.push(continueMessage);
+            
+            // Create new message container for continuation response
+            const newBotMessage = new BotMessage(this.plugin.app, this.plugin, '');
+            this.messagesContainer.appendChild(newBotMessage.getElement());
+            this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+            
+            // Use task continuation logic but stream to new message
             const taskContinuation = new TaskContinuation(
                 this.plugin,
                 this.agentResponseHandler,
                 this.messagesContainer,
                 this.component
             );
-            
-            // Continue task execution
+              // Continue task execution and stream to the new message container
             const continuationResult = await taskContinuation.continueTaskUntilFinished(
                 messages,
-                container,
+                newBotMessage.getElement(), // Use new message container
                 responseContent,
-                finalContent,
+                '', // Start fresh for the new message
                 toolResults
             );
             
-            const continuedContent = continuationResult.content;
-            
-            // Update the container with continued content
-            container.dataset.rawContent = continuedContent;
-            const contentEl = container.querySelector('.message-content') as HTMLElement;
-            if (contentEl) {
-                contentEl.empty();
-                await MarkdownRenderer.render(
-                    this.plugin.app,
-                    continuedContent,
-                    contentEl,
-                    '',
-                    this.component || null as any
+            // CRITICAL FIX: Check if limit was reached again during continuation
+            if (continuationResult.limitReachedDuringContinuation) {
+                // Show the tool limit warning UI again
+                const warning = this.agentResponseHandler!.createToolLimitWarning();
+                this.messagesContainer.appendChild(warning);
+                
+                // Add continue task event listeners (need fresh listeners)
+                const continueHandler = () => {
+                    this.handleContinueTask(messages, newBotMessage.getElement(), responseContent, continuationResult.content, toolResults);
+                };
+                const continueWithToolsHandler = (event: CustomEvent) => {
+                    this.handleContinueTaskWithAdditionalTools(
+                        messages, 
+                        newBotMessage.getElement(), 
+                        responseContent, 
+                        continuationResult.content, 
+                        toolResults,
+                        event.detail.additionalTools
+                    );
+                };
+                
+                this.messagesContainer.addEventListener('continueTask', continueHandler);
+                this.messagesContainer.addEventListener('continueTaskWithAdditionalTools', continueWithToolsHandler);
+                
+                // Show notification
+                this.agentResponseHandler!.showTaskCompletionNotification(
+                    'Tool execution limit reached again during continuation. Choose how to continue above.',
+                    'warning'
                 );
-                this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
             }
+            
+            // Update the new message with the continuation content
+            newBotMessage.setContent(continuationResult.content);
         }
-    }
-
-    /**
+    }    /**
      * Handle continue task with additional tool executions
-     */
-    private async handleContinueTaskWithAdditionalTools(
+     */    private async handleContinueTaskWithAdditionalTools(
         messages: Message[], 
         container: HTMLElement, 
         responseContent: string, 
@@ -439,6 +474,28 @@ export class ResponseStreamer {
             // The tool executions were already added in the UI handler
             console.log(`ResponseStreamer: Continuing task with ${additionalTools} additional tool executions`);
             
+            // Create a new system message to indicate continuation with additional tools
+            const continueMessage: Message = {
+                role: 'system',
+                content: `Added ${additionalTools} additional tool executions. Continuing with the task...`
+            };
+            
+            // Add continuation message to chat log
+            const { BotMessage } = await import('./BotMessage');
+            const continuationNotice = new BotMessage(this.plugin.app, this.plugin, continueMessage.content);
+            continuationNotice.getElement().style.opacity = '0.8';
+            continuationNotice.getElement().style.fontStyle = 'italic';
+            this.messagesContainer.appendChild(continuationNotice.getElement());
+            
+            // Update messages array for context
+            messages.push({ role: 'assistant', content: finalContent });
+            messages.push(continueMessage);
+            
+            // Create new message container for continuation response
+            const newBotMessage = new BotMessage(this.plugin.app, this.plugin, '');
+            this.messagesContainer.appendChild(newBotMessage.getElement());
+            this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+            
             // Use task continuation logic
             const taskContinuation = new TaskContinuation(
                 this.plugin,
@@ -446,31 +503,49 @@ export class ResponseStreamer {
                 this.messagesContainer,
                 this.component
             );
-              // Continue task execution
+            
+            // Continue task execution and stream to the new message container
             const continuationResult = await taskContinuation.continueTaskUntilFinished(
                 messages,
-                container,
+                newBotMessage.getElement(), // Use new message container
                 responseContent,
-                finalContent,
+                '', // Start fresh for the new message
                 toolResults
             );
             
-            const continuedContent = continuationResult.content;
-            
-            // Update the container with continued content
-            container.dataset.rawContent = continuedContent;
-            const contentEl = container.querySelector('.message-content') as HTMLElement;
-            if (contentEl) {
-                contentEl.empty();
-                await MarkdownRenderer.render(
-                    this.plugin.app,
-                    continuedContent,
-                    contentEl,
-                    '',
-                    this.component || null as any
+            // CRITICAL FIX: Check if limit was reached again during continuation
+            if (continuationResult.limitReachedDuringContinuation) {
+                // Show the tool limit warning UI again
+                const warning = this.agentResponseHandler!.createToolLimitWarning();
+                this.messagesContainer.appendChild(warning);
+                
+                // Add continue task event listeners (need fresh listeners)
+                const continueHandler = () => {
+                    this.handleContinueTask(messages, newBotMessage.getElement(), responseContent, continuationResult.content, toolResults);
+                };
+                const continueWithToolsHandler = (event: CustomEvent) => {
+                    this.handleContinueTaskWithAdditionalTools(
+                        messages, 
+                        newBotMessage.getElement(), 
+                        responseContent, 
+                        continuationResult.content, 
+                        toolResults,
+                        event.detail.additionalTools
+                    );
+                };
+                
+                this.messagesContainer.addEventListener('continueTask', continueHandler);
+                this.messagesContainer.addEventListener('continueTaskWithAdditionalTools', continueWithToolsHandler);
+                
+                // Show notification
+                this.agentResponseHandler!.showTaskCompletionNotification(
+                    'Tool execution limit reached again during continuation. Choose how to continue above.',
+                    'warning'
                 );
-                this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
             }
+            
+            // Update the new message with the continuation content
+            newBotMessage.setContent(continuationResult.content);
         }
     }
 }

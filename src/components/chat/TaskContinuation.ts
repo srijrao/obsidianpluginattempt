@@ -37,7 +37,9 @@ export class TaskContinuation {
                 content: responseContent + '\n\n*[Tool execution limit reached - task continuation stopped]*',
                 limitReachedDuringContinuation: true 
             };
-        }while (!isFinished && iteration < maxIterations) {
+        }
+        
+        while (!isFinished && iteration < maxIterations) {
             iteration++;
             // Only log high-level iteration info here
             console.log(`TaskContinuation: Task continuation iteration ${iteration}`);
