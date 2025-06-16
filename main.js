@@ -2721,7 +2721,7 @@ var init_js_yaml = __esm({
   }
 });
 
-// src/components/FileChooserModal.ts
+// src/components/FileHandler.ts
 function getVaultItem(app, path, type2) {
   const item = app.vault.getAbstractFileByPath(path);
   if (!item) {
@@ -2766,8 +2766,8 @@ async function writeFile(app, filePath, content) {
   }
 }
 var import_obsidian;
-var init_FileChooserModal = __esm({
-  "src/components/FileChooserModal.ts"() {
+var init_FileHandler = __esm({
+  "src/components/FileHandler.ts"() {
     import_obsidian = require("obsidian");
     init_js_yaml();
   }
@@ -2778,7 +2778,7 @@ var import_obsidian2, FileReadTool;
 var init_FileReadTool = __esm({
   "src/components/chat/tools/FileReadTool.ts"() {
     import_obsidian2 = require("obsidian");
-    init_FileChooserModal();
+    init_FileHandler();
     FileReadTool = class {
       constructor(app) {
         this.app = app;
@@ -2848,7 +2848,7 @@ var import_obsidian3, FileWriteTool;
 var init_FileWriteTool = __esm({
   "src/components/chat/tools/FileWriteTool.ts"() {
     import_obsidian3 = require("obsidian");
-    init_FileChooserModal();
+    init_FileHandler();
     FileWriteTool = class {
       constructor(app) {
         this.app = app;
@@ -2929,7 +2929,7 @@ var init_FileWriteTool = __esm({
             try {
               await createFile(this.app, backupPath, originalContent);
             } catch (error) {
-              console.warn(`Failed to create backup for ${filePath}:`, error);
+              console.warn(`Did not create backup for ${filePath}:`, error);
             }
           }
           const result = await writeFile(this.app, filePath, content);

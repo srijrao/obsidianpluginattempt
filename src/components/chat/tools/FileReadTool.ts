@@ -1,6 +1,6 @@
 import { App, TFile } from 'obsidian';
 import { Tool, ToolResult } from '../ToolRegistry';
-import { readFile } from '../../FileChooserModal';
+import { readFile } from '../../FileHandler';
 
 export interface FileReadParams {
     path: string;
@@ -46,7 +46,7 @@ export class FileReadTool implements Tool {
                 };
             }
 
-            // Use existing utility function from FileChooserModal
+            // Use existing utility function from FileHandler
             const content = await readFile(this.app, filePath);
 
             // Check if content indicates an error (readFile returns error strings)

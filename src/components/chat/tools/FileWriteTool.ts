@@ -1,6 +1,6 @@
 import { App, TFile } from 'obsidian';
 import { Tool, ToolResult } from '../ToolRegistry';
-import { createFile, writeFile } from '../../FileChooserModal';
+import { createFile, writeFile } from '../../FileHandler';
 
 export interface FileWriteParams {
     path: string;
@@ -101,7 +101,7 @@ export class FileWriteTool implements Tool {
                     await createFile(this.app, backupPath, originalContent);
                 } catch (error) {
                     // If backup fails, warn but continue
-                    console.warn(`Failed to create backup for ${filePath}:`, error);
+                    console.warn(`Did not create backup for ${filePath}:`, error);
                 }
             }
 
