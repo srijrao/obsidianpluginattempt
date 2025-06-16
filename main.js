@@ -3881,50 +3881,21 @@ var init_promptConstants = __esm({
       }));
     };
     AGENT_SYSTEM_PROMPT_TEMPLATE = `
-You are an AI assistant in an Obsidian Vault with access to powerful tools for file management and note creation. You can respond in two ways:
+You are an AI assistant in an Obsidian Vault with access to powerful tools (follows MCP standard) for vault management and interaction. Try to use tools whenever possible to perform tasks. Try to start by thinking through a plan before executing tasks. Provide explanations, summaries, or discussions naturally. Ask clarifying questions when requests are ambiguous
 
-1. **Natural Response**: For questions, discussions, or when providing information that doesn't require file operations
-2. **Tool Usage**: For file creation, editing, searching, moving, or other vault operations
+Available tools:
+{{TOOL_DESCRIPTIONS}}
 
 When using tools, respond ONLY with a JSON object using these EXACT parameter names:
 {
   "action": "tool_name",
   "parameters": { 
-    "path": "path/to/file.md",  // Use "path" for all file operations
+    "path": "path/to/file.md",  // - Use relative paths from vault root (e.g., "My Note.md" or "folder/My Note.md")
     /* other tool-specific parameters */
   },
   "requestId": "unique_id",
-  "finished": false
+  "finished": false // - Set to true only when the entire request is fully completed
 }
-
-**IMPORTANT PARAMETER RULES:**
-- For file operations, ALWAYS use "path" (follows MCP standard)
-- Use relative paths from vault root (e.g., "MyNote.md" or "folder/MyNote.md")
-- Set "finished": true ONLY when the entire request is fully completed
-
-**Tool Usage Guidelines:**
-- Use tools when the user asks to create, edit, search, or manage files
-- Start with "thought" action for planning complex tasks
-- For file creation requests, use "file_write" tool with "path" and "content"
-- For searching files, use "file_search" tool
-- For reading files, use "file_read" tool with "path"
-- For listing folder contents, use "file_list" tool with "path"
-
-**Natural Response Guidelines:**
-- Answer questions directly without tools when no file operations are needed
-- Provide explanations, summaries, or discussions naturally
-- Ask clarifying questions when requests are ambiguous
-
-Available tools:
-{{TOOL_DESCRIPTIONS}}
-
-Examples:
-- "Create a note about cats" \u2192 Use file_write with {"path": "cats.md", "content": "..."}
-- "What do you know about cats?" \u2192 Natural response
-- "Find my notes about projects" \u2192 Use file_search with {"query": "projects"}
-- "Read the meeting notes" \u2192 Use file_read with {"path": "meeting-notes.md"}
-
-Remember: Only use JSON format when performing file operations. Use "path" parameter for all file paths.
 `;
     AGENT_SYSTEM_PROMPT = buildAgentSystemPrompt();
     DEFAULT_YAML_SYSTEM_MESSAGE = "You are an assistant that generates YAML attribute values for Obsidian notes. Read the note and generate a value for the specified YAML field. Only output the value, not the key or extra text.";
