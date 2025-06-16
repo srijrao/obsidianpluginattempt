@@ -301,7 +301,7 @@ export default class MyPlugin extends Plugin {
             id: 'generate-note-title',
             name: 'Generate Note Title',
             callback: async () => {
-                const { generateNoteTitle } = await import("./filechanger");
+                const { generateNoteTitle } = await import("./YAMLHandler");
                 await generateNoteTitle(
                     this.app,
                     this.settings,
@@ -351,7 +351,7 @@ export default class MyPlugin extends Plugin {
                     id,
                     name: gen.commandName,
                     callback: async () => {
-                        const { generateYamlAttribute } = await import("./filechanger");
+                        const { generateYamlAttribute } = await import("./YAMLHandler");
                         await generateYamlAttribute(
                             this.app,
                             this.settings,

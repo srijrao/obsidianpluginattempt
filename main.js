@@ -9313,9 +9313,9 @@ var init_inputHandler = __esm({
   }
 });
 
-// src/filechanger.ts
-var filechanger_exports = {};
-__export(filechanger_exports, {
+// src/YAMLHandler.ts
+var YAMLHandler_exports = {};
+__export(YAMLHandler_exports, {
   generateNoteTitle: () => generateNoteTitle,
   generateYamlAttribute: () => generateYamlAttribute,
   upsertYamlField: () => upsertYamlField
@@ -9516,8 +9516,8 @@ ${newYaml}
   await app.vault.modify(file, newContent);
 }
 var import_obsidian28, DEBUG;
-var init_filechanger = __esm({
-  "src/filechanger.ts"() {
+var init_YAMLHandler = __esm({
+  "src/YAMLHandler.ts"() {
     import_obsidian28 = require("obsidian");
     init_providers();
     init_promptConstants();
@@ -13267,7 +13267,7 @@ ${this.settings.chatSeparator}
       id: "generate-note-title",
       name: "Generate Note Title",
       callback: async () => {
-        const { generateNoteTitle: generateNoteTitle2 } = await Promise.resolve().then(() => (init_filechanger(), filechanger_exports));
+        const { generateNoteTitle: generateNoteTitle2 } = await Promise.resolve().then(() => (init_YAMLHandler(), YAMLHandler_exports));
         await generateNoteTitle2(
           this.app,
           this.settings,
@@ -13315,7 +13315,7 @@ ${this.settings.chatSeparator}
           id,
           name: gen.commandName,
           callback: async () => {
-            const { generateYamlAttribute: generateYamlAttribute2 } = await Promise.resolve().then(() => (init_filechanger(), filechanger_exports));
+            const { generateYamlAttribute: generateYamlAttribute2 } = await Promise.resolve().then(() => (init_YAMLHandler(), YAMLHandler_exports));
             await generateYamlAttribute2(
               this.app,
               this.settings,

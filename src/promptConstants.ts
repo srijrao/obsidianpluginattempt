@@ -49,7 +49,7 @@ export function buildAgentSystemPrompt(enabledTools?: Record<string, boolean>) {
 // AGENT_SYSTEM_PROMPT is now a function of enabled tools, not a static string
 export const AGENT_SYSTEM_PROMPT = buildAgentSystemPrompt();
 
-// Default system message for YAML attribute generation (used in filechanger.ts)
+// Default system message for YAML attribute generation (used in YAMLHandler.ts)
 export const DEFAULT_YAML_SYSTEM_MESSAGE =
     "You are an assistant that generates YAML attribute values for Obsidian notes. " +
     "Read the note and generate a value for the specified YAML field. " +
