@@ -73,7 +73,7 @@ export class AgentResponseHandler {
         if (this.executionCount >= effectiveLimit) {
             new Notice(`Agent mode: Maximum tool calls (${effectiveLimit}) reached`);
             return {
-                processedText: text + '\n\n*[Tool execution limit reached]*',
+                processedText: text + `\n\n*${effectiveLimit} [Tool execution limit reached]*`,
                 toolResults: [],
                 hasTools: true
             };
