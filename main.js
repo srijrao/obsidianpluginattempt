@@ -26,6 +26,7 @@ var __copyProps = (to, from, except, desc) => {
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
 
+<<<<<<< HEAD
 // src/components/chat/tools/FileSearchTool.ts
 var FileSearchTool;
 var init_FileSearchTool = __esm({
@@ -5525,6 +5526,1194 @@ var init_core = __esm({
     getPlatformProperties = () => {
       var _a2, _b;
       if (typeof Deno !== "undefined" && Deno.build != null) {
+=======
+// main.ts
+var main_exports = {};
+__export(main_exports, {
+  default: () => MyPlugin
+});
+module.exports = __toCommonJS(main_exports);
+var import_obsidian5 = require("obsidian");
+
+// types.ts
+var DEFAULT_SETTINGS = {
+  provider: "openai",
+  openaiSettings: {
+    apiKey: "",
+    model: "gpt-4",
+    availableModels: ["gpt-4", "gpt-4-turbo-preview", "gpt-3.5-turbo"]
+  },
+  anthropicSettings: {
+    apiKey: "",
+    model: "claude-3-sonnet-20240229",
+    availableModels: [
+      "claude-3-opus-20240229",
+      "claude-3-sonnet-20240229",
+      "claude-3-haiku-20240307"
+    ]
+  },
+  geminiSettings: {
+    apiKey: "",
+    model: "gemini-pro",
+    availableModels: ["gemini-pro"]
+  },
+  ollamaSettings: {
+    serverUrl: "http://localhost:11434",
+    model: "llama2",
+    availableModels: []
+  },
+  systemMessage: "You are a helpful assistant.",
+  temperature: 0.7,
+  maxTokens: 2e3,
+  includeDateWithSystemMessage: true,
+  includeTimeWithSystemMessage: false,
+  enableStreaming: true,
+  autoOpenModelSettings: false,
+  enableObsidianLinks: true,
+  enableContextNotes: false,
+  contextNotes: "",
+  referenceCurrentNote: false,
+  chatSeparator: "----",
+  debugMode: false
+};
+
+// settings.ts
+var import_obsidian = require("obsidian");
+var import_obsidian2 = require("obsidian");
+var MyPluginSettingTab = class extends import_obsidian.PluginSettingTab {
+  constructor(app, plugin) {
+    super(app, plugin);
+    __publicField(this, "plugin");
+    this.plugin = plugin;
+  }
+  /**
+   * Display the settings tab
+   * 
+   * Shows only the auto-open setting here since all other settings
+   * are managed in the model settings view for better organization.
+   */
+  display() {
+    const { containerEl } = this;
+    containerEl.empty();
+    containerEl.createEl("h2", { text: "AI Assistant Settings" });
+    containerEl.createEl("h3", { text: "API Keys" });
+    new import_obsidian.Setting(containerEl).setName("OpenAI API Key").setDesc("Enter your OpenAI API key").addText((text) => text.setPlaceholder("Enter your API key").setValue(this.plugin.settings.openaiSettings.apiKey).onChange(async (value) => {
+      this.plugin.settings.openaiSettings.apiKey = value;
+      await this.plugin.saveSettings();
+    }));
+    new import_obsidian.Setting(containerEl).setName("Anthropic API Key").setDesc("Enter your Anthropic API key").addText((text) => text.setPlaceholder("Enter your API key").setValue(this.plugin.settings.anthropicSettings.apiKey).onChange(async (value) => {
+      this.plugin.settings.anthropicSettings.apiKey = value;
+      await this.plugin.saveSettings();
+    }));
+    new import_obsidian.Setting(containerEl).setName("Google API Key").setDesc("Enter your Google API key").addText((text) => text.setPlaceholder("Enter your API key").setValue(this.plugin.settings.geminiSettings.apiKey).onChange(async (value) => {
+      this.plugin.settings.geminiSettings.apiKey = value;
+      await this.plugin.saveSettings();
+    }));
+    new import_obsidian.Setting(containerEl).setName("Ollama Server URL").setDesc("Enter your Ollama server URL (default: http://localhost:11434)").addText((text) => text.setPlaceholder("http://localhost:11434").setValue(this.plugin.settings.ollamaSettings.serverUrl).onChange(async (value) => {
+      this.plugin.settings.ollamaSettings.serverUrl = value;
+      await this.plugin.saveSettings();
+    }));
+    containerEl.createEl("h3", { text: "Model Settings" });
+    new import_obsidian.Setting(containerEl).setName("Auto-open Model Settings").setDesc("Automatically open model settings when Obsidian starts").addToggle((toggle) => toggle.setValue(this.plugin.settings.autoOpenModelSettings).onChange(async (value) => {
+      this.plugin.settings.autoOpenModelSettings = value;
+      await this.plugin.saveSettings();
+    }));
+    new import_obsidian.Setting(containerEl).setName("Open Model Settings").setDesc("Open the model settings view").addButton((button) => button.setButtonText("Open").onClick(() => {
+      this.plugin.activateView();
+    }));
+    containerEl.createEl("h3", { text: "Debugging" });
+    new import_obsidian.Setting(containerEl).setName("Enable Debug Mode").setDesc("Log detailed information to the console for debugging purposes.").addToggle((toggle) => toggle.setValue(this.plugin.settings.debugMode).onChange(async (value) => {
+      this.plugin.settings.debugMode = value;
+      await this.plugin.saveSettings();
+    }));
+    containerEl.createEl("h3", { text: "Chat Formatting" });
+    new import_obsidian.Setting(containerEl).setName("Chat Separator").setDesc("The string used to separate chat messages.").addText((text) => {
+      var _a;
+      text.setPlaceholder("----").setValue((_a = this.plugin.settings.chatSeparator) != null ? _a : "").onChange(async (value) => {
+        this.plugin.settings.chatSeparator = value;
+        await this.plugin.saveSettings();
+      });
+    });
+    new import_obsidian.Setting(containerEl).setName("Chat Start String").setDesc("The string that indicates where to start taking the note for context.").addText((text) => {
+      var _a;
+      text.setPlaceholder("===START===").setValue((_a = this.plugin.settings.chatStartString) != null ? _a : "").onChange(async (value) => {
+        this.plugin.settings.chatStartString = value;
+        await this.plugin.saveSettings();
+      });
+    });
+    new import_obsidian.Setting(containerEl).setName("Chat End String").setDesc("The string that indicates where to end taking the note for context.").addText((text) => {
+      var _a;
+      text.setPlaceholder("===END===").setValue((_a = this.plugin.settings.chatEndString) != null ? _a : "").onChange(async (value) => {
+        this.plugin.settings.chatEndString = value;
+        await this.plugin.saveSettings();
+      });
+    });
+  }
+};
+function getDebugFlag() {
+  return localStorage.getItem("ai_chat_debug") === "true";
+}
+function debug(...args) {
+  if (getDebugFlag()) {
+    console.log("[AI Chat Debug]", ...args);
+  }
+}
+
+// utils.ts
+var import_obsidian3 = require("obsidian");
+var APIError = class extends Error {
+  constructor(message, status, code) {
+    super(message);
+    this.status = status;
+    this.code = code;
+    this.name = "APIError";
+  }
+};
+var APIHandler = class {
+  static async fetchWithRetry(url, options, retryOptions = {}) {
+    const { maxRetries, baseDelay, maxDelay } = {
+      ...this.DEFAULT_OPTIONS,
+      ...retryOptions
+    };
+    let lastError = new Error("Unknown error");
+    let attempt = 0;
+    while (attempt < maxRetries) {
+      try {
+        const response = await fetch(url, options);
+        if (response.status === 429) {
+          const retryAfter = response.headers.get("Retry-After");
+          const delay = retryAfter ? parseInt(retryAfter) * 1e3 : this.calculateDelay(attempt, baseDelay, maxDelay);
+          debug(`Rate limited. Retrying in ${delay}ms`);
+          await this.delay(delay);
+          attempt++;
+          continue;
+        }
+        if (!response.ok) {
+          const error = await this.handleErrorResponse(response);
+          if (this.isRetryableError(error)) {
+            const delay = this.calculateDelay(attempt, baseDelay, maxDelay);
+            debug(`Request failed with ${error.status}. Retrying in ${delay}ms`);
+            await this.delay(delay);
+            attempt++;
+            continue;
+          }
+          throw error;
+        }
+        return response;
+      } catch (error) {
+        lastError = error;
+        if (!this.isRetryableError(error)) {
+          throw error;
+        }
+        if (attempt < maxRetries - 1) {
+          const delay = this.calculateDelay(attempt, baseDelay, maxDelay);
+          debug(`Request failed. Retrying in ${delay}ms`, error);
+          await this.delay(delay);
+        }
+        attempt++;
+      }
+    }
+    throw lastError;
+  }
+  static isRetryableError(error) {
+    if (error instanceof TypeError && error.message === "Failed to fetch") {
+      return true;
+    }
+    if (error instanceof APIError && error.status === 429) {
+      return true;
+    }
+    if (error instanceof APIError && error.status && error.status >= 500) {
+      return true;
+    }
+    return false;
+  }
+  static async handleErrorResponse(response) {
+    var _a, _b;
+    let errorMessage = `HTTP ${response.status}`;
+    let errorCode;
+    try {
+      const data = await response.json();
+      errorMessage = ((_a = data.error) == null ? void 0 : _a.message) || data.message || errorMessage;
+      errorCode = ((_b = data.error) == null ? void 0 : _b.code) || data.code;
+    } catch (e) {
+      errorMessage = response.statusText || errorMessage;
+    }
+    return new APIError(errorMessage, response.status, errorCode);
+  }
+  static calculateDelay(attempt, baseDelay, maxDelay) {
+    const expDelay = Math.min(baseDelay * Math.pow(2, attempt), maxDelay);
+    const jitter = Math.random() * 0.1 * expDelay;
+    return Math.round(expDelay + jitter);
+  }
+  static delay(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+  static handleError(error) {
+    if (error instanceof APIError) {
+      new import_obsidian3.Notice(`API Error: ${error.message}`);
+      debug("API Error:", error);
+    } else if (error.name === "AbortError") {
+      debug("Request aborted");
+    } else {
+      new import_obsidian3.Notice(`Error: ${error.message}`);
+      debug("Unexpected error:", error);
+    }
+  }
+};
+__publicField(APIHandler, "DEFAULT_OPTIONS", {
+  maxRetries: 3,
+  baseDelay: 1e3,
+  maxDelay: 1e4
+});
+var EventManager = class {
+  constructor() {
+    __publicField(this, "subscriptions", []);
+  }
+  registerWorkspaceEvent(workspace, event, callback) {
+    const eventRef = workspace.on(event, callback);
+    this.subscriptions.push(() => {
+      workspace.offref(eventRef);
+    });
+  }
+  addEventListener(element, event, callback) {
+    element.addEventListener(event, callback);
+    this.subscriptions.push(() => element.removeEventListener(event, callback));
+  }
+  cleanup() {
+    let error;
+    for (const unsubscribe of this.subscriptions) {
+      try {
+        unsubscribe();
+      } catch (e) {
+        if (!error && e instanceof Error) {
+          error = e;
+        }
+      }
+    }
+    this.subscriptions = [];
+    if (error) {
+      throw error;
+    }
+  }
+};
+var _StreamManager = class _StreamManager {
+  constructor(onWrite, onComplete, onError) {
+    // 50ms flush interval
+    __publicField(this, "buffer", "");
+    __publicField(this, "flushTimeout", null);
+    __publicField(this, "lastFlushTime", 0);
+    __publicField(this, "isPaused", false);
+    __publicField(this, "onWrite");
+    __publicField(this, "onComplete");
+    __publicField(this, "onError");
+    this.onWrite = onWrite;
+    this.onComplete = onComplete;
+    this.onError = onError;
+  }
+  /**
+   * Add data to the stream buffer
+   */
+  async write(chunk) {
+    var _a;
+    try {
+      await this.onWrite(chunk);
+    } catch (error) {
+      (_a = this.onError) == null ? void 0 : _a.call(this, error instanceof Error ? error : new Error(String(error)));
+    }
+  }
+  /**
+   * Force flush the buffer
+   */
+  flush() {
+    var _a;
+    if (this.buffer && !this.isPaused) {
+      const now = Date.now();
+      const timeSinceLastFlush = now - this.lastFlushTime;
+      if (timeSinceLastFlush < _StreamManager.FLUSH_INTERVAL) {
+        this.scheduleFlush();
+        return;
+      }
+      try {
+        this.onWrite(this.buffer);
+        this.buffer = "";
+        this.lastFlushTime = now;
+      } catch (error) {
+        (_a = this.onError) == null ? void 0 : _a.call(this, error);
+      }
+    }
+  }
+  /**
+   * Schedule a buffer flush
+   */
+  scheduleFlush() {
+    if (!this.flushTimeout) {
+      this.flushTimeout = setTimeout(() => {
+        this.flushTimeout = null;
+        this.flush();
+      }, _StreamManager.FLUSH_INTERVAL);
+    }
+  }
+  /**
+   * Pause stream processing
+   */
+  pause() {
+    this.isPaused = true;
+  }
+  /**
+   * Resume stream processing
+   */
+  resume() {
+    this.isPaused = false;
+    if (this.buffer.length > 0) {
+      this.flush();
+    }
+  }
+  /**
+   * Complete the stream
+   */
+  complete() {
+    var _a;
+    this.flush();
+    if (this.flushTimeout) {
+      clearTimeout(this.flushTimeout);
+      this.flushTimeout = null;
+    }
+    (_a = this.onComplete) == null ? void 0 : _a.call(this);
+  }
+  /**
+   * Clean up resources
+   */
+  destroy() {
+    if (this.flushTimeout) {
+      clearTimeout(this.flushTimeout);
+      this.flushTimeout = null;
+    }
+    this.buffer = "";
+  }
+};
+__publicField(_StreamManager, "BUFFER_SIZE", 1024);
+// 1KB buffer size
+__publicField(_StreamManager, "FLUSH_INTERVAL", 50);
+var StreamManager = _StreamManager;
+
+// providers/base.ts
+var ProviderError = class extends Error {
+  constructor(type, message, statusCode) {
+    super(message);
+    this.type = type;
+    this.statusCode = statusCode;
+    this.name = "ProviderError";
+  }
+};
+var BaseProvider = class {
+  async makeRequest(url, options) {
+    return APIHandler.fetchWithRetry(url, options, {
+      maxRetries: 3,
+      baseDelay: 1e3,
+      maxDelay: 1e4
+    });
+  }
+  handleHttpError(response) {
+    const status = response.status;
+    switch (status) {
+      case 401:
+        return new ProviderError(
+          "invalid_api_key" /* INVALID_API_KEY */,
+          "Invalid API key",
+          status
+        );
+      case 429:
+        return new ProviderError(
+          "rate_limit" /* RATE_LIMIT */,
+          "Rate limit exceeded",
+          status
+        );
+      case 400:
+        return new ProviderError(
+          "invalid_request" /* INVALID_REQUEST */,
+          "Invalid request parameters",
+          status
+        );
+      case 413:
+        return new ProviderError(
+          "context_length" /* CONTEXT_LENGTH */,
+          "Input too long",
+          status
+        );
+      default:
+        if (status >= 500) {
+          return new ProviderError(
+            "server_error" /* SERVER_ERROR */,
+            `Server error (${status})`,
+            status
+          );
+        }
+        return new ProviderError(
+          "server_error" /* SERVER_ERROR */,
+          `HTTP error ${status}`,
+          status
+        );
+    }
+  }
+  validateCompletionOptions(options) {
+    if (options.temperature !== void 0 && (options.temperature < 0 || options.temperature > 1)) {
+      throw new ProviderError(
+        "invalid_request" /* INVALID_REQUEST */,
+        "Temperature must be between 0 and 1"
+      );
+    }
+    if (options.maxTokens !== void 0 && options.maxTokens <= 0) {
+      throw new ProviderError(
+        "invalid_request" /* INVALID_REQUEST */,
+        "Max tokens must be greater than 0"
+      );
+    }
+  }
+  /**
+   * Create a standard error response for connection tests
+   */
+  createErrorResponse(error) {
+    let message = "Connection failed: ";
+    if (error instanceof ProviderError) {
+      switch (error.type) {
+        case "invalid_api_key" /* INVALID_API_KEY */:
+          message += "Invalid API key. Please check your credentials.";
+          break;
+        case "rate_limit" /* RATE_LIMIT */:
+          message += "Rate limit exceeded. Please try again later.";
+          break;
+        case "network_error" /* NETWORK_ERROR */:
+          message += "Network error. Please check your internet connection.";
+          break;
+        default:
+          message += error.message;
+          break;
+      }
+    } else if (error instanceof APIError) {
+      message += error.message;
+    } else if (error instanceof Error) {
+      message += error.message;
+    } else {
+      message += "Unknown error occurred";
+    }
+    return {
+      success: false,
+      message
+    };
+  }
+  createStreamManager(options) {
+    if (!options.streamCallback) return void 0;
+    return new StreamManager(
+      options.streamCallback,
+      void 0,
+      (error) => {
+        debug("Stream error:", error);
+      }
+    );
+  }
+  logRequestStart(method, endpoint) {
+    debug(`${method} ${endpoint} - Request started`);
+  }
+  logRequestEnd(method, endpoint, duration) {
+    debug(`${method} ${endpoint} - Request completed in ${duration}ms`);
+  }
+  logError(error) {
+    if (error instanceof ProviderError) {
+      debug(`Provider error: ${error.type} - ${error.message}`);
+    } else {
+      debug("Unexpected error:", error);
+    }
+  }
+};
+
+// providers/anthropic.ts
+var AnthropicProvider = class extends BaseProvider {
+  constructor(apiKey, model = "claude-3-sonnet-20240229") {
+    super();
+    __publicField(this, "apiKey");
+    __publicField(this, "baseUrl", "https://api.anthropic.com/v1");
+    __publicField(this, "model");
+    this.apiKey = apiKey;
+    this.model = model;
+  }
+  /**
+   * Get a completion from Anthropic
+   * 
+   * Sends the conversation to Anthropic and streams back the response.
+   * 
+   * @param messages - The conversation history
+   * @param options - Settings for this completion
+   */
+  async getCompletion(messages, options) {
+    var _a, _b, _c, _d, _e, _f;
+    this.validateCompletionOptions(options);
+    const streamManager = this.createStreamManager(options);
+    try {
+      this.logRequestStart("POST", "/messages");
+      const startTime = Date.now();
+      const url = `${this.baseUrl}/messages`;
+      const headers = {
+        "Content-Type": "application/json",
+        "x-api-key": this.apiKey,
+        "anthropic-version": "2023-06-01"
+      };
+      const formattedMessages = this.formatMessages(messages);
+      const body = {
+        model: this.model,
+        messages: formattedMessages,
+        max_tokens: (_a = options.maxTokens) != null ? _a : 2e3,
+        temperature: (_b = options.temperature) != null ? _b : 0.7,
+        stream: Boolean(options.streamCallback)
+      };
+      if (options.streamCallback) {
+        const response = await this.makeRequest(url, {
+          method: "POST",
+          headers,
+          body: JSON.stringify(body),
+          signal: (_c = options.abortController) == null ? void 0 : _c.signal
+        });
+        const reader = (_d = response.body) == null ? void 0 : _d.getReader();
+        if (!reader) {
+          throw new ProviderError(
+            "server_error" /* SERVER_ERROR */,
+            "Failed to get response stream"
+          );
+        }
+        const decoder = new TextDecoder("utf-8");
+        let buffer = "";
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() || "";
+          for (const line of lines) {
+            if (line.startsWith("data: ")) {
+              const data = line.slice(6);
+              if (data === "[DONE]") continue;
+              try {
+                const json = JSON.parse(data);
+                if (json.type === "content_block_delta" && ((_e = json.delta) == null ? void 0 : _e.text)) {
+                  streamManager == null ? void 0 : streamManager.write(json.delta.text);
+                }
+              } catch (e) {
+                debug("Error parsing Anthropic response chunk:", e);
+              }
+            }
+          }
+        }
+        streamManager == null ? void 0 : streamManager.complete();
+      } else {
+        const response = await this.makeRequest(url, {
+          method: "POST",
+          headers,
+          body: JSON.stringify(body),
+          signal: (_f = options.abortController) == null ? void 0 : _f.signal
+        });
+        const data = await response.json();
+        let content = "";
+        if (data.content && data.content.length > 0) {
+          content = data.content.map((block) => block.type === "text" ? block.text : "").join("");
+        }
+        if (streamManager) {
+          streamManager.write(content);
+          streamManager.complete();
+        }
+      }
+      this.logRequestEnd("POST", "/messages", Date.now() - startTime);
+    } catch (error) {
+      if (error instanceof ProviderError) {
+        throw error;
+      }
+      if (error.name === "AbortError") {
+        debug("Anthropic stream was aborted");
+        streamManager == null ? void 0 : streamManager.destroy();
+      } else {
+        this.logError(error);
+        throw new ProviderError(
+          "server_error" /* SERVER_ERROR */,
+          `Error calling Anthropic: ${error.message}`
+        );
+      }
+    }
+  }
+  /**
+   * Format messages for Anthropic's API
+   * 
+   * @param messages Array of message objects
+   * @returns Formatted messages for Anthropic API
+   */
+  formatMessages(messages) {
+    const result = [];
+    const systemMessages = messages.filter((msg) => msg.role === "system");
+    if (systemMessages.length > 0) {
+      result.push({
+        role: "system",
+        content: systemMessages.map((msg) => msg.content).join("\n\n")
+      });
+    }
+    const nonSystemMessages = messages.filter((msg) => msg.role !== "system");
+    result.push(...nonSystemMessages.map((msg) => ({
+      role: msg.role,
+      content: msg.content
+    })));
+    return result;
+  }
+  /**
+   * Get available Anthropic models
+   * 
+   * Returns the list of Claude models.
+   * 
+   * @returns List of available model names
+   */
+  async getAvailableModels() {
+    return [
+      "claude-3-opus-20240229",
+      "claude-3-sonnet-20240229",
+      "claude-3-haiku-20240307"
+    ];
+  }
+  /**
+   * Test connection to Anthropic
+   * 
+   * Verifies the API key works by attempting a simple completion.
+   * 
+   * @returns Test results including success/failure
+   */
+  async testConnection() {
+    try {
+      const url = `${this.baseUrl}/messages`;
+      const headers = {
+        "Content-Type": "application/json",
+        "x-api-key": this.apiKey,
+        "anthropic-version": "2023-06-01"
+      };
+      const body = {
+        model: this.model,
+        messages: [{ role: "user", content: "Hello!" }],
+        max_tokens: 1
+      };
+      const response = await this.makeRequest(url, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(body)
+      });
+      const models = await this.getAvailableModels();
+      return {
+        success: true,
+        message: "Successfully connected to Anthropic Claude!",
+        models
+      };
+    } catch (error) {
+      return this.createErrorResponse(error);
+    }
+  }
+};
+
+// providers/openai.ts
+var OpenAIProvider = class extends BaseProvider {
+  constructor(apiKey, model = "gpt-4") {
+    super();
+    __publicField(this, "apiKey");
+    __publicField(this, "baseUrl", "https://api.openai.com/v1");
+    __publicField(this, "model");
+    this.apiKey = apiKey;
+    this.model = model;
+  }
+  /**
+   * Get a completion from OpenAI
+   * 
+   * Sends the conversation to OpenAI and streams back the response.
+   * 
+   * @param messages - The conversation history
+   * @param options - Settings for this completion
+   */
+  async getCompletion(messages, options) {
+    var _a, _b, _c, _d, _e, _f, _g;
+    this.validateCompletionOptions(options);
+    const streamManager = this.createStreamManager(options);
+    try {
+      this.logRequestStart("POST", "/chat/completions");
+      const startTime = Date.now();
+      const url = `${this.baseUrl}/chat/completions`;
+      const headers = {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${this.apiKey}`
+      };
+      const body = {
+        model: this.model,
+        messages,
+        temperature: (_a = options.temperature) != null ? _a : 0.7,
+        max_tokens: options.maxTokens,
+        stream: Boolean(options.streamCallback)
+      };
+      if (options.streamCallback) {
+        const response = await this.makeRequest(url, {
+          method: "POST",
+          headers,
+          body: JSON.stringify(body),
+          signal: (_b = options.abortController) == null ? void 0 : _b.signal
+        });
+        const reader = (_c = response.body) == null ? void 0 : _c.getReader();
+        if (!reader) {
+          throw new ProviderError(
+            "server_error" /* SERVER_ERROR */,
+            "Failed to get response stream"
+          );
+        }
+        const decoder = new TextDecoder("utf-8");
+        let buffer = "";
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() || "";
+          for (const line of lines) {
+            if (line.startsWith("data: ")) {
+              const data = line.slice(6);
+              if (data === "[DONE]") continue;
+              try {
+                const json = JSON.parse(data);
+                const content = (_f = (_e = (_d = json.choices) == null ? void 0 : _d[0]) == null ? void 0 : _e.delta) == null ? void 0 : _f.content;
+                if (content) {
+                  streamManager == null ? void 0 : streamManager.write(content);
+                }
+              } catch (e) {
+                debug("Error parsing OpenAI response chunk:", e);
+              }
+            }
+          }
+        }
+        streamManager == null ? void 0 : streamManager.complete();
+      } else {
+        const response = await this.makeRequest(url, {
+          method: "POST",
+          headers,
+          body: JSON.stringify(body),
+          signal: (_g = options.abortController) == null ? void 0 : _g.signal
+        });
+        const data = await response.json();
+        if (data.choices && data.choices[0] && data.choices[0].message) {
+          const content = data.choices[0].message.content;
+          if (content && streamManager) {
+            streamManager.write(content);
+            streamManager.complete();
+          }
+        }
+      }
+      this.logRequestEnd("POST", "/chat/completions", Date.now() - startTime);
+    } catch (error) {
+      if (error instanceof ProviderError) {
+        throw error;
+      }
+      if (error.name === "AbortError") {
+        debug("OpenAI stream was aborted");
+        streamManager == null ? void 0 : streamManager.destroy();
+      } else {
+        this.logError(error);
+        throw new ProviderError(
+          "server_error" /* SERVER_ERROR */,
+          `Error calling OpenAI: ${error.message}`
+        );
+      }
+    }
+  }
+  /**
+   * Get available OpenAI models
+   * 
+   * Fetches the list of available models from OpenAI's API.
+   * Filters to only include GPT models.
+   * 
+   * @returns List of available model names
+   */
+  async getAvailableModels() {
+    try {
+      this.logRequestStart("GET", "/models");
+      const startTime = Date.now();
+      const response = await this.makeRequest(`${this.baseUrl}/models`, {
+        method: "GET",
+        headers: {
+          "Authorization": `Bearer ${this.apiKey}`
+        }
+      });
+      const data = await response.json();
+      this.logRequestEnd("GET", "/models", Date.now() - startTime);
+      return data.data.map((model) => model.id).filter((id) => id.includes("gpt-4") || id.includes("gpt-3.5") || id.includes("gpt-4o"));
+    } catch (error) {
+      this.logError(error);
+      throw error;
+    }
+  }
+  /**
+   * Test connection to OpenAI
+   * 
+   * Verifies the API key works by attempting to list models.
+   * 
+   * @returns Test results including success/failure and available models
+   */
+  async testConnection() {
+    try {
+      const models = await this.getAvailableModels();
+      return {
+        success: true,
+        message: `Successfully connected to OpenAI! Found ${models.length} available models.`,
+        models
+      };
+    } catch (error) {
+      return this.createErrorResponse(error);
+    }
+  }
+};
+
+// providers/gemini.ts
+var GeminiProvider = class extends BaseProvider {
+  constructor(apiKey, model = "gemini-pro") {
+    super();
+    __publicField(this, "apiKey");
+    __publicField(this, "baseUrl", "https://generativelanguage.googleapis.com/v1");
+    __publicField(this, "model");
+    this.apiKey = apiKey;
+    this.model = model;
+  }
+  /**
+   * Get a completion from Google Gemini
+   * 
+   * Sends the conversation to Gemini and streams back the response.
+   * 
+   * @param messages - The conversation history
+   * @param options - Settings for this completion
+   */
+  async getCompletion(messages, options) {
+    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q;
+    this.validateCompletionOptions(options);
+    const streamManager = this.createStreamManager(options);
+    try {
+      const formattedMessages = this.formatMessages(messages);
+      const isStreaming = Boolean(options.streamCallback);
+      if (isStreaming) {
+        this.logRequestStart("POST", `/models/${this.model}:streamGenerateContent`);
+        const startTime = Date.now();
+        const url = `${this.baseUrl}/models/${this.model}:streamGenerateContent?key=${this.apiKey}`;
+        const response = await this.makeRequest(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            contents: formattedMessages,
+            generationConfig: {
+              temperature: (_a = options.temperature) != null ? _a : 0.7,
+              maxOutputTokens: (_b = options.maxTokens) != null ? _b : 1e3
+            },
+            safetySettings: [
+              {
+                category: "HARM_CATEGORY_HARASSMENT",
+                threshold: "BLOCK_MEDIUM_AND_ABOVE"
+              },
+              {
+                category: "HARM_CATEGORY_HATE_SPEECH",
+                threshold: "BLOCK_MEDIUM_AND_ABOVE"
+              },
+              {
+                category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+                threshold: "BLOCK_MEDIUM_AND_ABOVE"
+              },
+              {
+                category: "HARM_CATEGORY_DANGEROUS_CONTENT",
+                threshold: "BLOCK_MEDIUM_AND_ABOVE"
+              }
+            ]
+          }),
+          signal: (_c = options.abortController) == null ? void 0 : _c.signal
+        });
+        const reader = (_d = response.body) == null ? void 0 : _d.getReader();
+        if (!reader) {
+          throw new ProviderError(
+            "server_error" /* SERVER_ERROR */,
+            "Failed to get response stream"
+          );
+        }
+        const decoder = new TextDecoder("utf-8");
+        let buffer = "";
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() || "";
+          for (const line of lines) {
+            if (line.trim() && !line.startsWith("[")) {
+              try {
+                const data = JSON.parse(line);
+                const text = (_i = (_h = (_g = (_f = (_e = data.candidates) == null ? void 0 : _e[0]) == null ? void 0 : _f.content) == null ? void 0 : _g.parts) == null ? void 0 : _h[0]) == null ? void 0 : _i.text;
+                if (text && streamManager) {
+                  streamManager.write(text);
+                }
+              } catch (e) {
+                debug("Error parsing Gemini response chunk:", e);
+              }
+            }
+          }
+        }
+        streamManager == null ? void 0 : streamManager.complete();
+        this.logRequestEnd("POST", `/models/${this.model}:streamGenerateContent`, Date.now() - startTime);
+      } else {
+        this.logRequestStart("POST", `/models/${this.model}:generateContent`);
+        const startTime = Date.now();
+        const url = `${this.baseUrl}/models/${this.model}:generateContent?key=${this.apiKey}`;
+        const response = await this.makeRequest(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            contents: formattedMessages,
+            generationConfig: {
+              temperature: (_j = options.temperature) != null ? _j : 0.7,
+              maxOutputTokens: (_k = options.maxTokens) != null ? _k : 1e3
+            }
+          }),
+          signal: (_l = options.abortController) == null ? void 0 : _l.signal
+        });
+        const data = await response.json();
+        const content = ((_q = (_p = (_o = (_n = (_m = data.candidates) == null ? void 0 : _m[0]) == null ? void 0 : _n.content) == null ? void 0 : _o.parts) == null ? void 0 : _p[0]) == null ? void 0 : _q.text) || "";
+        if (options.streamCallback) {
+          options.streamCallback(content);
+        }
+        this.logRequestEnd("POST", `/models/${this.model}:generateContent`, Date.now() - startTime);
+      }
+    } catch (error) {
+      if (error instanceof ProviderError) {
+        throw error;
+      }
+      if (error.name === "AbortError") {
+        debug("Gemini stream was aborted");
+        streamManager == null ? void 0 : streamManager.destroy();
+      } else {
+        this.logError(error);
+        throw new ProviderError(
+          "server_error" /* SERVER_ERROR */,
+          `Error calling Gemini: ${error.message}`
+        );
+      }
+    }
+  }
+  /**
+   * Get available Gemini models
+   * 
+   * Fetches the list of available models from Google's API.
+   * Filters to only include Gemini models.
+   * 
+   * @returns List of available model names
+   */
+  async getAvailableModels() {
+    try {
+      this.logRequestStart("GET", "/models");
+      const startTime = Date.now();
+      const response = await this.makeRequest(`${this.baseUrl}/models?key=${this.apiKey}`, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json"
+        }
+      });
+      const data = await response.json();
+      this.logRequestEnd("GET", "/models", Date.now() - startTime);
+      return data.models.map((model) => model.name.split("/").pop()).filter((id) => id.startsWith("gemini-"));
+    } catch (error) {
+      console.error("Error fetching Gemini models:", error);
+      throw error;
+    }
+  }
+  /**
+   * Test connection to Gemini
+   * 
+   * Verifies the API key works by attempting to list models.
+   * 
+   * @returns Test results including success/failure and available models
+   */
+  async testConnection() {
+    try {
+      const models = await this.getAvailableModels();
+      return {
+        success: true,
+        message: `Successfully connected to Google Gemini! Found ${models.length} available models.`,
+        models
+      };
+    } catch (error) {
+      return this.createErrorResponse(error);
+    }
+  }
+  /**
+   * Format messages for Gemini API
+   * 
+   * Converts from the plugin's Message format to Gemini's expected format.
+   * 
+   * @param messages - Array of messages to format
+   * @returns Formatted messages for Gemini API
+   */
+  formatMessages(messages) {
+    const formattedMessages = [];
+    let currentRole = null;
+    let content = { parts: [{ text: "" }] };
+    for (const message of messages) {
+      const role = message.role === "system" ? "user" : message.role;
+      if (role !== currentRole && currentRole !== null) {
+        formattedMessages.push({
+          role: currentRole,
+          parts: [{ text: content.parts[0].text }]
+        });
+        content = { parts: [{ text: message.content }] };
+      } else {
+        content.parts[0].text += (content.parts[0].text ? "\n\n" : "") + message.content;
+      }
+      currentRole = role;
+    }
+    if (currentRole !== null) {
+      formattedMessages.push({
+        role: currentRole,
+        parts: [{ text: content.parts[0].text }]
+      });
+    }
+    return formattedMessages;
+  }
+};
+
+// providers/ollama.ts
+var OllamaProvider = class extends BaseProvider {
+  constructor(serverUrl = "http://localhost:11434", model = "llama2") {
+    super();
+    __publicField(this, "apiKey", "");
+    // Ollama doesn't use API keys
+    __publicField(this, "baseUrl");
+    __publicField(this, "model");
+    this.baseUrl = serverUrl;
+    this.model = model;
+  }
+  /**
+   * Get a completion from Ollama
+   *
+   * Sends the conversation to the local Ollama server and streams back the response.
+   *
+   * @param messages - The conversation history
+   * @param options - Settings for this completion
+   */
+  async getCompletion(messages, options) {
+    var _a, _b, _c, _d, _e;
+    this.validateCompletionOptions(options);
+    const streamManager = this.createStreamManager(options);
+    try {
+      this.logRequestStart("POST", "/api/generate");
+      const startTime = Date.now();
+      const formattedPrompt = this.formatMessages(messages);
+      const url = `${this.baseUrl}/api/generate`;
+      const response = await this.makeRequest(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          model: this.model,
+          prompt: formattedPrompt,
+          stream: Boolean(options.streamCallback),
+          options: {
+            temperature: (_a = options.temperature) != null ? _a : 0.7,
+            num_predict: (_b = options.maxTokens) != null ? _b : 2e3
+          }
+        }),
+        signal: (_c = options.abortController) == null ? void 0 : _c.signal
+      });
+      if (options.streamCallback && streamManager) {
+        const reader = (_d = response.body) == null ? void 0 : _d.getReader();
+        if (!reader) {
+          throw new ProviderError(
+            "server_error" /* SERVER_ERROR */,
+            "Failed to get response stream"
+          );
+        }
+        const decoder = new TextDecoder("utf-8");
+        let buffer = "";
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() || "";
+          for (const line of lines) {
+            if (line.trim()) {
+              try {
+                const data = JSON.parse(line);
+                if (data.response) {
+                  streamManager.write(data.response);
+                }
+                if (data.done) {
+                  streamManager.complete();
+                }
+              } catch (e) {
+                debug("Error parsing Ollama response chunk:", e);
+              }
+            }
+          }
+        }
+      } else {
+        const data = await response.json();
+        if (options.streamCallback && data.response) {
+          options.streamCallback(data.response);
+        }
+      }
+      this.logRequestEnd("POST", "/api/generate", Date.now() - startTime);
+    } catch (error) {
+      if (error instanceof ProviderError) {
+        throw error;
+      }
+      if (error.name === "AbortError") {
+        debug("Ollama stream was aborted");
+        streamManager == null ? void 0 : streamManager.destroy();
+      } else {
+        const errorMessage = ((_e = error.message) == null ? void 0 : _e.includes("fetch")) ? "Could not connect to Ollama server. Make sure Ollama is installed and running." : `Error calling Ollama: ${error.message}`;
+        this.logError(error);
+        throw new ProviderError(
+          "server_error" /* SERVER_ERROR */,
+          errorMessage
+        );
+      }
+    }
+  }
+  /**
+   * Get available Ollama models
+   *
+   * Fetches the list of models installed on the local Ollama server.
+   *
+   * @returns List of available model names
+   */
+  async getAvailableModels() {
+    try {
+      this.logRequestStart("GET", "/api/tags");
+      const startTime = Date.now();
+      const response = await this.makeRequest(`${this.baseUrl}/api/tags`, {
+        method: "GET"
+      });
+      const data = await response.json();
+      this.logRequestEnd("GET", "/api/tags", Date.now() - startTime);
+      return data.models.map((model) => model.name);
+    } catch (error) {
+      this.logError(error);
+      throw error;
+    }
+  }
+  /**
+   * Test connection to Ollama
+   *
+   * Verifies the Ollama server is running and accessible.
+   * Also checks if any models are installed.
+   *
+   * @returns Test results including success/failure and available models
+   */
+  async testConnection() {
+    try {
+      const models = await this.getAvailableModels();
+      if (models.length === 0) {
+>>>>>>> main
         return {
           "X-Stainless-Lang": "js",
           "X-Stainless-Package-Version": VERSION,
@@ -5573,6 +6762,7 @@ var init_core = __esm({
         "X-Stainless-Runtime": "unknown",
         "X-Stainless-Runtime-Version": "unknown"
       };
+<<<<<<< HEAD
     };
     normalizeArch = (arch) => {
       if (arch === "x32")
@@ -8263,6 +9453,52 @@ var init_ollama = __esm({
     };
   }
 });
+=======
+    } catch (error) {
+      let message = "Connection failed: ";
+      if (error instanceof Error) {
+        if (error.message.includes("fetch")) {
+          message += "Could not connect to Ollama server. Make sure Ollama is installed and running.";
+        } else {
+          message += error.message;
+        }
+      } else {
+        message += "Unknown error occurred";
+      }
+      return {
+        success: false,
+        message
+      };
+    }
+  }
+  /**
+   * Format messages for Ollama API
+   * 
+   * Converts from the plugin's Message format to Ollama's expected format.
+   * Ollama expects a simple text prompt, so we need to flatten the conversation.
+   * 
+   * @param messages Array of message objects
+   * @returns Formatted prompt string for Ollama
+   */
+  formatMessages(messages) {
+    let prompt = "";
+    const systemMessages = messages.filter((m) => m.role === "system");
+    if (systemMessages.length > 0) {
+      prompt = systemMessages.map((m) => m.content).join("\n\n");
+      prompt += "\n\n";
+    }
+    const nonSystemMessages = messages.filter((m) => m.role !== "system");
+    for (const message of nonSystemMessages) {
+      const roleName = message.role === "user" ? "User" : "Assistant";
+      prompt += `${roleName}: ${message.content}
+
+`;
+    }
+    prompt += "Assistant: ";
+    return prompt;
+  }
+};
+>>>>>>> main
 
 // providers/index.ts
 var providers_exports = {};
@@ -8398,6 +9634,7 @@ var init_providers = __esm({
   }
 });
 
+<<<<<<< HEAD
 // src/components/chat/SettingsSections.ts
 var SettingsSections_exports = {};
 __export(SettingsSections_exports, {
@@ -11499,6 +12736,12 @@ var ChatHistoryManager = class {
 // src/components/chat.ts
 var VIEW_TYPE_CHAT = "chat-view";
 var SettingsModal = class extends import_obsidian3.Modal {
+=======
+// chat.ts
+var import_obsidian4 = require("obsidian");
+var VIEW_TYPE_CHAT = "chat-view";
+var SettingsModal = class extends import_obsidian4.Modal {
+>>>>>>> main
   constructor(app, plugin) {
     super(app);
     __publicField(this, "plugin");
@@ -11509,6 +12752,7 @@ var SettingsModal = class extends import_obsidian3.Modal {
     const { contentEl } = this;
     contentEl.empty();
     contentEl.addClass("ai-settings-modal");
+<<<<<<< HEAD
     contentEl.createEl("h3", { text: "Session Management" });
     new import_obsidian3.Setting(contentEl).setName("Auto-save Sessions").setDesc("Automatically save chat messages to sessions").addToggle((toggle) => toggle.setValue(this.plugin.settings.autoSaveSessions).onChange(async (value) => {
       this.plugin.settings.autoSaveSessions = value;
@@ -11523,11 +12767,16 @@ var SettingsModal = class extends import_obsidian3.Modal {
     }));
     new import_obsidian3.Setting(contentEl).setName("AI Provider").setDesc("Choose which AI provider to use").addDropdown((dropdown) => {
       dropdown.addOption("openai", "OpenAI (ChatGPT)").addOption("anthropic", "Anthropic (Claude)").addOption("gemini", "Google (Gemini)").addOption("ollama", "Ollama (Local AI)").setValue(this.plugin.settings.provider).onChange(async (value) => {
+=======
+    new import_obsidian4.Setting(contentEl).setName("AI Provider").setDesc("Choose which AI provider to use").addDropdown((dropdown) => {
+      dropdown.addOption("openai", "OpenAI").addOption("anthropic", "Anthropic (Claude)").addOption("gemini", "Google (Gemini)").addOption("ollama", "Ollama (Local AI)").setValue(this.plugin.settings.provider).onChange(async (value) => {
+>>>>>>> main
         this.plugin.settings.provider = value;
         await this.plugin.saveSettings();
         this.onOpen();
       });
     });
+<<<<<<< HEAD
     new import_obsidian3.Setting(contentEl).setName("System Message").setDesc("Set the system message for the AI").addTextArea((text) => text.setPlaceholder("You are a helpful assistant.").setValue(this.plugin.settings.systemMessage).onChange(async (value) => {
       this.plugin.settings.systemMessage = value;
       await this.plugin.saveSettings();
@@ -11549,12 +12798,36 @@ var SettingsModal = class extends import_obsidian3.Modal {
       await this.plugin.saveSettings();
     }));
     new import_obsidian3.Setting(contentEl).setName("Context Notes").setDesc("Notes to attach as context (supports [[filename]] and [[filename#header]] syntax)").addTextArea((text) => {
+=======
+    new import_obsidian4.Setting(contentEl).setName("System Message").setDesc("Set the system message for the AI").addTextArea((text) => text.setPlaceholder("You are a helpful assistant.").setValue(this.plugin.settings.systemMessage).onChange(async (value) => {
+      this.plugin.settings.systemMessage = value;
+      await this.plugin.saveSettings();
+    }));
+    new import_obsidian4.Setting(contentEl).setName("Include Date with System Message").setDesc("Add the current date to the system message").addToggle((toggle) => toggle.setValue(this.plugin.settings.includeDateWithSystemMessage).onChange(async (value) => {
+      this.plugin.settings.includeDateWithSystemMessage = value;
+      await this.plugin.saveSettings();
+    }));
+    new import_obsidian4.Setting(contentEl).setName("Include Time with System Message").setDesc("Add the current time along with the date to the system message").addToggle((toggle) => toggle.setValue(this.plugin.settings.includeTimeWithSystemMessage).onChange(async (value) => {
+      this.plugin.settings.includeTimeWithSystemMessage = value;
+      await this.plugin.saveSettings();
+    }));
+    new import_obsidian4.Setting(contentEl).setName("Enable Obsidian Links").setDesc("Read Obsidian links in messages using [[filename]] syntax").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableObsidianLinks).onChange(async (value) => {
+      this.plugin.settings.enableObsidianLinks = value;
+      await this.plugin.saveSettings();
+    }));
+    new import_obsidian4.Setting(contentEl).setName("Enable Context Notes").setDesc("Attach specified note content to chat messages").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableContextNotes).onChange(async (value) => {
+      this.plugin.settings.enableContextNotes = value;
+      await this.plugin.saveSettings();
+    }));
+    new import_obsidian4.Setting(contentEl).setName("Context Notes").setDesc("Notes to attach as context (supports [[filename]] and [[filename#header]] syntax)").addTextArea((text) => {
+>>>>>>> main
       text.setPlaceholder("[[Note Name]]\n[[Another Note#Header]]").setValue(this.plugin.settings.contextNotes || "").onChange(async (value) => {
         this.plugin.settings.contextNotes = value;
         await this.plugin.saveSettings();
       });
       text.inputEl.rows = 4;
     });
+<<<<<<< HEAD
     new import_obsidian3.Setting(contentEl).setName("Enable Streaming").setDesc("Enable or disable streaming for completions").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableStreaming).onChange(async (value) => {
       this.plugin.settings.enableStreaming = value;
       await this.plugin.saveSettings();
@@ -11564,6 +12837,24 @@ var SettingsModal = class extends import_obsidian3.Modal {
       await this.plugin.saveSettings();
     }));
     new import_obsidian3.Setting(contentEl).setName("Reference Current Note").setDesc("Include the content of the current note in the chat context.").addToggle((toggle) => toggle.setValue(this.plugin.settings.referenceCurrentNote).onChange(async (value) => {
+=======
+    new import_obsidian4.Setting(contentEl).setName("Enable Streaming").setDesc("Enable or disable streaming for completions").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableStreaming).onChange(async (value) => {
+      this.plugin.settings.enableStreaming = value;
+      await this.plugin.saveSettings();
+    }));
+    new import_obsidian4.Setting(contentEl).setName("Temperature").setDesc("Set the randomness of the model's output (0-1)").addSlider((slider) => slider.setLimits(0, 1, 0.1).setValue(this.plugin.settings.temperature).setDynamicTooltip().onChange(async (value) => {
+      this.plugin.settings.temperature = value;
+      await this.plugin.saveSettings();
+    }));
+    new import_obsidian4.Setting(contentEl).setName("Max Tokens").setDesc("Set the maximum length of the model's output").addText((text) => text.setPlaceholder("4000").setValue(String(this.plugin.settings.maxTokens)).onChange(async (value) => {
+      const numValue = Number(value);
+      if (!isNaN(numValue)) {
+        this.plugin.settings.maxTokens = numValue;
+        await this.plugin.saveSettings();
+      }
+    }));
+    new import_obsidian4.Setting(contentEl).setName("Reference Current Note").setDesc("Include the content of the current note in the chat context.").addToggle((toggle) => toggle.setValue(this.plugin.settings.referenceCurrentNote).onChange(async (value) => {
+>>>>>>> main
       this.plugin.settings.referenceCurrentNote = value;
       await this.plugin.saveSettings();
     }));
@@ -11571,7 +12862,11 @@ var SettingsModal = class extends import_obsidian3.Modal {
     switch (this.plugin.settings.provider) {
       case "openai": {
         const settings = this.plugin.settings.openaiSettings;
+<<<<<<< HEAD
         new import_obsidian3.Setting(contentEl).setName("Model").setDesc("Choose the OpenAI model to use").addDropdown((dropdown) => {
+=======
+        new import_obsidian4.Setting(contentEl).setName("Model").setDesc("Choose the OpenAI model to use").addDropdown((dropdown) => {
+>>>>>>> main
           for (const model of settings.availableModels) {
             dropdown.addOption(model, model);
           }
@@ -11584,7 +12879,11 @@ var SettingsModal = class extends import_obsidian3.Modal {
       }
       case "anthropic": {
         const settings = this.plugin.settings.anthropicSettings;
+<<<<<<< HEAD
         new import_obsidian3.Setting(contentEl).setName("Model").setDesc("Choose the Anthropic model to use").addDropdown((dropdown) => {
+=======
+        new import_obsidian4.Setting(contentEl).setName("Model").setDesc("Choose the Anthropic model to use").addDropdown((dropdown) => {
+>>>>>>> main
           for (const model of settings.availableModels) {
             dropdown.addOption(model, model);
           }
@@ -11597,7 +12896,11 @@ var SettingsModal = class extends import_obsidian3.Modal {
       }
       case "gemini": {
         const settings = this.plugin.settings.geminiSettings;
+<<<<<<< HEAD
         new import_obsidian3.Setting(contentEl).setName("Model").setDesc("Choose the Gemini model to use").addDropdown((dropdown) => {
+=======
+        new import_obsidian4.Setting(contentEl).setName("Model").setDesc("Choose the Gemini model to use").addDropdown((dropdown) => {
+>>>>>>> main
           for (const model of settings.availableModels) {
             dropdown.addOption(model, model);
           }
@@ -11610,7 +12913,11 @@ var SettingsModal = class extends import_obsidian3.Modal {
       }
       case "ollama": {
         const settings = this.plugin.settings.ollamaSettings;
+<<<<<<< HEAD
         new import_obsidian3.Setting(contentEl).setName("Model").setDesc("Choose the Ollama model to use").addDropdown((dropdown) => {
+=======
+        new import_obsidian4.Setting(contentEl).setName("Model").setDesc("Choose the Ollama model to use").addDropdown((dropdown) => {
+>>>>>>> main
           for (const model of settings.availableModels) {
             dropdown.addOption(model, model);
           }
@@ -11628,7 +12935,11 @@ var SettingsModal = class extends import_obsidian3.Modal {
     contentEl.empty();
   }
 };
+<<<<<<< HEAD
 var ConfirmationModal = class extends import_obsidian3.Modal {
+=======
+var ConfirmationModal = class extends import_obsidian4.Modal {
+>>>>>>> main
   constructor(app, title, message, onConfirm) {
     super(app);
     __publicField(this, "onConfirm");
@@ -11663,17 +12974,75 @@ var ConfirmationModal = class extends import_obsidian3.Modal {
     contentEl.empty();
   }
 };
+<<<<<<< HEAD
 var ChatView = class extends import_obsidian3.ItemView {
+=======
+var ChatService = class {
+  constructor(app, view) {
+    this.app = app;
+    this.view = view;
+    __publicField(this, "eventManager");
+    __publicField(this, "activeStream", null);
+    this.eventManager = new EventManager();
+  }
+  async sendMessage(content) {
+    if (!content.trim()) return;
+    try {
+      const userMessage = await this.createAndAppendMessage("user", content);
+      const assistantMessage = await this.createAndAppendMessage("assistant", "");
+      await this.view.streamResponse(assistantMessage, content);
+    } catch (error) {
+      new import_obsidian4.Notice(`Error: ${error.message}`);
+    }
+  }
+  async createAndAppendMessage(role, content) {
+    const messageEl = document.createElement("div");
+    messageEl.classList.add("chat-message", role);
+    const contentEl = document.createElement("div");
+    contentEl.classList.add("message-content");
+    contentEl.innerHTML = content;
+    messageEl.appendChild(contentEl);
+    return messageEl;
+  }
+  stop() {
+    if (this.activeStream) {
+      this.activeStream.abort();
+      this.activeStream = null;
+    }
+  }
+  destroy() {
+    this.stop();
+    this.eventManager.cleanup();
+  }
+};
+var ChatView = class extends import_obsidian4.ItemView {
+>>>>>>> main
   constructor(leaf, plugin) {
     super(leaf);
     __publicField(this, "plugin");
     __publicField(this, "messagesContainer");
     __publicField(this, "inputContainer");
+<<<<<<< HEAD
     __publicField(this, "activeStream", null);
     __publicField(this, "chatHistoryManager");
+=======
+    __publicField(this, "eventManager");
+    __publicField(this, "chatService");
+    __publicField(this, "debouncedSendMessage");
+    __publicField(this, "messageHistory", []);
+>>>>>>> main
     __publicField(this, "settingsContainer", null);
+    __publicField(this, "activeStream", null);
     this.plugin = plugin;
+<<<<<<< HEAD
     this.chatHistoryManager = new ChatHistoryManager(this.app.vault, this.plugin.manifest.id, "chat-history.json");
+=======
+    this.eventManager = new EventManager();
+    this.chatService = new ChatService(this.app, this);
+    this.debouncedSendMessage = this.debounce(this.chatService.sendMessage.bind(this.chatService), 400);
+    this.messagesContainer = createDiv("ai-chat-messages");
+    this.inputContainer = createDiv("ai-chat-input-container");
+>>>>>>> main
   }
   getViewType() {
     return VIEW_TYPE_CHAT;
@@ -11695,25 +13064,36 @@ var ChatView = class extends import_obsidian3.ItemView {
       loadedHistory = [];
     }
     contentEl.addClass("ai-chat-view");
-    const settingsButton = document.createElement("button");
-    settingsButton.setText("Settings");
-    settingsButton.setAttribute("aria-label", "Toggle model settings");
-    this.messagesContainer = contentEl.createDiv("ai-chat-messages");
+    this.createMessagesContainer(contentEl);
+    this.createInputArea(contentEl);
+    this.registerEvent(
+      this.app.workspace.on("active-leaf-change", this.handleActiveLeafChange.bind(this))
+    );
+    await this.addMessage("assistant", "Hello! How can I help you today?");
+  }
+  createMessagesContainer(parentEl) {
+    this.messagesContainer = parentEl.createDiv("ai-chat-messages");
     this.messagesContainer.style.flex = "1";
     this.messagesContainer.style.overflow = "auto";
     this.messagesContainer.style.padding = "16px";
-    this.inputContainer = contentEl.createDiv("ai-chat-input-container");
+  }
+  createInputArea(parentEl) {
+    this.inputContainer = parentEl.createDiv("ai-chat-input-container");
     this.inputContainer.style.borderTop = "1px solid var(--background-modifier-border)";
     this.inputContainer.style.padding = "16px";
-    const textarea = this.inputContainer.createEl("textarea", {
-      cls: "ai-chat-input",
-      attr: {
-        placeholder: "Type your message...",
-        rows: "3"
-      }
-    });
+    const textarea = this.createChatTextarea();
+    const buttonContainer = this.createButtonContainer();
+    this.inputContainer.appendChild(textarea);
+    this.inputContainer.appendChild(buttonContainer);
+  }
+  createChatTextarea() {
+    const textarea = document.createElement("textarea");
+    textarea.addClass("ai-chat-input");
+    textarea.placeholder = "Type your message...";
+    textarea.rows = 3;
     textarea.style.width = "100%";
     textarea.style.resize = "none";
+<<<<<<< HEAD
     textarea.style.border = "1px solid var(--background-modifier-border)";
     textarea.style.borderRadius = "4px";
     textarea.style.padding = "8px";
@@ -11846,21 +13226,80 @@ ${currentNoteContent}`
       }
     };
     textarea.addEventListener("keydown", (e) => {
+=======
+    this.eventManager.addEventListener(textarea, "keydown", (e) => {
+>>>>>>> main
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
-        sendMessage();
+        this.debouncedSendMessage(textarea.value);
+        textarea.value = "";
       }
     });
-    sendButton.addEventListener("click", sendMessage);
-    stopButton.addEventListener("click", () => {
-      if (this.activeStream) {
-        this.activeStream.abort();
-        this.activeStream = null;
-        textarea.disabled = false;
-        textarea.focus();
-        stopButton.style.display = "none";
-        sendButton.style.display = "block";
+    return textarea;
+  }
+  createButtonContainer() {
+    const container = document.createElement("div");
+    container.addClass("ai-chat-buttons");
+    container.style.marginTop = "8px";
+    container.style.display = "flex";
+    container.style.gap = "8px";
+    container.style.justifyContent = "flex-end";
+    const sendButton = this.createButton("Send", "mod-cta");
+    this.eventManager.addEventListener(sendButton, "click", () => {
+      const textarea = this.inputContainer.querySelector("textarea");
+      if (textarea) {
+        this.debouncedSendMessage(textarea.value);
+        textarea.value = "";
       }
+    });
+    const stopButton = this.createButton("Stop");
+    stopButton.style.display = "none";
+    this.eventManager.addEventListener(stopButton, "click", () => {
+      this.chatService.stop();
+    });
+    const clearButton = this.createButton("Clear Chat");
+    this.eventManager.addEventListener(clearButton, "click", () => {
+      this.clearChat();
+    });
+    const settingsButton = this.createButton("Settings");
+    this.eventManager.addEventListener(settingsButton, "click", () => {
+      new SettingsModal(this.app, this.plugin).open();
+    });
+    container.appendChild(settingsButton);
+    container.appendChild(sendButton);
+    container.appendChild(stopButton);
+    container.appendChild(clearButton);
+    return container;
+  }
+  createButton(text, cls) {
+    const button = document.createElement("button");
+    button.setText(text);
+    if (cls) button.addClass(cls);
+    return button;
+  }
+  clearChat() {
+    this.messagesContainer.empty();
+    this.addMessage("assistant", "Chat cleared. How can I help you?");
+  }
+  updateUIState(state) {
+    const textarea = this.inputContainer.querySelector("textarea");
+    const sendButton = this.inputContainer.querySelector("button.mod-cta");
+    const stopButton = this.inputContainer.querySelector("button:nth-child(3)");
+    if (state === "streaming" /* STREAMING */) {
+      if (textarea) textarea.disabled = true;
+      if (sendButton) sendButton.disabled = true;
+      if (stopButton) {
+        stopButton.style.display = "block";
+        stopButton.disabled = false;
+      }
+    } else {
+      if (textarea) textarea.disabled = false;
+      if (sendButton) sendButton.disabled = false;
+      if (stopButton) {
+        stopButton.style.display = "none";
+        stopButton.disabled = true;
+      }
+<<<<<<< HEAD
     });
     clearButton.addEventListener("click", async () => {
       this.messagesContainer.empty();
@@ -11887,6 +13326,8 @@ ${currentNoteContent}`
         }
       }
       this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+=======
+>>>>>>> main
     }
   }
   createActionButton(label, tooltip, callback) {
@@ -11902,23 +13343,23 @@ ${currentNoteContent}`
   async copyToClipboard(text) {
     try {
       await navigator.clipboard.writeText(text);
+<<<<<<< HEAD
       new import_obsidian3.Notice("Copied to clipboard");
     } catch (error) {
       new import_obsidian3.Notice("Failed to copy to clipboard");
+=======
+      new import_obsidian4.Notice("Copied to clipboard");
+    } catch (error) {
+      new import_obsidian4.Notice("Failed to copy to clipboard");
+>>>>>>> main
       console.error("Clipboard error:", error);
     }
   }
-  createMessageElement(role, content) {
+  async createMessageElement(role, content) {
     const messageEl = document.createElement("div");
-    messageEl.addClass("ai-chat-message", role);
-    messageEl.style.marginBottom = "16px";
-    messageEl.style.padding = "12px";
-    messageEl.style.borderRadius = "8px";
-    messageEl.style.backgroundColor = role === "user" ? "var(--background-modifier-hover)" : "var(--background-secondary)";
-    const messageContainer = messageEl.createDiv("message-container");
-    const contentEl = messageContainer.createDiv("message-content");
-    contentEl.style.whiteSpace = "pre-wrap";
+    messageEl.addClass("chat-message", role);
     messageEl.dataset.rawContent = content;
+<<<<<<< HEAD
     messageEl.dataset.timestamp = (/* @__PURE__ */ new Date()).toISOString();
     import_obsidian3.MarkdownRenderer.render(
       this.app,
@@ -11931,13 +13372,33 @@ ${currentNoteContent}`
       contentEl.textContent = content;
     });
     const actionsEl = messageContainer.createDiv("message-actions");
+=======
+    const contentEl = document.createElement("div");
+    contentEl.addClass("message-content");
+    await import_obsidian4.MarkdownRenderer.render(this.app, content, contentEl, "", this);
+    messageEl.appendChild(contentEl);
+    const actionsEl = this.createMessageActions(messageEl, role);
+    messageEl.appendChild(actionsEl);
+    this.messagesContainer.appendChild(messageEl);
+    this.scrollToBottom();
+    this.messageHistory.push({ role, content });
+    return messageEl;
+  }
+  createMessageActions(messageEl, role) {
+    const actionsEl = document.createElement("div");
+    actionsEl.addClass("message-actions");
+>>>>>>> main
     actionsEl.style.display = "none";
+    actionsEl.style.flexWrap = "wrap";
+    actionsEl.style.gap = "8px";
+    actionsEl.style.marginTop = "8px";
     messageEl.addEventListener("mouseenter", () => {
       actionsEl.style.display = "flex";
     });
     messageEl.addEventListener("mouseleave", () => {
       actionsEl.style.display = "none";
     });
+<<<<<<< HEAD
     actionsEl.style.flexWrap = "wrap";
     actionsEl.style.gap = "8px";
     actionsEl.style.marginTop = "8px";
@@ -11945,10 +13406,17 @@ ${currentNoteContent}`
       const currentContent = messageEl.dataset.rawContent || "";
       if (currentContent.trim() === "") {
         new import_obsidian3.Notice("No content to copy");
+=======
+    actionsEl.appendChild(this.createActionButton("copy", "Copy", "Copy message", () => {
+      const currentContent = messageEl.dataset.rawContent || "";
+      if (currentContent.trim() === "") {
+        new import_obsidian4.Notice("No content to copy");
+>>>>>>> main
         return;
       }
       this.copyToClipboard(currentContent);
     }));
+<<<<<<< HEAD
     actionsEl.appendChild(this.createActionButton("Edit", "Edit message", async () => {
       const wasEditing = contentEl.hasClass("editing");
       if (!wasEditing) {
@@ -12031,12 +13499,134 @@ ${currentNoteContent}`
     } catch (e) {
       new import_obsidian3.Notice("Failed to save chat message: " + e.message);
     }
+=======
+    actionsEl.appendChild(this.createActionButton("edit", "Edit", "Edit message", () => {
+      this.handleMessageEdit(messageEl);
+    }));
+    actionsEl.appendChild(this.createActionButton("trash", "Delete", "Delete message", () => {
+      this.handleMessageDelete(messageEl);
+    }));
+    if (role === "assistant") {
+      actionsEl.appendChild(this.createActionButton("refresh-cw", "Regenerate", "Regenerate response", () => {
+        this.handleMessageRegenerate(messageEl);
+      }));
+    }
+    return actionsEl;
+  }
+  scrollToBottom() {
+    this.messagesContainer.scrollTo({
+      top: this.messagesContainer.scrollHeight,
+      behavior: "smooth"
+    });
+  }
+  getMessageHistory() {
+    const messages = [];
+    const messageElements = this.messagesContainer.querySelectorAll(".chat-message");
+    messageElements.forEach((el) => {
+      const role = el.classList.contains("user") ? "user" : "assistant";
+      const content = el.dataset.rawContent || "";
+      messages.push({ role, content });
+    });
+    return messages;
+  }
+  async addMessage(role, content) {
+    const messageEl = await this.createMessageElement(role, content);
+    this.messagesContainer.appendChild(messageEl);
+    this.scrollToBottom();
+    this.messageHistory.push({ role, content });
+>>>>>>> main
   }
   async onClose() {
+    this.chatService.destroy();
+    this.eventManager.cleanup();
+  }
+  handleActiveLeafChange() {
+    if (this.plugin.settings.referenceCurrentNote) {
+      const currentFile = this.app.workspace.getActiveFile();
+      if (currentFile) {
+        console.log("Context update not implemented yet");
+      }
+    }
+  }
+  debounce(func, wait) {
+    let timeout;
+    return (...args) => {
+      clearTimeout(timeout);
+      timeout = setTimeout(() => func.apply(this, args), wait);
+    };
+  }
+  async sendMessage(content) {
+    if (!content.trim()) return;
+    this.updateUIState("streaming" /* STREAMING */);
     if (this.activeStream) {
       this.activeStream.abort();
       this.activeStream = null;
     }
+    this.activeStream = new AbortController();
+    const textarea = this.inputContainer.querySelector("textarea");
+    const sendButton = this.inputContainer.querySelector("button.mod-cta");
+    if (textarea) textarea.disabled = true;
+    if (sendButton) sendButton.disabled = true;
+    try {
+      const provider = createProvider(this.plugin.settings);
+      const messages = await this.getMessageContext();
+      await this.addMessage("user", content);
+      const assistantContainer = await this.createMessageElement("assistant", "");
+      this.messagesContainer.appendChild(assistantContainer);
+      let responseContent = "";
+      await provider.getCompletion(messages, {
+        temperature: this.plugin.settings.temperature,
+        maxTokens: this.plugin.settings.maxTokens,
+        streamCallback: async (chunk) => {
+          responseContent += chunk;
+          const contentEl = assistantContainer.querySelector(".message-content");
+          if (contentEl) {
+            assistantContainer.dataset.rawContent = responseContent;
+            contentEl.empty();
+            await import_obsidian4.MarkdownRenderer.render(this.app, responseContent, contentEl, "", this);
+            this.scrollToBottom();
+          }
+        },
+        abortController: this.activeStream
+      });
+    } catch (error) {
+      if (error.name !== "AbortError") {
+        new import_obsidian4.Notice(`Error: ${error.message}`);
+        await this.addMessage("assistant", `Error: ${error.message}`);
+      }
+    } finally {
+      this.updateUIState("idle" /* IDLE */);
+      if (textarea) {
+        textarea.disabled = false;
+        textarea.focus();
+      }
+      if (sendButton) sendButton.disabled = false;
+      this.activeStream = null;
+    }
+  }
+  async getMessageContext() {
+    const messages = [
+      { role: "system", content: this.plugin.getSystemMessage() }
+    ];
+    if (this.plugin.settings.referenceCurrentNote) {
+      const currentFile = this.app.workspace.getActiveFile();
+      if (currentFile) {
+        const currentNoteContent = await this.app.vault.cachedRead(currentFile);
+        messages.push({
+          role: "system",
+          content: `Current note content:
+
+${currentNoteContent}`
+        });
+      }
+    }
+    const messageElements = this.messagesContainer.querySelectorAll(".ai-chat-message");
+    messageElements.forEach((el) => {
+      const role = el.classList.contains("user") ? "user" : "assistant";
+      const content = el.dataset.rawContent || "";
+      messages.push({ role, content });
+    });
+    return messages;
   }
   createSettingsPanel() {
     const container = document.createElement("div");
@@ -12045,7 +13635,11 @@ ${currentNoteContent}`
     const providerContainer = container.createDiv();
     providerContainer.createEl("label", { text: "AI Provider" });
     const providerSelect = providerContainer.createEl("select");
+<<<<<<< HEAD
     providerSelect.createEl("option", { value: "openai", text: "OpenAI (ChatGPT)" });
+=======
+    providerSelect.createEl("option", { value: "openai", text: "OpenAI" });
+>>>>>>> main
     providerSelect.createEl("option", { value: "anthropic", text: "Anthropic (Claude)" });
     providerSelect.createEl("option", { value: "gemini", text: "Google (Gemini)" });
     providerSelect.createEl("option", { value: "ollama", text: "Ollama (Local AI)" });
@@ -12138,6 +13732,7 @@ ${currentNoteContent}`
     }
     return container;
   }
+<<<<<<< HEAD
   async regenerateResponse(messageEl) {
     const textarea = this.inputContainer.querySelector("textarea");
     if (textarea) textarea.disabled = true;
@@ -12247,10 +13842,101 @@ ${currentNoteContent}`
         textarea.focus();
       }
       this.activeStream = null;
+=======
+  async handleMessageEdit(messageEl) {
+    const currentContent = messageEl.dataset.rawContent || "";
+    const contentEl = messageEl.querySelector(".message-content");
+    if (!contentEl) return;
+    const textarea = document.createElement("textarea");
+    textarea.value = currentContent;
+    textarea.style.width = "100%";
+    textarea.style.minHeight = "100px";
+    contentEl.empty();
+    contentEl.appendChild(textarea);
+    const buttonContainer = document.createElement("div");
+    buttonContainer.style.display = "flex";
+    buttonContainer.style.gap = "8px";
+    buttonContainer.style.marginTop = "8px";
+    const saveButton = this.createButton("Save", "mod-cta");
+    const cancelButton = this.createButton("Cancel");
+    saveButton.addEventListener("click", async () => {
+      const newContent = textarea.value;
+      messageEl.dataset.rawContent = newContent;
+      contentEl.empty();
+      await import_obsidian4.MarkdownRenderer.render(this.app, newContent, contentEl, "", this);
+      buttonContainer.remove();
+    });
+    cancelButton.addEventListener("click", async () => {
+      contentEl.empty();
+      await import_obsidian4.MarkdownRenderer.render(this.app, currentContent, contentEl, "", this);
+      buttonContainer.remove();
+    });
+    buttonContainer.appendChild(saveButton);
+    buttonContainer.appendChild(cancelButton);
+    contentEl.appendChild(buttonContainer);
+    textarea.focus();
+  }
+  handleMessageDelete(messageEl) {
+    new ConfirmationModal(
+      this.app,
+      "Delete Message",
+      "Are you sure you want to delete this message?",
+      (confirmed) => {
+        if (confirmed) {
+          messageEl.remove();
+        }
+      }
+    ).open();
+  }
+  async handleMessageRegenerate(messageEl) {
+    let prevMessage = messageEl.previousElementSibling;
+    while (prevMessage && !prevMessage.classList.contains("user")) {
+      prevMessage = prevMessage.previousElementSibling;
+    }
+    if (!prevMessage) {
+      new import_obsidian4.Notice("No user message found to regenerate response");
+      return;
+    }
+    const userContent = prevMessage.dataset.rawContent;
+    if (!userContent) {
+      new import_obsidian4.Notice("Cannot regenerate response: no user message content found");
+      return;
+    }
+    messageEl.remove();
+    await this.sendMessage(userContent);
+  }
+  async streamResponse(messageEl, prompt) {
+    const provider = createProvider(this.plugin.settings);
+    const messages = await this.getMessageContext();
+    let responseContent = "";
+    try {
+      await provider.getCompletion(messages, {
+        temperature: this.plugin.settings.temperature,
+        maxTokens: this.plugin.settings.maxTokens,
+        streamCallback: async (chunk) => {
+          responseContent += chunk;
+          const contentEl = messageEl.querySelector(".message-content");
+          if (contentEl) {
+            messageEl.dataset.rawContent = responseContent;
+            contentEl.empty();
+            await import_obsidian4.MarkdownRenderer.render(this.app, responseContent, contentEl, "", this);
+            this.scrollToBottom();
+          }
+        },
+        abortController: this.activeStream || void 0
+      });
+    } catch (error) {
+      if (error.name !== "AbortError") {
+        new import_obsidian4.Notice(`Error: ${error.message}`);
+      }
+    } finally {
+      this.updateUIState("idle" /* IDLE */);
+>>>>>>> main
     }
   }
 };
 
+<<<<<<< HEAD
 // src/components/parseSelection.ts
 function parseSelection(selection, chatSeparator, chatBoundaryString) {
   let insideChat = !chatBoundaryString;
@@ -12299,17 +13985,33 @@ var ModelSettingsView = class extends import_obsidian4.ItemView {
   }
   getViewType() {
     return VIEW_TYPE_MODEL_SETTINGS2;
+=======
+// main.ts
+var VIEW_TYPE_MODEL_SETTINGS = "model-settings-view";
+var ModelSettingsView = class extends import_obsidian5.ItemView {
+  constructor(leaf, plugin) {
+    super(leaf);
+    __publicField(this, "plugin");
+    this.plugin = plugin;
+  }
+  getViewType() {
+    return VIEW_TYPE_MODEL_SETTINGS;
+>>>>>>> main
   }
   getDisplayText() {
     return "AI Model Settings";
   }
+<<<<<<< HEAD
   getIcon() {
     return "file-sliders";
   }
+=======
+>>>>>>> main
   async onOpen() {
     const { contentEl } = this;
     contentEl.empty();
     contentEl.createEl("h2", { text: "AI Model Settings" });
+<<<<<<< HEAD
     new import_obsidian4.Setting(contentEl).setName("System Message").setDesc("Set the system message for the AI").addTextArea((text) => text.setPlaceholder("You are a helpful assistant.").setValue(this.plugin.settings.systemMessage).onChange(async (value) => {
       this.plugin.settings.systemMessage = value;
       await this.plugin.saveSettings();
@@ -12337,18 +14039,50 @@ var ModelSettingsView = class extends import_obsidian4.ItemView {
       await this.plugin.saveSettings();
     }));
     new import_obsidian4.Setting(contentEl).setName("Enable Context Notes").setDesc("Attach specified note content to chat messages").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableContextNotes).onChange(async (value) => {
+=======
+    contentEl.createEl("h3", { text: "Common Settings" });
+    new import_obsidian5.Setting(contentEl).setName("AI Provider").setDesc("Choose which AI provider to use").addDropdown((dropdown) => {
+      dropdown.addOption("openai", "OpenAI").addOption("anthropic", "Anthropic (Claude)").addOption("gemini", "Google (Gemini)").addOption("ollama", "Ollama (Local AI)").setValue(this.plugin.settings.provider).onChange(async (value) => {
+        this.plugin.settings.provider = value;
+        await this.plugin.saveSettings();
+        this.onOpen();
+      });
+    });
+    new import_obsidian5.Setting(contentEl).setName("System Message").setDesc("Message to give the AI context about its role").addTextArea((text) => text.setPlaceholder("You are a helpful assistant.").setValue(this.plugin.settings.systemMessage).onChange(async (value) => {
+      this.plugin.settings.systemMessage = value;
+      await this.plugin.saveSettings();
+    }));
+    new import_obsidian5.Setting(contentEl).setName("Include Date").setDesc("Include current date in system message").addToggle((toggle) => toggle.setValue(this.plugin.settings.includeDateWithSystemMessage).onChange(async (value) => {
+      this.plugin.settings.includeDateWithSystemMessage = value;
+      await this.plugin.saveSettings();
+    }));
+    new import_obsidian5.Setting(contentEl).setName("Include Time").setDesc("Include current time in system message").addToggle((toggle) => toggle.setValue(this.plugin.settings.includeTimeWithSystemMessage).onChange(async (value) => {
+      this.plugin.settings.includeTimeWithSystemMessage = value;
+      await this.plugin.saveSettings();
+    }));
+    new import_obsidian5.Setting(contentEl).setName("Enable Obsidian Links").setDesc("Read Obsidian links in messages using [[filename]] syntax").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableObsidianLinks).onChange(async (value) => {
+      this.plugin.settings.enableObsidianLinks = value;
+      await this.plugin.saveSettings();
+    }));
+    new import_obsidian5.Setting(contentEl).setName("Enable Context Notes").setDesc("Attach specified note content to chat messages").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableContextNotes).onChange(async (value) => {
+>>>>>>> main
       this.plugin.settings.enableContextNotes = value;
       await this.plugin.saveSettings();
     }));
     const contextNotesContainer = contentEl.createDiv("context-notes-container");
     contextNotesContainer.style.marginBottom = "24px";
+<<<<<<< HEAD
     new import_obsidian4.Setting(contextNotesContainer).setName("Context Notes").setDesc("Notes to attach as context (supports [[filename]] and [[filename#header]] syntax)").addTextArea((text) => {
+=======
+    new import_obsidian5.Setting(contextNotesContainer).setName("Context Notes").setDesc("Notes to attach as context (supports [[filename]] and [[filename#header]] syntax)").addTextArea((text) => {
+>>>>>>> main
       text.setPlaceholder("[[Note Name]]\n[[Another Note#Header]]").setValue(this.plugin.settings.contextNotes || "").onChange(async (value) => {
         this.plugin.settings.contextNotes = value;
         await this.plugin.saveSettings();
       });
       text.inputEl.rows = 4;
       text.inputEl.style.width = "100%";
+<<<<<<< HEAD
     });
     contentEl.createEl("h2", { text: "Provider Settings" });
     new import_obsidian4.Setting(contentEl).setName("AI Provider").setDesc("Choose which AI provider to use").addDropdown((dropdown) => {
@@ -12358,6 +14092,26 @@ var ModelSettingsView = class extends import_obsidian4.ItemView {
         this.onOpen();
       });
     });
+=======
+      this.setupNoteAutocomplete(text.inputEl);
+    });
+    new import_obsidian5.Setting(contentEl).setName("Enable Streaming").setDesc("Enable or disable streaming for completions").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableStreaming).onChange(async (value) => {
+      this.plugin.settings.enableStreaming = value;
+      await this.plugin.saveSettings();
+    }));
+    new import_obsidian5.Setting(contentEl).setName("Temperature").setDesc("Set the randomness of the model's output (0-1)").addSlider((slider) => slider.setLimits(0, 1, 0.1).setValue(this.plugin.settings.temperature).setDynamicTooltip().onChange(async (value) => {
+      this.plugin.settings.temperature = value;
+      await this.plugin.saveSettings();
+    }));
+    new import_obsidian5.Setting(contentEl).setName("Max Tokens").setDesc("Set the maximum length of the model's output").addText((text) => text.setPlaceholder("4000").setValue(String(this.plugin.settings.maxTokens)).onChange(async (value) => {
+      const numValue = Number(value);
+      if (!isNaN(numValue)) {
+        this.plugin.settings.maxTokens = numValue;
+        await this.plugin.saveSettings();
+      }
+    }));
+    contentEl.createEl("h3", { text: `${this.plugin.settings.provider.toUpperCase()} Settings` });
+>>>>>>> main
     switch (this.plugin.settings.provider) {
       case "openai":
         this.renderOpenAISettings(contentEl);
@@ -12374,13 +14128,21 @@ var ModelSettingsView = class extends import_obsidian4.ItemView {
     }
   }
   renderProviderSettings(containerEl, settings, providerName, testConnectionCallback) {
+<<<<<<< HEAD
     new import_obsidian4.Setting(containerEl).setName("Test Connection").setDesc(`Verify your API key and fetch available models for ${providerName}`).addButton((button) => button.setButtonText("Test").onClick(async () => {
+=======
+    new import_obsidian5.Setting(containerEl).setName("Test Connection").setDesc(`Verify your API key and fetch available models for ${providerName}`).addButton((button) => button.setButtonText("Test").onClick(async () => {
+>>>>>>> main
       button.setButtonText("Testing...");
       button.setDisabled(true);
       try {
         await testConnectionCallback();
       } catch (error) {
+<<<<<<< HEAD
         new import_obsidian4.Notice(`Error: ${error.message}`);
+=======
+        new import_obsidian5.Notice(`Error: ${error.message}`);
+>>>>>>> main
       } finally {
         button.setButtonText("Test");
         button.setDisabled(false);
@@ -12393,7 +14155,11 @@ var ModelSettingsView = class extends import_obsidian4.ItemView {
         cls: settings.lastTestResult.success ? "success" : "error"
       });
     }
+<<<<<<< HEAD
     new import_obsidian4.Setting(containerEl).setName("Model").setDesc(`Choose the ${providerName} model to use`).addDropdown((dropdown) => {
+=======
+    new import_obsidian5.Setting(containerEl).setName("Model").setDesc(`Choose the ${providerName} model to use`).addDropdown((dropdown) => {
+>>>>>>> main
       for (const model of settings.availableModels) {
         dropdown.addOption(model, model);
       }
@@ -12415,7 +14181,11 @@ var ModelSettingsView = class extends import_obsidian4.ItemView {
           success: true,
           message: result.message
         };
+<<<<<<< HEAD
         new import_obsidian4.Notice(result.message);
+=======
+        new import_obsidian5.Notice(result.message);
+>>>>>>> main
         this.onOpen();
       } else {
         this.plugin.settings.openaiSettings.lastTestResult = {
@@ -12423,7 +14193,11 @@ var ModelSettingsView = class extends import_obsidian4.ItemView {
           success: false,
           message: result.message
         };
+<<<<<<< HEAD
         new import_obsidian4.Notice(result.message);
+=======
+        new import_obsidian5.Notice(result.message);
+>>>>>>> main
       }
     });
   }
@@ -12439,7 +14213,11 @@ var ModelSettingsView = class extends import_obsidian4.ItemView {
           success: true,
           message: result.message
         };
+<<<<<<< HEAD
         new import_obsidian4.Notice(result.message);
+=======
+        new import_obsidian5.Notice(result.message);
+>>>>>>> main
         this.onOpen();
       } else {
         this.plugin.settings.anthropicSettings.lastTestResult = {
@@ -12447,7 +14225,11 @@ var ModelSettingsView = class extends import_obsidian4.ItemView {
           success: false,
           message: result.message
         };
+<<<<<<< HEAD
         new import_obsidian4.Notice(result.message);
+=======
+        new import_obsidian5.Notice(result.message);
+>>>>>>> main
       }
     });
   }
@@ -12463,7 +14245,11 @@ var ModelSettingsView = class extends import_obsidian4.ItemView {
           success: true,
           message: result.message
         };
+<<<<<<< HEAD
         new import_obsidian4.Notice(result.message);
+=======
+        new import_obsidian5.Notice(result.message);
+>>>>>>> main
         this.onOpen();
       } else {
         this.plugin.settings.geminiSettings.lastTestResult = {
@@ -12471,7 +14257,11 @@ var ModelSettingsView = class extends import_obsidian4.ItemView {
           success: false,
           message: result.message
         };
+<<<<<<< HEAD
         new import_obsidian4.Notice(result.message);
+=======
+        new import_obsidian5.Notice(result.message);
+>>>>>>> main
       }
     });
   }
@@ -12487,7 +14277,11 @@ var ModelSettingsView = class extends import_obsidian4.ItemView {
           success: true,
           message: result.message
         };
+<<<<<<< HEAD
         new import_obsidian4.Notice(result.message);
+=======
+        new import_obsidian5.Notice(result.message);
+>>>>>>> main
         this.onOpen();
       } else {
         this.plugin.settings.ollamaSettings.lastTestResult = {
@@ -12495,7 +14289,11 @@ var ModelSettingsView = class extends import_obsidian4.ItemView {
           success: false,
           message: result.message
         };
+<<<<<<< HEAD
         new import_obsidian4.Notice(result.message);
+=======
+        new import_obsidian5.Notice(result.message);
+>>>>>>> main
       }
     });
     containerEl.createEl("div", {
@@ -12510,6 +14308,7 @@ var ModelSettingsView = class extends import_obsidian4.ItemView {
   }
   async onClose() {
   }
+<<<<<<< HEAD
 };
 
 // src/components/noteUtils.ts
@@ -12694,13 +14493,194 @@ The current time is ${currentTime} ${timeZoneString}.`;
 // src/main.ts
 var VIEW_TYPE_MODEL_SETTINGS2 = "model-settings-view";
 var MyPlugin = class extends import_obsidian7.Plugin {
+=======
+  /**
+   * Setup autocompletion for notes and headers
+   * 
+   * @param inputEl The input element to attach autocompletion to
+   */
+  setupNoteAutocomplete(inputEl) {
+    let currentStartPos = 0;
+    let currentEndPos = 0;
+    let isTypingLink = false;
+    let suggestionEl = null;
+    const cleanupSuggestions = () => {
+      if (suggestionEl && document.body.contains(suggestionEl)) {
+        document.body.removeChild(suggestionEl);
+        suggestionEl = null;
+      }
+    };
+    inputEl.addEventListener("input", (e) => {
+      const cursorPos = inputEl.selectionStart;
+      const text = inputEl.value;
+      const beforeCursor = text.substring(0, cursorPos);
+      const lastOpenBrackets = beforeCursor.lastIndexOf("[[");
+      const lastCloseBrackets = beforeCursor.lastIndexOf("]]");
+      if (lastOpenBrackets > lastCloseBrackets && lastOpenBrackets !== -1) {
+        isTypingLink = true;
+        currentStartPos = lastOpenBrackets + 2;
+        const afterCursor = text.substring(cursorPos);
+        const nextCloseBrackets = afterCursor.indexOf("]]");
+        if (nextCloseBrackets !== -1) {
+          currentEndPos = cursorPos;
+          const linkText = text.substring(currentStartPos, currentEndPos);
+          if (linkText.length > 0) {
+            cleanupSuggestions();
+            this.showNoteSuggestions(inputEl, currentStartPos, currentEndPos);
+          }
+        }
+      } else {
+        isTypingLink = false;
+        cleanupSuggestions();
+      }
+    });
+    inputEl.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") {
+        isTypingLink = false;
+        cleanupSuggestions();
+      }
+    });
+    document.addEventListener("click", (e) => {
+      if (e.target !== inputEl && suggestionEl && !suggestionEl.contains(e.target)) {
+        cleanupSuggestions();
+      }
+    });
+  }
+  /**
+   * Display note and header suggestions
+   * 
+   * @param inputEl The input element
+   * @param startPos The start position of the link text
+   * @param endPos The end position of the link text
+   */
+  showNoteSuggestions(inputEl, startPos, endPos) {
+    const linkText = inputEl.value.substring(startPos, endPos);
+    if (linkText.length === 0) return;
+    const files = this.app.vault.getMarkdownFiles();
+    const matchingFiles = files.filter((file) => {
+      return file.basename.toLowerCase().includes(linkText.toLowerCase()) || file.path.toLowerCase().includes(linkText.toLowerCase());
+    });
+    if (matchingFiles.length === 0) return;
+    const suggestionEl = document.createElement("div");
+    suggestionEl.className = "note-autocomplete-suggestions";
+    suggestionEl.style.position = "fixed";
+    suggestionEl.style.zIndex = "1000";
+    suggestionEl.style.background = "var(--background-primary)";
+    suggestionEl.style.border = "1px solid var(--background-modifier-border)";
+    suggestionEl.style.borderRadius = "4px";
+    suggestionEl.style.boxShadow = "0 2px 8px var(--background-modifier-box-shadow)";
+    suggestionEl.style.maxHeight = "200px";
+    suggestionEl.style.width = "300px";
+    suggestionEl.style.overflow = "auto";
+    suggestionEl.style.padding = "8px";
+    const debugInfo = document.createElement("div");
+    debugInfo.style.fontSize = "10px";
+    debugInfo.style.color = "var(--text-muted)";
+    debugInfo.style.marginBottom = "4px";
+    debugInfo.style.borderBottom = "1px solid var(--background-modifier-border)";
+    debugInfo.textContent = `Searching for: "${linkText}" - Found ${matchingFiles.length} matches`;
+    suggestionEl.appendChild(debugInfo);
+    const rect = inputEl.getBoundingClientRect();
+    const lineHeight = parseInt(getComputedStyle(inputEl).lineHeight) || 20;
+    const textUpToCursor = inputEl.value.substring(0, endPos);
+    const lines = textUpToCursor.split("\n");
+    const lineNumber = lines.length - 1;
+    suggestionEl.style.left = `${rect.left}px`;
+    suggestionEl.style.top = `${rect.top + (lineNumber + 1) * lineHeight}px`;
+    matchingFiles.slice(0, 10).forEach((file) => {
+      const item = document.createElement("div");
+      item.className = "note-autocomplete-item";
+      item.textContent = file.basename;
+      item.style.padding = "8px 12px";
+      item.style.cursor = "pointer";
+      item.style.borderRadius = "4px";
+      item.addEventListener("mouseenter", () => {
+        item.style.backgroundColor = "var(--background-secondary)";
+      });
+      item.addEventListener("mouseleave", () => {
+        item.style.backgroundColor = "";
+      });
+      item.addEventListener("click", async () => {
+        const replacement = file.basename;
+        const newValue = inputEl.value.substring(0, startPos - 2) + "[[" + replacement + "]]" + inputEl.value.substring(endPos + 2);
+        inputEl.value = newValue;
+        this.plugin.settings.contextNotes = inputEl.value;
+        await this.plugin.saveSettings();
+        document.body.removeChild(suggestionEl);
+        const newPos = startPos - 2 + 2 + replacement.length + 2;
+        inputEl.setSelectionRange(newPos, newPos);
+        inputEl.focus();
+      });
+      suggestionEl.appendChild(item);
+      this.addHeaderSuggestions(file, suggestionEl, startPos, endPos, inputEl);
+    });
+    document.body.appendChild(suggestionEl);
+  }
+  /**
+   * Add header suggestions for a file
+   * 
+   * @param file The file to get headers from
+   * @param suggestionEl The suggestion container element
+   * @param startPos Start position in the input
+   * @param endPos End position in the input
+   * @param inputEl The input element
+   */
+  async addHeaderSuggestions(file, suggestionEl, startPos, endPos, inputEl) {
+    const cache = this.app.metadataCache.getFileCache(file);
+    if (!cache || !cache.headings || cache.headings.length === 0) return;
+    const separator = document.createElement("div");
+    separator.style.height = "1px";
+    separator.style.backgroundColor = "var(--background-modifier-border)";
+    separator.style.margin = "4px 0";
+    suggestionEl.appendChild(separator);
+    const headerLabel = document.createElement("div");
+    headerLabel.style.fontSize = "10px";
+    headerLabel.style.color = "var(--text-muted)";
+    headerLabel.style.padding = "2px 12px";
+    headerLabel.textContent = "Headers:";
+    suggestionEl.appendChild(headerLabel);
+    cache.headings.forEach((heading) => {
+      const item = document.createElement("div");
+      item.className = "note-autocomplete-item";
+      const indent = "&nbsp;".repeat((heading.level - 1) * 2);
+      item.innerHTML = `${indent}# ${heading.heading}`;
+      item.style.padding = "6px 12px";
+      item.style.cursor = "pointer";
+      item.style.borderRadius = "4px";
+      item.addEventListener("mouseenter", () => {
+        item.style.backgroundColor = "var(--background-secondary)";
+      });
+      item.addEventListener("mouseleave", () => {
+        item.style.backgroundColor = "";
+      });
+      item.addEventListener("click", async () => {
+        const replacement = `${file.basename}#${heading.heading}`;
+        const newValue = inputEl.value.substring(0, startPos - 2) + "[[" + replacement + "]]" + inputEl.value.substring(endPos + 2);
+        inputEl.value = newValue;
+        this.plugin.settings.contextNotes = inputEl.value;
+        await this.plugin.saveSettings();
+        document.body.removeChild(suggestionEl);
+        const newPos = startPos - 2 + 2 + replacement.length + 2;
+        inputEl.setSelectionRange(newPos, newPos);
+        inputEl.focus();
+      });
+      suggestionEl.appendChild(item);
+    });
+  }
+};
+var MyPlugin = class extends import_obsidian5.Plugin {
+>>>>>>> main
   constructor() {
     super(...arguments);
     __publicField(this, "settings");
     __publicField(this, "modelSettingsView", null);
+    __publicField(this, "eventManager");
     __publicField(this, "activeStream", null);
+    __publicField(this, "chatState", "idle");
   }
   async onload() {
+    debug("Loading AI Assistant plugin");
+    this.eventManager = new EventManager();
     await this.loadSettings();
     this.addSettingTab(new MyPluginSettingTab(this.app, this));
     this.registerView(
@@ -12717,15 +14697,20 @@ var MyPlugin = class extends import_obsidian7.Plugin {
     this.addRibbonIcon("message-square", "Open AI Chat", () => {
       this.activateChatView();
     });
-    this.app.workspace.onLayoutReady(() => {
-      if (this.settings.autoOpenModelSettings) {
-        this.activateView();
+    this.eventManager.registerWorkspaceEvent(
+      this.app.workspace,
+      "layout-ready",
+      () => {
+        if (this.settings.autoOpenModelSettings) {
+          this.activateView();
+        }
       }
-    });
+    );
     this.addCommand({
       id: "ai-completion",
       name: "Get AI Completion",
       editorCallback: async (editor) => {
+<<<<<<< HEAD
         var _a2, _b, _c;
         let text;
         let insertPosition;
@@ -12846,6 +14831,9 @@ ${this.settings.chatSeparator}
     this.app.workspace.onLayoutReady(() => {
       if (this.settings.autoOpenModelSettings) {
         this.activateView(VIEW_TYPE_MODEL_SETTINGS);
+=======
+        await this.handleEditorCompletion(editor);
+>>>>>>> main
       }
     });
     this.registerCommand({
@@ -12857,6 +14845,7 @@ ${this.settings.chatSeparator}
       id: "end-ai-stream",
       name: "End AI Stream",
       callback: () => {
+<<<<<<< HEAD
         if (this.activeStream) {
           this.activeStream.abort();
           this.activeStream = null;
@@ -12864,6 +14853,9 @@ ${this.settings.chatSeparator}
         } else {
           new import_obsidian7.Notice("No active AI stream to end");
         }
+=======
+        this.stopActiveStream();
+>>>>>>> main
       }
     });
     this.registerCommand({
@@ -12900,6 +14892,7 @@ ${this.settings.chatSeparator}
         moveCursorAfterInsert(editor, cursor, chatStartString);
       }
     });
+<<<<<<< HEAD
     this.registerCommand({
       id: "generate-note-title",
       name: "Generate Note Title",
@@ -12931,6 +14924,140 @@ ${this.settings.chatSeparator}
       }
     });
     this.registerYamlAttributeCommands();
+=======
+    debug("AI Assistant plugin loaded");
+  }
+  onunload() {
+    debug("Unloading AI Assistant plugin");
+    this.stopActiveStream();
+    this.eventManager.cleanup();
+    this.app.workspace.detachLeavesOfType(VIEW_TYPE_MODEL_SETTINGS);
+    this.app.workspace.detachLeavesOfType(VIEW_TYPE_CHAT);
+    debug("AI Assistant plugin unloaded");
+  }
+  stopActiveStream() {
+    if (this.activeStream) {
+      this.activeStream.abort();
+      this.activeStream = null;
+      this.chatState = "idle";
+      new import_obsidian5.Notice("AI stream ended");
+    }
+  }
+  async activateView(viewType = VIEW_TYPE_MODEL_SETTINGS) {
+    this.app.workspace.detachLeavesOfType(viewType);
+    const leaf = this.app.workspace.getRightLeaf(false) || this.app.workspace.getLeaf(true);
+    await leaf.setViewState({
+      type: viewType,
+      active: true
+    });
+    this.app.workspace.revealLeaf(leaf);
+  }
+  async activateChatView() {
+    await this.activateView(VIEW_TYPE_CHAT);
+  }
+  async handleEditorCompletion(editor) {
+    let text;
+    let insertPosition;
+    if (editor.somethingSelected()) {
+      text = editor.getSelection();
+      insertPosition = editor.getCursor("to");
+    } else {
+      const lineNumber = editor.getCursor().line + 1;
+      const documentText = editor.getValue();
+      let startIndex = 0;
+      let endIndex = editor.posToOffset({
+        line: lineNumber,
+        ch: editor.getLine(lineNumber).length
+      });
+      if (this.settings.chatStartString) {
+        const startStringIndex = documentText.indexOf(this.settings.chatStartString);
+        if (startStringIndex !== -1) {
+          startIndex = startStringIndex + this.settings.chatStartString.length;
+        }
+      }
+      if (this.settings.chatEndString) {
+        const endStringIndex = documentText.indexOf(this.settings.chatEndString, startIndex);
+        if (endStringIndex !== -1 && endStringIndex < endIndex) {
+          endIndex = endStringIndex;
+        }
+      }
+      text = documentText.substring(startIndex, endIndex).trim();
+      insertPosition = { line: lineNumber + 1, ch: 0 };
+    }
+    if (!text) {
+      new import_obsidian5.Notice("No text selected or found for completion");
+      return;
+    }
+    await this.processCompletion(editor, text, insertPosition);
+  }
+  async processCompletion(editor, text, insertPosition) {
+    this.stopActiveStream();
+    this.activeStream = new AbortController();
+    this.chatState = "streaming";
+    try {
+      const provider = createProvider(this.settings);
+      const messages = await this.processMessages([
+        { role: "system", content: this.getSystemMessage() },
+        { role: "user", content: text }
+      ]);
+      editor.replaceRange(`
+
+${this.settings.chatSeparator}
+
+`, insertPosition);
+      let currentPosition = {
+        line: insertPosition.line + 3,
+        ch: 0
+      };
+      let buffer = "";
+      const flushBuffer = () => {
+        if (buffer) {
+          editor.replaceRange(buffer, currentPosition);
+          currentPosition = editor.offsetToPos(
+            editor.posToOffset(currentPosition) + buffer.length
+          );
+          buffer = "";
+        }
+      };
+      await provider.getCompletion(messages, {
+        temperature: this.settings.temperature,
+        maxTokens: this.settings.maxTokens,
+        streamCallback: (chunk) => {
+          buffer += chunk;
+          setTimeout(flushBuffer, 100);
+        },
+        abortController: this.activeStream
+      });
+      flushBuffer();
+      editor.replaceRange(`
+
+${this.settings.chatSeparator}
+
+`, currentPosition);
+      const newCursorPos = editor.offsetToPos(
+        editor.posToOffset(currentPosition) + this.settings.chatSeparator.length + 4
+      );
+      editor.setCursor(newCursorPos);
+    } catch (error) {
+      if (error.name !== "AbortError") {
+        new import_obsidian5.Notice(`Error: ${error.message}`);
+        editor.replaceRange(`Error: ${error.message}
+
+${this.settings.chatSeparator}
+
+`, insertPosition);
+      }
+    } finally {
+      this.activeStream = null;
+      this.chatState = "idle";
+    }
+  }
+  async loadSettings() {
+    this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+  }
+  async saveSettings() {
+    await this.saveData(this.settings);
+>>>>>>> main
   }
   /**
    * Register YAML attribute generator commands dynamically based on settings.
@@ -12974,6 +15101,7 @@ ${this.settings.chatSeparator}
   getSystemMessage() {
     return getSystemMessage(this.settings);
   }
+<<<<<<< HEAD
   /**
    * Activates and reveals a specific view type in the workspace.
    * @param viewType The type of view to activate.
@@ -13028,8 +15156,160 @@ ${this.settings.chatSeparator}
   onunload() {
     _MyPlugin.registeredViewTypes.delete(VIEW_TYPE_MODEL_SETTINGS);
     _MyPlugin.registeredViewTypes.delete(VIEW_TYPE_CHAT);
+=======
+  async processMessages(messages) {
+    const processedMessages = [];
+    if (this.settings.enableContextNotes && this.settings.contextNotes) {
+      const contextContent = await this.processContextNotes(this.settings.contextNotes);
+      if (contextContent) {
+        if (messages[0].role === "system") {
+          processedMessages.push({
+            role: "system",
+            content: `${messages[0].content}
+
+Here is additional context:
+${contextContent}`
+          });
+          messages = messages.slice(1);
+        } else {
+          processedMessages.push({
+            role: "system",
+            content: `Here is context for our conversation:
+${contextContent}`
+          });
+        }
+      }
+    }
+    for (const message of messages) {
+      const processedContent = this.settings.enableObsidianLinks ? await this.processObsidianLinks(message.content) : message.content;
+      processedMessages.push({
+        role: message.role,
+        content: processedContent
+      });
+    }
+    return processedMessages;
+  }
+  async processContextNotes(contextNotesText) {
+    const linkRegex = /\[\[(.*?)\]\]/g;
+    let match;
+    let contextContent = "";
+    while ((match = linkRegex.exec(contextNotesText)) !== null) {
+      if (match && match[1]) {
+        const fileName = match[1].trim();
+        try {
+          const headerMatch = fileName.match(/(.*?)#(.*)/);
+          const baseFileName = headerMatch ? headerMatch[1].trim() : fileName;
+          const headerName = headerMatch ? headerMatch[2].trim() : null;
+          let file = this.app.vault.getAbstractFileByPath(baseFileName) || this.app.vault.getAbstractFileByPath(`${baseFileName}.md`);
+          if (!file) {
+            const allFiles = this.app.vault.getFiles();
+            file = allFiles.find(
+              (f) => f.basename.toLowerCase() === baseFileName.toLowerCase() || f.name.toLowerCase() === `${baseFileName.toLowerCase()}.md`
+            ) || null;
+          }
+          if (file && file instanceof import_obsidian5.TFile) {
+            const noteContent = await this.app.vault.cachedRead(file);
+            contextContent += `### From note: ${file.basename}
+
+`;
+            if (headerName) {
+              const headerContent = this.extractContentUnderHeader(noteContent, headerName);
+              contextContent += headerContent;
+            } else {
+              contextContent += noteContent;
+            }
+            contextContent += "\n\n";
+          } else {
+            contextContent += `Note not found: ${fileName}
+
+`;
+          }
+        } catch (error) {
+          contextContent += `Error processing note ${fileName}: ${error.message}
+
+`;
+        }
+      }
+    }
+    return contextContent;
+>>>>>>> main
+  }
+  extractContentUnderHeader(content, headerName) {
+    const lines = content.split("\n");
+    let extractedContent = "";
+    let isUnderTargetHeader = false;
+    let currentHeaderLevel = 0;
+    for (const line of lines) {
+      const headerMatch = line.match(/^(#{1,6})\s+(.*)$/);
+      if (headerMatch) {
+        const level = headerMatch[1].length;
+        const title = headerMatch[2];
+        if (title.toLowerCase() === headerName.toLowerCase()) {
+          isUnderTargetHeader = true;
+          currentHeaderLevel = level;
+          continue;
+        }
+        if (isUnderTargetHeader && level <= currentHeaderLevel) {
+          break;
+        }
+      }
+      if (isUnderTargetHeader) {
+        extractedContent += line + "\n";
+      }
+    }
+    return extractedContent.trim();
+  }
+  async processObsidianLinks(content) {
+    if (!this.settings.enableObsidianLinks) return content;
+    const linkRegex = /\[\[(.*?)\]\]/g;
+    let match;
+    let processedContent = content;
+    while ((match = linkRegex.exec(content)) !== null) {
+      if (match && match[0] && match[1]) {
+        const parts = match[1].split("|");
+        const filePath = parts[0].trim();
+        try {
+          const headerMatch = filePath.match(/(.*?)#(.*)/);
+          const baseFileName = headerMatch ? headerMatch[1].trim() : filePath;
+          const headerName = headerMatch ? headerMatch[2].trim() : null;
+          let file = this.app.vault.getAbstractFileByPath(baseFileName) || this.app.vault.getAbstractFileByPath(`${baseFileName}.md`);
+          if (!file) {
+            const allFiles = this.app.vault.getFiles();
+            file = allFiles.find(
+              (f) => f.name === filePath || f.name === `${filePath}.md` || f.basename.toLowerCase() === filePath.toLowerCase() || f.path === filePath || f.path === `${filePath}.md`
+            ) || null;
+          }
+          if (file && file instanceof import_obsidian5.TFile) {
+            const noteContent = await this.app.vault.cachedRead(file);
+            let extractedContent = "";
+            if (headerName) {
+              extractedContent = this.extractContentUnderHeader(noteContent, headerName);
+            } else {
+              extractedContent = noteContent;
+            }
+            processedContent = processedContent.replace(
+              match[0],
+              `${match[0]}
+
+---
+Note Name: ${filePath}
+Content:
+${extractedContent}
+---
+`
+            );
+          } else {
+            new import_obsidian5.Notice(`File not found: ${filePath}. Ensure the file name and path are correct.`);
+          }
+        } catch (error) {
+          new import_obsidian5.Notice(`Error processing link for ${filePath}: ${error.message}`);
+        }
+      }
+    }
+    return processedContent;
   }
 };
+<<<<<<< HEAD
 __publicField(_MyPlugin, "registeredViewTypes", /* @__PURE__ */ new Set());
 var MyPlugin = _MyPlugin;
 /*! Bundled license information:
@@ -13037,3 +15317,5 @@ var MyPlugin = _MyPlugin;
 js-yaml/dist/js-yaml.mjs:
   (*! js-yaml 4.1.0 https://github.com/nodeca/js-yaml @license MIT *)
 */
+=======
+>>>>>>> main

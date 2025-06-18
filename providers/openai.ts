@@ -7,6 +7,8 @@
 
 import { Message, CompletionOptions, ConnectionTestResult } from '../src/types';
 import { BaseProvider, ProviderError, ProviderErrorType } from './base';
+import { StreamManager } from '../utils';
+import { debug } from '../settings';
 
 interface OpenAIResponse {
     id: string;
@@ -40,7 +42,11 @@ interface OpenAIResponse {
  */
 export class OpenAIProvider extends BaseProvider {
     protected apiKey: string;
+<<<<<<< HEAD
     protected baseUrl: string;
+=======
+    protected baseUrl: string = 'https://api.openai.com/v1';
+>>>>>>> main
     protected model: string;
 
     constructor(apiKey: string, model: string = 'gpt-4', baseUrl?: string) {
@@ -59,62 +65,111 @@ export class OpenAIProvider extends BaseProvider {
      * @param options - Settings for this completion
      */
     async getCompletion(messages: Message[], options: CompletionOptions): Promise<void> {
+        this.validateCompletionOptions(options);
+
+        // Create stream manager if we're streaming
+        const streamManager = this.createStreamManager(options);
+        
         try {
-            const response = await fetch(`${this.baseUrl}/chat/completions`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${this.apiKey}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    model: this.model,
-                    messages,
-                    temperature: options.temperature ?? 0.7,
-                    max_tokens: options.maxTokens ?? 1000,
-                    stream: true
-                }),
-                signal: options.abortController?.signal
-            });
+            this.logRequestStart('POST', '/chat/completions');
+            const startTime = Date.now();
 
-            if (!response.ok) {
-                throw this.handleHttpError(response);
-            }
+            const url = `${this.baseUrl}/chat/completions`;
+            const headers = {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${this.apiKey}`
+            };
 
-            const reader = response.body?.getReader();
-            const decoder = new TextDecoder('utf-8');
-            let buffer = '';
+            const body = {
+                model: this.model,
+                messages: messages,
+                temperature: options.temperature ?? 0.7,
+                max_tokens: options.maxTokens,
+                stream: Boolean(options.streamCallback)
+            };
 
-            while (true) {
-                const { done, value } = await reader?.read() || { done: true, value: undefined };
-                if (done) break;
+            if (options.streamCallback) {
+                // Streaming request
+                const response = await this.makeRequest(url, {
+                    method: 'POST',
+                    headers,
+                    body: JSON.stringify(body),
+                    signal: options.abortController?.signal
+                });
 
-                buffer += decoder.decode(value, { stream: true });
-                const lines = buffer.split('\n');
-                buffer = lines.pop() || '';
+                const reader = response.body?.getReader();
+                if (!reader) {
+                    throw new ProviderError(
+                        ProviderErrorType.SERVER_ERROR, 
+                        'Failed to get response stream'
+                    );
+                }
 
-                for (const line of lines) {
-                    if (line.startsWith('data: ') && line !== 'data: [DONE]') {
-                        try {
-                            const data = JSON.parse(line.slice(6));
-                            const content = data.choices[0]?.delta?.content;
-                            if (content && options.streamCallback) {
-                                options.streamCallback(content);
+                const decoder = new TextDecoder('utf-8');
+                let buffer = '';
+                
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop() || '';
+                    
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            const data = line.slice(6);
+                            if (data === '[DONE]') continue;
+                            
+                            try {
+                                const json = JSON.parse(data);
+                                const content = json.choices?.[0]?.delta?.content;
+                                if (content) {
+                                    streamManager?.write(content);
+                                }
+                            } catch (e) {
+                                debug('Error parsing OpenAI response chunk:', e);
                             }
-                        } catch (e) {
-                            console.warn('Error parsing OpenAI response chunk:', e);
                         }
                     }
                 }
+                
+                // Complete the stream
+                streamManager?.complete();
+            } else {
+                // Non-streaming request
+                const response = await this.makeRequest(url, {
+                    method: 'POST',
+                    headers,
+                    body: JSON.stringify(body),
+                    signal: options.abortController?.signal
+                });
+
+                const data = await response.json() as OpenAIResponse;
+                if (data.choices && data.choices[0] && data.choices[0].message) {
+                    const content = data.choices[0].message.content;
+                    if (content && streamManager) {
+                        streamManager.write(content);
+                        streamManager.complete();
+                    }
+                }
             }
+
+            this.logRequestEnd('POST', '/chat/completions', Date.now() - startTime);
         } catch (error) {
             if (error instanceof ProviderError) {
                 throw error;
             }
+            
             if (error.name === 'AbortError') {
-                console.log('OpenAI stream was aborted');
+                debug('OpenAI stream was aborted');
+                streamManager?.destroy();
             } else {
-                console.error('Error calling OpenAI:', error);
-                throw error;
+                this.logError(error);
+                throw new ProviderError(
+                    ProviderErrorType.SERVER_ERROR,
+                    `Error calling OpenAI: ${error.message}`
+                );
             }
         }
     }
@@ -122,31 +177,35 @@ export class OpenAIProvider extends BaseProvider {
     /**
      * Get available OpenAI models
      * 
-     * Fetches the list of models from OpenAI's API.
-     * Filters to only include chat models (GPT-3.5, GPT-4, etc.)
+     * Fetches the list of available models from OpenAI's API.
+     * Filters to only include GPT models.
      * 
      * @returns List of available model names
      */
     async getAvailableModels(): Promise<string[]> {
         try {
-            const response = await fetch(`${this.baseUrl}/models`, {
+            this.logRequestStart('GET', '/models');
+            const startTime = Date.now();
+
+            const response = await this.makeRequest(`${this.baseUrl}/models`, {
                 method: 'GET',
                 headers: {
-                    'Authorization': `Bearer ${this.apiKey}`,
-                    'Content-Type': 'application/json'
+                    'Authorization': `Bearer ${this.apiKey}`
                 }
             });
 
-            if (!response.ok) {
-                throw this.handleHttpError(response);
-            }
-
             const data = await response.json();
+            this.logRequestEnd('GET', '/models', Date.now() - startTime);
+
+            // Filter to only include GPT models
             return data.data
                 .map((model: any) => model.id)
-                .filter((id: string) => id.startsWith('gpt-'));
+                .filter((id: string) => 
+                    id.includes('gpt-4') || 
+                    id.includes('gpt-3.5') ||
+                    id.includes('gpt-4o'));
         } catch (error) {
-            console.error('Error fetching OpenAI models:', error);
+            this.logError(error);
             throw error;
         }
     }
