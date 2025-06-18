@@ -2,7 +2,7 @@ import { App, Plugin, Notice, TFile, Editor } from 'obsidian';
 import { MyPluginSettings, Message, DEFAULT_SETTINGS, AgentModeSettings } from './types';
 import { createProvider, createProviderFromUnifiedModel } from '../providers';
 import { MyPluginSettingTab } from './settings';
-import { ChatView, VIEW_TYPE_CHAT } from './components/chat';
+import { ChatView, VIEW_TYPE_CHAT } from './components/chat/ChatView';
 import { parseSelection } from './components/parseSelection';
 import { ModelSettingsView } from './components/ModelSettingsView';
 import { processMessages, getContextNotesContent } from './components/noteUtils';
