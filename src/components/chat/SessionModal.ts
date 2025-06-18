@@ -14,6 +14,7 @@ export class SessionModal extends Modal {
     onOpen() {
         const { contentEl } = this;
         contentEl.empty();
+        contentEl.addClass('ai-assistant-modal');
 
         new Setting(contentEl)
             .setName('Session Name')

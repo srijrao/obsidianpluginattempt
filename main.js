@@ -3259,6 +3259,7 @@ var init_filediffhandler = __esm({
       onOpen() {
         const { contentEl } = this;
         contentEl.empty();
+        contentEl.addClass("ai-assistant-modal");
         contentEl.createEl("h2", { text: "File Change Suggestions" });
         this.suggestions.forEach((s) => {
           const container = contentEl.createDiv("suggestion-container");
@@ -11503,6 +11504,7 @@ var ConfirmationModal = class extends import_obsidian14.Modal {
   }
   onOpen() {
     const { contentEl } = this;
+    contentEl.addClass("ai-assistant-modal");
     contentEl.createEl("p", { text: this.message });
     const buttonContainer = contentEl.createDiv("modal-button-container");
     buttonContainer.createEl("button", { text: "Cancel" }).addEventListener("click", () => {

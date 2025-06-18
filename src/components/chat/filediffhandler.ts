@@ -58,6 +58,7 @@ class FileChangeSuggestionsModal extends Modal {
   onOpen() {
     const { contentEl } = this;
     contentEl.empty();
+    contentEl.addClass('ai-assistant-modal');
     contentEl.createEl('h2', { text: 'File Change Suggestions' });
 
     this.suggestions.forEach((s) => {

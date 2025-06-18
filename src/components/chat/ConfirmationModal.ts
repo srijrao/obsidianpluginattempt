@@ -11,6 +11,7 @@ export class ConfirmationModal extends Modal {
     }
     onOpen() {
         const { contentEl } = this;
+        contentEl.addClass('ai-assistant-modal');
         contentEl.createEl('p', { text: this.message });
         const buttonContainer = contentEl.createDiv('modal-button-container');
         buttonContainer.createEl('button', { text: 'Cancel' })
