@@ -85,11 +85,12 @@ export class ResponseStreamer {
      * Adds agent system prompt to messages if agent mode is enabled
      */
     private async addAgentSystemPrompt(messages: Message[]): Promise<void> {
-        if (!this.plugin.isAgentModeEnabled()) return;
-
-        const { buildAgentSystemPrompt } = await import('../../promptConstants');
+        if (!this.plugin.isAgentModeEnabled()) return;        const { buildAgentSystemPrompt } = await import('../../promptConstants');
         // Build dynamic prompt based on current plugin settings
-        const agentPrompt = buildAgentSystemPrompt(this.plugin.settings.enabledTools);
+        const agentPrompt = buildAgentSystemPrompt(
+            this.plugin.settings.enabledTools, 
+            this.plugin.settings.customAgentSystemMessage
+        );
         
         // Essential debug: Log agent mode enabled and enabled tools
         console.log('ResponseStreamer: Agent mode enabled, enabled tools:', this.plugin.settings.enabledTools);

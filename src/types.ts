@@ -297,6 +297,9 @@ export interface MyPluginSettings {
     /** Agent Mode settings */
     agentMode?: AgentModeSettings;
 
+    /** Custom agent system message template - if provided, replaces the default agent system message */
+    customAgentSystemMessage?: string;
+
     /** UI Behavior settings */
     uiBehavior?: UIBehaviorSettings;
 
@@ -416,6 +419,7 @@ export const DEFAULT_SETTINGS: MyPluginSettings = {
         maxToolCalls: 10,
         timeoutMs: 30000
     },
+    customAgentSystemMessage: undefined, // Use default agent system message
     uiBehavior: {
         collapseOldReasoning: true,
         showCompletionNotifications: true,

@@ -634,9 +634,7 @@ export class MyPluginSettingTab extends PluginSettingTab {
                         }
                         this.plugin.settings.agentMode.maxToolCalls = value;
                         await this.plugin.saveSettings();
-                    });
-
-                this.createSliderSetting(sectionEl, 'Tool Execution Timeout (seconds)', 'Maximum time to wait for each tool to complete before timing out.',
+                    });                this.createSliderSetting(sectionEl, 'Tool Execution Timeout (seconds)', 'Maximum time to wait for each tool to complete before timing out.',
                     { min: 5, max: 300, step: 5 },
                     () => (this.plugin.settings.agentMode?.timeoutMs ?? 30000) / 1000,
                     async (value) => {
@@ -646,6 +644,62 @@ export class MyPluginSettingTab extends PluginSettingTab {
                         this.plugin.settings.agentMode.timeoutMs = value * 1000;
                         await this.plugin.saveSettings();
                     });
+
+                // Custom Agent System Message Setting
+                sectionEl.createEl('h4', { text: 'Agent System Message' });
+                sectionEl.createEl('div', {
+                    text: 'Customize the system message used when Agent Mode is enabled. Use {{TOOL_DESCRIPTIONS}} to include the available tools list.',
+                    cls: 'setting-item-description',
+                    attr: { style: 'margin-bottom: 0.5em;' }
+                });
+
+                const agentMessageContainer = sectionEl.createDiv('agent-message-container');
+                agentMessageContainer.style.display = 'flex';
+                agentMessageContainer.style.gap = '0.5em';
+                agentMessageContainer.style.alignItems = 'flex-start';
+                agentMessageContainer.style.marginBottom = '1em';
+
+                const textareaContainer = agentMessageContainer.createDiv();
+                textareaContainer.style.flex = '1';
+
+                const textarea = textareaContainer.createEl('textarea');
+                textarea.rows = 8;
+                textarea.style.width = '100%';
+                textarea.style.minHeight = '120px';
+                textarea.style.fontFamily = 'monospace';
+                textarea.style.fontSize = '0.9em';
+                textarea.placeholder = 'Enter custom agent system message template...';
+                textarea.value = this.plugin.settings.customAgentSystemMessage || '';
+
+                const buttonContainer = agentMessageContainer.createDiv();
+                buttonContainer.style.display = 'flex';
+                buttonContainer.style.flexDirection = 'column';
+                buttonContainer.style.gap = '0.25em';
+
+                const resetButton = buttonContainer.createEl('button', { text: 'Reset to Default' });
+                resetButton.style.padding = '0.25em 0.5em';
+                resetButton.style.fontSize = '0.8em';
+                resetButton.addEventListener('click', async () => {
+                    const { AGENT_SYSTEM_PROMPT_TEMPLATE } = await import('./promptConstants');
+                    textarea.value = AGENT_SYSTEM_PROMPT_TEMPLATE;
+                    this.plugin.settings.customAgentSystemMessage = AGENT_SYSTEM_PROMPT_TEMPLATE;
+                    await this.plugin.saveSettings();
+                });
+
+                const clearButton = buttonContainer.createEl('button', { text: 'Use Default' });
+                clearButton.style.padding = '0.25em 0.5em';
+                clearButton.style.fontSize = '0.8em';
+                clearButton.addEventListener('click', async () => {
+                    textarea.value = '';
+                    this.plugin.settings.customAgentSystemMessage = undefined;
+                    await this.plugin.saveSettings();
+                });
+
+                textarea.addEventListener('input', async () => {
+                    const value = textarea.value.trim();
+                    this.plugin.settings.customAgentSystemMessage = value || undefined;
+                    await this.plugin.saveSettings();
+                });
             },
             this.plugin,
             'generalSectionsExpanded'

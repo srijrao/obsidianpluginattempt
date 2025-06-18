@@ -40,10 +40,11 @@ When using tools, respond ONLY with a JSON object using these EXACT parameter na
 }
 `;
 
-export function buildAgentSystemPrompt(enabledTools?: Record<string, boolean>) {
+export function buildAgentSystemPrompt(enabledTools?: Record<string, boolean>, customTemplate?: string) {
     const toolList = getDynamicToolList(enabledTools);
     const toolDescriptions = toolList.map((tool, idx) => `${idx + 1}. ${tool.name} - ${tool.description}`).join('\n');
-    return AGENT_SYSTEM_PROMPT_TEMPLATE.replace('{{TOOL_DESCRIPTIONS}}', toolDescriptions);
+    const template = customTemplate || AGENT_SYSTEM_PROMPT_TEMPLATE;
+    return template.replace('{{TOOL_DESCRIPTIONS}}', toolDescriptions);
 }
 
 // AGENT_SYSTEM_PROMPT is now a function of enabled tools, not a static string

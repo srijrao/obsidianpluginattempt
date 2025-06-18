@@ -3971,10 +3971,11 @@ __export(promptConstants_exports, {
   buildAgentSystemPrompt: () => buildAgentSystemPrompt,
   getDynamicToolList: () => getDynamicToolList
 });
-function buildAgentSystemPrompt(enabledTools) {
+function buildAgentSystemPrompt(enabledTools, customTemplate) {
   const toolList = getDynamicToolList(enabledTools);
   const toolDescriptions = toolList.map((tool, idx) => `${idx + 1}. ${tool.name} - ${tool.description}`).join("\n");
-  return AGENT_SYSTEM_PROMPT_TEMPLATE.replace("{{TOOL_DESCRIPTIONS}}", toolDescriptions);
+  const template = customTemplate || AGENT_SYSTEM_PROMPT_TEMPLATE;
+  return template.replace("{{TOOL_DESCRIPTIONS}}", toolDescriptions);
 }
 var DEFAULT_TITLE_PROMPT, DEFAULT_SUMMARY_PROMPT, DEFAULT_GENERAL_SYSTEM_PROMPT, getDynamicToolList, AGENT_SYSTEM_PROMPT_TEMPLATE, AGENT_SYSTEM_PROMPT, DEFAULT_YAML_SYSTEM_MESSAGE;
 var init_promptConstants = __esm({
@@ -4109,6 +4110,8 @@ var init_types = __esm({
         maxToolCalls: 10,
         timeoutMs: 3e4
       },
+      customAgentSystemMessage: void 0,
+      // Use default agent system message
       uiBehavior: {
         collapseOldReasoning: true,
         showCompletionNotifications: true,
@@ -11098,6 +11101,53 @@ var MyPluginSettingTab = class extends import_obsidian11.PluginSettingTab {
             await this.plugin.saveSettings();
           }
         );
+        sectionEl.createEl("h4", { text: "Agent System Message" });
+        sectionEl.createEl("div", {
+          text: "Customize the system message used when Agent Mode is enabled. Use {{TOOL_DESCRIPTIONS}} to include the available tools list.",
+          cls: "setting-item-description",
+          attr: { style: "margin-bottom: 0.5em;" }
+        });
+        const agentMessageContainer = sectionEl.createDiv("agent-message-container");
+        agentMessageContainer.style.display = "flex";
+        agentMessageContainer.style.gap = "0.5em";
+        agentMessageContainer.style.alignItems = "flex-start";
+        agentMessageContainer.style.marginBottom = "1em";
+        const textareaContainer = agentMessageContainer.createDiv();
+        textareaContainer.style.flex = "1";
+        const textarea = textareaContainer.createEl("textarea");
+        textarea.rows = 8;
+        textarea.style.width = "100%";
+        textarea.style.minHeight = "120px";
+        textarea.style.fontFamily = "monospace";
+        textarea.style.fontSize = "0.9em";
+        textarea.placeholder = "Enter custom agent system message template...";
+        textarea.value = this.plugin.settings.customAgentSystemMessage || "";
+        const buttonContainer = agentMessageContainer.createDiv();
+        buttonContainer.style.display = "flex";
+        buttonContainer.style.flexDirection = "column";
+        buttonContainer.style.gap = "0.25em";
+        const resetButton = buttonContainer.createEl("button", { text: "Reset to Default" });
+        resetButton.style.padding = "0.25em 0.5em";
+        resetButton.style.fontSize = "0.8em";
+        resetButton.addEventListener("click", async () => {
+          const { AGENT_SYSTEM_PROMPT_TEMPLATE: AGENT_SYSTEM_PROMPT_TEMPLATE2 } = await Promise.resolve().then(() => (init_promptConstants(), promptConstants_exports));
+          textarea.value = AGENT_SYSTEM_PROMPT_TEMPLATE2;
+          this.plugin.settings.customAgentSystemMessage = AGENT_SYSTEM_PROMPT_TEMPLATE2;
+          await this.plugin.saveSettings();
+        });
+        const clearButton = buttonContainer.createEl("button", { text: "Use Default" });
+        clearButton.style.padding = "0.25em 0.5em";
+        clearButton.style.fontSize = "0.8em";
+        clearButton.addEventListener("click", async () => {
+          textarea.value = "";
+          this.plugin.settings.customAgentSystemMessage = void 0;
+          await this.plugin.saveSettings();
+        });
+        textarea.addEventListener("input", async () => {
+          const value = textarea.value.trim();
+          this.plugin.settings.customAgentSystemMessage = value || void 0;
+          await this.plugin.saveSettings();
+        });
       },
       this.plugin,
       "generalSectionsExpanded"
@@ -13016,7 +13066,10 @@ var ResponseStreamer = class {
   async addAgentSystemPrompt(messages) {
     if (!this.plugin.isAgentModeEnabled()) return;
     const { buildAgentSystemPrompt: buildAgentSystemPrompt2 } = await Promise.resolve().then(() => (init_promptConstants(), promptConstants_exports));
-    const agentPrompt = buildAgentSystemPrompt2(this.plugin.settings.enabledTools);
+    const agentPrompt = buildAgentSystemPrompt2(
+      this.plugin.settings.enabledTools,
+      this.plugin.settings.customAgentSystemMessage
+    );
     console.log("ResponseStreamer: Agent mode enabled, enabled tools:", this.plugin.settings.enabledTools);
     const systemMessageIndex = messages.findIndex((msg) => msg.role === "system");
     if (systemMessageIndex !== -1) {
