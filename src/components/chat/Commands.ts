@@ -153,12 +153,7 @@ export class Commands extends Component implements IChatCommands {
                     // Fallback to textContent if parsing fails
                 }
             }
-              console.log('DEBUG Commands.copyAllMessages - Message data:', {
-                hasMessageData: !!messageData,
-                hasToolResults: messageData && messageData.toolResults && messageData.toolResults.length > 0,
-                toolResultsLength: messageData?.toolResults?.length || 0,
-                messageDataStr: messageDataStr?.substring(0, 200) + '...'
-            });
+              // Removed redundant console.log for cleaner production code.
             
             if (messageData && messageData.toolResults && messageData.toolResults.length > 0) {
                 // Use MessageRenderer to get properly formatted content with tool results

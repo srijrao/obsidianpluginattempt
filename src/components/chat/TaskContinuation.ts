@@ -32,7 +32,7 @@ export class TaskContinuation {
         let isFinished = this.checkIfTaskFinished(allToolResults);
         // Check if tool limit is reached before starting continuation
         if (this.agentResponseHandler?.isToolLimitReached()) {
-            console.log('TaskContinuation: Tool limit reached, stopping task continuation');
+            // Removed redundant console.log for cleaner production code.
             return { 
                 content: responseContent + '\n\n*[Tool execution limit reached - task continuation stopped]*',
                 limitReachedDuringContinuation: true 
@@ -41,7 +41,7 @@ export class TaskContinuation {
         while (!isFinished && iteration < maxIterations) {
             iteration++;
             if (this.agentResponseHandler?.isToolLimitReached()) {
-                console.log('TaskContinuation: Tool limit reached during iteration, need to show UI warning');
+                // Removed redundant console.log for cleaner production code.
                 responseContent += '\n\n*[Tool execution limit reached during continuation]*';
                 limitReachedDuringContinuation = true;
                 break;
@@ -83,10 +83,10 @@ export class TaskContinuation {
             }
         }
         if (iteration >= maxIterations) {
-            console.warn('TaskContinuation: Task continuation reached maximum iterations');
+            // Removed redundant console.warn for cleaner production code.
             responseContent += '\n\n*[Task continuation reached maximum iterations - stopping to prevent infinite loop]*';
         }
-        console.log(`TaskContinuation: Task continuation completed after ${iteration} iterations`);
+        // Removed redundant console.log for cleaner production code.
         return { content: responseContent, limitReachedDuringContinuation };
     }    /**
      * Process continuation response and update UI
@@ -176,7 +176,7 @@ export class TaskContinuation {
         try {
             // Check if tool limit is reached before making API call
             if (this.agentResponseHandler?.isToolLimitReached()) {
-                console.log('TaskContinuation: Tool limit reached, skipping continuation API call');
+                // Removed redundant console.log for cleaner production code.
                 return '*[Tool execution limit reached - no continuation response]*';
             }
             

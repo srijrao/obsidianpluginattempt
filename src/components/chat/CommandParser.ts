@@ -24,7 +24,7 @@ export class CommandParser {
         const commands: ToolCommand[] = [];
         let cleanText = response;
 
-        console.log('CommandParser: Parsing response:', response);
+        // Removed redundant console.log for cleaner production code.
 
         // Extract JSON commands from the response
         const extractedCommands = this.extractCommands(response);
@@ -42,8 +42,7 @@ export class CommandParser {
             }
         }
 
-        // Essential debug: log final result
-        console.log('CommandParser: Final result - text:', cleanText, 'commands:', commands);
+        // Removed redundant console.log for cleaner production code.
 
         return {
             text: cleanText,

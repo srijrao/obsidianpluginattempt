@@ -92,8 +92,7 @@ export class ResponseStreamer {
             this.plugin.settings.customAgentSystemMessage
         );
         
-        // Essential debug: Log agent mode enabled and enabled tools
-        console.log('ResponseStreamer: Agent mode enabled, enabled tools:', this.plugin.settings.enabledTools);
+        // Removed redundant console.log for cleaner production code.
         
         const systemMessageIndex = messages.findIndex(msg => msg.role === 'system');
         if (systemMessageIndex !== -1) {
@@ -135,15 +134,14 @@ export class ResponseStreamer {
         messages: Message[]
     ): Promise<string> {
         if (!this.agentResponseHandler) {
-            console.log('ResponseStreamer: No agent response handler available');
+            // Removed redundant console.log for cleaner production code.
             return responseContent;
         }
 
-        // Essential debug: Log agent response processing and task status
-        console.log('ResponseStreamer: Processing agent response');
+        // Removed redundant console.log for cleaner production code.
         try {
             const agentResult = await this.agentResponseHandler.processResponseWithUI(responseContent);
-            console.log('ResponseStreamer: Agent result taskStatus:', agentResult.taskStatus);
+            // Removed redundant console.log for cleaner production code.
             return agentResult.hasTools 
                 ? await this.handleToolExecution(agentResult, container, responseContent, messages)
                 : await this.handleNonToolResponse(agentResult, container, responseContent, messages);
@@ -370,7 +368,7 @@ export class ResponseStreamer {
         container: HTMLElement
     ): Promise<string> {
         if (this.agentResponseHandler?.isToolLimitReached()) {
-            console.log('ResponseStreamer: Tool limit reached, skipping reasoning continuation');
+            // Removed redundant console.log for cleaner production code.
             return responseContent + '\n\n*[Tool execution limit reached - reasoning continuation stopped]*';
         }
         
@@ -395,7 +393,7 @@ export class ResponseStreamer {
     async getContinuationResponse(messages: Message[], container: HTMLElement): Promise<string> {
         try {
             if (this.agentResponseHandler?.isToolLimitReached()) {
-                console.log('ResponseStreamer: Tool limit reached, skipping continuation API call');
+                // Removed redundant console.log for cleaner production code.
                 return '*[Tool execution limit reached - no continuation response]*';
             }
             
@@ -430,10 +428,10 @@ export class ResponseStreamer {
         const { messages, container, responseContent, finalContent, toolResults, additionalTools } = params;
         
         if (additionalTools) {
-            console.log(`ResponseStreamer: Continuing task with ${additionalTools} additional tool executions`);
+            // Removed redundant console.log for cleaner production code.
         } else {
             this.agentResponseHandler.resetExecutionCount();
-            console.log('ResponseStreamer: Execution count reset, continuing task after user request');
+            // Removed redundant console.log for cleaner production code.
         }
 
         const continueMessage = this.createContinuationMessage(additionalTools);
