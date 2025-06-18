@@ -2880,7 +2880,6 @@ var init_BackupManager = __esm({
             backupData.backups[filePath] = backupData.backups[filePath].slice(0, this.maxBackupsPerFile);
           }
           await this.saveBackupData(backupData);
-          console.log(`[AI Assistant] Backup created for ${filePath} at ${readableTimestamp}`);
         } catch (error) {
           console.error("Failed to create backup:", error);
         }
@@ -3007,7 +3006,6 @@ var init_BackupManager = __esm({
               await adapter.mkdir(backupDir);
             }
           } catch (mkdirError) {
-            console.warn("Could not create backup directory:", mkdirError);
           }
           await adapter.write(this.backupFilePath, JSON.stringify(backupData, null, 2));
         } catch (error) {
@@ -3054,11 +3052,9 @@ var init_BackupManager = __esm({
           const backupDir = this.backupFilePath.substring(0, this.backupFilePath.lastIndexOf("/"));
           if (!await adapter.exists(backupDir)) {
             await adapter.mkdir(backupDir);
-            console.log("[AI Assistant] Created backup directory:", backupDir);
           }
           if (!await adapter.exists(this.backupFilePath)) {
             await this.saveBackupData({ backups: {} });
-            console.log("[AI Assistant] Created backup file:", this.backupFilePath);
           }
         } catch (error) {
           console.error("Failed to initialize backup system:", error);
@@ -3080,7 +3076,6 @@ var init_BackupManager = __esm({
             );
             if (backupData.backups[filePath].length < originalLength) {
               cleaned = true;
-              console.log(`[AI Assistant] Cleaned ${originalLength - backupData.backups[filePath].length} old backups for ${filePath}`);
             }
             if (backupData.backups[filePath].length === 0) {
               delete backupData.backups[filePath];
@@ -3185,10 +3180,8 @@ var init_FileWriteTool = __esm({
             const originalContent = await this.app.vault.read(file);
             const shouldBackup = await this.backupManager.shouldCreateBackup(filePath, content);
             if (shouldBackup) {
-              console.log(`[AI Assistant] Creating backup for ${filePath}`);
               await this.backupManager.createBackup(filePath, originalContent);
             } else {
-              console.log(`[AI Assistant] Skipping backup for ${filePath} - content unchanged`);
             }
           }
           const result = await writeFile(this.app, filePath, content);
@@ -3853,11 +3846,8 @@ function getAllToolClasses() {
     FileListTool,
     FileRenameTool
   ];
-  console.log("[AI Assistant] getAllToolClasses: Checking tool classes...");
   toolClasses.forEach((tc) => {
-    console.log(`[AI Assistant] Tool Class Name: ${tc.name}`);
   });
-  console.log("[AI Assistant] Loading agent tools (class names):", toolClasses.map((tc) => tc.name));
   return toolClasses;
 }
 function getToolMetadata() {
@@ -3946,10 +3936,8 @@ function getAllToolNames() {
 }
 function createToolInstances(app, plugin) {
   const toolClasses = getAllToolClasses();
-  console.log("[AI Assistant] createToolInstances: Instantiating tools...");
   return toolClasses.map((ToolClass) => {
     const instance = plugin && ToolClass.name === "FileWriteTool" ? new ToolClass(app, plugin.backupManager) : new ToolClass(app);
-    console.log(`[AI Assistant] Instantiated Tool instance name: ${instance.name}, from Class: ${ToolClass.name}`);
     return instance;
   });
 }
@@ -9407,11 +9395,7 @@ var init_MessageRenderer = __esm({
       * Render message with embedded tool displays
       */
       async renderMessageWithToolDisplays(message, container, component) {
-        var _a2, _b;
-        console.log("renderMessageWithToolDisplays called:", {
-          toolResultsCount: ((_a2 = message.toolResults) == null ? void 0 : _a2.length) || 0,
-          containerHasContent: !!container.querySelector(".message-content")
-        });
+        var _a2;
         const messageContent = container.querySelector(".message-content");
         if (!messageContent) {
           console.error("No .message-content element found in container");
@@ -9420,26 +9404,21 @@ var init_MessageRenderer = __esm({
         messageContent.empty();
         container.classList.add("has-rich-tools");
         const parts = this.parseMessageWithTools(message.content);
-        console.log("Parsed message parts:", parts.length, parts.map((p) => ({ type: p.type, hasCommand: !!p.command })));
         for (const part of parts) {
-          if (part.type === "text" && ((_b = part.content) == null ? void 0 : _b.trim())) {
-            console.log("Rendering text part, content length:", part.content.length);
+          if (part.type === "text" && ((_a2 = part.content) == null ? void 0 : _a2.trim())) {
             const textDiv = document.createElement("div");
             textDiv.className = "message-text-part";
             await import_obsidian15.MarkdownRenderer.render(this.app, part.content, textDiv, "", component || new import_obsidian15.Component());
             messageContent.appendChild(textDiv);
           } else if (part.type === "tool" && part.command && message.toolResults) {
-            console.log("Rendering tool part:", part.command.action);
             const toolExecutionResult = message.toolResults.find(
               (tr) => tr.command.action === part.command.action && this.compareToolParams(tr.command.parameters, part.command.parameters)
             );
             if (toolExecutionResult) {
-              console.log("Found matching tool execution result, rendering rich display...");
               const richDisplay = new ToolRichDisplay({
                 command: part.command,
                 result: toolExecutionResult.result,
                 onRerun: () => {
-                  console.log("Re-run tool:", part.command);
                 },
                 onCopy: async () => {
                   const displayText = this.formatToolForCopy(part.command, toolExecutionResult.result);
@@ -9454,8 +9433,6 @@ var init_MessageRenderer = __esm({
               toolWrapper.className = "embedded-tool-display";
               toolWrapper.appendChild(richDisplay.getElement());
               messageContent.appendChild(toolWrapper);
-            } else {
-              console.warn("No matching tool execution result found for:", part.command.action);
             }
           }
         }
@@ -9664,7 +9641,6 @@ async function saveChatAsNote({
         try {
           messageData = JSON.parse(messageDataStr);
         } catch (e) {
-          console.log("Failed to parse message data:", e);
         }
       }
       if (messageData && messageData.toolResults && messageData.toolResults.length > 0) {
@@ -10851,16 +10827,13 @@ var MyPluginSettingTab = class extends import_obsidian11.PluginSettingTab {
     });
     const tools = createToolInstances(this.app, this.plugin);
     if (!this.plugin.settings.enabledTools) {
-      console.log("[AI Assistant] Settings: Initializing enabledTools object.");
       this.plugin.settings.enabledTools = {};
     }
-    console.log("[AI Assistant] Settings: Current enabledTools before processing:", JSON.stringify(this.plugin.settings.enabledTools));
     tools.forEach((tool) => {
       if (!tool) {
         console.error("[AI Assistant] Settings: Encountered an undefined tool object in tools array!");
         return;
       }
-      console.log(`[AI Assistant] Settings: Processing tool for UI - Name: ${tool.name}, Description: ${tool.description}`);
       if (typeof tool.name === "undefined") {
         console.error("[AI Assistant] Settings: CRITICAL - Tool object has undefined name:", tool);
       }
@@ -10869,7 +10842,6 @@ var MyPluginSettingTab = class extends import_obsidian11.PluginSettingTab {
         `${tool.name} (${tool.description})`,
         `Enable or disable the "${tool.name}" tool.`,
         () => {
-          console.log(`[AI Assistant] Settings: Getting toggle state for tool: ${tool.name}`);
           if (typeof tool.name === "undefined") {
             console.error("[AI Assistant] Settings: CRITICAL - Trying to get toggle state for tool with undefined name!");
             return false;
@@ -10877,7 +10849,6 @@ var MyPluginSettingTab = class extends import_obsidian11.PluginSettingTab {
           return !!this.plugin.settings.enabledTools && this.plugin.settings.enabledTools[tool.name] !== false;
         },
         async (value) => {
-          console.log(`[AI Assistant] Settings: Setting toggle state for tool: ${tool.name} to ${value}`);
           if (typeof tool.name === "undefined") {
             console.error("[AI Assistant] Settings: CRITICAL - Trying to set toggle state for tool with undefined name! Skipping save.");
             return;
@@ -10887,7 +10858,6 @@ var MyPluginSettingTab = class extends import_obsidian11.PluginSettingTab {
           }
           this.plugin.settings.enabledTools[tool.name] = value;
           await this.plugin.saveSettings();
-          console.log("[AI Assistant] Settings: Saved enabledTools:", JSON.stringify(this.plugin.settings.enabledTools));
         }
       );
     });
@@ -11589,7 +11559,6 @@ var ChatHistoryManager = class {
     }
     const fPath = historyFilePath || "chat-history.json";
     this.historyFilePath = (0, import_obsidian12.normalizePath)(`.obsidian/plugins/${effectivePluginId}/${fPath}`);
-    console.log("[ChatHistoryManager] Using history file path:", this.historyFilePath);
     if (typeof window !== "undefined" && window.Notice) {
     }
   }
@@ -11669,7 +11638,6 @@ var ChatHistoryManager = class {
       }
       await this.saveHistory();
     } else {
-      console.warn("ChatHistoryManager: updateMessage did not find a matching message to update.", { timestamp: timestamp2, sender, oldContent });
     }
   }
   async saveHistory() {
@@ -11968,7 +11936,6 @@ var CommandParser = class {
   parseResponse(response) {
     const commands = [];
     let cleanText = response;
-    console.log("CommandParser: Parsing response:", response);
     const extractedCommands = this.extractCommands(response);
     for (const command of extractedCommands) {
       if (this.validateCommand(command.command)) {
@@ -11977,7 +11944,6 @@ var CommandParser = class {
       } else {
       }
     }
-    console.log("CommandParser: Final result - text:", cleanText, "commands:", commands);
     return {
       text: cleanText,
       commands
@@ -12148,12 +12114,7 @@ var AgentResponseHandler = class {
    * @returns Object containing processed text and execution results
    */
   async processResponse(response) {
-    console.log("AgentResponseHandler: processResponse called", {
-      agentModeEnabled: this.context.plugin.isAgentModeEnabled(),
-      response
-    });
     if (!this.context.plugin.isAgentModeEnabled()) {
-      console.log("AgentResponseHandler: Agent mode disabled, returning original response");
       return {
         processedText: response,
         toolResults: [],
@@ -12161,9 +12122,7 @@ var AgentResponseHandler = class {
       };
     }
     const { text, commands } = this.commandParser.parseResponse(response);
-    console.log("AgentResponseHandler: Found commands:", commands);
     if (commands.length === 0) {
-      console.log("AgentResponseHandler: No commands found, returning original text");
       return {
         processedText: text,
         toolResults: [],
@@ -12188,17 +12147,11 @@ var AgentResponseHandler = class {
         const startTime = Date.now();
         const result = await this.executeToolWithTimeout(command, agentSettings.timeoutMs);
         const executionTime = Date.now() - startTime;
-        console.log(`AgentResponseHandler: Tool '${command.action}' completed in ${executionTime}ms:`, {
-          success: result.success,
-          hasData: !!result.data,
-          error: result.error
-        });
         toolResults.push({ command, result });
         this.executionCount++;
         this.createToolDisplay(command, result);
         this.context.onToolResult(result, command);
         if (this.executionCount >= effectiveLimit) {
-          console.log(`AgentResponseHandler: Reached maximum tool calls limit (${effectiveLimit})`);
           break;
         }
       } catch (error) {
@@ -12244,7 +12197,6 @@ var AgentResponseHandler = class {
     this.temporaryMaxToolCalls = void 0;
     this.toolDisplays.clear();
     this.toolMarkdownCache.clear();
-    console.log("AgentResponseHandler: Execution count, temporary limits, and tool displays reset");
   }
   /**
    * Get available tools information
@@ -12276,7 +12228,6 @@ var AgentResponseHandler = class {
   */
   getCombinedToolMarkdown() {
     const markdowns = this.getToolMarkdown();
-    console.log("Getting combined tool markdown, count:", markdowns.length);
     return markdowns.join("\n");
   }
   /**
@@ -12326,7 +12277,6 @@ ${resultText}`
         const displayText = this.formatToolForCopy(command, result);
         try {
           await navigator.clipboard.writeText(displayText);
-          console.log("Tool result copied to clipboard");
         } catch (error) {
           console.error("Failed to copy tool result:", error);
         }
@@ -12335,7 +12285,6 @@ ${resultText}`
     this.toolDisplays.set(displayId, toolDisplay);
     const markdown = toolDisplay.toMarkdown();
     this.toolMarkdownCache.set(displayId, markdown);
-    console.log(`Cached tool markdown for ${displayId}:`, markdown);
     if (this.context.onToolDisplay) {
       this.context.onToolDisplay(toolDisplay);
     }
@@ -12788,7 +12737,6 @@ ${resultText}`;
   addToolExecutions(additionalCount) {
     const agentSettings = this.context.plugin.getAgentModeSettings();
     this.temporaryMaxToolCalls = (this.temporaryMaxToolCalls || agentSettings.maxToolCalls) + additionalCount;
-    console.log(`AgentResponseHandler: Added ${additionalCount} tool executions. New limit: ${this.temporaryMaxToolCalls}`);
   }
   /**
    * Get current effective tool limit (considering temporary increases)
@@ -12884,7 +12832,6 @@ var TaskContinuation = class {
     let allToolResults = [...initialToolResults];
     let isFinished = this.checkIfTaskFinished(allToolResults);
     if ((_a2 = this.agentResponseHandler) == null ? void 0 : _a2.isToolLimitReached()) {
-      console.log("TaskContinuation: Tool limit reached, stopping task continuation");
       return {
         content: responseContent + "\n\n*[Tool execution limit reached - task continuation stopped]*",
         limitReachedDuringContinuation: true
@@ -12893,7 +12840,6 @@ var TaskContinuation = class {
     while (!isFinished && iteration < maxIterations) {
       iteration++;
       if ((_b = this.agentResponseHandler) == null ? void 0 : _b.isToolLimitReached()) {
-        console.log("TaskContinuation: Tool limit reached during iteration, need to show UI warning");
         responseContent += "\n\n*[Tool execution limit reached during continuation]*";
         limitReachedDuringContinuation = true;
         break;
@@ -12932,10 +12878,8 @@ var TaskContinuation = class {
       }
     }
     if (iteration >= maxIterations) {
-      console.warn("TaskContinuation: Task continuation reached maximum iterations");
       responseContent += "\n\n*[Task continuation reached maximum iterations - stopping to prevent infinite loop]*";
     }
-    console.log(`TaskContinuation: Task continuation completed after ${iteration} iterations`);
     return { content: responseContent, limitReachedDuringContinuation };
   }
   /**
@@ -13000,7 +12944,6 @@ var TaskContinuation = class {
     var _a2;
     try {
       if ((_a2 = this.agentResponseHandler) == null ? void 0 : _a2.isToolLimitReached()) {
-        console.log("TaskContinuation: Tool limit reached, skipping continuation API call");
         return "*[Tool execution limit reached - no continuation response]*";
       }
       const { createProvider: createProvider2, createProviderFromUnifiedModel: createProviderFromUnifiedModel2 } = await Promise.resolve().then(() => (init_providers(), providers_exports));
@@ -13114,7 +13057,6 @@ var ResponseStreamer = class {
       this.plugin.settings.enabledTools,
       this.plugin.settings.customAgentSystemMessage
     );
-    console.log("ResponseStreamer: Agent mode enabled, enabled tools:", this.plugin.settings.enabledTools);
     const systemMessageIndex = messages.findIndex((msg) => msg.role === "system");
     if (systemMessageIndex !== -1) {
       const originalContent = messages[systemMessageIndex].content;
@@ -13148,13 +13090,10 @@ var ResponseStreamer = class {
   */
   async processAgentResponse(responseContent, container, messages) {
     if (!this.agentResponseHandler) {
-      console.log("ResponseStreamer: No agent response handler available");
       return responseContent;
     }
-    console.log("ResponseStreamer: Processing agent response");
     try {
       const agentResult = await this.agentResponseHandler.processResponseWithUI(responseContent);
-      console.log("ResponseStreamer: Agent result taskStatus:", agentResult.taskStatus);
       return agentResult.hasTools ? await this.handleToolExecution(agentResult, container, responseContent, messages) : await this.handleNonToolResponse(agentResult, container, responseContent, messages);
     } catch (error) {
       console.error("ResponseStreamer: Error processing agent response:", error);
@@ -13326,7 +13265,6 @@ var ResponseStreamer = class {
   async handleReasoningContinuation(responseContent, messages, container) {
     var _a2;
     if ((_a2 = this.agentResponseHandler) == null ? void 0 : _a2.isToolLimitReached()) {
-      console.log("ResponseStreamer: Tool limit reached, skipping reasoning continuation");
       return responseContent + "\n\n*[Tool execution limit reached - reasoning continuation stopped]*";
     }
     messages.push(
@@ -13349,7 +13287,6 @@ var ResponseStreamer = class {
     var _a2;
     try {
       if ((_a2 = this.agentResponseHandler) == null ? void 0 : _a2.isToolLimitReached()) {
-        console.log("ResponseStreamer: Tool limit reached, skipping continuation API call");
         return "*[Tool execution limit reached - no continuation response]*";
       }
       const provider = this.createProvider();
@@ -13375,10 +13312,8 @@ var ResponseStreamer = class {
     if (!this.agentResponseHandler) return;
     const { messages, container, responseContent, finalContent, toolResults, additionalTools } = params;
     if (additionalTools) {
-      console.log(`ResponseStreamer: Continuing task with ${additionalTools} additional tool executions`);
     } else {
       this.agentResponseHandler.resetExecutionCount();
-      console.log("ResponseStreamer: Execution count reset, continuing task after user request");
     }
     const continueMessage = this.createContinuationMessage(additionalTools);
     await this.addContinuationNotice(continueMessage);

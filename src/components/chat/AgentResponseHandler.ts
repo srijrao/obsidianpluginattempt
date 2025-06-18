@@ -45,15 +45,11 @@ export class AgentResponseHandler {
         toolResults: Array<{ command: ToolCommand; result: ToolResult }>;
         hasTools: boolean;
     }> {
-        // Essential debug: Log agent mode status and response content together
-        console.log('AgentResponseHandler: processResponse called', {
-            agentModeEnabled: this.context.plugin.isAgentModeEnabled(),
-            response
-        });
+        // Removed redundant console.log for cleaner production code.
         
         // Check if agent mode is enabled
         if (!this.context.plugin.isAgentModeEnabled()) {
-            console.log('AgentResponseHandler: Agent mode disabled, returning original response');
+            // Removed redundant console.log for cleaner production code.
             return {
                 processedText: response,
                 toolResults: [],
@@ -64,11 +60,10 @@ export class AgentResponseHandler {
         // Parse response for tool commands
         const { text, commands } = this.commandParser.parseResponse(response);
         
-        // Essential debug: Log found commands only
-        console.log('AgentResponseHandler: Found commands:', commands);
+        // Removed redundant console.log for cleaner production code.
 
         if (commands.length === 0) {
-            console.log('AgentResponseHandler: No commands found, returning original text');
+            // Removed redundant console.log for cleaner production code.
             return {
                 processedText: text,
                 toolResults: [],
@@ -95,11 +90,7 @@ export class AgentResponseHandler {
                 const result = await this.executeToolWithTimeout(command, agentSettings.timeoutMs);
                 const executionTime = Date.now() - startTime;
                 
-                console.log(`AgentResponseHandler: Tool '${command.action}' completed in ${executionTime}ms:`, {
-                    success: result.success,
-                    hasData: !!result.data,
-                    error: result.error
-                });
+                // Removed redundant console.log for cleaner production code.
                   toolResults.push({ command, result });
                 this.executionCount++;
 
@@ -111,7 +102,7 @@ export class AgentResponseHandler {
 
                 // Stop if we hit the effective limit
                 if (this.executionCount >= effectiveLimit) {
-                    console.log(`AgentResponseHandler: Reached maximum tool calls limit (${effectiveLimit})`);
+                    // Removed redundant console.log for cleaner production code.
                     break;
                 }
             } catch (error: any) {
@@ -164,7 +155,7 @@ export class AgentResponseHandler {
         this.temporaryMaxToolCalls = undefined; // Also reset temporary limit
         this.toolDisplays.clear(); // Clear all tool displays
         this.toolMarkdownCache.clear(); // Clear markdown cache
-        console.log('AgentResponseHandler: Execution count, temporary limits, and tool displays reset');
+        // Removed redundant console.log for cleaner production code.
     }
 
     /**
@@ -199,7 +190,7 @@ export class AgentResponseHandler {
      */
     getCombinedToolMarkdown(): string {
         const markdowns = this.getToolMarkdown();
-        console.log('Getting combined tool markdown, count:', markdowns.length);
+        // Removed redundant console.log for cleaner production code.
         return markdowns.join('\n');
     }
 
@@ -252,7 +243,7 @@ export class AgentResponseHandler {
                 const displayText = this.formatToolForCopy(command, result);
                 try {
                     await navigator.clipboard.writeText(displayText);
-                    console.log('Tool result copied to clipboard');
+                    // Removed redundant console.log for cleaner production code.
                 } catch (error) {
                     console.error('Failed to copy tool result:', error);
                 }
@@ -262,7 +253,7 @@ export class AgentResponseHandler {
           // Cache the markdown representation
         const markdown = toolDisplay.toMarkdown();
         this.toolMarkdownCache.set(displayId, markdown);
-        console.log(`Cached tool markdown for ${displayId}:`, markdown);
+        // Removed redundant console.log for cleaner production code.
 
         // Notify context if callback is available
         if (this.context.onToolDisplay) {
@@ -795,7 +786,7 @@ ${resultData}`;
         const agentSettings = this.context.plugin.getAgentModeSettings();
         // Temporarily increase the limit for this session
         this.temporaryMaxToolCalls = (this.temporaryMaxToolCalls || agentSettings.maxToolCalls) + additionalCount;
-        console.log(`AgentResponseHandler: Added ${additionalCount} tool executions. New limit: ${this.temporaryMaxToolCalls}`);
+        // Removed redundant console.log for cleaner production code.
     }
 
     /**

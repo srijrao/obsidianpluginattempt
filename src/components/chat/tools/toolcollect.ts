@@ -40,14 +40,12 @@ export function getAllToolClasses(): any[] {
         FileRenameTool
     ];
     
-    console.log('[AI Assistant] getAllToolClasses: Checking tool classes...');
+    // Removed redundant console.log statements for cleaner production code.
     toolClasses.forEach(tc => {
         // tc.name here refers to the class's actual name (e.g., "FileSearchTool")
-        console.log(`[AI Assistant] Tool Class Name: ${tc.name}`); 
     });
     // The map tc => tc.name was for the console.log output, not for functionality.
     // It was intended to show the class names, which is what tc.name provides.
-    console.log('[AI Assistant] Loading agent tools (class names):', toolClasses.map(tc => tc.name));
     return toolClasses;
 }
 
@@ -136,14 +134,13 @@ export function getAllToolNames(): string[] {
 // Create tool instances with proper app context
 export function createToolInstances(app: any, plugin?: any): any[] {
     const toolClasses = getAllToolClasses();
-    console.log('[AI Assistant] createToolInstances: Instantiating tools...');
+    // Removed redundant console.log statement for cleaner production code.
     return toolClasses.map(ToolClass => {
         // Pass plugin to tools that need it (like FileWriteTool for BackupManager)
         const instance = plugin && ToolClass.name === 'FileWriteTool' 
             ? new ToolClass(app, plugin.backupManager)
             : new ToolClass(app);
         // instance.name here refers to the 'file_search' style name property of the instance
-        console.log(`[AI Assistant] Instantiated Tool instance name: ${instance.name}, from Class: ${ToolClass.name}`);
         return instance;
     });
 }

@@ -224,10 +224,7 @@ export class MessageRenderer {
      * Render message with embedded tool displays
      */
     private async renderMessageWithToolDisplays(message: Message, container: HTMLElement, component?: Component): Promise<void> {
-        console.log('renderMessageWithToolDisplays called:', {
-            toolResultsCount: message.toolResults?.length || 0,
-            containerHasContent: !!container.querySelector('.message-content')
-        });
+        // Removed redundant console.log and console.warn statements for cleaner production code.
         
         const messageContent = container.querySelector('.message-content') as HTMLElement;
         if (!messageContent) {
@@ -241,17 +238,14 @@ export class MessageRenderer {
 
         // Parse the message content to extract tool calls and regular content
         const parts = this.parseMessageWithTools(message.content);
-        console.log('Parsed message parts:', parts.length, parts.map(p => ({ type: p.type, hasCommand: !!p.command })));
 
         for (const part of parts) {
             if (part.type === 'text' && part.content?.trim()) {
-                console.log('Rendering text part, content length:', part.content.length);
                 // Render regular text content
                 const textDiv = document.createElement('div');
                 textDiv.className = 'message-text-part';
                 await MarkdownRenderer.render(this.app, part.content, textDiv, '', component || new Component());
                 messageContent.appendChild(textDiv);            } else if (part.type === 'tool' && part.command && message.toolResults) {
-                console.log('Rendering tool part:', part.command.action);
                 // Find the corresponding tool result
                 const toolExecutionResult = message.toolResults.find(tr => 
                     tr.command.action === part.command!.action && 
@@ -259,14 +253,12 @@ export class MessageRenderer {
                 );
 
                 if (toolExecutionResult) {
-                    console.log('Found matching tool execution result, rendering rich display...');
                     // Create rich display for this tool
                     const richDisplay = new ToolRichDisplay({
                         command: part.command,
                         result: toolExecutionResult.result,
                         onRerun: () => {
                             // Re-run functionality can be added later if needed
-                            console.log('Re-run tool:', part.command);
                         },
                         onCopy: async () => {
                             const displayText = this.formatToolForCopy(part.command!, toolExecutionResult.result);
@@ -283,8 +275,6 @@ export class MessageRenderer {
                     toolWrapper.className = 'embedded-tool-display';
                     toolWrapper.appendChild(richDisplay.getElement());
                     messageContent.appendChild(toolWrapper);
-                } else {
-                    console.warn('No matching tool execution result found for:', part.command.action);
                 }
             }
         }

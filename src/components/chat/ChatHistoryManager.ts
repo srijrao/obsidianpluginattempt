@@ -26,7 +26,7 @@ export class ChatHistoryManager {
     const fPath = historyFilePath || "chat-history.json";
     // Store in plugin data directory
     this.historyFilePath = normalizePath(`.obsidian/plugins/${effectivePluginId}/${fPath}`);
-    console.log("[ChatHistoryManager] Using history file path:", this.historyFilePath);
+    // Removed redundant console.log for cleaner production code.
     // Show a Notice in Obsidian so the user can see the path even if logs are stripped
     // @ts-ignore
     if (typeof window !== "undefined" && window.Notice) {
@@ -139,7 +139,7 @@ export class ChatHistoryManager {
       }
       await this.saveHistory();
     } else {
-      console.warn("ChatHistoryManager: updateMessage did not find a matching message to update.", {timestamp, sender, oldContent});
+      // Removed redundant console.warn for cleaner production code.
     }
   }
 

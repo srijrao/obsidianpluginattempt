@@ -88,7 +88,7 @@ export async function saveChatAsNote({
                 try {
                     messageData = JSON.parse(messageDataStr);
                 } catch (e) {
-                    console.log('Failed to parse message data:', e);
+                    // Removed redundant console.log for cleaner production code.
                 }
             }
             

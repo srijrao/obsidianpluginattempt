@@ -42,7 +42,7 @@ export class BackupManager {
             }
 
             await this.saveBackupData(backupData);
-            console.log(`[AI Assistant] Backup created for ${filePath} at ${readableTimestamp}`);
+            // Removed redundant console.log for cleaner production code.
         } catch (error) {
             console.error('Failed to create backup:', error);
             // Don't throw the error to prevent file operations from failing
@@ -189,7 +189,7 @@ export class BackupManager {
                 }
             } catch (mkdirError) {
                 // Directory might already exist or there might be permission issues
-                console.warn('Could not create backup directory:', mkdirError);
+                // Removed redundant console.warn for cleaner production code.
             }
             
             await adapter.write(this.backupFilePath, JSON.stringify(backupData, null, 2));
@@ -243,13 +243,13 @@ export class BackupManager {
             
             if (!await adapter.exists(backupDir)) {
                 await adapter.mkdir(backupDir);
-                console.log('[AI Assistant] Created backup directory:', backupDir);
+                // Removed redundant console.log for cleaner production code.
             }
             
             // Ensure the backup file exists with proper structure
             if (!await adapter.exists(this.backupFilePath)) {
                 await this.saveBackupData({ backups: {} });
-                console.log('[AI Assistant] Created backup file:', this.backupFilePath);
+                // Removed redundant console.log for cleaner production code.
             }
         } catch (error) {
             console.error('Failed to initialize backup system:', error);
@@ -274,7 +274,7 @@ export class BackupManager {
                 
                 if (backupData.backups[filePath].length < originalLength) {
                     cleaned = true;
-                    console.log(`[AI Assistant] Cleaned ${originalLength - backupData.backups[filePath].length} old backups for ${filePath}`);
+                    // Removed redundant console.log for cleaner production code.
                 }
 
                 // Remove empty file entries

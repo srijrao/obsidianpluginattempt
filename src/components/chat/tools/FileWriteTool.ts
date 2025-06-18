@@ -102,10 +102,10 @@ export class FileWriteTool implements Tool {
                 // Only create backup if content is actually changing
                 const shouldBackup = await this.backupManager.shouldCreateBackup(filePath, content);
                 if (shouldBackup) {
-                    console.log(`[AI Assistant] Creating backup for ${filePath}`);
+                    // Removed redundant console.log for cleaner production code.
                     await this.backupManager.createBackup(filePath, originalContent);
                 } else {
-                    console.log(`[AI Assistant] Skipping backup for ${filePath} - content unchanged`);
+                    // Removed redundant console.log for cleaner production code.
                 }
             }
 
