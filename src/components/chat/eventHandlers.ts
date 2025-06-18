@@ -4,14 +4,48 @@ import { ChatHelpModal } from './ChatHelpModal';
 import { Notice, App } from 'obsidian';
 import MyPlugin from '../../main';
 import { ChatHistoryManager } from './ChatHistoryManager';
+import { MessageRenderer } from './MessageRenderer';
 
 export function handleCopyAll(messagesContainer: HTMLElement, plugin: MyPlugin) {
     return async () => {
         const messages = messagesContainer.querySelectorAll('.ai-chat-message');
         let chatContent = '';
         messages.forEach((el, index) => {
-            const content = el.querySelector('.message-content')?.textContent || '';
-            chatContent += content;
+            const htmlElement = el as HTMLElement;
+            
+            // Skip tool display messages as they're handled inline now
+            if (htmlElement.classList.contains('tool-display-message')) {
+                return;
+            }
+            
+            // Get the message data from the element's dataset
+            let messageData = null;
+            const messageDataStr = htmlElement.dataset.messageData;
+            if (messageDataStr) {
+                try {
+                    messageData = JSON.parse(messageDataStr);
+                } catch (e) {
+                    // Fallback to textContent if parsing fails
+                }
+            }
+              console.log('DEBUG handleCopyAll - Message data:', {
+                hasMessageData: !!messageData,
+                hasToolResults: messageData && messageData.toolResults && messageData.toolResults.length > 0,
+                toolResultsLength: messageData?.toolResults?.length || 0,
+                messageDataStr: messageDataStr?.substring(0, 200) + '...'
+            });
+            
+            if (messageData && messageData.toolResults && messageData.toolResults.length > 0) {
+                // Use MessageRenderer to get properly formatted content with tool results
+                const renderer = new MessageRenderer(plugin.app);
+                chatContent += renderer.getMessageContentForCopy(messageData);
+            } else {
+                // For regular messages, use raw content if available, otherwise text content
+                const rawContent = htmlElement.dataset.rawContent;
+                const content = rawContent !== undefined ? rawContent : el.querySelector('.message-content')?.textContent || '';
+                chatContent += content;
+            }
+            
             if (index < messages.length - 1) {
                 chatContent += '\n\n' + plugin.settings.chatSeparator + '\n\n';
             }

@@ -379,6 +379,40 @@ export class MessageRenderer {
             return messageData.content;
         }
 
+        // Check if content is mostly empty (just whitespace/newlines) 
+        const trimmedContent = messageData.content.trim();
+        const isContentMostlyEmpty = trimmedContent === '' || 
+            trimmedContent.startsWith('*[Tool execution limit reached') ||
+            /^[\s\n]*\*.*\*[\s\n]*$/.test(trimmedContent);
+
+        if (isContentMostlyEmpty) {
+            // Generate content directly from toolResults
+            let result = '';
+            
+            for (const toolResult of messageData.toolResults) {
+                result += `\n\n**Tool Execution:** ${toolResult.command.action}\n`;
+                result += `**Status:** ${toolResult.result.success ? 'SUCCESS' : 'ERROR'}\n\n`;
+                
+                if (toolResult.command.parameters && Object.keys(toolResult.command.parameters).length > 0) {
+                    result += `**Parameters:**\n\`\`\`json\n${JSON.stringify(toolResult.command.parameters, null, 2)}\n\`\`\`\n\n`;
+                }
+                
+                if (toolResult.result.success && toolResult.result.data) {
+                    result += `**Result:**\n\`\`\`json\n${JSON.stringify(toolResult.result.data, null, 2)}\n\`\`\`\n`;
+                } else if (!toolResult.result.success && toolResult.result.error) {
+                    result += `**Error:**\n${toolResult.result.error}\n`;
+                }
+            }
+
+            // Add any meaningful content if it exists
+            if (trimmedContent && !trimmedContent.startsWith('*[Tool execution limit reached')) {
+                result = trimmedContent + result;
+            }
+
+            return result.trim();
+        }
+
+        // Original logic for content with tool placeholders
         const parts = this.parseMessageWithTools(messageData.content);
         let result = '';
 

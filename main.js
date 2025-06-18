@@ -9518,6 +9518,43 @@ ${result.error}`;
         if (!messageData.toolResults || messageData.toolResults.length === 0) {
           return messageData.content;
         }
+        const trimmedContent = messageData.content.trim();
+        const isContentMostlyEmpty = trimmedContent === "" || trimmedContent.startsWith("*[Tool execution limit reached") || /^[\s\n]*\*.*\*[\s\n]*$/.test(trimmedContent);
+        if (isContentMostlyEmpty) {
+          let result2 = "";
+          for (const toolResult of messageData.toolResults) {
+            result2 += `
+
+**Tool Execution:** ${toolResult.command.action}
+`;
+            result2 += `**Status:** ${toolResult.result.success ? "SUCCESS" : "ERROR"}
+
+`;
+            if (toolResult.command.parameters && Object.keys(toolResult.command.parameters).length > 0) {
+              result2 += `**Parameters:**
+\`\`\`json
+${JSON.stringify(toolResult.command.parameters, null, 2)}
+\`\`\`
+
+`;
+            }
+            if (toolResult.result.success && toolResult.result.data) {
+              result2 += `**Result:**
+\`\`\`json
+${JSON.stringify(toolResult.result.data, null, 2)}
+\`\`\`
+`;
+            } else if (!toolResult.result.success && toolResult.result.error) {
+              result2 += `**Error:**
+${toolResult.result.error}
+`;
+            }
+          }
+          if (trimmedContent && !trimmedContent.startsWith("*[Tool execution limit reached")) {
+            result2 = trimmedContent + result2;
+          }
+          return result2.trim();
+        }
         const parts = this.parseMessageWithTools(messageData.content);
         let result = "";
         for (const part of parts) {
@@ -9621,7 +9658,7 @@ async function saveChatAsNote({
   let chatContent = "";
   const messageRenderer = new MessageRenderer(app);
   messages.forEach((el, index) => {
-    var _a2;
+    var _a2, _b;
     const htmlElement = el;
     if (htmlElement.classList.contains("tool-display-message")) {
       return;
@@ -9635,11 +9672,17 @@ async function saveChatAsNote({
         console.log("Failed to parse message data:", e);
       }
     }
+    console.log("DEBUG saveChatAsNote - Message data:", {
+      hasMessageData: !!messageData,
+      hasToolResults: messageData && messageData.toolResults && messageData.toolResults.length > 0,
+      toolResultsLength: ((_a2 = messageData == null ? void 0 : messageData.toolResults) == null ? void 0 : _a2.length) || 0,
+      messageDataStr: (messageDataStr == null ? void 0 : messageDataStr.substring(0, 200)) + "..."
+    });
     if (messageData && messageData.toolResults && messageData.toolResults.length > 0) {
       chatContent += messageRenderer.getMessageContentForCopy(messageData);
     } else {
       const rawContent = htmlElement.dataset.rawContent;
-      const content = rawContent !== void 0 ? rawContent : ((_a2 = el.querySelector(".message-content")) == null ? void 0 : _a2.textContent) || "";
+      const content = rawContent !== void 0 ? rawContent : ((_b = el.querySelector(".message-content")) == null ? void 0 : _b.textContent) || "";
       chatContent += content;
     }
     if (index < messages.length - 1) {
@@ -9873,9 +9916,33 @@ function handleCopyAll(messagesContainer, plugin) {
     const messages = messagesContainer.querySelectorAll(".ai-chat-message");
     let chatContent = "";
     messages.forEach((el, index) => {
-      var _a2;
-      const content = ((_a2 = el.querySelector(".message-content")) == null ? void 0 : _a2.textContent) || "";
-      chatContent += content;
+      var _a2, _b;
+      const htmlElement = el;
+      if (htmlElement.classList.contains("tool-display-message")) {
+        return;
+      }
+      let messageData = null;
+      const messageDataStr = htmlElement.dataset.messageData;
+      if (messageDataStr) {
+        try {
+          messageData = JSON.parse(messageDataStr);
+        } catch (e) {
+        }
+      }
+      console.log("DEBUG handleCopyAll - Message data:", {
+        hasMessageData: !!messageData,
+        hasToolResults: messageData && messageData.toolResults && messageData.toolResults.length > 0,
+        toolResultsLength: ((_a2 = messageData == null ? void 0 : messageData.toolResults) == null ? void 0 : _a2.length) || 0,
+        messageDataStr: (messageDataStr == null ? void 0 : messageDataStr.substring(0, 200)) + "..."
+      });
+      if (messageData && messageData.toolResults && messageData.toolResults.length > 0) {
+        const renderer = new MessageRenderer(plugin.app);
+        chatContent += renderer.getMessageContentForCopy(messageData);
+      } else {
+        const rawContent = htmlElement.dataset.rawContent;
+        const content = rawContent !== void 0 ? rawContent : ((_b = el.querySelector(".message-content")) == null ? void 0 : _b.textContent) || "";
+        chatContent += content;
+      }
       if (index < messages.length - 1) {
         chatContent += "\n\n" + plugin.settings.chatSeparator + "\n\n";
       }
@@ -9924,6 +9991,7 @@ var init_eventHandlers = __esm({
     init_chatPersistence();
     init_ChatHelpModal();
     import_obsidian21 = require("obsidian");
+    init_MessageRenderer();
   }
 });
 
@@ -12737,21 +12805,25 @@ var TaskContinuation = class {
     return { content: responseContent, limitReachedDuringContinuation };
   }
   /**
-   * Process continuation response and update UI
-   */
+  * Process continuation response and update UI
+  */
   async processContinuation(continuationContent, responseContent, container, initialToolResults) {
     if (this.agentResponseHandler) {
       const continuationResult = await this.agentResponseHandler.processResponse(continuationContent);
-      let continuationDisplay = continuationContent;
       if (continuationResult.hasTools) {
-        continuationDisplay = continuationResult.processedText + this.agentResponseHandler.formatToolResultsForDisplay(continuationResult.toolResults);
+        const cleanContinuationContent = continuationResult.processedText;
         const isFinished = this.checkIfTaskFinished(continuationResult.toolResults);
-        initialToolResults.push(...continuationResult.toolResults);
-        const updatedContent = responseContent + "\n\n" + continuationDisplay;
-        await this.updateContainerContent(container, updatedContent);
+        const allToolResults = [...initialToolResults, ...continuationResult.toolResults];
+        const updatedContent = responseContent + "\n\n" + cleanContinuationContent;
+        const enhancedMessageData = this.createEnhancedMessageData(
+          updatedContent,
+          continuationResult,
+          allToolResults
+        );
+        this.updateContainerWithMessageData(container, enhancedMessageData, updatedContent);
         return { responseContent: updatedContent, isFinished };
       } else {
-        const updatedContent = responseContent + "\n\n" + continuationDisplay;
+        const updatedContent = responseContent + "\n\n" + continuationContent;
         await this.updateContainerContent(container, updatedContent);
         return { responseContent: updatedContent, isFinished: true };
       }
@@ -12819,6 +12891,32 @@ var TaskContinuation = class {
       }
       return "";
     }
+  }
+  /**
+   * Creates enhanced message data structure
+   */
+  createEnhancedMessageData(content, agentResult, toolResults) {
+    const messageData = {
+      role: "assistant",
+      content,
+      reasoning: agentResult.reasoning,
+      taskStatus: agentResult.taskStatus
+    };
+    if (toolResults) {
+      messageData.toolResults = toolResults.map(({ command, result }) => ({
+        command,
+        result,
+        timestamp: (/* @__PURE__ */ new Date()).toISOString()
+      }));
+    }
+    return messageData;
+  }
+  /**
+   * Updates container with enhanced message data
+   */
+  updateContainerWithMessageData(container, messageData, rawContent) {
+    container.dataset.messageData = JSON.stringify(messageData);
+    container.dataset.rawContent = rawContent;
   }
 };
 
@@ -13434,6 +13532,7 @@ var ChatView = class extends import_obsidian27.ItemView {
       ui.agentModeButton.setAttribute("title", "Agent Mode: OFF - Regular chat");
     }
     const sendMessage = async () => {
+      var _a2;
       const content = textarea.value.trim();
       if (!content) return;
       if (this.agentResponseHandler) {
@@ -13459,9 +13558,9 @@ var ChatView = class extends import_obsidian27.ItemView {
         const messages = await this.buildContextMessages();
         const messageElements = this.messagesContainer.querySelectorAll(".ai-chat-message");
         messageElements.forEach((el) => {
-          var _a2;
+          var _a3;
           const role = el.classList.contains("user") ? "user" : "assistant";
-          const content2 = ((_a2 = el.querySelector(".message-content")) == null ? void 0 : _a2.textContent) || "";
+          const content2 = ((_a3 = el.querySelector(".message-content")) == null ? void 0 : _a3.textContent) || "";
           messages.push({ role, content: content2 });
         });
         const tempContainer = document.createElement("div");
@@ -13470,15 +13569,45 @@ var ChatView = class extends import_obsidian27.ItemView {
         this.messagesContainer.appendChild(tempContainer);
         this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
         const responseContent = await this.streamAssistantResponse(messages, tempContainer);
+        let enhancedMessageData = void 0;
+        console.log("DEBUG: tempContainer.dataset.messageData exists:", !!tempContainer.dataset.messageData);
+        if (tempContainer.dataset.messageData) {
+          try {
+            enhancedMessageData = JSON.parse(tempContainer.dataset.messageData);
+            console.log("DEBUG: enhancedMessageData parsed, toolResults count:", ((_a2 = enhancedMessageData.toolResults) == null ? void 0 : _a2.length) || 0);
+          } catch (e) {
+            console.warn("Failed to parse enhanced message data:", e);
+          }
+        }
+        console.log("DEBUG: responseContent length:", responseContent.length, "trimmed length:", responseContent.trim().length);
         tempContainer.remove();
-        if (responseContent.trim() !== "") {
-          const messageEl = await createMessageElement(this.app, "assistant", responseContent, this.chatHistoryManager, this.plugin, (el) => this.regenerateResponse(el), this);
+        if (responseContent.trim() !== "" || enhancedMessageData && enhancedMessageData.toolResults && enhancedMessageData.toolResults.length > 0) {
+          const messageEl = await createMessageElement(
+            this.app,
+            "assistant",
+            responseContent,
+            this.chatHistoryManager,
+            this.plugin,
+            (el) => this.regenerateResponse(el),
+            this,
+            enhancedMessageData
+            // Pass enhanced data to createMessageElement
+          );
           this.messagesContainer.appendChild(messageEl);
+          console.log("DEBUG: About to save message to history with toolResults:", !!(enhancedMessageData == null ? void 0 : enhancedMessageData.toolResults));
           await this.chatHistoryManager.addMessage({
             timestamp: messageEl.dataset.timestamp || (/* @__PURE__ */ new Date()).toISOString(),
             sender: "assistant",
-            content: responseContent
+            content: responseContent,
+            ...enhancedMessageData && {
+              toolResults: enhancedMessageData.toolResults,
+              reasoning: enhancedMessageData.reasoning,
+              taskStatus: enhancedMessageData.taskStatus
+            }
           });
+          console.log("DEBUG: Message saved to history successfully");
+        } else {
+          console.log("DEBUG: responseContent is empty and no toolResults, not saving message");
         }
       } catch (error) {
         if (error.name !== "AbortError") {

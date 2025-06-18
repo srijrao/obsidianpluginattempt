@@ -212,20 +212,51 @@ export class ChatView extends ItemView {
                 tempContainer.addClass('ai-chat-message', 'assistant');
                 tempContainer.createDiv('message-content');
                 this.messagesContainer.appendChild(tempContainer);
-                this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+                this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;                const responseContent = await this.streamAssistantResponse(messages, tempContainer);
 
-                const responseContent = await this.streamAssistantResponse(messages, tempContainer);
+                // Extract enhanced message data before removing temp container
+                let enhancedMessageData: any = undefined;
+                console.log('DEBUG: tempContainer.dataset.messageData exists:', !!tempContainer.dataset.messageData);
+                if (tempContainer.dataset.messageData) {
+                    try {
+                        enhancedMessageData = JSON.parse(tempContainer.dataset.messageData);
+                        console.log('DEBUG: enhancedMessageData parsed, toolResults count:', enhancedMessageData.toolResults?.length || 0);
+                    } catch (e) {
+                        console.warn("Failed to parse enhanced message data:", e);
+                    }
+                }
 
-                // Remove temporary container and create permanent message
+                console.log('DEBUG: responseContent length:', responseContent.length, 'trimmed length:', responseContent.trim().length);                // Remove temporary container and create permanent message
                 tempContainer.remove();
-                if (responseContent.trim() !== "") {
-                    const messageEl = await createMessageElement(this.app, 'assistant', responseContent, this.chatHistoryManager, this.plugin, (el) => this.regenerateResponse(el), this);
+                if (responseContent.trim() !== "" || (enhancedMessageData && enhancedMessageData.toolResults && enhancedMessageData.toolResults.length > 0)) {
+                    const messageEl = await createMessageElement(
+                        this.app, 
+                        'assistant', 
+                        responseContent, 
+                        this.chatHistoryManager, 
+                        this.plugin, 
+                        (el) => this.regenerateResponse(el), 
+                        this,
+                        enhancedMessageData // Pass enhanced data to createMessageElement
+                    );
+                    
                     this.messagesContainer.appendChild(messageEl);
+                    
+                    // Save enhanced message data to chat history
+                    console.log('DEBUG: About to save message to history with toolResults:', !!enhancedMessageData?.toolResults);
                     await this.chatHistoryManager.addMessage({
                         timestamp: messageEl.dataset.timestamp || new Date().toISOString(),
                         sender: 'assistant',
-                        content: responseContent
+                        content: responseContent,
+                        ...(enhancedMessageData && { 
+                            toolResults: enhancedMessageData.toolResults,
+                            reasoning: enhancedMessageData.reasoning,
+                            taskStatus: enhancedMessageData.taskStatus
+                        })
                     });
+                    console.log('DEBUG: Message saved to history successfully');
+                } else {
+                    console.log('DEBUG: responseContent is empty and no toolResults, not saving message');
                 }
             } catch (error) {
                 if (error.name !== 'AbortError') {

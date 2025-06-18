@@ -85,6 +85,12 @@ export async function saveChatAsNote({
                 console.log('Failed to parse message data:', e);
             }
         }
+          console.log('DEBUG saveChatAsNote - Message data:', {
+            hasMessageData: !!messageData,
+            hasToolResults: messageData && messageData.toolResults && messageData.toolResults.length > 0,
+            toolResultsLength: messageData?.toolResults?.length || 0,
+            messageDataStr: messageDataStr?.substring(0, 200) + '...'
+        });
         
         // If message has tool results, use MessageRenderer for proper inline formatting
         if (messageData && messageData.toolResults && messageData.toolResults.length > 0) {

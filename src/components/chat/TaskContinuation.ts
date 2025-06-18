@@ -94,9 +94,7 @@ export class TaskContinuation {
         // Essential debug: Log once at the end
         console.log(`TaskContinuation: Task continuation completed after ${iteration} iterations`);
         return { content: responseContent, limitReachedDuringContinuation };
-    }
-
-    /**
+    }    /**
      * Process continuation response and update UI
      */
     private async processContinuation(
@@ -108,25 +106,34 @@ export class TaskContinuation {
         // Process continuation for additional tool commands
         if (this.agentResponseHandler) {
             const continuationResult = await this.agentResponseHandler.processResponse(continuationContent);
-            let continuationDisplay = continuationContent;
             
             if (continuationResult.hasTools) {
-                continuationDisplay = continuationResult.processedText + 
-                    this.agentResponseHandler.formatToolResultsForDisplay(continuationResult.toolResults);
+                // Use the clean processed text, not the display format
+                const cleanContinuationContent = continuationResult.processedText;
                 
                 // Check if this iteration is finished
                 const isFinished = this.checkIfTaskFinished(continuationResult.toolResults);
                 
-                // Use the new tool results for next iteration
-                initialToolResults.push(...continuationResult.toolResults);
+                // Combine tool results for the enhanced message data
+                const allToolResults = [...initialToolResults, ...continuationResult.toolResults];
                 
-                const updatedContent = responseContent + '\n\n' + continuationDisplay;
-                await this.updateContainerContent(container, updatedContent);
+                // Update content with clean text only
+                const updatedContent = responseContent + '\n\n' + cleanContinuationContent;
+                
+                // Create enhanced message data with all tool results
+                const enhancedMessageData = this.createEnhancedMessageData(
+                    updatedContent,
+                    continuationResult,
+                    allToolResults
+                );
+                
+                // Update container with enhanced message data
+                this.updateContainerWithMessageData(container, enhancedMessageData, updatedContent);
                 
                 return { responseContent: updatedContent, isFinished };
             } else {
                 // If no tools were used, assume the task might be finished
-                const updatedContent = responseContent + '\n\n' + continuationDisplay;
+                const updatedContent = responseContent + '\n\n' + continuationContent;
                 await this.updateContainerContent(container, updatedContent);
                 
                 return { responseContent: updatedContent, isFinished: true };
@@ -214,5 +221,44 @@ export class TaskContinuation {
             }
             return '';
         }
+    }
+
+    /**
+     * Creates enhanced message data structure
+     */
+    private createEnhancedMessageData(
+        content: string, 
+        agentResult: any, 
+        toolResults?: any[]
+    ): Message {
+        const messageData: Message = {
+            role: 'assistant',
+            content,
+            reasoning: agentResult.reasoning,
+            taskStatus: agentResult.taskStatus
+        };
+
+        if (toolResults) {
+            messageData.toolResults = toolResults.map(({ command, result }: any) => ({
+                command,
+                result,
+                timestamp: new Date().toISOString()
+            }));
+        }
+
+        return messageData;
+    }
+
+    /**
+     * Updates container with enhanced message data
+     */
+    private updateContainerWithMessageData(
+        container: HTMLElement, 
+        messageData: Message, 
+        rawContent: string
+    ): void {
+        container.dataset.messageData = JSON.stringify(messageData);
+        container.dataset.rawContent = rawContent;
+        // Note: MessageRenderer update would need to be called by the parent if needed
     }
 }
