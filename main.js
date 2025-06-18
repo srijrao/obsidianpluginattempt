@@ -2822,7 +2822,7 @@ var init_FileReadTool = __esm({
               error: content
             };
           }
-          content = content.split("\n").map((line) => line.replace(/\s+$/g, "")).join("\n").replace(/\n{3,}/g, "\n\n").replace(/ {3,}/g, "  ").trim();
+          content = content.split("\n").map((line) => line.replace(/\s+$/g, "")).join("\n").replace(/\n{3,}/g, "\n\n").replace(/ {3,}/g, "  ").replace(/-{6,}/g, "-----").trim();
           return {
             success: true,
             data: {

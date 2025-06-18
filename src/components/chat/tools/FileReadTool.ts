@@ -64,6 +64,7 @@ export class FileReadTool implements Tool {
                 .join('\n')
                 .replace(/\n{3,}/g, '\n\n') // Collapse 3+ blank lines to 2
                 .replace(/ {3,}/g, '  ') // Collapse 3+ spaces to 2
+                .replace(/-{6,}/g, '-----') // Collapse 6+ dashes to 5
                 .trim(); // Remove leading/trailing whitespace
 
             return {
