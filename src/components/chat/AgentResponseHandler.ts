@@ -243,10 +243,7 @@ export class AgentResponseHandler {
                             break;
                         case 'thought':
                             if (result.data && result.data.formattedThought) {
-                                // Check if this was structured reasoning
-                                if (result.data.reasoning === 'structured') {
-                                    return this.createCollapsibleReasoningElement(result.data);
-                                }
+                                // Instead of creating collapsible element, always return formatted thought text
                                 return result.data.formattedThought;
                             }
                             break;

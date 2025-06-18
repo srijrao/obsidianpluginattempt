@@ -1,45 +1,76 @@
 import { App } from 'obsidian';
 import { Tool, ToolResult } from '../ToolRegistry';
 
-export interface ThoughtParams {
-    thought?: string;
-    reasoning?: string; // Legacy alias for thought
-    step?: number;
-    totalSteps?: number;
-    category?: 'analysis' | 'planning' | 'problem-solving' | 'reflection' | 'conclusion' | 'reasoning';
-    confidence?: number; // 1-10 scale
-    enableStructuredReasoning?: boolean; // Enable multi-step reasoning mode
-    reasoningDepth?: 'shallow' | 'medium' | 'deep'; // For structured reasoning
+/**
+ * Enum for core thought categories.
+ */
+export enum ThoughtCategory {
+    Analysis = 'analysis',
+    Planning = 'planning',
+    ProblemSolving = 'problem-solving',
+    Reflection = 'reflection',
+    Conclusion = 'conclusion'
 }
 
+/**
+ * Parameters for the ThoughtTool.
+ * Only core, MCP-compliant parameters are included.
+ */
+export interface ThoughtParams {
+    /**
+     * The main thought or reasoning step to record.
+     */
+    thought: string;
+    /**
+     * Current step number in a multi-step process (optional).
+     */
+    step?: number;
+    /**
+     * Total number of steps in the process (optional).
+     */
+    totalSteps?: number;
+    /**
+     * Category of the thought for organization and display.
+     */
+    category?: ThoughtCategory;
+    /**
+     * Confidence level in this thought (1-10 scale, optional).
+     */
+    confidence?: number;
+}
+
+/**
+ * Tool for recording and rendering AI reasoning steps in a clear, MCP-compliant format.
+ * 
+ * - Parameters are strictly validated and documented.
+ * - Output is concise, visually distinct, and suitable for MCP tool result display.
+ * - All errors and results follow MCP conventions.
+ */
 export class ThoughtTool implements Tool {
     name = 'thought';
-    description = 'Record and display AI reasoning steps and thought processes';    parameters = {
+    description = 'Record and display a single AI reasoning step or thought process.';
+
+    parameters = {
         thought: {
             type: 'string',
-            description: 'The thought or reasoning step to record',
-            required: false
-        },
-        reasoning: {
-            type: 'string',
-            description: 'Alias for thought parameter (legacy support)',
-            required: false
+            description: 'The main thought or reasoning step to record',
+            required: true
         },
         step: {
             type: 'number',
-            description: 'Current step number in the thought process',
+            description: 'Current step number in a multi-step process',
             required: false
         },
         totalSteps: {
             type: 'number',
-            description: 'Total expected steps in the thought process',
+            description: 'Total number of steps in the process',
             required: false
         },
         category: {
             type: 'string',
-            enum: ['analysis', 'planning', 'problem-solving', 'reflection', 'conclusion', 'reasoning'],
-            description: 'Category of thought for better organization',
-            default: 'analysis'
+            enum: Object.values(ThoughtCategory),
+            description: 'Category of the thought for organization',
+            default: ThoughtCategory.Analysis
         },
         confidence: {
             type: 'number',
@@ -47,238 +78,116 @@ export class ThoughtTool implements Tool {
             default: 7,
             minimum: 1,
             maximum: 10
-        },
-        enableStructuredReasoning: {
-            type: 'boolean',
-            description: 'Enable multi-step structured reasoning for complex problems',
-            default: false
-        },
-        reasoningDepth: {
-            type: 'string',
-            enum: ['shallow', 'medium', 'deep'],
-            description: 'Depth of structured reasoning (shallow: 3 steps, medium: 5 steps, deep: 7+ steps)',
-            default: 'medium'
         }
     };
 
-    constructor(private app: App) {}    async execute(params: ThoughtParams, context: any): Promise<ToolResult> {
-        const { 
-            thought: originalThought, 
-            step, 
-            totalSteps, 
-            category = 'analysis', 
-            confidence = 7,
-            enableStructuredReasoning = false,
-            reasoningDepth = 'medium'
-        } = params;
+    constructor(private app: App) {}
 
-        // Handle legacy parameter name 'reasoning' as 'thought'
-        const thought = originalThought || (params as any).reasoning;        if (!thought || thought.trim().length === 0) {
+    /**
+     * Execute the tool with the given parameters.
+     * @param params - ThoughtParams object (see interface for details)
+     * @param context - Execution context (unused)
+     * @returns ToolResult with formatted thought or error
+     */
+    async execute(params: ThoughtParams, context: any): Promise<ToolResult> {
+        // MCP: Validate required parameter
+        if (!params.thought || typeof params.thought !== 'string' || params.thought.trim().length === 0) {
             return {
                 success: false,
-                error: 'Thought content cannot be empty. Please provide either "thought" or "reasoning" parameter with content.'
+                error: 'Parameter "thought" is required and must be a non-empty string.'
             };
         }
 
-        try {
-            // If structured reasoning is enabled, perform multi-step reasoning
-            if (enableStructuredReasoning) {
-                return await this.performStructuredReasoning(thought.trim(), reasoningDepth, context);
-            }
+        // MCP: Validate and normalize parameters
+        const thought = params.thought.trim();
+        const step = typeof params.step === 'number' && params.step > 0 ? params.step : undefined;
+        const totalSteps = typeof params.totalSteps === 'number' && params.totalSteps > 0 ? params.totalSteps : undefined;
+        const category: ThoughtCategory = Object.values(ThoughtCategory).includes(params.category as ThoughtCategory)
+            ? params.category as ThoughtCategory
+            : ThoughtCategory.Analysis;
+        const confidence = this.validateConfidence(params.confidence);
 
-            // Regular single thought processing
-            const timestamp = new Date().toLocaleTimeString();
-            const stepInfo = step && totalSteps ? `Step ${step}/${totalSteps}` : step ? `Step ${step}` : '';
-            
-            // Create structured thought data
-            const thoughtData = {
-                timestamp,
-                thought: thought.trim(),
+        // MCP: Timestamp for traceability
+        const timestamp = new Date().toISOString();
+
+        // Compose step info for display
+        const stepInfo = step && totalSteps
+            ? `Step ${step}/${totalSteps}`
+            : step
+                ? `Step ${step}`
+                : '';
+
+        // Render the thought in a visually distinct, MCP-friendly format
+        const formattedThought = this.renderThought({
+            thought,
+            stepInfo,
+            category,
+            confidence,
+            timestamp
+        });
+
+        // MCP: Return result in strict format
+        return {
+            success: true,
+            data: {
+                thought,
                 step,
                 totalSteps,
                 category,
                 confidence,
-                formattedThought: this.formatThought(thought.trim(), stepInfo, category, confidence, timestamp)
-            };
-
-            console.log('ThoughtTool: Recording thought:', thoughtData);
-
-            return {
-                success: true,
-                data: thoughtData
-            };
-        } catch (error: any) {
-            return {
-                success: false,
-                error: `Failed to record thought: ${error.message}`
-            };
-        }
-    }
-
-    private formatThought(thought: string, stepInfo: string, category: string, confidence: number, timestamp: string): string {
-        const categoryEmoji = this.getCategoryEmoji(category);
-        const confidenceDisplay = `${confidence}/10`;
-        
-        let formatted = `${categoryEmoji} **${category.toUpperCase()}**`;
-        
-        if (stepInfo) {
-            formatted += ` | ${stepInfo}`;
-        }
-        
-        formatted += ` | Confidence: ${confidenceDisplay} | ${timestamp}\n`;
-        formatted += `> ${thought}`;
-        
-        return formatted;
-    }
-
-    private getCategoryEmoji(category: string): string {
-        switch (category) {
-            case 'analysis': return '🔍';
-            case 'planning': return '📋';
-            case 'problem-solving': return '🧩';
-            case 'reflection': return '🤔';
-            case 'conclusion': return '✅';
-            case 'reasoning': return '🧠';
-            default: return '💭';
-        }
-    }
-
-    /**
-     * Helper method to validate confidence range
-     */
-    private validateConfidence(confidence: number): number {
-        return Math.max(1, Math.min(10, Math.floor(confidence)));
-    }
-
-    /**
-     * Perform structured multi-step reasoning
-     */
-    private async performStructuredReasoning(
-        problem: string, 
-        depth: string, 
-        context: any
-    ): Promise<ToolResult> {
-        const timestamp = new Date().toLocaleTimeString();
-        const stepCount = depth === 'shallow' ? 4 : depth === 'medium' ? 6 : 8;
-        const steps: Array<{ step: number; category: string; title: string; content: string; confidence: number }> = [];
-
-        // Step 1: Problem Analysis
-        steps.push({
-            step: 1,
-            category: 'analysis',
-            title: 'Problem Analysis',
-            content: `Breaking down the problem: "${problem}"\n\nKey elements identified:\n- Core question/challenge\n- Relevant factors and constraints\n- Required outcome or decision`,
-            confidence: 8
-        });
-
-        // Step 2: Information Assessment
-        steps.push({
-            step: 2,
-            category: 'information',
-            title: 'Information Assessment',
-            content: `Evaluating available information:\n- What we know about this problem\n- What assumptions we're making\n- What additional information might be helpful\n- Relevant patterns or similar scenarios`,
-            confidence: 7
-        });
-
-        // Step 3: Approach Development
-        steps.push({
-            step: 3,
-            category: 'approach',
-            title: 'Approach Development',
-            content: `Considering different approaches:\n- Multiple possible solutions or perspectives\n- Pros and cons of each approach\n- Feasibility and resource considerations\n- Potential risks and benefits`,
-            confidence: 7
-        });
-
-        // Additional steps for medium/deep reasoning
-        if (stepCount >= 6) {
-            steps.push({
-                step: 4,
-                category: 'evaluation',
-                title: 'Detailed Evaluation',
-                content: `Deep dive into promising approaches:\n- Detailed examination of key options\n- Impact assessment and trade-offs\n- Implementation challenges and opportunities`,
-                confidence: 8
-            });
-
-            steps.push({
-                step: 5,
-                category: 'synthesis',
-                title: 'Solution Synthesis',
-                content: `Combining insights to develop best approach:\n- Integrating analysis from previous steps\n- Balancing competing factors and constraints\n- Identifying optimal path forward`,
-                confidence: 8
-            });
-        }
-
-        // Additional steps for deep reasoning
-        if (stepCount >= 8) {
-            steps.push({
-                step: 6,
-                category: 'validation',
-                title: 'Solution Validation',
-                content: `Testing proposed solution:\n- Does it address the core problem?\n- Is it feasible and realistic?\n- What are potential unintended consequences?\n- How robust is it to different scenarios?`,
-                confidence: 7
-            });
-
-            steps.push({
-                step: 7,
-                category: 'refinement',
-                title: 'Refinement & Optimization',
-                content: `Final optimization:\n- Addressing identified weaknesses\n- Enhancing strengths and benefits\n- Preparing for implementation challenges\n- Building in flexibility and adaptability`,
-                confidence: 8
-            });
-        }
-
-        // Final conclusion step
-        const finalStep = stepCount;
-        steps.push({
-            step: finalStep,
-            category: 'conclusion',
-            title: 'Conclusion & Recommendation',
-            content: `Based on structured analysis:\n\n**Recommended approach:** [Synthesized from analysis]\n**Key considerations:** [Critical factors to remember]\n**Next steps:** [Immediate actions needed]\n**Confidence level:** High - systematic reasoning process`,
-            confidence: 9
-        });
-
-        // Format the structured reasoning result
-        const formattedResult = this.formatStructuredReasoning(problem, steps, timestamp);
-
-        return {
-            success: true,
-            data: {
-                problem,
-                reasoning: 'structured',
-                steps,
-                totalSteps: steps.length,
-                depth,
-                formattedThought: formattedResult
+                timestamp,
+                formattedThought
             }
         };
     }
 
     /**
-     * Format structured reasoning steps for display
+     * Render a thought in a visually distinct, concise format for MCP tool output.
+     * @param opts - Rendering options
+     * @returns Formatted string
      */
-    private formatStructuredReasoning(
-        problem: string,
-        steps: Array<{ step: number; category: string; title: string; content: string; confidence: number }>,
-        timestamp: string
-    ): string {
-        let formatted = `🧠 **STRUCTURED REASONING SESSION** | ${timestamp}\n`;
-        formatted += `**Problem:** ${problem}\n`;
-        formatted += `**Analysis Depth:** ${steps.length} reasoning steps\n\n`;
-        formatted += `---\n\n`;
+    private renderThought(opts: {
+        thought: string;
+        stepInfo?: string;
+        category: ThoughtCategory;
+        confidence: number;
+        timestamp: string;
+    }): string {
+        const { thought, stepInfo, category, confidence, timestamp } = opts;
+        const emoji = this.getCategoryEmoji(category);
+        const confidenceBar = '●'.repeat(confidence) + '○'.repeat(10 - confidence);
 
-        steps.forEach(step => {
-            const categoryEmoji = this.getCategoryEmoji(step.category);
-            const confidenceBar = '●'.repeat(Math.floor(step.confidence)) + '○'.repeat(10 - Math.floor(step.confidence));
-            
-            formatted += `${categoryEmoji} **STEP ${step.step}: ${step.title.toUpperCase()}**\n`;
-            formatted += `*Confidence: ${step.confidence}/10 ${confidenceBar}*\n\n`;
-            formatted += `${step.content}\n\n`;
-            formatted += `---\n\n`;
-        });
+        let header = `${emoji} **${category.replace('-', ' ').toUpperCase()}**`;
+        if (stepInfo) header += ` | ${stepInfo}`;
+        header += ` | Confidence: ${confidence}/10 ${confidenceBar} | ${new Date(timestamp).toLocaleTimeString()}`;
 
-        formatted += `✅ **REASONING COMPLETE**\n`;
-        formatted += `*Analysis completed in ${steps.length} structured steps*`;
+        // Render as a blockquote for clarity in chat/MCP UIs
+        return `${header}\n> ${thought}`;
+    }
 
-        return formatted;
+    /**
+     * Get an emoji for a given category.
+     * @param category - ThoughtCategory
+     * @returns Emoji string
+     */
+    private getCategoryEmoji(category: ThoughtCategory): string {
+        switch (category) {
+            case ThoughtCategory.Analysis: return '🔍';
+            case ThoughtCategory.Planning: return '📋';
+            case ThoughtCategory.ProblemSolving: return '🧩';
+            case ThoughtCategory.Reflection: return '🤔';
+            case ThoughtCategory.Conclusion: return '✅';
+            default: return '💭';
+        }
+    }
+
+    /**
+     * Ensure confidence is an integer between 1 and 10 (default 7).
+     * @param confidence - number | undefined
+     * @returns number
+     */
+    private validateConfidence(confidence: number | undefined): number {
+        if (typeof confidence !== 'number' || isNaN(confidence)) return 7;
+        return Math.max(1, Math.min(10, Math.round(confidence)));
     }
 }

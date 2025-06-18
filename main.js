@@ -3071,7 +3071,8 @@ var init_FileDiffTool = __esm({
       }
       async execute(params, context) {
         const filePath = params.path || params.filePath;
-        const { originalContent, suggestedContent, action = "suggest", insertPosition } = params;
+        const suggestedContent = params.suggestedContent || params.text;
+        const { originalContent, action = "suggest", insertPosition } = params;
         if (!filePath) {
           return {
             success: false,
@@ -3303,40 +3304,43 @@ var init_FileMoveTool = __esm({
 });
 
 // src/components/chat/tools/ThoughtTool.ts
-var ThoughtTool;
+var ThoughtCategory, ThoughtTool;
 var init_ThoughtTool = __esm({
   "src/components/chat/tools/ThoughtTool.ts"() {
+    ThoughtCategory = /* @__PURE__ */ ((ThoughtCategory2) => {
+      ThoughtCategory2["Analysis"] = "analysis";
+      ThoughtCategory2["Planning"] = "planning";
+      ThoughtCategory2["ProblemSolving"] = "problem-solving";
+      ThoughtCategory2["Reflection"] = "reflection";
+      ThoughtCategory2["Conclusion"] = "conclusion";
+      return ThoughtCategory2;
+    })(ThoughtCategory || {});
     ThoughtTool = class {
       constructor(app) {
         this.app = app;
         __publicField(this, "name", "thought");
-        __publicField(this, "description", "Record and display AI reasoning steps and thought processes");
+        __publicField(this, "description", "Record and display a single AI reasoning step or thought process.");
         __publicField(this, "parameters", {
           thought: {
             type: "string",
-            description: "The thought or reasoning step to record",
-            required: false
-          },
-          reasoning: {
-            type: "string",
-            description: "Alias for thought parameter (legacy support)",
-            required: false
+            description: "The main thought or reasoning step to record",
+            required: true
           },
           step: {
             type: "number",
-            description: "Current step number in the thought process",
+            description: "Current step number in a multi-step process",
             required: false
           },
           totalSteps: {
             type: "number",
-            description: "Total expected steps in the thought process",
+            description: "Total number of steps in the process",
             required: false
           },
           category: {
             type: "string",
-            enum: ["analysis", "planning", "problem-solving", "reflection", "conclusion", "reasoning"],
-            description: "Category of thought for better organization",
-            default: "analysis"
+            enum: Object.values(ThoughtCategory),
+            description: "Category of the thought for organization",
+            default: "analysis" /* Analysis */
           },
           confidence: {
             type: "number",
@@ -3344,246 +3348,93 @@ var init_ThoughtTool = __esm({
             default: 7,
             minimum: 1,
             maximum: 10
-          },
-          enableStructuredReasoning: {
-            type: "boolean",
-            description: "Enable multi-step structured reasoning for complex problems",
-            default: false
-          },
-          reasoningDepth: {
-            type: "string",
-            enum: ["shallow", "medium", "deep"],
-            description: "Depth of structured reasoning (shallow: 3 steps, medium: 5 steps, deep: 7+ steps)",
-            default: "medium"
           }
         });
       }
+      /**
+       * Execute the tool with the given parameters.
+       * @param params - ThoughtParams object (see interface for details)
+       * @param context - Execution context (unused)
+       * @returns ToolResult with formatted thought or error
+       */
       async execute(params, context) {
-        const {
-          thought: originalThought,
-          step,
-          totalSteps,
-          category = "analysis",
-          confidence = 7,
-          enableStructuredReasoning = false,
-          reasoningDepth = "medium"
-        } = params;
-        const thought = originalThought || params.reasoning;
-        if (!thought || thought.trim().length === 0) {
+        if (!params.thought || typeof params.thought !== "string" || params.thought.trim().length === 0) {
           return {
             success: false,
-            error: 'Thought content cannot be empty. Please provide either "thought" or "reasoning" parameter with content.'
+            error: 'Parameter "thought" is required and must be a non-empty string.'
           };
         }
-        try {
-          if (enableStructuredReasoning) {
-            return await this.performStructuredReasoning(thought.trim(), reasoningDepth, context);
-          }
-          const timestamp2 = (/* @__PURE__ */ new Date()).toLocaleTimeString();
-          const stepInfo = step && totalSteps ? `Step ${step}/${totalSteps}` : step ? `Step ${step}` : "";
-          const thoughtData = {
-            timestamp: timestamp2,
-            thought: thought.trim(),
+        const thought = params.thought.trim();
+        const step = typeof params.step === "number" && params.step > 0 ? params.step : void 0;
+        const totalSteps = typeof params.totalSteps === "number" && params.totalSteps > 0 ? params.totalSteps : void 0;
+        const category = Object.values(ThoughtCategory).includes(params.category) ? params.category : "analysis" /* Analysis */;
+        const confidence = this.validateConfidence(params.confidence);
+        const timestamp2 = (/* @__PURE__ */ new Date()).toISOString();
+        const stepInfo = step && totalSteps ? `Step ${step}/${totalSteps}` : step ? `Step ${step}` : "";
+        const formattedThought = this.renderThought({
+          thought,
+          stepInfo,
+          category,
+          confidence,
+          timestamp: timestamp2
+        });
+        return {
+          success: true,
+          data: {
+            thought,
             step,
             totalSteps,
             category,
             confidence,
-            formattedThought: this.formatThought(thought.trim(), stepInfo, category, confidence, timestamp2)
-          };
-          console.log("ThoughtTool: Recording thought:", thoughtData);
-          return {
-            success: true,
-            data: thoughtData
-          };
-        } catch (error) {
-          return {
-            success: false,
-            error: `Failed to record thought: ${error.message}`
-          };
-        }
+            timestamp: timestamp2,
+            formattedThought
+          }
+        };
       }
-      formatThought(thought, stepInfo, category, confidence, timestamp2) {
-        const categoryEmoji = this.getCategoryEmoji(category);
-        const confidenceDisplay = `${confidence}/10`;
-        let formatted = `${categoryEmoji} **${category.toUpperCase()}**`;
-        if (stepInfo) {
-          formatted += ` | ${stepInfo}`;
-        }
-        formatted += ` | Confidence: ${confidenceDisplay} | ${timestamp2}
-`;
-        formatted += `> ${thought}`;
-        return formatted;
+      /**
+       * Render a thought in a visually distinct, concise format for MCP tool output.
+       * @param opts - Rendering options
+       * @returns Formatted string
+       */
+      renderThought(opts) {
+        const { thought, stepInfo, category, confidence, timestamp: timestamp2 } = opts;
+        const emoji = this.getCategoryEmoji(category);
+        const confidenceBar = "\u25CF".repeat(confidence) + "\u25CB".repeat(10 - confidence);
+        let header = `${emoji} **${category.replace("-", " ").toUpperCase()}**`;
+        if (stepInfo) header += ` | ${stepInfo}`;
+        header += ` | Confidence: ${confidence}/10 ${confidenceBar} | ${new Date(timestamp2).toLocaleTimeString()}`;
+        return `${header}
+> ${thought}`;
       }
+      /**
+       * Get an emoji for a given category.
+       * @param category - ThoughtCategory
+       * @returns Emoji string
+       */
       getCategoryEmoji(category) {
         switch (category) {
-          case "analysis":
+          case "analysis" /* Analysis */:
             return "\u{1F50D}";
-          case "planning":
+          case "planning" /* Planning */:
             return "\u{1F4CB}";
-          case "problem-solving":
+          case "problem-solving" /* ProblemSolving */:
             return "\u{1F9E9}";
-          case "reflection":
+          case "reflection" /* Reflection */:
             return "\u{1F914}";
-          case "conclusion":
+          case "conclusion" /* Conclusion */:
             return "\u2705";
-          case "reasoning":
-            return "\u{1F9E0}";
           default:
             return "\u{1F4AD}";
         }
       }
       /**
-       * Helper method to validate confidence range
+       * Ensure confidence is an integer between 1 and 10 (default 7).
+       * @param confidence - number | undefined
+       * @returns number
        */
       validateConfidence(confidence) {
-        return Math.max(1, Math.min(10, Math.floor(confidence)));
-      }
-      /**
-       * Perform structured multi-step reasoning
-       */
-      async performStructuredReasoning(problem, depth, context) {
-        const timestamp2 = (/* @__PURE__ */ new Date()).toLocaleTimeString();
-        const stepCount = depth === "shallow" ? 4 : depth === "medium" ? 6 : 8;
-        const steps = [];
-        steps.push({
-          step: 1,
-          category: "analysis",
-          title: "Problem Analysis",
-          content: `Breaking down the problem: "${problem}"
-
-Key elements identified:
-- Core question/challenge
-- Relevant factors and constraints
-- Required outcome or decision`,
-          confidence: 8
-        });
-        steps.push({
-          step: 2,
-          category: "information",
-          title: "Information Assessment",
-          content: `Evaluating available information:
-- What we know about this problem
-- What assumptions we're making
-- What additional information might be helpful
-- Relevant patterns or similar scenarios`,
-          confidence: 7
-        });
-        steps.push({
-          step: 3,
-          category: "approach",
-          title: "Approach Development",
-          content: `Considering different approaches:
-- Multiple possible solutions or perspectives
-- Pros and cons of each approach
-- Feasibility and resource considerations
-- Potential risks and benefits`,
-          confidence: 7
-        });
-        if (stepCount >= 6) {
-          steps.push({
-            step: 4,
-            category: "evaluation",
-            title: "Detailed Evaluation",
-            content: `Deep dive into promising approaches:
-- Detailed examination of key options
-- Impact assessment and trade-offs
-- Implementation challenges and opportunities`,
-            confidence: 8
-          });
-          steps.push({
-            step: 5,
-            category: "synthesis",
-            title: "Solution Synthesis",
-            content: `Combining insights to develop best approach:
-- Integrating analysis from previous steps
-- Balancing competing factors and constraints
-- Identifying optimal path forward`,
-            confidence: 8
-          });
-        }
-        if (stepCount >= 8) {
-          steps.push({
-            step: 6,
-            category: "validation",
-            title: "Solution Validation",
-            content: `Testing proposed solution:
-- Does it address the core problem?
-- Is it feasible and realistic?
-- What are potential unintended consequences?
-- How robust is it to different scenarios?`,
-            confidence: 7
-          });
-          steps.push({
-            step: 7,
-            category: "refinement",
-            title: "Refinement & Optimization",
-            content: `Final optimization:
-- Addressing identified weaknesses
-- Enhancing strengths and benefits
-- Preparing for implementation challenges
-- Building in flexibility and adaptability`,
-            confidence: 8
-          });
-        }
-        const finalStep = stepCount;
-        steps.push({
-          step: finalStep,
-          category: "conclusion",
-          title: "Conclusion & Recommendation",
-          content: `Based on structured analysis:
-
-**Recommended approach:** [Synthesized from analysis]
-**Key considerations:** [Critical factors to remember]
-**Next steps:** [Immediate actions needed]
-**Confidence level:** High - systematic reasoning process`,
-          confidence: 9
-        });
-        const formattedResult = this.formatStructuredReasoning(problem, steps, timestamp2);
-        return {
-          success: true,
-          data: {
-            problem,
-            reasoning: "structured",
-            steps,
-            totalSteps: steps.length,
-            depth,
-            formattedThought: formattedResult
-          }
-        };
-      }
-      /**
-       * Format structured reasoning steps for display
-       */
-      formatStructuredReasoning(problem, steps, timestamp2) {
-        let formatted = `\u{1F9E0} **STRUCTURED REASONING SESSION** | ${timestamp2}
-`;
-        formatted += `**Problem:** ${problem}
-`;
-        formatted += `**Analysis Depth:** ${steps.length} reasoning steps
-
-`;
-        formatted += `---
-
-`;
-        steps.forEach((step) => {
-          const categoryEmoji = this.getCategoryEmoji(step.category);
-          const confidenceBar = "\u25CF".repeat(Math.floor(step.confidence)) + "\u25CB".repeat(10 - Math.floor(step.confidence));
-          formatted += `${categoryEmoji} **STEP ${step.step}: ${step.title.toUpperCase()}**
-`;
-          formatted += `*Confidence: ${step.confidence}/10 ${confidenceBar}*
-
-`;
-          formatted += `${step.content}
-
-`;
-          formatted += `---
-
-`;
-        });
-        formatted += `\u2705 **REASONING COMPLETE**
-`;
-        formatted += `*Analysis completed in ${steps.length} structured steps*`;
-        return formatted;
+        if (typeof confidence !== "number" || isNaN(confidence)) return 7;
+        return Math.max(1, Math.min(10, Math.round(confidence)));
       }
     };
   }
@@ -11334,9 +11185,6 @@ ${resultText}`
               break;
             case "thought":
               if (result.data && result.data.formattedThought) {
-                if (result.data.reasoning === "structured") {
-                  return this.createCollapsibleReasoningElement(result.data);
-                }
                 return result.data.formattedThought;
               }
               break;

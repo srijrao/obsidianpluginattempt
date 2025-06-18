@@ -50,8 +50,9 @@ export class FileDiffTool implements Tool {
     constructor(private app: App) {}    async execute(params: FileDiffParams, context: any): Promise<ToolResult> {
         // Normalize parameter names for backward compatibility
         const filePath = params.path || params.filePath;
-        
-        const { originalContent, suggestedContent, action = 'suggest', insertPosition } = params;
+        // Fallback: support legacy 'text' param as 'suggestedContent'
+        const suggestedContent = params.suggestedContent || (params as any).text;
+        const { originalContent, action = 'suggest', insertPosition } = params;
 
         if (!filePath) {
             return {
