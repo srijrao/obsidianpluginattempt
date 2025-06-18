@@ -120,11 +120,35 @@ export async function saveChatAsNote({
     let filePath = fileName;
     const folder = chatNoteFolder?.trim();
     if (folder) {
+        // Ensure the folder exists, create if not
+        const folderExists = app.vault.getAbstractFileByPath(folder);
+        if (!folderExists) {
+            try {
+                await app.vault.createFolder(folder);
+            } catch (e) {
+                // Folder may already exist due to race condition
+                if (!app.vault.getAbstractFileByPath(folder)) {
+                    new Notice('Failed to create folder for chat note.');
+                    return;
+                }
+            }
+        }
         filePath = folder.replace(/[/\\]+$/, '') + '/' + fileName;
     }
+    // Try to create the file, handle if it already exists
+    let finalFilePath = filePath;
+    let attempt = 1;
+    while (app.vault.getAbstractFileByPath(finalFilePath)) {
+        // Append a number to the filename if it already exists
+        const extIndex = fileName.lastIndexOf('.');
+        const base = extIndex !== -1 ? fileName.substring(0, extIndex) : fileName;
+        const ext = extIndex !== -1 ? fileName.substring(extIndex) : '';
+        finalFilePath = (folder ? folder.replace(/[/\\]+$/, '') + '/' : '') + `${base} (${attempt})${ext}`;
+        attempt++;
+    }
     try {
-        await app.vault.create(filePath, noteContent);
-        new Notice(`Chat saved as note: ${filePath}`);
+        await app.vault.create(finalFilePath, noteContent);
+        new Notice(`Chat saved as note: ${finalFilePath}`);
     } catch (e) {
         new Notice('Failed to save chat as note.');
     }

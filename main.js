@@ -3502,11 +3502,15 @@ var init_FileMoveTool = __esm({
         });
       }
       async execute(params, context) {
-        const { sourcePath, destinationPath, createFolders = true, overwrite = false } = params;
+        let sourcePath = params.sourcePath;
+        let destinationPath = params.destinationPath;
+        if (!sourcePath && params.path) sourcePath = params.path;
+        if (!destinationPath && (params.new_path || params.newPath)) destinationPath = params.new_path || params.newPath;
+        const { createFolders = true, overwrite = false } = params;
         if (!sourcePath || !destinationPath) {
           return {
             success: false,
-            error: "Both sourcePath and destinationPath parameters are required"
+            error: "Both sourcePath and destinationPath parameters are required (aliases: path, new_path, newPath)"
           };
         }
         try {
@@ -3896,10 +3900,10 @@ function getToolMetadata() {
     },
     {
       name: "file_move",
-      description: "Move or rename files within the vault",
+      description: "Move or rename files within the vault. REQUIRED: Use parameter names sourcePath and destinationPath (not path/new_path).",
       parameters: {
-        sourcePath: { type: "string", description: "Path to the source file (relative to vault root)", required: true },
-        destinationPath: { type: "string", description: "Destination path for the file (relative to vault root)", required: true },
+        sourcePath: { type: "string", description: 'Path to the source file (relative to vault root). REQUIRED. Example: "Katy Perry.md"', required: true },
+        destinationPath: { type: "string", description: 'Destination path for the file (relative to vault root). REQUIRED. Example: "popstar/Katy Perry.md"', required: true },
         createFolders: { type: "boolean", description: "Whether to create parent folders if they don't exist", default: true },
         overwrite: { type: "boolean", description: "Whether to overwrite destination if it exists", default: false }
       }
@@ -3936,6 +3940,9 @@ function getToolMetadata() {
       }
     }
   ];
+}
+function getAllToolNames() {
+  return getToolMetadata().map((tool) => tool.name);
 }
 function createToolInstances(app, plugin) {
   const toolClasses = getAllToolClasses();
@@ -3993,7 +4000,9 @@ var init_promptConstants = __esm({
       }));
     };
     AGENT_SYSTEM_PROMPT_TEMPLATE = `
-You are an AI assistant in an Obsidian Vault with access to powerful tools (follows MCP standard) for vault management and interaction. Try to use tools whenever possible to perform tasks. Start by thinking through a plan before executing tasks. Provide explanations, summaries, or discussions naturally. Ask clarifying questions when requests are ambiguous
+You are an AI assistant in an Obsidian Vault with access to powerful tools (follows MCP standard) for vault management and interaction. Try to use tools whenever possible to perform tasks. Start by thinking through a plan before executing tasks. Provide explanations, summaries, or discussions naturally. Ask clarifying questions when requests are ambiguous.
+
+If you use a tool, always check the tool result (including errors) before continuing. If a tool fails, analyze the error, adjust your plan, and try a different approach or fix the parameters. Do not repeat the same failed tool call. Always reason about tool results before proceeding.
 
 Available tools:
 {{TOOL_DESCRIPTIONS}}
@@ -9678,11 +9687,31 @@ async function saveChatAsNote({
   let filePath = fileName;
   const folder = chatNoteFolder == null ? void 0 : chatNoteFolder.trim();
   if (folder) {
+    const folderExists = app.vault.getAbstractFileByPath(folder);
+    if (!folderExists) {
+      try {
+        await app.vault.createFolder(folder);
+      } catch (e) {
+        if (!app.vault.getAbstractFileByPath(folder)) {
+          new import_obsidian16.Notice("Failed to create folder for chat note.");
+          return;
+        }
+      }
+    }
     filePath = folder.replace(/[/\\]+$/, "") + "/" + fileName;
   }
+  let finalFilePath = filePath;
+  let attempt = 1;
+  while (app.vault.getAbstractFileByPath(finalFilePath)) {
+    const extIndex = fileName.lastIndexOf(".");
+    const base = extIndex !== -1 ? fileName.substring(0, extIndex) : fileName;
+    const ext = extIndex !== -1 ? fileName.substring(extIndex) : "";
+    finalFilePath = (folder ? folder.replace(/[/\\]+$/, "") + "/" : "") + `${base} (${attempt})${ext}`;
+    attempt++;
+  }
   try {
-    await app.vault.create(filePath, noteContent);
-    new import_obsidian16.Notice(`Chat saved as note: ${filePath}`);
+    await app.vault.create(finalFilePath, noteContent);
+    new import_obsidian16.Notice(`Chat saved as note: ${finalFilePath}`);
   } catch (e) {
     new import_obsidian16.Notice("Failed to save chat as note.");
   }
@@ -11922,7 +11951,12 @@ async function renderChatHistory({
 var import_obsidian22 = require("obsidian");
 
 // src/components/chat/CommandParser.ts
+init_toolcollect();
 var CommandParser = class {
+  constructor() {
+    __publicField(this, "validActions");
+    this.validActions = getAllToolNames();
+  }
   /**
    * Parse AI response to extract tool commands and regular text
    * @param response The AI response string
@@ -11961,8 +11995,7 @@ var CommandParser = class {
     if (!command.parameters || typeof command.parameters !== "object") {
       return false;
     }
-    const validActions = ["file_search", "file_read", "file_write", "file_diff", "file_move", "thought", "file_list", "file_rename"];
-    if (!validActions.includes(command.action)) {
+    if (!this.validActions.includes(command.action)) {
       return false;
     }
     return true;
@@ -12845,7 +12878,8 @@ var TaskContinuation = class {
     let maxIterations = 10;
     let iteration = 0;
     let limitReachedDuringContinuation = false;
-    let isFinished = this.checkIfTaskFinished(initialToolResults);
+    let allToolResults = [...initialToolResults];
+    let isFinished = this.checkIfTaskFinished(allToolResults);
     if ((_a2 = this.agentResponseHandler) == null ? void 0 : _a2.isToolLimitReached()) {
       console.log("TaskContinuation: Tool limit reached, stopping task continuation");
       return {
@@ -12861,7 +12895,7 @@ var TaskContinuation = class {
         limitReachedDuringContinuation = true;
         break;
       }
-      const toolResultMessage = (_c = this.agentResponseHandler) == null ? void 0 : _c.createToolResultMessage(initialToolResults);
+      const toolResultMessage = (_c = this.agentResponseHandler) == null ? void 0 : _c.createToolResultMessage(allToolResults);
       if (toolResultMessage) {
         messages.push({ role: "assistant", content: initialResponseContent });
         messages.push(toolResultMessage);
@@ -12875,11 +12909,18 @@ var TaskContinuation = class {
             continuationContent,
             responseContent,
             container,
-            initialToolResults
+            allToolResults
+            // pass all so far
           );
           responseContent = continuationResult.responseContent;
           isFinished = continuationResult.isFinished;
           initialResponseContent = continuationContent;
+          if (this.agentResponseHandler) {
+            const lastResults = await this.agentResponseHandler.processResponse(continuationContent);
+            if (lastResults && lastResults.toolResults && lastResults.toolResults.length > 0) {
+              allToolResults = [...allToolResults, ...lastResults.toolResults];
+            }
+          }
         } else {
           isFinished = true;
         }
@@ -12915,7 +12956,7 @@ var TaskContinuation = class {
       } else {
         const updatedContent = responseContent + "\n\n" + continuationContent;
         await this.updateContainerContent(container, updatedContent);
-        return { responseContent: updatedContent, isFinished: true };
+        return { responseContent: updatedContent, isFinished: false };
       }
     } else {
       const updatedContent = responseContent + "\n\n" + continuationContent;

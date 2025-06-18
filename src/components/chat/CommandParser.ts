@@ -1,9 +1,17 @@
 import { ToolCommand } from '../../types';
+// Import dynamic tool names
+import { getAllToolNames } from './tools/toolcollect';
 
 /**
  * Parses AI responses to extract tool commands and regular text
  */
 export class CommandParser {
+    private validActions: string[];
+    constructor() {
+        // Load valid tool actions dynamically
+        this.validActions = getAllToolNames();
+    }
+
     /**
      * Parse AI response to extract tool commands and regular text
      * @param response The AI response string
@@ -60,9 +68,9 @@ export class CommandParser {
 
         if (!command.parameters || typeof command.parameters !== 'object') {
             return false;
-        }        // Check for valid action names
-        const validActions = ['file_search', 'file_read', 'file_write', 'file_diff', 'file_move', 'thought', 'file_list', 'file_rename'];
-        if (!validActions.includes(command.action)) {
+        }
+        // Use dynamic valid actions
+        if (!this.validActions.includes(command.action)) {
             return false;
         }
 

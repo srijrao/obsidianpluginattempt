@@ -26,10 +26,10 @@ export class TaskContinuation {
         let maxIterations = 10; // Prevent infinite loops
         let iteration = 0;
         let limitReachedDuringContinuation = false;
-        
+        // Accumulate all tool results across iterations
+        let allToolResults = [...initialToolResults];
         // Check if any of the initial tool results indicate finished: true
-        let isFinished = this.checkIfTaskFinished(initialToolResults);
-        
+        let isFinished = this.checkIfTaskFinished(allToolResults);
         // Check if tool limit is reached before starting continuation
         if (this.agentResponseHandler?.isToolLimitReached()) {
             console.log('TaskContinuation: Tool limit reached, stopping task continuation');
@@ -38,32 +38,23 @@ export class TaskContinuation {
                 limitReachedDuringContinuation: true 
             };
         }
-        
         while (!isFinished && iteration < maxIterations) {
             iteration++;
-            // Removed per-iteration log
-              // Check if tool limit is reached before each iteration
             if (this.agentResponseHandler?.isToolLimitReached()) {
-                // Essential debug: Log tool limit reached during iteration
                 console.log('TaskContinuation: Tool limit reached during iteration, need to show UI warning');
-                // Instead of just stopping, we need to trigger the UI warning
-                // Break out of the loop and let the caller handle the UI
                 responseContent += '\n\n*[Tool execution limit reached during continuation]*';
                 limitReachedDuringContinuation = true;
                 break;
             }
-            
-            // Add tool results to context and continue conversation
-            const toolResultMessage = this.agentResponseHandler?.createToolResultMessage(initialToolResults);
+            // Always include all tool results so far
+            const toolResultMessage = this.agentResponseHandler?.createToolResultMessage(allToolResults);
             if (toolResultMessage) {
-                // Continue the conversation with tool results
                 messages.push({ role: 'assistant', content: initialResponseContent });
                 messages.push(toolResultMessage);
                 messages.push({ 
                     role: 'system', 
                     content: 'Continue with the remaining parts of the task. Check your progress and continue until ALL parts of the user\'s request are complete. Set finished: true only when everything is done.'
                 });
-                
                 // Get continuation response
                 const continuationContent = await this.getContinuationResponse(messages, container);
                 if (continuationContent.trim()) {
@@ -71,27 +62,30 @@ export class TaskContinuation {
                         continuationContent,
                         responseContent,
                         container,
-                        initialToolResults
+                        allToolResults // pass all so far
                     );
-                    
                     responseContent = continuationResult.responseContent;
                     isFinished = continuationResult.isFinished;
                     initialResponseContent = continuationContent;
+                    // Add new tool results from this step to the accumulator
+                    if (this.agentResponseHandler) {
+                        // Await the processResponse promise to get the actual result
+                        const lastResults = await this.agentResponseHandler.processResponse(continuationContent);
+                        if (lastResults && lastResults.toolResults && lastResults.toolResults.length > 0) {
+                            allToolResults = [...allToolResults, ...lastResults.toolResults];
+                        }
+                    }
                 } else {
-                    // No continuation content, task might be finished
                     isFinished = true;
                 }
             } else {
-                // No tool results to continue with
                 isFinished = true;
             }
         }
-          if (iteration >= maxIterations) {
+        if (iteration >= maxIterations) {
             console.warn('TaskContinuation: Task continuation reached maximum iterations');
             responseContent += '\n\n*[Task continuation reached maximum iterations - stopping to prevent infinite loop]*';
         }
-        
-        // Essential debug: Log once at the end
         console.log(`TaskContinuation: Task continuation completed after ${iteration} iterations`);
         return { content: responseContent, limitReachedDuringContinuation };
     }    /**
@@ -132,11 +126,10 @@ export class TaskContinuation {
                 
                 return { responseContent: updatedContent, isFinished };
             } else {
-                // If no tools were used, assume the task might be finished
+                // If no tools were used, do NOT assume the task is finished; continue until finished: true is received
                 const updatedContent = responseContent + '\n\n' + continuationContent;
                 await this.updateContainerContent(container, updatedContent);
-                
-                return { responseContent: updatedContent, isFinished: true };
+                return { responseContent: updatedContent, isFinished: false };
             }
         } else {
             const updatedContent = responseContent + '\n\n' + continuationContent;

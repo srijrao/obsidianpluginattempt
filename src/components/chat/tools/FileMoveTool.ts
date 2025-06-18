@@ -36,13 +36,20 @@ export class FileMoveTool implements Tool {
 
     constructor(private app: App) {}
 
-    async execute(params: FileMoveParams, context: any): Promise<ToolResult> {
-        const { sourcePath, destinationPath, createFolders = true, overwrite = false } = params;
+    async execute(params: FileMoveParams & Record<string, any>, context: any): Promise<ToolResult> {
+        // Parameter aliasing for robustness
+        let sourcePath = params.sourcePath;
+        let destinationPath = params.destinationPath;
+        // Accept legacy/incorrect parameter names as aliases
+        if (!sourcePath && params.path) sourcePath = params.path;
+        if (!destinationPath && (params.new_path || params.newPath)) destinationPath = params.new_path || params.newPath;
+
+        const { createFolders = true, overwrite = false } = params;
 
         if (!sourcePath || !destinationPath) {
             return {
                 success: false,
-                error: 'Both sourcePath and destinationPath parameters are required'
+                error: 'Both sourcePath and destinationPath parameters are required (aliases: path, new_path, newPath)'
             };
         }
 

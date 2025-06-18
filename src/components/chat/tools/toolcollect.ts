@@ -91,10 +91,10 @@ export function getToolMetadata(): Array<{name: string, description: string, par
         },
         {
             name: 'file_move',
-            description: 'Move or rename files within the vault',
+            description: 'Move or rename files within the vault. REQUIRED: Use parameter names sourcePath and destinationPath (not path/new_path).',
             parameters: {
-                sourcePath: { type: 'string', description: 'Path to the source file (relative to vault root)', required: true },
-                destinationPath: { type: 'string', description: 'Destination path for the file (relative to vault root)', required: true },
+                sourcePath: { type: 'string', description: 'Path to the source file (relative to vault root). REQUIRED. Example: "Katy Perry.md"', required: true },
+                destinationPath: { type: 'string', description: 'Destination path for the file (relative to vault root). REQUIRED. Example: "popstar/Katy Perry.md"', required: true },
                 createFolders: { type: 'boolean', description: 'Whether to create parent folders if they don\'t exist', default: true },
                 overwrite: { type: 'boolean', description: 'Whether to overwrite destination if it exists', default: false }
             }
@@ -128,6 +128,11 @@ export function getToolMetadata(): Array<{name: string, description: string, par
             }
         }
     ];
+}
+
+// Returns a list of all tool action names for dynamic validation
+export function getAllToolNames(): string[] {
+    return getToolMetadata().map(tool => tool.name);
 }
 
 // Create tool instances with proper app context
