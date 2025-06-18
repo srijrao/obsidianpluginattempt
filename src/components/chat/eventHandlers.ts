@@ -1,10 +1,11 @@
 import { copyToClipboard } from './Buttons';
 import { saveChatAsNote, loadChatYamlAndApplySettings } from './chatPersistence';
 import { ChatHelpModal } from './ChatHelpModal';
-import { Notice, App } from 'obsidian';
+import { Notice, App, MarkdownRenderer } from 'obsidian';
 import MyPlugin from '../../main';
 import { ChatHistoryManager } from './ChatHistoryManager';
 import { MessageRenderer } from './MessageRenderer';
+import { ConfirmationModal } from './ConfirmationModal';
 
 function getFormattedChatContent(messagesContainer: HTMLElement, plugin: MyPlugin, chatSeparator: string): string {
     const messages = messagesContainer.querySelectorAll('.ai-chat-message');
@@ -12,9 +13,13 @@ function getFormattedChatContent(messagesContainer: HTMLElement, plugin: MyPlugi
     const renderer = new MessageRenderer(plugin.app);
     messages.forEach((el, index) => {
         const htmlElement = el as HTMLElement;
+        
+        // Skip standalone tool displays - they are visual artifacts, not conversation content
+        // The actual tool results are already included in the assistant messages that contain them
         if (htmlElement.classList.contains('tool-display-message')) {
             return;
         }
+        
         let messageData = null;
         const messageDataStr = htmlElement.dataset.messageData;
         if (messageDataStr) {
@@ -91,5 +96,129 @@ export function handleReferenceNote(app: App, plugin: MyPlugin) {
         new Notice(`Reference current note: ${plugin.settings.referenceCurrentNote ? 'ON' : 'OFF'}`);
         // Optionally, trigger a custom event for immediate UI update
         app.workspace.trigger('ai-assistant:reference-note-toggled');
+    };
+}
+
+export function handleCopyMessage(messageEl: HTMLElement, plugin: MyPlugin) {
+    return async () => {
+        let contentToCopy = '';
+        const messageData = messageEl.dataset.messageData;
+        
+        if (messageData) {
+            try {
+                const parsedData = JSON.parse(messageData);
+                const renderer = new MessageRenderer(plugin.app);
+                // Use the same logic as copy all for rich content
+                contentToCopy = renderer.getMessageContentForCopy(parsedData);
+            } catch (e) {
+                // Fallback to raw content
+                contentToCopy = messageEl.dataset.rawContent || '';
+            }
+        } else {
+            // Regular message without tool data
+            contentToCopy = messageEl.dataset.rawContent || '';
+        }
+        
+        if (contentToCopy.trim() === '') {
+            new Notice('No content to copy');
+            return;
+        }
+        
+        await copyToClipboard(contentToCopy);
+        new Notice('Message copied to clipboard');
+    };
+}
+
+export function handleEditMessage(messageEl: HTMLElement, chatHistoryManager: ChatHistoryManager, plugin: MyPlugin) {
+    return async () => {
+        const contentEl = messageEl.querySelector('.message-content') as HTMLElement;
+        if (!contentEl) return;
+        
+        if (!contentEl.hasClass('editing')) {
+            // Switch to edit mode
+            const textarea = document.createElement('textarea');
+            textarea.value = messageEl.dataset.rawContent || '';
+            textarea.className = 'message-content editing';
+            contentEl.empty();
+            contentEl.appendChild(textarea);
+            textarea.focus();
+            contentEl.addClass('editing');
+            
+            textarea.addEventListener('keydown', async (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    textarea.blur();
+                }
+            });
+            
+            textarea.addEventListener('blur', async () => {
+                const oldContent = messageEl.dataset.rawContent;
+                const newContent = textarea.value;
+                let enhancedData = undefined;
+                
+                if (messageEl.dataset.messageData) {
+                    try {
+                        enhancedData = JSON.parse(messageEl.dataset.messageData);
+                    } catch {}
+                }
+                
+                try {
+                    await chatHistoryManager.updateMessage(
+                        messageEl.dataset.timestamp || new Date().toISOString(),
+                        messageEl.classList.contains('user') ? 'user' : 'assistant',
+                        oldContent || '',
+                        newContent,
+                        enhancedData
+                    );
+                    
+                    messageEl.dataset.rawContent = newContent;
+                    contentEl.empty();
+                      // Re-render the message properly
+                    if (enhancedData && enhancedData.toolResults) {
+                        const renderer = new MessageRenderer(plugin.app);
+                        await renderer.renderMessage({
+                            role: messageEl.classList.contains('user') ? 'user' : 'assistant',
+                            content: newContent,
+                            toolResults: enhancedData.toolResults
+                        } as any, messageEl, undefined);
+                    } else {
+                        await MarkdownRenderer.render(plugin.app, newContent, contentEl, '', undefined as any);
+                    }
+                    
+                    contentEl.removeClass('editing');
+                } catch (e) {
+                    new Notice('Failed to save edited message.');
+                    messageEl.dataset.rawContent = oldContent || '';
+                    contentEl.empty();
+                    await MarkdownRenderer.render(plugin.app, oldContent || '', contentEl, '', undefined as any);
+                    contentEl.removeClass('editing');
+                }
+            });
+        }
+    };
+}
+
+export function handleDeleteMessage(messageEl: HTMLElement, chatHistoryManager: ChatHistoryManager, app: App) {
+    return () => {
+        const modal = new ConfirmationModal(app, 'Delete message', 'Are you sure you want to delete this message?', (confirmed: boolean) => {
+            if (confirmed) {
+                chatHistoryManager.deleteMessage(
+                    messageEl.dataset.timestamp || new Date().toISOString(),
+                    messageEl.classList.contains('user') ? 'user' : 'assistant',
+                    messageEl.dataset.rawContent || ''
+                ).then(() => {
+                    messageEl.remove();
+                }).catch(() => {
+                    new Notice('Failed to delete message from history.');
+                });
+            }
+        });
+        modal.open();
+    };
+}
+
+export function handleRegenerateMessage(messageEl: HTMLElement, regenerateCallback: (messageEl: HTMLElement) => void) {
+    return () => {
+        regenerateCallback(messageEl);
     };
 }

@@ -841,6 +841,11 @@
     border: none;
     padding: 0;
     margin: 8px 0;
+    position: relative; /* Ensure actions can be positioned relative to this */
+}
+
+.ai-chat-message.tool-display-message .message-container {
+    position: relative; /* Ensure proper positioning for action buttons */
 }
 
 .ai-chat-message.tool-display-message .tool-rich-display {

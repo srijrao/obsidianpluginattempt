@@ -8905,11 +8905,11 @@ var init_Buttons = __esm({
 });
 
 // src/components/chat/ToolRichDisplay.ts
-var import_obsidian15, ToolRichDisplay;
+var import_obsidian14, ToolRichDisplay;
 var init_ToolRichDisplay = __esm({
   "src/components/chat/ToolRichDisplay.ts"() {
-    import_obsidian15 = require("obsidian");
-    ToolRichDisplay = class extends import_obsidian15.Component {
+    import_obsidian14 = require("obsidian");
+    ToolRichDisplay = class extends import_obsidian14.Component {
       constructor(options) {
         super();
         __publicField(this, "element");
@@ -9164,10 +9164,10 @@ ${details}
 });
 
 // src/components/chat/MessageRenderer.ts
-var import_obsidian16, MessageRenderer;
+var import_obsidian15, MessageRenderer;
 var init_MessageRenderer = __esm({
   "src/components/chat/MessageRenderer.ts"() {
-    import_obsidian16 = require("obsidian");
+    import_obsidian15 = require("obsidian");
     init_ToolRichDisplay();
     MessageRenderer = class {
       constructor(app) {
@@ -9194,7 +9194,7 @@ var init_MessageRenderer = __esm({
         const contentEl = container.querySelector(".message-content");
         if (contentEl) {
           contentEl.empty();
-          import_obsidian16.MarkdownRenderer.render(
+          import_obsidian15.MarkdownRenderer.render(
             this.app,
             messageData.content,
             contentEl,
@@ -9398,7 +9398,7 @@ var init_MessageRenderer = __esm({
           if (part.type === "text" && ((_a2 = part.content) == null ? void 0 : _a2.trim())) {
             const textDiv = document.createElement("div");
             textDiv.className = "message-text-part";
-            await import_obsidian16.MarkdownRenderer.render(this.app, part.content, textDiv, "", component || null);
+            await import_obsidian15.MarkdownRenderer.render(this.app, part.content, textDiv, "", component || null);
             messageContent.appendChild(textDiv);
           } else if (part.type === "tool" && part.command && message.toolResults) {
             const toolExecutionResult = message.toolResults.find(
@@ -9435,7 +9435,7 @@ var init_MessageRenderer = __esm({
         const messageContent = container.querySelector(".message-content");
         if (!messageContent) return;
         messageContent.empty();
-        await import_obsidian16.MarkdownRenderer.render(this.app, message.content, messageContent, "", component || null);
+        await import_obsidian15.MarkdownRenderer.render(this.app, message.content, messageContent, "", component || null);
       }
       /**
        * Parse message content to extract tool calls and text parts
@@ -9704,9 +9704,9 @@ async function saveChatAsNote({
   }
   try {
     await app.vault.create(filePath, noteContent);
-    new import_obsidian18.Notice(`Chat saved as note: ${filePath}`);
+    new import_obsidian16.Notice(`Chat saved as note: ${filePath}`);
   } catch (e) {
-    new import_obsidian18.Notice("Failed to save chat as note.");
+    new import_obsidian16.Notice("Failed to save chat as note.");
   }
 }
 async function loadChatYamlAndApplySettings({
@@ -9765,10 +9765,10 @@ async function loadChatYamlAndApplySettings({
     temperature: newTemperature
   };
 }
-var import_obsidian18;
+var import_obsidian16;
 var init_chatPersistence = __esm({
   "src/components/chat/chatPersistence.ts"() {
-    import_obsidian18 = require("obsidian");
+    import_obsidian16 = require("obsidian");
     init_js_yaml();
     init_providers();
     init_MessageRenderer();
@@ -9776,11 +9776,11 @@ var init_chatPersistence = __esm({
 });
 
 // src/components/chat/ChatHelpModal.ts
-var import_obsidian19, ChatHelpModal;
+var import_obsidian17, ChatHelpModal;
 var init_ChatHelpModal = __esm({
   "src/components/chat/ChatHelpModal.ts"() {
-    import_obsidian19 = require("obsidian");
-    ChatHelpModal = class extends import_obsidian19.Modal {
+    import_obsidian17 = require("obsidian");
+    ChatHelpModal = class extends import_obsidian17.Modal {
       constructor(app) {
         super(app);
       }
@@ -9875,17 +9875,56 @@ var init_ChatHelpModal = __esm({
   }
 });
 
+// src/components/chat/ConfirmationModal.ts
+var import_obsidian18, ConfirmationModal;
+var init_ConfirmationModal = __esm({
+  "src/components/chat/ConfirmationModal.ts"() {
+    import_obsidian18 = require("obsidian");
+    ConfirmationModal = class extends import_obsidian18.Modal {
+      constructor(app, title, message, onConfirm) {
+        super(app);
+        __publicField(this, "onConfirm");
+        __publicField(this, "message");
+        this.titleEl.setText(title);
+        this.message = message;
+        this.onConfirm = onConfirm;
+      }
+      onOpen() {
+        const { contentEl } = this;
+        contentEl.addClass("ai-assistant-modal");
+        contentEl.createEl("p", { text: this.message });
+        const buttonContainer = contentEl.createDiv("modal-button-container");
+        buttonContainer.createEl("button", { text: "Cancel" }).addEventListener("click", () => {
+          this.onConfirm(false);
+          this.close();
+        });
+        const confirmButton = buttonContainer.createEl("button", {
+          text: "Delete",
+          cls: "mod-warning"
+        });
+        confirmButton.addEventListener("click", () => {
+          this.onConfirm(true);
+          this.close();
+        });
+      }
+      onClose() {
+        this.contentEl.empty();
+      }
+    };
+  }
+});
+
 // src/components/chat/SettingsModal.ts
 var SettingsModal_exports = {};
 __export(SettingsModal_exports, {
   SettingsModal: () => SettingsModal
 });
-var import_obsidian20, SettingsModal;
+var import_obsidian19, SettingsModal;
 var init_SettingsModal = __esm({
   "src/components/chat/SettingsModal.ts"() {
-    import_obsidian20 = require("obsidian");
+    import_obsidian19 = require("obsidian");
     init_SettingsSections();
-    SettingsModal = class extends import_obsidian20.Modal {
+    SettingsModal = class extends import_obsidian19.Modal {
       constructor(app, plugin) {
         super(app);
         __publicField(this, "plugin");
@@ -9970,7 +10009,7 @@ function handleClearChat(messagesContainer, chatHistoryManager) {
     try {
       await chatHistoryManager.clearHistory();
     } catch (e) {
-      new import_obsidian21.Notice("Failed to clear chat history.");
+      new import_obsidian20.Notice("Failed to clear chat history.");
     }
   };
 }
@@ -9986,14 +10025,121 @@ function handleHelp(app) {
     new ChatHelpModal(app).open();
   };
 }
-var import_obsidian21;
+function handleCopyMessage(messageEl, plugin) {
+  return async () => {
+    let contentToCopy = "";
+    const messageData = messageEl.dataset.messageData;
+    if (messageData) {
+      try {
+        const parsedData = JSON.parse(messageData);
+        const renderer = new MessageRenderer(plugin.app);
+        contentToCopy = renderer.getMessageContentForCopy(parsedData);
+      } catch (e) {
+        contentToCopy = messageEl.dataset.rawContent || "";
+      }
+    } else {
+      contentToCopy = messageEl.dataset.rawContent || "";
+    }
+    if (contentToCopy.trim() === "") {
+      new import_obsidian20.Notice("No content to copy");
+      return;
+    }
+    await copyToClipboard(contentToCopy);
+    new import_obsidian20.Notice("Message copied to clipboard");
+  };
+}
+function handleEditMessage(messageEl, chatHistoryManager, plugin) {
+  return async () => {
+    const contentEl = messageEl.querySelector(".message-content");
+    if (!contentEl) return;
+    if (!contentEl.hasClass("editing")) {
+      const textarea = document.createElement("textarea");
+      textarea.value = messageEl.dataset.rawContent || "";
+      textarea.className = "message-content editing";
+      contentEl.empty();
+      contentEl.appendChild(textarea);
+      textarea.focus();
+      contentEl.addClass("editing");
+      textarea.addEventListener("keydown", async (e) => {
+        if (e.key === "Enter" && !e.shiftKey) {
+          e.preventDefault();
+          textarea.blur();
+        }
+      });
+      textarea.addEventListener("blur", async () => {
+        const oldContent = messageEl.dataset.rawContent;
+        const newContent = textarea.value;
+        let enhancedData = void 0;
+        if (messageEl.dataset.messageData) {
+          try {
+            enhancedData = JSON.parse(messageEl.dataset.messageData);
+          } catch (e) {
+          }
+        }
+        try {
+          await chatHistoryManager.updateMessage(
+            messageEl.dataset.timestamp || (/* @__PURE__ */ new Date()).toISOString(),
+            messageEl.classList.contains("user") ? "user" : "assistant",
+            oldContent || "",
+            newContent,
+            enhancedData
+          );
+          messageEl.dataset.rawContent = newContent;
+          contentEl.empty();
+          if (enhancedData && enhancedData.toolResults) {
+            const renderer = new MessageRenderer(plugin.app);
+            await renderer.renderMessage({
+              role: messageEl.classList.contains("user") ? "user" : "assistant",
+              content: newContent,
+              toolResults: enhancedData.toolResults
+            }, messageEl, void 0);
+          } else {
+            await import_obsidian20.MarkdownRenderer.render(plugin.app, newContent, contentEl, "", void 0);
+          }
+          contentEl.removeClass("editing");
+        } catch (e) {
+          new import_obsidian20.Notice("Failed to save edited message.");
+          messageEl.dataset.rawContent = oldContent || "";
+          contentEl.empty();
+          await import_obsidian20.MarkdownRenderer.render(plugin.app, oldContent || "", contentEl, "", void 0);
+          contentEl.removeClass("editing");
+        }
+      });
+    }
+  };
+}
+function handleDeleteMessage(messageEl, chatHistoryManager, app) {
+  return () => {
+    const modal = new ConfirmationModal(app, "Delete message", "Are you sure you want to delete this message?", (confirmed) => {
+      if (confirmed) {
+        chatHistoryManager.deleteMessage(
+          messageEl.dataset.timestamp || (/* @__PURE__ */ new Date()).toISOString(),
+          messageEl.classList.contains("user") ? "user" : "assistant",
+          messageEl.dataset.rawContent || ""
+        ).then(() => {
+          messageEl.remove();
+        }).catch(() => {
+          new import_obsidian20.Notice("Failed to delete message from history.");
+        });
+      }
+    });
+    modal.open();
+  };
+}
+function handleRegenerateMessage(messageEl, regenerateCallback) {
+  return () => {
+    regenerateCallback(messageEl);
+  };
+}
+var import_obsidian20;
 var init_eventHandlers = __esm({
   "src/components/chat/eventHandlers.ts"() {
     init_Buttons();
     init_chatPersistence();
     init_ChatHelpModal();
-    import_obsidian21 = require("obsidian");
+    import_obsidian20 = require("obsidian");
     init_MessageRenderer();
+    init_ConfirmationModal();
   }
 });
 
@@ -11489,45 +11635,10 @@ var ChatHistoryManager = class {
 };
 
 // src/components/chat/Message.ts
-var import_obsidian17 = require("obsidian");
+var import_obsidian21 = require("obsidian");
 init_Buttons();
-
-// src/components/chat/ConfirmationModal.ts
-var import_obsidian14 = require("obsidian");
-var ConfirmationModal = class extends import_obsidian14.Modal {
-  constructor(app, title, message, onConfirm) {
-    super(app);
-    __publicField(this, "onConfirm");
-    __publicField(this, "message");
-    this.titleEl.setText(title);
-    this.message = message;
-    this.onConfirm = onConfirm;
-  }
-  onOpen() {
-    const { contentEl } = this;
-    contentEl.addClass("ai-assistant-modal");
-    contentEl.createEl("p", { text: this.message });
-    const buttonContainer = contentEl.createDiv("modal-button-container");
-    buttonContainer.createEl("button", { text: "Cancel" }).addEventListener("click", () => {
-      this.onConfirm(false);
-      this.close();
-    });
-    const confirmButton = buttonContainer.createEl("button", {
-      text: "Delete",
-      cls: "mod-warning"
-    });
-    confirmButton.addEventListener("click", () => {
-      this.onConfirm(true);
-      this.close();
-    });
-  }
-  onClose() {
-    this.contentEl.empty();
-  }
-};
-
-// src/components/chat/Message.ts
 init_MessageRenderer();
+init_eventHandlers();
 async function createMessageElement(app, role, content, chatHistoryManager, plugin, regenerateCallback, parentComponent, messageData) {
   const messageEl = document.createElement("div");
   messageEl.addClass("ai-chat-message", role);
@@ -11558,14 +11669,14 @@ async function createMessageElement(app, role, content, chatHistoryManager, plug
       if (!contentEl) {
         contentEl = messageContainer.createDiv("message-content");
       }
-      await import_obsidian17.MarkdownRenderer.render(app, content, contentEl, "", parentComponent);
+      await import_obsidian21.MarkdownRenderer.render(app, content, contentEl, "", parentComponent);
     }
   } else {
     contentEl = messageEl.querySelector(".message-content");
     if (!contentEl) {
       contentEl = messageContainer.createDiv("message-content");
     }
-    await import_obsidian17.MarkdownRenderer.render(app, content, contentEl, "", parentComponent);
+    await import_obsidian21.MarkdownRenderer.render(app, content, contentEl, "", parentComponent);
   }
   if (!contentEl) {
     contentEl = messageEl.querySelector(".message-content");
@@ -11583,80 +11694,12 @@ async function createMessageElement(app, role, content, chatHistoryManager, plug
     actionsEl.classList.remove("visible");
     actionsEl.classList.add("hidden");
   });
-  actionsEl.appendChild(createActionButton("Copy", "Copy message (including reasoning)", () => {
-    const fullContent = content;
-    if (fullContent.trim() === "") {
-      new import_obsidian17.Notice("No content to copy");
-      return;
-    }
-    copyToClipboard(fullContent);
-  }));
-  actionsEl.appendChild(createActionButton("Edit", "Edit message", async () => {
-    if (!contentEl.hasClass("editing")) {
-      const textarea = document.createElement("textarea");
-      textarea.value = messageEl.dataset.rawContent || "";
-      textarea.className = "message-content editing";
-      contentEl.empty();
-      contentEl.appendChild(textarea);
-      textarea.focus();
-      contentEl.addClass("editing");
-      textarea.addEventListener("keydown", async (e) => {
-        if (e.key === "Enter" && !e.shiftKey) {
-          e.preventDefault();
-          textarea.blur();
-        }
-      });
-      textarea.addEventListener("blur", async () => {
-        const oldContent = messageEl.dataset.rawContent;
-        const newContent = textarea.value;
-        let enhancedData = void 0;
-        if (messageEl.dataset.messageData) {
-          try {
-            enhancedData = JSON.parse(messageEl.dataset.messageData);
-          } catch (e) {
-          }
-        }
-        try {
-          await chatHistoryManager.updateMessage(
-            messageEl.dataset.timestamp || (/* @__PURE__ */ new Date()).toISOString(),
-            messageEl.classList.contains("user") ? "user" : "assistant",
-            oldContent || "",
-            newContent,
-            enhancedData
-          );
-          messageEl.dataset.rawContent = newContent;
-          contentEl.empty();
-          await import_obsidian17.MarkdownRenderer.render(app, newContent, contentEl, "", parentComponent);
-          contentEl.removeClass("editing");
-        } catch (e) {
-          new import_obsidian17.Notice("Failed to save edited message.");
-          messageEl.dataset.rawContent = oldContent || "";
-          contentEl.empty();
-          await import_obsidian17.MarkdownRenderer.render(app, oldContent || "", contentEl, "", parentComponent);
-          contentEl.removeClass("editing");
-        }
-      });
-    }
-  }));
-  actionsEl.appendChild(createActionButton("Delete", "Delete message", () => {
-    const modal = new ConfirmationModal(app, "Delete message", "Are you sure you want to delete this message?", (confirmed) => {
-      if (confirmed) {
-        chatHistoryManager.deleteMessage(
-          messageEl.dataset.timestamp || (/* @__PURE__ */ new Date()).toISOString(),
-          messageEl.classList.contains("user") ? "user" : "assistant",
-          messageEl.dataset.rawContent || ""
-        ).then(() => {
-          messageEl.remove();
-        }).catch(() => {
-          new import_obsidian17.Notice("Failed to delete message from history.");
-        });
-      }
-    });
-    modal.open();
-  }));
-  actionsEl.appendChild(createActionButton("Regenerate", "Regenerate this response", () => {
-    regenerateCallback(messageEl);
-  }));
+  actionsEl.appendChild(createActionButton("Copy", "Copy message (including tool results)", handleCopyMessage(messageEl, plugin)));
+  actionsEl.appendChild(createActionButton("Edit", "Edit message", handleEditMessage(messageEl, chatHistoryManager, plugin)));
+  actionsEl.appendChild(createActionButton("Delete", "Delete message", handleDeleteMessage(messageEl, chatHistoryManager, app)));
+  if (role === "assistant") {
+    actionsEl.appendChild(createActionButton("Regenerate", "Regenerate this response", handleRegenerateMessage(messageEl, regenerateCallback)));
+  }
   messageContainer.appendChild(actionsEl);
   return messageEl;
 }
@@ -13784,12 +13827,48 @@ var ChatView = class extends import_obsidian27.ItemView {
     this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
   }
   /**
-   * Insert a rich tool display into the messages container
-   */
+  * Insert a rich tool display into the messages container
+  */
   insertToolDisplay(display) {
     const toolDisplayWrapper = document.createElement("div");
     toolDisplayWrapper.className = "ai-chat-message tool-display-message";
-    toolDisplayWrapper.appendChild(display.getElement());
+    const messageContainer = toolDisplayWrapper.createDiv("message-container");
+    messageContainer.appendChild(display.getElement());
+    toolDisplayWrapper.dataset.timestamp = (/* @__PURE__ */ new Date()).toISOString();
+    toolDisplayWrapper.dataset.rawContent = display.toMarkdown();
+    const actionsEl = messageContainer.createDiv("message-actions");
+    actionsEl.classList.add("hidden");
+    toolDisplayWrapper.addEventListener("mouseenter", () => {
+      actionsEl.classList.remove("hidden");
+      actionsEl.classList.add("visible");
+    });
+    toolDisplayWrapper.addEventListener("mouseleave", () => {
+      actionsEl.classList.remove("visible");
+      actionsEl.classList.add("hidden");
+    });
+    const copyBtn = document.createElement("button");
+    copyBtn.className = "ai-chat-action-button";
+    copyBtn.setAttribute("aria-label", "Copy tool result");
+    copyBtn.innerHTML = "<span>Copy</span>";
+    copyBtn.addEventListener("click", async () => {
+      const content = display.toMarkdown();
+      try {
+        await navigator.clipboard.writeText(content);
+        new import_obsidian27.Notice("Tool result copied to clipboard");
+      } catch (error) {
+        new import_obsidian27.Notice("Failed to copy to clipboard");
+        console.error("Clipboard error:", error);
+      }
+    });
+    actionsEl.appendChild(copyBtn);
+    const deleteBtn = document.createElement("button");
+    deleteBtn.className = "ai-chat-action-button";
+    deleteBtn.setAttribute("aria-label", "Delete tool display");
+    deleteBtn.innerHTML = "<span>Delete</span>";
+    deleteBtn.addEventListener("click", () => {
+      toolDisplayWrapper.remove();
+    });
+    actionsEl.appendChild(deleteBtn);
     this.messagesContainer.appendChild(toolDisplayWrapper);
     this.scrollMessagesToBottom();
   }
@@ -13872,7 +13951,7 @@ function showNotice(message) {
   const { Notice: Notice16 } = require("obsidian");
   new Notice16(message);
 }
-async function copyToClipboard2(text, successMsg = "Copied to clipboard", failMsg = "Failed to copy to clipboard") {
+async function copyToClipboard3(text, successMsg = "Copied to clipboard", failMsg = "Failed to copy to clipboard") {
   try {
     await navigator.clipboard.writeText(text);
     showNotice(successMsg);
@@ -14325,7 +14404,7 @@ ${this.settings.chatSeparator}
         const activeFile = this.app.workspace.getActiveFile();
         if (activeFile) {
           const noteName = `[[${activeFile.basename}]]`;
-          await copyToClipboard2(noteName, `Copied to clipboard: ${noteName}`, "Failed to copy to clipboard");
+          await copyToClipboard3(noteName, `Copied to clipboard: ${noteName}`, "Failed to copy to clipboard");
         } else {
           showNotice("No active note found");
         }

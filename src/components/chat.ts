@@ -458,16 +458,62 @@ export class ChatView extends ItemView {
 
     public scrollMessagesToBottom() {
         this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
-    }
-
-    /**
+    }    /**
      * Insert a rich tool display into the messages container
      */
     private insertToolDisplay(display: ToolRichDisplay): void {
         // Create a wrapper for the tool display
         const toolDisplayWrapper = document.createElement('div');
         toolDisplayWrapper.className = 'ai-chat-message tool-display-message';
-        toolDisplayWrapper.appendChild(display.getElement());
+        
+        // Create a message container similar to regular messages
+        const messageContainer = toolDisplayWrapper.createDiv('message-container');
+        messageContainer.appendChild(display.getElement());
+        
+        // Add timestamp and data for consistency
+        toolDisplayWrapper.dataset.timestamp = new Date().toISOString();
+        toolDisplayWrapper.dataset.rawContent = display.toMarkdown();
+        
+        // Create actions container for tool display messages
+        const actionsEl = messageContainer.createDiv('message-actions');
+        actionsEl.classList.add('hidden');
+
+        // Add hover behavior
+        toolDisplayWrapper.addEventListener('mouseenter', () => {
+            actionsEl.classList.remove('hidden');
+            actionsEl.classList.add('visible');
+        });
+        toolDisplayWrapper.addEventListener('mouseleave', () => {
+            actionsEl.classList.remove('visible');
+            actionsEl.classList.add('hidden');
+        });
+
+        // Add copy button for tool display
+        const copyBtn = document.createElement('button');
+        copyBtn.className = 'ai-chat-action-button';
+        copyBtn.setAttribute('aria-label', 'Copy tool result');
+        copyBtn.innerHTML = '<span>Copy</span>';
+        copyBtn.addEventListener('click', async () => {
+            const content = display.toMarkdown();
+            try {
+                await navigator.clipboard.writeText(content);
+                new Notice('Tool result copied to clipboard');
+            } catch (error) {
+                new Notice('Failed to copy to clipboard');
+                console.error('Clipboard error:', error);
+            }
+        });
+        actionsEl.appendChild(copyBtn);
+
+        // Add delete button for tool display
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'ai-chat-action-button';
+        deleteBtn.setAttribute('aria-label', 'Delete tool display');
+        deleteBtn.innerHTML = '<span>Delete</span>';
+        deleteBtn.addEventListener('click', () => {
+            toolDisplayWrapper.remove();
+        });
+        actionsEl.appendChild(deleteBtn);
         
         // Insert at the end of the messages container
         this.messagesContainer.appendChild(toolDisplayWrapper);

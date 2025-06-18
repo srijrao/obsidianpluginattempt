@@ -3,6 +3,12 @@ import { Message as MessageType } from '../../types';
 import { createActionButton, copyToClipboard } from './Buttons';
 import { ConfirmationModal } from './ConfirmationModal';
 import { MessageRenderer } from './MessageRenderer';
+import { 
+    handleCopyMessage, 
+    handleEditMessage, 
+    handleDeleteMessage, 
+    handleRegenerateMessage 
+} from './eventHandlers';
 
 /**
  * Base Message interface for chat messages
@@ -237,88 +243,19 @@ export async function createMessageElement(
     messageEl.addEventListener('mouseleave', () => {
         actionsEl.classList.remove('visible');
         actionsEl.classList.add('hidden');
-    });
+    });    // Enhanced copy button that uses proper copy logic for tool content
+    actionsEl.appendChild(createActionButton('Copy', 'Copy message (including tool results)', handleCopyMessage(messageEl, plugin)));
 
-    // Enhanced copy button that includes reasoning
-    actionsEl.appendChild(createActionButton('Copy', 'Copy message (including reasoning)', () => {
-        const fullContent = content; // For DRY, just copy content; advanced: use MessageRenderer for export if needed
-        if (fullContent.trim() === '') {
-            new Notice('No content to copy');
-            return;
-        }
-        copyToClipboard(fullContent);
-    }));
-
-    // Edit button
-    actionsEl.appendChild(createActionButton('Edit', 'Edit message', async () => {
-        if (!contentEl.hasClass('editing')) {
-            const textarea = document.createElement('textarea');
-            textarea.value = messageEl.dataset.rawContent || '';
-            textarea.className = 'message-content editing';
-            contentEl.empty();
-            contentEl.appendChild(textarea);
-            textarea.focus();
-            contentEl.addClass('editing');
-            textarea.addEventListener('keydown', async (e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    textarea.blur();
-                }
-            });
-            textarea.addEventListener('blur', async () => {
-                const oldContent = messageEl.dataset.rawContent;
-                const newContent = textarea.value;
-                let enhancedData = undefined;
-                if (messageEl.dataset.messageData) {
-                    try {
-                        enhancedData = JSON.parse(messageEl.dataset.messageData);
-                    } catch {}
-                }
-                try {
-                    await chatHistoryManager.updateMessage(
-                        messageEl.dataset.timestamp || new Date().toISOString(),
-                        messageEl.classList.contains('user') ? 'user' : 'assistant',
-                        oldContent || '',
-                        newContent,
-                        enhancedData
-                    );
-                    messageEl.dataset.rawContent = newContent;
-                    contentEl.empty();
-                    await MarkdownRenderer.render(app, newContent, contentEl, '', parentComponent);
-                    contentEl.removeClass('editing');
-                } catch (e) {
-                    new Notice('Failed to save edited message.');
-                    messageEl.dataset.rawContent = oldContent || '';
-                    contentEl.empty();
-                    await MarkdownRenderer.render(app, oldContent || '', contentEl, '', parentComponent);
-                    contentEl.removeClass('editing');
-                }
-            });
-        }
-    }));
+    // Edit button with enhanced tool content support
+    actionsEl.appendChild(createActionButton('Edit', 'Edit message', handleEditMessage(messageEl, chatHistoryManager, plugin)));
 
     // Delete button
-    actionsEl.appendChild(createActionButton('Delete', 'Delete message', () => {
-        const modal = new ConfirmationModal(app, 'Delete message', 'Are you sure you want to delete this message?', (confirmed: boolean) => {
-            if (confirmed) {
-                chatHistoryManager.deleteMessage(
-                    messageEl.dataset.timestamp || new Date().toISOString(),
-                    messageEl.classList.contains('user') ? 'user' : 'assistant',
-                    messageEl.dataset.rawContent || ''
-                ).then(() => {
-                    messageEl.remove();
-                }).catch(() => {
-                    new Notice('Failed to delete message from history.');
-                });
-            }
-        });
-        modal.open();
-    }));
+    actionsEl.appendChild(createActionButton('Delete', 'Delete message', handleDeleteMessage(messageEl, chatHistoryManager, app)));
 
-    // Regenerate button
-    actionsEl.appendChild(createActionButton('Regenerate', 'Regenerate this response', () => {
-        regenerateCallback(messageEl);
-    }));
+    // Regenerate button (only for assistant messages)
+    if (role === 'assistant') {
+        actionsEl.appendChild(createActionButton('Regenerate', 'Regenerate this response', handleRegenerateMessage(messageEl, regenerateCallback)));
+    }
 
     messageContainer.appendChild(actionsEl);
     return messageEl;
