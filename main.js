@@ -9164,6 +9164,10 @@ ${details}
 });
 
 // src/components/chat/MessageRenderer.ts
+var MessageRenderer_exports = {};
+__export(MessageRenderer_exports, {
+  MessageRenderer: () => MessageRenderer
+});
 var import_obsidian15, MessageRenderer;
 var init_MessageRenderer = __esm({
   "src/components/chat/MessageRenderer.ts"() {
@@ -9199,7 +9203,7 @@ var init_MessageRenderer = __esm({
             messageData.content,
             contentEl,
             "",
-            component || null
+            component || new import_obsidian15.Component()
           ).catch((error) => {
             contentEl.textContent = messageData.content;
           });
@@ -9375,8 +9379,8 @@ var init_MessageRenderer = __esm({
         }
       }
       /**
-       * Render a complete message with tool displays if present
-       */
+      * Render a complete message with tool displays if present
+      */
       async renderMessage(message, container, component) {
         if (message.toolResults && message.toolResults.length > 0) {
           await this.renderMessageWithToolDisplays(message, container, component);
@@ -9385,26 +9389,37 @@ var init_MessageRenderer = __esm({
         }
       }
       /**
-       * Render message with embedded tool displays
-       */
+      * Render message with embedded tool displays
+      */
       async renderMessageWithToolDisplays(message, container, component) {
-        var _a2;
+        var _a2, _b;
+        console.log("renderMessageWithToolDisplays called:", {
+          toolResultsCount: ((_a2 = message.toolResults) == null ? void 0 : _a2.length) || 0,
+          containerHasContent: !!container.querySelector(".message-content")
+        });
         const messageContent = container.querySelector(".message-content");
-        if (!messageContent) return;
+        if (!messageContent) {
+          console.error("No .message-content element found in container");
+          return;
+        }
         messageContent.empty();
         container.classList.add("has-rich-tools");
         const parts = this.parseMessageWithTools(message.content);
+        console.log("Parsed message parts:", parts.length, parts.map((p) => ({ type: p.type, hasCommand: !!p.command })));
         for (const part of parts) {
-          if (part.type === "text" && ((_a2 = part.content) == null ? void 0 : _a2.trim())) {
+          if (part.type === "text" && ((_b = part.content) == null ? void 0 : _b.trim())) {
+            console.log("Rendering text part, content length:", part.content.length);
             const textDiv = document.createElement("div");
             textDiv.className = "message-text-part";
-            await import_obsidian15.MarkdownRenderer.render(this.app, part.content, textDiv, "", component || null);
+            await import_obsidian15.MarkdownRenderer.render(this.app, part.content, textDiv, "", component || new import_obsidian15.Component());
             messageContent.appendChild(textDiv);
           } else if (part.type === "tool" && part.command && message.toolResults) {
+            console.log("Rendering tool part:", part.command.action);
             const toolExecutionResult = message.toolResults.find(
               (tr) => tr.command.action === part.command.action && this.compareToolParams(tr.command.parameters, part.command.parameters)
             );
             if (toolExecutionResult) {
+              console.log("Found matching tool execution result, rendering rich display...");
               const richDisplay = new ToolRichDisplay({
                 command: part.command,
                 result: toolExecutionResult.result,
@@ -9424,6 +9439,8 @@ var init_MessageRenderer = __esm({
               toolWrapper.className = "embedded-tool-display";
               toolWrapper.appendChild(richDisplay.getElement());
               messageContent.appendChild(toolWrapper);
+            } else {
+              console.warn("No matching tool execution result found for:", part.command.action);
             }
           }
         }
@@ -9435,7 +9452,7 @@ var init_MessageRenderer = __esm({
         const messageContent = container.querySelector(".message-content");
         if (!messageContent) return;
         messageContent.empty();
-        await import_obsidian15.MarkdownRenderer.render(this.app, message.content, messageContent, "", component || null);
+        await import_obsidian15.MarkdownRenderer.render(this.app, message.content, messageContent, "", component || new import_obsidian15.Component());
       }
       /**
        * Parse message content to extract tool calls and text parts
@@ -9516,89 +9533,47 @@ ${result.error}`;
       * Get message content formatted for clipboard copy, including tool results
       */
       getMessageContentForCopy(messageData) {
-        if (!messageData.toolResults || messageData.toolResults.length === 0) {
-          return messageData.content;
+        let content = messageData.content;
+        if (messageData.toolResults && messageData.toolResults.length > 0) {
+          content += "\n\n```ai-tool-execution\n";
+          content += JSON.stringify({
+            toolResults: messageData.toolResults,
+            reasoning: messageData.reasoning,
+            taskStatus: messageData.taskStatus
+          }, null, 2);
+          content += "\n```\n";
+          messageData.toolResults.forEach((toolResult) => {
+            const toolDisplay = new ToolRichDisplay({
+              command: toolResult.command,
+              result: toolResult.result
+            });
+            content += "\n\n" + toolDisplay.toMarkdown();
+          });
         }
-        const trimmedContent = messageData.content.trim();
-        const isContentMostlyEmpty = trimmedContent === "" || trimmedContent.startsWith("*[Tool execution limit reached") || /^[\s\n]*\*.*\*[\s\n]*$/.test(trimmedContent);
-        if (isContentMostlyEmpty) {
-          let result2 = "";
-          for (const toolResult of messageData.toolResults) {
-            result2 += `
-
-**Tool Execution:** ${toolResult.command.action}
-`;
-            result2 += `**Status:** ${toolResult.result.success ? "SUCCESS" : "ERROR"}
-
-`;
-            if (toolResult.command.parameters && Object.keys(toolResult.command.parameters).length > 0) {
-              result2 += `**Parameters:**
-\`\`\`json
-${JSON.stringify(toolResult.command.parameters, null, 2)}
-\`\`\`
-
-`;
-            }
-            if (toolResult.result.success && toolResult.result.data) {
-              result2 += `**Result:**
-\`\`\`json
-${JSON.stringify(toolResult.result.data, null, 2)}
-\`\`\`
-`;
-            } else if (!toolResult.result.success && toolResult.result.error) {
-              result2 += `**Error:**
-${toolResult.result.error}
-`;
-            }
-          }
-          if (trimmedContent && !trimmedContent.startsWith("*[Tool execution limit reached")) {
-            result2 = trimmedContent + result2;
-          }
-          return result2.trim();
-        }
-        const parts = this.parseMessageWithTools(messageData.content);
-        let result = "";
-        for (const part of parts) {
-          if (part.type === "text") {
-            result += part.content;
-          } else if (part.type === "tool" && part.command) {
-            const toolResult = messageData.toolResults.find(
-              (tr) => {
-                var _a2, _b;
-                return tr.command.action === ((_a2 = part.command) == null ? void 0 : _a2.action) && this.compareToolParams(tr.command.parameters, (_b = part.command) == null ? void 0 : _b.parameters);
-              }
-            );
-            if (toolResult) {
-              result += `
-
-**Tool Execution:** ${part.command.action}
-`;
-              result += `**Status:** ${toolResult.result.success ? "SUCCESS" : "ERROR"}
-
-`;
-              if (part.command.parameters && Object.keys(part.command.parameters).length > 0) {
-                result += `**Parameters:**
-\`\`\`json
-${JSON.stringify(part.command.parameters, null, 2)}
-\`\`\`
-
-`;
-              }
-              if (toolResult.result.success) {
-                result += `**Result:**
-\`\`\`json
-${JSON.stringify(toolResult.result.data, null, 2)}
-\`\`\`
-`;
-              } else {
-                result += `**Error:**
-${toolResult.result.error}
-`;
-              }
-            }
+        return content;
+      }
+      /**
+      * Parse tool data from saved content that contains ai-tool-execution blocks
+      */
+      parseToolDataFromContent(content) {
+        const toolDataRegex = /```ai-tool-execution\n([\s\S]*?)\n```/g;
+        const match = toolDataRegex.exec(content);
+        if (match) {
+          try {
+            return JSON.parse(match[1]);
+          } catch (e) {
+            console.error("Failed to parse tool data:", e);
           }
         }
-        return result;
+        return null;
+      }
+      /**
+       * Remove tool data blocks from content to get clean content for display
+       */
+      cleanContentFromToolData(content) {
+        let cleanContent = content.replace(/```ai-tool-execution\n[\s\S]*?\n```\n?/g, "");
+        cleanContent = cleanContent.replace(/\n\n\*\*Tool Execution:\*\*[\s\S]*?(?=\n\n\*\*Tool Execution:\*\*|\n\n[^*]|$)/g, "");
+        return cleanContent.trim();
       }
     };
   }
@@ -11659,6 +11634,10 @@ async function createMessageElement(app, role, content, chatHistoryManager, plug
       }, parentComponent);
     }
     if (messageData && messageData.toolResults && messageData.toolResults.length > 0) {
+      contentEl = messageEl.querySelector(".message-content");
+      if (!contentEl) {
+        contentEl = messageContainer.createDiv("message-content");
+      }
       await messageRenderer.renderMessage({
         ...messageData,
         role: "assistant",
@@ -11842,6 +11821,7 @@ init_eventHandlers();
 init_chatPersistence();
 
 // src/components/chat/chatHistoryUtils.ts
+init_MessageRenderer();
 async function renderChatHistory({
   messagesContainer,
   loadedHistory,
@@ -11851,19 +11831,33 @@ async function renderChatHistory({
   scrollToBottom = true
 }) {
   messagesContainer.empty();
+  const renderer = new MessageRenderer(plugin.app);
   for (const msg of loadedHistory) {
     if (msg.sender === "user" || msg.sender === "assistant") {
+      const toolData = renderer.parseToolDataFromContent(msg.content);
+      let messageData = msg;
+      let cleanContent = msg.content;
+      if (toolData) {
+        messageData = {
+          ...msg,
+          toolResults: toolData.toolResults,
+          reasoning: toolData.reasoning,
+          taskStatus: toolData.taskStatus
+        };
+        cleanContent = renderer.cleanContentFromToolData(msg.content);
+        messageData.content = cleanContent;
+      }
       const messageEl = await createMessageElement(
         plugin.app,
         msg.sender,
-        msg.content,
+        cleanContent,
         chatHistoryManager,
         plugin,
         regenerateResponse,
         plugin,
         // parentComponent
-        msg
-        // Pass full message object for enhanced data (including tool results)
+        messageData
+        // Pass enhanced message object with tool results
       );
       messageEl.dataset.timestamp = msg.timestamp;
       messagesContainer.appendChild(messageEl);
@@ -14249,9 +14243,21 @@ var _MyPlugin = class _MyPlugin extends import_obsidian31.Plugin {
     }
     const chatView = leaves[0].view;
     chatView.clearMessages();
+    const { MessageRenderer: MessageRenderer2 } = (init_MessageRenderer(), __toCommonJS(MessageRenderer_exports));
+    const messageRenderer = new MessageRenderer2(this.app);
     for (const msg of messages) {
       if (msg.role === "user" || msg.role === "assistant") {
-        await chatView["addMessage"](msg.role, msg.content);
+        const toolData = messageRenderer.parseToolDataFromContent(msg.content);
+        if (toolData) {
+          const cleanContent = messageRenderer.cleanContentFromToolData(msg.content);
+          await chatView["addMessage"](msg.role, cleanContent, false, {
+            toolResults: toolData.toolResults,
+            reasoning: toolData.reasoning,
+            taskStatus: toolData.taskStatus
+          });
+        } else {
+          await chatView["addMessage"](msg.role, msg.content);
+        }
       }
     }
     chatView.scrollMessagesToBottom();

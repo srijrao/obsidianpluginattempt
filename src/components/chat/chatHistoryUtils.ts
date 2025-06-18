@@ -1,6 +1,7 @@
 // Handles chat history rendering and persistence
 // import { ChatMessage } from '../../types'; // Remove this line, not exported
 import { createMessageElement } from './Message';
+import { MessageRenderer } from './MessageRenderer';
 
 export async function renderChatHistory({
     messagesContainer,
@@ -17,17 +18,38 @@ export async function renderChatHistory({
     regenerateResponse: (el: HTMLElement) => void,
     scrollToBottom?: boolean
 }) {    messagesContainer.empty();
+    const renderer = new MessageRenderer(plugin.app);
+    
     for (const msg of loadedHistory) {
         if (msg.sender === 'user' || msg.sender === 'assistant') {
+            // Try to parse embedded tool data from the message content
+            const toolData = renderer.parseToolDataFromContent(msg.content);
+            
+            let messageData = msg;
+            let cleanContent = msg.content;
+            
+            if (toolData) {
+                // If we found tool data, enhance the message and clean the content
+                messageData = { 
+                    ...msg, 
+                    toolResults: toolData.toolResults,
+                    reasoning: toolData.reasoning,
+                    taskStatus: toolData.taskStatus
+                };
+                // Remove the tool data blocks from content for clean display
+                cleanContent = renderer.cleanContentFromToolData(msg.content);
+                messageData.content = cleanContent;
+            }
+            
             const messageEl = await createMessageElement(
                 plugin.app,
                 msg.sender as 'user' | 'assistant',
-                msg.content,
+                cleanContent,
                 chatHistoryManager,
                 plugin,
                 regenerateResponse,
                 plugin, // parentComponent
-                msg // Pass full message object for enhanced data (including tool results)
+                messageData // Pass enhanced message object with tool results
             );
             messageEl.dataset.timestamp = msg.timestamp;
             messagesContainer.appendChild(messageEl);

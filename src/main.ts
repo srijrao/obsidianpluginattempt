@@ -102,8 +102,7 @@ export default class MyPlugin extends Plugin {
     /**
      * Helper to activate the chat view and load messages into it.
      * @param messages An array of messages to load.
-     */
-    private async activateChatViewAndLoadMessages(messages: Message[]) {
+     */    private async activateChatViewAndLoadMessages(messages: Message[]) {
         await this.activateView(VIEW_TYPE_CHAT);
         const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_CHAT);
         if (!leaves.length) {
@@ -112,9 +111,28 @@ export default class MyPlugin extends Plugin {
         }
         const chatView = leaves[0].view as ChatView;
         chatView.clearMessages();
-        for (const msg of messages) {
+        
+        // Import MessageRenderer to parse embedded tool data
+        const { MessageRenderer } = require('./components/chat/MessageRenderer');
+        const messageRenderer = new MessageRenderer(this.app);        for (const msg of messages) {
             if (msg.role === 'user' || msg.role === 'assistant') {
-                await chatView["addMessage"](msg.role, msg.content);
+                // Parse embedded tool data from content
+                const toolData = messageRenderer.parseToolDataFromContent(msg.content);
+                
+                if (toolData) {
+                    // Clean the content by removing the tool data blocks
+                    const cleanContent = messageRenderer.cleanContentFromToolData(msg.content);
+                    
+                    // Add message with enhanced data
+                    await chatView["addMessage"](msg.role, cleanContent, false, {
+                        toolResults: toolData.toolResults,
+                        reasoning: toolData.reasoning,
+                        taskStatus: toolData.taskStatus
+                    });
+                } else {
+                    // Regular message without tool data
+                    await chatView["addMessage"](msg.role, msg.content);
+                }
             }
         }
         chatView.scrollMessagesToBottom();

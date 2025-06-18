@@ -179,14 +179,11 @@ export async function createMessageElement(
 ): Promise<HTMLElement> {
     const messageEl = document.createElement('div');
     messageEl.addClass('ai-chat-message', role);
-    const messageContainer = messageEl.createDiv('message-container');
-
-    // Store enhanced message data
+    const messageContainer = messageEl.createDiv('message-container');    // Store enhanced message data
     messageEl.dataset.rawContent = content;
-    messageEl.dataset.timestamp = new Date().toISOString();
-    if (messageData) {
+    messageEl.dataset.timestamp = new Date().toISOString();    if (messageData) {
         messageEl.dataset.messageData = JSON.stringify(messageData);
-    }    // Use MessageRenderer for reasoning/task status and tool displays
+    }// Use MessageRenderer for reasoning/task status and tool displays
     const messageRenderer = new MessageRenderer(app);
     let contentEl: HTMLElement | null = null;
     
@@ -197,10 +194,14 @@ export async function createMessageElement(
                 role: 'assistant',
                 content
             }, parentComponent);
-        }
-        
-        // If the message has tool results, use the new rendering method
+        }        // If the message has tool results, use the new rendering method
         if (messageData && messageData.toolResults && messageData.toolResults.length > 0) {
+            // Ensure .message-content element exists before rendering
+            contentEl = messageEl.querySelector('.message-content') as HTMLElement;
+            if (!contentEl) {
+                contentEl = messageContainer.createDiv('message-content');
+            }
+            
             await messageRenderer.renderMessage({
                 ...messageData,
                 role: 'assistant',

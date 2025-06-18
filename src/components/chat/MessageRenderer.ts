@@ -1,5 +1,5 @@
 import { MarkdownRenderer, App, Component } from 'obsidian';
-import { Message, TaskStatus, ToolCommand, ToolResult } from '../../types';
+import { Message, TaskStatus, ToolCommand, ToolResult, ToolExecutionResult } from '../../types';
 import { ToolRichDisplay } from './ToolRichDisplay';
 
 /**
@@ -36,13 +36,12 @@ export class MessageRenderer {
         // Update main content
         const contentEl = container.querySelector('.message-content') as HTMLElement;
         if (contentEl) {
-            contentEl.empty();
-            MarkdownRenderer.render(
+            contentEl.empty();            MarkdownRenderer.render(
                 this.app,
                 messageData.content,
                 contentEl,
                 '',
-                component || null as any
+                component || new Component()
             ).catch((error) => {
                 contentEl.textContent = messageData.content;
             });
@@ -210,9 +209,7 @@ export class MessageRenderer {
             case 'waiting_for_user': return '⏳';
             default: return '❓';
         }
-    }
-
-    /**
+    }    /**
      * Render a complete message with tool displays if present
      */
     async renderMessage(message: Message, container: HTMLElement, component?: Component): Promise<void> {
@@ -223,14 +220,20 @@ export class MessageRenderer {
             // Regular message rendering
             await this.renderRegularMessage(message, container, component);
         }
-    }
-
-    /**
+    }/**
      * Render message with embedded tool displays
      */
     private async renderMessageWithToolDisplays(message: Message, container: HTMLElement, component?: Component): Promise<void> {
+        console.log('renderMessageWithToolDisplays called:', {
+            toolResultsCount: message.toolResults?.length || 0,
+            containerHasContent: !!container.querySelector('.message-content')
+        });
+        
         const messageContent = container.querySelector('.message-content') as HTMLElement;
-        if (!messageContent) return;        // Clear existing content
+        if (!messageContent) {
+            console.error('No .message-content element found in container');
+            return;
+        }        // Clear existing content
         messageContent.empty();
         
         // Add class to indicate this message has rich tool displays
@@ -238,14 +241,17 @@ export class MessageRenderer {
 
         // Parse the message content to extract tool calls and regular content
         const parts = this.parseMessageWithTools(message.content);
+        console.log('Parsed message parts:', parts.length, parts.map(p => ({ type: p.type, hasCommand: !!p.command })));
 
         for (const part of parts) {
             if (part.type === 'text' && part.content?.trim()) {
+                console.log('Rendering text part, content length:', part.content.length);
                 // Render regular text content
                 const textDiv = document.createElement('div');
                 textDiv.className = 'message-text-part';
-                await MarkdownRenderer.render(this.app, part.content, textDiv, '', component || null as any);
+                await MarkdownRenderer.render(this.app, part.content, textDiv, '', component || new Component());
                 messageContent.appendChild(textDiv);            } else if (part.type === 'tool' && part.command && message.toolResults) {
+                console.log('Rendering tool part:', part.command.action);
                 // Find the corresponding tool result
                 const toolExecutionResult = message.toolResults.find(tr => 
                     tr.command.action === part.command!.action && 
@@ -253,6 +259,7 @@ export class MessageRenderer {
                 );
 
                 if (toolExecutionResult) {
+                    console.log('Found matching tool execution result, rendering rich display...');
                     // Create rich display for this tool
                     const richDisplay = new ToolRichDisplay({
                         command: part.command,
@@ -276,6 +283,8 @@ export class MessageRenderer {
                     toolWrapper.className = 'embedded-tool-display';
                     toolWrapper.appendChild(richDisplay.getElement());
                     messageContent.appendChild(toolWrapper);
+                } else {
+                    console.warn('No matching tool execution result found for:', part.command.action);
                 }
             }
         }
@@ -289,7 +298,7 @@ export class MessageRenderer {
         if (!messageContent) return;
 
         messageContent.empty();
-        await MarkdownRenderer.render(this.app, message.content, messageContent, '', component || null as any);
+        await MarkdownRenderer.render(this.app, message.content, messageContent, '', component || new Component());
     }
 
     /**
@@ -375,73 +384,56 @@ export class MessageRenderer {
     }    /**
      * Get message content formatted for clipboard copy, including tool results
      */    getMessageContentForCopy(messageData: Message): string {
-        if (!messageData.toolResults || messageData.toolResults.length === 0) {
-            return messageData.content;
+        let content = messageData.content;
+        
+        if (messageData.toolResults && messageData.toolResults.length > 0) {
+            // Create a custom markdown block with embedded data
+            content += '\n\n```ai-tool-execution\n';
+            content += JSON.stringify({
+                toolResults: messageData.toolResults,
+                reasoning: messageData.reasoning,
+                taskStatus: messageData.taskStatus
+            }, null, 2);
+            content += '\n```\n';
+              // Add the formatted displays using ToolRichDisplay
+            messageData.toolResults.forEach((toolResult: ToolExecutionResult) => {
+                const toolDisplay = new ToolRichDisplay({
+                    command: toolResult.command,
+                    result: toolResult.result
+                });
+                content += '\n\n' + toolDisplay.toMarkdown();
+            });
         }
 
-        // Check if content is mostly empty (just whitespace/newlines) 
-        const trimmedContent = messageData.content.trim();
-        const isContentMostlyEmpty = trimmedContent === '' || 
-            trimmedContent.startsWith('*[Tool execution limit reached') ||
-            /^[\s\n]*\*.*\*[\s\n]*$/.test(trimmedContent);
-
-        if (isContentMostlyEmpty) {
-            // Generate content directly from toolResults
-            let result = '';
-            
-            for (const toolResult of messageData.toolResults) {
-                result += `\n\n**Tool Execution:** ${toolResult.command.action}\n`;
-                result += `**Status:** ${toolResult.result.success ? 'SUCCESS' : 'ERROR'}\n\n`;
-                
-                if (toolResult.command.parameters && Object.keys(toolResult.command.parameters).length > 0) {
-                    result += `**Parameters:**\n\`\`\`json\n${JSON.stringify(toolResult.command.parameters, null, 2)}\n\`\`\`\n\n`;
-                }
-                
-                if (toolResult.result.success && toolResult.result.data) {
-                    result += `**Result:**\n\`\`\`json\n${JSON.stringify(toolResult.result.data, null, 2)}\n\`\`\`\n`;
-                } else if (!toolResult.result.success && toolResult.result.error) {
-                    result += `**Error:**\n${toolResult.result.error}\n`;
-                }
-            }
-
-            // Add any meaningful content if it exists
-            if (trimmedContent && !trimmedContent.startsWith('*[Tool execution limit reached')) {
-                result = trimmedContent + result;
-            }
-
-            return result.trim();
-        }
-
-        // Original logic for content with tool placeholders
-        const parts = this.parseMessageWithTools(messageData.content);
-        let result = '';
-
-        for (const part of parts) {
-            if (part.type === 'text') {
-                result += part.content;
-            } else if (part.type === 'tool' && part.command) {
-                // Find the matching tool result
-                const toolResult = messageData.toolResults.find(tr => 
-                    tr.command.action === part.command?.action &&
-                    this.compareToolParams(tr.command.parameters, part.command?.parameters)
-                );                
-                if (toolResult) {
-                    result += `\n\n**Tool Execution:** ${part.command.action}\n`;
-                    result += `**Status:** ${toolResult.result.success ? 'SUCCESS' : 'ERROR'}\n\n`;
-                    
-                    if (part.command.parameters && Object.keys(part.command.parameters).length > 0) {
-                        result += `**Parameters:**\n\`\`\`json\n${JSON.stringify(part.command.parameters, null, 2)}\n\`\`\`\n\n`;
-                    }
-                    
-                    if (toolResult.result.success) {
-                        result += `**Result:**\n\`\`\`json\n${JSON.stringify(toolResult.result.data, null, 2)}\n\`\`\`\n`;
-                    } else {
-                        result += `**Error:**\n${toolResult.result.error}\n`;
-                    }
-                }
+        return content;
+    }    /**
+     * Parse tool data from saved content that contains ai-tool-execution blocks
+     */
+    parseToolDataFromContent(content: string): any {
+        const toolDataRegex = /```ai-tool-execution\n([\s\S]*?)\n```/g;
+        const match = toolDataRegex.exec(content);
+        
+        if (match) {
+            try {
+                return JSON.parse(match[1]);
+            } catch (e) {
+                console.error('Failed to parse tool data:', e);
             }
         }
+        
+        return null;
+    }
 
-        return result;
+    /**
+     * Remove tool data blocks from content to get clean content for display
+     */
+    cleanContentFromToolData(content: string): string {
+        // Remove the ai-tool-execution block and tool display sections
+        let cleanContent = content.replace(/```ai-tool-execution\n[\s\S]*?\n```\n?/g, '');
+        
+        // Remove tool display sections (they start with **Tool Execution:** or similar patterns)
+        cleanContent = cleanContent.replace(/\n\n\*\*Tool Execution:\*\*[\s\S]*?(?=\n\n\*\*Tool Execution:\*\*|\n\n[^*]|$)/g, '');
+        
+        return cleanContent.trim();
     }
 }
