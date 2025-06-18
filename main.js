@@ -3881,7 +3881,7 @@ var init_promptConstants = __esm({
       }));
     };
     AGENT_SYSTEM_PROMPT_TEMPLATE = `
-You are an AI assistant in an Obsidian Vault with access to powerful tools (follows MCP standard) for vault management and interaction. Try to use tools whenever possible to perform tasks. Try to start by thinking through a plan before executing tasks. Provide explanations, summaries, or discussions naturally. Ask clarifying questions when requests are ambiguous
+You are an AI assistant in an Obsidian Vault with access to tools (follows MCP standard) for vault management and interaction. Use tools to perform tasks.
 
 Available tools:
 {{TOOL_DESCRIPTIONS}}
@@ -10836,6 +10836,14 @@ function createChatUI(app, contentEl) {
   referenceNoteIndicator.style.margin = "0.1em 0 0.2em 0";
   referenceNoteIndicator.style.display = "none";
   topButtonContainer.appendChild(referenceNoteIndicator);
+  const modelNameDisplay = document.createElement("div");
+  modelNameDisplay.className = "ai-model-name-display";
+  modelNameDisplay.style.textAlign = "center";
+  modelNameDisplay.style.opacity = "0.7";
+  modelNameDisplay.style.fontSize = "0.75em";
+  modelNameDisplay.style.margin = "0.2em 0 0.5em 0";
+  modelNameDisplay.style.fontWeight = "bold";
+  topButtonContainer.appendChild(modelNameDisplay);
   const messagesContainer = contentEl.createDiv("ai-chat-messages");
   messagesContainer.setAttribute("tabindex", "0");
   const inputContainer = contentEl.createDiv("ai-chat-input-container");
@@ -10914,7 +10922,9 @@ function createChatUI(app, contentEl) {
     agentModeButton,
     // <-- add to return object
     referenceNoteButton,
-    referenceNoteIndicator
+    referenceNoteIndicator,
+    modelNameDisplay
+    // Add to return object
   };
 }
 
@@ -11173,7 +11183,9 @@ var AgentResponseHandler = class {
     if (this.executionCount >= effectiveLimit) {
       new import_obsidian20.Notice(`Agent mode: Maximum tool calls (${effectiveLimit}) reached`);
       return {
-        processedText: text + "\n\n*[Tool execution limit reached]*",
+        processedText: text + `
+
+*${effectiveLimit} [Tool execution limit reached]*`,
         toolResults: [],
         hasTools: true
       };
@@ -12412,6 +12424,8 @@ var ChatView = class extends import_obsidian25.ItemView {
     __publicField(this, "activeStream", null);
     __publicField(this, "referenceNoteIndicator");
     // Add this property
+    __publicField(this, "modelNameDisplay");
+    // Add model name display property
     __publicField(this, "agentResponseHandler", null);
     // Helper classes for refactoring
     __publicField(this, "contextBuilder");
@@ -12447,7 +12461,9 @@ var ChatView = class extends import_obsidian25.ItemView {
     this.messagesContainer = ui.messagesContainer;
     this.inputContainer = ui.inputContainer;
     this.referenceNoteIndicator = ui.referenceNoteIndicator;
+    this.modelNameDisplay = ui.modelNameDisplay;
     this.updateReferenceNoteIndicator();
+    this.updateModelNameDisplay();
     const textarea = ui.textarea;
     const sendButton = ui.sendButton;
     const stopButton = ui.stopButton;
@@ -12642,6 +12658,7 @@ var ChatView = class extends import_obsidian25.ItemView {
     }));
     this.plugin.onSettingsChange(() => {
       this.updateReferenceNoteIndicator();
+      this.updateModelNameDisplay();
     });
   }
   async addMessage(role, content, isError = false, enhancedData) {
@@ -12673,6 +12690,19 @@ var ChatView = class extends import_obsidian25.ItemView {
   }
   updateReferenceNoteIndicator() {
     this.contextBuilder.updateReferenceNoteIndicator(this.referenceNoteIndicator);
+  }
+  updateModelNameDisplay() {
+    if (!this.modelNameDisplay) return;
+    let modelName = "Unknown Model";
+    const settings = this.plugin.settings;
+    if (settings.selectedModel && settings.availableModels) {
+      const found = settings.availableModels.find((m) => m.id === settings.selectedModel);
+      if (found) modelName = found.name;
+      else modelName = settings.selectedModel;
+    } else if (settings.selectedModel) {
+      modelName = settings.selectedModel;
+    }
+    this.modelNameDisplay.textContent = `Model: ${modelName}`;
   }
   async buildContextMessages() {
     return await this.contextBuilder.buildContextMessages();

@@ -25,6 +25,7 @@ export class ChatView extends ItemView {
     private inputContainer: HTMLElement;
     private activeStream: AbortController | null = null;
     private referenceNoteIndicator: HTMLElement; // Add this property
+    private modelNameDisplay: HTMLElement; // Add model name display property
     private agentResponseHandler: AgentResponseHandler | null = null;
     
     // Helper classes for refactoring
@@ -72,9 +73,11 @@ export class ChatView extends ItemView {
         this.messagesContainer = ui.messagesContainer;
         this.inputContainer = ui.inputContainer;
         this.referenceNoteIndicator = ui.referenceNoteIndicator;
+        this.modelNameDisplay = ui.modelNameDisplay;
         
         // Update reference note indicator
         this.updateReferenceNoteIndicator();
+        this.updateModelNameDisplay();
         const textarea = ui.textarea;
         const sendButton = ui.sendButton;
         const stopButton = ui.stopButton;
@@ -316,6 +319,7 @@ export class ChatView extends ItemView {
         // Listen for settings changes to update the indicator  
         this.plugin.onSettingsChange(() => {
             this.updateReferenceNoteIndicator();
+            this.updateModelNameDisplay();
         });
     }
 
@@ -351,6 +355,21 @@ export class ChatView extends ItemView {
 
     private updateReferenceNoteIndicator() {
         this.contextBuilder.updateReferenceNoteIndicator(this.referenceNoteIndicator);
+    }
+
+    private updateModelNameDisplay() {
+        if (!this.modelNameDisplay) return;
+        // Try to get the model name from plugin settings
+        let modelName = 'Unknown Model';
+        const settings = this.plugin.settings;
+        if (settings.selectedModel && settings.availableModels) {
+            const found = settings.availableModels.find(m => m.id === settings.selectedModel);
+            if (found) modelName = found.name;
+            else modelName = settings.selectedModel;
+        } else if (settings.selectedModel) {
+            modelName = settings.selectedModel;
+        }
+        this.modelNameDisplay.textContent = `Model: ${modelName}`;
     }
 
     private async buildContextMessages(): Promise<Message[]> {

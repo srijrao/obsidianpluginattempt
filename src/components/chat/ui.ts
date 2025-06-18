@@ -17,6 +17,7 @@ export interface ChatUIElements {
     agentModeButton: HTMLButtonElement; // <-- add to interface
     referenceNoteButton: HTMLButtonElement;
     referenceNoteIndicator: HTMLElement;
+    modelNameDisplay: HTMLElement; // Add model name display
 }
 
 export function createChatUI(app: App, contentEl: HTMLElement): ChatUIElements {
@@ -59,7 +60,7 @@ export function createChatUI(app: App, contentEl: HTMLElement): ChatUIElements {
     referenceNoteButton.style.marginBottom = '0.2em';
     referenceNoteButton.style.opacity = '0.7';
     topButtonContainer.appendChild(referenceNoteButton);
-    // --- REFERENCE NOTE INDICATOR (now under the button) ---
+    // --- REFERENCE NOTE INDICATOR ---
     const referenceNoteIndicator = document.createElement('div');
     referenceNoteIndicator.className = 'ai-reference-note-indicator';
     referenceNoteIndicator.style.textAlign = 'center';
@@ -68,6 +69,16 @@ export function createChatUI(app: App, contentEl: HTMLElement): ChatUIElements {
     referenceNoteIndicator.style.margin = '0.1em 0 0.2em 0';
     referenceNoteIndicator.style.display = 'none';
     topButtonContainer.appendChild(referenceNoteIndicator);
+
+    // --- MODEL NAME DISPLAY (always visible under buttons) ---
+    const modelNameDisplay = document.createElement('div');
+    modelNameDisplay.className = 'ai-model-name-display';
+    modelNameDisplay.style.textAlign = 'center';
+    modelNameDisplay.style.opacity = '0.7';
+    modelNameDisplay.style.fontSize = '0.75em';
+    modelNameDisplay.style.margin = '0.2em 0 0.5em 0';
+    modelNameDisplay.style.fontWeight = 'bold';
+    topButtonContainer.appendChild(modelNameDisplay);
 
     // Messages container - add tabindex to make it focusable for keyboard events
     const messagesContainer = contentEl.createDiv('ai-chat-messages');
@@ -166,5 +177,6 @@ export function createChatUI(app: App, contentEl: HTMLElement): ChatUIElements {
         agentModeButton, // <-- add to return object
         referenceNoteButton,
         referenceNoteIndicator,
+        modelNameDisplay, // Add to return object
     };
 }
