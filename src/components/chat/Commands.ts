@@ -4,6 +4,7 @@ import { createProvider, createProviderFromUnifiedModel } from '../../../provide
 import MyPlugin from '../../main';
 import { BotMessage } from './BotMessage';
 import { UserMessage } from './UserMessage';
+import { MessageRenderer } from './MessageRenderer';
 
 export interface IChatCommands {
     sendMessage(content: string): Promise<void>;
@@ -128,18 +129,42 @@ export class Commands extends Component implements IChatCommands {
      */
     clearChat(): void {
         this.messagesContainer.empty();
-    }
-
-    /**
+    }    /**
      * Copy all messages to clipboard
      */
     async copyAllMessages(): Promise<void> {
         const messages = this.messagesContainer.querySelectorAll('.ai-chat-message');
         let chatContent = '';
-        
-        messages.forEach((el, index) => {
-            const content = el.querySelector('.message-content')?.textContent || '';
-            chatContent += content;
+          messages.forEach((el, index) => {
+            const htmlElement = el as HTMLElement;
+            
+            // Skip tool display messages as they're handled inline now
+            if (htmlElement.classList.contains('tool-display-message')) {
+                return;
+            }
+            
+            // Get the message data from the element's dataset
+            let messageData = null;
+            const messageDataStr = htmlElement.dataset.messageData;
+            if (messageDataStr) {
+                try {
+                    messageData = JSON.parse(messageDataStr);
+                } catch (e) {
+                    // Fallback to textContent if parsing fails
+                }
+            }
+            
+            if (messageData && messageData.toolResults && messageData.toolResults.length > 0) {
+                // Use MessageRenderer to get properly formatted content with tool results
+                const renderer = new MessageRenderer(this.plugin.app);
+                chatContent += renderer.getMessageContentForCopy(messageData);
+            } else {
+                // For regular messages, use raw content if available, otherwise text content
+                const rawContent = htmlElement.dataset.rawContent;
+                const content = rawContent !== undefined ? rawContent : el.querySelector('.message-content')?.textContent || '';
+                chatContent += content;
+            }
+            
             if (index < messages.length - 1) {
                 chatContent += '\n\n' + this.plugin.settings.chatSeparator + '\n\n';
             }

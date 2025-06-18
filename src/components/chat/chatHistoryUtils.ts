@@ -16,8 +16,7 @@ export async function renderChatHistory({
     plugin: any,
     regenerateResponse: (el: HTMLElement) => void,
     scrollToBottom?: boolean
-}) {
-    messagesContainer.empty();
+}) {    messagesContainer.empty();
     for (const msg of loadedHistory) {
         if (msg.sender === 'user' || msg.sender === 'assistant') {
             const messageEl = await createMessageElement(
@@ -28,7 +27,7 @@ export async function renderChatHistory({
                 plugin,
                 regenerateResponse,
                 plugin, // parentComponent
-                msg // Pass full message object for enhanced data
+                msg // Pass full message object for enhanced data (including tool results)
             );
             messageEl.dataset.timestamp = msg.timestamp;
             messagesContainer.appendChild(messageEl);

@@ -161,7 +161,7 @@ export abstract class Message extends Component implements IMessage {
  * Create a message element for the chat with enhanced reasoning and status support.
  * Uses MessageRenderer for all reasoning/task status rendering.
  */
-export function createMessageElement(
+export async function createMessageElement(
     app: App,
     role: 'user' | 'assistant',
     content: string,
@@ -170,7 +170,7 @@ export function createMessageElement(
     regenerateCallback: (messageEl: HTMLElement) => void,
     parentComponent: Component,
     messageData?: MessageType
-): HTMLElement {
+): Promise<HTMLElement> {
     const messageEl = document.createElement('div');
     messageEl.addClass('ai-chat-message', role);
     const messageContainer = messageEl.createDiv('message-container');
@@ -180,25 +180,49 @@ export function createMessageElement(
     messageEl.dataset.timestamp = new Date().toISOString();
     if (messageData) {
         messageEl.dataset.messageData = JSON.stringify(messageData);
-    }
-
-    // Use MessageRenderer for reasoning/task status
+    }    // Use MessageRenderer for reasoning/task status and tool displays
     const messageRenderer = new MessageRenderer(app);
-    if (role === 'assistant' && (messageData?.reasoning || messageData?.taskStatus)) {
-        messageRenderer.updateMessageWithEnhancedData(messageEl, {
-            ...messageData,
-            role: 'assistant',
-            content
-        }, parentComponent);
+    let contentEl: HTMLElement | null = null;
+    
+    if (role === 'assistant') {
+        if (messageData && (messageData.reasoning || messageData.taskStatus)) {
+            messageRenderer.updateMessageWithEnhancedData(messageEl, {
+                ...messageData,
+                role: 'assistant',
+                content
+            }, parentComponent);
+        }
+        
+        // If the message has tool results, use the new rendering method
+        if (messageData && messageData.toolResults && messageData.toolResults.length > 0) {
+            await messageRenderer.renderMessage({
+                ...messageData,
+                role: 'assistant',
+                content
+            }, messageEl, parentComponent);
+        } else if (!messageData?.reasoning && !messageData?.taskStatus) {
+            // Only render regular markdown if no enhanced data is present
+            contentEl = messageEl.querySelector('.message-content') as HTMLElement;
+            if (!contentEl) {
+                contentEl = messageContainer.createDiv('message-content');
+            }
+            await MarkdownRenderer.render(app, content, contentEl, '', parentComponent);
+        }
+    } else {
+        // User messages are always rendered normally
+        contentEl = messageEl.querySelector('.message-content') as HTMLElement;
+        if (!contentEl) {
+            contentEl = messageContainer.createDiv('message-content');
+        }
+        await MarkdownRenderer.render(app, content, contentEl, '', parentComponent);
     }
 
-    // Create main content element if not already present
-    let contentEl = messageEl.querySelector('.message-content') as HTMLElement;
+    // Ensure contentEl is available for actions
     if (!contentEl) {
-        contentEl = messageContainer.createDiv('message-content');
-        MarkdownRenderer.render(app, content, contentEl, '', parentComponent).catch((error) => {
-            contentEl.textContent = content;
-        });
+        contentEl = messageEl.querySelector('.message-content') as HTMLElement;
+        if (!contentEl) {
+            contentEl = messageContainer.createDiv('message-content');
+        }
     }
 
     // Create actions container

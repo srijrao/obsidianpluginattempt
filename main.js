@@ -2815,13 +2815,14 @@ var init_FileReadTool = __esm({
               error: `File too large (${file.stat.size} bytes, max ${maxSize} bytes): ${filePath}`
             };
           }
-          const content = await readFile(this.app, filePath);
+          let content = await readFile(this.app, filePath);
           if (content.startsWith("File not found") || content.startsWith("Failed to read")) {
             return {
               success: false,
               error: content
             };
           }
+          content = content.split("\n").map((line) => line.replace(/\s+$/g, "")).join("\n").replace(/\n{3,}/g, "\n\n").replace(/ {3,}/g, "  ").trim();
           return {
             success: true,
             data: {
@@ -8902,6 +8903,669 @@ var init_Buttons = __esm({
   }
 });
 
+// src/components/chat/ToolRichDisplay.ts
+var import_obsidian15, ToolRichDisplay;
+var init_ToolRichDisplay = __esm({
+  "src/components/chat/ToolRichDisplay.ts"() {
+    import_obsidian15 = require("obsidian");
+    ToolRichDisplay = class extends import_obsidian15.Component {
+      constructor(options) {
+        super();
+        __publicField(this, "element");
+        __publicField(this, "options");
+        this.options = options;
+        this.element = this.createToolDisplay();
+      }
+      getElement() {
+        return this.element;
+      }
+      createToolDisplay() {
+        const container = document.createElement("div");
+        container.className = "tool-rich-display";
+        const iconDiv = document.createElement("div");
+        iconDiv.className = "tool-rich-icon";
+        iconDiv.innerHTML = this.getToolIcon();
+        container.appendChild(iconDiv);
+        const infoDiv = document.createElement("div");
+        infoDiv.className = "tool-rich-info";
+        const titleDiv = document.createElement("div");
+        titleDiv.className = "tool-rich-title";
+        titleDiv.innerText = this.getToolDisplayName();
+        const statusSpan = document.createElement("span");
+        statusSpan.className = `tool-rich-status ${this.options.result.success ? "success" : "error"}`;
+        statusSpan.innerText = this.options.result.success ? "Success" : "Error";
+        titleDiv.appendChild(statusSpan);
+        infoDiv.appendChild(titleDiv);
+        if (this.options.command.parameters && Object.keys(this.options.command.parameters).length > 0) {
+          const paramsDiv = document.createElement("div");
+          paramsDiv.innerHTML = `<strong>Parameters:</strong> ${this.formatParameters()}`;
+          infoDiv.appendChild(paramsDiv);
+        }
+        const resultDiv = document.createElement("div");
+        resultDiv.innerHTML = `<strong>Result:</strong> ${this.getResultSummary()}`;
+        infoDiv.appendChild(resultDiv);
+        const details = this.getDetailedResult();
+        if (details) {
+          const toggle = document.createElement("div");
+          toggle.className = "tool-rich-details-toggle";
+          toggle.innerText = "Show details \u25BC";
+          const detailsDiv = document.createElement("div");
+          detailsDiv.className = "tool-rich-details";
+          detailsDiv.innerHTML = `<pre>${details}</pre>`;
+          toggle.onclick = () => {
+            const isExpanded = detailsDiv.classList.contains("expanded");
+            if (isExpanded) {
+              detailsDiv.classList.remove("expanded");
+              toggle.innerText = "Show details \u25BC";
+            } else {
+              detailsDiv.classList.add("expanded");
+              toggle.innerText = "Hide details \u25B2";
+            }
+          };
+          infoDiv.appendChild(toggle);
+          infoDiv.appendChild(detailsDiv);
+        }
+        const actionsDiv = document.createElement("div");
+        actionsDiv.className = "tool-rich-actions";
+        if (this.options.onRerun) {
+          const rerunBtn = document.createElement("button");
+          rerunBtn.className = "tool-rich-action-btn";
+          rerunBtn.innerText = "Re-run";
+          rerunBtn.onclick = this.options.onRerun;
+          actionsDiv.appendChild(rerunBtn);
+        }
+        if (this.options.onCopy) {
+          const copyBtn = document.createElement("button");
+          copyBtn.className = "tool-rich-action-btn";
+          copyBtn.innerText = "Copy";
+          copyBtn.onclick = this.options.onCopy;
+          actionsDiv.appendChild(copyBtn);
+        }
+        const copyResultBtn = document.createElement("button");
+        copyResultBtn.className = "tool-rich-action-btn";
+        copyResultBtn.innerText = "Copy Result";
+        copyResultBtn.onclick = async () => {
+          const resultText = this.options.result.success ? JSON.stringify(this.options.result.data, null, 2) : this.options.result.error || "Unknown error";
+          try {
+            await navigator.clipboard.writeText(resultText);
+            copyResultBtn.innerText = "Copied!";
+            setTimeout(() => {
+              copyResultBtn.innerText = "Copy Result";
+            }, 2e3);
+          } catch (error) {
+            console.error("Failed to copy to clipboard:", error);
+          }
+        };
+        actionsDiv.appendChild(copyResultBtn);
+        infoDiv.appendChild(actionsDiv);
+        container.appendChild(infoDiv);
+        return container;
+      }
+      getToolIcon() {
+        const iconMap = {
+          "file_search": "\u{1F50D}",
+          "file_read": "\u{1F4D6}",
+          "file_write": "\u270D\uFE0F",
+          "file_diff": "\u{1F504}",
+          "file_move": "\u{1F4C1}",
+          "file_rename": "\u{1F3F7}\uFE0F",
+          "file_list": "\u{1F4CB}",
+          "thought": "\u{1F9E0}"
+        };
+        return iconMap[this.options.command.action] || "\u{1F527}";
+      }
+      getToolDisplayName() {
+        const nameMap = {
+          "file_search": "File Search",
+          "file_read": "File Read",
+          "file_write": "File Write",
+          "file_diff": "File Diff",
+          "file_move": "File Move",
+          "file_rename": "File Rename",
+          "file_list": "File List",
+          "thought": "Thought Process"
+        };
+        return nameMap[this.options.command.action] || this.options.command.action;
+      }
+      formatParameters() {
+        const params = this.options.command.parameters;
+        const formatted = Object.entries(params).map(([key, value]) => `${key}: ${typeof value === "string" && value.length > 50 ? value.substring(0, 50) + "..." : JSON.stringify(value)}`).join(", ");
+        return `<code>${formatted}</code>`;
+      }
+      getResultSummary() {
+        if (!this.options.result.success) {
+          return `<span class="tool-error">${this.options.result.error || "Unknown error"}</span>`;
+        }
+        const data = this.options.result.data;
+        if (this.options.command.action === "file_write" && data) {
+          const action = data.action || "modified";
+          const filePath = data.filePath || "unknown file";
+          const size = data.size ? ` (${data.size} bytes)` : "";
+          if (action === "created") {
+            return `<span class="tool-success">\u{1F4DD} Created file: <strong>${filePath}</strong>${size}</span>`;
+          } else {
+            return `<span class="tool-success">\u{1F4BE} Saved file: <strong>${filePath}</strong>${size}</span>`;
+          }
+        }
+        if (this.options.command.action === "file_read" && data) {
+          const filePath = data.filePath || this.options.command.parameters.path;
+          const size = data.content ? ` (${data.content.length} chars)` : "";
+          return `<span class="tool-success">\u{1F4D6} Read file: <strong>${filePath}</strong>${size}</span>`;
+        }
+        if (this.options.command.action === "file_search" && data) {
+          const count = data.count || (Array.isArray(data.files) ? data.files.length : 0);
+          return `<span class="tool-success">\u{1F50D} Found ${count} file${count !== 1 ? "s" : ""}</span>`;
+        }
+        if (this.options.command.action === "file_list" && data) {
+          const count = data.count || (Array.isArray(data.files) ? data.files.length : 0);
+          const path = data.path || this.options.command.parameters.path;
+          return `<span class="tool-success">\u{1F4CB} Listed ${count} file${count !== 1 ? "s" : ""} in <strong>${path}</strong></span>`;
+        }
+        if (this.options.command.action === "file_move" && data) {
+          const from = this.options.command.parameters.sourcePath;
+          const to = this.options.command.parameters.destinationPath;
+          return `<span class="tool-success">\u{1F4C1} Moved <strong>${from}</strong> \u2192 <strong>${to}</strong></span>`;
+        }
+        if (this.options.command.action === "file_rename" && data) {
+          const oldName = this.options.command.parameters.path;
+          const newName = this.options.command.parameters.newName;
+          return `<span class="tool-success">\u{1F3F7}\uFE0F Renamed <strong>${oldName}</strong> \u2192 <strong>${newName}</strong></span>`;
+        }
+        if (this.options.command.action === "thought" && data) {
+          const thought = data.thought || data.reasoning || "";
+          const truncated = thought.length > 100 ? thought.substring(0, 100) + "..." : thought;
+          return `<span class="tool-success">\u{1F9E0} ${truncated}</span>`;
+        }
+        if (typeof data === "string") {
+          return data.length > 100 ? data.substring(0, 100) + "..." : data;
+        }
+        if (Array.isArray(data)) {
+          return `${data.length} items returned`;
+        }
+        if (typeof data === "object" && data !== null) {
+          const keys = Object.keys(data);
+          return `Object with ${keys.length} properties`;
+        }
+        return "Success";
+      }
+      getDetailedResult() {
+        if (!this.options.result.success) {
+          return this.options.result.error || "Unknown error occurred";
+        }
+        if (this.options.result.data) {
+          return typeof this.options.result.data === "string" ? this.options.result.data : JSON.stringify(this.options.result.data, null, 2);
+        }
+        return null;
+      }
+      /**
+       * Update the display with new tool result
+       */
+      updateResult(result) {
+        this.options.result = result;
+        const newElement = this.createToolDisplay();
+        this.element.replaceWith(newElement);
+        this.element = newElement;
+      }
+      /**
+      * Convert the tool display to markdown format for saving to notes
+      */
+      toMarkdown() {
+        const { command, result } = this.options;
+        const status = result.success ? "\u2705" : "\u274C";
+        const toolName = this.getToolDisplayName();
+        const icon = this.getToolIcon();
+        let markdown = `
+### ${icon} ${toolName} ${status}
+
+`;
+        if (command.parameters && Object.keys(command.parameters).length > 0) {
+          markdown += `**Parameters:**
+`;
+          Object.entries(command.parameters).forEach(([key, value]) => {
+            const displayValue = typeof value === "string" && value.length > 100 ? value.substring(0, 100) + "..." : JSON.stringify(value);
+            markdown += `- **${key}:** \`${displayValue}\`
+`;
+          });
+          markdown += "\n";
+        }
+        if (result.success) {
+          markdown += `**Result:** ${this.getResultSummary()}
+
+`;
+          const details = this.getDetailedResult();
+          if (details && details !== this.getResultSummary()) {
+            if (details.length <= 200) {
+              markdown += `**Details:** \`${details}\`
+
+`;
+            } else {
+              markdown += `<details>
+<summary>Show Details</summary>
+
+\`\`\`
+${details}
+\`\`\`
+
+</details>
+
+`;
+            }
+          }
+        } else {
+          markdown += `**Error:** ${result.error}
+
+`;
+        }
+        return markdown;
+      }
+    };
+  }
+});
+
+// src/components/chat/MessageRenderer.ts
+var import_obsidian16, MessageRenderer;
+var init_MessageRenderer = __esm({
+  "src/components/chat/MessageRenderer.ts"() {
+    import_obsidian16 = require("obsidian");
+    init_ToolRichDisplay();
+    MessageRenderer = class {
+      constructor(app) {
+        this.app = app;
+      }
+      /**
+       * Update message container with enhanced reasoning and task status data
+       */
+      updateMessageWithEnhancedData(container, messageData, component) {
+        const existingReasoning = container.querySelector(".reasoning-container");
+        const existingTaskStatus = container.querySelector(".task-status-container");
+        if (existingReasoning) existingReasoning.remove();
+        if (existingTaskStatus) existingTaskStatus.remove();
+        const messageContainer = container.querySelector(".message-container");
+        if (!messageContainer) return;
+        if (messageData.reasoning) {
+          const reasoningEl = this.createReasoningSection(messageData.reasoning);
+          messageContainer.insertBefore(reasoningEl, messageContainer.firstChild);
+        }
+        if (messageData.taskStatus) {
+          const taskStatusEl = this.createTaskStatusSection(messageData.taskStatus);
+          messageContainer.insertBefore(taskStatusEl, messageContainer.firstChild);
+        }
+        const contentEl = container.querySelector(".message-content");
+        if (contentEl) {
+          contentEl.empty();
+          import_obsidian16.MarkdownRenderer.render(
+            this.app,
+            messageData.content,
+            contentEl,
+            "",
+            component || null
+          ).catch((error) => {
+            contentEl.textContent = messageData.content;
+          });
+        }
+      }
+      /**
+       * Create reasoning section element
+       */
+      createReasoningSection(reasoning) {
+        var _a2;
+        const reasoningContainer = document.createElement("div");
+        reasoningContainer.className = "reasoning-container";
+        const header = document.createElement("div");
+        header.className = "reasoning-summary";
+        const toggle = document.createElement("span");
+        toggle.className = "reasoning-toggle";
+        toggle.textContent = reasoning.isCollapsed ? "\u25B6" : "\u25BC";
+        const headerText = document.createElement("span");
+        const typeLabel = reasoning.type === "structured" ? "STRUCTURED REASONING" : "REASONING";
+        const stepCount = ((_a2 = reasoning.steps) == null ? void 0 : _a2.length) || 0;
+        headerText.innerHTML = `<strong>\u{1F9E0} ${typeLabel}</strong>`;
+        if (stepCount > 0) {
+          headerText.innerHTML += ` (${stepCount} steps)`;
+        }
+        headerText.innerHTML += ` - <em>Click to ${reasoning.isCollapsed ? "expand" : "collapse"}</em>`;
+        header.appendChild(toggle);
+        header.appendChild(headerText);
+        const details = document.createElement("div");
+        details.className = "reasoning-details";
+        if (!reasoning.isCollapsed) {
+          details.classList.add("expanded");
+        }
+        if (reasoning.type === "structured" && reasoning.steps) {
+          if (reasoning.problem) {
+            const problemDiv = document.createElement("div");
+            problemDiv.className = "reasoning-problem";
+            problemDiv.innerHTML = `<strong>Problem:</strong> ${reasoning.problem}`;
+            details.appendChild(problemDiv);
+          }
+          reasoning.steps.forEach((step) => {
+            const stepDiv = document.createElement("div");
+            stepDiv.className = `reasoning-step ${step.category}`;
+            stepDiv.innerHTML = `
+                    <div class="step-header">
+                        ${this.getStepEmoji(step.category)} Step ${step.step}: ${step.title.toUpperCase()}
+                    </div>
+                    <div class="step-confidence">
+                        Confidence: ${step.confidence}/10
+                    </div>
+                    <div class="step-content">
+                        ${step.content}
+                    </div>
+                `;
+            details.appendChild(stepDiv);
+          });
+        } else if (reasoning.summary) {
+          const summaryDiv = document.createElement("div");
+          summaryDiv.className = "reasoning-completion";
+          summaryDiv.textContent = reasoning.summary;
+          details.appendChild(summaryDiv);
+        }
+        header.addEventListener("click", () => {
+          const isExpanded = details.classList.contains("expanded");
+          if (isExpanded) {
+            details.classList.remove("expanded");
+            toggle.textContent = "\u25B6";
+            reasoning.isCollapsed = true;
+          } else {
+            details.classList.add("expanded");
+            toggle.textContent = "\u25BC";
+            reasoning.isCollapsed = false;
+          }
+        });
+        reasoningContainer.appendChild(header);
+        reasoningContainer.appendChild(details);
+        return reasoningContainer;
+      }
+      /**
+       * Create task status section element
+       */
+      createTaskStatusSection(taskStatus) {
+        const statusContainer = document.createElement("div");
+        statusContainer.className = "task-status-container";
+        statusContainer.dataset.taskStatus = taskStatus.status;
+        const statusText = this.getTaskStatusText(taskStatus);
+        const statusIcon = this.getTaskStatusIcon(taskStatus.status);
+        statusContainer.innerHTML = `
+            <div class="task-status-header">
+                ${statusIcon} <strong>${statusText}</strong>
+            </div>
+        `;
+        if (taskStatus.toolExecutionCount > 0) {
+          const toolInfo = document.createElement("div");
+          toolInfo.className = "task-tool-info";
+          toolInfo.textContent = `Tools used: ${taskStatus.toolExecutionCount}/${taskStatus.maxToolExecutions}`;
+          statusContainer.appendChild(toolInfo);
+        }
+        return statusContainer;
+      }
+      /**
+       * Get emoji for reasoning step categories
+       */
+      getStepEmoji(category) {
+        switch (category) {
+          case "analysis":
+            return "\u{1F50D}";
+          case "planning":
+            return "\u{1F4CB}";
+          case "problem-solving":
+            return "\u{1F9E9}";
+          case "reflection":
+            return "\u{1F914}";
+          case "conclusion":
+            return "\u2705";
+          case "reasoning":
+            return "\u{1F9E0}";
+          case "information":
+            return "\u{1F4CA}";
+          case "approach":
+            return "\u{1F3AF}";
+          case "evaluation":
+            return "\u2696\uFE0F";
+          case "synthesis":
+            return "\u{1F517}";
+          case "validation":
+            return "\u2705";
+          case "refinement":
+            return "\u26A1";
+          default:
+            return "\u{1F4AD}";
+        }
+      }
+      /**
+       * Get task status text
+       */
+      getTaskStatusText(taskStatus) {
+        switch (taskStatus.status) {
+          case "idle":
+            return "Task Ready";
+          case "running":
+            return "Task In Progress";
+          case "stopped":
+            return "Task Stopped";
+          case "completed":
+            return "Task Completed";
+          case "limit_reached":
+            return "Tool Limit Reached";
+          case "waiting_for_user":
+            return "Waiting for User Input";
+          default:
+            return "Unknown Status";
+        }
+      }
+      /**
+       * Get task status icon
+       */
+      getTaskStatusIcon(status) {
+        switch (status) {
+          case "idle":
+            return "\u23F8\uFE0F";
+          case "running":
+            return "\u{1F504}";
+          case "stopped":
+            return "\u23F9\uFE0F";
+          case "completed":
+            return "\u2705";
+          case "limit_reached":
+            return "\u26A0\uFE0F";
+          case "waiting_for_user":
+            return "\u23F3";
+          default:
+            return "\u2753";
+        }
+      }
+      /**
+       * Render a complete message with tool displays if present
+       */
+      async renderMessage(message, container, component) {
+        if (message.toolResults && message.toolResults.length > 0) {
+          await this.renderMessageWithToolDisplays(message, container, component);
+        } else {
+          await this.renderRegularMessage(message, container, component);
+        }
+      }
+      /**
+       * Render message with embedded tool displays
+       */
+      async renderMessageWithToolDisplays(message, container, component) {
+        var _a2;
+        const messageContent = container.querySelector(".message-content");
+        if (!messageContent) return;
+        messageContent.empty();
+        container.classList.add("has-rich-tools");
+        const parts = this.parseMessageWithTools(message.content);
+        for (const part of parts) {
+          if (part.type === "text" && ((_a2 = part.content) == null ? void 0 : _a2.trim())) {
+            const textDiv = document.createElement("div");
+            textDiv.className = "message-text-part";
+            await import_obsidian16.MarkdownRenderer.render(this.app, part.content, textDiv, "", component || null);
+            messageContent.appendChild(textDiv);
+          } else if (part.type === "tool" && part.command && message.toolResults) {
+            const toolExecutionResult = message.toolResults.find(
+              (tr) => tr.command.action === part.command.action && this.compareToolParams(tr.command.parameters, part.command.parameters)
+            );
+            if (toolExecutionResult) {
+              const richDisplay = new ToolRichDisplay({
+                command: part.command,
+                result: toolExecutionResult.result,
+                onRerun: () => {
+                  console.log("Re-run tool:", part.command);
+                },
+                onCopy: async () => {
+                  const displayText = this.formatToolForCopy(part.command, toolExecutionResult.result);
+                  try {
+                    await navigator.clipboard.writeText(displayText);
+                  } catch (error) {
+                    console.error("Failed to copy tool result:", error);
+                  }
+                }
+              });
+              const toolWrapper = document.createElement("div");
+              toolWrapper.className = "embedded-tool-display";
+              toolWrapper.appendChild(richDisplay.getElement());
+              messageContent.appendChild(toolWrapper);
+            }
+          }
+        }
+      }
+      /**
+       * Render regular message without tool displays
+       */
+      async renderRegularMessage(message, container, component) {
+        const messageContent = container.querySelector(".message-content");
+        if (!messageContent) return;
+        messageContent.empty();
+        await import_obsidian16.MarkdownRenderer.render(this.app, message.content, messageContent, "", component || null);
+      }
+      /**
+       * Parse message content to extract tool calls and text parts
+       */
+      parseMessageWithTools(content) {
+        const parts = [];
+        const toolCallRegex = /```json\s*\{[^}]*"action":\s*"([^"]+)"[^}]*\}[^`]*```/g;
+        let lastIndex = 0;
+        let match;
+        while ((match = toolCallRegex.exec(content)) !== null) {
+          if (match.index > lastIndex) {
+            const textContent = content.slice(lastIndex, match.index).trim();
+            if (textContent) {
+              parts.push({ type: "text", content: textContent });
+            }
+          }
+          try {
+            const toolJson = match[0].replace(/```json\s*/, "").replace(/\s*```[\s\S]*?$/, "");
+            const command = JSON.parse(toolJson);
+            parts.push({ type: "tool", command });
+          } catch (e) {
+            parts.push({ type: "text", content: match[0] });
+          }
+          lastIndex = match.index + match[0].length;
+        }
+        if (lastIndex < content.length) {
+          const remainingContent = content.slice(lastIndex).trim();
+          if (remainingContent) {
+            parts.push({ type: "text", content: remainingContent });
+          }
+        }
+        if (parts.length === 0) {
+          parts.push({ type: "text", content });
+        }
+        return parts;
+      }
+      /**
+       * Compare tool parameters for matching
+       */
+      compareToolParams(params1, params2) {
+        try {
+          return JSON.stringify(params1) === JSON.stringify(params2);
+        } catch (e) {
+          return false;
+        }
+      }
+      /**
+      * Format tool execution for clipboard copy
+      */
+      formatToolForCopy(command, result) {
+        const status = result.success ? "\u2705" : "\u274C";
+        const statusText = result.success ? "SUCCESS" : "ERROR";
+        let output = `${status} **${command.action}** ${statusText}`;
+        if (command.parameters && Object.keys(command.parameters).length > 0) {
+          output += `
+
+**Parameters:**
+\`\`\`json
+${JSON.stringify(command.parameters, null, 2)}
+\`\`\``;
+        }
+        if (result.success) {
+          output += `
+
+**Result:**
+\`\`\`json
+${JSON.stringify(result.data, null, 2)}
+\`\`\``;
+        } else {
+          output += `
+
+**Error:**
+${result.error}`;
+        }
+        return output;
+      }
+      /**
+      * Get message content formatted for clipboard copy, including tool results
+      */
+      getMessageContentForCopy(messageData) {
+        if (!messageData.toolResults || messageData.toolResults.length === 0) {
+          return messageData.content;
+        }
+        const parts = this.parseMessageWithTools(messageData.content);
+        let result = "";
+        for (const part of parts) {
+          if (part.type === "text") {
+            result += part.content;
+          } else if (part.type === "tool" && part.command) {
+            const toolResult = messageData.toolResults.find(
+              (tr) => {
+                var _a2, _b;
+                return tr.command.action === ((_a2 = part.command) == null ? void 0 : _a2.action) && this.compareToolParams(tr.command.parameters, (_b = part.command) == null ? void 0 : _b.parameters);
+              }
+            );
+            if (toolResult) {
+              result += `
+
+**Tool Execution:** ${part.command.action}
+`;
+              result += `**Status:** ${toolResult.result.success ? "SUCCESS" : "ERROR"}
+
+`;
+              if (part.command.parameters && Object.keys(part.command.parameters).length > 0) {
+                result += `**Parameters:**
+\`\`\`json
+${JSON.stringify(part.command.parameters, null, 2)}
+\`\`\`
+
+`;
+              }
+              if (toolResult.result.success) {
+                result += `**Result:**
+\`\`\`json
+${JSON.stringify(toolResult.result.data, null, 2)}
+\`\`\`
+`;
+              } else {
+                result += `**Error:**
+${toolResult.result.error}
+`;
+              }
+            }
+          }
+        }
+        return result;
+      }
+    };
+  }
+});
+
 // src/components/chat/chatPersistence.ts
 function buildChatYaml(settings, provider, model) {
   if (settings.selectedModel) {
@@ -8955,29 +9619,33 @@ async function saveChatAsNote({
   agentResponseHandler
 }) {
   let chatContent = "";
-  let toolMarkdown = "";
-  if (agentResponseHandler && agentResponseHandler.getCombinedToolMarkdown) {
-    toolMarkdown = agentResponseHandler.getCombinedToolMarkdown();
-    console.log("Tool markdown retrieved for saving:", toolMarkdown);
-  } else {
-    console.log("No agent response handler or getCombinedToolMarkdown method available");
-  }
+  const messageRenderer = new MessageRenderer(app);
   messages.forEach((el, index) => {
     var _a2;
     const htmlElement = el;
     if (htmlElement.classList.contains("tool-display-message")) {
       return;
     }
-    const rawContent = htmlElement.dataset.rawContent;
-    const content = rawContent !== void 0 ? rawContent : ((_a2 = el.querySelector(".message-content")) == null ? void 0 : _a2.textContent) || "";
-    chatContent += content;
+    const messageDataStr = htmlElement.dataset.messageData;
+    let messageData = null;
+    if (messageDataStr) {
+      try {
+        messageData = JSON.parse(messageDataStr);
+      } catch (e) {
+        console.log("Failed to parse message data:", e);
+      }
+    }
+    if (messageData && messageData.toolResults && messageData.toolResults.length > 0) {
+      chatContent += messageRenderer.getMessageContentForCopy(messageData);
+    } else {
+      const rawContent = htmlElement.dataset.rawContent;
+      const content = rawContent !== void 0 ? rawContent : ((_a2 = el.querySelector(".message-content")) == null ? void 0 : _a2.textContent) || "";
+      chatContent += content;
+    }
     if (index < messages.length - 1) {
       chatContent += "\n\n" + chatSeparator + "\n\n";
     }
   });
-  if (toolMarkdown) {
-    chatContent += "\n\n" + toolMarkdown;
-  }
   const yaml = buildChatYaml(settings, provider, model);
   chatContent = chatContent.replace(/^---[\s\S]*?---\n?/, "");
   const noteContent = yaml + "\n" + chatContent.trimStart();
@@ -8991,9 +9659,9 @@ async function saveChatAsNote({
   }
   try {
     await app.vault.create(filePath, noteContent);
-    new import_obsidian17.Notice(`Chat saved as note: ${filePath}`);
+    new import_obsidian18.Notice(`Chat saved as note: ${filePath}`);
   } catch (e) {
-    new import_obsidian17.Notice("Failed to save chat as note.");
+    new import_obsidian18.Notice("Failed to save chat as note.");
   }
 }
 async function loadChatYamlAndApplySettings({
@@ -9052,21 +9720,22 @@ async function loadChatYamlAndApplySettings({
     temperature: newTemperature
   };
 }
-var import_obsidian17;
+var import_obsidian18;
 var init_chatPersistence = __esm({
   "src/components/chat/chatPersistence.ts"() {
-    import_obsidian17 = require("obsidian");
+    import_obsidian18 = require("obsidian");
     init_js_yaml();
     init_providers();
+    init_MessageRenderer();
   }
 });
 
 // src/components/chat/ChatHelpModal.ts
-var import_obsidian18, ChatHelpModal;
+var import_obsidian19, ChatHelpModal;
 var init_ChatHelpModal = __esm({
   "src/components/chat/ChatHelpModal.ts"() {
-    import_obsidian18 = require("obsidian");
-    ChatHelpModal = class extends import_obsidian18.Modal {
+    import_obsidian19 = require("obsidian");
+    ChatHelpModal = class extends import_obsidian19.Modal {
       constructor(app) {
         super(app);
       }
@@ -9166,12 +9835,12 @@ var SettingsModal_exports = {};
 __export(SettingsModal_exports, {
   SettingsModal: () => SettingsModal
 });
-var import_obsidian19, SettingsModal;
+var import_obsidian20, SettingsModal;
 var init_SettingsModal = __esm({
   "src/components/chat/SettingsModal.ts"() {
-    import_obsidian19 = require("obsidian");
+    import_obsidian20 = require("obsidian");
     init_SettingsSections();
-    SettingsModal = class extends import_obsidian19.Modal {
+    SettingsModal = class extends import_obsidian20.Modal {
       constructor(app, plugin) {
         super(app);
         __publicField(this, "plugin");
@@ -9232,7 +9901,7 @@ function handleClearChat(messagesContainer, chatHistoryManager) {
     try {
       await chatHistoryManager.clearHistory();
     } catch (e) {
-      new import_obsidian20.Notice("Failed to clear chat history.");
+      new import_obsidian21.Notice("Failed to clear chat history.");
     }
   };
 }
@@ -9248,13 +9917,13 @@ function handleHelp(app) {
     new ChatHelpModal(app).open();
   };
 }
-var import_obsidian20;
+var import_obsidian21;
 var init_eventHandlers = __esm({
   "src/components/chat/eventHandlers.ts"() {
     init_Buttons();
     init_chatPersistence();
     init_ChatHelpModal();
-    import_obsidian20 = require("obsidian");
+    import_obsidian21 = require("obsidian");
   }
 });
 
@@ -10750,7 +11419,7 @@ var ChatHistoryManager = class {
 };
 
 // src/components/chat/Message.ts
-var import_obsidian16 = require("obsidian");
+var import_obsidian17 = require("obsidian");
 init_Buttons();
 
 // src/components/chat/ConfirmationModal.ts
@@ -10786,217 +11455,9 @@ var ConfirmationModal = class extends import_obsidian14.Modal {
   }
 };
 
-// src/components/chat/MessageRenderer.ts
-var import_obsidian15 = require("obsidian");
-var MessageRenderer = class {
-  constructor(app) {
-    this.app = app;
-  }
-  /**
-   * Update message container with enhanced reasoning and task status data
-   */
-  updateMessageWithEnhancedData(container, messageData, component) {
-    const existingReasoning = container.querySelector(".reasoning-container");
-    const existingTaskStatus = container.querySelector(".task-status-container");
-    if (existingReasoning) existingReasoning.remove();
-    if (existingTaskStatus) existingTaskStatus.remove();
-    const messageContainer = container.querySelector(".message-container");
-    if (!messageContainer) return;
-    if (messageData.reasoning) {
-      const reasoningEl = this.createReasoningSection(messageData.reasoning);
-      messageContainer.insertBefore(reasoningEl, messageContainer.firstChild);
-    }
-    if (messageData.taskStatus) {
-      const taskStatusEl = this.createTaskStatusSection(messageData.taskStatus);
-      messageContainer.insertBefore(taskStatusEl, messageContainer.firstChild);
-    }
-    const contentEl = container.querySelector(".message-content");
-    if (contentEl) {
-      contentEl.empty();
-      import_obsidian15.MarkdownRenderer.render(
-        this.app,
-        messageData.content,
-        contentEl,
-        "",
-        component || null
-      ).catch((error) => {
-        contentEl.textContent = messageData.content;
-      });
-    }
-  }
-  /**
-   * Create reasoning section element
-   */
-  createReasoningSection(reasoning) {
-    var _a2;
-    const reasoningContainer = document.createElement("div");
-    reasoningContainer.className = "reasoning-container";
-    const header = document.createElement("div");
-    header.className = "reasoning-summary";
-    const toggle = document.createElement("span");
-    toggle.className = "reasoning-toggle";
-    toggle.textContent = reasoning.isCollapsed ? "\u25B6" : "\u25BC";
-    const headerText = document.createElement("span");
-    const typeLabel = reasoning.type === "structured" ? "STRUCTURED REASONING" : "REASONING";
-    const stepCount = ((_a2 = reasoning.steps) == null ? void 0 : _a2.length) || 0;
-    headerText.innerHTML = `<strong>\u{1F9E0} ${typeLabel}</strong>`;
-    if (stepCount > 0) {
-      headerText.innerHTML += ` (${stepCount} steps)`;
-    }
-    headerText.innerHTML += ` - <em>Click to ${reasoning.isCollapsed ? "expand" : "collapse"}</em>`;
-    header.appendChild(toggle);
-    header.appendChild(headerText);
-    const details = document.createElement("div");
-    details.className = "reasoning-details";
-    if (!reasoning.isCollapsed) {
-      details.classList.add("expanded");
-    }
-    if (reasoning.type === "structured" && reasoning.steps) {
-      if (reasoning.problem) {
-        const problemDiv = document.createElement("div");
-        problemDiv.className = "reasoning-problem";
-        problemDiv.innerHTML = `<strong>Problem:</strong> ${reasoning.problem}`;
-        details.appendChild(problemDiv);
-      }
-      reasoning.steps.forEach((step) => {
-        const stepDiv = document.createElement("div");
-        stepDiv.className = `reasoning-step ${step.category}`;
-        stepDiv.innerHTML = `
-                    <div class="step-header">
-                        ${this.getStepEmoji(step.category)} Step ${step.step}: ${step.title.toUpperCase()}
-                    </div>
-                    <div class="step-confidence">
-                        Confidence: ${step.confidence}/10
-                    </div>
-                    <div class="step-content">
-                        ${step.content}
-                    </div>
-                `;
-        details.appendChild(stepDiv);
-      });
-    } else if (reasoning.summary) {
-      const summaryDiv = document.createElement("div");
-      summaryDiv.className = "reasoning-completion";
-      summaryDiv.textContent = reasoning.summary;
-      details.appendChild(summaryDiv);
-    }
-    header.addEventListener("click", () => {
-      const isExpanded = details.classList.contains("expanded");
-      if (isExpanded) {
-        details.classList.remove("expanded");
-        toggle.textContent = "\u25B6";
-        reasoning.isCollapsed = true;
-      } else {
-        details.classList.add("expanded");
-        toggle.textContent = "\u25BC";
-        reasoning.isCollapsed = false;
-      }
-    });
-    reasoningContainer.appendChild(header);
-    reasoningContainer.appendChild(details);
-    return reasoningContainer;
-  }
-  /**
-   * Create task status section element
-   */
-  createTaskStatusSection(taskStatus) {
-    const statusContainer = document.createElement("div");
-    statusContainer.className = "task-status-container";
-    statusContainer.dataset.taskStatus = taskStatus.status;
-    const statusText = this.getTaskStatusText(taskStatus);
-    const statusIcon = this.getTaskStatusIcon(taskStatus.status);
-    statusContainer.innerHTML = `
-            <div class="task-status-header">
-                ${statusIcon} <strong>${statusText}</strong>
-            </div>
-        `;
-    if (taskStatus.toolExecutionCount > 0) {
-      const toolInfo = document.createElement("div");
-      toolInfo.className = "task-tool-info";
-      toolInfo.textContent = `Tools used: ${taskStatus.toolExecutionCount}/${taskStatus.maxToolExecutions}`;
-      statusContainer.appendChild(toolInfo);
-    }
-    return statusContainer;
-  }
-  /**
-   * Get emoji for reasoning step categories
-   */
-  getStepEmoji(category) {
-    switch (category) {
-      case "analysis":
-        return "\u{1F50D}";
-      case "planning":
-        return "\u{1F4CB}";
-      case "problem-solving":
-        return "\u{1F9E9}";
-      case "reflection":
-        return "\u{1F914}";
-      case "conclusion":
-        return "\u2705";
-      case "reasoning":
-        return "\u{1F9E0}";
-      case "information":
-        return "\u{1F4CA}";
-      case "approach":
-        return "\u{1F3AF}";
-      case "evaluation":
-        return "\u2696\uFE0F";
-      case "synthesis":
-        return "\u{1F517}";
-      case "validation":
-        return "\u2705";
-      case "refinement":
-        return "\u26A1";
-      default:
-        return "\u{1F4AD}";
-    }
-  }
-  /**
-   * Get task status text
-   */
-  getTaskStatusText(taskStatus) {
-    switch (taskStatus.status) {
-      case "idle":
-        return "Task Ready";
-      case "running":
-        return "Task In Progress";
-      case "stopped":
-        return "Task Stopped";
-      case "completed":
-        return "Task Completed";
-      case "limit_reached":
-        return "Tool Limit Reached";
-      case "waiting_for_user":
-        return "Waiting for User Input";
-      default:
-        return "Unknown Status";
-    }
-  }
-  /**
-   * Get task status icon
-   */
-  getTaskStatusIcon(status) {
-    switch (status) {
-      case "idle":
-        return "\u23F8\uFE0F";
-      case "running":
-        return "\u{1F504}";
-      case "stopped":
-        return "\u23F9\uFE0F";
-      case "completed":
-        return "\u2705";
-      case "limit_reached":
-        return "\u26A0\uFE0F";
-      case "waiting_for_user":
-        return "\u23F3";
-      default:
-        return "\u2753";
-    }
-  }
-};
-
 // src/components/chat/Message.ts
-function createMessageElement(app, role, content, chatHistoryManager, plugin, regenerateCallback, parentComponent, messageData) {
+init_MessageRenderer();
+async function createMessageElement(app, role, content, chatHistoryManager, plugin, regenerateCallback, parentComponent, messageData) {
   const messageEl = document.createElement("div");
   messageEl.addClass("ai-chat-message", role);
   const messageContainer = messageEl.createDiv("message-container");
@@ -11006,19 +11467,40 @@ function createMessageElement(app, role, content, chatHistoryManager, plugin, re
     messageEl.dataset.messageData = JSON.stringify(messageData);
   }
   const messageRenderer = new MessageRenderer(app);
-  if (role === "assistant" && ((messageData == null ? void 0 : messageData.reasoning) || (messageData == null ? void 0 : messageData.taskStatus))) {
-    messageRenderer.updateMessageWithEnhancedData(messageEl, {
-      ...messageData,
-      role: "assistant",
-      content
-    }, parentComponent);
+  let contentEl = null;
+  if (role === "assistant") {
+    if (messageData && (messageData.reasoning || messageData.taskStatus)) {
+      messageRenderer.updateMessageWithEnhancedData(messageEl, {
+        ...messageData,
+        role: "assistant",
+        content
+      }, parentComponent);
+    }
+    if (messageData && messageData.toolResults && messageData.toolResults.length > 0) {
+      await messageRenderer.renderMessage({
+        ...messageData,
+        role: "assistant",
+        content
+      }, messageEl, parentComponent);
+    } else if (!(messageData == null ? void 0 : messageData.reasoning) && !(messageData == null ? void 0 : messageData.taskStatus)) {
+      contentEl = messageEl.querySelector(".message-content");
+      if (!contentEl) {
+        contentEl = messageContainer.createDiv("message-content");
+      }
+      await import_obsidian17.MarkdownRenderer.render(app, content, contentEl, "", parentComponent);
+    }
+  } else {
+    contentEl = messageEl.querySelector(".message-content");
+    if (!contentEl) {
+      contentEl = messageContainer.createDiv("message-content");
+    }
+    await import_obsidian17.MarkdownRenderer.render(app, content, contentEl, "", parentComponent);
   }
-  let contentEl = messageEl.querySelector(".message-content");
   if (!contentEl) {
-    contentEl = messageContainer.createDiv("message-content");
-    import_obsidian16.MarkdownRenderer.render(app, content, contentEl, "", parentComponent).catch((error) => {
-      contentEl.textContent = content;
-    });
+    contentEl = messageEl.querySelector(".message-content");
+    if (!contentEl) {
+      contentEl = messageContainer.createDiv("message-content");
+    }
   }
   const actionsEl = messageContainer.createDiv("message-actions");
   actionsEl.classList.add("hidden");
@@ -11033,7 +11515,7 @@ function createMessageElement(app, role, content, chatHistoryManager, plugin, re
   actionsEl.appendChild(createActionButton("Copy", "Copy message (including reasoning)", () => {
     const fullContent = content;
     if (fullContent.trim() === "") {
-      new import_obsidian16.Notice("No content to copy");
+      new import_obsidian17.Notice("No content to copy");
       return;
     }
     copyToClipboard(fullContent);
@@ -11073,13 +11555,13 @@ function createMessageElement(app, role, content, chatHistoryManager, plugin, re
           );
           messageEl.dataset.rawContent = newContent;
           contentEl.empty();
-          await import_obsidian16.MarkdownRenderer.render(app, newContent, contentEl, "", parentComponent);
+          await import_obsidian17.MarkdownRenderer.render(app, newContent, contentEl, "", parentComponent);
           contentEl.removeClass("editing");
         } catch (e) {
-          new import_obsidian16.Notice("Failed to save edited message.");
+          new import_obsidian17.Notice("Failed to save edited message.");
           messageEl.dataset.rawContent = oldContent || "";
           contentEl.empty();
-          await import_obsidian16.MarkdownRenderer.render(app, oldContent || "", contentEl, "", parentComponent);
+          await import_obsidian17.MarkdownRenderer.render(app, oldContent || "", contentEl, "", parentComponent);
           contentEl.removeClass("editing");
         }
       });
@@ -11095,7 +11577,7 @@ function createMessageElement(app, role, content, chatHistoryManager, plugin, re
         ).then(() => {
           messageEl.remove();
         }).catch(() => {
-          new import_obsidian16.Notice("Failed to delete message from history.");
+          new import_obsidian17.Notice("Failed to delete message from history.");
         });
       }
     });
@@ -11267,7 +11749,7 @@ async function renderChatHistory({
         plugin,
         // parentComponent
         msg
-        // Pass full message object for enhanced data
+        // Pass full message object for enhanced data (including tool results)
       );
       messageEl.dataset.timestamp = msg.timestamp;
       messagesContainer.appendChild(messageEl);
@@ -11441,261 +11923,8 @@ var ToolRegistry = class {
   }
 };
 
-// src/components/chat/ToolRichDisplay.ts
-var import_obsidian21 = require("obsidian");
-var ToolRichDisplay = class extends import_obsidian21.Component {
-  constructor(options) {
-    super();
-    __publicField(this, "element");
-    __publicField(this, "options");
-    this.options = options;
-    this.element = this.createToolDisplay();
-  }
-  getElement() {
-    return this.element;
-  }
-  createToolDisplay() {
-    const container = document.createElement("div");
-    container.className = "tool-rich-display";
-    const iconDiv = document.createElement("div");
-    iconDiv.className = "tool-rich-icon";
-    iconDiv.innerHTML = this.getToolIcon();
-    container.appendChild(iconDiv);
-    const infoDiv = document.createElement("div");
-    infoDiv.className = "tool-rich-info";
-    const titleDiv = document.createElement("div");
-    titleDiv.className = "tool-rich-title";
-    titleDiv.innerText = this.getToolDisplayName();
-    const statusSpan = document.createElement("span");
-    statusSpan.className = `tool-rich-status ${this.options.result.success ? "success" : "error"}`;
-    statusSpan.innerText = this.options.result.success ? "Success" : "Error";
-    titleDiv.appendChild(statusSpan);
-    infoDiv.appendChild(titleDiv);
-    if (this.options.command.parameters && Object.keys(this.options.command.parameters).length > 0) {
-      const paramsDiv = document.createElement("div");
-      paramsDiv.innerHTML = `<strong>Parameters:</strong> ${this.formatParameters()}`;
-      infoDiv.appendChild(paramsDiv);
-    }
-    const resultDiv = document.createElement("div");
-    resultDiv.innerHTML = `<strong>Result:</strong> ${this.getResultSummary()}`;
-    infoDiv.appendChild(resultDiv);
-    const details = this.getDetailedResult();
-    if (details) {
-      const toggle = document.createElement("div");
-      toggle.className = "tool-rich-details-toggle";
-      toggle.innerText = "Show details \u25BC";
-      const detailsDiv = document.createElement("div");
-      detailsDiv.className = "tool-rich-details";
-      detailsDiv.innerHTML = `<pre>${details}</pre>`;
-      toggle.onclick = () => {
-        const isExpanded = detailsDiv.classList.contains("expanded");
-        if (isExpanded) {
-          detailsDiv.classList.remove("expanded");
-          toggle.innerText = "Show details \u25BC";
-        } else {
-          detailsDiv.classList.add("expanded");
-          toggle.innerText = "Hide details \u25B2";
-        }
-      };
-      infoDiv.appendChild(toggle);
-      infoDiv.appendChild(detailsDiv);
-    }
-    const actionsDiv = document.createElement("div");
-    actionsDiv.className = "tool-rich-actions";
-    if (this.options.onRerun) {
-      const rerunBtn = document.createElement("button");
-      rerunBtn.className = "tool-rich-action-btn";
-      rerunBtn.innerText = "Re-run";
-      rerunBtn.onclick = this.options.onRerun;
-      actionsDiv.appendChild(rerunBtn);
-    }
-    if (this.options.onCopy) {
-      const copyBtn = document.createElement("button");
-      copyBtn.className = "tool-rich-action-btn";
-      copyBtn.innerText = "Copy";
-      copyBtn.onclick = this.options.onCopy;
-      actionsDiv.appendChild(copyBtn);
-    }
-    const copyResultBtn = document.createElement("button");
-    copyResultBtn.className = "tool-rich-action-btn";
-    copyResultBtn.innerText = "Copy Result";
-    copyResultBtn.onclick = async () => {
-      const resultText = this.options.result.success ? JSON.stringify(this.options.result.data, null, 2) : this.options.result.error || "Unknown error";
-      try {
-        await navigator.clipboard.writeText(resultText);
-        copyResultBtn.innerText = "Copied!";
-        setTimeout(() => {
-          copyResultBtn.innerText = "Copy Result";
-        }, 2e3);
-      } catch (error) {
-        console.error("Failed to copy to clipboard:", error);
-      }
-    };
-    actionsDiv.appendChild(copyResultBtn);
-    infoDiv.appendChild(actionsDiv);
-    container.appendChild(infoDiv);
-    return container;
-  }
-  getToolIcon() {
-    const iconMap = {
-      "file_search": "\u{1F50D}",
-      "file_read": "\u{1F4D6}",
-      "file_write": "\u270D\uFE0F",
-      "file_diff": "\u{1F504}",
-      "file_move": "\u{1F4C1}",
-      "file_rename": "\u{1F3F7}\uFE0F",
-      "file_list": "\u{1F4CB}",
-      "thought": "\u{1F9E0}"
-    };
-    return iconMap[this.options.command.action] || "\u{1F527}";
-  }
-  getToolDisplayName() {
-    const nameMap = {
-      "file_search": "File Search",
-      "file_read": "File Read",
-      "file_write": "File Write",
-      "file_diff": "File Diff",
-      "file_move": "File Move",
-      "file_rename": "File Rename",
-      "file_list": "File List",
-      "thought": "Thought Process"
-    };
-    return nameMap[this.options.command.action] || this.options.command.action;
-  }
-  formatParameters() {
-    const params = this.options.command.parameters;
-    const formatted = Object.entries(params).map(([key, value]) => `${key}: ${typeof value === "string" && value.length > 50 ? value.substring(0, 50) + "..." : JSON.stringify(value)}`).join(", ");
-    return `<code>${formatted}</code>`;
-  }
-  getResultSummary() {
-    if (!this.options.result.success) {
-      return `<span class="tool-error">${this.options.result.error || "Unknown error"}</span>`;
-    }
-    const data = this.options.result.data;
-    if (this.options.command.action === "file_write" && data) {
-      const action = data.action || "modified";
-      const filePath = data.filePath || "unknown file";
-      const size = data.size ? ` (${data.size} bytes)` : "";
-      if (action === "created") {
-        return `<span class="tool-success">\u{1F4DD} Created file: <strong>${filePath}</strong>${size}</span>`;
-      } else {
-        return `<span class="tool-success">\u{1F4BE} Saved file: <strong>${filePath}</strong>${size}</span>`;
-      }
-    }
-    if (this.options.command.action === "file_read" && data) {
-      const filePath = data.filePath || this.options.command.parameters.path;
-      const size = data.content ? ` (${data.content.length} chars)` : "";
-      return `<span class="tool-success">\u{1F4D6} Read file: <strong>${filePath}</strong>${size}</span>`;
-    }
-    if (this.options.command.action === "file_search" && data) {
-      const count = data.count || (Array.isArray(data.files) ? data.files.length : 0);
-      return `<span class="tool-success">\u{1F50D} Found ${count} file${count !== 1 ? "s" : ""}</span>`;
-    }
-    if (this.options.command.action === "file_list" && data) {
-      const count = data.count || (Array.isArray(data.files) ? data.files.length : 0);
-      const path = data.path || this.options.command.parameters.path;
-      return `<span class="tool-success">\u{1F4CB} Listed ${count} file${count !== 1 ? "s" : ""} in <strong>${path}</strong></span>`;
-    }
-    if (this.options.command.action === "file_move" && data) {
-      const from = this.options.command.parameters.sourcePath;
-      const to = this.options.command.parameters.destinationPath;
-      return `<span class="tool-success">\u{1F4C1} Moved <strong>${from}</strong> \u2192 <strong>${to}</strong></span>`;
-    }
-    if (this.options.command.action === "file_rename" && data) {
-      const oldName = this.options.command.parameters.path;
-      const newName = this.options.command.parameters.newName;
-      return `<span class="tool-success">\u{1F3F7}\uFE0F Renamed <strong>${oldName}</strong> \u2192 <strong>${newName}</strong></span>`;
-    }
-    if (this.options.command.action === "thought" && data) {
-      const thought = data.thought || data.reasoning || "";
-      const truncated = thought.length > 100 ? thought.substring(0, 100) + "..." : thought;
-      return `<span class="tool-success">\u{1F9E0} ${truncated}</span>`;
-    }
-    if (typeof data === "string") {
-      return data.length > 100 ? data.substring(0, 100) + "..." : data;
-    }
-    if (Array.isArray(data)) {
-      return `${data.length} items returned`;
-    }
-    if (typeof data === "object" && data !== null) {
-      const keys = Object.keys(data);
-      return `Object with ${keys.length} properties`;
-    }
-    return "Success";
-  }
-  getDetailedResult() {
-    if (!this.options.result.success) {
-      return this.options.result.error || "Unknown error occurred";
-    }
-    if (this.options.result.data) {
-      return typeof this.options.result.data === "string" ? this.options.result.data : JSON.stringify(this.options.result.data, null, 2);
-    }
-    return null;
-  }
-  /**
-   * Update the display with new tool result
-   */
-  updateResult(result) {
-    this.options.result = result;
-    const newElement = this.createToolDisplay();
-    this.element.replaceWith(newElement);
-    this.element = newElement;
-  }
-  /**
-  * Convert the tool display to markdown format for saving to notes
-  */
-  toMarkdown() {
-    const { command, result } = this.options;
-    const status = result.success ? "\u2705" : "\u274C";
-    const toolName = this.getToolDisplayName();
-    const icon = this.getToolIcon();
-    let markdown = `
-### ${icon} ${toolName} ${status}
-
-`;
-    if (command.parameters && Object.keys(command.parameters).length > 0) {
-      markdown += `**Parameters:**
-`;
-      Object.entries(command.parameters).forEach(([key, value]) => {
-        const displayValue = typeof value === "string" && value.length > 100 ? value.substring(0, 100) + "..." : JSON.stringify(value);
-        markdown += `- **${key}:** \`${displayValue}\`
-`;
-      });
-      markdown += "\n";
-    }
-    if (result.success) {
-      markdown += `**Result:** ${this.getResultSummary()}
-
-`;
-      const details = this.getDetailedResult();
-      if (details && details !== this.getResultSummary()) {
-        if (details.length <= 200) {
-          markdown += `**Details:** \`${details}\`
-
-`;
-        } else {
-          markdown += `<details>
-<summary>Show Details</summary>
-
-\`\`\`
-${details}
-\`\`\`
-
-</details>
-
-`;
-        }
-      }
-    } else {
-      markdown += `**Error:** ${result.error}
-
-`;
-    }
-    return markdown;
-  }
-};
-
 // src/components/chat/AgentResponseHandler.ts
+init_ToolRichDisplay();
 init_toolcollect();
 var AgentResponseHandler = class {
   // Cache markdown representations
@@ -12438,6 +12667,7 @@ var import_obsidian26 = require("obsidian");
 // src/components/chat/ResponseStreamer.ts
 var import_obsidian25 = require("obsidian");
 init_providers();
+init_MessageRenderer();
 
 // src/components/chat/TaskContinuation.ts
 var import_obsidian23 = require("obsidian");
@@ -12697,10 +12927,10 @@ var ResponseStreamer = class {
     }
   }
   /**
-   * Handles responses that include tool execution
-   */
+  * Handles responses that include tool execution
+  */
   async handleToolExecution(agentResult, container, responseContent, messages) {
-    const finalContent = agentResult.processedText + this.agentResponseHandler.formatToolResultsForDisplay(agentResult.toolResults);
+    const finalContent = agentResult.processedText;
     const enhancedMessageData = this.createEnhancedMessageData(
       finalContent,
       agentResult,
@@ -13085,6 +13315,7 @@ var MessageRegenerator = class {
 };
 
 // src/components/chat.ts
+init_MessageRenderer();
 var VIEW_TYPE_CHAT = "chat-view";
 var ChatView = class extends import_obsidian27.ItemView {
   constructor(leaf, plugin) {

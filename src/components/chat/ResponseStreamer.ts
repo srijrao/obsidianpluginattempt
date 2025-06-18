@@ -150,9 +150,7 @@ export class ResponseStreamer {
             console.error('ResponseStreamer: Error processing agent response:', error);
             return responseContent;
         }
-    }
-
-    /**
+    }    /**
      * Handles responses that include tool execution
      */
     private async handleToolExecution(
@@ -161,8 +159,8 @@ export class ResponseStreamer {
         responseContent: string,
         messages: Message[]
     ): Promise<string> {
-        const finalContent = agentResult.processedText + 
-            this.agentResponseHandler!.formatToolResultsForDisplay(agentResult.toolResults);
+        // Don't append legacy tool displays - only use rich displays
+        const finalContent = agentResult.processedText;
         
         const enhancedMessageData = this.createEnhancedMessageData(
             finalContent, 

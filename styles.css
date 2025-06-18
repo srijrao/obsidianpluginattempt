@@ -1225,3 +1225,52 @@
         justify-content: center;
     }
 }
+
+/* === EMBEDDED TOOL DISPLAYS ===
+   Styles for tool displays embedded within assistant messages.
+   -------------------------------------------------------------------------- */
+
+/* Style for embedded tool displays within messages */
+.embedded-tool-display {
+    margin: 12px 0;
+    border-left: 3px solid var(--interactive-accent);
+    padding-left: 12px;
+    background: var(--background-secondary);
+    border-radius: var(--border-radius);
+    padding: 8px 12px;
+}
+
+.embedded-tool-display .tool-rich-display {
+    background: transparent;
+    border: none;
+    margin: 0;
+}
+
+/* Separate text parts in messages with tool displays */
+.message-text-part {
+    margin-bottom: 8px;
+}
+
+.message-text-part:last-of-type {
+    margin-bottom: 0;
+}
+
+/* Hide legacy tool displays - use class-based approach for better compatibility */
+.ai-chat-message.has-rich-tools .message-content > pre code,
+.ai-chat-message.has-rich-tools .message-content > .tool-call-display,
+.ai-chat-message.has-rich-tools .message-content > .tool-result-display,
+.ai-chat-message.has-rich-tools .message-content > .legacy-tool-display {
+    display: none !important;
+}
+
+/* Hide legacy tool execution text when tool displays are present */
+.ai-chat-message.has-rich-tools .message-content .tool-execution-legacy {
+    display: none !important;
+}
+
+/* Hide any JSON code blocks in messages with rich tools */
+.ai-chat-message.has-rich-tools .message-content pre:not(.embedded-tool-display pre) {
+    display: none !important;
+}
+
+/* ...existing tool styles... */

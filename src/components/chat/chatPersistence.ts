@@ -3,6 +3,7 @@ import { MyPluginSettings } from '../../types';
 import { Notice } from 'obsidian';
 import * as yaml from 'js-yaml';
 import { getProviderFromUnifiedModel, getModelIdFromUnifiedModel } from '../../../providers';
+import { MessageRenderer } from './MessageRenderer';
 
 export function buildChatYaml(settings: MyPluginSettings, provider?: string, model?: string): string {
     // Use unified model if available, otherwise fall back to legacy provider/model
@@ -64,37 +65,42 @@ export async function saveChatAsNote({
     agentResponseHandler?: any
 }) {
     let chatContent = '';
-      // Get tool markdown representations if agent response handler is available
-    let toolMarkdown = '';
-    if (agentResponseHandler && agentResponseHandler.getCombinedToolMarkdown) {
-        toolMarkdown = agentResponseHandler.getCombinedToolMarkdown();
-        console.log('Tool markdown retrieved for saving:', toolMarkdown);
-    } else {
-        console.log('No agent response handler or getCombinedToolMarkdown method available');
-    }
+    const messageRenderer = new MessageRenderer(app);
     
     messages.forEach((el: Element, index: number) => {
         const htmlElement = el as HTMLElement;
         
-        // Skip tool display messages as they'll be handled by the cached markdown
+        // Skip tool display messages as they're handled inline now
         if (htmlElement.classList.contains('tool-display-message')) {
             return;
         }
         
-        // Regular message - prefer raw markdown content if available
-        const rawContent = htmlElement.dataset.rawContent;
-        const content = rawContent !== undefined ? rawContent : el.querySelector('.message-content')?.textContent || '';
-        chatContent += content;
+        // Check if this message has tool results data
+        const messageDataStr = htmlElement.dataset.messageData;
+        let messageData = null;
+        if (messageDataStr) {
+            try {
+                messageData = JSON.parse(messageDataStr);
+            } catch (e) {
+                console.log('Failed to parse message data:', e);
+            }
+        }
+        
+        // If message has tool results, use MessageRenderer for proper inline formatting
+        if (messageData && messageData.toolResults && messageData.toolResults.length > 0) {
+            chatContent += messageRenderer.getMessageContentForCopy(messageData);
+        } else {
+            // For regular messages, use raw content if available, otherwise text content
+            const rawContent = htmlElement.dataset.rawContent;
+            const content = rawContent !== undefined ? rawContent : el.querySelector('.message-content')?.textContent || '';
+            chatContent += content;
+        }
         
         if (index < messages.length - 1) {
             chatContent += '\n\n' + chatSeparator + '\n\n';
         }
     });
     
-    // Combine regular chat content with tool markdown
-    if (toolMarkdown) {
-        chatContent += '\n\n' + toolMarkdown;
-    }
     const yaml = buildChatYaml(settings, provider, model);
     // Remove any existing YAML frontmatter from chatContent
     chatContent = chatContent.replace(/^---[\s\S]*?---\n?/, '');
