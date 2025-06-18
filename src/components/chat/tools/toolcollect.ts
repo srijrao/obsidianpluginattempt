@@ -131,11 +131,14 @@ export function getToolMetadata(): Array<{name: string, description: string, par
 }
 
 // Create tool instances with proper app context
-export function createToolInstances(app: any): any[] {
+export function createToolInstances(app: any, plugin?: any): any[] {
     const toolClasses = getAllToolClasses();
     console.log('[AI Assistant] createToolInstances: Instantiating tools...');
     return toolClasses.map(ToolClass => {
-        const instance = new ToolClass(app);
+        // Pass plugin to tools that need it (like FileWriteTool for BackupManager)
+        const instance = plugin && ToolClass.name === 'FileWriteTool' 
+            ? new ToolClass(app, plugin.backupManager)
+            : new ToolClass(app);
         // instance.name here refers to the 'file_search' style name property of the instance
         console.log(`[AI Assistant] Instantiated Tool instance name: ${instance.name}, from Class: ${ToolClass.name}`);
         return instance;

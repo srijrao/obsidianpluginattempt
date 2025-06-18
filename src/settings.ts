@@ -370,10 +370,8 @@ export class MyPluginSettingTab extends PluginSettingTab {
             text: 'Enable or disable individual agent tools. Disabled tools will not be available to the agent or appear in the system prompt.',
             cls: 'setting-item-description',
             attr: { style: 'margin-bottom: 0.5em;' }
-        });
-
-        // Use centralized tool creation function to get properly instantiated tools
-        const tools = createToolInstances(this.app);
+        });        // Use centralized tool creation function to get properly instantiated tools
+        const tools = createToolInstances(this.app, this.plugin);
         if (!this.plugin.settings.enabledTools) {
             console.log('[AI Assistant] Settings: Initializing enabledTools object.');
             this.plugin.settings.enabledTools = {};
@@ -733,6 +731,16 @@ export class MyPluginSettingTab extends PluginSettingTab {
                     async (value) => { this.plugin.settings.autoOpenModelSettings = value; await this.plugin.saveSettings(); });
             },
             this.plugin,
+            'generalSectionsExpanded'        );
+
+        // Section 8: Backup Management
+        CollapsibleSectionRenderer.createCollapsibleSection(
+            containerEl,
+            'Backup Management',
+            async (sectionEl: HTMLElement) => {
+                await this.renderBackupManagement(sectionEl);
+            },
+            this.plugin,
             'generalSectionsExpanded'
         );
 
@@ -784,5 +792,222 @@ export class MyPluginSettingTab extends PluginSettingTab {
         // - renderYamlAttributeGenerators (called within Note & Data Handling)
         // - renderToolToggles (now its own collapsible section Agent Tools)
         // - renderModelSettingPresets (now its own collapsible section Model Setting Presets)
+    }
+
+    /**
+     * Renders the Backup Management section.
+     * @param containerEl The HTML element to append the section to.
+     */
+    private async renderBackupManagement(containerEl: HTMLElement): Promise<void> {
+        containerEl.createEl('h3', { text: 'Backup Management' });
+        containerEl.createEl('div', {
+            text: 'Manage backups created when files are modified by AI tools. Backups are stored in the plugin data folder, not in your vault.',
+            cls: 'setting-item-description',
+            attr: { style: 'margin-bottom: 1em;' }
+        });
+
+        const backupManager = this.plugin.backupManager;
+        
+        // Show backup statistics
+        const totalBackups = await backupManager.getTotalBackupCount();
+        const totalSize = await backupManager.getTotalBackupSize();
+        const sizeInKB = Math.round(totalSize / 1024);
+          containerEl.createEl('div', {
+            text: `Total backups: ${totalBackups} (${sizeInKB} KB)`,
+            cls: 'setting-item-description',
+            attr: { style: 'margin-bottom: 1em; font-weight: bold;' }
+        });
+
+        // Add refresh button
+        const refreshButton = containerEl.createEl('button', {
+            text: 'Refresh Backup List',
+            cls: 'mod-cta'
+        });
+        refreshButton.style.marginBottom = '1em';
+        refreshButton.onclick = () => {
+            this.display(); // Refresh the entire settings view
+        };
+
+        // Get all files with backups
+        const backupFiles = await backupManager.getAllBackupFiles();
+        
+        if (backupFiles.length === 0) {
+            containerEl.createEl('div', {
+                text: 'No backups found.',
+                cls: 'setting-item-description'
+            });
+            return;
+        }
+
+        // Create backup list
+        for (const filePath of backupFiles) {
+            const backups = await backupManager.getBackupsForFile(filePath);
+            
+            if (backups.length === 0) continue;
+
+            // File header
+            const fileSection = containerEl.createDiv({ cls: 'backup-file-section' });
+            fileSection.createEl('h4', { text: filePath, cls: 'backup-file-path' });
+            
+            // Backups for this file
+            const backupList = fileSection.createDiv({ cls: 'backup-list' });
+            
+            backups.forEach((backup, index) => {
+                const backupItem = backupList.createDiv({ cls: 'backup-item' });
+                
+                // Backup info
+                const backupInfo = backupItem.createDiv({ cls: 'backup-info' });
+                backupInfo.createEl('span', { 
+                    text: `${backup.readableTimestamp} (${Math.round(backup.content.length / 1024)} KB)`,
+                    cls: 'backup-timestamp'
+                });
+                
+                // Backup actions
+                const backupActions = backupItem.createDiv({ cls: 'backup-actions' });
+                
+                // Restore button
+                const restoreBtn = backupActions.createEl('button', {
+                    text: 'Restore',
+                    cls: 'mod-cta'
+                });
+                restoreBtn.onclick = async () => {                    const confirmed = await this.showConfirmationDialog(
+                        'Restore Backup',
+                        `Are you sure you want to restore the backup from ${backup.readableTimestamp}? This will overwrite the current file content.`
+                    );
+                    
+                    if (confirmed) {
+                        try {
+                            const result = await backupManager.restoreBackup(backup);
+                            if (result.success) {
+                                new Notice(`Successfully restored backup for ${filePath}`);
+                            } else {
+                                new Notice(`Failed to restore backup: ${result.error}`);
+                            }
+                        } catch (error) {
+                            new Notice(`Error restoring backup: ${error.message}`);
+                        }
+                    }
+                };
+                
+                // Delete button
+                const deleteBtn = backupActions.createEl('button', {
+                    text: 'Delete',
+                    cls: 'mod-warning'
+                });                deleteBtn.onclick = async () => {
+                    const confirmed = await this.showConfirmationDialog(
+                        'Delete Backup',
+                        `Are you sure you want to delete the backup from ${backup.readableTimestamp}?`
+                    );
+                    
+                    if (confirmed) {
+                        try {
+                            await backupManager.deleteSpecificBackup(filePath, backup.timestamp);
+                            new Notice(`Deleted backup for ${filePath}`);
+                            this.display(); // Refresh the settings view
+                        } catch (error) {
+                            new Notice(`Error deleting backup: ${error.message}`);
+                        }
+                    }
+                };
+                
+                // Preview button (show first 200 characters)
+                const previewBtn = backupActions.createEl('button', {
+                    text: 'Preview',
+                    cls: 'mod-muted'
+                });
+                previewBtn.onclick = () => {
+                    const preview = backup.content.substring(0, 200);
+                    const truncated = backup.content.length > 200 ? '...' : '';
+                    new Notice(`Preview: ${preview}${truncated}`, 10000);
+                };
+            });
+            
+            // Delete all backups for this file
+            const deleteAllBtn = fileSection.createEl('button', {
+                text: `Delete All Backups for ${filePath}`,
+                cls: 'mod-warning'
+            });            deleteAllBtn.onclick = async () => {
+                const confirmed = await this.showConfirmationDialog(
+                    'Delete All Backups',
+                    `Are you sure you want to delete all ${backups.length} backups for ${filePath}?`
+                );
+                
+                if (confirmed) {
+                    try {
+                        await backupManager.deleteBackupsForFile(filePath);
+                        new Notice(`Deleted all backups for ${filePath}`);
+                        this.display(); // Refresh the settings view
+                    } catch (error) {
+                        new Notice(`Error deleting backups: ${error.message}`);
+                    }
+                }
+            };
+        }
+    }
+
+    /**
+     * Shows a confirmation dialog
+     */
+    private showConfirmationDialog(title: string, message: string): Promise<boolean> {
+        return new Promise((resolve) => {
+            const modal = document.createElement('div');
+            modal.className = 'modal';
+            modal.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background-color: rgba(0, 0, 0, 0.5);
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                z-index: 1000;
+            `;
+            
+            const content = modal.createDiv();
+            content.className = 'modal-content';
+            content.style.cssText = `
+                background-color: var(--background-primary);
+                padding: 2rem;
+                border-radius: 8px;
+                max-width: 400px;
+                width: 90%;
+                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            `;
+            
+            content.createEl('h3', { text: title });
+            content.createEl('p', { text: message });
+            
+            const buttonContainer = content.createDiv();
+            buttonContainer.style.cssText = `
+                display: flex;
+                gap: 1rem;
+                justify-content: flex-end;
+                margin-top: 1rem;
+            `;
+            
+            const cancelBtn = buttonContainer.createEl('button', { text: 'Cancel' });
+            cancelBtn.onclick = () => {
+                document.body.removeChild(modal);
+                resolve(false);
+            };
+            
+            const confirmBtn = buttonContainer.createEl('button', { text: 'Confirm', cls: 'mod-cta' });
+            confirmBtn.onclick = () => {
+                document.body.removeChild(modal);
+                resolve(true);
+            };
+            
+            document.body.appendChild(modal);
+            
+            // Close on background click
+            modal.onclick = (e) => {
+                if (e.target === modal) {
+                    document.body.removeChild(modal);
+                    resolve(false);
+                }
+            };
+        });
     }
 }

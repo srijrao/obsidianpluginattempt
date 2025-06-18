@@ -8,6 +8,7 @@ import { ModelSettingsView } from './components/ModelSettingsView';
 import { processMessages, getContextNotesContent } from './components/noteUtils';
 import { getSystemMessage } from './components/systemMessage';
 import { showNotice, copyToClipboard, moveCursorAfterInsert, insertSeparator } from './components/utils';
+import { BackupManager } from './components/BackupManager';
 
 export const VIEW_TYPE_MODEL_SETTINGS = 'model-settings-view';
 
@@ -33,6 +34,7 @@ export default class MyPlugin extends Plugin {
     activeStream: AbortController | null = null;
     private _yamlAttributeCommandIds: string[] = [];
     private settingsListeners: Array<() => void> = [];
+    public backupManager: BackupManager;
 
     onSettingsChange(listener: () => void) {
         this.settingsListeners.push(listener);
@@ -221,10 +223,14 @@ export default class MyPlugin extends Plugin {
         } finally {
             this.activeStream = null;
         }
-    }
-
-    async onload() {
-        await this.loadSettings();
+    }    async onload() {
+        await this.loadSettings();        // Initialize backup manager
+        const pluginDataPath = this.app.vault.configDir + '/plugins/ai-assistant-for-obsidian';
+        this.backupManager = new BackupManager(this.app, pluginDataPath);
+        
+        // Initialize backup system
+        await this.backupManager.initialize();
+        
         this.addSettingTab(new MyPluginSettingTab(this.app, this));
 
         this.registerPluginView(VIEW_TYPE_MODEL_SETTINGS, (leaf) => new ModelSettingsView(leaf, this));

@@ -1,6 +1,7 @@
 import { App, TFile } from 'obsidian';
 import { Tool, ToolResult } from '../ToolRegistry';
 import { createFile, writeFile } from '../../FileHandler';
+import { BackupManager } from '../../BackupManager';
 
 export interface FileWriteParams {
     path: string;
@@ -12,7 +13,8 @@ export interface FileWriteParams {
 
 export class FileWriteTool implements Tool {
     name = 'file_write';
-    description = 'Write/modify file contents in the vault';    parameters = {
+    description = 'Write/modify file contents in the vault';
+    parameters = {
         path: {
             type: 'string',
             description: 'Path to the file to write (relative to vault root)',
@@ -33,9 +35,11 @@ export class FileWriteTool implements Tool {
             description: 'Whether to create a backup before modifying existing files',
             default: true
         }
-    };
-
-    constructor(private app: App) {}    async execute(params: any, context: any): Promise<ToolResult> {
+    };    private backupManager: BackupManager;    constructor(private app: App, backupManager?: BackupManager) {
+        // Initialize backup manager with provided instance or create a default one
+        const defaultPath = app.vault.configDir + '/plugins/ai-assistant-for-obsidian';
+        this.backupManager = backupManager || new BackupManager(app, defaultPath);
+    }async execute(params: any, context: any): Promise<ToolResult> {
         // Normalize parameter names for backward compatibility
         const filePath = params.path || params.filePath || params.filename;
         const { content, createIfNotExists = true, backup = true } = params;
@@ -91,17 +95,17 @@ export class FileWriteTool implements Tool {
                     success: false,
                     error: `Path is not a file: ${filePath}`
                 };
-            }
-
-            // File exists, handle backup if requested
+            }            // File exists, handle backup if requested
             if (backup) {
-                const backupPath = `${filePath}.backup.${Date.now()}`;
                 const originalContent = await this.app.vault.read(file);
-                try {
-                    await createFile(this.app, backupPath, originalContent);
-                } catch (error) {
-                    // If backup fails, warn but continue
-                    console.warn(`Did not create backup for ${filePath}:`, error);
+                
+                // Only create backup if content is actually changing
+                const shouldBackup = await this.backupManager.shouldCreateBackup(filePath, content);
+                if (shouldBackup) {
+                    console.log(`[AI Assistant] Creating backup for ${filePath}`);
+                    await this.backupManager.createBackup(filePath, originalContent);
+                } else {
+                    console.log(`[AI Assistant] Skipping backup for ${filePath} - content unchanged`);
                 }
             }
 
@@ -113,9 +117,7 @@ export class FileWriteTool implements Tool {
                     success: false,
                     error: result
                 };
-            }
-
-            return {
+            }            return {
                 success: true,
                 data: {
                     action: 'modified',

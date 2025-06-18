@@ -29,7 +29,7 @@ export class AgentResponseHandler {
         this.initializeTools();
     }    private initializeTools() {
         // Register all available tools using the centralized tool creation function
-        const tools = createToolInstances(this.context.app);
+        const tools = createToolInstances(this.context.app, this.context.plugin);
         for (const tool of tools) {
             this.toolRegistry.register(tool);
         }
