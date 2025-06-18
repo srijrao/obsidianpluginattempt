@@ -91,26 +91,21 @@ export class ResponseStreamer {
         // Build dynamic prompt based on current plugin settings
         const agentPrompt = buildAgentSystemPrompt(this.plugin.settings.enabledTools);
         
-        console.log('ResponseStreamer: Agent mode enabled, adding system prompt');
-        console.log('ResponseStreamer: Enabled tools:', this.plugin.settings.enabledTools);
+        // Essential debug: Log agent mode enabled and enabled tools
+        console.log('ResponseStreamer: Agent mode enabled, enabled tools:', this.plugin.settings.enabledTools);
         
         const systemMessageIndex = messages.findIndex(msg => msg.role === 'system');
         if (systemMessageIndex !== -1) {
             const originalContent = messages[systemMessageIndex].content;
             messages[systemMessageIndex].content = agentPrompt + '\n\n' + originalContent;
-            console.log('ResponseStreamer: Updated existing system message');
         } else {
             // If no system message exists, create one
             messages.unshift({
                 role: 'system',
                 content: agentPrompt
             });
-            console.log('ResponseStreamer: Created new system message');
         }
-        
-        // Log first part of the final system prompt for debugging
-        const finalPrompt = messages.find(msg => msg.role === 'system')?.content || '';
-        console.log('ResponseStreamer: Final system prompt preview:', finalPrompt.substring(0, 200) + '...');
+        // Removed verbose logs for updated/created system message and prompt preview
     }
 
     /**
@@ -143,16 +138,11 @@ export class ResponseStreamer {
             return responseContent;
         }
 
+        // Essential debug: Log agent response processing and task status
         console.log('ResponseStreamer: Processing agent response');
-        console.log('ResponseStreamer: Response content preview:', responseContent.substring(0, 100) + '...');
-
         try {
             const agentResult = await this.agentResponseHandler.processResponseWithUI(responseContent);
-            
-            console.log('ResponseStreamer: Agent result hasTools:', agentResult.hasTools);
-            console.log('ResponseStreamer: Agent result reasoning:', !!agentResult.reasoning);
             console.log('ResponseStreamer: Agent result taskStatus:', agentResult.taskStatus);
-            
             return agentResult.hasTools 
                 ? await this.handleToolExecution(agentResult, container, responseContent, messages)
                 : await this.handleNonToolResponse(agentResult, container, responseContent, messages);
@@ -410,8 +400,6 @@ export class ResponseStreamer {
                 return '*[Tool execution limit reached - no continuation response]*';
             }
             
-            console.log('ResponseStreamer: Getting continuation response after tool execution');
-            
             const provider = this.createProvider();
             let continuationContent = '';
             
@@ -424,7 +412,7 @@ export class ResponseStreamer {
                 abortController: this.activeStream || undefined
             });
 
-            console.log('ResponseStreamer: Continuation response received:', continuationContent.length, 'characters');
+            // Removed verbose logs for getting/received continuation response
             return continuationContent;
         } catch (error) {
             console.error('ResponseStreamer: Error getting continuation response:', error);

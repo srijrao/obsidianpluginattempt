@@ -41,10 +41,10 @@ export class TaskContinuation {
         
         while (!isFinished && iteration < maxIterations) {
             iteration++;
-            // Only log high-level iteration info here
-            console.log(`TaskContinuation: Task continuation iteration ${iteration}`);
+            // Removed per-iteration log
               // Check if tool limit is reached before each iteration
             if (this.agentResponseHandler?.isToolLimitReached()) {
+                // Essential debug: Log tool limit reached during iteration
                 console.log('TaskContinuation: Tool limit reached during iteration, need to show UI warning');
                 // Instead of just stopping, we need to trigger the UI warning
                 // Break out of the loop and let the caller handle the UI
@@ -91,7 +91,7 @@ export class TaskContinuation {
             responseContent += '\n\n*[Task continuation reached maximum iterations - stopping to prevent infinite loop]*';
         }
         
-        // Only log once at the end
+        // Essential debug: Log once at the end
         console.log(`TaskContinuation: Task continuation completed after ${iteration} iterations`);
         return { content: responseContent, limitReachedDuringContinuation };
     }
@@ -180,8 +180,6 @@ export class TaskContinuation {
                 return '*[Tool execution limit reached - no continuation response]*';
             }
             
-            console.log('TaskContinuation: Getting continuation response after tool execution');
-            
             // Import provider utilities
             const { createProvider, createProviderFromUnifiedModel } = await import('../../../providers');
             
@@ -206,7 +204,7 @@ export class TaskContinuation {
                 }
             );
 
-            console.log('TaskContinuation: Continuation response received:', continuationContent.length, 'characters');
+            // Removed verbose log for continuation response received
             return continuationContent;
         } catch (error) {
             console.error('TaskContinuation: Error getting continuation response:', error);

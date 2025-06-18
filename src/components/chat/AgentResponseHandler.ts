@@ -41,8 +41,11 @@ export class AgentResponseHandler {
         toolResults: Array<{ command: ToolCommand; result: ToolResult }>;
         hasTools: boolean;
     }> {
-        console.log('AgentResponseHandler: Processing response, agent mode enabled:', this.context.plugin.isAgentModeEnabled());
-        console.log('AgentResponseHandler: Response content:', response);
+        // Essential debug: Log agent mode status and response content together
+        console.log('AgentResponseHandler: processResponse called', {
+            agentModeEnabled: this.context.plugin.isAgentModeEnabled(),
+            response
+        });
         
         // Check if agent mode is enabled
         if (!this.context.plugin.isAgentModeEnabled()) {
@@ -57,7 +60,7 @@ export class AgentResponseHandler {
         // Parse response for tool commands
         const { text, commands } = this.commandParser.parseResponse(response);
         
-        console.log('AgentResponseHandler: Parsed text:', text);
+        // Essential debug: Log found commands only
         console.log('AgentResponseHandler: Found commands:', commands);
 
         if (commands.length === 0) {
@@ -83,8 +86,6 @@ export class AgentResponseHandler {
         const toolResults: Array<{ command: ToolCommand; result: ToolResult }> = [];
         
         for (const command of commands) {
-            console.log(`AgentResponseHandler: Executing tool '${command.action}' with parameters:`, command.parameters);
-            
             try {
                 const startTime = Date.now();
                 const result = await this.executeToolWithTimeout(command, agentSettings.timeoutMs);

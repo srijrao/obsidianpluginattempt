@@ -21,19 +21,20 @@ export class CommandParser {
         // Extract JSON commands from the response
         const extractedCommands = this.extractCommands(response);
         
-        console.log('CommandParser: Extracted commands:', extractedCommands);
+        // for debugging: extractedCommands can be logged if needed, but is redundant with final result
         
         for (const command of extractedCommands) {
             if (this.validateCommand(command.command)) {
-                console.log('CommandParser: Valid command found:', command.command);
+                // Removed verbose log for valid command
                 commands.push(command.command);
                 // Remove the JSON command from the text
                 cleanText = cleanText.replace(command.originalText, '').trim();
             } else {
-                console.log('CommandParser: Invalid command:', command.command);
+                // Removed verbose log for invalid command
             }
         }
 
+        // Essential debug: log final result
         console.log('CommandParser: Final result - text:', cleanText, 'commands:', commands);
 
         return {

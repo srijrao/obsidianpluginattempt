@@ -10831,14 +10831,11 @@ var CommandParser = class {
     let cleanText = response;
     console.log("CommandParser: Parsing response:", response);
     const extractedCommands = this.extractCommands(response);
-    console.log("CommandParser: Extracted commands:", extractedCommands);
     for (const command of extractedCommands) {
       if (this.validateCommand(command.command)) {
-        console.log("CommandParser: Valid command found:", command.command);
         commands.push(command.command);
         cleanText = cleanText.replace(command.originalText, "").trim();
       } else {
-        console.log("CommandParser: Invalid command:", command.command);
       }
     }
     console.log("CommandParser: Final result - text:", cleanText, "commands:", commands);
@@ -11008,8 +11005,10 @@ var AgentResponseHandler = class {
    * @returns Object containing processed text and execution results
    */
   async processResponse(response) {
-    console.log("AgentResponseHandler: Processing response, agent mode enabled:", this.context.plugin.isAgentModeEnabled());
-    console.log("AgentResponseHandler: Response content:", response);
+    console.log("AgentResponseHandler: processResponse called", {
+      agentModeEnabled: this.context.plugin.isAgentModeEnabled(),
+      response
+    });
     if (!this.context.plugin.isAgentModeEnabled()) {
       console.log("AgentResponseHandler: Agent mode disabled, returning original response");
       return {
@@ -11019,7 +11018,6 @@ var AgentResponseHandler = class {
       };
     }
     const { text, commands } = this.commandParser.parseResponse(response);
-    console.log("AgentResponseHandler: Parsed text:", text);
     console.log("AgentResponseHandler: Found commands:", commands);
     if (commands.length === 0) {
       console.log("AgentResponseHandler: No commands found, returning original text");
@@ -11043,7 +11041,6 @@ var AgentResponseHandler = class {
     }
     const toolResults = [];
     for (const command of commands) {
-      console.log(`AgentResponseHandler: Executing tool '${command.action}' with parameters:`, command.parameters);
       try {
         const startTime = Date.now();
         const result = await this.executeToolWithTimeout(command, agentSettings.timeoutMs);
@@ -11629,7 +11626,6 @@ var TaskContinuation = class {
     }
     while (!isFinished && iteration < maxIterations) {
       iteration++;
-      console.log(`TaskContinuation: Task continuation iteration ${iteration}`);
       if ((_b = this.agentResponseHandler) == null ? void 0 : _b.isToolLimitReached()) {
         console.log("TaskContinuation: Tool limit reached during iteration, need to show UI warning");
         responseContent += "\n\n*[Tool execution limit reached during continuation]*";
@@ -11730,7 +11726,6 @@ var TaskContinuation = class {
         console.log("TaskContinuation: Tool limit reached, skipping continuation API call");
         return "*[Tool execution limit reached - no continuation response]*";
       }
-      console.log("TaskContinuation: Getting continuation response after tool execution");
       const { createProvider: createProvider2, createProviderFromUnifiedModel: createProviderFromUnifiedModel2 } = await Promise.resolve().then(() => (init_providers(), providers_exports));
       const provider = this.plugin.settings.selectedModel ? createProviderFromUnifiedModel2(this.plugin.settings, this.plugin.settings.selectedModel) : createProvider2(this.plugin.settings);
       let continuationContent = "";
@@ -11745,7 +11740,6 @@ var TaskContinuation = class {
           // Note: We don't pass activeStream here as this is a background operation
         }
       );
-      console.log("TaskContinuation: Continuation response received:", continuationContent.length, "characters");
       return continuationContent;
     } catch (error) {
       console.error("TaskContinuation: Error getting continuation response:", error);
@@ -11811,26 +11805,20 @@ var ResponseStreamer = class {
   * Adds agent system prompt to messages if agent mode is enabled
   */
   async addAgentSystemPrompt(messages) {
-    var _a2;
     if (!this.plugin.isAgentModeEnabled()) return;
     const { buildAgentSystemPrompt: buildAgentSystemPrompt2 } = await Promise.resolve().then(() => (init_promptConstants(), promptConstants_exports));
     const agentPrompt = buildAgentSystemPrompt2(this.plugin.settings.enabledTools);
-    console.log("ResponseStreamer: Agent mode enabled, adding system prompt");
-    console.log("ResponseStreamer: Enabled tools:", this.plugin.settings.enabledTools);
+    console.log("ResponseStreamer: Agent mode enabled, enabled tools:", this.plugin.settings.enabledTools);
     const systemMessageIndex = messages.findIndex((msg) => msg.role === "system");
     if (systemMessageIndex !== -1) {
       const originalContent = messages[systemMessageIndex].content;
       messages[systemMessageIndex].content = agentPrompt + "\n\n" + originalContent;
-      console.log("ResponseStreamer: Updated existing system message");
     } else {
       messages.unshift({
         role: "system",
         content: agentPrompt
       });
-      console.log("ResponseStreamer: Created new system message");
     }
-    const finalPrompt = ((_a2 = messages.find((msg) => msg.role === "system")) == null ? void 0 : _a2.content) || "";
-    console.log("ResponseStreamer: Final system prompt preview:", finalPrompt.substring(0, 200) + "...");
   }
   /**
    * Updates message content in the UI with markdown rendering
@@ -11858,11 +11846,8 @@ var ResponseStreamer = class {
       return responseContent;
     }
     console.log("ResponseStreamer: Processing agent response");
-    console.log("ResponseStreamer: Response content preview:", responseContent.substring(0, 100) + "...");
     try {
       const agentResult = await this.agentResponseHandler.processResponseWithUI(responseContent);
-      console.log("ResponseStreamer: Agent result hasTools:", agentResult.hasTools);
-      console.log("ResponseStreamer: Agent result reasoning:", !!agentResult.reasoning);
       console.log("ResponseStreamer: Agent result taskStatus:", agentResult.taskStatus);
       return agentResult.hasTools ? await this.handleToolExecution(agentResult, container, responseContent, messages) : await this.handleNonToolResponse(agentResult, container, responseContent, messages);
     } catch (error) {
@@ -12061,7 +12046,6 @@ var ResponseStreamer = class {
         console.log("ResponseStreamer: Tool limit reached, skipping continuation API call");
         return "*[Tool execution limit reached - no continuation response]*";
       }
-      console.log("ResponseStreamer: Getting continuation response after tool execution");
       const provider = this.createProvider();
       let continuationContent = "";
       await provider.getCompletion(messages, {
@@ -12072,7 +12056,6 @@ var ResponseStreamer = class {
         },
         abortController: this.activeStream || void 0
       });
-      console.log("ResponseStreamer: Continuation response received:", continuationContent.length, "characters");
       return continuationContent;
     } catch (error) {
       console.error("ResponseStreamer: Error getting continuation response:", error);
