@@ -47,7 +47,7 @@ export class FileReadTool implements Tool {
             }
 
             // Use existing utility function from FileHandler
-            const content = await readFile(this.app, filePath);
+            let content = await readFile(this.app, filePath);
 
             // Check if content indicates an error (readFile returns error strings)
             if (content.startsWith('File not found') || content.startsWith('Failed to read')) {
@@ -56,6 +56,15 @@ export class FileReadTool implements Tool {
                     error: content
                 };
             }
+
+            // Clean up whitespace to reduce token usage
+            content = content
+                .split('\n')
+                .map(line => line.replace(/\s+$/g, '')) // Remove trailing spaces
+                .join('\n')
+                .replace(/\n{3,}/g, '\n\n') // Collapse 3+ blank lines to 2
+                .replace(/ {3,}/g, '  ') // Collapse 3+ spaces to 2
+                .trim(); // Remove leading/trailing whitespace
 
             return {
                 success: true,
