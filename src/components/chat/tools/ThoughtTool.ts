@@ -56,6 +56,11 @@ export class ThoughtTool implements Tool {
             description: 'The main thought or reasoning step to record',
             required: true
         },
+        reasoning: {
+            type: 'string',
+            description: 'Alias for thought (MCP compliance)',
+            required: false
+        },
         step: {
             type: 'number',
             description: 'Current step number in a multi-step process',
@@ -83,13 +88,11 @@ export class ThoughtTool implements Tool {
 
     constructor(private app: App) {}
 
-    /**
-     * Execute the tool with the given parameters.
-     * @param params - ThoughtParams object (see interface for details)
-     * @param context - Execution context (unused)
-     * @returns ToolResult with formatted thought or error
-     */
     async execute(params: ThoughtParams, context: any): Promise<ToolResult> {
+        // Alias older 'reasoning' field into 'thought' so we stay compliant
+        if ((!params.thought || params.thought.trim().length === 0) && (params as any).reasoning) {
+            params.thought = (params as any).reasoning;
+        }
         // MCP: Validate required parameter
         if (!params.thought || typeof params.thought !== 'string' || params.thought.trim().length === 0) {
             return {

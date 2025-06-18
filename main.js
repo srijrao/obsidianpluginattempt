@@ -3590,6 +3590,11 @@ var init_ThoughtTool = __esm({
             description: "The main thought or reasoning step to record",
             required: true
           },
+          reasoning: {
+            type: "string",
+            description: "Alias for thought (MCP compliance)",
+            required: false
+          },
           step: {
             type: "number",
             description: "Current step number in a multi-step process",
@@ -3615,13 +3620,10 @@ var init_ThoughtTool = __esm({
           }
         });
       }
-      /**
-       * Execute the tool with the given parameters.
-       * @param params - ThoughtParams object (see interface for details)
-       * @param context - Execution context (unused)
-       * @returns ToolResult with formatted thought or error
-       */
       async execute(params, context) {
+        if ((!params.thought || params.thought.trim().length === 0) && params.reasoning) {
+          params.thought = params.reasoning;
+        }
         if (!params.thought || typeof params.thought !== "string" || params.thought.trim().length === 0) {
           return {
             success: false,
@@ -3910,16 +3912,14 @@ function getToolMetadata() {
     },
     {
       name: "thought",
-      description: 'Internal reasoning and planning tool - provide either "thought" or "reasoning" parameter',
+      description: "Record and display a single AI reasoning step or thought process.",
       parameters: {
-        thought: { type: "string", description: "The reasoning or thought process", required: false },
+        thought: { type: "string", description: "The main thought or reasoning step to record", required: true },
         reasoning: { type: "string", description: "Alias for thought parameter (legacy support)", required: false },
-        step: { type: "number", description: "Current step number in the thought process", required: false },
-        totalSteps: { type: "number", description: "Total expected steps in the thought process", required: false },
-        category: { type: "string", enum: ["analysis", "planning", "problem-solving", "reflection", "conclusion", "reasoning"], description: "Category of thought for better organization", default: "analysis" },
-        confidence: { type: "number", description: "Confidence level (1-10 scale)", required: false },
-        enableStructuredReasoning: { type: "boolean", description: "Enable structured multi-step reasoning", required: false },
-        reasoningDepth: { type: "string", enum: ["shallow", "medium", "deep"], description: "Depth of reasoning: shallow, medium, or deep", required: false }
+        step: { type: "number", description: "Current step number in a multi-step process", required: false },
+        totalSteps: { type: "number", description: "Total number of steps in the process", required: false },
+        category: { type: "string", enum: ["analysis", "planning", "problem-solving", "reflection", "conclusion"], description: "Category of the thought for organization", default: "analysis" },
+        confidence: { type: "number", description: "Confidence level in this thought (1-10 scale)", default: 7 }
       }
     },
     {
@@ -4000,14 +4000,17 @@ var init_promptConstants = __esm({
       }));
     };
     AGENT_SYSTEM_PROMPT_TEMPLATE = `
-You are an AI assistant in an Obsidian Vault with access to powerful tools (follows MCP standard) for vault management and interaction. Try to use tools whenever possible to perform tasks. Start by thinking through a plan before executing tasks. Provide explanations, summaries, or discussions naturally. Ask clarifying questions when requests are ambiguous.
+- You are an AI assistant in an Obsidian Vault with access to powerful tools for vault management and interaction.
+- The special 'thought' tool is available to record your internal reasoning steps for consistency;
+- Try to use tools whenever possible to perform tasks. Start by using the 'thought' tool to outline your plan before executing actions.
+- Provide explanations, summaries, or discussions naturally. Ask clarifying questions when requests are ambiguous.
 
 If you use a tool, always check the tool result (including errors) before continuing. If a tool fails, analyze the error, adjust your plan, and try a different approach or fix the parameters. Do not repeat the same failed tool call. Always reason about tool results before proceeding.
 
 Available tools:
 {{TOOL_DESCRIPTIONS}}
 
-When using tools, respond ONLY with a JSON object using these EXACT parameter names:
+When using tools, respond ONLY with a JSON object using this parameter framework:
 {
   "action": "tool_name",
   "parameters": { 

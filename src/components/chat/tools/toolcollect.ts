@@ -100,16 +100,14 @@ export function getToolMetadata(): Array<{name: string, description: string, par
             }
         },        {
             name: 'thought',
-            description: 'Internal reasoning and planning tool - provide either "thought" or "reasoning" parameter',
+            description: 'Record and display a single AI reasoning step or thought process.',
             parameters: {
-                thought: { type: 'string', description: 'The reasoning or thought process', required: false },
+                thought: { type: 'string', description: 'The main thought or reasoning step to record', required: true },
                 reasoning: { type: 'string', description: 'Alias for thought parameter (legacy support)', required: false },
-                step: { type: 'number', description: 'Current step number in the thought process', required: false },
-                totalSteps: { type: 'number', description: 'Total expected steps in the thought process', required: false },
-                category: { type: 'string', enum: ['analysis', 'planning', 'problem-solving', 'reflection', 'conclusion', 'reasoning'], description: 'Category of thought for better organization', default: 'analysis' },
-                confidence: { type: 'number', description: 'Confidence level (1-10 scale)', required: false },
-                enableStructuredReasoning: { type: 'boolean', description: 'Enable structured multi-step reasoning', required: false },
-                reasoningDepth: { type: 'string', enum: ['shallow', 'medium', 'deep'], description: 'Depth of reasoning: shallow, medium, or deep', required: false }
+                step: { type: 'number', description: 'Current step number in a multi-step process', required: false },
+                totalSteps: { type: 'number', description: 'Total number of steps in the process', required: false },
+                category: { type: 'string', enum: ['analysis', 'planning', 'problem-solving', 'reflection', 'conclusion'], description: 'Category of the thought for organization', default: 'analysis' },
+                confidence: { type: 'number', description: 'Confidence level in this thought (1-10 scale)', default: 7 }
             }
         },        {
             name: 'file_list',
