@@ -20,7 +20,7 @@ export function handleCopyAll(messagesContainer: HTMLElement, plugin: MyPlugin) 
     };
 }
 
-export function handleSaveNote(messagesContainer: HTMLElement, plugin: MyPlugin, app: App) {
+export function handleSaveNote(messagesContainer: HTMLElement, plugin: MyPlugin, app: App, agentResponseHandler?: any) {
     return async () => {
         // With unified model approach, we no longer need to determine provider/model here
         // The buildChatYaml function will handle this based on settings.selectedModel
@@ -29,7 +29,8 @@ export function handleSaveNote(messagesContainer: HTMLElement, plugin: MyPlugin,
             messages: messagesContainer.querySelectorAll('.ai-chat-message'),
             settings: plugin.settings,
             chatSeparator: plugin.settings.chatSeparator,
-            chatNoteFolder: plugin.settings.chatNoteFolder
+            chatNoteFolder: plugin.settings.chatNoteFolder,
+            agentResponseHandler: agentResponseHandler
         });
     };
 }

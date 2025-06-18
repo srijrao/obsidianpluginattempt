@@ -21,6 +21,7 @@ export class AgentResponseHandler {
     private executionCount: number = 0;
     private temporaryMaxToolCalls?: number; // Temporary increase for tool call limit
     private toolDisplays: Map<string, ToolRichDisplay> = new Map(); // Track tool displays
+    private toolMarkdownCache: Map<string, string> = new Map(); // Cache markdown representations
 
     constructor(private context: AgentContext) {
         this.commandParser = new CommandParser();
@@ -162,6 +163,7 @@ export class AgentResponseHandler {
         this.executionCount = 0;
         this.temporaryMaxToolCalls = undefined; // Also reset temporary limit
         this.toolDisplays.clear(); // Clear all tool displays
+        this.toolMarkdownCache.clear(); // Clear markdown cache
         console.log('AgentResponseHandler: Execution count, temporary limits, and tool displays reset');
     }
 
@@ -184,6 +186,21 @@ export class AgentResponseHandler {
      */
     clearToolDisplays(): void {
         this.toolDisplays.clear();
+        this.toolMarkdownCache.clear();
+    }
+
+    /**
+     * Get all tool markdown representations
+     */
+    getToolMarkdown(): string[] {
+        return Array.from(this.toolMarkdownCache.values());
+    }    /**
+     * Get combined tool markdown for saving
+     */
+    getCombinedToolMarkdown(): string {
+        const markdowns = this.getToolMarkdown();
+        console.log('Getting combined tool markdown, count:', markdowns.length);
+        return markdowns.join('\n');
     }
 
     /**
@@ -240,15 +257,53 @@ export class AgentResponseHandler {
                     console.error('Failed to copy tool result:', error);
                 }
             }
-        });
-
-        // Store the display for later reference
+        });        // Store the display for later reference
         this.toolDisplays.set(displayId, toolDisplay);
+          // Cache the markdown representation
+        const markdown = toolDisplay.toMarkdown();
+        this.toolMarkdownCache.set(displayId, markdown);
+        console.log(`Cached tool markdown for ${displayId}:`, markdown);
 
         // Notify context if callback is available
         if (this.context.onToolDisplay) {
             this.context.onToolDisplay(toolDisplay);
         }
+
+        // Cache the markdown representation
+        this.cacheToolMarkdown(command, result);
+    }
+
+    /**
+     * Cache tool markdown representation
+     */
+    private cacheToolMarkdown(command: ToolCommand, result: ToolResult): void {
+        const cacheKey = `${command.action}-${command.requestId}`;
+        const markdown = this.generateToolMarkdown(command, result);
+        this.toolMarkdownCache.set(cacheKey, markdown);
+    }
+
+    /**
+     * Generate markdown for tool display
+     */
+    private generateToolMarkdown(command: ToolCommand, result: ToolResult): string {
+        const status = result.success ? 'SUCCESS' : 'ERROR';
+        const params = JSON.stringify(command.parameters, null, 2);
+        const resultData = result.success 
+            ? JSON.stringify(result.data, null, 2)
+            : result.error;
+        
+        return `### TOOL EXECUTION: ${command.action}
+**Status:** ${status}
+
+**Parameters:**
+\`\`\`json
+${params}
+\`\`\`
+
+**Result:**
+\`\`\`json
+${resultData}
+\`\`\``;
     }
 
     /**
@@ -258,12 +313,13 @@ export class AgentResponseHandler {
         try {
             const agentSettings = this.context.plugin.getAgentModeSettings();
             const result = await this.executeToolWithTimeout(originalCommand, agentSettings.timeoutMs);
-            
-            // Find and update the existing display
+              // Find and update the existing display
             const displayId = `${originalCommand.action}-${originalCommand.requestId || Date.now()}`;
             const existingDisplay = this.toolDisplays.get(displayId);
             if (existingDisplay) {
                 existingDisplay.updateResult(result);
+                // Update cached markdown
+                this.toolMarkdownCache.set(displayId, existingDisplay.toMarkdown());
             }
             
             // Notify context about the new result

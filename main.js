@@ -8693,18 +8693,33 @@ async function saveChatAsNote({
   provider,
   model,
   chatSeparator,
-  chatNoteFolder
+  chatNoteFolder,
+  agentResponseHandler
 }) {
   let chatContent = "";
+  let toolMarkdown = "";
+  if (agentResponseHandler && agentResponseHandler.getCombinedToolMarkdown) {
+    toolMarkdown = agentResponseHandler.getCombinedToolMarkdown();
+    console.log("Tool markdown retrieved for saving:", toolMarkdown);
+  } else {
+    console.log("No agent response handler or getCombinedToolMarkdown method available");
+  }
   messages.forEach((el, index) => {
     var _a2;
-    const rawContent = el.dataset.rawContent;
+    const htmlElement = el;
+    if (htmlElement.classList.contains("tool-display-message")) {
+      return;
+    }
+    const rawContent = htmlElement.dataset.rawContent;
     const content = rawContent !== void 0 ? rawContent : ((_a2 = el.querySelector(".message-content")) == null ? void 0 : _a2.textContent) || "";
     chatContent += content;
     if (index < messages.length - 1) {
       chatContent += "\n\n" + chatSeparator + "\n\n";
     }
   });
+  if (toolMarkdown) {
+    chatContent += "\n\n" + toolMarkdown;
+  }
   const yaml = buildChatYaml(settings, provider, model);
   chatContent = chatContent.replace(/^---[\s\S]*?---\n?/, "");
   const noteContent = yaml + "\n" + chatContent.trimStart();
@@ -8941,14 +8956,15 @@ function handleCopyAll(messagesContainer, plugin) {
     await copyToClipboard(chatContent);
   };
 }
-function handleSaveNote(messagesContainer, plugin, app) {
+function handleSaveNote(messagesContainer, plugin, app, agentResponseHandler) {
   return async () => {
     await saveChatAsNote({
       app,
       messages: messagesContainer.querySelectorAll(".ai-chat-message"),
       settings: plugin.settings,
       chatSeparator: plugin.settings.chatSeparator,
-      chatNoteFolder: plugin.settings.chatNoteFolder
+      chatNoteFolder: plugin.settings.chatNoteFolder,
+      agentResponseHandler
     });
   };
 }
@@ -11110,6 +11126,45 @@ var ToolRichDisplay = class extends import_obsidian20.Component {
       return `<span class="tool-error">${this.options.result.error || "Unknown error"}</span>`;
     }
     const data = this.options.result.data;
+    if (this.options.command.action === "file_write" && data) {
+      const action = data.action || "modified";
+      const filePath = data.filePath || "unknown file";
+      const size = data.size ? ` (${data.size} bytes)` : "";
+      if (action === "created") {
+        return `<span class="tool-success">\u{1F4DD} Created file: <strong>${filePath}</strong>${size}</span>`;
+      } else {
+        return `<span class="tool-success">\u{1F4BE} Saved file: <strong>${filePath}</strong>${size}</span>`;
+      }
+    }
+    if (this.options.command.action === "file_read" && data) {
+      const filePath = data.filePath || this.options.command.parameters.path;
+      const size = data.content ? ` (${data.content.length} chars)` : "";
+      return `<span class="tool-success">\u{1F4D6} Read file: <strong>${filePath}</strong>${size}</span>`;
+    }
+    if (this.options.command.action === "file_search" && data) {
+      const count = data.count || (Array.isArray(data.files) ? data.files.length : 0);
+      return `<span class="tool-success">\u{1F50D} Found ${count} file${count !== 1 ? "s" : ""}</span>`;
+    }
+    if (this.options.command.action === "file_list" && data) {
+      const count = data.count || (Array.isArray(data.files) ? data.files.length : 0);
+      const path = data.path || this.options.command.parameters.path;
+      return `<span class="tool-success">\u{1F4CB} Listed ${count} file${count !== 1 ? "s" : ""} in <strong>${path}</strong></span>`;
+    }
+    if (this.options.command.action === "file_move" && data) {
+      const from = this.options.command.parameters.sourcePath;
+      const to = this.options.command.parameters.destinationPath;
+      return `<span class="tool-success">\u{1F4C1} Moved <strong>${from}</strong> \u2192 <strong>${to}</strong></span>`;
+    }
+    if (this.options.command.action === "file_rename" && data) {
+      const oldName = this.options.command.parameters.path;
+      const newName = this.options.command.parameters.newName;
+      return `<span class="tool-success">\u{1F3F7}\uFE0F Renamed <strong>${oldName}</strong> \u2192 <strong>${newName}</strong></span>`;
+    }
+    if (this.options.command.action === "thought" && data) {
+      const thought = data.thought || data.reasoning || "";
+      const truncated = thought.length > 100 ? thought.substring(0, 100) + "..." : thought;
+      return `<span class="tool-success">\u{1F9E0} ${truncated}</span>`;
+    }
     if (typeof data === "string") {
       return data.length > 100 ? data.substring(0, 100) + "..." : data;
     }
@@ -11140,12 +11195,64 @@ var ToolRichDisplay = class extends import_obsidian20.Component {
     this.element.replaceWith(newElement);
     this.element = newElement;
   }
+  /**
+  * Convert the tool display to markdown format for saving to notes
+  */
+  toMarkdown() {
+    const { command, result } = this.options;
+    const status = result.success ? "\u2705" : "\u274C";
+    const toolName = this.getToolDisplayName();
+    const icon = this.getToolIcon();
+    let markdown = `
+### ${icon} ${toolName} ${status}
+
+`;
+    if (command.parameters && Object.keys(command.parameters).length > 0) {
+      markdown += `**Parameters:**
+`;
+      Object.entries(command.parameters).forEach(([key, value]) => {
+        const displayValue = typeof value === "string" && value.length > 100 ? value.substring(0, 100) + "..." : JSON.stringify(value);
+        markdown += `- **${key}:** \`${displayValue}\`
+`;
+      });
+      markdown += "\n";
+    }
+    if (result.success) {
+      markdown += `**Result:** ${this.getResultSummary()}
+
+`;
+      const details = this.getDetailedResult();
+      if (details && details !== this.getResultSummary()) {
+        if (details.length <= 200) {
+          markdown += `**Details:** \`${details}\`
+
+`;
+        } else {
+          markdown += `<details>
+<summary>Show Details</summary>
+
+\`\`\`
+${details}
+\`\`\`
+
+</details>
+
+`;
+        }
+      }
+    } else {
+      markdown += `**Error:** ${result.error}
+
+`;
+    }
+    return markdown;
+  }
 };
 
 // src/components/chat/AgentResponseHandler.ts
 init_toolcollect();
 var AgentResponseHandler = class {
-  // Track tool displays
+  // Cache markdown representations
   constructor(context) {
     this.context = context;
     __publicField(this, "commandParser");
@@ -11154,6 +11261,8 @@ var AgentResponseHandler = class {
     __publicField(this, "temporaryMaxToolCalls");
     // Temporary increase for tool call limit
     __publicField(this, "toolDisplays", /* @__PURE__ */ new Map());
+    // Track tool displays
+    __publicField(this, "toolMarkdownCache", /* @__PURE__ */ new Map());
     this.commandParser = new CommandParser();
     this.toolRegistry = new ToolRegistry();
     this.initializeTools();
@@ -11265,6 +11374,7 @@ var AgentResponseHandler = class {
     this.executionCount = 0;
     this.temporaryMaxToolCalls = void 0;
     this.toolDisplays.clear();
+    this.toolMarkdownCache.clear();
     console.log("AgentResponseHandler: Execution count, temporary limits, and tool displays reset");
   }
   /**
@@ -11284,6 +11394,21 @@ var AgentResponseHandler = class {
    */
   clearToolDisplays() {
     this.toolDisplays.clear();
+    this.toolMarkdownCache.clear();
+  }
+  /**
+   * Get all tool markdown representations
+   */
+  getToolMarkdown() {
+    return Array.from(this.toolMarkdownCache.values());
+  }
+  /**
+  * Get combined tool markdown for saving
+  */
+  getCombinedToolMarkdown() {
+    const markdowns = this.getToolMarkdown();
+    console.log("Getting combined tool markdown, count:", markdowns.length);
+    return markdowns.join("\n");
   }
   /**
    * Get tool execution statistics
@@ -11339,9 +11464,41 @@ ${resultText}`
       }
     });
     this.toolDisplays.set(displayId, toolDisplay);
+    const markdown = toolDisplay.toMarkdown();
+    this.toolMarkdownCache.set(displayId, markdown);
+    console.log(`Cached tool markdown for ${displayId}:`, markdown);
     if (this.context.onToolDisplay) {
       this.context.onToolDisplay(toolDisplay);
     }
+    this.cacheToolMarkdown(command, result);
+  }
+  /**
+   * Cache tool markdown representation
+   */
+  cacheToolMarkdown(command, result) {
+    const cacheKey = `${command.action}-${command.requestId}`;
+    const markdown = this.generateToolMarkdown(command, result);
+    this.toolMarkdownCache.set(cacheKey, markdown);
+  }
+  /**
+   * Generate markdown for tool display
+   */
+  generateToolMarkdown(command, result) {
+    const status = result.success ? "SUCCESS" : "ERROR";
+    const params = JSON.stringify(command.parameters, null, 2);
+    const resultData = result.success ? JSON.stringify(result.data, null, 2) : result.error;
+    return `### TOOL EXECUTION: ${command.action}
+**Status:** ${status}
+
+**Parameters:**
+\`\`\`json
+${params}
+\`\`\`
+
+**Result:**
+\`\`\`json
+${resultData}
+\`\`\``;
   }
   /**
    * Re-run a tool with the same parameters
@@ -11354,6 +11511,7 @@ ${resultText}`
       const existingDisplay = this.toolDisplays.get(displayId);
       if (existingDisplay) {
         existingDisplay.updateResult(result);
+        this.toolMarkdownCache.set(displayId, existingDisplay.toMarkdown());
       }
       this.context.onToolResult(result, originalCommand);
     } catch (error) {
@@ -12536,7 +12694,6 @@ var ChatView = class extends import_obsidian26.ItemView {
     const sendButton = ui.sendButton;
     const stopButton = ui.stopButton;
     ui.copyAllButton.addEventListener("click", handleCopyAll(this.messagesContainer, this.plugin));
-    ui.saveNoteButton.addEventListener("click", handleSaveNote(this.messagesContainer, this.plugin, this.app));
     ui.clearButton.addEventListener("click", handleClearChat(this.messagesContainer, this.chatHistoryManager));
     ui.settingsButton.addEventListener("click", handleSettings(this.app, this.plugin));
     ui.helpButton.addEventListener("click", handleHelp(this.app));
@@ -12560,6 +12717,7 @@ var ChatView = class extends import_obsidian26.ItemView {
         this.insertToolDisplay(display);
       }
     });
+    ui.saveNoteButton.addEventListener("click", handleSaveNote(this.messagesContainer, this.plugin, this.app, this.agentResponseHandler));
     this.responseStreamer = new ResponseStreamer(
       this.plugin,
       this.agentResponseHandler,

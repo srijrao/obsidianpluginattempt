@@ -81,10 +81,9 @@ export class ChatView extends ItemView {
         this.updateModelNameDisplay();
         const textarea = ui.textarea;
         const sendButton = ui.sendButton;
-        const stopButton = ui.stopButton;
-        // Attach event handlers
+        const stopButton = ui.stopButton;        // Attach event handlers (except save note which needs agent response handler)
         ui.copyAllButton.addEventListener('click', handleCopyAll(this.messagesContainer, this.plugin));
-        ui.saveNoteButton.addEventListener('click', handleSaveNote(this.messagesContainer, this.plugin, this.app));        ui.clearButton.addEventListener('click', handleClearChat(this.messagesContainer, this.chatHistoryManager));
+        ui.clearButton.addEventListener('click', handleClearChat(this.messagesContainer, this.chatHistoryManager));
         ui.settingsButton.addEventListener('click', handleSettings(this.app, this.plugin));
         ui.helpButton.addEventListener('click', handleHelp(this.app));
         // ui.referenceNoteButton.addEventListener('click', handleReferenceNote(this.app, this.plugin));
@@ -111,6 +110,9 @@ export class ChatView extends ItemView {
                 this.insertToolDisplay(display);
             }
         });
+        
+        // Now that agent response handler is initialized, attach the save note handler
+        ui.saveNoteButton.addEventListener('click', handleSaveNote(this.messagesContainer, this.plugin, this.app, this.agentResponseHandler));
         
         // Initialize helper classes that depend on agentResponseHandler
         this.responseStreamer = new ResponseStreamer(

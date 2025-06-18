@@ -51,7 +51,8 @@ export async function saveChatAsNote({
     provider,
     model,
     chatSeparator,
-    chatNoteFolder
+    chatNoteFolder,
+    agentResponseHandler
 }: {
     app: any,
     messages: NodeListOf<Element>,
@@ -59,18 +60,41 @@ export async function saveChatAsNote({
     provider?: string,
     model?: string,
     chatSeparator: string,
-    chatNoteFolder?: string
+    chatNoteFolder?: string,
+    agentResponseHandler?: any
 }) {
     let chatContent = '';
+      // Get tool markdown representations if agent response handler is available
+    let toolMarkdown = '';
+    if (agentResponseHandler && agentResponseHandler.getCombinedToolMarkdown) {
+        toolMarkdown = agentResponseHandler.getCombinedToolMarkdown();
+        console.log('Tool markdown retrieved for saving:', toolMarkdown);
+    } else {
+        console.log('No agent response handler or getCombinedToolMarkdown method available');
+    }
+    
     messages.forEach((el: Element, index: number) => {
-        // Prefer raw markdown content if available
-        const rawContent = (el as HTMLElement).dataset.rawContent;
+        const htmlElement = el as HTMLElement;
+        
+        // Skip tool display messages as they'll be handled by the cached markdown
+        if (htmlElement.classList.contains('tool-display-message')) {
+            return;
+        }
+        
+        // Regular message - prefer raw markdown content if available
+        const rawContent = htmlElement.dataset.rawContent;
         const content = rawContent !== undefined ? rawContent : el.querySelector('.message-content')?.textContent || '';
         chatContent += content;
+        
         if (index < messages.length - 1) {
             chatContent += '\n\n' + chatSeparator + '\n\n';
         }
     });
+    
+    // Combine regular chat content with tool markdown
+    if (toolMarkdown) {
+        chatContent += '\n\n' + toolMarkdown;
+    }
     const yaml = buildChatYaml(settings, provider, model);
     // Remove any existing YAML frontmatter from chatContent
     chatContent = chatContent.replace(/^---[\s\S]*?---\n?/, '');
