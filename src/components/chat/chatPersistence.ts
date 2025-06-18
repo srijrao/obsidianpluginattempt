@@ -45,9 +45,13 @@ function getCurrentModelForProvider(settings: MyPluginSettings): string {
     }
 }
 
+/**
+ * Save chat as note, accepting either a NodeList of message elements or a pre-formatted chatContent string.
+ */
 export async function saveChatAsNote({
     app,
     messages,
+    chatContent,
     settings,
     provider,
     model,
@@ -56,7 +60,8 @@ export async function saveChatAsNote({
     agentResponseHandler
 }: {
     app: any,
-    messages: NodeListOf<Element>,
+    messages?: NodeListOf<Element>,
+    chatContent?: string,
     settings: MyPluginSettings,
     provider?: string,
     model?: string,
@@ -64,53 +69,50 @@ export async function saveChatAsNote({
     chatNoteFolder?: string,
     agentResponseHandler?: any
 }) {
-    let chatContent = '';
-    const messageRenderer = new MessageRenderer(app);
-    
-    messages.forEach((el: Element, index: number) => {
-        const htmlElement = el as HTMLElement;
-        
-        // Skip tool display messages as they're handled inline now
-        if (htmlElement.classList.contains('tool-display-message')) {
-            return;
-        }
-        
-        // Check if this message has tool results data
-        const messageDataStr = htmlElement.dataset.messageData;
-        let messageData = null;
-        if (messageDataStr) {
-            try {
-                messageData = JSON.parse(messageDataStr);
-            } catch (e) {
-                console.log('Failed to parse message data:', e);
+    let content = '';
+    if (typeof chatContent === 'string') {
+        content = chatContent;
+    } else if (messages) {
+        const messageRenderer = new MessageRenderer(app);
+        messages.forEach((el: Element, index: number) => {
+            const htmlElement = el as HTMLElement;
+            // Skip tool display messages as they're handled inline now
+            if (htmlElement.classList.contains('tool-display-message')) {
+                return;
             }
-        }
-          console.log('DEBUG saveChatAsNote - Message data:', {
-            hasMessageData: !!messageData,
-            hasToolResults: messageData && messageData.toolResults && messageData.toolResults.length > 0,
-            toolResultsLength: messageData?.toolResults?.length || 0,
-            messageDataStr: messageDataStr?.substring(0, 200) + '...'
+            
+            // Check if this message has tool results data
+            const messageDataStr = htmlElement.dataset.messageData;
+            let messageData = null;
+            if (messageDataStr) {
+                try {
+                    messageData = JSON.parse(messageDataStr);
+                } catch (e) {
+                    console.log('Failed to parse message data:', e);
+                }
+            }
+            
+            // If message has tool results, use MessageRenderer for proper inline formatting
+            if (messageData && messageData.toolResults && messageData.toolResults.length > 0) {
+                content += messageRenderer.getMessageContentForCopy(messageData);
+            } else {
+                // For regular messages, use raw content if available, otherwise text content
+                const rawContent = htmlElement.dataset.rawContent;
+                const msg = rawContent !== undefined ? rawContent : el.querySelector('.message-content')?.textContent || '';
+                content += msg;
+            }
+            
+            if (index < messages.length - 1) {
+                content += '\n\n' + chatSeparator + '\n\n';
+            }
         });
-        
-        // If message has tool results, use MessageRenderer for proper inline formatting
-        if (messageData && messageData.toolResults && messageData.toolResults.length > 0) {
-            chatContent += messageRenderer.getMessageContentForCopy(messageData);
-        } else {
-            // For regular messages, use raw content if available, otherwise text content
-            const rawContent = htmlElement.dataset.rawContent;
-            const content = rawContent !== undefined ? rawContent : el.querySelector('.message-content')?.textContent || '';
-            chatContent += content;
-        }
-        
-        if (index < messages.length - 1) {
-            chatContent += '\n\n' + chatSeparator + '\n\n';
-        }
-    });
-    
+    } else {
+        throw new Error('Either messages or chatContent must be provided');
+    }
     const yaml = buildChatYaml(settings, provider, model);
-    // Remove any existing YAML frontmatter from chatContent
-    chatContent = chatContent.replace(/^---[\s\S]*?---\n?/, '');
-    const noteContent = yaml + '\n' + chatContent.trimStart();
+    // Remove any existing YAML frontmatter from content
+    content = content.replace(/^---[\s\S]*?---\n?/, '');
+    const noteContent = yaml + '\n' + content.trimStart();
     // Generate filename with timestamp
     const now = new Date();
     const pad = (n: number) => n.toString().padStart(2, '0');

@@ -9649,6 +9649,7 @@ function getCurrentModelForProvider(settings) {
 async function saveChatAsNote({
   app,
   messages,
+  chatContent,
   settings,
   provider,
   model,
@@ -9656,43 +9657,43 @@ async function saveChatAsNote({
   chatNoteFolder,
   agentResponseHandler
 }) {
-  let chatContent = "";
-  const messageRenderer = new MessageRenderer(app);
-  messages.forEach((el, index) => {
-    var _a2, _b;
-    const htmlElement = el;
-    if (htmlElement.classList.contains("tool-display-message")) {
-      return;
-    }
-    const messageDataStr = htmlElement.dataset.messageData;
-    let messageData = null;
-    if (messageDataStr) {
-      try {
-        messageData = JSON.parse(messageDataStr);
-      } catch (e) {
-        console.log("Failed to parse message data:", e);
+  let content = "";
+  if (typeof chatContent === "string") {
+    content = chatContent;
+  } else if (messages) {
+    const messageRenderer = new MessageRenderer(app);
+    messages.forEach((el, index) => {
+      var _a2;
+      const htmlElement = el;
+      if (htmlElement.classList.contains("tool-display-message")) {
+        return;
       }
-    }
-    console.log("DEBUG saveChatAsNote - Message data:", {
-      hasMessageData: !!messageData,
-      hasToolResults: messageData && messageData.toolResults && messageData.toolResults.length > 0,
-      toolResultsLength: ((_a2 = messageData == null ? void 0 : messageData.toolResults) == null ? void 0 : _a2.length) || 0,
-      messageDataStr: (messageDataStr == null ? void 0 : messageDataStr.substring(0, 200)) + "..."
+      const messageDataStr = htmlElement.dataset.messageData;
+      let messageData = null;
+      if (messageDataStr) {
+        try {
+          messageData = JSON.parse(messageDataStr);
+        } catch (e) {
+          console.log("Failed to parse message data:", e);
+        }
+      }
+      if (messageData && messageData.toolResults && messageData.toolResults.length > 0) {
+        content += messageRenderer.getMessageContentForCopy(messageData);
+      } else {
+        const rawContent = htmlElement.dataset.rawContent;
+        const msg = rawContent !== void 0 ? rawContent : ((_a2 = el.querySelector(".message-content")) == null ? void 0 : _a2.textContent) || "";
+        content += msg;
+      }
+      if (index < messages.length - 1) {
+        content += "\n\n" + chatSeparator + "\n\n";
+      }
     });
-    if (messageData && messageData.toolResults && messageData.toolResults.length > 0) {
-      chatContent += messageRenderer.getMessageContentForCopy(messageData);
-    } else {
-      const rawContent = htmlElement.dataset.rawContent;
-      const content = rawContent !== void 0 ? rawContent : ((_b = el.querySelector(".message-content")) == null ? void 0 : _b.textContent) || "";
-      chatContent += content;
-    }
-    if (index < messages.length - 1) {
-      chatContent += "\n\n" + chatSeparator + "\n\n";
-    }
-  });
+  } else {
+    throw new Error("Either messages or chatContent must be provided");
+  }
   const yaml = buildChatYaml(settings, provider, model);
-  chatContent = chatContent.replace(/^---[\s\S]*?---\n?/, "");
-  const noteContent = yaml + "\n" + chatContent.trimStart();
+  content = content.replace(/^---[\s\S]*?---\n?/, "");
+  const noteContent = yaml + "\n" + content.trimStart();
   const now = /* @__PURE__ */ new Date();
   const pad = (n) => n.toString().padStart(2, "0");
   const fileName = `Chat Export ${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}-${pad(now.getMinutes())}.md`;
@@ -9912,54 +9913,54 @@ var init_SettingsModal = __esm({
 });
 
 // src/components/chat/eventHandlers.ts
+function getFormattedChatContent(messagesContainer, plugin, chatSeparator) {
+  const messages = messagesContainer.querySelectorAll(".ai-chat-message");
+  let chatContent = "";
+  const renderer = new MessageRenderer(plugin.app);
+  messages.forEach((el, index) => {
+    var _a2;
+    const htmlElement = el;
+    if (htmlElement.classList.contains("tool-display-message")) {
+      return;
+    }
+    let messageData = null;
+    const messageDataStr = htmlElement.dataset.messageData;
+    if (messageDataStr) {
+      try {
+        messageData = JSON.parse(messageDataStr);
+      } catch (e) {
+      }
+    }
+    if (messageData && messageData.toolResults && messageData.toolResults.length > 0) {
+      chatContent += renderer.getMessageContentForCopy(messageData);
+    } else {
+      const rawContent = htmlElement.dataset.rawContent;
+      const content = rawContent !== void 0 ? rawContent : ((_a2 = el.querySelector(".message-content")) == null ? void 0 : _a2.textContent) || "";
+      chatContent += content;
+    }
+    if (index < messages.length - 1) {
+      chatContent += "\n\n" + chatSeparator + "\n\n";
+    }
+  });
+  return chatContent;
+}
 function handleCopyAll(messagesContainer, plugin) {
   return async () => {
-    const messages = messagesContainer.querySelectorAll(".ai-chat-message");
-    let chatContent = "";
-    messages.forEach((el, index) => {
-      var _a2, _b;
-      const htmlElement = el;
-      if (htmlElement.classList.contains("tool-display-message")) {
-        return;
-      }
-      let messageData = null;
-      const messageDataStr = htmlElement.dataset.messageData;
-      if (messageDataStr) {
-        try {
-          messageData = JSON.parse(messageDataStr);
-        } catch (e) {
-        }
-      }
-      console.log("DEBUG handleCopyAll - Message data:", {
-        hasMessageData: !!messageData,
-        hasToolResults: messageData && messageData.toolResults && messageData.toolResults.length > 0,
-        toolResultsLength: ((_a2 = messageData == null ? void 0 : messageData.toolResults) == null ? void 0 : _a2.length) || 0,
-        messageDataStr: (messageDataStr == null ? void 0 : messageDataStr.substring(0, 200)) + "..."
-      });
-      if (messageData && messageData.toolResults && messageData.toolResults.length > 0) {
-        const renderer = new MessageRenderer(plugin.app);
-        chatContent += renderer.getMessageContentForCopy(messageData);
-      } else {
-        const rawContent = htmlElement.dataset.rawContent;
-        const content = rawContent !== void 0 ? rawContent : ((_b = el.querySelector(".message-content")) == null ? void 0 : _b.textContent) || "";
-        chatContent += content;
-      }
-      if (index < messages.length - 1) {
-        chatContent += "\n\n" + plugin.settings.chatSeparator + "\n\n";
-      }
-    });
+    const chatContent = getFormattedChatContent(messagesContainer, plugin, plugin.settings.chatSeparator);
     await copyToClipboard(chatContent);
   };
 }
 function handleSaveNote(messagesContainer, plugin, app, agentResponseHandler) {
   return async () => {
+    const chatContent = getFormattedChatContent(messagesContainer, plugin, plugin.settings.chatSeparator);
     await saveChatAsNote({
       app,
-      messages: messagesContainer.querySelectorAll(".ai-chat-message"),
+      messages: void 0,
       settings: plugin.settings,
       chatSeparator: plugin.settings.chatSeparator,
       chatNoteFolder: plugin.settings.chatNoteFolder,
-      agentResponseHandler
+      agentResponseHandler,
+      chatContent
     });
   };
 }

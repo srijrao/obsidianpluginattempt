@@ -6,65 +6,54 @@ import MyPlugin from '../../main';
 import { ChatHistoryManager } from './ChatHistoryManager';
 import { MessageRenderer } from './MessageRenderer';
 
+function getFormattedChatContent(messagesContainer: HTMLElement, plugin: MyPlugin, chatSeparator: string): string {
+    const messages = messagesContainer.querySelectorAll('.ai-chat-message');
+    let chatContent = '';
+    const renderer = new MessageRenderer(plugin.app);
+    messages.forEach((el, index) => {
+        const htmlElement = el as HTMLElement;
+        if (htmlElement.classList.contains('tool-display-message')) {
+            return;
+        }
+        let messageData = null;
+        const messageDataStr = htmlElement.dataset.messageData;
+        if (messageDataStr) {
+            try {
+                messageData = JSON.parse(messageDataStr);
+            } catch (e) {}
+        }
+        if (messageData && messageData.toolResults && messageData.toolResults.length > 0) {
+            chatContent += renderer.getMessageContentForCopy(messageData);
+        } else {
+            const rawContent = htmlElement.dataset.rawContent;
+            const content = rawContent !== undefined ? rawContent : el.querySelector('.message-content')?.textContent || '';
+            chatContent += content;
+        }
+        if (index < messages.length - 1) {
+            chatContent += '\n\n' + chatSeparator + '\n\n';
+        }
+    });
+    return chatContent;
+}
+
 export function handleCopyAll(messagesContainer: HTMLElement, plugin: MyPlugin) {
     return async () => {
-        const messages = messagesContainer.querySelectorAll('.ai-chat-message');
-        let chatContent = '';
-        messages.forEach((el, index) => {
-            const htmlElement = el as HTMLElement;
-            
-            // Skip tool display messages as they're handled inline now
-            if (htmlElement.classList.contains('tool-display-message')) {
-                return;
-            }
-            
-            // Get the message data from the element's dataset
-            let messageData = null;
-            const messageDataStr = htmlElement.dataset.messageData;
-            if (messageDataStr) {
-                try {
-                    messageData = JSON.parse(messageDataStr);
-                } catch (e) {
-                    // Fallback to textContent if parsing fails
-                }
-            }
-              console.log('DEBUG handleCopyAll - Message data:', {
-                hasMessageData: !!messageData,
-                hasToolResults: messageData && messageData.toolResults && messageData.toolResults.length > 0,
-                toolResultsLength: messageData?.toolResults?.length || 0,
-                messageDataStr: messageDataStr?.substring(0, 200) + '...'
-            });
-            
-            if (messageData && messageData.toolResults && messageData.toolResults.length > 0) {
-                // Use MessageRenderer to get properly formatted content with tool results
-                const renderer = new MessageRenderer(plugin.app);
-                chatContent += renderer.getMessageContentForCopy(messageData);
-            } else {
-                // For regular messages, use raw content if available, otherwise text content
-                const rawContent = htmlElement.dataset.rawContent;
-                const content = rawContent !== undefined ? rawContent : el.querySelector('.message-content')?.textContent || '';
-                chatContent += content;
-            }
-            
-            if (index < messages.length - 1) {
-                chatContent += '\n\n' + plugin.settings.chatSeparator + '\n\n';
-            }
-        });
+        const chatContent = getFormattedChatContent(messagesContainer, plugin, plugin.settings.chatSeparator);
         await copyToClipboard(chatContent);
     };
 }
 
 export function handleSaveNote(messagesContainer: HTMLElement, plugin: MyPlugin, app: App, agentResponseHandler?: any) {
     return async () => {
-        // With unified model approach, we no longer need to determine provider/model here
-        // The buildChatYaml function will handle this based on settings.selectedModel
+        const chatContent = getFormattedChatContent(messagesContainer, plugin, plugin.settings.chatSeparator);
         await saveChatAsNote({
             app,
-            messages: messagesContainer.querySelectorAll('.ai-chat-message'),
+            messages: undefined,
             settings: plugin.settings,
             chatSeparator: plugin.settings.chatSeparator,
             chatNoteFolder: plugin.settings.chatNoteFolder,
-            agentResponseHandler: agentResponseHandler
+            agentResponseHandler: agentResponseHandler,
+            chatContent
         });
     };
 }
