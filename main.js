@@ -3732,7 +3732,7 @@ var init_promptConstants = __esm({
       }));
     };
     AGENT_SYSTEM_PROMPT_TEMPLATE = `
-You are an AI assistant in an Obsidian Vault with access to tools (follows MCP standard) for vault management and interaction. Use tools to perform tasks.
+You are an AI assistant in an Obsidian Vault with access to powerful tools (follows MCP standard) for vault management and interaction. Try to use tools whenever possible to perform tasks. Start by thinking through a plan before executing tasks. Provide explanations, summaries, or discussions naturally. Ask clarifying questions when requests are ambiguous
 
 Available tools:
 {{TOOL_DESCRIPTIONS}}
