@@ -55,6 +55,17 @@ When Agent Mode is enabled, the AI can use a set of built-in tools to:
 
 This allows for advanced workflows, such as multi-step reasoning, automated refactoring, or batch operations. You can control which tools are enabled in the plugin settings.
 
+### Rich Tool Display
+
+The plugin features an interactive tool display system that shows:
+- **Visual Tool Cards**: Each tool execution is displayed as an interactive card with icons and status indicators
+- **Expandable Details**: Click to view detailed parameters, results, and execution logs
+- **Action Buttons**: Re-run tools, copy results, or view detailed output
+- **Real-time Status**: See success/error states with color-coded indicators
+- **Tool History**: Track all tool executions in the current chat session
+
+The rich displays appear inline in the chat interface, providing immediate feedback and allowing for easy management of tool operations.
+
 ## Configuration
 
 1. Go to Settings → AI Assistant for Obsidian.

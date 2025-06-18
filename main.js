@@ -8989,12 +8989,12 @@ var BotMessage_exports = {};
 __export(BotMessage_exports, {
   BotMessage: () => BotMessage
 });
-var import_obsidian22, BotMessage;
+var import_obsidian23, BotMessage;
 var init_BotMessage = __esm({
   "src/components/chat/BotMessage.ts"() {
-    import_obsidian22 = require("obsidian");
+    import_obsidian23 = require("obsidian");
     init_Buttons();
-    BotMessage = class extends import_obsidian22.Component {
+    BotMessage = class extends import_obsidian23.Component {
       constructor(app, plugin, content) {
         super();
         __publicField(this, "app");
@@ -9017,7 +9017,7 @@ var init_BotMessage = __esm({
         this.content = content;
         this.element.dataset.rawContent = content;
         this.contentEl.empty();
-        await import_obsidian22.MarkdownRenderer.render(
+        await import_obsidian23.MarkdownRenderer.render(
           this.app,
           content,
           this.contentEl,
@@ -9031,7 +9031,7 @@ var init_BotMessage = __esm({
         messageEl.dataset.rawContent = this.content;
         const messageContainer = messageEl.createDiv("message-container");
         this.contentEl = messageContainer.createDiv("message-content");
-        import_obsidian22.MarkdownRenderer.render(
+        import_obsidian23.MarkdownRenderer.render(
           this.app,
           this.content,
           this.contentEl,
@@ -9192,7 +9192,7 @@ async function generateNoteTitle(app, settings, processMessages2) {
   debug2("Starting generateNoteTitle");
   const activeFile = app.workspace.getActiveFile();
   if (!activeFile) {
-    new import_obsidian28.Notice("No active note found.");
+    new import_obsidian29.Notice("No active note found.");
     return;
   }
   let noteContent = await app.vault.cachedRead(activeFile);
@@ -9217,7 +9217,7 @@ async function generateNoteTitle(app, settings, processMessages2) {
       settings.enableContextNotes = originalEnableContextNotes;
       if (!processedMessages || processedMessages.length === 0) {
         debug2("No processed messages!");
-        new import_obsidian28.Notice("No valid messages to send to the model. Please check your note content.");
+        new import_obsidian29.Notice("No valid messages to send to the model. Please check your note content.");
         return;
       }
       debug2("Calling provider.getCompletion");
@@ -9245,28 +9245,28 @@ async function generateNoteTitle(app, settings, processMessages2) {
             const newPath = parentPath ? parentPath + "/" + sanitized + ext : sanitized + ext;
             if (file.path !== newPath) {
               await app.fileManager.renameFile(file, newPath);
-              new import_obsidian28.Notice(`Note renamed to: ${sanitized}${ext}`);
+              new import_obsidian29.Notice(`Note renamed to: ${sanitized}${ext}`);
             } else {
-              new import_obsidian28.Notice(`Note title is already: ${sanitized}${ext}`);
+              new import_obsidian29.Notice(`Note title is already: ${sanitized}${ext}`);
             }
           }
         } else if (outputMode === "metadata") {
           const file = app.workspace.getActiveFile();
           if (file) {
             await upsertYamlField(app, file, "title", title);
-            new import_obsidian28.Notice(`Inserted title into metadata: ${title}`);
+            new import_obsidian29.Notice(`Inserted title into metadata: ${title}`);
           }
         } else {
           try {
             await navigator.clipboard.writeText(title);
-            new import_obsidian28.Notice(`Generated title (copied): ${title}`);
+            new import_obsidian29.Notice(`Generated title (copied): ${title}`);
           } catch (e) {
-            new import_obsidian28.Notice(`Generated title: ${title}`);
+            new import_obsidian29.Notice(`Generated title: ${title}`);
           }
         }
       } else {
         debug2("No title generated after sanitization.");
-        new import_obsidian28.Notice("No title generated.");
+        new import_obsidian29.Notice("No title generated.");
       }
     } catch (processError) {
       debug2("Error in processMessages or provider.getCompletion:", processError);
@@ -9274,14 +9274,14 @@ async function generateNoteTitle(app, settings, processMessages2) {
       throw processError;
     }
   } catch (err) {
-    new import_obsidian28.Notice("Error generating title: " + ((_b = err == null ? void 0 : err.message) != null ? _b : err));
+    new import_obsidian29.Notice("Error generating title: " + ((_b = err == null ? void 0 : err.message) != null ? _b : err));
   }
 }
 async function generateYamlAttribute(app, settings, processMessages2, attributeName, prompt, outputMode = "metadata") {
   debug2(`Starting generateYamlAttribute for ${attributeName}`);
   const activeFile = app.workspace.getActiveFile();
   if (!activeFile) {
-    new import_obsidian28.Notice("No active note found.");
+    new import_obsidian29.Notice("No active note found.");
     return;
   }
   let noteContent = await app.vault.cachedRead(activeFile);
@@ -9300,7 +9300,7 @@ async function generateYamlAttribute(app, settings, processMessages2, attributeN
     settings.enableContextNotes = originalEnableContextNotes;
     if (!processedMessages || processedMessages.length === 0) {
       debug2("No processed messages!");
-      new import_obsidian28.Notice("No valid messages to send to the model. Please check your note content.");
+      new import_obsidian29.Notice("No valid messages to send to the model. Please check your note content.");
       return;
     }
     debug2("Calling provider.getCompletion");
@@ -9321,18 +9321,18 @@ async function generateYamlAttribute(app, settings, processMessages2, attributeN
       debug2("Output mode:", outputMode);
       if (outputMode === "metadata") {
         await upsertYamlField(app, activeFile, attributeName, value);
-        new import_obsidian28.Notice(`Inserted ${attributeName} into metadata: ${value}`);
+        new import_obsidian29.Notice(`Inserted ${attributeName} into metadata: ${value}`);
       } else {
         try {
           await navigator.clipboard.writeText(value);
-          new import_obsidian28.Notice(`Generated ${attributeName} (copied): ${value}`);
+          new import_obsidian29.Notice(`Generated ${attributeName} (copied): ${value}`);
         } catch (e) {
-          new import_obsidian28.Notice(`Generated ${attributeName}: ${value}`);
+          new import_obsidian29.Notice(`Generated ${attributeName}: ${value}`);
         }
       }
     } else {
       debug2(`No value generated for ${attributeName} after sanitization.`);
-      new import_obsidian28.Notice(`No value generated for ${attributeName}.`);
+      new import_obsidian29.Notice(`No value generated for ${attributeName}.`);
     }
   } catch (processError) {
     debug2("Error in processMessages or provider.getCompletion:", processError);
@@ -9366,10 +9366,10 @@ ${newYaml}
   }
   await app.vault.modify(file, newContent);
 }
-var import_obsidian28, DEBUG;
+var import_obsidian29, DEBUG;
 var init_YAMLHandler = __esm({
   "src/YAMLHandler.ts"() {
-    import_obsidian28 = require("obsidian");
+    import_obsidian29 = require("obsidian");
     init_providers();
     init_promptConstants();
     init_js_yaml();
@@ -9384,7 +9384,7 @@ __export(main_exports, {
   default: () => MyPlugin
 });
 module.exports = __toCommonJS(main_exports);
-var import_obsidian29 = require("obsidian");
+var import_obsidian30 = require("obsidian");
 init_types();
 init_providers();
 
@@ -10167,7 +10167,7 @@ var MyPluginSettingTab = class extends import_obsidian10.PluginSettingTab {
 };
 
 // src/components/chat.ts
-var import_obsidian25 = require("obsidian");
+var import_obsidian26 = require("obsidian");
 
 // src/components/chat/ChatHistoryManager.ts
 var import_obsidian11 = require("obsidian");
@@ -10817,7 +10817,7 @@ async function renderChatHistory({
 }
 
 // src/components/chat/AgentResponseHandler.ts
-var import_obsidian20 = require("obsidian");
+var import_obsidian21 = require("obsidian");
 
 // src/components/chat/CommandParser.ts
 var CommandParser = class {
@@ -10979,16 +10979,181 @@ var ToolRegistry = class {
   }
 };
 
+// src/components/chat/ToolRichDisplay.ts
+var import_obsidian20 = require("obsidian");
+var ToolRichDisplay = class extends import_obsidian20.Component {
+  constructor(options) {
+    super();
+    __publicField(this, "element");
+    __publicField(this, "options");
+    this.options = options;
+    this.element = this.createToolDisplay();
+  }
+  getElement() {
+    return this.element;
+  }
+  createToolDisplay() {
+    const container = document.createElement("div");
+    container.className = "tool-rich-display";
+    const iconDiv = document.createElement("div");
+    iconDiv.className = "tool-rich-icon";
+    iconDiv.innerHTML = this.getToolIcon();
+    container.appendChild(iconDiv);
+    const infoDiv = document.createElement("div");
+    infoDiv.className = "tool-rich-info";
+    const titleDiv = document.createElement("div");
+    titleDiv.className = "tool-rich-title";
+    titleDiv.innerText = this.getToolDisplayName();
+    const statusSpan = document.createElement("span");
+    statusSpan.className = `tool-rich-status ${this.options.result.success ? "success" : "error"}`;
+    statusSpan.innerText = this.options.result.success ? "Success" : "Error";
+    titleDiv.appendChild(statusSpan);
+    infoDiv.appendChild(titleDiv);
+    if (this.options.command.parameters && Object.keys(this.options.command.parameters).length > 0) {
+      const paramsDiv = document.createElement("div");
+      paramsDiv.innerHTML = `<strong>Parameters:</strong> ${this.formatParameters()}`;
+      infoDiv.appendChild(paramsDiv);
+    }
+    const resultDiv = document.createElement("div");
+    resultDiv.innerHTML = `<strong>Result:</strong> ${this.getResultSummary()}`;
+    infoDiv.appendChild(resultDiv);
+    const details = this.getDetailedResult();
+    if (details) {
+      const toggle = document.createElement("div");
+      toggle.className = "tool-rich-details-toggle";
+      toggle.innerText = "Show details \u25BC";
+      const detailsDiv = document.createElement("div");
+      detailsDiv.className = "tool-rich-details";
+      detailsDiv.innerHTML = `<pre>${details}</pre>`;
+      toggle.onclick = () => {
+        const isExpanded = detailsDiv.classList.contains("expanded");
+        if (isExpanded) {
+          detailsDiv.classList.remove("expanded");
+          toggle.innerText = "Show details \u25BC";
+        } else {
+          detailsDiv.classList.add("expanded");
+          toggle.innerText = "Hide details \u25B2";
+        }
+      };
+      infoDiv.appendChild(toggle);
+      infoDiv.appendChild(detailsDiv);
+    }
+    const actionsDiv = document.createElement("div");
+    actionsDiv.className = "tool-rich-actions";
+    if (this.options.onRerun) {
+      const rerunBtn = document.createElement("button");
+      rerunBtn.className = "tool-rich-action-btn";
+      rerunBtn.innerText = "Re-run";
+      rerunBtn.onclick = this.options.onRerun;
+      actionsDiv.appendChild(rerunBtn);
+    }
+    if (this.options.onCopy) {
+      const copyBtn = document.createElement("button");
+      copyBtn.className = "tool-rich-action-btn";
+      copyBtn.innerText = "Copy";
+      copyBtn.onclick = this.options.onCopy;
+      actionsDiv.appendChild(copyBtn);
+    }
+    const copyResultBtn = document.createElement("button");
+    copyResultBtn.className = "tool-rich-action-btn";
+    copyResultBtn.innerText = "Copy Result";
+    copyResultBtn.onclick = async () => {
+      const resultText = this.options.result.success ? JSON.stringify(this.options.result.data, null, 2) : this.options.result.error || "Unknown error";
+      try {
+        await navigator.clipboard.writeText(resultText);
+        copyResultBtn.innerText = "Copied!";
+        setTimeout(() => {
+          copyResultBtn.innerText = "Copy Result";
+        }, 2e3);
+      } catch (error) {
+        console.error("Failed to copy to clipboard:", error);
+      }
+    };
+    actionsDiv.appendChild(copyResultBtn);
+    infoDiv.appendChild(actionsDiv);
+    container.appendChild(infoDiv);
+    return container;
+  }
+  getToolIcon() {
+    const iconMap = {
+      "file_search": "\u{1F50D}",
+      "file_read": "\u{1F4D6}",
+      "file_write": "\u270D\uFE0F",
+      "file_diff": "\u{1F504}",
+      "file_move": "\u{1F4C1}",
+      "file_rename": "\u{1F3F7}\uFE0F",
+      "file_list": "\u{1F4CB}",
+      "thought": "\u{1F9E0}"
+    };
+    return iconMap[this.options.command.action] || "\u{1F527}";
+  }
+  getToolDisplayName() {
+    const nameMap = {
+      "file_search": "File Search",
+      "file_read": "File Read",
+      "file_write": "File Write",
+      "file_diff": "File Diff",
+      "file_move": "File Move",
+      "file_rename": "File Rename",
+      "file_list": "File List",
+      "thought": "Thought Process"
+    };
+    return nameMap[this.options.command.action] || this.options.command.action;
+  }
+  formatParameters() {
+    const params = this.options.command.parameters;
+    const formatted = Object.entries(params).map(([key, value]) => `${key}: ${typeof value === "string" && value.length > 50 ? value.substring(0, 50) + "..." : JSON.stringify(value)}`).join(", ");
+    return `<code>${formatted}</code>`;
+  }
+  getResultSummary() {
+    if (!this.options.result.success) {
+      return `<span class="tool-error">${this.options.result.error || "Unknown error"}</span>`;
+    }
+    const data = this.options.result.data;
+    if (typeof data === "string") {
+      return data.length > 100 ? data.substring(0, 100) + "..." : data;
+    }
+    if (Array.isArray(data)) {
+      return `${data.length} items returned`;
+    }
+    if (typeof data === "object" && data !== null) {
+      const keys = Object.keys(data);
+      return `Object with ${keys.length} properties`;
+    }
+    return "Success";
+  }
+  getDetailedResult() {
+    if (!this.options.result.success) {
+      return this.options.result.error || "Unknown error occurred";
+    }
+    if (this.options.result.data) {
+      return typeof this.options.result.data === "string" ? this.options.result.data : JSON.stringify(this.options.result.data, null, 2);
+    }
+    return null;
+  }
+  /**
+   * Update the display with new tool result
+   */
+  updateResult(result) {
+    this.options.result = result;
+    const newElement = this.createToolDisplay();
+    this.element.replaceWith(newElement);
+    this.element = newElement;
+  }
+};
+
 // src/components/chat/AgentResponseHandler.ts
 init_toolcollect();
 var AgentResponseHandler = class {
-  // Temporary increase for tool call limit
+  // Track tool displays
   constructor(context) {
     this.context = context;
     __publicField(this, "commandParser");
     __publicField(this, "toolRegistry");
     __publicField(this, "executionCount", 0);
     __publicField(this, "temporaryMaxToolCalls");
+    // Temporary increase for tool call limit
+    __publicField(this, "toolDisplays", /* @__PURE__ */ new Map());
     this.commandParser = new CommandParser();
     this.toolRegistry = new ToolRegistry();
     this.initializeTools();
@@ -11030,7 +11195,7 @@ var AgentResponseHandler = class {
     const agentSettings = this.context.plugin.getAgentModeSettings();
     const effectiveLimit = this.getEffectiveToolLimit();
     if (this.executionCount >= effectiveLimit) {
-      new import_obsidian20.Notice(`Agent mode: Maximum tool calls (${effectiveLimit}) reached`);
+      new import_obsidian21.Notice(`Agent mode: Maximum tool calls (${effectiveLimit}) reached`);
       return {
         processedText: text + `
 
@@ -11052,6 +11217,7 @@ var AgentResponseHandler = class {
         });
         toolResults.push({ command, result });
         this.executionCount++;
+        this.createToolDisplay(command, result);
         this.context.onToolResult(result, command);
         if (this.executionCount >= effectiveLimit) {
           console.log(`AgentResponseHandler: Reached maximum tool calls limit (${effectiveLimit})`);
@@ -11065,6 +11231,7 @@ var AgentResponseHandler = class {
           requestId: command.requestId
         };
         toolResults.push({ command, result: errorResult });
+        this.createToolDisplay(command, errorResult);
         this.context.onToolResult(errorResult, command);
       }
     }
@@ -11097,7 +11264,8 @@ var AgentResponseHandler = class {
   resetExecutionCount() {
     this.executionCount = 0;
     this.temporaryMaxToolCalls = void 0;
-    console.log("AgentResponseHandler: Execution count and temporary limits reset");
+    this.toolDisplays.clear();
+    console.log("AgentResponseHandler: Execution count, temporary limits, and tool displays reset");
   }
   /**
    * Get available tools information
@@ -11106,8 +11274,20 @@ var AgentResponseHandler = class {
     return this.toolRegistry.getAvailableTools();
   }
   /**
-  * Get tool execution statistics
-  */
+   * Get all current tool displays
+   */
+  getToolDisplays() {
+    return new Map(this.toolDisplays);
+  }
+  /**
+   * Clear all tool displays
+   */
+  clearToolDisplays() {
+    this.toolDisplays.clear();
+  }
+  /**
+   * Get tool execution statistics
+   */
   getExecutionStats() {
     const effectiveLimit = this.getEffectiveToolLimit();
     return {
@@ -11136,6 +11316,63 @@ Result: ${data}`;
 
 ${resultText}`
     };
+  }
+  /**
+   * Create and manage rich tool display
+   */
+  createToolDisplay(command, result) {
+    const displayId = `${command.action}-${command.requestId || Date.now()}`;
+    const toolDisplay = new ToolRichDisplay({
+      command,
+      result,
+      onRerun: () => {
+        this.rerunTool(command);
+      },
+      onCopy: async () => {
+        const displayText = this.formatToolForCopy(command, result);
+        try {
+          await navigator.clipboard.writeText(displayText);
+          console.log("Tool result copied to clipboard");
+        } catch (error) {
+          console.error("Failed to copy tool result:", error);
+        }
+      }
+    });
+    this.toolDisplays.set(displayId, toolDisplay);
+    if (this.context.onToolDisplay) {
+      this.context.onToolDisplay(toolDisplay);
+    }
+  }
+  /**
+   * Re-run a tool with the same parameters
+   */
+  async rerunTool(originalCommand) {
+    try {
+      const agentSettings = this.context.plugin.getAgentModeSettings();
+      const result = await this.executeToolWithTimeout(originalCommand, agentSettings.timeoutMs);
+      const displayId = `${originalCommand.action}-${originalCommand.requestId || Date.now()}`;
+      const existingDisplay = this.toolDisplays.get(displayId);
+      if (existingDisplay) {
+        existingDisplay.updateResult(result);
+      }
+      this.context.onToolResult(result, originalCommand);
+    } catch (error) {
+      console.error(`Failed to re-run tool ${originalCommand.action}:`, error);
+    }
+  }
+  /**
+   * Format tool execution for clipboard copy
+   */
+  formatToolForCopy(command, result) {
+    const status = result.success ? "SUCCESS" : "ERROR";
+    const params = JSON.stringify(command.parameters, null, 2);
+    const resultData = result.success ? JSON.stringify(result.data, null, 2) : result.error;
+    return `TOOL EXECUTION: ${command.action}
+STATUS: ${status}
+PARAMETERS:
+${params}
+RESULT:
+${resultData}`;
   }
   /**
    * Helper to ensure a file path is relative to the vault root and strips .md extension for Obsidian links
@@ -11235,7 +11472,7 @@ ${resultText}`;
                 `;
         const contentDiv = stepDiv.querySelector(".step-content");
         if (contentDiv) {
-          await import_obsidian20.MarkdownRenderer.render(
+          await import_obsidian21.MarkdownRenderer.render(
             this.context.app,
             step.content || "No content provided",
             contentDiv,
@@ -11592,14 +11829,14 @@ ${currentNoteContent}`
 };
 
 // src/components/chat/MessageRegenerator.ts
-var import_obsidian24 = require("obsidian");
+var import_obsidian25 = require("obsidian");
 
 // src/components/chat/ResponseStreamer.ts
-var import_obsidian23 = require("obsidian");
+var import_obsidian24 = require("obsidian");
 init_providers();
 
 // src/components/chat/TaskContinuation.ts
-var import_obsidian21 = require("obsidian");
+var import_obsidian22 = require("obsidian");
 var TaskContinuation = class {
   constructor(plugin, agentResponseHandler, messagesContainer, component) {
     this.plugin = plugin;
@@ -11698,7 +11935,7 @@ var TaskContinuation = class {
     const contentEl = container.querySelector(".message-content");
     if (contentEl) {
       contentEl.empty();
-      await import_obsidian21.MarkdownRenderer.render(
+      await import_obsidian22.MarkdownRenderer.render(
         this.plugin.app,
         content,
         contentEl,
@@ -11828,7 +12065,7 @@ var ResponseStreamer = class {
     if (!contentEl) return;
     container.dataset.rawContent = content;
     contentEl.empty();
-    await import_obsidian23.MarkdownRenderer.render(
+    await import_obsidian24.MarkdownRenderer.render(
       this.plugin.app,
       content,
       contentEl,
@@ -12230,7 +12467,7 @@ var MessageRegenerator = class {
       );
     } catch (error) {
       if (error.name !== "AbortError") {
-        new import_obsidian24.Notice(`Error: ${error.message}`);
+        new import_obsidian25.Notice(`Error: ${error.message}`);
         assistantContainer.remove();
       }
     } finally {
@@ -12245,7 +12482,7 @@ var MessageRegenerator = class {
 
 // src/components/chat.ts
 var VIEW_TYPE_CHAT = "chat-view";
-var ChatView = class extends import_obsidian25.ItemView {
+var ChatView = class extends import_obsidian26.ItemView {
   constructor(leaf, plugin) {
     super(leaf);
     __publicField(this, "plugin");
@@ -12285,7 +12522,7 @@ var ChatView = class extends import_obsidian25.ItemView {
     try {
       loadedHistory = await this.chatHistoryManager.getHistory();
     } catch (e) {
-      new import_obsidian25.Notice("Failed to load chat history.");
+      new import_obsidian26.Notice("Failed to load chat history.");
       loadedHistory = [];
     }
     const ui = createChatUI(this.app, contentEl);
@@ -12318,6 +12555,9 @@ var ChatView = class extends import_obsidian25.ItemView {
         } else {
           console.error(`Tool ${command.action} failed:`, toolResult.error);
         }
+      },
+      onToolDisplay: (display) => {
+        this.insertToolDisplay(display);
       }
     });
     this.responseStreamer = new ResponseStreamer(
@@ -12341,14 +12581,14 @@ var ChatView = class extends import_obsidian25.ItemView {
       if (this.plugin.isAgentModeEnabled()) {
         ui.agentModeButton.classList.add("active");
         ui.agentModeButton.setAttribute("title", "Agent Mode: ON - AI can use tools");
-        new import_obsidian25.Notice("Agent Mode enabled - AI can now use tools");
+        new import_obsidian26.Notice("Agent Mode enabled - AI can now use tools");
         if (this.agentResponseHandler) {
           this.agentResponseHandler.resetExecutionCount();
         }
       } else {
         ui.agentModeButton.classList.remove("active");
         ui.agentModeButton.setAttribute("title", "Agent Mode: OFF - Regular chat");
-        new import_obsidian25.Notice("Agent Mode disabled");
+        new import_obsidian26.Notice("Agent Mode disabled");
       }
     });
     if (this.plugin.isAgentModeEnabled()) {
@@ -12378,7 +12618,7 @@ var ChatView = class extends import_obsidian25.ItemView {
           content
         });
       } catch (e) {
-        new import_obsidian25.Notice("Failed to save user message: " + e.message);
+        new import_obsidian26.Notice("Failed to save user message: " + e.message);
       }
       try {
         const messages = await this.buildContextMessages();
@@ -12407,7 +12647,7 @@ var ChatView = class extends import_obsidian25.ItemView {
         }
       } catch (error) {
         if (error.name !== "AbortError") {
-          new import_obsidian25.Notice(`Error: ${error.message}`);
+          new import_obsidian26.Notice(`Error: ${error.message}`);
           await createMessageElement(this.app, "assistant", `Error: ${error.message}`, this.chatHistoryManager, this.plugin, (el) => this.regenerateResponse(el), this);
         }
       } finally {
@@ -12505,7 +12745,7 @@ var ChatView = class extends import_obsidian25.ItemView {
         ...enhancedData || {}
       });
     } catch (e) {
-      new import_obsidian25.Notice("Failed to save chat message: " + e.message);
+      new import_obsidian26.Notice("Failed to save chat message: " + e.message);
     }
   }
   async onClose() {
@@ -12576,6 +12816,16 @@ var ChatView = class extends import_obsidian25.ItemView {
   scrollMessagesToBottom() {
     this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
   }
+  /**
+   * Insert a rich tool display into the messages container
+   */
+  insertToolDisplay(display) {
+    const toolDisplayWrapper = document.createElement("div");
+    toolDisplayWrapper.className = "ai-chat-message tool-display-message";
+    toolDisplayWrapper.appendChild(display.getElement());
+    this.messagesContainer.appendChild(toolDisplayWrapper);
+    this.scrollMessagesToBottom();
+  }
   // Task continuation logic is now delegated to TaskContinuation and ResponseStreamer
   // All reasoning/task status rendering and helpers are now handled by MessageRenderer
 };
@@ -12614,9 +12864,9 @@ function parseSelection(selection, chatSeparator, chatBoundaryString) {
 }
 
 // src/components/ModelSettingsView.ts
-var import_obsidian26 = require("obsidian");
+var import_obsidian27 = require("obsidian");
 var VIEW_TYPE_MODEL_SETTINGS2 = "model-settings-view";
-var ModelSettingsView = class extends import_obsidian26.ItemView {
+var ModelSettingsView = class extends import_obsidian27.ItemView {
   constructor(leaf, plugin) {
     super(leaf);
     __publicField(this, "plugin");
@@ -12648,7 +12898,7 @@ var ModelSettingsView = class extends import_obsidian26.ItemView {
 };
 
 // src/components/noteUtils.ts
-var import_obsidian27 = require("obsidian");
+var import_obsidian28 = require("obsidian");
 
 // src/components/utils.ts
 function showNotice(message) {
@@ -12741,7 +12991,7 @@ async function processObsidianLinks(content, app, settings, visitedNotes = /* @_
         let file = findFile(app, filePath);
         const headerMatch = filePath.match(/(.*?)#(.*)/);
         let extractedContent = "";
-        if (file && file instanceof import_obsidian27.TFile) {
+        if (file && file instanceof import_obsidian28.TFile) {
           if (visitedNotes.has(file.path)) {
             extractedContent = "[Recursive link omitted: already included]";
           } else {
@@ -12768,10 +13018,10 @@ ${extractedContent}
 `
           );
         } else {
-          new import_obsidian27.Notice(`File not found: ${filePath}. Ensure the file name and path are correct.`);
+          new import_obsidian28.Notice(`File not found: ${filePath}. Ensure the file name and path are correct.`);
         }
       } catch (error) {
-        new import_obsidian27.Notice(`Error processing link for ${filePath}: ${error.message}`);
+        new import_obsidian28.Notice(`Error processing link for ${filePath}: ${error.message}`);
       }
     }
   }
@@ -12789,7 +13039,7 @@ async function processContextNotes(contextNotesText, app) {
         const baseFileName = headerMatch ? headerMatch[1].trim() : fileName;
         const headerName = headerMatch ? headerMatch[2].trim() : null;
         let file = findFile(app, baseFileName);
-        if (file && file instanceof import_obsidian27.TFile) {
+        if (file && file instanceof import_obsidian28.TFile) {
           const noteContent = await app.vault.cachedRead(file);
           contextContent += `---
 From note: ${file.basename}
@@ -12878,7 +13128,7 @@ The current time is ${currentTime} ${timeZoneString}.`;
 
 // src/main.ts
 var VIEW_TYPE_MODEL_SETTINGS = "model-settings-view";
-var _MyPlugin = class _MyPlugin extends import_obsidian29.Plugin {
+var _MyPlugin = class _MyPlugin extends import_obsidian30.Plugin {
   constructor() {
     super(...arguments);
     __publicField(this, "settings");

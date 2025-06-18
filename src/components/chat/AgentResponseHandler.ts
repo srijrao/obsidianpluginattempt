@@ -3,6 +3,7 @@ import MyPlugin from '../../main';
 import { ToolCommand, ToolResult, Message, ReasoningData, TaskStatus, ToolExecutionResult } from '../../types';
 import { CommandParser } from './CommandParser';
 import { ToolRegistry } from './ToolRegistry';
+import { ToolRichDisplay } from './ToolRichDisplay';
 // Import all tool management from toolcollect for dynamic tool loading
 import { getAllToolClasses, createToolInstances } from './tools/toolcollect';
 
@@ -11,6 +12,7 @@ export interface AgentContext {
     plugin: MyPlugin;
     messagesContainer: HTMLElement;
     onToolResult: (toolResult: ToolResult, command: ToolCommand) => void;
+    onToolDisplay?: (display: ToolRichDisplay) => void;
 }
 
 export class AgentResponseHandler {
@@ -18,6 +20,7 @@ export class AgentResponseHandler {
     private toolRegistry: ToolRegistry;
     private executionCount: number = 0;
     private temporaryMaxToolCalls?: number; // Temporary increase for tool call limit
+    private toolDisplays: Map<string, ToolRichDisplay> = new Map(); // Track tool displays
 
     constructor(private context: AgentContext) {
         this.commandParser = new CommandParser();
@@ -96,9 +99,11 @@ export class AgentResponseHandler {
                     hasData: !!result.data,
                     error: result.error
                 });
-                
-                toolResults.push({ command, result });
+                  toolResults.push({ command, result });
                 this.executionCount++;
+
+                // Create and manage rich tool display
+                this.createToolDisplay(command, result);
 
                 // Notify context about tool result
                 this.context.onToolResult(result, command);
@@ -114,9 +119,12 @@ export class AgentResponseHandler {
                 const errorResult: ToolResult = {
                     success: false,
                     error: `Tool execution failed: ${error.message}`,
-                    requestId: command.requestId
-                };
+                    requestId: command.requestId                };
                 toolResults.push({ command, result: errorResult });
+                
+                // Create tool display for error case too
+                this.createToolDisplay(command, errorResult);
+                
                 this.context.onToolResult(errorResult, command);
             }
         }
@@ -153,7 +161,8 @@ export class AgentResponseHandler {
     resetExecutionCount() {
         this.executionCount = 0;
         this.temporaryMaxToolCalls = undefined; // Also reset temporary limit
-        console.log('AgentResponseHandler: Execution count and temporary limits reset');
+        this.toolDisplays.clear(); // Clear all tool displays
+        console.log('AgentResponseHandler: Execution count, temporary limits, and tool displays reset');
     }
 
     /**
@@ -161,7 +170,23 @@ export class AgentResponseHandler {
      */
     getAvailableTools() {
         return this.toolRegistry.getAvailableTools();
-    }    /**
+    }
+
+    /**
+     * Get all current tool displays
+     */
+    getToolDisplays(): Map<string, ToolRichDisplay> {
+        return new Map(this.toolDisplays);
+    }
+
+    /**
+     * Clear all tool displays
+     */
+    clearToolDisplays(): void {
+        this.toolDisplays.clear();
+    }
+
+    /**
      * Get tool execution statistics
      */
     getExecutionStats() {
@@ -191,6 +216,80 @@ export class AgentResponseHandler {
             role: 'system',
             content: `Tool execution results:\n\n${resultText}`
         };
+    }
+
+    /**
+     * Create and manage rich tool display
+     */
+    private createToolDisplay(command: ToolCommand, result: ToolResult): void {
+        const displayId = `${command.action}-${command.requestId || Date.now()}`;
+        
+        const toolDisplay = new ToolRichDisplay({
+            command,
+            result,
+            onRerun: () => {
+                // Re-execute the tool with the same parameters
+                this.rerunTool(command);
+            },
+            onCopy: async () => {
+                const displayText = this.formatToolForCopy(command, result);
+                try {
+                    await navigator.clipboard.writeText(displayText);
+                    console.log('Tool result copied to clipboard');
+                } catch (error) {
+                    console.error('Failed to copy tool result:', error);
+                }
+            }
+        });
+
+        // Store the display for later reference
+        this.toolDisplays.set(displayId, toolDisplay);
+
+        // Notify context if callback is available
+        if (this.context.onToolDisplay) {
+            this.context.onToolDisplay(toolDisplay);
+        }
+    }
+
+    /**
+     * Re-run a tool with the same parameters
+     */
+    private async rerunTool(originalCommand: ToolCommand): Promise<void> {
+        try {
+            const agentSettings = this.context.plugin.getAgentModeSettings();
+            const result = await this.executeToolWithTimeout(originalCommand, agentSettings.timeoutMs);
+            
+            // Find and update the existing display
+            const displayId = `${originalCommand.action}-${originalCommand.requestId || Date.now()}`;
+            const existingDisplay = this.toolDisplays.get(displayId);
+            if (existingDisplay) {
+                existingDisplay.updateResult(result);
+            }
+            
+            // Notify context about the new result
+            this.context.onToolResult(result, originalCommand);
+            
+        } catch (error: any) {
+            console.error(`Failed to re-run tool ${originalCommand.action}:`, error);
+        }
+    }
+
+    /**
+     * Format tool execution for clipboard copy
+     */
+    private formatToolForCopy(command: ToolCommand, result: ToolResult): string {
+        const status = result.success ? 'SUCCESS' : 'ERROR';
+        const params = JSON.stringify(command.parameters, null, 2);
+        const resultData = result.success 
+            ? JSON.stringify(result.data, null, 2)
+            : result.error;
+        
+        return `TOOL EXECUTION: ${command.action}
+STATUS: ${status}
+PARAMETERS:
+${params}
+RESULT:
+${resultData}`;
     }
 
     /**

@@ -15,6 +15,7 @@ import { ContextBuilder } from './chat/ContextBuilder';
 import { MessageRegenerator } from './chat/MessageRegenerator';
 import { ResponseStreamer } from './chat/ResponseStreamer';
 import { MessageRenderer } from './chat/MessageRenderer';
+import { ToolRichDisplay } from './chat/ToolRichDisplay';
 
 export const VIEW_TYPE_CHAT = 'chat-view';
 
@@ -92,8 +93,7 @@ export class ChatView extends ItemView {
             this.plugin.saveSettings();
             this.updateReferenceNoteIndicator();
         });
-        // --- AGENT MODE INTEGRATION ---
-        // Initialize agent response handler
+        // --- AGENT MODE INTEGRATION ---        // Initialize agent response handler
         this.agentResponseHandler = new AgentResponseHandler({
             app: this.app,
             plugin: this.plugin,
@@ -105,6 +105,10 @@ export class ChatView extends ItemView {
                 } else {
                     console.error(`Tool ${command.action} failed:`, toolResult.error);
                 }
+            },
+            onToolDisplay: (display: ToolRichDisplay) => {
+                // Insert the rich tool display into the messages container
+                this.insertToolDisplay(display);
             }
         });
         
@@ -421,6 +425,22 @@ export class ChatView extends ItemView {
 
     public scrollMessagesToBottom() {
         this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+    }
+
+    /**
+     * Insert a rich tool display into the messages container
+     */
+    private insertToolDisplay(display: ToolRichDisplay): void {
+        // Create a wrapper for the tool display
+        const toolDisplayWrapper = document.createElement('div');
+        toolDisplayWrapper.className = 'ai-chat-message tool-display-message';
+        toolDisplayWrapper.appendChild(display.getElement());
+        
+        // Insert at the end of the messages container
+        this.messagesContainer.appendChild(toolDisplayWrapper);
+        
+        // Scroll to show the new tool display
+        this.scrollMessagesToBottom();
     }
 
     // Task continuation logic is now delegated to TaskContinuation and ResponseStreamer
