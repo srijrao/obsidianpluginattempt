@@ -1,6 +1,6 @@
 import { MarkdownRenderer, App, Component } from 'obsidian';
 import { Message, TaskStatus, ToolCommand, ToolResult, ToolExecutionResult } from '../../types';
-import { ToolRichDisplay } from './ToolRichDisplay';
+import { ToolRichDisplay } from './agent/ToolRichDisplay';
 
 /**
  * Handles rendering of message content and enhanced message data (reasoning, task status)

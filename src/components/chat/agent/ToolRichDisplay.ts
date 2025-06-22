@@ -1,5 +1,5 @@
 import { Component } from 'obsidian';
-import { ToolCommand, ToolResult } from '../../types';
+import { ToolCommand, ToolResult } from '../../../types';
 
 export interface ToolDisplayOptions {
     command: ToolCommand;

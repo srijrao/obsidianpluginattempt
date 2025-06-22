@@ -1,6 +1,6 @@
 import { App } from 'obsidian';
-import { Message } from '../../types';
-import MyPlugin from '../../main';
+import { Message } from '../../../types';
+import MyPlugin from '../../../main';
 
 /**
  * Handles building context messages for AI conversations

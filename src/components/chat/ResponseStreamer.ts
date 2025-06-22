@@ -2,9 +2,9 @@ import { Notice, MarkdownRenderer, Component } from 'obsidian';
 import { Message, ToolCommand, ToolResult } from '../../types';
 import { createProvider, createProviderFromUnifiedModel } from '../../../providers';
 import MyPlugin from '../../main';
-import { AgentResponseHandler } from './AgentResponseHandler';
+import { AgentResponseHandler } from './agent/AgentResponseHandler';
 import { MessageRenderer } from './MessageRenderer';
-import { TaskContinuation } from './TaskContinuation';
+import { TaskContinuation } from './agent/TaskContinuation';
 
 interface ContinuationParams {
     messages: Message[];

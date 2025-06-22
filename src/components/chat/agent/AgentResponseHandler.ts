@@ -1,11 +1,11 @@
 import { App, Notice, MarkdownRenderer } from 'obsidian';
-import MyPlugin from '../../main';
-import { ToolCommand, ToolResult, Message, ReasoningData, TaskStatus, ToolExecutionResult } from '../../types';
-import { CommandParser } from './CommandParser';
+import MyPlugin from '../../../main';
+import { ToolCommand, ToolResult, Message, ReasoningData, TaskStatus, ToolExecutionResult } from '../../../types';
+import { CommandParser } from '../CommandParser';
 import { ToolRegistry } from './ToolRegistry';
 import { ToolRichDisplay } from './ToolRichDisplay';
 // Import all tool management from toolcollect for dynamic tool loading
-import { getAllToolClasses, createToolInstances } from './tools/toolcollect';
+import { getAllToolClasses, createToolInstances } from '../tools/toolcollect';
 
 export interface AgentContext {
     app: App;

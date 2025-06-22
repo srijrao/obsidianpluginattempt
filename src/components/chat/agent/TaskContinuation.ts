@@ -1,6 +1,6 @@
 import { MarkdownRenderer, Component } from 'obsidian';
-import { Message, ToolCommand, ToolResult } from '../../types';
-import MyPlugin from '../../main';
+import { Message, ToolCommand, ToolResult } from '../../../types';
+import MyPlugin from '../../../main';
 import { AgentResponseHandler } from './AgentResponseHandler';
 
 /**
@@ -181,7 +181,7 @@ export class TaskContinuation {
             }
             
             // Import provider utilities
-            const { createProvider, createProviderFromUnifiedModel } = await import('../../../providers');
+            const { createProvider, createProviderFromUnifiedModel } = await import('../../../../providers');
             
             // Use the same provider setup as the main response
             const provider = this.plugin.settings.selectedModel 

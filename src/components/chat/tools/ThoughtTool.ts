@@ -1,5 +1,5 @@
 import { App } from 'obsidian';
-import { Tool, ToolResult } from '../ToolRegistry';
+import { Tool, ToolResult } from '../agent/ToolRegistry';
 
 /**
  * Enum for core thought categories.

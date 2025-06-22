@@ -1,5 +1,5 @@
 import { App, TFile, TFolder } from 'obsidian';
-import { Tool, ToolResult } from '../ToolRegistry';
+import { Tool, ToolResult } from '../agent/ToolRegistry';
 
 export interface FileMoveParams {
     sourcePath: string;

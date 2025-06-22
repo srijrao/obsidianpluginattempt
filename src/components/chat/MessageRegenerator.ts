@@ -4,7 +4,7 @@ import MyPlugin from '../../main';
 import { ChatHistoryManager } from './ChatHistoryManager';
 import { createMessageElement } from './Message';
 import { ResponseStreamer } from './ResponseStreamer';
-import { AgentResponseHandler } from './AgentResponseHandler';
+import { AgentResponseHandler } from './agent/AgentResponseHandler';
 
 /**
  * Handles message regeneration logic

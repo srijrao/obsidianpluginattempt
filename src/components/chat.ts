@@ -9,13 +9,13 @@ import { handleCopyAll, handleSaveNote, handleClearChat, handleSettings, handleH
 import { saveChatAsNote, loadChatYamlAndApplySettings } from './chat/chatPersistence';
 import { renderChatHistory } from './chat/chatHistoryUtils';
 import { ChatHelpModal } from './chat/ChatHelpModal';
-import { AgentResponseHandler, AgentContext } from './chat/AgentResponseHandler';
+import { AgentResponseHandler, AgentContext } from './chat/agent/AgentResponseHandler';
 import { ToolCommand, ToolResult } from '../types';
-import { ContextBuilder } from './chat/ContextBuilder';
+import { ContextBuilder } from './chat/agent/ContextBuilder';
 import { MessageRegenerator } from './chat/MessageRegenerator';
 import { ResponseStreamer } from './chat/ResponseStreamer';
 import { MessageRenderer } from './chat/MessageRenderer';
-import { ToolRichDisplay } from './chat/ToolRichDisplay';
+import { ToolRichDisplay } from './chat/agent/ToolRichDisplay';
 
 export const VIEW_TYPE_CHAT = 'chat-view';
 

@@ -1,5 +1,5 @@
 import { App, TFile } from 'obsidian';
-import { Tool, ToolResult } from '../ToolRegistry';
+import { Tool, ToolResult } from '../agent/ToolRegistry';
 import { createFile, writeFile } from '../../FileHandler';
 import { BackupManager } from '../../BackupManager';
 

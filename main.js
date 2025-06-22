@@ -8907,10 +8907,10 @@ var init_Buttons = __esm({
   }
 });
 
-// src/components/chat/ToolRichDisplay.ts
+// src/components/chat/agent/ToolRichDisplay.ts
 var import_obsidian14, ToolRichDisplay;
 var init_ToolRichDisplay = __esm({
-  "src/components/chat/ToolRichDisplay.ts"() {
+  "src/components/chat/agent/ToolRichDisplay.ts"() {
     import_obsidian14 = require("obsidian");
     ToolRichDisplay = class extends import_obsidian14.Component {
       constructor(options) {
@@ -11918,7 +11918,7 @@ async function renderChatHistory({
   }
 }
 
-// src/components/chat/AgentResponseHandler.ts
+// src/components/chat/agent/AgentResponseHandler.ts
 var import_obsidian22 = require("obsidian");
 
 // src/components/chat/CommandParser.ts
@@ -12047,7 +12047,7 @@ var CommandParser = class {
   }
 };
 
-// src/components/chat/ToolRegistry.ts
+// src/components/chat/agent/ToolRegistry.ts
 var ToolRegistry = class {
   constructor() {
     __publicField(this, "tools", /* @__PURE__ */ new Map());
@@ -12083,7 +12083,7 @@ var ToolRegistry = class {
   }
 };
 
-// src/components/chat/AgentResponseHandler.ts
+// src/components/chat/agent/AgentResponseHandler.ts
 init_ToolRichDisplay();
 init_toolcollect();
 var AgentResponseHandler = class {
@@ -12747,7 +12747,7 @@ ${resultText}`;
   }
 };
 
-// src/components/chat/ContextBuilder.ts
+// src/components/chat/agent/ContextBuilder.ts
 var ContextBuilder = class {
   constructor(app, plugin) {
     this.app = app;
@@ -12811,7 +12811,7 @@ var import_obsidian25 = require("obsidian");
 init_providers();
 init_MessageRenderer();
 
-// src/components/chat/TaskContinuation.ts
+// src/components/chat/agent/TaskContinuation.ts
 var import_obsidian23 = require("obsidian");
 var TaskContinuation = class {
   constructor(plugin, agentResponseHandler, messagesContainer, component) {

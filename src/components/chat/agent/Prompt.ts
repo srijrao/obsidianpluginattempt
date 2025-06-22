@@ -1,6 +1,6 @@
 import { Component, App } from 'obsidian';
-import { Buttons } from './Buttons';
-import { Commands } from './Commands';
+import { Buttons } from '../Buttons';
+import { Commands } from '../Commands';
 
 interface IPromptState {
     isDisabled: boolean;
