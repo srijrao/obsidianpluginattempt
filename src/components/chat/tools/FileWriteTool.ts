@@ -2,6 +2,7 @@ import { App, TFile } from 'obsidian';
 import { Tool, ToolResult } from '../agent/ToolRegistry';
 import { createFile, writeFile } from '../../FileHandler';
 import { BackupManager } from '../../BackupManager';
+import { PathValidator } from './pathValidation';
 
 export interface FileWriteParams {
     path: string;
@@ -17,7 +18,7 @@ export class FileWriteTool implements Tool {
     parameters = {
         path: {
             type: 'string',
-            description: 'Path to the file to write (relative to vault root)',
+            description: 'Path to the file to write (relative to vault root or absolute path within vault)',
             required: true
         },
         content: {
@@ -35,19 +36,32 @@ export class FileWriteTool implements Tool {
             description: 'Whether to create a backup before modifying existing files',
             default: true
         }
-    };    private backupManager: BackupManager;    constructor(private app: App, backupManager?: BackupManager) {
+    };    private backupManager: BackupManager;
+    private pathValidator: PathValidator;    constructor(private app: App, backupManager?: BackupManager) {
         // Initialize backup manager with provided instance or create a default one
         const defaultPath = app.vault.configDir + '/plugins/ai-assistant-for-obsidian';
         this.backupManager = backupManager || new BackupManager(app, defaultPath);
+        this.pathValidator = new PathValidator(app);
     }async execute(params: any, context: any): Promise<ToolResult> {
         // Normalize parameter names for backward compatibility
-        const filePath = params.path || params.filePath || params.filename;
+        const inputPath = params.path || params.filePath || params.filename;
         const { content, createIfNotExists = true, backup = true } = params;
 
-        if (!filePath) {
+        if (!inputPath) {
             return {
                 success: false,
-                error: 'filePath or filename parameter is required'
+                error: 'path parameter is required'
+            };
+        }
+
+        // Validate and normalize the path to ensure it's within the vault
+        let filePath: string;
+        try {
+            filePath = this.pathValidator.validateAndNormalizePath(inputPath);
+        } catch (error: any) {
+            return {
+                success: false,
+                error: `Path validation failed: ${error.message}`
             };
         }
 

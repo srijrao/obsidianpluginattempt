@@ -2,6 +2,7 @@
 // Tool for listing files in a specified folder in the vault
 import { App, TFile, TFolder, Vault } from 'obsidian';
 import { Tool, ToolResult } from '../agent/ToolRegistry';
+import { PathValidator } from './pathValidation';
 
 export interface FileListParams {
     path: string; // Path to the folder
@@ -13,21 +14,36 @@ export class FileListTool implements Tool {
     name = 'file_list';
     description = 'List all files in a specified folder in the vault';
     parameters = {
-        path: { type: 'string', description: 'Path to the folder (relative to vault root)', required: true },
+        path: { type: 'string', description: 'Path to the folder (relative to vault root or absolute path within vault)', required: true },
         recursive: { type: 'boolean', description: 'Whether to list files recursively', default: false }
     };
 
-    constructor(private app: App) {}
+    private pathValidator: PathValidator;
+
+    constructor(private app: App) {
+        this.pathValidator = new PathValidator(app);
+    }
 
     async execute(params: FileListParams, context: any): Promise<ToolResult> {
         // Normalize parameter names for backward compatibility
-        const folderPath = params.path || params.folderPath;
+        const inputPath = params.path || params.folderPath;
         const { recursive = false } = params;
         
-        if (!folderPath) {
+        if (!inputPath) {
             return {
                 success: false,
                 error: 'path parameter is required'
+            };
+        }
+
+        // Validate and normalize the path to ensure it's within the vault
+        let folderPath: string;
+        try {
+            folderPath = this.pathValidator.validateAndNormalizePath(inputPath);
+        } catch (error: any) {
+            return {
+                success: false,
+                error: `Path validation failed: ${error.message}`
             };
         }
         

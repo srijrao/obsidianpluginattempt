@@ -6,6 +6,7 @@ import {
     showFileChangeSuggestionsModal,
     formatSuggestionForDisplay 
 } from '../filediffhandler';
+import { PathValidator } from './pathValidation';
 
 export interface FileDiffParams {
     path: string;
@@ -21,7 +22,7 @@ export class FileDiffTool implements Tool {
     description = 'Compare and suggest changes to files';    parameters = {
         path: {
             type: 'string',
-            description: 'Path to the file to compare/modify (relative to vault root)',
+            description: 'Path to the file to compare/modify (relative to vault root or absolute path within vault)',
             required: true
         },
         originalContent: {
@@ -47,17 +48,32 @@ export class FileDiffTool implements Tool {
         }
     };
 
-    constructor(private app: App) {}    async execute(params: FileDiffParams, context: any): Promise<ToolResult> {
+    private pathValidator: PathValidator;
+
+    constructor(private app: App) {
+        this.pathValidator = new PathValidator(app);
+    }    async execute(params: FileDiffParams, context: any): Promise<ToolResult> {
         // Normalize parameter names for backward compatibility
-        const filePath = params.path || params.filePath;
+        const inputPath = params.path || params.filePath;
         // Fallback: support legacy 'text' param as 'suggestedContent'
         const suggestedContent = params.suggestedContent || (params as any).text;
         const { originalContent, action = 'suggest', insertPosition } = params;
 
-        if (!filePath) {
+        if (!inputPath) {
             return {
                 success: false,
                 error: 'path parameter is required'
+            };
+        }
+
+        // Validate and normalize the path to ensure it's within the vault
+        let filePath: string;
+        try {
+            filePath = this.pathValidator.validateAndNormalizePath(inputPath);
+        } catch (error: any) {
+            return {
+                success: false,
+                error: `Path validation failed: ${error.message}`
             };
         }
 

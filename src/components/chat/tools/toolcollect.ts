@@ -64,14 +64,14 @@ export function getToolMetadata(): Array<{name: string, description: string, par
             name: 'file_read',
             description: 'Read file contents from the vault',
             parameters: {
-                path: { type: 'string', description: 'Path to the file to read (relative to vault root)', required: true },
+                path: { type: 'string', description: 'Path to the file to read (relative to vault root or absolute path within vault)', required: true },
                 maxSize: { type: 'number', description: 'Maximum file size in bytes (default 1MB)', default: 1024 * 1024 }
             }
         },        {
             name: 'file_write',
             description: 'Write or create files in the vault',
             parameters: {
-                path: { type: 'string', description: 'Path where to write the file (relative to vault root)', required: true },
+                path: { type: 'string', description: 'Path where to write the file (relative to vault root or absolute path within vault)', required: true },
                 content: { type: 'string', description: 'Content to write to the file', required: true },
                 createIfNotExists: { type: 'boolean', description: 'Whether to create the file if it does not exist', default: true },
                 backup: { type: 'boolean', description: 'Whether to create a backup before modifying existing files', default: true }
@@ -80,7 +80,7 @@ export function getToolMetadata(): Array<{name: string, description: string, par
             name: 'file_diff',
             description: 'Compare and suggest changes to files',
             parameters: {
-                path: { type: 'string', description: 'Path to the file to compare/modify (relative to vault root)', required: true },
+                path: { type: 'string', description: 'Path to the file to compare/modify (relative to vault root or absolute path within vault)', required: true },
                 originalContent: { type: 'string', description: 'Original content for comparison (if not provided, reads from file)', required: false },
                 suggestedContent: { type: 'string', description: 'Suggested new content for the file', required: true },
                 action: { type: 'string', enum: ['compare', 'apply', 'suggest'], description: 'Action to perform: compare files, apply changes, or show suggestion UI', required: false },
@@ -91,8 +91,8 @@ export function getToolMetadata(): Array<{name: string, description: string, par
             name: 'file_move',
             description: 'Move or rename files within the vault. REQUIRED: Use parameter names sourcePath and destinationPath (not path/new_path).',
             parameters: {
-                sourcePath: { type: 'string', description: 'Path to the source file (relative to vault root). REQUIRED. Example: "Katy Perry.md"', required: true },
-                destinationPath: { type: 'string', description: 'Destination path for the file (relative to vault root). REQUIRED. Example: "popstar/Katy Perry.md"', required: true },
+                sourcePath: { type: 'string', description: 'Path to the source file (relative to vault root or absolute path within vault). REQUIRED. Example: "Katy Perry.md"', required: true },
+                destinationPath: { type: 'string', description: 'Destination path for the file (relative to vault root or absolute path within vault). REQUIRED. Example: "popstar/Katy Perry.md"', required: true },
                 createFolders: { type: 'boolean', description: 'Whether to create parent folders if they don\'t exist', default: true },
                 overwrite: { type: 'boolean', description: 'Whether to overwrite destination if it exists', default: false }
             }
@@ -111,14 +111,14 @@ export function getToolMetadata(): Array<{name: string, description: string, par
             name: 'file_list',
             description: 'List all files in a specified folder in the vault',
             parameters: {
-                path: { type: 'string', description: 'Path to the folder (relative to vault root)', required: true },
+                path: { type: 'string', description: 'Path to the folder (relative to vault root or absolute path within vault)', required: true },
                 recursive: { type: 'boolean', description: 'Whether to list files recursively', default: false }
             }
         },        {
             name: 'file_rename',
             description: 'Rename a file within the vault (does not move directories)',
             parameters: {
-                path: { type: 'string', description: 'Current path to the file (relative to vault root)', required: true },
+                path: { type: 'string', description: 'Current path to the file (relative to vault root or absolute path within vault)', required: true },
                 newName: { type: 'string', description: 'New name for the file (not a path, just the filename)', required: true },
                 overwrite: { type: 'boolean', description: 'Whether to overwrite if a file with the new name exists', default: false }
             }

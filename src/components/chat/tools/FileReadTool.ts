@@ -1,6 +1,7 @@
 import { App, TFile } from 'obsidian';
 import { Tool, ToolResult } from '../agent/ToolRegistry';
 import { readFile } from '../../FileHandler';
+import { PathValidator } from './pathValidation';
 
 export interface FileReadParams {
     path: string;
@@ -13,7 +14,7 @@ export class FileReadTool implements Tool {
     description = 'Read file contents from the vault';    parameters = {
         path: {
             type: 'string',
-            description: 'Path to the file to read (relative to vault root)',
+            description: 'Path to the file to read (relative to vault root or absolute path within vault)',
             required: true
         },
         maxSize: {
@@ -23,16 +24,31 @@ export class FileReadTool implements Tool {
         }
     };
 
-    constructor(private app: App) {}    async execute(params: FileReadParams, context: any): Promise<ToolResult> {
+    private pathValidator: PathValidator;
+
+    constructor(private app: App) {
+        this.pathValidator = new PathValidator(app);
+    }    async execute(params: FileReadParams, context: any): Promise<ToolResult> {
         // Normalize parameter names for backward compatibility
-        const filePath = params.path || params.filePath;
+        const inputPath = params.path || params.filePath;
         
         const { maxSize = 1024 * 1024 } = params;
 
-        if (!filePath) {
+        if (!inputPath) {
             return {
                 success: false,
                 error: 'path parameter is required'
+            };
+        }
+
+        // Validate and normalize the path to ensure it's within the vault
+        let filePath: string;
+        try {
+            filePath = this.pathValidator.validateAndNormalizePath(inputPath);
+        } catch (error: any) {
+            return {
+                success: false,
+                error: `Path validation failed: ${error.message}`
             };
         }
 

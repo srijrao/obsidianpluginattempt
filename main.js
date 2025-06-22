@@ -2773,12 +2773,108 @@ var init_FileHandler = __esm({
   }
 });
 
+// src/components/chat/tools/pathValidation.ts
+var import_path, PathValidator;
+var init_pathValidation = __esm({
+  "src/components/chat/tools/pathValidation.ts"() {
+    import_path = require("path");
+    PathValidator = class {
+      constructor(app) {
+        this.app = app;
+        __publicField(this, "vaultPath");
+        this.vaultPath = this.app.vault.adapter.basePath || "";
+      }
+      /**
+       * Validates and normalizes a path to ensure it's within the vault
+       * @param inputPath The input path (can be relative to vault or absolute)
+       * @returns The normalized vault-relative path or throws an error if invalid
+       */
+      validateAndNormalizePath(inputPath) {
+        if (!inputPath || typeof inputPath !== "string") {
+          throw new Error("Path is required and must be a string");
+        }
+        const cleanPath = inputPath.trim();
+        if (!cleanPath) {
+          throw new Error("Path cannot be empty");
+        }
+        let normalizedPath;
+        if ((0, import_path.isAbsolute)(cleanPath)) {
+          const absoluteVaultPath = (0, import_path.normalize)(this.vaultPath);
+          const absoluteInputPath = (0, import_path.normalize)(cleanPath);
+          if (!absoluteInputPath.startsWith(absoluteVaultPath)) {
+            throw new Error(`Path '${cleanPath}' is outside the vault. Only paths within the vault are allowed.`);
+          }
+          normalizedPath = (0, import_path.relative)(absoluteVaultPath, absoluteInputPath);
+        } else {
+          normalizedPath = (0, import_path.normalize)(cleanPath);
+          if (normalizedPath.startsWith("../") || normalizedPath.includes("/../") || normalizedPath === "..") {
+            throw new Error(`Path '${cleanPath}' attempts to access files outside the vault. Only paths within the vault are allowed.`);
+          }
+        }
+        normalizedPath = normalizedPath.replace(/\\/g, "/");
+        if (normalizedPath.startsWith("/")) {
+          normalizedPath = normalizedPath.substring(1);
+        }
+        if (normalizedPath === "." || normalizedPath === "./") {
+          normalizedPath = "";
+        }
+        return normalizedPath;
+      }
+      /**
+       * Validates that a path is safe for use within the vault
+       * @param inputPath The path to validate
+       * @returns True if the path is valid, throws an error otherwise
+       */
+      validatePath(inputPath) {
+        try {
+          this.validateAndNormalizePath(inputPath);
+          return true;
+        } catch (error) {
+          throw error;
+        }
+      }
+      /**
+       * Gets the vault's base path
+       * @returns The absolute path to the vault root
+       */
+      getVaultPath() {
+        return this.vaultPath;
+      }
+      /**
+       * Converts a vault-relative path to an absolute path
+       * @param vaultRelativePath The vault-relative path
+       * @returns The absolute path
+       */
+      toAbsolutePath(vaultRelativePath) {
+        const normalizedVaultPath = this.validateAndNormalizePath(vaultRelativePath);
+        return (0, import_path.join)(this.vaultPath, normalizedVaultPath);
+      }
+      /**
+       * Checks if two paths refer to the same file within the vault
+       * @param path1 First path
+       * @param path2 Second path
+       * @returns True if the paths refer to the same file
+       */
+      pathsEqual(path1, path2) {
+        try {
+          const normalized1 = this.validateAndNormalizePath(path1);
+          const normalized2 = this.validateAndNormalizePath(path2);
+          return normalized1 === normalized2;
+        } catch (error) {
+          return false;
+        }
+      }
+    };
+  }
+});
+
 // src/components/chat/tools/FileReadTool.ts
 var import_obsidian2, FileReadTool;
 var init_FileReadTool = __esm({
   "src/components/chat/tools/FileReadTool.ts"() {
     import_obsidian2 = require("obsidian");
     init_FileHandler();
+    init_pathValidation();
     FileReadTool = class {
       constructor(app) {
         this.app = app;
@@ -2787,7 +2883,7 @@ var init_FileReadTool = __esm({
         __publicField(this, "parameters", {
           path: {
             type: "string",
-            description: "Path to the file to read (relative to vault root)",
+            description: "Path to the file to read (relative to vault root or absolute path within vault)",
             required: true
           },
           maxSize: {
@@ -2796,15 +2892,26 @@ var init_FileReadTool = __esm({
             default: 1024 * 1024
           }
         });
+        __publicField(this, "pathValidator");
+        this.pathValidator = new PathValidator(app);
       }
       async execute(params, context) {
         var _a2, _b, _c;
-        const filePath = params.path || params.filePath;
+        const inputPath = params.path || params.filePath;
         const { maxSize = 1024 * 1024 } = params;
-        if (!filePath) {
+        if (!inputPath) {
           return {
             success: false,
             error: "path parameter is required"
+          };
+        }
+        let filePath;
+        try {
+          filePath = this.pathValidator.validateAndNormalizePath(inputPath);
+        } catch (error) {
+          return {
+            success: false,
+            error: `Path validation failed: ${error.message}`
           };
         }
         try {
@@ -3099,6 +3206,7 @@ var init_FileWriteTool = __esm({
     import_obsidian4 = require("obsidian");
     init_FileHandler();
     init_BackupManager();
+    init_pathValidation();
     FileWriteTool = class {
       constructor(app, backupManager) {
         this.app = app;
@@ -3107,7 +3215,7 @@ var init_FileWriteTool = __esm({
         __publicField(this, "parameters", {
           path: {
             type: "string",
-            description: "Path to the file to write (relative to vault root)",
+            description: "Path to the file to write (relative to vault root or absolute path within vault)",
             required: true
           },
           content: {
@@ -3127,16 +3235,27 @@ var init_FileWriteTool = __esm({
           }
         });
         __publicField(this, "backupManager");
+        __publicField(this, "pathValidator");
         const defaultPath = app.vault.configDir + "/plugins/ai-assistant-for-obsidian";
         this.backupManager = backupManager || new BackupManager(app, defaultPath);
+        this.pathValidator = new PathValidator(app);
       }
       async execute(params, context) {
-        const filePath = params.path || params.filePath || params.filename;
+        const inputPath = params.path || params.filePath || params.filename;
         const { content, createIfNotExists = true, backup = true } = params;
-        if (!filePath) {
+        if (!inputPath) {
           return {
             success: false,
-            error: "filePath or filename parameter is required"
+            error: "path parameter is required"
+          };
+        }
+        let filePath;
+        try {
+          filePath = this.pathValidator.validateAndNormalizePath(inputPath);
+        } catch (error) {
+          return {
+            success: false,
+            error: `Path validation failed: ${error.message}`
           };
         }
         if (content === void 0 || content === null) {
@@ -3288,6 +3407,7 @@ var init_FileDiffTool = __esm({
   "src/components/chat/tools/FileDiffTool.ts"() {
     import_obsidian6 = require("obsidian");
     init_filediffhandler();
+    init_pathValidation();
     FileDiffTool = class {
       constructor(app) {
         this.app = app;
@@ -3296,7 +3416,7 @@ var init_FileDiffTool = __esm({
         __publicField(this, "parameters", {
           path: {
             type: "string",
-            description: "Path to the file to compare/modify (relative to vault root)",
+            description: "Path to the file to compare/modify (relative to vault root or absolute path within vault)",
             required: true
           },
           originalContent: {
@@ -3321,15 +3441,26 @@ var init_FileDiffTool = __esm({
             required: false
           }
         });
+        __publicField(this, "pathValidator");
+        this.pathValidator = new PathValidator(app);
       }
       async execute(params, context) {
-        const filePath = params.path || params.filePath;
+        const inputPath = params.path || params.filePath;
         const suggestedContent = params.suggestedContent || params.text;
         const { originalContent, action = "suggest", insertPosition } = params;
-        if (!filePath) {
+        if (!inputPath) {
           return {
             success: false,
             error: "path parameter is required"
+          };
+        }
+        let filePath;
+        try {
+          filePath = this.pathValidator.validateAndNormalizePath(inputPath);
+        } catch (error) {
+          return {
+            success: false,
+            error: `Path validation failed: ${error.message}`
           };
         }
         if (!suggestedContent) {
@@ -3466,6 +3597,7 @@ var import_obsidian7, FileMoveTool;
 var init_FileMoveTool = __esm({
   "src/components/chat/tools/FileMoveTool.ts"() {
     import_obsidian7 = require("obsidian");
+    init_pathValidation();
     FileMoveTool = class {
       constructor(app) {
         this.app = app;
@@ -3474,12 +3606,12 @@ var init_FileMoveTool = __esm({
         __publicField(this, "parameters", {
           sourcePath: {
             type: "string",
-            description: "Path to the source file (relative to vault root)",
+            description: "Path to the source file (relative to vault root or absolute path within vault)",
             required: true
           },
           destinationPath: {
             type: "string",
-            description: "Destination path for the file (relative to vault root)",
+            description: "Destination path for the file (relative to vault root or absolute path within vault)",
             required: true
           },
           createFolders: {
@@ -3493,17 +3625,30 @@ var init_FileMoveTool = __esm({
             default: false
           }
         });
+        __publicField(this, "pathValidator");
+        this.pathValidator = new PathValidator(app);
       }
       async execute(params, context) {
-        let sourcePath = params.sourcePath;
-        let destinationPath = params.destinationPath;
-        if (!sourcePath && params.path) sourcePath = params.path;
-        if (!destinationPath && (params.new_path || params.newPath)) destinationPath = params.new_path || params.newPath;
+        let inputSourcePath = params.sourcePath;
+        let inputDestinationPath = params.destinationPath;
+        if (!inputSourcePath && params.path) inputSourcePath = params.path;
+        if (!inputDestinationPath && (params.new_path || params.newPath)) inputDestinationPath = params.new_path || params.newPath;
         const { createFolders = true, overwrite = false } = params;
-        if (!sourcePath || !destinationPath) {
+        if (!inputSourcePath || !inputDestinationPath) {
           return {
             success: false,
             error: "Both sourcePath and destinationPath parameters are required (aliases: path, new_path, newPath)"
+          };
+        }
+        let sourcePath;
+        let destinationPath;
+        try {
+          sourcePath = this.pathValidator.validateAndNormalizePath(inputSourcePath);
+          destinationPath = this.pathValidator.validateAndNormalizePath(inputDestinationPath);
+        } catch (error) {
+          return {
+            success: false,
+            error: `Path validation failed: ${error.message}`
           };
         }
         try {
@@ -3704,23 +3849,35 @@ var import_obsidian8, FileListTool;
 var init_FileListTool = __esm({
   "src/components/chat/tools/FileListTool.ts"() {
     import_obsidian8 = require("obsidian");
+    init_pathValidation();
     FileListTool = class {
       constructor(app) {
         this.app = app;
         __publicField(this, "name", "file_list");
         __publicField(this, "description", "List all files in a specified folder in the vault");
         __publicField(this, "parameters", {
-          path: { type: "string", description: "Path to the folder (relative to vault root)", required: true },
+          path: { type: "string", description: "Path to the folder (relative to vault root or absolute path within vault)", required: true },
           recursive: { type: "boolean", description: "Whether to list files recursively", default: false }
         });
+        __publicField(this, "pathValidator");
+        this.pathValidator = new PathValidator(app);
       }
       async execute(params, context) {
-        const folderPath = params.path || params.folderPath;
+        const inputPath = params.path || params.folderPath;
         const { recursive = false } = params;
-        if (!folderPath) {
+        if (!inputPath) {
           return {
             success: false,
             error: "path parameter is required"
+          };
+        }
+        let folderPath;
+        try {
+          folderPath = this.pathValidator.validateAndNormalizePath(inputPath);
+        } catch (error) {
+          return {
+            success: false,
+            error: `Path validation failed: ${error.message}`
           };
         }
         const vault = this.app.vault;
@@ -3763,6 +3920,7 @@ var import_obsidian9, FileRenameTool;
 var init_FileRenameTool = __esm({
   "src/components/chat/tools/FileRenameTool.ts"() {
     import_obsidian9 = require("obsidian");
+    init_pathValidation();
     FileRenameTool = class {
       constructor(app) {
         this.app = app;
@@ -3771,7 +3929,7 @@ var init_FileRenameTool = __esm({
         __publicField(this, "parameters", {
           path: {
             type: "string",
-            description: "Current path to the file (relative to vault root)",
+            description: "Current path to the file (relative to vault root or absolute path within vault)",
             required: true
           },
           newName: {
@@ -3785,14 +3943,25 @@ var init_FileRenameTool = __esm({
             default: false
           }
         });
+        __publicField(this, "pathValidator");
+        this.pathValidator = new PathValidator(app);
       }
       async execute(params, context) {
-        const { path, newName, newPath, overwrite = false } = params;
+        const { path: inputPath, newName, newPath, overwrite = false } = params;
         const finalNewName = newName || newPath;
-        if (!path || !finalNewName) {
+        if (!inputPath || !finalNewName) {
           return {
             success: false,
             error: "Both path and newName (or newPath) parameters are required"
+          };
+        }
+        let path;
+        try {
+          path = this.pathValidator.validateAndNormalizePath(inputPath);
+        } catch (error) {
+          return {
+            success: false,
+            error: `Path validation failed: ${error.message}`
           };
         }
         try {
@@ -3865,7 +4034,7 @@ function getToolMetadata() {
       name: "file_read",
       description: "Read file contents from the vault",
       parameters: {
-        path: { type: "string", description: "Path to the file to read (relative to vault root)", required: true },
+        path: { type: "string", description: "Path to the file to read (relative to vault root or absolute path within vault)", required: true },
         maxSize: { type: "number", description: "Maximum file size in bytes (default 1MB)", default: 1024 * 1024 }
       }
     },
@@ -3873,7 +4042,7 @@ function getToolMetadata() {
       name: "file_write",
       description: "Write or create files in the vault",
       parameters: {
-        path: { type: "string", description: "Path where to write the file (relative to vault root)", required: true },
+        path: { type: "string", description: "Path where to write the file (relative to vault root or absolute path within vault)", required: true },
         content: { type: "string", description: "Content to write to the file", required: true },
         createIfNotExists: { type: "boolean", description: "Whether to create the file if it does not exist", default: true },
         backup: { type: "boolean", description: "Whether to create a backup before modifying existing files", default: true }
@@ -3883,7 +4052,7 @@ function getToolMetadata() {
       name: "file_diff",
       description: "Compare and suggest changes to files",
       parameters: {
-        path: { type: "string", description: "Path to the file to compare/modify (relative to vault root)", required: true },
+        path: { type: "string", description: "Path to the file to compare/modify (relative to vault root or absolute path within vault)", required: true },
         originalContent: { type: "string", description: "Original content for comparison (if not provided, reads from file)", required: false },
         suggestedContent: { type: "string", description: "Suggested new content for the file", required: true },
         action: { type: "string", enum: ["compare", "apply", "suggest"], description: "Action to perform: compare files, apply changes, or show suggestion UI", required: false },
@@ -3894,8 +4063,8 @@ function getToolMetadata() {
       name: "file_move",
       description: "Move or rename files within the vault. REQUIRED: Use parameter names sourcePath and destinationPath (not path/new_path).",
       parameters: {
-        sourcePath: { type: "string", description: 'Path to the source file (relative to vault root). REQUIRED. Example: "Katy Perry.md"', required: true },
-        destinationPath: { type: "string", description: 'Destination path for the file (relative to vault root). REQUIRED. Example: "popstar/Katy Perry.md"', required: true },
+        sourcePath: { type: "string", description: 'Path to the source file (relative to vault root or absolute path within vault). REQUIRED. Example: "Katy Perry.md"', required: true },
+        destinationPath: { type: "string", description: 'Destination path for the file (relative to vault root or absolute path within vault). REQUIRED. Example: "popstar/Katy Perry.md"', required: true },
         createFolders: { type: "boolean", description: "Whether to create parent folders if they don't exist", default: true },
         overwrite: { type: "boolean", description: "Whether to overwrite destination if it exists", default: false }
       }
@@ -3916,7 +4085,7 @@ function getToolMetadata() {
       name: "file_list",
       description: "List all files in a specified folder in the vault",
       parameters: {
-        path: { type: "string", description: "Path to the folder (relative to vault root)", required: true },
+        path: { type: "string", description: "Path to the folder (relative to vault root or absolute path within vault)", required: true },
         recursive: { type: "boolean", description: "Whether to list files recursively", default: false }
       }
     },
@@ -3924,7 +4093,7 @@ function getToolMetadata() {
       name: "file_rename",
       description: "Rename a file within the vault (does not move directories)",
       parameters: {
-        path: { type: "string", description: "Current path to the file (relative to vault root)", required: true },
+        path: { type: "string", description: "Current path to the file (relative to vault root or absolute path within vault)", required: true },
         newName: { type: "string", description: "New name for the file (not a path, just the filename)", required: true },
         overwrite: { type: "boolean", description: "Whether to overwrite if a file with the new name exists", default: false }
       }

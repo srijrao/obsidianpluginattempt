@@ -3,6 +3,7 @@
 
 import { App, TFile } from 'obsidian';
 import { Tool, ToolResult } from '../agent/ToolRegistry';
+import { PathValidator } from './pathValidation';
 
 export interface FileRenameParams {
     path: string;
@@ -16,7 +17,7 @@ export class FileRenameTool implements Tool {
     parameters = {
         path: {
             type: 'string',
-            description: 'Current path to the file (relative to vault root)',
+            description: 'Current path to the file (relative to vault root or absolute path within vault)',
             required: true
         },
         newName: {
@@ -31,17 +32,32 @@ export class FileRenameTool implements Tool {
         }
     };
 
-    constructor(private app: App) {}
+    private pathValidator: PathValidator;
+
+    constructor(private app: App) {
+        this.pathValidator = new PathValidator(app);
+    }
 
     async execute(params: FileRenameParams & { newPath?: string }, context: any): Promise<ToolResult> {
         // Accept both newName and newPath for compatibility
-        const { path, newName, newPath, overwrite = false } = params;
+        const { path: inputPath, newName, newPath, overwrite = false } = params;
         const finalNewName = newName || newPath;
 
-        if (!path || !finalNewName) {
+        if (!inputPath || !finalNewName) {
             return {
                 success: false,
                 error: 'Both path and newName (or newPath) parameters are required'
+            };
+        }
+
+        // Validate and normalize the path to ensure it's within the vault
+        let path: string;
+        try {
+            path = this.pathValidator.validateAndNormalizePath(inputPath);
+        } catch (error: any) {
+            return {
+                success: false,
+                error: `Path validation failed: ${error.message}`
             };
         }
 

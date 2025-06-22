@@ -1,5 +1,6 @@
 import { App, TFile, TFolder } from 'obsidian';
 import { Tool, ToolResult } from '../agent/ToolRegistry';
+import { PathValidator } from './pathValidation';
 
 export interface FileMoveParams {
     sourcePath: string;
@@ -14,12 +15,12 @@ export class FileMoveTool implements Tool {
     parameters = {
         sourcePath: {
             type: 'string',
-            description: 'Path to the source file (relative to vault root)',
+            description: 'Path to the source file (relative to vault root or absolute path within vault)',
             required: true
         },
         destinationPath: {
             type: 'string',
-            description: 'Destination path for the file (relative to vault root)',
+            description: 'Destination path for the file (relative to vault root or absolute path within vault)',
             required: true
         },
         createFolders: {
@@ -34,22 +35,39 @@ export class FileMoveTool implements Tool {
         }
     };
 
-    constructor(private app: App) {}
+    private pathValidator: PathValidator;
+
+    constructor(private app: App) {
+        this.pathValidator = new PathValidator(app);
+    }
 
     async execute(params: FileMoveParams & Record<string, any>, context: any): Promise<ToolResult> {
         // Parameter aliasing for robustness
-        let sourcePath = params.sourcePath;
-        let destinationPath = params.destinationPath;
+        let inputSourcePath = params.sourcePath;
+        let inputDestinationPath = params.destinationPath;
         // Accept legacy/incorrect parameter names as aliases
-        if (!sourcePath && params.path) sourcePath = params.path;
-        if (!destinationPath && (params.new_path || params.newPath)) destinationPath = params.new_path || params.newPath;
+        if (!inputSourcePath && params.path) inputSourcePath = params.path;
+        if (!inputDestinationPath && (params.new_path || params.newPath)) inputDestinationPath = params.new_path || params.newPath;
 
         const { createFolders = true, overwrite = false } = params;
 
-        if (!sourcePath || !destinationPath) {
+        if (!inputSourcePath || !inputDestinationPath) {
             return {
                 success: false,
                 error: 'Both sourcePath and destinationPath parameters are required (aliases: path, new_path, newPath)'
+            };
+        }
+
+        // Validate and normalize both paths to ensure they're within the vault
+        let sourcePath: string;
+        let destinationPath: string;
+        try {
+            sourcePath = this.pathValidator.validateAndNormalizePath(inputSourcePath);
+            destinationPath = this.pathValidator.validateAndNormalizePath(inputDestinationPath);
+        } catch (error: any) {
+            return {
+                success: false,
+                error: `Path validation failed: ${error.message}`
             };
         }
 
