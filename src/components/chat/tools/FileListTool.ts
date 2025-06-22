@@ -29,7 +29,7 @@ export class FileListTool implements Tool {
         const inputPath = params.path || params.folderPath;
         const { recursive = false } = params;
         
-        if (!inputPath) {
+        if (!inputPath && inputPath !== '') {
             return {
                 success: false,
                 error: 'path parameter is required'

@@ -24,10 +24,10 @@ export class PathValidator {
 
         // Remove any leading/trailing whitespace
         const cleanPath = inputPath.trim();
-        
-        // Handle empty path
-        if (!cleanPath) {
-            throw new Error('Path cannot be empty');
+
+        // Handle vault root: empty, '.', or '/'
+        if (cleanPath === '' || cleanPath === '.' || cleanPath === './' || cleanPath === '/') {
+            return '';
         }
 
         let normalizedPath: string;

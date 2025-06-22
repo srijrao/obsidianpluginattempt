@@ -109,9 +109,9 @@ export function getToolMetadata(): Array<{name: string, description: string, par
             }
         },        {
             name: 'file_list',
-            description: 'List all files in a specified folder in the vault',
+            description: 'List all files in a specified folder in the vault. Use path: "", ".", or "/" to list the vault root.',
             parameters: {
-                path: { type: 'string', description: 'Path to the folder (relative to vault root or absolute path within vault)', required: true },
+                path: { type: 'string', description: 'Path to the folder (relative to vault root or absolute path within vault, or use "", ".", or "/" for vault root)', required: true },
                 recursive: { type: 'boolean', description: 'Whether to list files recursively', default: false }
             }
         },        {

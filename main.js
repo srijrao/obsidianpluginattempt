@@ -2794,8 +2794,8 @@ var init_pathValidation = __esm({
           throw new Error("Path is required and must be a string");
         }
         const cleanPath = inputPath.trim();
-        if (!cleanPath) {
-          throw new Error("Path cannot be empty");
+        if (cleanPath === "" || cleanPath === "." || cleanPath === "./" || cleanPath === "/") {
+          return "";
         }
         let normalizedPath;
         if ((0, import_path.isAbsolute)(cleanPath)) {
@@ -3721,50 +3721,43 @@ var init_ThoughtTool = __esm({
       constructor(app) {
         this.app = app;
         __publicField(this, "name", "thought");
-        __publicField(this, "description", "Record and display a single AI reasoning step with next tool suggestion for agent automation and user display.");
+        __publicField(this, "description", `Record and display a single AI reasoning step, always suggesting the next tool to use (or 'finished' if complete). Output is machine-readable for both agent automation and user display. Requires 'thought' and 'nextTool' parameters; optionally includes step tracking, confidence, and a description of the next action.
+
+Example:
+{
+  "action": "thought",
+  "parameters": {
+    "thought": "I will summarize the note before editing.",
+    "nextTool": "file_write",
+    "nextActionDescription": "Write a description of the tool's use"
+  }
+}`);
         __publicField(this, "parameters", {
           thought: {
             type: "string",
-            description: "The main thought or reasoning step to record",
+            description: `REQUIRED. The main thought or reasoning step to record. Use the key 'thought' (not 'text', 'message', or any other name). This must always be present and non-empty. Example: { "thought": "I will summarize the note before editing." }`,
             required: true
           },
           reasoning: {
             type: "string",
-            description: "Alias for thought (MCP compliance)",
-            required: false
-          },
-          step: {
-            type: "number",
-            description: "Current step number in a multi-step process",
-            required: false
-          },
-          totalSteps: {
-            type: "number",
-            description: "Total number of steps in the process",
+            description: "Optional. Alias for 'thought' (for legacy/compatibility only). Do NOT use unless specifically instructed. Always prefer 'thought'.",
             required: false
           },
           category: {
             type: "string",
             enum: Object.values(ThoughtCategory),
-            description: "Category of the thought for organization",
+            description: "Optional. Category of the thought for organization. Must be one of: 'analysis', 'planning', 'problem-solving', 'reflection', 'conclusion'.",
             default: "analysis" /* Analysis */
-          },
-          confidence: {
-            type: "number",
-            description: "Confidence level in this thought (1-10 scale)",
-            default: 7,
-            minimum: 1,
-            maximum: 10
           },
           nextTool: {
             type: "string",
-            description: 'Name of the next tool to use, or "finished" if no further action is needed',
+            description: `REQUIRED. Name of the next tool to use, or 'finished' if no further action is needed. Always include this key. Example: { "nextTool": "file_write" } or { "nextTool": "finished" }.`,
             required: true
           },
           nextActionDescription: {
             type: "string",
-            description: "Brief description of the recommended next step or action",
-            required: false
+            description: "REQUIRED. Brief description of the recommended next step or action.",
+            required: true
           }
         });
       }
@@ -3900,7 +3893,7 @@ var init_FileListTool = __esm({
       async execute(params, context) {
         const inputPath = params.path || params.folderPath;
         const { recursive = false } = params;
-        if (!inputPath) {
+        if (!inputPath && inputPath !== "") {
           return {
             success: false,
             error: "path parameter is required"
@@ -4118,9 +4111,9 @@ function getToolMetadata() {
     },
     {
       name: "file_list",
-      description: "List all files in a specified folder in the vault",
+      description: 'List all files in a specified folder in the vault. Use path: "", ".", or "/" to list the vault root.',
       parameters: {
-        path: { type: "string", description: "Path to the folder (relative to vault root or absolute path within vault)", required: true },
+        path: { type: "string", description: 'Path to the folder (relative to vault root or absolute path within vault, or use "", ".", or "/" for vault root)', required: true },
         recursive: { type: "boolean", description: "Whether to list files recursively", default: false }
       }
     },
@@ -4193,7 +4186,6 @@ var init_promptConstants = __esm({
     };
     AGENT_SYSTEM_PROMPT_TEMPLATE = `
 - You are an AI assistant in an Obsidian Vault with access to powerful tools for vault management and interaction.
-- The special 'thought' tool is available to record your internal reasoning steps for consistency;
 - Try to use tools whenever possible to perform tasks. Start by using the 'thought' tool to outline your plan before executing actions.
 - Provide explanations, summaries, or discussions naturally. Ask clarifying questions when requests are ambiguous.
 

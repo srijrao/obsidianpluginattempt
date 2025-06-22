@@ -58,62 +58,55 @@ export interface ThoughtParams {
  */
 export class ThoughtTool implements Tool {
     name = 'thought';
-    description = 'Record and display a single AI reasoning step with next tool suggestion for agent automation and user display.';
+    description = `Record and display a single AI reasoning step, always suggesting the next tool to use (or 'finished' if complete). Output is machine-readable for both agent automation and user display. Requires 'thought' and 'nextTool' parameters; optionally includes step tracking, confidence, and a description of the next action.
+
+Example:
+{
+  "action": "thought",
+  "parameters": {
+    "thought": "I will summarize the note before editing.",
+    "nextTool": "file_write",
+    "nextActionDescription": "Write a description of the tool's use"
+  }
+}`;
 
     parameters = {
         thought: {
             type: 'string',
-            description: 'The main thought or reasoning step to record',
+            description: "REQUIRED. The main thought or reasoning step to record. Use the key 'thought' (not 'text', 'message', or any other name). This must always be present and non-empty. Example: { \"thought\": \"I will summarize the note before editing.\" }",
             required: true
         },
         reasoning: {
             type: 'string',
-            description: 'Alias for thought (MCP compliance)',
-            required: false
-        },
-        step: {
-            type: 'number',
-            description: 'Current step number in a multi-step process',
-            required: false
-        },
-        totalSteps: {
-            type: 'number',
-            description: 'Total number of steps in the process',
+            description: "Optional. Alias for 'thought' (for legacy/compatibility only). Do NOT use unless specifically instructed. Always prefer 'thought'.",
             required: false
         },
         category: {
             type: 'string',
             enum: Object.values(ThoughtCategory),
-            description: 'Category of the thought for organization',
+            description: "Optional. Category of the thought for organization. Must be one of: 'analysis', 'planning', 'problem-solving', 'reflection', 'conclusion'.",
             default: ThoughtCategory.Analysis
-        },
-        confidence: {
-            type: 'number',
-            description: 'Confidence level in this thought (1-10 scale)',
-            default: 7,
-            minimum: 1,
-            maximum: 10
         },
         nextTool: {
             type: 'string',
-            description: 'Name of the next tool to use, or "finished" if no further action is needed',
+            description: "REQUIRED. Name of the next tool to use, or 'finished' if no further action is needed. Always include this key. Example: { \"nextTool\": \"file_write\" } or { \"nextTool\": \"finished\" }.",
             required: true
         },
         nextActionDescription: {
             type: 'string',
-            description: 'Brief description of the recommended next step or action',
-            required: false
+            description: 'REQUIRED. Brief description of the recommended next step or action.',
+            required: true
         }
     };
 
-    constructor(private app: App) {}
+    constructor(private app: App) { }
 
     async execute(params: ThoughtParams, context: any): Promise<ToolResult> {
         // Alias older 'reasoning' field into 'thought' so we stay compliant
         if ((!params.thought || params.thought.trim().length === 0) && (params as any).reasoning) {
             params.thought = (params as any).reasoning;
         }
-        
+
         // MCP: Validate required parameters
         if (!params.thought || typeof params.thought !== 'string' || params.thought.trim().length === 0) {
             return {
@@ -121,7 +114,7 @@ export class ThoughtTool implements Tool {
                 error: 'Parameter "thought" is required and must be a non-empty string.'
             };
         }
-        
+
         if (!params.nextTool || typeof params.nextTool !== 'string' || params.nextTool.trim().length === 0) {
             return {
                 success: false,
@@ -211,7 +204,7 @@ export class ThoughtTool implements Tool {
         header += ` | ${statusEmoji} ${nextAction}`;
 
         let content = `${header}\n> ${thought}`;
-        
+
         // Add next action description if provided and not finished
         if (nextActionDescription && !finished) {
             content += `\n> 📋 **Next Action:** ${nextActionDescription}`;
