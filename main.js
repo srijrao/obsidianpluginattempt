@@ -3721,7 +3721,7 @@ var init_ThoughtTool = __esm({
       constructor(app) {
         this.app = app;
         __publicField(this, "name", "thought");
-        __publicField(this, "description", "Record and display a single AI reasoning step or thought process.");
+        __publicField(this, "description", "Record and display a single AI reasoning step with next tool suggestion for agent automation and user display.");
         __publicField(this, "parameters", {
           thought: {
             type: "string",
@@ -3755,10 +3755,21 @@ var init_ThoughtTool = __esm({
             default: 7,
             minimum: 1,
             maximum: 10
+          },
+          nextTool: {
+            type: "string",
+            description: 'Name of the next tool to use, or "finished" if no further action is needed',
+            required: true
+          },
+          nextActionDescription: {
+            type: "string",
+            description: "Brief description of the recommended next step or action",
+            required: false
           }
         });
       }
       async execute(params, context) {
+        var _a2;
         if ((!params.thought || params.thought.trim().length === 0) && params.reasoning) {
           params.thought = params.reasoning;
         }
@@ -3768,7 +3779,16 @@ var init_ThoughtTool = __esm({
             error: 'Parameter "thought" is required and must be a non-empty string.'
           };
         }
+        if (!params.nextTool || typeof params.nextTool !== "string" || params.nextTool.trim().length === 0) {
+          return {
+            success: false,
+            error: 'Parameter "nextTool" is required and must be a non-empty string.'
+          };
+        }
         const thought = params.thought.trim();
+        const nextTool = params.nextTool.trim();
+        const nextActionDescription = ((_a2 = params.nextActionDescription) == null ? void 0 : _a2.trim()) || void 0;
+        const finished = nextTool.toLowerCase() === "finished";
         const step = typeof params.step === "number" && params.step > 0 ? params.step : void 0;
         const totalSteps = typeof params.totalSteps === "number" && params.totalSteps > 0 ? params.totalSteps : void 0;
         const category = Object.values(ThoughtCategory).includes(params.category) ? params.category : "analysis" /* Analysis */;
@@ -3780,35 +3800,50 @@ var init_ThoughtTool = __esm({
           stepInfo,
           category,
           confidence,
-          timestamp: timestamp2
+          timestamp: timestamp2,
+          nextTool,
+          nextActionDescription,
+          finished
         });
         return {
           success: true,
           data: {
             thought,
-            step,
-            totalSteps,
             category,
             confidence,
+            step,
+            totalSteps,
             timestamp: timestamp2,
+            nextTool,
+            nextActionDescription,
+            finished,
             formattedThought
           }
         };
       }
       /**
        * Render a thought in a visually distinct, concise format for MCP tool output.
+       * Enhanced to include next tool information and completion status.
        * @param opts - Rendering options
        * @returns Formatted string
        */
       renderThought(opts) {
-        const { thought, stepInfo, category, confidence, timestamp: timestamp2 } = opts;
+        const { thought, stepInfo, category, confidence, timestamp: timestamp2, nextTool, nextActionDescription, finished } = opts;
         const emoji = this.getCategoryEmoji(category);
         const confidenceBar = "\u25CF".repeat(confidence) + "\u25CB".repeat(10 - confidence);
         let header = `${emoji} **${category.replace("-", " ").toUpperCase()}**`;
         if (stepInfo) header += ` | ${stepInfo}`;
         header += ` | Confidence: ${confidence}/10 ${confidenceBar} | ${new Date(timestamp2).toLocaleTimeString()}`;
-        return `${header}
+        const statusEmoji = finished ? "\u2705" : "\u23ED\uFE0F";
+        const nextAction = finished ? "Process Complete" : `Next: ${nextTool}`;
+        header += ` | ${statusEmoji} ${nextAction}`;
+        let content = `${header}
 > ${thought}`;
+        if (nextActionDescription && !finished) {
+          content += `
+> \u{1F4CB} **Next Action:** ${nextActionDescription}`;
+        }
+        return content;
       }
       /**
        * Get an emoji for a given category.
