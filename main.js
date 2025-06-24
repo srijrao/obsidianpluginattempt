@@ -12277,9 +12277,9 @@ var AgentResponseHandler = class {
    * @param response The AI response text
    * @returns Object containing processed text and execution results
    */
-  async processResponse(response) {
+  async processResponse(response, contextLabel = "main") {
     if (this.context.plugin.settings.debugMode) {
-      this.context.plugin.debugLog("[AgentResponseHandler] Processing response", { response });
+      this.context.plugin.debugLog(`[AgentResponseHandler][${contextLabel}] Processing response`, { response });
     }
     if (!this.context.plugin.isAgentModeEnabled()) {
       return {
@@ -12291,7 +12291,7 @@ var AgentResponseHandler = class {
     const { text, commands } = this.commandParser.parseResponse(response);
     if (commands.length === 0) {
       if (this.context.plugin.settings.debugMode) {
-        this.context.plugin.debugLog("[AgentResponseHandler] No tool commands found in response");
+        this.context.plugin.debugLog(`[AgentResponseHandler][${contextLabel}] No tool commands found in response`);
       }
       return {
         processedText: text,
@@ -12303,7 +12303,7 @@ var AgentResponseHandler = class {
     const effectiveLimit = this.getEffectiveToolLimit();
     if (this.executionCount >= effectiveLimit) {
       if (this.context.plugin.settings.debugMode) {
-        this.context.plugin.debugLog("[AgentResponseHandler] Tool execution limit reached", { executionCount: this.executionCount, effectiveLimit });
+        this.context.plugin.debugLog(`[AgentResponseHandler][${contextLabel}] Tool execution limit reached`, { executionCount: this.executionCount, effectiveLimit });
       }
       new import_obsidian22.Notice(`Agent mode: Maximum tool calls (${effectiveLimit}) reached`);
       return {
@@ -12319,12 +12319,12 @@ var AgentResponseHandler = class {
       try {
         const startTime = Date.now();
         if (this.context.plugin.settings.debugMode) {
-          this.context.plugin.debugLog("[AgentResponseHandler] Executing tool", { command });
+          this.context.plugin.debugLog(`[AgentResponseHandler][${contextLabel}] Executing tool`, { command });
         }
         const result = await this.executeToolWithTimeout(command, agentSettings.timeoutMs);
         const executionTime = Date.now() - startTime;
         if (this.context.plugin.settings.debugMode) {
-          this.context.plugin.debugLog("[AgentResponseHandler] Tool execution result", { command, result, executionTime });
+          this.context.plugin.debugLog(`[AgentResponseHandler][${contextLabel}] Tool execution result`, { command, result, executionTime });
         }
         toolResults.push({ command, result });
         this.executionCount++;
@@ -12335,7 +12335,7 @@ var AgentResponseHandler = class {
         }
       } catch (error) {
         if (this.context.plugin.settings.debugMode) {
-          this.context.plugin.debugLog("[AgentResponseHandler] Tool execution error", { command, error });
+          this.context.plugin.debugLog(`[AgentResponseHandler][${contextLabel}] Tool execution error`, { command, error });
         }
         console.error(`AgentResponseHandler: Tool '${command.action}' failed with error:`, error);
         const errorResult = {
@@ -12893,8 +12893,8 @@ ${resultText}`;
   /**
    * Enhanced tool result processing with UI integration
    */
-  async processResponseWithUI(response) {
-    const result = await this.processResponse(response);
+  async processResponseWithUI(response, contextLabel = "ui") {
+    const result = await this.processResponse(response, contextLabel);
     let status = "completed";
     if (result.hasTools) {
       if (this.isToolLimitReached()) {
@@ -13062,7 +13062,7 @@ var TaskContinuation = class {
           isFinished = continuationResult.isFinished;
           initialResponseContent = continuationContent;
           if (this.agentResponseHandler) {
-            const lastResults = await this.agentResponseHandler.processResponse(continuationContent);
+            const lastResults = await this.agentResponseHandler.processResponse(continuationContent, "task-continuation-tool-accumulation");
             if (lastResults && lastResults.toolResults && lastResults.toolResults.length > 0) {
               allToolResults = [...allToolResults, ...lastResults.toolResults];
             }
@@ -13108,9 +13108,17 @@ var TaskContinuation = class {
         this.updateContainerWithMessageData(container, enhancedMessageData, updatedContent);
         return { responseContent: updatedContent, isFinished };
       } else {
+        let isFinished = false;
+        try {
+          const parsed = JSON.parse(continuationContent);
+          if (parsed && parsed.finished === true) {
+            isFinished = true;
+          }
+        } catch (e) {
+        }
         const updatedContent = responseContent + "\n\n" + continuationContent;
         await this.updateContainerContent(container, updatedContent);
-        return { responseContent: updatedContent, isFinished: false };
+        return { responseContent: updatedContent, isFinished };
       }
     } else {
       const updatedContent = responseContent + "\n\n" + continuationContent;
@@ -13245,7 +13253,7 @@ var ResponseStreamer = class {
         abortController: this.activeStream || void 0
       });
       if (this.plugin.isAgentModeEnabled() && this.agentResponseHandler) {
-        responseContent = await this.processAgentResponse(responseContent, container, messages);
+        responseContent = await this.processAgentResponse(responseContent, container, messages, "streamer-main");
       }
       return responseContent;
     } catch (error) {
@@ -13304,12 +13312,12 @@ var ResponseStreamer = class {
   /**
   * Processes agent response and handles tool execution or reasoning
   */
-  async processAgentResponse(responseContent, container, messages) {
+  async processAgentResponse(responseContent, container, messages, contextLabel = "streamer") {
     if (!this.agentResponseHandler) {
       return responseContent;
     }
     try {
-      const agentResult = await this.agentResponseHandler.processResponseWithUI(responseContent);
+      const agentResult = await this.agentResponseHandler.processResponseWithUI(responseContent, contextLabel);
       return agentResult.hasTools ? await this.handleToolExecution(agentResult, container, responseContent, messages) : await this.handleNonToolResponse(agentResult, container, responseContent, messages);
     } catch (error) {
       console.error("ResponseStreamer: Error processing agent response:", error);

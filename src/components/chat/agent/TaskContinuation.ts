@@ -78,7 +78,7 @@ export class TaskContinuation {
                     // Add new tool results from this step to the accumulator
                     if (this.agentResponseHandler) {
                         // Await the processResponse promise to get the actual result
-                        const lastResults = await this.agentResponseHandler.processResponse(continuationContent);
+                        const lastResults = await this.agentResponseHandler.processResponse(continuationContent, "task-continuation-tool-accumulation");
                         if (lastResults && lastResults.toolResults && lastResults.toolResults.length > 0) {
                             allToolResults = [...allToolResults, ...lastResults.toolResults];
                         }
@@ -143,10 +143,19 @@ export class TaskContinuation {
                 
                 return { responseContent: updatedContent, isFinished };
             } else {
-                // If no tools were used, do NOT assume the task is finished; continue until finished: true is received
+                // If no tools were used, check if the response itself has finished: true
+                let isFinished = false;
+                try {
+                    const parsed = JSON.parse(continuationContent);
+                    if (parsed && parsed.finished === true) {
+                        isFinished = true;
+                    }
+                } catch (e) {
+                    // Not JSON, ignore
+                }
                 const updatedContent = responseContent + '\n\n' + continuationContent;
                 await this.updateContainerContent(container, updatedContent);
-                return { responseContent: updatedContent, isFinished: false };
+                return { responseContent: updatedContent, isFinished };
             }
         } else {
             const updatedContent = responseContent + '\n\n' + continuationContent;

@@ -60,7 +60,7 @@ export class ResponseStreamer {
             });
 
             if (this.plugin.isAgentModeEnabled() && this.agentResponseHandler) {
-                responseContent = await this.processAgentResponse(responseContent, container, messages);
+                responseContent = await this.processAgentResponse(responseContent, container, messages, "streamer-main");
             }
 
             return responseContent;
@@ -131,7 +131,8 @@ export class ResponseStreamer {
     private async processAgentResponse(
         responseContent: string,
         container: HTMLElement,
-        messages: Message[]
+        messages: Message[],
+        contextLabel: string = "streamer"
     ): Promise<string> {
         if (!this.agentResponseHandler) {
             // Removed redundant console.log for cleaner production code.
@@ -140,7 +141,7 @@ export class ResponseStreamer {
 
         // Removed redundant console.log for cleaner production code.
         try {
-            const agentResult = await this.agentResponseHandler.processResponseWithUI(responseContent);
+            const agentResult = await this.agentResponseHandler.processResponseWithUI(responseContent, contextLabel);
             // Removed redundant console.log for cleaner production code.
             return agentResult.hasTools 
                 ? await this.handleToolExecution(agentResult, container, responseContent, messages)
