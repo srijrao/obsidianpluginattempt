@@ -1,11 +1,9 @@
 import { App, PluginSettingTab, Setting, Notice } from 'obsidian';
-import { MyPluginSettings } from '../types';
 import MyPlugin from '../main';
 import { VIEW_TYPE_MODEL_SETTINGS } from '../main'; // Import the constant
 import { SettingsSections } from '../components/chat/SettingsSections'; // This might need to be refactored or removed
 import { CollapsibleSectionRenderer } from '../components/chat/CollapsibleSection';
-import { DEFAULT_TITLE_PROMPT } from '../promptConstants';
-import { DEFAULT_SETTINGS } from '../types';
+
 
 // Import the new section classes
 import { SettingCreators } from './components/SettingCreators';

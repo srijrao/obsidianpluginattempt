@@ -4147,14 +4147,10 @@ When using tools, respond ONLY with a JSON object using this parameter framework
   }
 });
 
-// src/types.ts
-var types_exports = {};
-__export(types_exports, {
-  DEFAULT_SETTINGS: () => DEFAULT_SETTINGS
-});
+// src/types/settings.ts
 var DEFAULT_SETTINGS;
-var init_types = __esm({
-  "src/types.ts"() {
+var init_settings = __esm({
+  "src/types/settings.ts"() {
     init_promptConstants();
     DEFAULT_SETTINGS = {
       referenceCurrentNote: false,
@@ -4238,11 +4234,6 @@ var init_types = __esm({
           enableStreaming: true
         }
       ],
-      agentMode: {
-        enabled: false,
-        maxToolCalls: 10,
-        timeoutMs: 3e4
-      },
       customAgentSystemMessage: void 0,
       // Use default agent system message
       uiBehavior: {
@@ -4254,6 +4245,17 @@ var init_types = __esm({
       enabledModels: {},
       debugMode: false
     };
+  }
+});
+
+// src/types/index.ts
+var types_exports = {};
+__export(types_exports, {
+  DEFAULT_SETTINGS: () => DEFAULT_SETTINGS
+});
+var init_types = __esm({
+  "src/types/index.ts"() {
+    init_settings();
   }
 });
 
