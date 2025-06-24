@@ -4251,7 +4251,8 @@ var init_types = __esm({
         includeReasoningInExports: true
       },
       enabledTools: {},
-      enabledModels: {}
+      enabledModels: {},
+      debugMode: false
     };
   }
 });
@@ -8888,6 +8889,18 @@ var init_SettingsSections = __esm({
         }
       }
       /**
+       * Debug Mode Section
+       */
+      renderDebugModeSettings(containerEl) {
+        new import_obsidian10.Setting(containerEl).setName("Debug Mode").setDesc("Enable verbose logging and debug UI features").addToggle((toggle) => {
+          var _a2;
+          return toggle.setValue((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false).onChange(async (value) => {
+            this.plugin.settings.debugMode = value;
+            await this.plugin.saveSettings();
+          });
+        });
+      }
+      /**
        * Renders all settings sections in order for a modal or view.
        * @param containerEl The HTML element to render the sections into.
        * @param options Optional settings, e.g., onRefresh callback.
@@ -8897,6 +8910,7 @@ var init_SettingsSections = __esm({
         this.renderDateSettings(containerEl);
         this.renderNoteReferenceSettings(containerEl);
         this.renderProviderConfiguration(containerEl);
+        this.renderDebugModeSettings(containerEl);
       }
     };
   }
@@ -12182,15 +12196,23 @@ var CommandParser = class {
 
 // src/components/chat/agent/ToolRegistry.ts
 var ToolRegistry = class {
-  constructor() {
+  constructor(plugin) {
     __publicField(this, "tools", /* @__PURE__ */ new Map());
+    __publicField(this, "plugin");
+    this.plugin = plugin;
   }
   register(tool) {
     this.tools.set(tool.name, tool);
+    if (this.plugin && this.plugin.settings && this.plugin.settings.debugMode) {
+      this.plugin.debugLog("[ToolRegistry] Registering tool", { tool });
+    }
   }
   async execute(command) {
     const tool = this.tools.get(command.action);
     if (!tool) {
+      if (this.plugin && this.plugin.settings && this.plugin.settings.debugMode) {
+        this.plugin.debugLog("[ToolRegistry] Tool not found", { action: command.action });
+      }
       return {
         success: false,
         error: `Tool not found: ${command.action}`,
@@ -12198,12 +12220,21 @@ var ToolRegistry = class {
       };
     }
     try {
+      if (this.plugin && this.plugin.settings && this.plugin.settings.debugMode) {
+        this.plugin.debugLog("[ToolRegistry] Executing tool", { command });
+      }
       const result = await tool.execute(command.parameters, {});
+      if (this.plugin && this.plugin.settings && this.plugin.settings.debugMode) {
+        this.plugin.debugLog("[ToolRegistry] Tool execution result", { command, result });
+      }
       return {
         ...result,
         requestId: command.requestId
       };
     } catch (error) {
+      if (this.plugin && this.plugin.settings && this.plugin.settings.debugMode) {
+        this.plugin.debugLog("[ToolRegistry] Tool execution error", { command, error });
+      }
       return {
         success: false,
         error: error.message || String(error),
@@ -12232,7 +12263,7 @@ var AgentResponseHandler = class {
     // Track tool displays
     __publicField(this, "toolMarkdownCache", /* @__PURE__ */ new Map());
     this.commandParser = new CommandParser();
-    this.toolRegistry = new ToolRegistry();
+    this.toolRegistry = new ToolRegistry(this.context.plugin);
     this.initializeTools();
   }
   initializeTools() {
@@ -12247,6 +12278,9 @@ var AgentResponseHandler = class {
    * @returns Object containing processed text and execution results
    */
   async processResponse(response) {
+    if (this.context.plugin.settings.debugMode) {
+      this.context.plugin.debugLog("[AgentResponseHandler] Processing response", { response });
+    }
     if (!this.context.plugin.isAgentModeEnabled()) {
       return {
         processedText: response,
@@ -12256,6 +12290,9 @@ var AgentResponseHandler = class {
     }
     const { text, commands } = this.commandParser.parseResponse(response);
     if (commands.length === 0) {
+      if (this.context.plugin.settings.debugMode) {
+        this.context.plugin.debugLog("[AgentResponseHandler] No tool commands found in response");
+      }
       return {
         processedText: text,
         toolResults: [],
@@ -12265,6 +12302,9 @@ var AgentResponseHandler = class {
     const agentSettings = this.context.plugin.getAgentModeSettings();
     const effectiveLimit = this.getEffectiveToolLimit();
     if (this.executionCount >= effectiveLimit) {
+      if (this.context.plugin.settings.debugMode) {
+        this.context.plugin.debugLog("[AgentResponseHandler] Tool execution limit reached", { executionCount: this.executionCount, effectiveLimit });
+      }
       new import_obsidian22.Notice(`Agent mode: Maximum tool calls (${effectiveLimit}) reached`);
       return {
         processedText: text + `
@@ -12278,8 +12318,14 @@ var AgentResponseHandler = class {
     for (const command of commands) {
       try {
         const startTime = Date.now();
+        if (this.context.plugin.settings.debugMode) {
+          this.context.plugin.debugLog("[AgentResponseHandler] Executing tool", { command });
+        }
         const result = await this.executeToolWithTimeout(command, agentSettings.timeoutMs);
         const executionTime = Date.now() - startTime;
+        if (this.context.plugin.settings.debugMode) {
+          this.context.plugin.debugLog("[AgentResponseHandler] Tool execution result", { command, result, executionTime });
+        }
         toolResults.push({ command, result });
         this.executionCount++;
         this.createToolDisplay(command, result);
@@ -12288,6 +12334,9 @@ var AgentResponseHandler = class {
           break;
         }
       } catch (error) {
+        if (this.context.plugin.settings.debugMode) {
+          this.context.plugin.debugLog("[AgentResponseHandler] Tool execution error", { command, error });
+        }
         console.error(`AgentResponseHandler: Tool '${command.action}' failed with error:`, error);
         const errorResult = {
           success: false,
@@ -12909,6 +12958,13 @@ ${currentNoteContent}`
         });
       }
     }
+    if (this.plugin.settings.debugMode) {
+      this.plugin.debugLog("[ContextBuilder] Building context messages", {
+        enableContextNotes: this.plugin.settings.enableContextNotes,
+        contextNotes: this.plugin.settings.contextNotes,
+        referenceCurrentNote: this.plugin.settings.referenceCurrentNote
+      });
+    }
     return messages;
   }
   /**
@@ -12970,6 +13026,14 @@ var TaskContinuation = class {
         limitReachedDuringContinuation: true
       };
     }
+    if (this.plugin.settings.debugMode) {
+      this.plugin.debugLog("[TaskContinuation] continueTaskUntilFinished", {
+        initialResponseContent,
+        currentContent,
+        initialToolResults,
+        maxIterations
+      });
+    }
     while (!isFinished && iteration < maxIterations) {
       iteration++;
       if ((_b = this.agentResponseHandler) == null ? void 0 : _b.isToolLimitReached()) {
@@ -13009,8 +13073,18 @@ var TaskContinuation = class {
       } else {
         isFinished = true;
       }
+      if (this.plugin.settings.debugMode) {
+        this.plugin.debugLog("[TaskContinuation] Iteration", {
+          iteration,
+          isFinished,
+          toolResults: allToolResults
+        });
+      }
     }
     if (iteration >= maxIterations) {
+      if (this.plugin.settings.debugMode) {
+        this.plugin.debugLog("[TaskContinuation] Maximum iterations reached", { iteration });
+      }
       responseContent += "\n\n*[Task continuation reached maximum iterations - stopping to prevent infinite loop]*";
     }
     return { content: responseContent, limitReachedDuringContinuation };
@@ -13076,6 +13150,9 @@ var TaskContinuation = class {
   async getContinuationResponse(messages, container) {
     var _a2;
     try {
+      if (this.plugin.settings.debugMode) {
+        this.plugin.debugLog("[TaskContinuation] getContinuationResponse", { messages });
+      }
       if ((_a2 = this.agentResponseHandler) == null ? void 0 : _a2.isToolLimitReached()) {
         return "*[Tool execution limit reached - no continuation response]*";
       }
@@ -13093,8 +13170,14 @@ var TaskContinuation = class {
           // Note: We don't pass activeStream here as this is a background operation
         }
       );
+      if (this.plugin.settings.debugMode) {
+        this.plugin.debugLog("[TaskContinuation] Continuation response received", { continuationContent });
+      }
       return continuationContent;
     } catch (error) {
+      if (this.plugin.settings.debugMode) {
+        this.plugin.debugLog("[TaskContinuation] Error getting continuation response", { error });
+      }
       console.error("TaskContinuation: Error getting continuation response:", error);
       if (error.name !== "AbortError") {
         return `*[Error getting continuation: ${error.message}]*`;
@@ -14661,6 +14744,12 @@ ${this.settings.chatSeparator}
         });
         this._yamlAttributeCommandIds.push(id);
       }
+    }
+  }
+  // Debug logging utility
+  debugLog(...args) {
+    if (this.settings.debugMode) {
+      console.debug("[AI Assistant DEBUG]", ...args);
     }
   }
   /**

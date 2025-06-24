@@ -25,7 +25,7 @@ export class AgentResponseHandler {
 
     constructor(private context: AgentContext) {
         this.commandParser = new CommandParser();
-        this.toolRegistry = new ToolRegistry();
+        this.toolRegistry = new ToolRegistry(this.context.plugin);
         this.initializeTools();
     }    private initializeTools() {
         // Register all available tools using the centralized tool creation function
@@ -45,8 +45,11 @@ export class AgentResponseHandler {
         toolResults: Array<{ command: ToolCommand; result: ToolResult }>;
         hasTools: boolean;
     }> {
-        // Removed redundant console.log for cleaner production code.
-        
+        // Debug: Log agent response processing if debugMode is enabled
+        if (this.context.plugin.settings.debugMode) {
+            this.context.plugin.debugLog('[AgentResponseHandler] Processing response', { response });
+        }
+
         // Check if agent mode is enabled
         if (!this.context.plugin.isAgentModeEnabled()) {
             // Removed redundant console.log for cleaner production code.
@@ -63,7 +66,9 @@ export class AgentResponseHandler {
         // Removed redundant console.log for cleaner production code.
 
         if (commands.length === 0) {
-            // Removed redundant console.log for cleaner production code.
+            if (this.context.plugin.settings.debugMode) {
+                this.context.plugin.debugLog('[AgentResponseHandler] No tool commands found in response');
+            }
             return {
                 processedText: text,
                 toolResults: [],
@@ -73,6 +78,9 @@ export class AgentResponseHandler {
         const agentSettings = this.context.plugin.getAgentModeSettings();
         const effectiveLimit = this.getEffectiveToolLimit();
         if (this.executionCount >= effectiveLimit) {
+            if (this.context.plugin.settings.debugMode) {
+                this.context.plugin.debugLog('[AgentResponseHandler] Tool execution limit reached', { executionCount: this.executionCount, effectiveLimit });
+            }
             new Notice(`Agent mode: Maximum tool calls (${effectiveLimit}) reached`);
             return {
                 processedText: text + `\n\n*${effectiveLimit} [Tool execution limit reached]*`,
@@ -87,10 +95,14 @@ export class AgentResponseHandler {
         for (const command of commands) {
             try {
                 const startTime = Date.now();
+                if (this.context.plugin.settings.debugMode) {
+                    this.context.plugin.debugLog('[AgentResponseHandler] Executing tool', { command });
+                }
                 const result = await this.executeToolWithTimeout(command, agentSettings.timeoutMs);
                 const executionTime = Date.now() - startTime;
-                
-                // Removed redundant console.log for cleaner production code.
+                if (this.context.plugin.settings.debugMode) {
+                    this.context.plugin.debugLog('[AgentResponseHandler] Tool execution result', { command, result, executionTime });
+                }
                   toolResults.push({ command, result });
                 this.executionCount++;
 
@@ -106,6 +118,9 @@ export class AgentResponseHandler {
                     break;
                 }
             } catch (error: any) {
+                if (this.context.plugin.settings.debugMode) {
+                    this.context.plugin.debugLog('[AgentResponseHandler] Tool execution error', { command, error });
+                }
                 console.error(`AgentResponseHandler: Tool '${command.action}' failed with error:`, error);
                 
                 const errorResult: ToolResult = {

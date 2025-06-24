@@ -391,6 +391,14 @@ export default class MyPlugin extends Plugin {
         }
     }
 
+    // Debug logging utility
+    debugLog(...args: any[]) {
+        if (this.settings.debugMode) {
+            // eslint-disable-next-line no-console
+            console.debug('[AI Assistant DEBUG]', ...args);
+        }
+    }
+
     /**
      * Retrieves the system message based on current plugin settings.
      * @returns The system message string.

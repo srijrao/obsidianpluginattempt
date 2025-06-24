@@ -38,6 +38,14 @@ export class TaskContinuation {
                 limitReachedDuringContinuation: true 
             };
         }
+        if (this.plugin.settings.debugMode) {
+            this.plugin.debugLog('[TaskContinuation] continueTaskUntilFinished', {
+                initialResponseContent,
+                currentContent,
+                initialToolResults,
+                maxIterations
+            });
+        }
         while (!isFinished && iteration < maxIterations) {
             iteration++;
             if (this.agentResponseHandler?.isToolLimitReached()) {
@@ -81,9 +89,18 @@ export class TaskContinuation {
             } else {
                 isFinished = true;
             }
+            if (this.plugin.settings.debugMode) {
+                this.plugin.debugLog('[TaskContinuation] Iteration', {
+                    iteration,
+                    isFinished,
+                    toolResults: allToolResults
+                });
+            }
         }
         if (iteration >= maxIterations) {
-            // Removed redundant console.warn for cleaner production code.
+            if (this.plugin.settings.debugMode) {
+                this.plugin.debugLog('[TaskContinuation] Maximum iterations reached', { iteration });
+            }
             responseContent += '\n\n*[Task continuation reached maximum iterations - stopping to prevent infinite loop]*';
         }
         // Removed redundant console.log for cleaner production code.
@@ -174,6 +191,9 @@ export class TaskContinuation {
         container: HTMLElement
     ): Promise<string> {
         try {
+            if (this.plugin.settings.debugMode) {
+                this.plugin.debugLog('[TaskContinuation] getContinuationResponse', { messages });
+            }
             // Check if tool limit is reached before making API call
             if (this.agentResponseHandler?.isToolLimitReached()) {
                 // Removed redundant console.log for cleaner production code.
@@ -205,8 +225,14 @@ export class TaskContinuation {
             );
 
             // Removed verbose log for continuation response received
+            if (this.plugin.settings.debugMode) {
+                this.plugin.debugLog('[TaskContinuation] Continuation response received', { continuationContent });
+            }
             return continuationContent;
         } catch (error) {
+            if (this.plugin.settings.debugMode) {
+                this.plugin.debugLog('[TaskContinuation] Error getting continuation response', { error });
+            }
             console.error('TaskContinuation: Error getting continuation response:', error);
             if (error.name !== 'AbortError') {
                 // Return a fallback message instead of throwing

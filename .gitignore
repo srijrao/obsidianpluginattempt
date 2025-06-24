@@ -11,3 +11,4 @@ providers/**/*.js
 chat-history.json
 AGENT_MODE_IMPLEMENTATION_PLAN.md
 backups.json
+*.log

@@ -490,6 +490,21 @@ export class SettingsSections {
     }
 
     /**
+     * Debug Mode Section
+     */
+    renderDebugModeSettings(containerEl: HTMLElement): void {
+        new Setting(containerEl)
+            .setName('Debug Mode')
+            .setDesc('Enable verbose logging and debug UI features')
+            .addToggle(toggle => toggle
+                .setValue(this.plugin.settings.debugMode ?? false)
+                .onChange(async (value) => {
+                    this.plugin.settings.debugMode = value;
+                    await this.plugin.saveSettings();
+                }));
+    }
+
+    /**
      * Renders all settings sections in order for a modal or view.
      * @param containerEl The HTML element to render the sections into.
      * @param options Optional settings, e.g., onRefresh callback.
@@ -499,5 +514,6 @@ export class SettingsSections {
         this.renderDateSettings(containerEl);
         this.renderNoteReferenceSettings(containerEl);
         this.renderProviderConfiguration(containerEl);
+        this.renderDebugModeSettings(containerEl);
     }
 }

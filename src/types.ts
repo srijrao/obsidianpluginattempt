@@ -312,6 +312,9 @@ export interface MyPluginSettings {
      * Map of model id (provider:model) to enabled/disabled state. If false, model is hidden from selection menus.
      */
     enabledModels?: Record<string, boolean>;
+
+    /** Debug mode for verbose logging and UI */
+    debugMode?: boolean;
 }
 
 /**
@@ -427,6 +430,7 @@ export const DEFAULT_SETTINGS: MyPluginSettings = {
     },
     enabledTools: {},
     enabledModels: {},
+    debugMode: false,
 };
 
 /**
