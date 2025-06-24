@@ -1,0 +1,1 @@
+export { MyPluginSettingTab } from './SettingTab';
