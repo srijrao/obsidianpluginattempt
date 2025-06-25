@@ -70,9 +70,12 @@ export function getAllToolNames(): string[] {
 }
 
 export function createToolInstances(app: any, plugin?: any): any[] {
+    if (plugin && typeof plugin.debugLog === 'function') {
+        plugin.debugLog('info', '[toolcollect] createToolInstances called');
+    }
     const toolClasses = getAllToolClasses();
     
-    return toolClasses.map(ToolClass => {
+    const tools = toolClasses.map(ToolClass => {
         
         const instance = plugin && ToolClass.name === 'FileWriteTool' 
             ? new ToolClass(app, plugin.backupManager)
@@ -80,4 +83,8 @@ export function createToolInstances(app: any, plugin?: any): any[] {
         
         return instance;
     });
+    if (plugin && typeof plugin.debugLog === 'function') {
+        plugin.debugLog('debug', '[toolcollect] Tool instances created', { count: tools.length });
+    }
+    return tools;
 }

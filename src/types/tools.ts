@@ -1,3 +1,4 @@
+// Debug: Log tool command creation and execution
 export interface ToolCommand {
     action: string;
     parameters: Record<string, any>;

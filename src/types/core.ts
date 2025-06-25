@@ -28,6 +28,8 @@ export interface Message {
 
 /**
  * Represents reasoning/planning data attached to a message
+ * 
+ * Debug: Log when reasoning data is created or updated
  */
 export interface ReasoningData {
     id: string;

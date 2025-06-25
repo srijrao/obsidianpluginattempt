@@ -12,6 +12,9 @@ export class MessageRenderer {
      * Update message container with enhanced reasoning and task status data
      */
     updateMessageWithEnhancedData(container: HTMLElement, messageData: Message, component?: Component): void {
+        if ((window as any).aiAssistantPlugin && typeof (window as any).aiAssistantPlugin.debugLog === 'function') {
+            (window as any).aiAssistantPlugin.debugLog('debug', '[MessageRenderer] updateMessageWithEnhancedData called', { messageData });
+        }
         // Remove existing reasoning and task status elements
         const existingReasoning = container.querySelector('.reasoning-container');
         const existingTaskStatus = container.querySelector('.task-status-container');
@@ -52,6 +55,9 @@ export class MessageRenderer {
      * Create reasoning section element
      */
     createReasoningSection(reasoning: any): HTMLElement {
+        if ((window as any).aiAssistantPlugin && typeof (window as any).aiAssistantPlugin.debugLog === 'function') {
+            (window as any).aiAssistantPlugin.debugLog('debug', '[MessageRenderer] createReasoningSection called', { reasoning });
+        }
         const reasoningContainer = document.createElement('div');
         reasoningContainer.className = 'reasoning-container';
         

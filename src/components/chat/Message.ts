@@ -47,6 +47,9 @@ export abstract class Message extends Component implements IMessage {
         this.role = role;
         this.content = content;
         this.rawContent = content;
+        if ((window as any).aiAssistantPlugin && typeof (window as any).aiAssistantPlugin.debugLog === 'function') {
+            (window as any).aiAssistantPlugin.debugLog('debug', '[Message] constructor called', { role, content });
+        }
         
         // Create base message structure
         this.element = document.createElement('div');

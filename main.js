@@ -3763,14 +3763,20 @@ Example:
       }
       async execute(params, context) {
         var _a2;
+        if (context && context.plugin && typeof context.plugin.debugLog === "function") {
+          context.plugin.debugLog("info", "[ThoughtTool] execute called", { params, context });
+        }
         if ((!params.thought || params.thought.trim().length === 0) && params.reasoning) {
+          if (context && context.plugin && typeof context.plugin.debugLog === "function") {
+            context.plugin.debugLog("debug", "[ThoughtTool] Aliasing reasoning to thought", { params });
+          }
           params.thought = params.reasoning;
         }
         if (!params.thought || typeof params.thought !== "string" || params.thought.trim().length === 0) {
-          return {
-            success: false,
-            error: 'Parameter "thought" is required and must be a non-empty string.'
-          };
+          if (context && context.plugin && typeof context.plugin.debugLog === "function") {
+            context.plugin.debugLog("warn", "[ThoughtTool] Missing or invalid thought parameter", { params });
+          }
+          return { success: false, error: 'Parameter "thought" is required and must be a non-empty string.' };
         }
         if (!params.nextTool || typeof params.nextTool !== "string" || params.nextTool.trim().length === 0) {
           return {
@@ -3798,6 +3804,9 @@ Example:
           nextActionDescription,
           finished
         });
+        if (context && context.plugin && typeof context.plugin.debugLog === "function") {
+          context.plugin.debugLog("info", "[ThoughtTool] ThoughtTool execution complete", { result: { thought: params.thought } });
+        }
         return {
           success: true,
           data: {
@@ -4069,11 +4078,18 @@ function getAllToolNames() {
   return getToolMetadata().map((tool) => tool.name);
 }
 function createToolInstances(app, plugin) {
+  if (plugin && typeof plugin.debugLog === "function") {
+    plugin.debugLog("info", "[toolcollect] createToolInstances called");
+  }
   const toolClasses = getAllToolClasses();
-  return toolClasses.map((ToolClass) => {
+  const tools = toolClasses.map((ToolClass) => {
     const instance = plugin && ToolClass.name === "FileWriteTool" ? new ToolClass(app, plugin.backupManager) : new ToolClass(app);
     return instance;
   });
+  if (plugin && typeof plugin.debugLog === "function") {
+    plugin.debugLog("debug", "[toolcollect] Tool instances created", { count: tools.length });
+  }
+  return tools;
 }
 var init_toolcollect = __esm({
   "src/components/chat/tools/toolcollect.ts"() {
@@ -4101,6 +4117,9 @@ __export(promptConstants_exports, {
   getDynamicToolList: () => getDynamicToolList
 });
 function buildAgentSystemPrompt(enabledTools, customTemplate) {
+  if (window.aiAssistantPlugin && typeof window.aiAssistantPlugin.debugLog === "function") {
+    window.aiAssistantPlugin.debugLog("debug", "[promptConstants] buildAgentSystemPrompt called", { enabledTools, customTemplate });
+  }
   const toolList = getDynamicToolList(enabledTools);
   const toolDescriptions = toolList.map((tool, idx) => `${idx + 1}. ${tool.name} - ${tool.description}`).join("\n");
   const template = customTemplate || AGENT_SYSTEM_PROMPT_TEMPLATE;
@@ -4114,6 +4133,9 @@ var init_promptConstants = __esm({
     DEFAULT_SUMMARY_PROMPT = "Summarize the note content in 1-2 sentences, focusing on the main ideas and purpose.";
     DEFAULT_GENERAL_SYSTEM_PROMPT = "You are a helpful assistant in an Obsidian Vault.";
     getDynamicToolList = (enabledTools) => {
+      if (window.aiAssistantPlugin && typeof window.aiAssistantPlugin.debugLog === "function") {
+        window.aiAssistantPlugin.debugLog("debug", "[promptConstants] getDynamicToolList called", { enabledTools });
+      }
       const toolMetadata = getToolMetadata();
       return toolMetadata.filter((tool) => !enabledTools || enabledTools[tool.name] !== false).map((tool) => ({
         name: tool.name,
@@ -9067,12 +9089,18 @@ var init_ToolRichDisplay = __esm({
         __publicField(this, "element");
         __publicField(this, "options");
         this.options = options;
+        if (window.aiAssistantPlugin && typeof window.aiAssistantPlugin.debugLog === "function") {
+          window.aiAssistantPlugin.debugLog("debug", "[ToolRichDisplay] constructor called", { options });
+        }
         this.element = this.createToolDisplay();
       }
       getElement() {
         return this.element;
       }
       createToolDisplay() {
+        if (window.aiAssistantPlugin && typeof window.aiAssistantPlugin.debugLog === "function") {
+          window.aiAssistantPlugin.debugLog("debug", "[ToolRichDisplay] createToolDisplay called", { command: this.options.command, result: this.options.result });
+        }
         const container = document.createElement("div");
         container.className = "tool-rich-display";
         const iconDiv = document.createElement("div");
@@ -9333,6 +9361,9 @@ var init_MessageRenderer = __esm({
        * Update message container with enhanced reasoning and task status data
        */
       updateMessageWithEnhancedData(container, messageData, component) {
+        if (window.aiAssistantPlugin && typeof window.aiAssistantPlugin.debugLog === "function") {
+          window.aiAssistantPlugin.debugLog("debug", "[MessageRenderer] updateMessageWithEnhancedData called", { messageData });
+        }
         const existingReasoning = container.querySelector(".reasoning-container");
         const existingTaskStatus = container.querySelector(".task-status-container");
         if (existingReasoning) existingReasoning.remove();
@@ -9366,6 +9397,9 @@ var init_MessageRenderer = __esm({
        */
       createReasoningSection(reasoning) {
         var _a2;
+        if (window.aiAssistantPlugin && typeof window.aiAssistantPlugin.debugLog === "function") {
+          window.aiAssistantPlugin.debugLog("debug", "[MessageRenderer] createReasoningSection called", { reasoning });
+        }
         const reasoningContainer = document.createElement("div");
         reasoningContainer.className = "reasoning-container";
         const header = document.createElement("div");
@@ -11101,12 +11135,21 @@ var AgentConfigSection = class {
     this.app = app;
     this.plugin = plugin;
     this.settingCreators = settingCreators;
+    if (this.plugin && typeof this.plugin.debugLog === "function") {
+      this.plugin.debugLog("debug", "[AgentConfigSection] constructor called");
+    }
   }
   async render(containerEl) {
+    if (this.plugin && typeof this.plugin.debugLog === "function") {
+      this.plugin.debugLog("info", "[AgentConfigSection] render called");
+    }
     CollapsibleSectionRenderer.createCollapsibleSection(
       containerEl,
       "Agent Mode Settings",
       async (sectionEl) => {
+        if (this.plugin && typeof this.plugin.debugLog === "function") {
+          this.plugin.debugLog("debug", "[AgentConfigSection] rendering section", { agentMode: this.plugin.settings.agentMode });
+        }
         sectionEl.createEl("div", {
           text: "Agent Mode allows the AI to use tools like file creation, reading, and modification. Configure the limits and behavior for tool usage.",
           cls: "setting-item-description",
@@ -11752,6 +11795,9 @@ var MyPluginSettingTab = class extends import_obsidian15.PluginSettingTab {
     this.plugin = plugin;
     this.settingsSections = new SettingsSections(this.plugin);
     this.settingCreators = new SettingCreators(this.plugin);
+    if (this.plugin && typeof this.plugin.debugLog === "function") {
+      this.plugin.debugLog("debug", "[MyPluginSettingTab] constructor called");
+    }
     this.apiKeysSection = new ApiKeysSection(this.plugin, this.settingCreators);
     this.modelManagementSection = new ModelManagementSection(this.plugin, this.settingCreators);
     this.agentConfigSection = new AgentConfigSection(this.app, this.plugin, this.settingCreators);
@@ -11765,6 +11811,9 @@ var MyPluginSettingTab = class extends import_obsidian15.PluginSettingTab {
    * This method orchestrates the rendering of all setting sections.
    */
   display() {
+    if (this.plugin && typeof this.plugin.debugLog === "function") {
+      this.plugin.debugLog("info", "[MyPluginSettingTab] display called");
+    }
     const { containerEl } = this;
     containerEl.empty();
     containerEl.createEl("h2", { text: "AI Assistant Settings" });
@@ -12384,11 +12433,17 @@ var AgentResponseHandler = class {
     __publicField(this, "toolDisplays", /* @__PURE__ */ new Map());
     // Track tool displays
     __publicField(this, "toolMarkdownCache", /* @__PURE__ */ new Map());
+    if (this.context.plugin && typeof this.context.plugin.debugLog === "function") {
+      this.context.plugin.debugLog("debug", "[AgentResponseHandler] constructor called");
+    }
     this.commandParser = new CommandParser();
     this.toolRegistry = new ToolRegistry(this.context.plugin);
     this.initializeTools();
   }
   initializeTools() {
+    if (this.context.plugin && typeof this.context.plugin.debugLog === "function") {
+      this.context.plugin.debugLog("debug", "[AgentResponseHandler] initializeTools called");
+    }
     const tools = createToolInstances(this.context.app, this.context.plugin);
     for (const tool of tools) {
       this.toolRegistry.register(tool);
@@ -13360,6 +13415,7 @@ var ResponseStreamer = class {
   */
   async streamAssistantResponse(messages, container, originalTimestamp, originalContent) {
     var _a2;
+    this.plugin.debugLog("info", "[ResponseStreamer] streamAssistantResponse called", { messages, originalTimestamp });
     let responseContent = "";
     this.activeStream = new AbortController();
     await this.addAgentSystemPrompt(messages);
@@ -13397,6 +13453,7 @@ var ResponseStreamer = class {
   * Adds agent system prompt to messages if agent mode is enabled
   */
   async addAgentSystemPrompt(messages) {
+    this.plugin.debugLog("debug", "[ResponseStreamer] addAgentSystemPrompt called", { messages });
     if (!this.plugin.isAgentModeEnabled()) return;
     const { buildAgentSystemPrompt: buildAgentSystemPrompt2 } = await Promise.resolve().then(() => (init_promptConstants(), promptConstants_exports));
     const agentPrompt = buildAgentSystemPrompt2(
@@ -14596,27 +14653,33 @@ var _MyPlugin = class _MyPlugin extends import_obsidian35.Plugin {
   isAgentModeEnabled() {
     return this.getAgentModeSettings().enabled;
   }
+  // Debug: Log when agent mode is toggled
   async setAgentModeEnabled(enabled) {
+    this.debugLog("info", "[main.ts] setAgentModeEnabled called", { enabled });
     if (!this.settings.agentMode) {
       this.settings.agentMode = {
         enabled: false,
         maxToolCalls: 5,
         timeoutMs: 3e4
       };
+      this.debugLog("debug", "[main.ts] Initialized agentMode settings");
     }
     this.settings.agentMode.enabled = enabled;
     await this.saveSettings();
     this.emitSettingsChange();
+    this.debugLog("info", "[main.ts] Agent mode enabled state set", { enabled });
   }
   /**
    * Helper to activate the chat view and load messages into it.
    * @param messages An array of messages to load.
    */
   async activateChatViewAndLoadMessages(messages) {
+    this.debugLog("info", "[main.ts] activateChatViewAndLoadMessages called", { messageCount: messages.length });
     await this.activateView(VIEW_TYPE_CHAT);
     const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_CHAT);
     if (!leaves.length) {
       showNotice("Could not find chat view.");
+      this.debugLog("warn", "[main.ts] No chat view found");
       return;
     }
     const chatView = leaves[0].view;
@@ -14633,13 +14696,16 @@ var _MyPlugin = class _MyPlugin extends import_obsidian35.Plugin {
             reasoning: toolData.reasoning,
             taskStatus: toolData.taskStatus
           });
+          this.debugLog("debug", "[main.ts] Added message with tool data", { role: msg.role, toolData });
         } else {
           await chatView["addMessage"](msg.role, msg.content);
+          this.debugLog("debug", "[main.ts] Added regular message", { role: msg.role });
         }
       }
     }
     chatView.scrollMessagesToBottom();
     showNotice("Loaded chat note into chat.");
+    this.debugLog("info", "[main.ts] Chat note loaded into chat view");
   }
   /**
    * Registers a view type with Obsidian.
@@ -14846,9 +14912,11 @@ ${this.settings.chatSeparator}
    * Unregisters previous commands before registering new ones.
    */
   registerYamlAttributeCommands() {
+    this.debugLog("debug", "[main.ts] registerYamlAttributeCommands called");
     if (this._yamlAttributeCommandIds && this._yamlAttributeCommandIds.length > 0) {
       for (const id of this._yamlAttributeCommandIds) {
         this.app.commands.removeCommand(id);
+        this.debugLog("debug", "[main.ts] Removed previous YAML command", { id });
       }
     }
     this._yamlAttributeCommandIds = [];
@@ -14856,8 +14924,8 @@ ${this.settings.chatSeparator}
       for (const gen of this.settings.yamlAttributeGenerators) {
         if (!gen.attributeName || !gen.prompt || !gen.commandName) continue;
         const id = `generate-yaml-attribute-${gen.attributeName}`;
+        this.debugLog("debug", "[main.ts] Registering YAML attribute command", { id, gen });
         this.registerCommand({
-          // Use the new registerCommand
           id,
           name: gen.commandName,
           callback: async () => {

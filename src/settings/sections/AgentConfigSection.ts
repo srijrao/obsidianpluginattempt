@@ -14,13 +14,23 @@ export class AgentConfigSection {
         this.app = app; // Initialize app
         this.plugin = plugin;
         this.settingCreators = settingCreators;
+        if (this.plugin && typeof this.plugin.debugLog === 'function') {
+            this.plugin.debugLog('debug', '[AgentConfigSection] constructor called');
+        }
     }
 
     async render(containerEl: HTMLElement): Promise<void> {
+        if (this.plugin && typeof this.plugin.debugLog === 'function') {
+            this.plugin.debugLog('info', '[AgentConfigSection] render called');
+        }
         CollapsibleSectionRenderer.createCollapsibleSection(
             containerEl,
             'Agent Mode Settings',
             async (sectionEl: HTMLElement) => {
+                if (this.plugin && typeof this.plugin.debugLog === 'function') {
+                    this.plugin.debugLog('debug', '[AgentConfigSection] rendering section', { agentMode: this.plugin.settings.agentMode });
+                }
+
                 sectionEl.createEl('div', {
                     text: 'Agent Mode allows the AI to use tools like file creation, reading, and modification. Configure the limits and behavior for tool usage.',
                     cls: 'setting-item-description',

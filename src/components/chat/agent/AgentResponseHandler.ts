@@ -24,10 +24,18 @@ export class AgentResponseHandler {
     private toolMarkdownCache: Map<string, string> = new Map(); // Cache markdown representations
 
     constructor(private context: AgentContext) {
+        if (this.context.plugin && typeof this.context.plugin.debugLog === 'function') {
+            this.context.plugin.debugLog('debug', '[AgentResponseHandler] constructor called');
+        }
         this.commandParser = new CommandParser();
         this.toolRegistry = new ToolRegistry(this.context.plugin);
         this.initializeTools();
-    }    private initializeTools() {
+    }
+
+    private initializeTools() {
+        if (this.context.plugin && typeof this.context.plugin.debugLog === 'function') {
+            this.context.plugin.debugLog('debug', '[AgentResponseHandler] initializeTools called');
+        }
         // Register all available tools using the centralized tool creation function
         const tools = createToolInstances(this.context.app, this.context.plugin);
         for (const tool of tools) {
@@ -45,7 +53,6 @@ export class AgentResponseHandler {
         toolResults: Array<{ command: ToolCommand; result: ToolResult }>;
         hasTools: boolean;
     }> {
-        // Debug: Log agent response processing if debugMode is enabled
         if (this.context.plugin.settings.debugMode) {
             this.context.plugin.debugLog('debug', `[AgentResponseHandler][${contextLabel}] Processing response`, { response });
         }

@@ -170,6 +170,8 @@ export interface MyPluginSettings {
 
     /** Debug mode for verbose logging and UI */
     debugMode?: boolean;
+
+    // Debug: Log when agent mode or tool settings are changed
 }
 
 /**

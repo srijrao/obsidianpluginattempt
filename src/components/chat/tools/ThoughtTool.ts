@@ -102,17 +102,22 @@ Example:
     constructor(private app: App) { }
 
     async execute(params: ThoughtParams, context: any): Promise<ToolResult> {
-        // Alias older 'reasoning' field into 'thought' so we stay compliant
-        if ((!params.thought || params.thought.trim().length === 0) && (params as any).reasoning) {
-            params.thought = (params as any).reasoning;
+        if (context && context.plugin && typeof context.plugin.debugLog === 'function') {
+            context.plugin.debugLog('info', '[ThoughtTool] execute called', { params, context });
         }
 
-        // MCP: Validate required parameters
+        // Alias older 'reasoning' field into 'thought' so we stay compliant
+        if ((!params.thought || params.thought.trim().length === 0) && (params as any).reasoning) {
+            if (context && context.plugin && typeof context.plugin.debugLog === 'function') {
+                context.plugin.debugLog('debug', '[ThoughtTool] Aliasing reasoning to thought', { params });
+            }
+            params.thought = (params as any).reasoning;
+        }
         if (!params.thought || typeof params.thought !== 'string' || params.thought.trim().length === 0) {
-            return {
-                success: false,
-                error: 'Parameter "thought" is required and must be a non-empty string.'
-            };
+            if (context && context.plugin && typeof context.plugin.debugLog === 'function') {
+                context.plugin.debugLog('warn', '[ThoughtTool] Missing or invalid thought parameter', { params });
+            }
+            return { success: false, error: 'Parameter "thought" is required and must be a non-empty string.' };
         }
 
         if (!params.nextTool || typeof params.nextTool !== 'string' || params.nextTool.trim().length === 0) {
@@ -157,6 +162,9 @@ Example:
         });
 
         // MCP: Return result in strict format with enhanced machine-readable JSON
+        if (context && context.plugin && typeof context.plugin.debugLog === 'function') {
+            context.plugin.debugLog('info', '[ThoughtTool] ThoughtTool execution complete', { result: { thought: params.thought } });
+        }
         return {
             success: true,
             data: {

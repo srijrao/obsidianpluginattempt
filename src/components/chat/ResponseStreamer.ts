@@ -41,6 +41,7 @@ export class ResponseStreamer {
         originalTimestamp?: string,
         originalContent?: string
     ): Promise<string> {
+        this.plugin.debugLog('info', '[ResponseStreamer] streamAssistantResponse called', { messages, originalTimestamp });
         let responseContent = '';
         this.activeStream = new AbortController();
 
@@ -84,7 +85,8 @@ export class ResponseStreamer {
     }    /**
      * Adds agent system prompt to messages if agent mode is enabled
      */
-    private async addAgentSystemPrompt(messages: Message[]): Promise<void> {
+    private async addAgentSystemPrompt(messages: Message[]) {
+        this.plugin.debugLog('debug', '[ResponseStreamer] addAgentSystemPrompt called', { messages });
         if (!this.plugin.isAgentModeEnabled()) return;        const { buildAgentSystemPrompt } = await import('../../promptConstants');
         // Build dynamic prompt based on current plugin settings
         const agentPrompt = buildAgentSystemPrompt(

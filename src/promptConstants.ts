@@ -11,6 +11,9 @@ export const DEFAULT_SUMMARY_PROMPT = "Summarize the note content in 1-2 sentenc
 export const DEFAULT_GENERAL_SYSTEM_PROMPT = "You are a helpful assistant in an Obsidian Vault.";
 
 export const getDynamicToolList = (enabledTools?: Record<string, boolean>) => {
+    if ((window as any).aiAssistantPlugin && typeof (window as any).aiAssistantPlugin.debugLog === 'function') {
+        (window as any).aiAssistantPlugin.debugLog('debug', '[promptConstants] getDynamicToolList called', { enabledTools });
+    }
     // Use static tool metadata to avoid instantiation issues
     const toolMetadata = getToolMetadata();
     return toolMetadata
@@ -45,6 +48,9 @@ When using tools, respond ONLY with a JSON object using this parameter framework
 `;
 
 export function buildAgentSystemPrompt(enabledTools?: Record<string, boolean>, customTemplate?: string) {
+    if ((window as any).aiAssistantPlugin && typeof (window as any).aiAssistantPlugin.debugLog === 'function') {
+        (window as any).aiAssistantPlugin.debugLog('debug', '[promptConstants] buildAgentSystemPrompt called', { enabledTools, customTemplate });
+    }
     const toolList = getDynamicToolList(enabledTools);
     const toolDescriptions = toolList.map((tool, idx) => `${idx + 1}. ${tool.name} - ${tool.description}`).join('\n');
     const template = customTemplate || AGENT_SYSTEM_PROMPT_TEMPLATE;

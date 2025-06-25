@@ -84,17 +84,21 @@ export default class MyPlugin extends Plugin {
         return this.getAgentModeSettings().enabled;
     }
 
+    // Debug: Log when agent mode is toggled
     async setAgentModeEnabled(enabled: boolean) {
+        this.debugLog('info', '[main.ts] setAgentModeEnabled called', { enabled });
         if (!this.settings.agentMode) {
             this.settings.agentMode = {
                 enabled: false,
                 maxToolCalls: 5,
                 timeoutMs: 30000
             };
+            this.debugLog('debug', '[main.ts] Initialized agentMode settings');
         }
         this.settings.agentMode.enabled = enabled;
         await this.saveSettings();
         this.emitSettingsChange();
+        this.debugLog('info', '[main.ts] Agent mode enabled state set', { enabled });
     }
 
 
@@ -103,10 +107,12 @@ export default class MyPlugin extends Plugin {
      * Helper to activate the chat view and load messages into it.
      * @param messages An array of messages to load.
      */    private async activateChatViewAndLoadMessages(messages: Message[]) {
+        this.debugLog('info', '[main.ts] activateChatViewAndLoadMessages called', { messageCount: messages.length });
         await this.activateView(VIEW_TYPE_CHAT);
         const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_CHAT);
         if (!leaves.length) {
             showNotice('Could not find chat view.');
+            this.debugLog('warn', '[main.ts] No chat view found');
             return;
         }
         const chatView = leaves[0].view as ChatView;
@@ -129,14 +135,17 @@ export default class MyPlugin extends Plugin {
                         reasoning: toolData.reasoning,
                         taskStatus: toolData.taskStatus
                     });
+                    this.debugLog('debug', '[main.ts] Added message with tool data', { role: msg.role, toolData });
                 } else {
                     // Regular message without tool data
                     await chatView["addMessage"](msg.role, msg.content);
+                    this.debugLog('debug', '[main.ts] Added regular message', { role: msg.role });
                 }
             }
         }
         chatView.scrollMessagesToBottom();
         showNotice('Loaded chat note into chat.');
+        this.debugLog('info', '[main.ts] Chat note loaded into chat view');
     }
 
     /**
@@ -360,10 +369,12 @@ export default class MyPlugin extends Plugin {
      * Unregisters previous commands before registering new ones.
      */
     private registerYamlAttributeCommands() {
+        this.debugLog('debug', '[main.ts] registerYamlAttributeCommands called');
         if (this._yamlAttributeCommandIds && this._yamlAttributeCommandIds.length > 0) {
             for (const id of this._yamlAttributeCommandIds) {
                 // @ts-ignore: Obsidian Plugin API has undocumented method
                 this.app.commands.removeCommand(id);
+                this.debugLog('debug', '[main.ts] Removed previous YAML command', { id });
             }
         }
         this._yamlAttributeCommandIds = [];
@@ -371,7 +382,8 @@ export default class MyPlugin extends Plugin {
             for (const gen of this.settings.yamlAttributeGenerators) {
                 if (!gen.attributeName || !gen.prompt || !gen.commandName) continue;
                 const id = `generate-yaml-attribute-${gen.attributeName}`;
-                this.registerCommand({ // Use the new registerCommand
+                this.debugLog('debug', '[main.ts] Registering YAML attribute command', { id, gen });
+                this.registerCommand({
                     id,
                     name: gen.commandName,
                     callback: async () => {

@@ -15,6 +15,9 @@ export class ToolRichDisplay extends Component {
     constructor(options: ToolDisplayOptions) {
         super();
         this.options = options;
+        if ((window as any).aiAssistantPlugin && typeof (window as any).aiAssistantPlugin.debugLog === 'function') {
+            (window as any).aiAssistantPlugin.debugLog('debug', '[ToolRichDisplay] constructor called', { options });
+        }
         this.element = this.createToolDisplay();
     }
 
@@ -23,6 +26,9 @@ export class ToolRichDisplay extends Component {
     }
 
     private createToolDisplay(): HTMLElement {
+        if ((window as any).aiAssistantPlugin && typeof (window as any).aiAssistantPlugin.debugLog === 'function') {
+            (window as any).aiAssistantPlugin.debugLog('debug', '[ToolRichDisplay] createToolDisplay called', { command: this.options.command, result: this.options.result });
+        }
         const container = document.createElement('div');
         container.className = 'tool-rich-display';
 

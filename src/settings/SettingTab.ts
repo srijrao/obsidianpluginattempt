@@ -39,6 +39,9 @@ export class MyPluginSettingTab extends PluginSettingTab {
         this.plugin = plugin;
         this.settingsSections = new SettingsSections(this.plugin); // This might need to be refactored or removed
         this.settingCreators = new SettingCreators(this.plugin);
+        if (this.plugin && typeof this.plugin.debugLog === 'function') {
+            this.plugin.debugLog('debug', '[MyPluginSettingTab] constructor called');
+        }
 
         // Initialize section instances
         this.apiKeysSection = new ApiKeysSection(this.plugin, this.settingCreators);
@@ -55,6 +58,9 @@ export class MyPluginSettingTab extends PluginSettingTab {
      * This method orchestrates the rendering of all setting sections.
      */
     display(): void {
+        if (this.plugin && typeof this.plugin.debugLog === 'function') {
+            this.plugin.debugLog('info', '[MyPluginSettingTab] display called');
+        }
         const { containerEl } = this;
         containerEl.empty();
 
