@@ -34,7 +34,7 @@ export class ContextBuilder {
 
         // Debug: Log context building if debugMode is enabled
         if (this.plugin.settings.debugMode) {
-            this.plugin.debugLog('[ContextBuilder] Building context messages', {
+            this.plugin.debugLog('debug', '[ContextBuilder] Building context messages', {
                 enableContextNotes: this.plugin.settings.enableContextNotes,
                 contextNotes: this.plugin.settings.contextNotes,
                 referenceCurrentNote: this.plugin.settings.referenceCurrentNote

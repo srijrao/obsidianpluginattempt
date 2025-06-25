@@ -12401,7 +12401,7 @@ var AgentResponseHandler = class {
    */
   async processResponse(response, contextLabel = "main") {
     if (this.context.plugin.settings.debugMode) {
-      this.context.plugin.debugLog(`[AgentResponseHandler][${contextLabel}] Processing response`, { response });
+      this.context.plugin.debugLog("debug", `[AgentResponseHandler][${contextLabel}] Processing response`, { response });
     }
     if (!this.context.plugin.isAgentModeEnabled()) {
       return {
@@ -12413,7 +12413,7 @@ var AgentResponseHandler = class {
     const { text, commands } = this.commandParser.parseResponse(response);
     if (commands.length === 0) {
       if (this.context.plugin.settings.debugMode) {
-        this.context.plugin.debugLog(`[AgentResponseHandler][${contextLabel}] No tool commands found in response`);
+        this.context.plugin.debugLog("debug", `[AgentResponseHandler][${contextLabel}] No tool commands found in response`);
       }
       return {
         processedText: text,
@@ -12425,7 +12425,7 @@ var AgentResponseHandler = class {
     const effectiveLimit = this.getEffectiveToolLimit();
     if (this.executionCount >= effectiveLimit) {
       if (this.context.plugin.settings.debugMode) {
-        this.context.plugin.debugLog(`[AgentResponseHandler][${contextLabel}] Tool execution limit reached`, { executionCount: this.executionCount, effectiveLimit });
+        this.context.plugin.debugLog("debug", `[AgentResponseHandler][${contextLabel}] Tool execution limit reached`, { executionCount: this.executionCount, effectiveLimit });
       }
       new import_obsidian26.Notice(`Agent mode: Maximum tool calls (${effectiveLimit}) reached`);
       return {
@@ -12441,12 +12441,12 @@ var AgentResponseHandler = class {
       try {
         const startTime = Date.now();
         if (this.context.plugin.settings.debugMode) {
-          this.context.plugin.debugLog(`[AgentResponseHandler][${contextLabel}] Executing tool`, { command });
+          this.context.plugin.debugLog("debug", `[AgentResponseHandler][${contextLabel}] Executing tool`, { command });
         }
         const result = await this.executeToolWithTimeout(command, agentSettings.timeoutMs);
         const executionTime = Date.now() - startTime;
         if (this.context.plugin.settings.debugMode) {
-          this.context.plugin.debugLog(`[AgentResponseHandler][${contextLabel}] Tool execution result`, { command, result, executionTime });
+          this.context.plugin.debugLog("debug", `[AgentResponseHandler][${contextLabel}] Tool execution result`, { command, result, executionTime });
         }
         toolResults.push({ command, result });
         this.executionCount++;
@@ -12457,7 +12457,7 @@ var AgentResponseHandler = class {
         }
       } catch (error) {
         if (this.context.plugin.settings.debugMode) {
-          this.context.plugin.debugLog(`[AgentResponseHandler][${contextLabel}] Tool execution error`, { command, error });
+          this.context.plugin.debugLog("debug", `[AgentResponseHandler][${contextLabel}] Tool execution error`, { command, error });
         }
         console.error(`AgentResponseHandler: Tool '${command.action}' failed with error:`, error);
         const errorResult = {
@@ -13081,7 +13081,7 @@ ${currentNoteContent}`
       }
     }
     if (this.plugin.settings.debugMode) {
-      this.plugin.debugLog("[ContextBuilder] Building context messages", {
+      this.plugin.debugLog("debug", "[ContextBuilder] Building context messages", {
         enableContextNotes: this.plugin.settings.enableContextNotes,
         contextNotes: this.plugin.settings.contextNotes,
         referenceCurrentNote: this.plugin.settings.referenceCurrentNote
@@ -13149,7 +13149,7 @@ var TaskContinuation = class {
       };
     }
     if (this.plugin.settings.debugMode) {
-      this.plugin.debugLog("[TaskContinuation] continueTaskUntilFinished", {
+      this.plugin.debugLog("debug", "[TaskContinuation] continueTaskUntilFinished", {
         initialResponseContent,
         currentContent,
         initialToolResults,
@@ -13196,7 +13196,7 @@ var TaskContinuation = class {
         isFinished = true;
       }
       if (this.plugin.settings.debugMode) {
-        this.plugin.debugLog("[TaskContinuation] Iteration", {
+        this.plugin.debugLog("debug", "[TaskContinuation] Iteration", {
           iteration,
           isFinished,
           toolResults: allToolResults
@@ -13205,7 +13205,7 @@ var TaskContinuation = class {
     }
     if (iteration >= maxIterations) {
       if (this.plugin.settings.debugMode) {
-        this.plugin.debugLog("[TaskContinuation] Maximum iterations reached", { iteration });
+        this.plugin.debugLog("debug", "[TaskContinuation] Maximum iterations reached", { iteration });
       }
       responseContent += "\n\n*[Task continuation reached maximum iterations - stopping to prevent infinite loop]*";
     }
@@ -13281,7 +13281,7 @@ var TaskContinuation = class {
     var _a2;
     try {
       if (this.plugin.settings.debugMode) {
-        this.plugin.debugLog("[TaskContinuation] getContinuationResponse", { messages });
+        this.plugin.debugLog("debug", "[TaskContinuation] getContinuationResponse", { messages });
       }
       if ((_a2 = this.agentResponseHandler) == null ? void 0 : _a2.isToolLimitReached()) {
         return "*[Tool execution limit reached - no continuation response]*";
@@ -13301,12 +13301,12 @@ var TaskContinuation = class {
         }
       );
       if (this.plugin.settings.debugMode) {
-        this.plugin.debugLog("[TaskContinuation] Continuation response received", { continuationContent });
+        this.plugin.debugLog("debug", "[TaskContinuation] Continuation response received", { continuationContent });
       }
       return continuationContent;
     } catch (error) {
       if (this.plugin.settings.debugMode) {
-        this.plugin.debugLog("[TaskContinuation] Error getting continuation response", { error });
+        this.plugin.debugLog("debug", "[TaskContinuation] Error getting continuation response", { error });
       }
       console.error("TaskContinuation: Error getting continuation response:", error);
       if (error.name !== "AbortError") {
@@ -14876,10 +14876,28 @@ ${this.settings.chatSeparator}
       }
     }
   }
-  // Debug logging utility
-  debugLog(...args) {
-    if (this.settings.debugMode) {
-      console.debug("[AI Assistant DEBUG]", ...args);
+  // Enhanced debug logging utility with log levels and timestamps
+  /**
+   * Enhanced debug logger for the plugin.
+   * @param level Log level: 'debug' | 'info' | 'warn' | 'error'. Defaults to 'debug'.
+   * @param args Arguments to log.
+   */
+  debugLog(level = "debug", ...args) {
+    if (!this.settings.debugMode) return;
+    const timestamp2 = (/* @__PURE__ */ new Date()).toISOString();
+    const prefix = `[AI Assistant ${level.toUpperCase()} ${timestamp2}]`;
+    switch (level) {
+      case "info":
+        console.info(prefix, ...args);
+        break;
+      case "warn":
+        console.warn(prefix, ...args);
+        break;
+      case "error":
+        console.error(prefix, ...args);
+        break;
+      default:
+        console.debug(prefix, ...args);
     }
   }
   /**

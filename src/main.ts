@@ -391,11 +391,32 @@ export default class MyPlugin extends Plugin {
         }
     }
 
-    // Debug logging utility
-    debugLog(...args: any[]) {
-        if (this.settings.debugMode) {
-            // eslint-disable-next-line no-console
-            console.debug('[AI Assistant DEBUG]', ...args);
+    // Enhanced debug logging utility with log levels and timestamps
+    /**
+     * Enhanced debug logger for the plugin.
+     * @param level Log level: 'debug' | 'info' | 'warn' | 'error'. Defaults to 'debug'.
+     * @param args Arguments to log.
+     */
+    debugLog(level: 'debug' | 'info' | 'warn' | 'error' = 'debug', ...args: any[]) {
+        if (!this.settings.debugMode) return;
+        const timestamp = new Date().toISOString();
+        const prefix = `[AI Assistant ${level.toUpperCase()} ${timestamp}]`;
+        switch (level) {
+            case 'info':
+                // eslint-disable-next-line no-console
+                console.info(prefix, ...args);
+                break;
+            case 'warn':
+                // eslint-disable-next-line no-console
+                console.warn(prefix, ...args);
+                break;
+            case 'error':
+                // eslint-disable-next-line no-console
+                console.error(prefix, ...args);
+                break;
+            default:
+                // eslint-disable-next-line no-console
+                console.debug(prefix, ...args);
         }
     }
 
