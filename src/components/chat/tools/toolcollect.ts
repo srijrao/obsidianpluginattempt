@@ -42,19 +42,52 @@ export function getAllToolClasses(): any[] {
 }
 
 export function getToolMetadata(): Array<{name: string, description: string, parameters: any}> {
+    // Create mock app parameter for tools that require it
+    const mockApp = {
+        vault: {
+            configDir: '',
+            adapter: {
+                basePath: '/mock/vault/path'
+            },
+            getAbstractFileByPath: () => null,
+            read: () => Promise.resolve(''),
+            create: () => Promise.resolve(null),
+            modify: () => Promise.resolve()
+        }
+    };
     
     const metadata = getAllToolClasses().map(ToolClass => {
         let instance;
         try {
+            // Try creating instance without parameters first
             instance = new ToolClass();
         } catch (e) {
             try {
+                // Try with undefined parameters
                 instance = new ToolClass(undefined, undefined);
             } catch (e2) {
-                return undefined;
+                try {
+                    // Try with mock app parameter for tools that require it
+                    instance = new ToolClass(mockApp);
+                } catch (e3) {
+                    try {
+                        // Try with mock app and backup manager
+                        instance = new ToolClass(mockApp, undefined);
+                    } catch (e4) {
+                        console.warn(`Failed to instantiate tool class ${ToolClass.name} for metadata:`, e4);
+                        return undefined;
+                    }
+                }
             }
         }
-        if (!instance || !instance.name || !instance.description || !instance.parameters) return undefined;
+        if (!instance || !instance.name || !instance.description || !instance.parameters) {
+            console.warn(`Tool instance missing required properties:`, {
+                name: instance?.name,
+                description: instance?.description,
+                parameters: instance?.parameters
+            });
+            return undefined;
+        }
         return {
             name: instance.name,
             description: instance.description,
@@ -62,7 +95,9 @@ export function getToolMetadata(): Array<{name: string, description: string, par
         };
     });
     
-    return metadata.filter((item): item is {name: string, description: string, parameters: any} => !!item);
+    const filteredMetadata = metadata.filter((item): item is {name: string, description: string, parameters: any} => !!item);
+    console.log('[toolcollect] getToolMetadata result:', filteredMetadata.map(m => m.name));
+    return filteredMetadata;
 }
 
 export function getAllToolNames(): string[] {

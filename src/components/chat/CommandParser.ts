@@ -1,15 +1,20 @@
 import { ToolCommand } from '../../types';
 // Import dynamic tool names
 import { getAllToolNames } from './tools/toolcollect';
+import MyPlugin from '../../main';
 
 /**
  * Parses AI responses to extract tool commands and regular text
  */
 export class CommandParser {
     private validActions: string[];
-    constructor() {
+    
+    constructor(private plugin?: MyPlugin) {
         // Load valid tool actions dynamically
         this.validActions = getAllToolNames();
+        if (this.plugin) {
+            this.plugin.debugLog('debug', '[CommandParser] Constructor - Valid actions loaded:', this.validActions);
+        }
     }
 
     /**
@@ -24,25 +29,39 @@ export class CommandParser {
         const commands: ToolCommand[] = [];
         let cleanText = response;
 
-        // Removed redundant console.log for cleaner production code.
+        if (this.plugin) {
+            this.plugin.debugLog('debug', '[CommandParser] Parsing response:', response);
+            this.plugin.debugLog('debug', '[CommandParser] Valid actions:', this.validActions);
+        }
 
         // Extract JSON commands from the response
         const extractedCommands = this.extractCommands(response);
         
-        // for debugging: extractedCommands can be logged if needed, but is redundant with final result
+        if (this.plugin) {
+            this.plugin.debugLog('debug', '[CommandParser] Extracted commands:', extractedCommands);
+        }
         
         for (const command of extractedCommands) {
+            if (this.plugin) {
+                this.plugin.debugLog('debug', '[CommandParser] Validating command:', command.command);
+            }
             if (this.validateCommand(command.command)) {
-                // Removed verbose log for valid command
+                if (this.plugin) {
+                    this.plugin.debugLog('debug', '[CommandParser] Command is valid, adding to commands');
+                }
                 commands.push(command.command);
                 // Remove the JSON command from the text
                 cleanText = cleanText.replace(command.originalText, '').trim();
             } else {
-                // Removed verbose log for invalid command
+                if (this.plugin) {
+                    this.plugin.debugLog('debug', '[CommandParser] Command is invalid');
+                }
             }
         }
 
-        // Removed redundant console.log for cleaner production code.
+        if (this.plugin) {
+            this.plugin.debugLog('debug', '[CommandParser] Final commands:', commands);
+        }
 
         return {
             text: cleanText,
@@ -56,23 +75,42 @@ export class CommandParser {
      * @returns True if command is valid
      */
     validateCommand(command: ToolCommand): boolean {
+        if (this.plugin) {
+            this.plugin.debugLog('debug', '[CommandParser] validateCommand called with:', command);
+        }
+        
         if (!command || typeof command !== 'object') {
+            if (this.plugin) {
+                this.plugin.debugLog('debug', '[CommandParser] Command is not an object');
+            }
             return false;
         }
 
         // Check required fields
         if (!command.action || typeof command.action !== 'string') {
+            if (this.plugin) {
+                this.plugin.debugLog('debug', '[CommandParser] Command missing action field:', command.action);
+            }
             return false;
         }
 
         if (!command.parameters || typeof command.parameters !== 'object') {
+            if (this.plugin) {
+                this.plugin.debugLog('debug', '[CommandParser] Command missing parameters field:', command.parameters);
+            }
             return false;
         }
         // Use dynamic valid actions
         if (!this.validActions.includes(command.action)) {
+            if (this.plugin) {
+                this.plugin.debugLog('debug', '[CommandParser] Command action not in valid actions:', command.action, 'Valid actions:', this.validActions);
+            }
             return false;
         }
 
+        if (this.plugin) {
+            this.plugin.debugLog('debug', '[CommandParser] Command is valid');
+        }
         return true;
     }
 

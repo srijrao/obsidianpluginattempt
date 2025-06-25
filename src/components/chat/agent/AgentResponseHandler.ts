@@ -27,7 +27,7 @@ export class AgentResponseHandler {
         if (this.context.plugin && typeof this.context.plugin.debugLog === 'function') {
             this.context.plugin.debugLog('debug', '[AgentResponseHandler] constructor called');
         }
-        this.commandParser = new CommandParser();
+        this.commandParser = new CommandParser(this.context.plugin);
         this.toolRegistry = new ToolRegistry(this.context.plugin);
         this.initializeTools();
     }

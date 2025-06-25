@@ -4054,6 +4054,18 @@ function getAllToolClasses() {
   ];
 }
 function getToolMetadata() {
+  const mockApp = {
+    vault: {
+      configDir: "",
+      adapter: {
+        basePath: "/mock/vault/path"
+      },
+      getAbstractFileByPath: () => null,
+      read: () => Promise.resolve(""),
+      create: () => Promise.resolve(null),
+      modify: () => Promise.resolve()
+    }
+  };
   const metadata = getAllToolClasses().map((ToolClass) => {
     let instance;
     try {
@@ -4062,17 +4074,35 @@ function getToolMetadata() {
       try {
         instance = new ToolClass(void 0, void 0);
       } catch (e2) {
-        return void 0;
+        try {
+          instance = new ToolClass(mockApp);
+        } catch (e3) {
+          try {
+            instance = new ToolClass(mockApp, void 0);
+          } catch (e4) {
+            console.warn(`Failed to instantiate tool class ${ToolClass.name} for metadata:`, e4);
+            return void 0;
+          }
+        }
       }
     }
-    if (!instance || !instance.name || !instance.description || !instance.parameters) return void 0;
+    if (!instance || !instance.name || !instance.description || !instance.parameters) {
+      console.warn(`Tool instance missing required properties:`, {
+        name: instance == null ? void 0 : instance.name,
+        description: instance == null ? void 0 : instance.description,
+        parameters: instance == null ? void 0 : instance.parameters
+      });
+      return void 0;
+    }
     return {
       name: instance.name,
       description: instance.description,
       parameters: instance.parameters
     };
   });
-  return metadata.filter((item) => !!item);
+  const filteredMetadata = metadata.filter((item) => !!item);
+  console.log("[toolcollect] getToolMetadata result:", filteredMetadata.map((m) => m.name));
+  return filteredMetadata;
 }
 function getAllToolNames() {
   return getToolMetadata().map((tool) => tool.name);
@@ -12242,9 +12272,13 @@ var import_obsidian26 = require("obsidian");
 // src/components/chat/CommandParser.ts
 init_toolcollect();
 var CommandParser = class {
-  constructor() {
+  constructor(plugin) {
+    this.plugin = plugin;
     __publicField(this, "validActions");
     this.validActions = getAllToolNames();
+    if (this.plugin) {
+      this.plugin.debugLog("debug", "[CommandParser] Constructor - Valid actions loaded:", this.validActions);
+    }
   }
   /**
    * Parse AI response to extract tool commands and regular text
@@ -12254,13 +12288,32 @@ var CommandParser = class {
   parseResponse(response) {
     const commands = [];
     let cleanText = response;
+    if (this.plugin) {
+      this.plugin.debugLog("debug", "[CommandParser] Parsing response:", response);
+      this.plugin.debugLog("debug", "[CommandParser] Valid actions:", this.validActions);
+    }
     const extractedCommands = this.extractCommands(response);
+    if (this.plugin) {
+      this.plugin.debugLog("debug", "[CommandParser] Extracted commands:", extractedCommands);
+    }
     for (const command of extractedCommands) {
+      if (this.plugin) {
+        this.plugin.debugLog("debug", "[CommandParser] Validating command:", command.command);
+      }
       if (this.validateCommand(command.command)) {
+        if (this.plugin) {
+          this.plugin.debugLog("debug", "[CommandParser] Command is valid, adding to commands");
+        }
         commands.push(command.command);
         cleanText = cleanText.replace(command.originalText, "").trim();
       } else {
+        if (this.plugin) {
+          this.plugin.debugLog("debug", "[CommandParser] Command is invalid");
+        }
       }
+    }
+    if (this.plugin) {
+      this.plugin.debugLog("debug", "[CommandParser] Final commands:", commands);
     }
     return {
       text: cleanText,
@@ -12273,17 +12326,35 @@ var CommandParser = class {
    * @returns True if command is valid
    */
   validateCommand(command) {
+    if (this.plugin) {
+      this.plugin.debugLog("debug", "[CommandParser] validateCommand called with:", command);
+    }
     if (!command || typeof command !== "object") {
+      if (this.plugin) {
+        this.plugin.debugLog("debug", "[CommandParser] Command is not an object");
+      }
       return false;
     }
     if (!command.action || typeof command.action !== "string") {
+      if (this.plugin) {
+        this.plugin.debugLog("debug", "[CommandParser] Command missing action field:", command.action);
+      }
       return false;
     }
     if (!command.parameters || typeof command.parameters !== "object") {
+      if (this.plugin) {
+        this.plugin.debugLog("debug", "[CommandParser] Command missing parameters field:", command.parameters);
+      }
       return false;
     }
     if (!this.validActions.includes(command.action)) {
+      if (this.plugin) {
+        this.plugin.debugLog("debug", "[CommandParser] Command action not in valid actions:", command.action, "Valid actions:", this.validActions);
+      }
       return false;
+    }
+    if (this.plugin) {
+      this.plugin.debugLog("debug", "[CommandParser] Command is valid");
     }
     return true;
   }
@@ -12436,7 +12507,7 @@ var AgentResponseHandler = class {
     if (this.context.plugin && typeof this.context.plugin.debugLog === "function") {
       this.context.plugin.debugLog("debug", "[AgentResponseHandler] constructor called");
     }
-    this.commandParser = new CommandParser();
+    this.commandParser = new CommandParser(this.context.plugin);
     this.toolRegistry = new ToolRegistry(this.context.plugin);
     this.initializeTools();
   }
