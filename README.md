@@ -4,13 +4,13 @@ A feature-rich AI assistant plugin for Obsidian, designed to supercharge your no
 
 ## Key Features
 
-- **Multi-Provider Support:** Use OpenAI (ChatGPT, GPT-4), Anthropic (Claude), Google Gemini, Ollama (local models), and more. Easily switch between providers and models.
+- **Multi-Provider Support:** Use OpenAI (ChatGPT, GPT-4), Anthropic (Claude), Google Gemini, Ollama (local models), and more. Easily switch between providers and models in plugin settings.
 - **Modern Chat Interface:** Chat with AI in a dedicated sidebar or panel, with real-time streaming responses and markdown rendering.
 - **Context-Aware Commands:** Run AI actions on selected text, entire notes, or across your vault. Summarize, rewrite, or generate content contextually.
-- **Agent Mode & Tool Use:** Enable “Agent Mode” to let the AI use built-in tools (file search, read/write, diff, move, rename, etc.) for advanced automation and reasoning.
+- **Agent Mode & Tool Use:** Enable “Agent Mode” to let the AI use built-in tools for automation and reasoning. Core tools include: file search, read, write, move, rename, diff, list, and thought (reasoning/planning).
 - **Custom Prompts & Templates:** Create, edit, and manage your own prompt templates for any workflow.
 - **Session & History Management:** Save, load, and revisit chat sessions. View and manage chat history directly in the plugin.
-- **Model Settings & Testing:** Fine-tune model parameters (temperature, max tokens, etc.) and test API connections per provider.
+- **Model Settings & Testing:** Fine-tune model parameters (temperature, max tokens, etc.), test API connections, and refresh available models from the settings UI.
 - **Secure API Key Storage:** API keys are stored securely in your Obsidian settings.
 - **Context Notes & Referencing:** Optionally include the current note, context notes, and chat history in AI prompts for more relevant responses.
 - **YAML Attribute Commands:** Generate and insert YAML frontmatter attributes (like title and summary) using AI.
@@ -20,7 +20,8 @@ A feature-rich AI assistant plugin for Obsidian, designed to supercharge your no
 
 1. Download the latest release from the [GitHub Releases](https://github.com/your-repo/releases) page or clone this repository.
 2. Place the plugin folder (`ai-assistant-for-obsidian`) into your vault’s `.obsidian/plugins/` directory.
-3. Enable the plugin in Obsidian’s Settings → Community Plugins.
+3. If installing from source, run `npm install` and `npm run build` in the plugin folder to compile the plugin (requires Node.js and npm).
+4. Enable the plugin in Obsidian’s Settings → Community Plugins.
 
 ## Usage
 
@@ -47,13 +48,13 @@ A feature-rich AI assistant plugin for Obsidian, designed to supercharge your no
 ## Agent Mode & Tools
 
 When Agent Mode is enabled, the AI can use a set of built-in tools to:
-- Search for files and content in your vault
-- Read, write, move, and rename files
-- Show file diffs
-- List files in folders
-- Generate thoughts or plans before acting
+- Search for files and content in your vault (`file_search`)
+- Read, write, move, and rename files (`file_read`, `file_write`, `file_move`, `file_rename`)
+- Show file diffs (`file_diff`)
+- List files in folders (`file_list`)
+- Generate thoughts or plans before acting (`thought`)
 
-This allows for advanced workflows, such as multi-step reasoning, automated refactoring, or batch operations. You can control which tools are enabled in the plugin settings.
+This allows for advanced workflows, such as multi-step reasoning, automated refactoring, etc.. You can control which tools are enabled in the plugin settings.
 
 ### Rich Tool Display
 
@@ -71,14 +72,15 @@ The rich displays appear inline in the chat interface, providing immediate feedb
 1. Go to Settings → AI Assistant for Obsidian.
 2. Choose your preferred AI provider and enter the required API key.
 3. Adjust model parameters (temperature, max tokens, etc.) as needed.
-4. Create or edit custom prompts and context note settings for your workflow.
+4. Test API connections and refresh available models from the settings UI.
+5. Create or edit custom prompts and context note settings for your workflow.
 
 ## Supported Providers
 
 - OpenAI (ChatGPT, GPT-4, etc.)
 - Anthropic (Claude)
 - Google Gemini
-- Ollama (local models)
+- Ollama (local models; requires local server)
 - Extendable via the `providers/` directory
 
 ## Development
