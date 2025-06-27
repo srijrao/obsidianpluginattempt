@@ -1,7 +1,8 @@
-import { Notice, TFile, App } from "obsidian";
+import { Notice, TFile, App, Plugin } from "obsidian";
 import { createProvider, createProviderFromUnifiedModel } from "../providers";
 import { Message, MyPluginSettings } from "./types";
 import { DEFAULT_TITLE_PROMPT, DEFAULT_SUMMARY_PROMPT, DEFAULT_YAML_SYSTEM_MESSAGE } from "./promptConstants";
+import { registerCommand } from "./utils/pluginUtils";
 import * as yaml from "js-yaml";
 
 /**
@@ -255,4 +256,54 @@ export async function upsertYamlField(app: App, file: TFile, field: string, valu
         newContent = `---\n${newYaml}\n---\n` + content;
     }
     await app.vault.modify(file, newContent);
+}
+
+/**
+ * Register YAML attribute generator commands dynamically based on settings.
+ * Unregisters previous commands before registering new ones.
+ */
+export function registerYamlAttributeCommands(
+    plugin: Plugin,
+    settings: MyPluginSettings,
+    processMessages: (messages: Message[]) => Promise<Message[]>,
+    yamlAttributeCommandIds: string[],
+    debugLog: (level: 'debug' | 'info' | 'warn' | 'error', ...args: any[]) => void
+): string[] {
+    debugLog('debug', '[YAMLHandler.ts] registerYamlAttributeCommands called');
+    
+    if (yamlAttributeCommandIds && yamlAttributeCommandIds.length > 0) {
+        for (const id of yamlAttributeCommandIds) {
+            // @ts-ignore: Obsidian Plugin API has undocumented method
+            plugin.app.commands.removeCommand(id);
+            debugLog('debug', '[YAMLHandler.ts] Removed previous YAML command', { id });
+        }
+    }
+    
+    const newCommandIds: string[] = [];
+    
+    if (settings.yamlAttributeGenerators && Array.isArray(settings.yamlAttributeGenerators)) {
+        for (const gen of settings.yamlAttributeGenerators) {
+            if (!gen.attributeName || !gen.prompt || !gen.commandName) continue;
+            const id = `generate-yaml-attribute-${gen.attributeName}`;
+            debugLog('debug', '[YAMLHandler.ts] Registering YAML attribute command', { id, gen });
+            
+            registerCommand(plugin, {
+                id,
+                name: gen.commandName,
+                callback: async () => {
+                    await generateYamlAttribute(
+                        plugin.app,
+                        settings,
+                        processMessages,
+                        gen.attributeName,
+                        gen.prompt,
+                        gen.outputMode
+                    );
+                }
+            });
+            newCommandIds.push(id);
+        }
+    }
+    
+    return newCommandIds;
 }

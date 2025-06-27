@@ -1,6 +1,6 @@
 import { App, PluginSettingTab, Setting, Notice } from 'obsidian';
 import MyPlugin from '../main';
-import { VIEW_TYPE_MODEL_SETTINGS } from '../main'; // Import the constant
+import { VIEW_TYPE_MODEL_SETTINGS } from '../commands';
 import { SettingsSections } from '../components/chat/SettingsSections'; // This might need to be refactored or removed
 import { CollapsibleSectionRenderer } from '../components/chat/CollapsibleSection';
 
