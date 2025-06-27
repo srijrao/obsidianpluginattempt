@@ -145,6 +145,13 @@ export interface MyPluginSettings {
 
     /** Stores the expanded state of general collapsible sections in settings */
     generalSectionsExpanded?: Record<string, boolean>;
+    apiKeysExpanded?: Record<string, boolean>;
+    modelManagementExpanded?: Record<string, boolean>;
+    agentConfigExpanded?: Record<string, boolean>;
+    contentChatExpanded?: Record<string, boolean>;
+    dataHandlingExpanded?: Record<string, boolean>;
+    pluginBehaviorExpanded?: Record<string, boolean>;
+    backupManagementExpanded?: Record<string, boolean>;
 
     /** Model setting presets */
     modelSettingPresets?: ModelSettingPreset[];
@@ -262,8 +269,15 @@ export const DEFAULT_SETTINGS: MyPluginSettings = {
         "Date Settings": true,
         "Note Reference Settings": true,
         "Provider Configuration": true, // For the main group of provider configs
-        "AI Model Configuration": true 
+        "AI Model Configuration": true
     },
+    apiKeysExpanded: {},
+    modelManagementExpanded: {},
+    agentConfigExpanded: {},
+    contentChatExpanded: {},
+    dataHandlingExpanded: {},
+    pluginBehaviorExpanded: {},
+    backupManagementExpanded: {},
     modelSettingPresets: [
         {
             name: "Default",

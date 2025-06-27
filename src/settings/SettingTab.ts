@@ -1,19 +1,16 @@
 import { App, PluginSettingTab, Setting, Notice } from 'obsidian';
 import MyPlugin from '../main';
 import { VIEW_TYPE_MODEL_SETTINGS } from '../commands';
-import { SettingsSections } from '../components/chat/SettingsSections'; // This might need to be refactored or removed
 import { CollapsibleSectionRenderer } from '../components/chat/CollapsibleSection';
-
 
 // Import the new section classes
 import { SettingCreators } from './components/SettingCreators';
-import { ApiKeysSection } from './sections/ApiKeysSection';
-import { ModelManagementSection } from './sections/ModelManagementSection';
-import { AgentConfigSection } from './sections/AgentConfigSection';
-import { ContentChatSection } from './sections/ContentChatSection';
-import { DataHandlingSection } from './sections/DataHandlingSection';
-import { PluginBehaviorSection } from './sections/PluginBehaviorSection';
+import { GeneralSettingsSection } from './sections/GeneralSettingsSection';
+import { AIModelConfigurationSection } from './sections/AIModelConfigurationSection';
+import { AgentSettingsSection } from './sections/AgentSettingsSection';
+import { ContentNoteHandlingSection } from './sections/ContentNoteHandlingSection';
 import { BackupManagementSection } from './sections/BackupManagementSection';
+import { ChatHistorySettingsSection } from './sections/ChatHistorySettingsSection';
 
 /**
  * Plugin Settings Tab
@@ -22,37 +19,33 @@ import { BackupManagementSection } from './sections/BackupManagementSection';
  */
 export class MyPluginSettingTab extends PluginSettingTab {
     plugin: MyPlugin;
-    private settingsSections: SettingsSections; // This might need to be refactored or removed
     private settingCreators: SettingCreators;
 
     // Section instances
-    private apiKeysSection: ApiKeysSection;
-    private modelManagementSection: ModelManagementSection;
-    private agentConfigSection: AgentConfigSection;
-    private contentChatSection: ContentChatSection;
-    private dataHandlingSection: DataHandlingSection;
-    private pluginBehaviorSection: PluginBehaviorSection;
+    private generalSettingsSection: GeneralSettingsSection;
+    private aiModelConfigurationSection: AIModelConfigurationSection;
+    private agentSettingsSection: AgentSettingsSection;
+    private contentNoteHandlingSection: ContentNoteHandlingSection;
     private backupManagementSection: BackupManagementSection;
+    private chatHistorySettingsSection: ChatHistorySettingsSection;
 
     private settingsChangeListener: (() => void) | null = null;
 
     constructor(app: App, plugin: MyPlugin) {
         super(app, plugin);
         this.plugin = plugin;
-        this.settingsSections = new SettingsSections(this.plugin); // This might need to be refactored or removed
         this.settingCreators = new SettingCreators(this.plugin, () => this.display()); // Pass the display method as a callback
         if (this.plugin && typeof this.plugin.debugLog === 'function') {
             this.plugin.debugLog('debug', '[MyPluginSettingTab] constructor called');
         }
 
         // Initialize section instances
-        this.apiKeysSection = new ApiKeysSection(this.plugin, this.settingCreators);
-        this.modelManagementSection = new ModelManagementSection(this.plugin, this.settingCreators);
-        this.agentConfigSection = new AgentConfigSection(this.app, this.plugin, this.settingCreators); // Pass this.app
-        this.contentChatSection = new ContentChatSection(this.plugin, this.settingCreators);
-        this.dataHandlingSection = new DataHandlingSection(this.plugin, this.settingCreators);
-        this.pluginBehaviorSection = new PluginBehaviorSection(this.plugin, this.settingCreators);
+        this.generalSettingsSection = new GeneralSettingsSection(this.plugin, this.settingCreators);
+        this.aiModelConfigurationSection = new AIModelConfigurationSection(this.plugin, this.settingCreators);
+        this.agentSettingsSection = new AgentSettingsSection(this.app, this.plugin, this.settingCreators);
+        this.contentNoteHandlingSection = new ContentNoteHandlingSection(this.plugin, this.settingCreators);
         this.backupManagementSection = new BackupManagementSection(this.plugin, this.settingCreators);
+        this.chatHistorySettingsSection = new ChatHistorySettingsSection(this.plugin, this.settingCreators);
 
         // Add settings change listener to refresh UI
         this.settingsChangeListener = () => {
@@ -86,27 +79,54 @@ export class MyPluginSettingTab extends PluginSettingTab {
 
         containerEl.createEl('h2', { text: 'AI Assistant Settings' });
 
-        // Render sections
-        this.apiKeysSection.render(containerEl);
-        this.modelManagementSection.render(containerEl);
-
-        // Section 3: Core AI Settings (Default Model Settings)
+        // Render sections as collapsible top-level sections
         CollapsibleSectionRenderer.createCollapsibleSection(
             containerEl,
-            'Default AI Model Settings',
-            async (sectionEl: HTMLElement) => {
-                await this.settingsSections.renderAIModelSettings(sectionEl, () => this.display());
-            },
+            'General Settings',
+            (sectionEl: HTMLElement) => this.generalSettingsSection.render(sectionEl),
             this.plugin,
             'generalSectionsExpanded'
         );
 
-        this.agentConfigSection.render(containerEl);
-        this.contentChatSection.render(containerEl);
-        this.dataHandlingSection.render(containerEl);
-        this.pluginBehaviorSection.render(containerEl);
-        this.backupManagementSection.render(containerEl);
+        CollapsibleSectionRenderer.createCollapsibleSection(
+            containerEl,
+            'AI Model Configuration',
+            (sectionEl: HTMLElement) => this.aiModelConfigurationSection.render(sectionEl),
+            this.plugin,
+            'generalSectionsExpanded'
+        );
 
+        CollapsibleSectionRenderer.createCollapsibleSection(
+            containerEl,
+            'Agent Settings',
+            (sectionEl: HTMLElement) => this.agentSettingsSection.render(sectionEl),
+            this.plugin,
+            'agentConfigExpanded'
+        );
+
+        CollapsibleSectionRenderer.createCollapsibleSection(
+            containerEl,
+            'Content & Note Handling',
+            (sectionEl: HTMLElement) => this.contentNoteHandlingSection.render(sectionEl),
+            this.plugin,
+            'contentChatExpanded'
+        );
+
+        CollapsibleSectionRenderer.createCollapsibleSection(
+            containerEl,
+            'Chat History & UI',
+            (sectionEl: HTMLElement) => this.chatHistorySettingsSection.render(sectionEl),
+            this.plugin,
+            'dataHandlingExpanded'
+        );
+
+        CollapsibleSectionRenderer.createCollapsibleSection(
+            containerEl,
+            'Backup Management',
+            (sectionEl: HTMLElement) => this.backupManagementSection.render(sectionEl),
+            this.plugin,
+            'backupManagementExpanded'
+        );
 
         // Reset All Settings to Default (remains at the bottom, not collapsible)
         new Setting(containerEl)

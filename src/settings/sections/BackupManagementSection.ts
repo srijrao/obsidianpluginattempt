@@ -14,15 +14,7 @@ export class BackupManagementSection {
     }
 
     async render(containerEl: HTMLElement): Promise<void> {
-        CollapsibleSectionRenderer.createCollapsibleSection(
-            containerEl,
-            'Backup Management',
-            async (sectionEl: HTMLElement) => {
-                await this.renderBackupManagement(sectionEl);
-            },
-            this.plugin,
-            'generalSectionsExpanded'
-        );
+        await this.renderBackupManagement(containerEl);
     }
 
     /**

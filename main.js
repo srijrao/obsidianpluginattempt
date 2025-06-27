@@ -4276,6 +4276,13 @@ var init_settings = __esm({
         // For the main group of provider configs
         "AI Model Configuration": true
       },
+      apiKeysExpanded: {},
+      modelManagementExpanded: {},
+      agentConfigExpanded: {},
+      contentChatExpanded: {},
+      dataHandlingExpanded: {},
+      pluginBehaviorExpanded: {},
+      backupManagementExpanded: {},
       modelSettingPresets: [
         {
           name: "Default",
@@ -13628,9 +13635,6 @@ function registerGenerateNoteTitleCommand(plugin, settings, processMessages2) {
   );
 }
 
-// src/settings/SettingTab.ts
-init_SettingsSections();
-
 // src/components/chat/CollapsibleSection.ts
 var CollapsibleSectionRenderer = class {
   /**
@@ -13639,7 +13643,7 @@ var CollapsibleSectionRenderer = class {
   static createCollapsibleSection(containerEl, title, contentCallback, plugin, settingsType) {
     var _a2;
     plugin.settings[settingsType] = plugin.settings[settingsType] || {};
-    let isExpanded = (_a2 = plugin.settings[settingsType][title]) != null ? _a2 : false;
+    let isExpanded = (_a2 = (plugin.settings[settingsType] || {})[title]) != null ? _a2 : false;
     const collapsibleContainer = containerEl.createEl("div");
     collapsibleContainer.addClass("ai-collapsible-section");
     const headerEl = collapsibleContainer.createEl("div");
@@ -13656,7 +13660,7 @@ var CollapsibleSectionRenderer = class {
       isExpanded = !isExpanded;
       contentEl.style.display = isExpanded ? "block" : "none";
       arrow.textContent = isExpanded ? "\u25BC" : "\u25B6";
-      plugin.settings[settingsType][title] = isExpanded;
+      (plugin.settings[settingsType] || {})[title] = isExpanded;
       await plugin.saveSettings();
     });
     const result = contentCallback(contentEl);
@@ -13776,8 +13780,8 @@ var SettingCreators = class {
   }
 };
 
-// src/settings/sections/ApiKeysSection.ts
-var ApiKeysSection = class {
+// src/settings/sections/GeneralSettingsSection.ts
+var GeneralSettingsSection = class {
   constructor(plugin, settingCreators) {
     __publicField(this, "plugin");
     __publicField(this, "settingCreators");
@@ -13785,9 +13789,70 @@ var ApiKeysSection = class {
     this.settingCreators = settingCreators;
   }
   async render(containerEl) {
+    containerEl.createEl("h3", { text: "Plugin Behavior" });
+    this.settingCreators.createToggleSetting(
+      containerEl,
+      "Auto-Open Model Settings",
+      "Automatically open the AI model settings panel when the plugin loads.",
+      () => this.plugin.settings.autoOpenModelSettings,
+      async (value) => {
+        this.plugin.settings.autoOpenModelSettings = value;
+        await this.plugin.saveSettings();
+      }
+    );
+    containerEl.createEl("h3", { text: "Date & Time Settings" });
+    this.settingCreators.createToggleSetting(
+      containerEl,
+      "Include Date with System Message",
+      "Add the current date to the system message",
+      () => this.plugin.settings.includeDateWithSystemMessage,
+      async (value) => {
+        this.plugin.settings.includeDateWithSystemMessage = value;
+        await this.plugin.saveSettings();
+      }
+    );
+    this.settingCreators.createToggleSetting(
+      containerEl,
+      "Include Time with System Message",
+      "Add the current time along with the date to the system message",
+      () => this.plugin.settings.includeTimeWithSystemMessage,
+      async (value) => {
+        this.plugin.settings.includeTimeWithSystemMessage = value;
+        await this.plugin.saveSettings();
+      }
+    );
+    containerEl.createEl("h3", { text: "Debug Settings" });
+    this.settingCreators.createToggleSetting(
+      containerEl,
+      "Debug Mode",
+      "Enable verbose logging and debug UI features",
+      () => {
+        var _a2;
+        return (_a2 = this.plugin.settings.debugMode) != null ? _a2 : false;
+      },
+      async (value) => {
+        this.plugin.settings.debugMode = value;
+        await this.plugin.saveSettings();
+      }
+    );
+  }
+};
+
+// src/settings/sections/AIModelConfigurationSection.ts
+var import_obsidian29 = require("obsidian");
+init_providers();
+var AIModelConfigurationSection = class {
+  constructor(plugin, settingCreators) {
+    __publicField(this, "plugin");
+    __publicField(this, "settingCreators");
+    this.plugin = plugin;
+    this.settingCreators = settingCreators;
+  }
+  async render(containerEl) {
+    containerEl.createEl("h3", { text: "API Keys & Providers" });
     CollapsibleSectionRenderer.createCollapsibleSection(
       containerEl,
-      "API Keys & Providers",
+      "OpenAI Configuration",
       async (sectionEl) => {
         this.settingCreators.createTextSetting(
           sectionEl,
@@ -13812,6 +13877,15 @@ var ApiKeysSection = class {
           },
           { trim: true, undefinedIfEmpty: true }
         );
+        this.renderProviderTestSection(sectionEl, "openai", "OpenAI");
+      },
+      this.plugin,
+      "providerConfigExpanded"
+    );
+    CollapsibleSectionRenderer.createCollapsibleSection(
+      containerEl,
+      "Anthropic Configuration",
+      async (sectionEl) => {
         this.settingCreators.createTextSetting(
           sectionEl,
           "Anthropic API Key",
@@ -13823,6 +13897,15 @@ var ApiKeysSection = class {
             await this.plugin.saveSettings();
           }
         );
+        this.renderProviderTestSection(sectionEl, "anthropic", "Anthropic");
+      },
+      this.plugin,
+      "providerConfigExpanded"
+    );
+    CollapsibleSectionRenderer.createCollapsibleSection(
+      containerEl,
+      "Google Gemini Configuration",
+      async (sectionEl) => {
         this.settingCreators.createTextSetting(
           sectionEl,
           "Google API Key",
@@ -13834,6 +13917,15 @@ var ApiKeysSection = class {
             await this.plugin.saveSettings();
           }
         );
+        this.renderProviderTestSection(sectionEl, "gemini", "Google Gemini");
+      },
+      this.plugin,
+      "providerConfigExpanded"
+    );
+    CollapsibleSectionRenderer.createCollapsibleSection(
+      containerEl,
+      "Ollama Configuration",
+      async (sectionEl) => {
         this.settingCreators.createTextSetting(
           sectionEl,
           "Ollama Server URL",
@@ -13845,41 +13937,295 @@ var ApiKeysSection = class {
             await this.plugin.saveSettings();
           }
         );
+        sectionEl.createEl("div", {
+          cls: "setting-item-description",
+          text: "To use Ollama:"
+        });
+        const steps = sectionEl.createEl("ol");
+        steps.createEl("li", { text: "Install Ollama from https://ollama.ai" });
+        steps.createEl("li", { text: "Start the Ollama server" });
+        steps.createEl("li", { text: 'Pull models using "ollama pull model-name"' });
+        steps.createEl("li", { text: "Test connection to see available models" });
+        this.renderProviderTestSection(sectionEl, "ollama", "Ollama");
       },
       this.plugin,
-      "generalSectionsExpanded"
+      "providerConfigExpanded"
     );
-  }
-};
-
-// src/settings/sections/ModelManagementSection.ts
-var import_obsidian29 = require("obsidian");
-init_providers();
-var ModelManagementSection = class {
-  constructor(plugin, settingCreators) {
-    __publicField(this, "plugin");
-    __publicField(this, "settingCreators");
-    this.plugin = plugin;
-    this.settingCreators = settingCreators;
-  }
-  async render(containerEl) {
+    containerEl.createEl("h3", { text: "Default AI Model Settings" });
+    await this.renderAIModelSettings(containerEl);
+    containerEl.createEl("h3", { text: "Model Management" });
+    containerEl.createEl("h4", { text: "Available Models" });
     await this.renderAvailableModelsSection(containerEl);
-    CollapsibleSectionRenderer.createCollapsibleSection(
-      containerEl,
-      "Model Setting Presets",
-      async (sectionEl) => {
-        this.renderModelSettingPresets(sectionEl);
-      },
-      this.plugin,
-      "generalSectionsExpanded"
-    );
+    containerEl.createEl("h4", { text: "Model Setting Presets" });
+    this.renderModelSettingPresets(containerEl);
+  }
+  /**
+   * Renders the provider connection test section.
+   */
+  renderProviderTestSection(containerEl, provider, displayName) {
+    const settings = this.plugin.settings[`${provider}Settings`];
+    new import_obsidian29.Setting(containerEl).setName("Test Connection").setDesc(`Verify your API key and fetch available models for ${displayName}`).addButton((button) => button.setButtonText("Test").onClick(async () => {
+      button.setButtonText("Testing...");
+      button.setDisabled(true);
+      try {
+        const originalProvider = this.plugin.settings.provider;
+        this.plugin.settings.provider = provider;
+        const providerInstance = createProvider(this.plugin.settings);
+        const result = await providerInstance.testConnection();
+        this.plugin.settings.provider = originalProvider;
+        if (result.success && result.models) {
+          settings.availableModels = result.models;
+          settings.lastTestResult = {
+            timestamp: Date.now(),
+            success: true,
+            message: result.message
+          };
+          await this.plugin.saveSettings();
+          this.plugin.settings.availableModels = await getAllAvailableModels(this.plugin.settings);
+          await this.plugin.saveSettings();
+          new import_obsidian29.Notice(result.message);
+        } else {
+          settings.lastTestResult = {
+            timestamp: Date.now(),
+            success: false,
+            message: result.message
+          };
+          new import_obsidian29.Notice(result.message);
+        }
+      } catch (error) {
+        new import_obsidian29.Notice(`Error: ${error.message}`);
+      } finally {
+        button.setButtonText("Test");
+        button.setDisabled(false);
+      }
+    }));
+    if (settings.lastTestResult) {
+      const date = new Date(settings.lastTestResult.timestamp);
+      containerEl.createEl("div", {
+        text: `Last test: ${date.toLocaleString()} - ${settings.lastTestResult.message}`,
+        cls: settings.lastTestResult.success ? "success" : "error"
+      });
+    }
+    if (settings.availableModels && settings.availableModels.length > 0) {
+      containerEl.createEl("div", {
+        text: `Available models: ${settings.availableModels.map((m) => m.name || m.id).join(", ")}`,
+        cls: "setting-item-description"
+      });
+    }
+  }
+  /**
+   * AI Model Settings Section
+   */
+  async renderAIModelSettings(containerEl) {
+    if (this.plugin.settings.modelSettingPresets && this.plugin.settings.modelSettingPresets.length > 0) {
+      const presetContainer = containerEl.createDiv();
+      presetContainer.addClass("model-preset-buttons");
+      presetContainer.createEl("div", { text: "Quick Presets:", cls: "setting-item-name" });
+      this.plugin.settings.modelSettingPresets.forEach((preset, idx) => {
+        const btn = presetContainer.createEl("button", { text: preset.name });
+        btn.style.marginRight = "0.5em";
+        btn.onclick = async () => {
+          if (preset.selectedModel !== void 0) this.plugin.settings.selectedModel = preset.selectedModel;
+          if (preset.systemMessage !== void 0) this.plugin.settings.systemMessage = preset.systemMessage;
+          if (preset.temperature !== void 0) this.plugin.settings.temperature = preset.temperature;
+          if (preset.maxTokens !== void 0) this.plugin.settings.maxTokens = preset.maxTokens;
+          if (preset.enableStreaming !== void 0) this.plugin.settings.enableStreaming = preset.enableStreaming;
+          await this.plugin.saveSettings();
+          new import_obsidian29.Notice(`Applied preset: ${preset.name}`);
+        };
+      });
+    }
+    new import_obsidian29.Setting(containerEl).setName("System Message").setDesc("Set the system message for the AI").addTextArea((text) => text.setPlaceholder("You are a helpful assistant.").setValue(this.plugin.settings.systemMessage).onChange(async (value) => {
+      this.plugin.settings.systemMessage = value;
+      await this.plugin.saveSettings();
+    }));
+    new import_obsidian29.Setting(containerEl).setName("Enable Streaming").setDesc("Enable or disable streaming for completions").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableStreaming).onChange(async (value) => {
+      this.plugin.settings.enableStreaming = value;
+      await this.plugin.saveSettings();
+    }));
+    new import_obsidian29.Setting(containerEl).setName("Temperature").setDesc("Set the randomness of the model's output (0-1)").addSlider((slider) => slider.setLimits(0, 1, 0.1).setValue(this.plugin.settings.temperature).setDynamicTooltip().onChange(async (value) => {
+      this.plugin.settings.temperature = value;
+      await this.plugin.saveSettings();
+    }));
+    new import_obsidian29.Setting(containerEl).setName("Refresh Available Models").setDesc("Test connections to all configured providers and refresh available models").addButton((button) => button.setButtonText("Refresh Models").onClick(async () => {
+      button.setButtonText("Refreshing...");
+      button.setDisabled(true);
+      try {
+        await this.refreshAllAvailableModels();
+        new import_obsidian29.Notice("Successfully refreshed available models");
+      } catch (error) {
+        new import_obsidian29.Notice(`Error refreshing models: ${error.message}`);
+      } finally {
+        button.setButtonText("Refresh Models");
+        button.setDisabled(false);
+      }
+    }));
+    await this.renderUnifiedModelDropdown(containerEl);
+  }
+  /**
+   * Renders the unified model selection dropdown
+   */
+  async renderUnifiedModelDropdown(containerEl) {
+    if (!this.plugin.settings.availableModels || this.plugin.settings.availableModels.length === 0) {
+      this.plugin.settings.availableModels = await getAllAvailableModels(this.plugin.settings);
+      await this.plugin.saveSettings();
+    }
+    new import_obsidian29.Setting(containerEl).setName("Selected Model").setDesc("Choose from all available models across all configured providers").addDropdown((dropdown) => {
+      if (!this.plugin.settings.availableModels || this.plugin.settings.availableModels.length === 0) {
+        dropdown.addOption("", "No models available - configure providers above");
+      } else {
+        dropdown.addOption("", "Select a model...");
+        const modelsByProvider = {};
+        const enabledModels = this.plugin.settings.enabledModels || {};
+        const filteredModels = this.plugin.settings.availableModels.filter((model) => enabledModels[model.id] !== false);
+        filteredModels.forEach((model) => {
+          if (!modelsByProvider[model.provider]) {
+            modelsByProvider[model.provider] = [];
+          }
+          modelsByProvider[model.provider].push(model);
+        });
+        Object.entries(modelsByProvider).forEach(([provider, models]) => {
+          models.forEach((model) => {
+            dropdown.addOption(model.id, model.name);
+          });
+        });
+      }
+      dropdown.setValue(this.plugin.settings.selectedModel || "").onChange(async (value) => {
+        this.plugin.settings.selectedModel = value;
+        if (value) {
+          const provider = getProviderFromUnifiedModel(value);
+          this.plugin.settings.provider = provider;
+        }
+        await this.plugin.saveSettings();
+      });
+    });
+    if (this.plugin.settings.selectedModel && this.plugin.settings.availableModels) {
+      const selectedModel = this.plugin.settings.availableModels.find(
+        (model) => model.id === this.plugin.settings.selectedModel
+      );
+      if (selectedModel) {
+        const infoEl = containerEl.createEl("div", { cls: "setting-item-description" });
+        infoEl.setText(`Currently using: ${selectedModel.name}`);
+      }
+    }
+  }
+  /**
+   * Refreshes available models from all configured providers
+   */
+  async refreshAllAvailableModels() {
+    const providers = ["openai", "anthropic", "gemini", "ollama"];
+    for (const providerType of providers) {
+      try {
+        const originalProvider = this.plugin.settings.provider;
+        this.plugin.settings.provider = providerType;
+        const providerInstance = createProvider(this.plugin.settings);
+        const result = await providerInstance.testConnection();
+        this.plugin.settings.provider = originalProvider;
+        const providerSettings = this.plugin.settings[`${providerType}Settings`];
+        if (result.success && result.models) {
+          providerSettings.availableModels = result.models;
+          providerSettings.lastTestResult = {
+            timestamp: Date.now(),
+            success: true,
+            message: result.message
+          };
+        } else {
+          providerSettings.lastTestResult = {
+            timestamp: Date.now(),
+            success: false,
+            message: result.message
+          };
+        }
+      } catch (error) {
+        console.error(`Error testing ${providerType}:`, error);
+      }
+    }
+    this.plugin.settings.availableModels = await getAllAvailableModels(this.plugin.settings);
+    await this.plugin.saveSettings();
+  }
+  /**
+   * Renders the Available Models section with checkboxes for each model.
+   */
+  async renderAvailableModelsSection(containerEl) {
+    containerEl.createEl("div", {
+      text: "Choose which models are available in model selection menus throughout the plugin.",
+      cls: "setting-item-description",
+      attr: { style: "margin-bottom: 1em;" }
+    });
+    const buttonRow = containerEl.createDiv({ cls: "ai-models-button-row" });
+    new import_obsidian29.Setting(buttonRow).addButton((btn) => {
+      btn.setButtonText("Refresh Models").setCta().onClick(async () => {
+        btn.setButtonText("Refreshing...");
+        btn.setDisabled(true);
+        try {
+          this.plugin.settings.availableModels = await getAllAvailableModels(this.plugin.settings);
+          await this.plugin.saveSettings();
+          new import_obsidian29.Notice("Available models refreshed.");
+        } catch (e) {
+          new import_obsidian29.Notice("Error refreshing models: " + ((e == null ? void 0 : e.message) || e));
+        } finally {
+          btn.setButtonText("Refresh Models");
+          btn.setDisabled(false);
+        }
+      });
+    }).addButton((btn) => {
+      btn.setButtonText("All On").onClick(async () => {
+        let allModels2 = this.plugin.settings.availableModels || [];
+        if (allModels2.length === 0) {
+          allModels2 = await getAllAvailableModels(this.plugin.settings);
+        }
+        if (!this.plugin.settings.enabledModels) this.plugin.settings.enabledModels = {};
+        allModels2.forEach((model) => {
+          this.plugin.settings.enabledModels[model.id] = true;
+        });
+        await this.plugin.saveSettings();
+      });
+    }).addButton((btn) => {
+      btn.setButtonText("All Off").onClick(async () => {
+        let allModels2 = this.plugin.settings.availableModels || [];
+        if (allModels2.length === 0) {
+          allModels2 = await getAllAvailableModels(this.plugin.settings);
+        }
+        if (!this.plugin.settings.enabledModels) this.plugin.settings.enabledModels = {};
+        allModels2.forEach((model) => {
+          this.plugin.settings.enabledModels[model.id] = false;
+        });
+        await this.plugin.saveSettings();
+      });
+    });
+    let allModels = this.plugin.settings.availableModels || [];
+    if (allModels.length === 0) {
+      allModels = await getAllAvailableModels(this.plugin.settings);
+    }
+    if (!this.plugin.settings.enabledModels) this.plugin.settings.enabledModels = {};
+    if (allModels.length === 0) {
+      containerEl.createEl("div", { text: "No models found. Please configure your providers and refresh available models.", cls: "setting-item-description" });
+    } else {
+      allModels = allModels.slice().sort((a, b) => {
+        if (a.provider !== b.provider) {
+          return a.provider.localeCompare(b.provider);
+        }
+        return (a.name || a.id).localeCompare(b.name || b.id);
+      });
+      allModels.forEach((model) => {
+        this.settingCreators.createToggleSetting(
+          containerEl,
+          model.name || model.id,
+          `Enable or disable "${model.name || model.id}" (${model.id}) in model selection menus.`,
+          () => this.plugin.settings.enabledModels[model.id] !== false,
+          // default to true
+          async (value) => {
+            this.plugin.settings.enabledModels[model.id] = value;
+            await this.plugin.saveSettings();
+          }
+        );
+      });
+    }
   }
   /**
    * Renders the Model Setting Presets section.
-   * @param containerEl The HTML element to append the section to.
    */
   renderModelSettingPresets(containerEl) {
-    containerEl.createEl("h3", { text: "Model Setting Presets" });
     containerEl.createEl("div", {
       text: "Presets let you save and quickly apply common model settings (model, temperature, system message, etc). You can add, edit, or remove presets here. In the AI Model Settings panel, you will see buttons for each preset above the model selection. Clicking a preset button will instantly apply those settings. This is useful for switching between different model configurations with one click.",
       cls: "setting-item-description",
@@ -13950,244 +14296,136 @@ var ModelManagementSection = class {
       })
     );
   }
-  /**
-   * Renders the Available Models section with checkboxes for each model.
-   * @param containerEl The HTML element to append the section to.
-   */
-  async renderAvailableModelsSection(containerEl) {
-    CollapsibleSectionRenderer.createCollapsibleSection(
-      containerEl,
-      "Available Models",
-      async (sectionEl) => {
-        sectionEl.createEl("div", {
-          text: "Choose which models are available in model selection menus throughout the plugin.",
-          cls: "setting-item-description",
-          attr: { style: "margin-bottom: 1em;" }
-        });
-        const buttonRow = sectionEl.createDiv({ cls: "ai-models-button-row" });
-        new import_obsidian29.Setting(buttonRow).addButton((btn) => {
-          btn.setButtonText("Refresh Models").setCta().onClick(async () => {
-            btn.setButtonText("Refreshing...");
-            btn.setDisabled(true);
-            try {
-              this.plugin.settings.availableModels = await getAllAvailableModels(this.plugin.settings);
-              await this.plugin.saveSettings();
-              new import_obsidian29.Notice("Available models refreshed.");
-            } catch (e) {
-              new import_obsidian29.Notice("Error refreshing models: " + ((e == null ? void 0 : e.message) || e));
-            } finally {
-              btn.setButtonText("Refresh Models");
-              btn.setDisabled(false);
-            }
-          });
-        }).addButton((btn) => {
-          btn.setButtonText("All On").onClick(async () => {
-            let allModels2 = this.plugin.settings.availableModels || [];
-            if (allModels2.length === 0) {
-              allModels2 = await getAllAvailableModels(this.plugin.settings);
-            }
-            if (!this.plugin.settings.enabledModels) this.plugin.settings.enabledModels = {};
-            allModels2.forEach((model) => {
-              this.plugin.settings.enabledModels[model.id] = true;
-            });
-            await this.plugin.saveSettings();
-          });
-        }).addButton((btn) => {
-          btn.setButtonText("All Off").onClick(async () => {
-            let allModels2 = this.plugin.settings.availableModels || [];
-            if (allModels2.length === 0) {
-              allModels2 = await getAllAvailableModels(this.plugin.settings);
-            }
-            if (!this.plugin.settings.enabledModels) this.plugin.settings.enabledModels = {};
-            allModels2.forEach((model) => {
-              this.plugin.settings.enabledModels[model.id] = false;
-            });
-            await this.plugin.saveSettings();
-          });
-        });
-        let allModels = this.plugin.settings.availableModels || [];
-        if (allModels.length === 0) {
-          allModels = await getAllAvailableModels(this.plugin.settings);
-        }
-        if (!this.plugin.settings.enabledModels) this.plugin.settings.enabledModels = {};
-        if (allModels.length === 0) {
-          sectionEl.createEl("div", { text: "No models found. Please configure your providers and refresh available models.", cls: "setting-item-description" });
-        } else {
-          allModels = allModels.slice().sort((a, b) => {
-            if (a.provider !== b.provider) {
-              return a.provider.localeCompare(b.provider);
-            }
-            return (a.name || a.id).localeCompare(b.name || b.id);
-          });
-          allModels.forEach((model) => {
-            this.settingCreators.createToggleSetting(
-              sectionEl,
-              model.name || model.id,
-              `Enable or disable "${model.name || model.id}" (${model.id}) in model selection menus.`,
-              () => this.plugin.settings.enabledModels[model.id] !== false,
-              // default to true
-              async (value) => {
-                this.plugin.settings.enabledModels[model.id] = value;
-                await this.plugin.saveSettings();
-              }
-            );
-          });
-        }
-      },
-      this.plugin,
-      "generalSectionsExpanded"
-    );
-  }
 };
 
-// src/settings/sections/AgentConfigSection.ts
+// src/settings/sections/AgentSettingsSection.ts
 init_toolcollect();
 init_promptConstants();
-var AgentConfigSection = class {
+var AgentSettingsSection = class {
   constructor(app, plugin, settingCreators) {
     __publicField(this, "app");
-    // Add app property
     __publicField(this, "plugin");
     __publicField(this, "settingCreators");
     this.app = app;
     this.plugin = plugin;
     this.settingCreators = settingCreators;
     if (this.plugin && typeof this.plugin.debugLog === "function") {
-      this.plugin.debugLog("debug", "[AgentConfigSection] constructor called");
+      this.plugin.debugLog("debug", "[AgentSettingsSection] constructor called");
     }
   }
   async render(containerEl) {
     if (this.plugin && typeof this.plugin.debugLog === "function") {
-      this.plugin.debugLog("info", "[AgentConfigSection] render called");
+      this.plugin.debugLog("info", "[AgentSettingsSection] render called");
     }
-    CollapsibleSectionRenderer.createCollapsibleSection(
+    containerEl.createEl("h3", { text: "Agent Mode Settings" });
+    containerEl.createEl("div", {
+      text: "Agent Mode allows the AI to use tools like file creation, reading, and modification. Configure the limits and behavior for tool usage.",
+      cls: "setting-item-description",
+      attr: { style: "margin-bottom: 1em;" }
+    });
+    this.settingCreators.createToggleSetting(
       containerEl,
-      "Agent Mode Settings",
-      async (sectionEl) => {
-        if (this.plugin && typeof this.plugin.debugLog === "function") {
-          this.plugin.debugLog("debug", "[AgentConfigSection] rendering section", { agentMode: this.plugin.settings.agentMode });
+      "Enable Agent Mode by Default",
+      "Start new conversations with Agent Mode enabled.",
+      () => {
+        var _a2, _b;
+        return (_b = (_a2 = this.plugin.settings.agentMode) == null ? void 0 : _a2.enabled) != null ? _b : false;
+      },
+      async (value) => {
+        if (!this.plugin.settings.agentMode) {
+          this.plugin.settings.agentMode = { enabled: false, maxToolCalls: 10, timeoutMs: 3e4 };
         }
-        sectionEl.createEl("div", {
-          text: "Agent Mode allows the AI to use tools like file creation, reading, and modification. Configure the limits and behavior for tool usage.",
-          cls: "setting-item-description",
-          attr: { style: "margin-bottom: 1em;" }
-        });
-        this.settingCreators.createToggleSetting(
-          sectionEl,
-          "Enable Agent Mode by Default",
-          "Start new conversations with Agent Mode enabled.",
-          () => {
-            var _a2, _b;
-            return (_b = (_a2 = this.plugin.settings.agentMode) == null ? void 0 : _a2.enabled) != null ? _b : false;
-          },
-          async (value) => {
-            if (!this.plugin.settings.agentMode) {
-              this.plugin.settings.agentMode = { enabled: false, maxToolCalls: 10, timeoutMs: 3e4 };
-            }
-            this.plugin.settings.agentMode.enabled = value;
-            await this.plugin.saveSettings();
-          }
-        );
-        this.settingCreators.createSliderSetting(
-          sectionEl,
-          "Max Tool Calls per Conversation",
-          "Maximum number of tools the AI can use in a single conversation to prevent runaway execution.",
-          { min: 1, max: 50, step: 1 },
-          () => {
-            var _a2, _b;
-            return (_b = (_a2 = this.plugin.settings.agentMode) == null ? void 0 : _a2.maxToolCalls) != null ? _b : 10;
-          },
-          async (value) => {
-            if (!this.plugin.settings.agentMode) {
-              this.plugin.settings.agentMode = { enabled: false, maxToolCalls: 10, timeoutMs: 3e4 };
-            }
-            this.plugin.settings.agentMode.maxToolCalls = value;
-            await this.plugin.saveSettings();
-          }
-        );
-        this.settingCreators.createSliderSetting(
-          sectionEl,
-          "Tool Execution Timeout (seconds)",
-          "Maximum time to wait for each tool to complete before timing out.",
-          { min: 5, max: 300, step: 5 },
-          () => {
-            var _a2, _b;
-            return ((_b = (_a2 = this.plugin.settings.agentMode) == null ? void 0 : _a2.timeoutMs) != null ? _b : 3e4) / 1e3;
-          },
-          async (value) => {
-            if (!this.plugin.settings.agentMode) {
-              this.plugin.settings.agentMode = { enabled: false, maxToolCalls: 10, timeoutMs: 3e4 };
-            }
-            this.plugin.settings.agentMode.timeoutMs = value * 1e3;
-            await this.plugin.saveSettings();
-          }
-        );
-        sectionEl.createEl("h4", { text: "Agent System Message" });
-        sectionEl.createEl("div", {
-          text: "Customize the system message used when Agent Mode is enabled. Use {{TOOL_DESCRIPTIONS}} to include the available tools list.",
-          cls: "setting-item-description",
-          attr: { style: "margin-bottom: 0.5em;" }
-        });
-        const agentMessageContainer = sectionEl.createDiv("agent-message-container");
-        agentMessageContainer.style.display = "flex";
-        agentMessageContainer.style.gap = "0.5em";
-        agentMessageContainer.style.alignItems = "flex-start";
-        agentMessageContainer.style.marginBottom = "1em";
-        const textareaContainer = agentMessageContainer.createDiv();
-        textareaContainer.style.flex = "1";
-        const textarea = textareaContainer.createEl("textarea");
-        textarea.rows = 8;
-        textarea.style.width = "100%";
-        textarea.style.minHeight = "120px";
-        textarea.style.fontFamily = "monospace";
-        textarea.style.fontSize = "0.9em";
-        textarea.placeholder = "Enter custom agent system message template...";
-        textarea.value = this.plugin.settings.customAgentSystemMessage || "";
-        const buttonContainer = agentMessageContainer.createDiv();
-        buttonContainer.style.display = "flex";
-        buttonContainer.style.flexDirection = "column";
-        buttonContainer.style.gap = "0.25em";
-        const resetButton = buttonContainer.createEl("button", { text: "Reset to Default" });
-        resetButton.style.padding = "0.25em 0.5em";
-        resetButton.style.fontSize = "0.8em";
-        resetButton.addEventListener("click", async () => {
-          textarea.value = AGENT_SYSTEM_PROMPT_TEMPLATE;
-          this.plugin.settings.customAgentSystemMessage = AGENT_SYSTEM_PROMPT_TEMPLATE;
-          await this.plugin.saveSettings();
-        });
-        const clearButton = buttonContainer.createEl("button", { text: "Use Default" });
-        clearButton.style.padding = "0.25em 0.5em";
-        clearButton.style.fontSize = "0.8em";
-        clearButton.addEventListener("click", async () => {
-          textarea.value = "";
-          this.plugin.settings.customAgentSystemMessage = void 0;
-          await this.plugin.saveSettings();
-        });
-        textarea.addEventListener("input", async () => {
-          const value = textarea.value.trim();
-          this.plugin.settings.customAgentSystemMessage = value || void 0;
-          await this.plugin.saveSettings();
-        });
-      },
-      this.plugin,
-      "generalSectionsExpanded"
+        this.plugin.settings.agentMode.enabled = value;
+        await this.plugin.saveSettings();
+      }
     );
-    CollapsibleSectionRenderer.createCollapsibleSection(
+    this.settingCreators.createSliderSetting(
       containerEl,
-      "Agent Tools",
-      async (sectionEl) => {
-        this.renderToolToggles(sectionEl);
+      "Max Tool Calls per Conversation",
+      "Maximum number of tools the AI can use in a single conversation to prevent runaway execution.",
+      { min: 1, max: 50, step: 1 },
+      () => {
+        var _a2, _b;
+        return (_b = (_a2 = this.plugin.settings.agentMode) == null ? void 0 : _a2.maxToolCalls) != null ? _b : 10;
       },
-      this.plugin,
-      "generalSectionsExpanded"
+      async (value) => {
+        if (!this.plugin.settings.agentMode) {
+          this.plugin.settings.agentMode = { enabled: false, maxToolCalls: 10, timeoutMs: 3e4 };
+        }
+        this.plugin.settings.agentMode.maxToolCalls = value;
+        await this.plugin.saveSettings();
+      }
     );
+    this.settingCreators.createSliderSetting(
+      containerEl,
+      "Tool Execution Timeout (seconds)",
+      "Maximum time to wait for each tool to complete before timing out.",
+      { min: 5, max: 300, step: 5 },
+      () => {
+        var _a2, _b;
+        return ((_b = (_a2 = this.plugin.settings.agentMode) == null ? void 0 : _a2.timeoutMs) != null ? _b : 3e4) / 1e3;
+      },
+      async (value) => {
+        if (!this.plugin.settings.agentMode) {
+          this.plugin.settings.agentMode = { enabled: false, maxToolCalls: 10, timeoutMs: 3e4 };
+        }
+        this.plugin.settings.agentMode.timeoutMs = value * 1e3;
+        await this.plugin.saveSettings();
+      }
+    );
+    containerEl.createEl("h3", { text: "Agent System Message" });
+    containerEl.createEl("div", {
+      text: "Customize the system message used when Agent Mode is enabled. Use {{TOOL_DESCRIPTIONS}} to include the available tools list.",
+      cls: "setting-item-description",
+      attr: { style: "margin-bottom: 0.5em;" }
+    });
+    const agentMessageContainer = containerEl.createDiv("agent-message-container");
+    agentMessageContainer.style.display = "flex";
+    agentMessageContainer.style.gap = "0.5em";
+    agentMessageContainer.style.alignItems = "flex-start";
+    agentMessageContainer.style.marginBottom = "1em";
+    const textareaContainer = agentMessageContainer.createDiv();
+    textareaContainer.style.flex = "1";
+    const textarea = textareaContainer.createEl("textarea");
+    textarea.rows = 8;
+    textarea.style.width = "100%";
+    textarea.style.minHeight = "120px";
+    textarea.style.fontFamily = "monospace";
+    textarea.style.fontSize = "0.9em";
+    textarea.placeholder = "Enter custom agent system message template...";
+    textarea.value = this.plugin.settings.customAgentSystemMessage || "";
+    const buttonContainer = agentMessageContainer.createDiv();
+    buttonContainer.style.display = "flex";
+    buttonContainer.style.flexDirection = "column";
+    buttonContainer.style.gap = "0.25em";
+    const resetButton = buttonContainer.createEl("button", { text: "Reset to Default" });
+    resetButton.style.padding = "0.25em 0.5em";
+    resetButton.style.fontSize = "0.8em";
+    resetButton.addEventListener("click", async () => {
+      textarea.value = AGENT_SYSTEM_PROMPT_TEMPLATE;
+      this.plugin.settings.customAgentSystemMessage = AGENT_SYSTEM_PROMPT_TEMPLATE;
+      await this.plugin.saveSettings();
+    });
+    const clearButton = buttonContainer.createEl("button", { text: "Use Default" });
+    clearButton.style.padding = "0.25em 0.5em";
+    clearButton.style.fontSize = "0.8em";
+    clearButton.addEventListener("click", async () => {
+      textarea.value = "";
+      this.plugin.settings.customAgentSystemMessage = void 0;
+      await this.plugin.saveSettings();
+    });
+    textarea.addEventListener("input", async () => {
+      const value = textarea.value.trim();
+      this.plugin.settings.customAgentSystemMessage = value || void 0;
+      await this.plugin.saveSettings();
+    });
+    containerEl.createEl("h3", { text: "Agent Tools" });
+    this.renderToolToggles(containerEl);
   }
   /**
    * Renders the Tool Enable/Disable section.
-   * @param containerEl The HTML element to append the section to.
    */
   renderToolToggles(containerEl) {
-    containerEl.createEl("h3", { text: "Agent Tools" });
     containerEl.createEl("div", {
       text: "Enable or disable individual agent tools. Disabled tools will not be available to the agent or appear in the system prompt.",
       cls: "setting-item-description",
@@ -14232,111 +14470,9 @@ var AgentConfigSection = class {
   }
 };
 
-// src/settings/sections/ContentChatSection.ts
-var ContentChatSection = class {
-  constructor(plugin, settingCreators) {
-    __publicField(this, "plugin");
-    __publicField(this, "settingCreators");
-    this.plugin = plugin;
-    this.settingCreators = settingCreators;
-  }
-  async render(containerEl) {
-    CollapsibleSectionRenderer.createCollapsibleSection(
-      containerEl,
-      "Content & Chat Customization",
-      async (sectionEl) => {
-        this.settingCreators.createTextSetting(
-          sectionEl,
-          "Chat Separator",
-          "The string used to separate chat messages.",
-          "----",
-          () => {
-            var _a2;
-            return (_a2 = this.plugin.settings.chatSeparator) != null ? _a2 : "";
-          },
-          async (value) => {
-            this.plugin.settings.chatSeparator = value != null ? value : "";
-            await this.plugin.saveSettings();
-          }
-        );
-        this.settingCreators.createTextSetting(
-          sectionEl,
-          "Chat Start String",
-          "The string that indicates where to start taking the note for context.",
-          "===START===",
-          () => {
-            var _a2;
-            return (_a2 = this.plugin.settings.chatStartString) != null ? _a2 : "";
-          },
-          async (value) => {
-            this.plugin.settings.chatStartString = value != null ? value : "";
-            await this.plugin.saveSettings();
-          }
-        );
-        this.settingCreators.createTextSetting(
-          sectionEl,
-          "Chat End String",
-          "The string that indicates where to end taking the note for context.",
-          "===END===",
-          () => {
-            var _a2;
-            return (_a2 = this.plugin.settings.chatEndString) != null ? _a2 : "";
-          },
-          async (value) => {
-            this.plugin.settings.chatEndString = value != null ? value : "";
-            await this.plugin.saveSettings();
-          }
-        );
-        this.settingCreators.createTextSetting(
-          sectionEl,
-          "Title Prompt",
-          "The prompt used for generating note titles.",
-          "You are a title generator...",
-          () => this.plugin.settings.titlePrompt,
-          async (value) => {
-            this.plugin.settings.titlePrompt = value != null ? value : "";
-            await this.plugin.saveSettings();
-          },
-          { isTextArea: true }
-        );
-        this.settingCreators.createDropdownSetting(
-          sectionEl,
-          "Title Output Mode",
-          "Choose what to do with the generated note title.",
-          { "clipboard": "Copy to clipboard", "replace-filename": "Replace note filename", "metadata": "Insert into metadata" },
-          () => {
-            var _a2;
-            return (_a2 = this.plugin.settings.titleOutputMode) != null ? _a2 : "clipboard";
-          },
-          async (value) => {
-            this.plugin.settings.titleOutputMode = value;
-            await this.plugin.saveSettings();
-          }
-        );
-        this.settingCreators.createDropdownSetting(
-          sectionEl,
-          "Summary Output Mode",
-          "Choose what to do with the generated note summary.",
-          { "clipboard": "Copy to clipboard", "metadata": "Insert into metadata" },
-          () => {
-            var _a2;
-            return (_a2 = this.plugin.settings.summaryOutputMode) != null ? _a2 : "clipboard";
-          },
-          async (value) => {
-            this.plugin.settings.summaryOutputMode = value;
-            await this.plugin.saveSettings();
-          }
-        );
-      },
-      this.plugin,
-      "generalSectionsExpanded"
-    );
-  }
-};
-
-// src/settings/sections/DataHandlingSection.ts
+// src/settings/sections/ContentNoteHandlingSection.ts
 var import_obsidian30 = require("obsidian");
-var DataHandlingSection = class {
+var ContentNoteHandlingSection = class {
   constructor(plugin, settingCreators) {
     __publicField(this, "plugin");
     __publicField(this, "settingCreators");
@@ -14344,85 +14480,207 @@ var DataHandlingSection = class {
     this.settingCreators = settingCreators;
   }
   async render(containerEl) {
-    CollapsibleSectionRenderer.createCollapsibleSection(
+    containerEl.createEl("h3", { text: "Chat Customization" });
+    this.settingCreators.createTextSetting(
       containerEl,
-      "Note & Data Handling",
-      async (sectionEl) => {
-        this.settingCreators.createToggleSetting(
-          sectionEl,
-          "Expand Linked Notes Recursively",
-          "If enabled, when fetching a note, also fetch and expand links within that note recursively (prevents infinite loops).",
-          () => {
-            var _a2;
-            return (_a2 = this.plugin.settings.expandLinkedNotesRecursively) != null ? _a2 : false;
-          },
-          async (value) => {
-            this.plugin.settings.expandLinkedNotesRecursively = value;
-            await this.plugin.saveSettings();
-          },
-          () => {
-          }
-        );
-        if (this.plugin.settings.expandLinkedNotesRecursively) {
-          this.settingCreators.createSliderSetting(
-            sectionEl,
-            "Max Link Expansion Depth",
-            "Maximum depth for recursively expanding linked notes (1-3).",
-            { min: 1, max: 3, step: 1 },
-            () => {
-              var _a2;
-              return (_a2 = this.plugin.settings.maxLinkExpansionDepth) != null ? _a2 : 2;
-            },
-            async (value) => {
-              this.plugin.settings.maxLinkExpansionDepth = value;
-              await this.plugin.saveSettings();
-            }
-          );
-        }
-        this.settingCreators.createTextSetting(
-          sectionEl,
-          "Chat Note Folder",
-          "Folder to save exported chat notes (relative to vault root, leave blank for root)",
-          "e.g. AI Chats",
-          () => {
-            var _a2;
-            return (_a2 = this.plugin.settings.chatNoteFolder) != null ? _a2 : "";
-          },
-          async (value) => {
-            this.plugin.settings.chatNoteFolder = value != null ? value : "";
-            await this.plugin.saveSettings();
-          },
-          { trim: true }
-        );
-        this.renderYamlAttributeGenerators(sectionEl);
+      "Chat Separator",
+      "The string used to separate chat messages.",
+      "----",
+      () => {
+        var _a2;
+        return (_a2 = this.plugin.settings.chatSeparator) != null ? _a2 : "";
       },
-      this.plugin,
-      "generalSectionsExpanded"
+      async (value) => {
+        this.plugin.settings.chatSeparator = value != null ? value : "";
+        await this.plugin.saveSettings();
+      }
     );
+    this.settingCreators.createTextSetting(
+      containerEl,
+      "Chat Start String",
+      "The string that indicates where to start taking the note for context.",
+      "===START===",
+      () => {
+        var _a2;
+        return (_a2 = this.plugin.settings.chatStartString) != null ? _a2 : "";
+      },
+      async (value) => {
+        this.plugin.settings.chatStartString = value != null ? value : "";
+        await this.plugin.saveSettings();
+      }
+    );
+    this.settingCreators.createTextSetting(
+      containerEl,
+      "Chat End String",
+      "The string that indicates where to end taking the note for context.",
+      "===END===",
+      () => {
+        var _a2;
+        return (_a2 = this.plugin.settings.chatEndString) != null ? _a2 : "";
+      },
+      async (value) => {
+        this.plugin.settings.chatEndString = value != null ? value : "";
+        await this.plugin.saveSettings();
+      }
+    );
+    this.settingCreators.createTextSetting(
+      containerEl,
+      "Title Prompt",
+      "The prompt used for generating note titles.",
+      "You are a title generator...",
+      () => this.plugin.settings.titlePrompt,
+      async (value) => {
+        this.plugin.settings.titlePrompt = value != null ? value : "";
+        await this.plugin.saveSettings();
+      },
+      { isTextArea: true }
+    );
+    this.settingCreators.createDropdownSetting(
+      containerEl,
+      "Title Output Mode",
+      "Choose what to do with the generated note title.",
+      { "clipboard": "Copy to clipboard", "replace-filename": "Replace note filename", "metadata": "Insert into metadata" },
+      () => {
+        var _a2;
+        return (_a2 = this.plugin.settings.titleOutputMode) != null ? _a2 : "clipboard";
+      },
+      async (value) => {
+        this.plugin.settings.titleOutputMode = value;
+        await this.plugin.saveSettings();
+      }
+    );
+    this.settingCreators.createDropdownSetting(
+      containerEl,
+      "Summary Output Mode",
+      "Choose what to do with the generated note summary.",
+      { "clipboard": "Copy to clipboard", "metadata": "Insert into metadata" },
+      () => {
+        var _a2;
+        return (_a2 = this.plugin.settings.summaryOutputMode) != null ? _a2 : "clipboard";
+      },
+      async (value) => {
+        this.plugin.settings.summaryOutputMode = value;
+        await this.plugin.saveSettings();
+      }
+    );
+    containerEl.createEl("h3", { text: "Note Reference Settings" });
+    this.settingCreators.createToggleSetting(
+      containerEl,
+      "Enable Obsidian Links",
+      "Read Obsidian links in messages using [[filename]] syntax",
+      () => this.plugin.settings.enableObsidianLinks,
+      async (value) => {
+        this.plugin.settings.enableObsidianLinks = value;
+        await this.plugin.saveSettings();
+      }
+    );
+    this.settingCreators.createToggleSetting(
+      containerEl,
+      "Enable Context Notes",
+      "Attach specified note content to chat messages",
+      () => this.plugin.settings.enableContextNotes,
+      async (value) => {
+        this.plugin.settings.enableContextNotes = value;
+        await this.plugin.saveSettings();
+      }
+    );
+    const contextNotesContainer = containerEl.createDiv("context-notes-container");
+    contextNotesContainer.style.marginBottom = "24px";
+    new import_obsidian30.Setting(contextNotesContainer).setName("Context Notes").setDesc("Notes to attach as context (supports [[filename]] and [[filename#header]] syntax)").addTextArea((text) => {
+      text.setPlaceholder("[[Note Name]]\n[[Another Note#Header]]").setValue(this.plugin.settings.contextNotes || "").onChange(async (value) => {
+        this.plugin.settings.contextNotes = value;
+        await this.plugin.saveSettings();
+      });
+      text.inputEl.rows = 4;
+      text.inputEl.style.width = "100%";
+    });
+    containerEl.createEl("h3", { text: "Data Handling" });
+    this.settingCreators.createToggleSetting(
+      containerEl,
+      "Expand Linked Notes Recursively",
+      "If enabled, when fetching a note, also fetch and expand links within that note recursively (prevents infinite loops).",
+      () => {
+        var _a2;
+        return (_a2 = this.plugin.settings.expandLinkedNotesRecursively) != null ? _a2 : false;
+      },
+      async (value) => {
+        this.plugin.settings.expandLinkedNotesRecursively = value;
+        await this.plugin.saveSettings();
+      }
+    );
+    if (this.plugin.settings.expandLinkedNotesRecursively) {
+      this.settingCreators.createSliderSetting(
+        containerEl,
+        "Max Link Expansion Depth",
+        "Maximum depth for recursively expanding linked notes (1-3).",
+        { min: 1, max: 3, step: 1 },
+        () => {
+          var _a2;
+          return (_a2 = this.plugin.settings.maxLinkExpansionDepth) != null ? _a2 : 2;
+        },
+        async (value) => {
+          this.plugin.settings.maxLinkExpansionDepth = value;
+          await this.plugin.saveSettings();
+        }
+      );
+    }
+    this.settingCreators.createTextSetting(
+      containerEl,
+      "Chat Note Folder",
+      "Folder to save exported chat notes (relative to vault root, leave blank for root)",
+      "e.g. AI Chats",
+      () => {
+        var _a2;
+        return (_a2 = this.plugin.settings.chatNoteFolder) != null ? _a2 : "";
+      },
+      async (value) => {
+        this.plugin.settings.chatNoteFolder = value != null ? value : "";
+        await this.plugin.saveSettings();
+      },
+      { trim: true }
+    );
+    containerEl.createEl("h3", { text: "YAML Attribute Generators" });
+    this.renderYamlAttributeGenerators(containerEl);
   }
   /**
    * Renders the YAML Attribute Generators section.
-   * @param containerEl The HTML element to append the section to.
    */
   renderYamlAttributeGenerators(containerEl) {
     var _a2;
-    containerEl.createEl("h3", { text: "YAML Attribute Generators" });
-    containerEl.createEl("div", { text: "Configure custom YAML attribute generators. Each entry will create a command to generate and insert/update a YAML field in your notes." }).style.marginBottom = "1em";
+    containerEl.createEl("div", {
+      text: "Configure custom YAML attribute generators. Each entry will create a command to generate and insert/update a YAML field in your notes.",
+      cls: "setting-item-description",
+      attr: { style: "margin-bottom: 1em;" }
+    });
     const yamlGens = (_a2 = this.plugin.settings.yamlAttributeGenerators) != null ? _a2 : [];
     yamlGens.forEach((gen, idx) => {
       const autoCommandName = gen.attributeName ? `Generate YAML: ${gen.attributeName}` : `YAML Generator #${idx + 1}`;
-      new import_obsidian30.Setting(containerEl).setName(autoCommandName).setDesc(`YAML field: ${gen.attributeName}`).addText((text) => this.settingCreators.createTextSetting(containerEl, "YAML Attribute Name", "", "YAML Attribute Name", () => gen.attributeName, async (value) => {
-        if (this.plugin.settings.yamlAttributeGenerators) {
-          this.plugin.settings.yamlAttributeGenerators[idx].attributeName = value != null ? value : "";
-          this.plugin.settings.yamlAttributeGenerators[idx].commandName = value ? `Generate YAML: ${value}` : "";
-          await this.plugin.saveSettings();
-        }
-      })).addTextArea((text) => this.settingCreators.createTextSetting(containerEl, "Prompt for LLM", "", "Prompt for LLM", () => gen.prompt, async (value) => {
-        if (this.plugin.settings.yamlAttributeGenerators) {
-          this.plugin.settings.yamlAttributeGenerators[idx].prompt = value != null ? value : "";
-          await this.plugin.saveSettings();
-        }
-      }, { isTextArea: true })).addDropdown((drop) => {
+      const genContainer = containerEl.createDiv({ cls: "yaml-generator-container" });
+      genContainer.style.border = "1px solid var(--background-modifier-border)";
+      genContainer.style.borderRadius = "6px";
+      genContainer.style.padding = "1em";
+      genContainer.style.marginBottom = "1em";
+      genContainer.createEl("h4", { text: autoCommandName });
+      new import_obsidian30.Setting(genContainer).setName("YAML Attribute Name").setDesc("The YAML field name to insert/update").addText((text) => {
+        text.setPlaceholder("YAML Attribute Name").setValue(gen.attributeName).onChange(async (value) => {
+          if (this.plugin.settings.yamlAttributeGenerators) {
+            this.plugin.settings.yamlAttributeGenerators[idx].attributeName = value != null ? value : "";
+            this.plugin.settings.yamlAttributeGenerators[idx].commandName = value ? `Generate YAML: ${value}` : "";
+            await this.plugin.saveSettings();
+          }
+        });
+      });
+      new import_obsidian30.Setting(genContainer).setName("Prompt for LLM").setDesc("The prompt to send to the AI for generating the YAML value").addTextArea((text) => {
+        text.setPlaceholder("Prompt for LLM").setValue(gen.prompt).onChange(async (value) => {
+          if (this.plugin.settings.yamlAttributeGenerators) {
+            this.plugin.settings.yamlAttributeGenerators[idx].prompt = value != null ? value : "";
+            await this.plugin.saveSettings();
+          }
+        });
+        text.inputEl.rows = 3;
+        text.inputEl.style.width = "100%";
+      });
+      new import_obsidian30.Setting(genContainer).setName("Output Mode").setDesc("Where to put the generated YAML attribute").addDropdown((drop) => {
         drop.addOption("clipboard", "Copy to clipboard");
         drop.addOption("metadata", "Insert into metadata");
         drop.setValue(gen.outputMode);
@@ -14432,8 +14690,9 @@ var DataHandlingSection = class {
             await this.plugin.saveSettings();
           }
         });
-      }).addExtraButton((btn) => {
-        btn.setIcon("cross").setTooltip("Delete").onClick(async () => {
+      });
+      new import_obsidian30.Setting(genContainer).addExtraButton((btn) => {
+        btn.setIcon("cross").setTooltip("Delete this YAML generator").onClick(async () => {
           if (this.plugin.settings.yamlAttributeGenerators) {
             this.plugin.settings.yamlAttributeGenerators.splice(idx, 1);
             await this.plugin.saveSettings();
@@ -14453,36 +14712,6 @@ var DataHandlingSection = class {
         await this.plugin.saveSettings();
       });
     });
-  }
-};
-
-// src/settings/sections/PluginBehaviorSection.ts
-var PluginBehaviorSection = class {
-  constructor(plugin, settingCreators) {
-    __publicField(this, "plugin");
-    __publicField(this, "settingCreators");
-    this.plugin = plugin;
-    this.settingCreators = settingCreators;
-  }
-  async render(containerEl) {
-    CollapsibleSectionRenderer.createCollapsibleSection(
-      containerEl,
-      "Plugin Behavior",
-      async (sectionEl) => {
-        this.settingCreators.createToggleSetting(
-          sectionEl,
-          "Auto-Open Model Settings",
-          "Automatically open the AI model settings panel when the plugin loads.",
-          () => this.plugin.settings.autoOpenModelSettings,
-          async (value) => {
-            this.plugin.settings.autoOpenModelSettings = value;
-            await this.plugin.saveSettings();
-          }
-        );
-      },
-      this.plugin,
-      "generalSectionsExpanded"
-    );
   }
 };
 
@@ -14559,15 +14788,7 @@ var BackupManagementSection = class {
     this.settingCreators = settingCreators;
   }
   async render(containerEl) {
-    CollapsibleSectionRenderer.createCollapsibleSection(
-      containerEl,
-      "Backup Management",
-      async (sectionEl) => {
-        await this.renderBackupManagement(sectionEl);
-      },
-      this.plugin,
-      "generalSectionsExpanded"
-    );
+    await this.renderBackupManagement(containerEl);
   }
   /**
    * Renders the Backup Management section.
@@ -14693,36 +14914,114 @@ var BackupManagementSection = class {
   }
 };
 
+// src/settings/sections/ChatHistorySettingsSection.ts
+var ChatHistorySettingsSection = class {
+  constructor(plugin, settingCreators) {
+    __publicField(this, "plugin");
+    __publicField(this, "settingCreators");
+    this.plugin = plugin;
+    this.settingCreators = settingCreators;
+  }
+  async render(containerEl) {
+    containerEl.createEl("h3", { text: "Chat History & Sessions" });
+    this.settingCreators.createSliderSetting(
+      containerEl,
+      "Max Chat Sessions",
+      "Maximum number of chat sessions to keep in history.",
+      { min: 1, max: 50, step: 1 },
+      () => this.plugin.settings.maxSessions,
+      async (value) => {
+        this.plugin.settings.maxSessions = value;
+        await this.plugin.saveSettings();
+      }
+    );
+    this.settingCreators.createToggleSetting(
+      containerEl,
+      "Auto-Save Sessions",
+      "Automatically save chat sessions as you use them.",
+      () => this.plugin.settings.autoSaveSessions,
+      async (value) => {
+        this.plugin.settings.autoSaveSessions = value;
+        await this.plugin.saveSettings();
+      }
+    );
+    containerEl.createEl("h3", { text: "UI Behavior" });
+    this.settingCreators.createToggleSetting(
+      containerEl,
+      "Collapse Old Reasoning",
+      "Automatically collapse reasoning sections in older messages to keep the UI clean",
+      () => {
+        var _a2, _b;
+        return (_b = (_a2 = this.plugin.settings.uiBehavior) == null ? void 0 : _a2.collapseOldReasoning) != null ? _b : true;
+      },
+      async (value) => {
+        if (!this.plugin.settings.uiBehavior) {
+          this.plugin.settings.uiBehavior = {};
+        }
+        this.plugin.settings.uiBehavior.collapseOldReasoning = value;
+        await this.plugin.saveSettings();
+      }
+    );
+    this.settingCreators.createToggleSetting(
+      containerEl,
+      "Show Completion Notifications",
+      "Show notifications when AI responses are completed",
+      () => {
+        var _a2, _b;
+        return (_b = (_a2 = this.plugin.settings.uiBehavior) == null ? void 0 : _a2.showCompletionNotifications) != null ? _b : true;
+      },
+      async (value) => {
+        if (!this.plugin.settings.uiBehavior) {
+          this.plugin.settings.uiBehavior = {};
+        }
+        this.plugin.settings.uiBehavior.showCompletionNotifications = value;
+        await this.plugin.saveSettings();
+      }
+    );
+    this.settingCreators.createToggleSetting(
+      containerEl,
+      "Include Reasoning in Exports",
+      "Include reasoning sections when copying or exporting chat content",
+      () => {
+        var _a2, _b;
+        return (_b = (_a2 = this.plugin.settings.uiBehavior) == null ? void 0 : _a2.includeReasoningInExports) != null ? _b : true;
+      },
+      async (value) => {
+        if (!this.plugin.settings.uiBehavior) {
+          this.plugin.settings.uiBehavior = {};
+        }
+        this.plugin.settings.uiBehavior.includeReasoningInExports = value;
+        await this.plugin.saveSettings();
+      }
+    );
+  }
+};
+
 // src/settings/SettingTab.ts
 var MyPluginSettingTab = class extends import_obsidian32.PluginSettingTab {
   constructor(app, plugin) {
     super(app, plugin);
     __publicField(this, "plugin");
-    __publicField(this, "settingsSections");
-    // This might need to be refactored or removed
     __publicField(this, "settingCreators");
     // Section instances
-    __publicField(this, "apiKeysSection");
-    __publicField(this, "modelManagementSection");
-    __publicField(this, "agentConfigSection");
-    __publicField(this, "contentChatSection");
-    __publicField(this, "dataHandlingSection");
-    __publicField(this, "pluginBehaviorSection");
+    __publicField(this, "generalSettingsSection");
+    __publicField(this, "aiModelConfigurationSection");
+    __publicField(this, "agentSettingsSection");
+    __publicField(this, "contentNoteHandlingSection");
     __publicField(this, "backupManagementSection");
+    __publicField(this, "chatHistorySettingsSection");
     __publicField(this, "settingsChangeListener", null);
     this.plugin = plugin;
-    this.settingsSections = new SettingsSections(this.plugin);
     this.settingCreators = new SettingCreators(this.plugin, () => this.display());
     if (this.plugin && typeof this.plugin.debugLog === "function") {
       this.plugin.debugLog("debug", "[MyPluginSettingTab] constructor called");
     }
-    this.apiKeysSection = new ApiKeysSection(this.plugin, this.settingCreators);
-    this.modelManagementSection = new ModelManagementSection(this.plugin, this.settingCreators);
-    this.agentConfigSection = new AgentConfigSection(this.app, this.plugin, this.settingCreators);
-    this.contentChatSection = new ContentChatSection(this.plugin, this.settingCreators);
-    this.dataHandlingSection = new DataHandlingSection(this.plugin, this.settingCreators);
-    this.pluginBehaviorSection = new PluginBehaviorSection(this.plugin, this.settingCreators);
+    this.generalSettingsSection = new GeneralSettingsSection(this.plugin, this.settingCreators);
+    this.aiModelConfigurationSection = new AIModelConfigurationSection(this.plugin, this.settingCreators);
+    this.agentSettingsSection = new AgentSettingsSection(this.app, this.plugin, this.settingCreators);
+    this.contentNoteHandlingSection = new ContentNoteHandlingSection(this.plugin, this.settingCreators);
     this.backupManagementSection = new BackupManagementSection(this.plugin, this.settingCreators);
+    this.chatHistorySettingsSection = new ChatHistorySettingsSection(this.plugin, this.settingCreators);
     this.settingsChangeListener = () => {
       if (this.containerEl.isConnected) {
         this.display();
@@ -14748,22 +15047,48 @@ var MyPluginSettingTab = class extends import_obsidian32.PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
     containerEl.createEl("h2", { text: "AI Assistant Settings" });
-    this.apiKeysSection.render(containerEl);
-    this.modelManagementSection.render(containerEl);
     CollapsibleSectionRenderer.createCollapsibleSection(
       containerEl,
-      "Default AI Model Settings",
-      async (sectionEl) => {
-        await this.settingsSections.renderAIModelSettings(sectionEl, () => this.display());
-      },
+      "General Settings",
+      (sectionEl) => this.generalSettingsSection.render(sectionEl),
       this.plugin,
       "generalSectionsExpanded"
     );
-    this.agentConfigSection.render(containerEl);
-    this.contentChatSection.render(containerEl);
-    this.dataHandlingSection.render(containerEl);
-    this.pluginBehaviorSection.render(containerEl);
-    this.backupManagementSection.render(containerEl);
+    CollapsibleSectionRenderer.createCollapsibleSection(
+      containerEl,
+      "AI Model Configuration",
+      (sectionEl) => this.aiModelConfigurationSection.render(sectionEl),
+      this.plugin,
+      "generalSectionsExpanded"
+    );
+    CollapsibleSectionRenderer.createCollapsibleSection(
+      containerEl,
+      "Agent Settings",
+      (sectionEl) => this.agentSettingsSection.render(sectionEl),
+      this.plugin,
+      "agentConfigExpanded"
+    );
+    CollapsibleSectionRenderer.createCollapsibleSection(
+      containerEl,
+      "Content & Note Handling",
+      (sectionEl) => this.contentNoteHandlingSection.render(sectionEl),
+      this.plugin,
+      "contentChatExpanded"
+    );
+    CollapsibleSectionRenderer.createCollapsibleSection(
+      containerEl,
+      "Chat History & UI",
+      (sectionEl) => this.chatHistorySettingsSection.render(sectionEl),
+      this.plugin,
+      "dataHandlingExpanded"
+    );
+    CollapsibleSectionRenderer.createCollapsibleSection(
+      containerEl,
+      "Backup Management",
+      (sectionEl) => this.backupManagementSection.render(sectionEl),
+      this.plugin,
+      "backupManagementExpanded"
+    );
     new import_obsidian32.Setting(containerEl).setName("Reset All Settings to Default").setDesc("Reset all plugin settings (except API keys) to their original default values.").addButton((button) => button.setButtonText("Reset").onClick(async () => {
       const { DEFAULT_SETTINGS: DEFAULT_SETTINGS2 } = await Promise.resolve().then(() => (init_types(), types_exports));
       const { DEFAULT_TITLE_PROMPT: DEFAULT_TITLE_PROMPT2 } = await Promise.resolve().then(() => (init_promptConstants(), promptConstants_exports));
