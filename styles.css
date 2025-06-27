@@ -808,10 +808,13 @@
     padding: 12px;
     font-size: 0.95em;
     border: 1px solid var(--background-modifier-border);
+    max-height: 300px;
+    overflow: auto;
 }
 
-.tool-rich-details.expanded {
-    display: block;
+.tool-rich-details pre {
+    white-space: pre-wrap;
+    word-break: break-word;
 }
 
 .tool-rich-actions {

@@ -74,15 +74,18 @@ export class ToolRichDisplay extends Component {
             
             const detailsDiv = document.createElement('div');
             detailsDiv.className = 'tool-rich-details';
+            detailsDiv.style.display = 'none'; // Hide by default
             detailsDiv.innerHTML = `<pre>${details}</pre>`;
             
             toggle.onclick = () => {
                 const isExpanded = detailsDiv.classList.contains('expanded');
                 if (isExpanded) {
                     detailsDiv.classList.remove('expanded');
+                    detailsDiv.style.display = 'none';
                     toggle.innerText = 'Show details ▼';
                 } else {
                     detailsDiv.classList.add('expanded');
+                    detailsDiv.style.display = 'block';
                     toggle.innerText = 'Hide details ▲';
                 }
             };
