@@ -13669,9 +13669,11 @@ var CollapsibleSectionRenderer = class {
 // src/settings/components/SettingCreators.ts
 var import_obsidian28 = require("obsidian");
 var SettingCreators = class {
-  constructor(plugin) {
+  constructor(plugin, reRenderCallback) {
     __publicField(this, "plugin");
+    __publicField(this, "reRenderCallback");
     this.plugin = plugin;
+    this.reRenderCallback = reRenderCallback;
   }
   /**
    * Creates a text input setting.
@@ -13715,6 +13717,7 @@ var SettingCreators = class {
         processedValue = void 0;
       }
       await setValue(processedValue);
+      this.reRenderCallback();
     });
   }
   /**
@@ -13732,6 +13735,7 @@ var SettingCreators = class {
       drop.setValue(getValue());
       drop.onChange(async (value) => {
         await setValue(value);
+        this.reRenderCallback();
       });
     });
   }
@@ -13750,6 +13754,7 @@ var SettingCreators = class {
       if (onChangeCallback) {
         onChangeCallback();
       }
+      this.reRenderCallback();
     }));
   }
   /**
@@ -13765,6 +13770,7 @@ var SettingCreators = class {
     new import_obsidian28.Setting(containerEl).setName(name).setDesc(desc).addSlider((slider) => {
       slider.setLimits(limits.min, limits.max, limits.step).setValue(getValue()).setDynamicTooltip().onChange(async (value) => {
         await setValue(value);
+        this.reRenderCallback();
       });
     });
   }
@@ -14703,9 +14709,10 @@ var MyPluginSettingTab = class extends import_obsidian32.PluginSettingTab {
     __publicField(this, "dataHandlingSection");
     __publicField(this, "pluginBehaviorSection");
     __publicField(this, "backupManagementSection");
+    __publicField(this, "settingsChangeListener", null);
     this.plugin = plugin;
     this.settingsSections = new SettingsSections(this.plugin);
-    this.settingCreators = new SettingCreators(this.plugin);
+    this.settingCreators = new SettingCreators(this.plugin, () => this.display());
     if (this.plugin && typeof this.plugin.debugLog === "function") {
       this.plugin.debugLog("debug", "[MyPluginSettingTab] constructor called");
     }
@@ -14716,6 +14723,19 @@ var MyPluginSettingTab = class extends import_obsidian32.PluginSettingTab {
     this.dataHandlingSection = new DataHandlingSection(this.plugin, this.settingCreators);
     this.pluginBehaviorSection = new PluginBehaviorSection(this.plugin, this.settingCreators);
     this.backupManagementSection = new BackupManagementSection(this.plugin, this.settingCreators);
+    this.settingsChangeListener = () => {
+      if (this.containerEl.isConnected) {
+        this.display();
+      }
+    };
+    this.plugin.onSettingsChange(this.settingsChangeListener);
+  }
+  hide() {
+    if (this.settingsChangeListener) {
+      this.plugin.offSettingsChange(this.settingsChangeListener);
+      this.settingsChangeListener = null;
+    }
+    super.hide();
   }
   /**
    * Display the settings tab.

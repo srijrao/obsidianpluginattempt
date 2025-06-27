@@ -6,9 +6,11 @@ import MyPlugin from '../../main'; // Adjust path as needed
  */
 export class SettingCreators {
     private plugin: MyPlugin;
+    private reRenderCallback: () => void;
 
-    constructor(plugin: MyPlugin) {
+    constructor(plugin: MyPlugin, reRenderCallback: () => void) {
         this.plugin = plugin;
+        this.reRenderCallback = reRenderCallback;
     }
 
     /**
@@ -73,6 +75,7 @@ export class SettingCreators {
                     processedValue = undefined;
                 }
                 await setValue(processedValue);
+                this.reRenderCallback(); // Re-render the settings tab after value changes
             });
     }
 
@@ -101,6 +104,7 @@ export class SettingCreators {
                 drop.setValue(getValue());
                 drop.onChange(async (value: string) => {
                     await setValue(value);
+                    this.reRenderCallback(); // Re-render the settings tab after value changes
                 });
             });
     }
@@ -132,6 +136,7 @@ export class SettingCreators {
                     if (onChangeCallback) {
                         onChangeCallback();
                     }
+                    this.reRenderCallback(); // Re-render the settings tab after value changes
                 }));
     }
 
@@ -161,6 +166,7 @@ export class SettingCreators {
                     .setDynamicTooltip()
                     .onChange(async (value: number) => {
                         await setValue(value);
+                        this.reRenderCallback(); // Re-render the settings tab after value changes
                     });
             });
     }

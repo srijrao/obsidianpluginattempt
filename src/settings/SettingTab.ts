@@ -34,11 +34,13 @@ export class MyPluginSettingTab extends PluginSettingTab {
     private pluginBehaviorSection: PluginBehaviorSection;
     private backupManagementSection: BackupManagementSection;
 
+    private settingsChangeListener: (() => void) | null = null;
+
     constructor(app: App, plugin: MyPlugin) {
         super(app, plugin);
         this.plugin = plugin;
         this.settingsSections = new SettingsSections(this.plugin); // This might need to be refactored or removed
-        this.settingCreators = new SettingCreators(this.plugin);
+        this.settingCreators = new SettingCreators(this.plugin, () => this.display()); // Pass the display method as a callback
         if (this.plugin && typeof this.plugin.debugLog === 'function') {
             this.plugin.debugLog('debug', '[MyPluginSettingTab] constructor called');
         }
@@ -51,6 +53,24 @@ export class MyPluginSettingTab extends PluginSettingTab {
         this.dataHandlingSection = new DataHandlingSection(this.plugin, this.settingCreators);
         this.pluginBehaviorSection = new PluginBehaviorSection(this.plugin, this.settingCreators);
         this.backupManagementSection = new BackupManagementSection(this.plugin, this.settingCreators);
+
+        // Add settings change listener to refresh UI
+        this.settingsChangeListener = () => {
+            // Prevent infinite loop if display triggers another settings change
+            if (this.containerEl.isConnected) {
+                this.display();
+            }
+        };
+        this.plugin.onSettingsChange(this.settingsChangeListener);
+    }
+
+    hide(): void {
+        // Remove the settings change listener when the tab is hidden/destroyed
+        if (this.settingsChangeListener) {
+            this.plugin.offSettingsChange(this.settingsChangeListener);
+            this.settingsChangeListener = null;
+        }
+        super.hide();
     }
 
     /**
