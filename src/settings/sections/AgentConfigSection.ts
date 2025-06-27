@@ -2,7 +2,7 @@ import { App, Setting, Notice } from 'obsidian';
 import MyPlugin from '../../main';
 import { SettingCreators } from '../components/SettingCreators';
 import { CollapsibleSectionRenderer } from '../../components/chat/CollapsibleSection';
-import { createToolInstances } from '../../components/chat/tools/toolcollect'; // Adjust path as needed
+import { createToolInstances } from '../../components/chat/agent/tools/toolcollect'; // Adjust path as needed
 import { AGENT_SYSTEM_PROMPT_TEMPLATE } from '../../promptConstants'; // Adjust path as needed
 
 export class AgentConfigSection {

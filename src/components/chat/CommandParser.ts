@@ -1,6 +1,6 @@
 import { ToolCommand } from '../../types';
 // Import dynamic tool names
-import { getAllToolNames } from './tools/toolcollect';
+import { getAllToolNames } from './agent/tools/toolcollect';
 import MyPlugin from '../../main';
 
 /**
