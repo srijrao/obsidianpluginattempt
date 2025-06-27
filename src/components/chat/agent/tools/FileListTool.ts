@@ -12,7 +12,7 @@ export interface FileListParams {
 
 export class FileListTool implements Tool {
     name = 'file_list';
-    description = 'List all files in a specified folder in the vault';
+    description = 'List all files and folders in a specified folder in the vault';
     parameters = {
         path: { type: 'string', description: 'Path to the folder (relative to vault root or absolute path within vault). Defaults to vault root if not provided.', required: false },
         recursive: { type: 'boolean', description: 'Whether to list files recursively', default: false }
@@ -60,11 +60,18 @@ export class FileListTool implements Tool {
 
         const filesFound: string[] = [];
         const walk = (currentFolder: TFolder) => {
+            // Add the folder itself (with trailing slash)
+            filesFound.push(currentFolder.path.endsWith("/") ? currentFolder.path : currentFolder.path + "/");
             for (const child of currentFolder.children) {
                 if (child instanceof TFile) {
                     filesFound.push(child.path);
-                } else if (child instanceof TFolder && recursive) {
-                    walk(child);
+                } else if (child instanceof TFolder) {
+                    if (recursive) {
+                        walk(child);
+                    } else {
+                        // Add subfolder if not recursing
+                        filesFound.push(child.path.endsWith("/") ? child.path : child.path + "/");
+                    }
                 }
             }
         };

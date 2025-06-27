@@ -3852,7 +3852,7 @@ var init_FileListTool = __esm({
       constructor(app) {
         this.app = app;
         __publicField(this, "name", "file_list");
-        __publicField(this, "description", "List all files in a specified folder in the vault");
+        __publicField(this, "description", "List all files and folders in a specified folder in the vault");
         __publicField(this, "parameters", {
           path: { type: "string", description: "Path to the folder (relative to vault root or absolute path within vault). Defaults to vault root if not provided.", required: false },
           recursive: { type: "boolean", description: "Whether to list files recursively", default: false }
@@ -3887,11 +3887,16 @@ var init_FileListTool = __esm({
         }
         const filesFound = [];
         const walk = (currentFolder) => {
+          filesFound.push(currentFolder.path.endsWith("/") ? currentFolder.path : currentFolder.path + "/");
           for (const child of currentFolder.children) {
             if (child instanceof import_obsidian8.TFile) {
               filesFound.push(child.path);
-            } else if (child instanceof import_obsidian8.TFolder && recursive) {
-              walk(child);
+            } else if (child instanceof import_obsidian8.TFolder) {
+              if (recursive) {
+                walk(child);
+              } else {
+                filesFound.push(child.path.endsWith("/") ? child.path : child.path + "/");
+              }
             }
           }
         };
