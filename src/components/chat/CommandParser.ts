@@ -135,49 +135,16 @@ export class CommandParser {
                     delete parameters.requestId;
                 }
                 
-                // Convert "finished" action to thought tool call
-                if (parsed.action === 'finished') {
-                    // Extract the actual message/result from the finished action
-                    // Check multiple locations where the message might be stored
-                    const finalMessage = parsed.message || 
-                                       parsed.result || 
-                                       parsed.response || 
-                                       parameters?.message || 
-                                       parameters?.result || 
-                                       parameters?.response || 
-                                       'Task completed';
-                    
-                    if (this.plugin) {
-                        this.plugin.debugLog('debug', '[CommandParser] Converting finished action to thought', { 
-                            parsed, finalMessage, parameters 
-                        });
-                    }
-                    
-                    commands.push({
-                        command: {
-                            action: 'thought',
-                            parameters: {
-                                thought: finalMessage,
-                                nextTool: 'finished',
-                                category: 'conclusion',
-                                confidence: 10
-                            },
-                            requestId: parsed.requestId || this.generateRequestId(),
-                            finished: true
-                        },
-                        originalText: text.trim()
-                    });
-                } else {
-                    commands.push({
-                        command: {
-                            action: parsed.action,
-                            parameters: parameters,
-                            requestId: parsed.requestId || this.generateRequestId(),
-                            finished: parsed.finished || false
-                        },
-                        originalText: text.trim()
-                    });
-                }
+                // No more conversion of 'finished' to 'thought' -- just push as-is
+                commands.push({
+                    command: {
+                        action: parsed.action,
+                        parameters: parameters,
+                        requestId: parsed.requestId || this.generateRequestId(),
+                        finished: parsed.finished || false
+                    },
+                    originalText: text.trim()
+                });
                 return commands;
             }
         } catch (error) {
@@ -211,49 +178,16 @@ export class CommandParser {
                             delete parameters.requestId;
                         }
                         
-                        // Convert "finished" action to thought tool call
-                        if (parsed.action === 'finished') {
-                            // Extract the actual message/result from the finished action
-                            // Check multiple locations where the message might be stored
-                            const finalMessage = parsed.message || 
-                                               parsed.result || 
-                                               parsed.response || 
-                                               parameters?.message || 
-                                               parameters?.result || 
-                                               parameters?.response || 
-                                               'Task completed';
-                            
-                            if (this.plugin) {
-                                this.plugin.debugLog('debug', '[CommandParser] Converting finished action to thought (pattern match)', { 
-                                    parsed, finalMessage, parameters 
-                                });
-                            }
-                            
-                            commands.push({
-                                command: {
-                                    action: 'thought',
-                                    parameters: {
-                                        thought: finalMessage,
-                                        nextTool: 'finished',
-                                        category: 'conclusion',
-                                        confidence: 10
-                                    },
-                                    requestId: parsed.requestId || this.generateRequestId(),
-                                    finished: true
-                                },
-                                originalText
-                            });
-                        } else {
-                            commands.push({
-                                command: {
-                                    action: parsed.action,
-                                    parameters: parameters,
-                                    requestId: parsed.requestId || this.generateRequestId(),
-                                    finished: parsed.finished || false
-                                },
-                                originalText
-                            });
-                        }
+                        // No more conversion of 'finished' to 'thought' -- just push as-is
+                        commands.push({
+                            command: {
+                                action: parsed.action,
+                                parameters: parameters,
+                                requestId: parsed.requestId || this.generateRequestId(),
+                                finished: parsed.finished || false
+                            },
+                            originalText
+                        });
                     }
                 } catch (error) {
                     // Ignore invalid JSON

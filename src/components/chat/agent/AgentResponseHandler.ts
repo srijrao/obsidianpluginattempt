@@ -5,7 +5,7 @@ import { CommandParser } from '../CommandParser';
 import { ToolRegistry } from './ToolRegistry';
 import { ToolRichDisplay } from './ToolRichDisplay';
 // Import all tool management from toolcollect for dynamic tool loading
-import { getAllToolClasses, createToolInstances } from '../tools/toolcollect';
+import {createToolInstances } from '../tools/toolcollect';
 
 export interface AgentContext {
     app: App;

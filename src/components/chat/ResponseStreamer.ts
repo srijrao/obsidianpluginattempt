@@ -488,6 +488,8 @@ export class ResponseStreamer {
         element.style.opacity = '0.8';
         element.style.fontStyle = 'italic';
         this.messagesContainer.appendChild(element);
+        // Always scroll to bottom after adding continuation UI
+        this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
     }
 
     /**

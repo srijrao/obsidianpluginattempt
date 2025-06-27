@@ -60,6 +60,8 @@ export class ThoughtTool implements Tool {
     name = 'thought';
     description = `Record and display a single AI reasoning step, always suggesting the next tool to use (or 'finished' if complete). Output is machine-readable for both agent automation and user display. Requires 'thought' and 'nextTool' parameters; optionally includes step tracking, confidence, and a description of the next action.
 
+Never use 'action: finished'. When you are done, always use the 'thought' tool with 'nextTool': 'finished'.
+
 Example:
 {
   "action": "thought",
