@@ -58,14 +58,15 @@ export class TaskContinuation {
             // Always include all tool results so far
             const toolResultMessage = this.agentResponseHandler?.createToolResultMessage(allToolResults);
             if (toolResultMessage) {
-                messages.push({ role: 'assistant', content: initialResponseContent });
-                messages.push(toolResultMessage);
-                messages.push({ 
-                    role: 'system', 
-                    content: 'Continue with the remaining parts of the task. Check your progress and continue until ALL parts of the user\'s request are complete. Set finished: true only when everything is done.'
-                });
+                // Create a copy of messages for continuation to avoid modifying the original
+                const continuationMessages: Message[] = [
+                    ...messages,
+                    { role: 'assistant', content: initialResponseContent },
+                    toolResultMessage
+                ];
+                
                 // Get continuation response
-                const continuationContent = await this.getContinuationResponse(messages, container);
+                const continuationContent = await this.getContinuationResponse(continuationMessages, container);
                 if (continuationContent.trim()) {
                     // Process for tools first
                     let processingResult;
@@ -167,7 +168,13 @@ export class TaskContinuation {
                     isFinished = true;
                 }
             } catch (e) {
-                // Not JSON, ignore
+                // Not JSON, check if this is a plain text response after tool execution
+                // If we have tool results from previous iterations and this is just plain text,
+                // it's likely the final user-facing response
+                if (initialToolResults.length > 0) {
+                    // Check if any previous tool results indicated completion
+                    isFinished = this.checkIfTaskFinished(initialToolResults);
+                }
             }
             const updatedContent = responseContent + '\n\n' + continuationContent;
             await this.updateContainerContent(container, updatedContent);
@@ -198,9 +205,19 @@ export class TaskContinuation {
      * Check if any tool results indicate the task is finished
      */
     private checkIfTaskFinished(toolResults: Array<{ command: ToolCommand; result: ToolResult }>): boolean {
-        return toolResults.some(({ command }) => {
+        return toolResults.some(({ command, result }) => {
             // Check if the command has finished: true parameter
-            return (command as any).finished === true;
+            if ((command as any).finished === true) {
+                return true;
+            }
+            
+            // Check if this is a thought tool indicating completion
+            if (command.action === 'thought' && result.success && result.data) {
+                // Check if nextTool is "finished" or result indicates finished
+                return result.data.nextTool === 'finished' || result.data.finished === true;
+            }
+            
+            return false;
         });
     }    /**
      * Get continuation response after tool execution

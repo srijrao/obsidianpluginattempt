@@ -4178,6 +4178,7 @@ var init_promptConstants = __esm({
 - You are an AI assistant in an Obsidian Vault with access to powerful tools for vault management and interaction.
 - Try to use tools whenever possible to perform tasks. Start by using the 'thought' tool to outline your plan before executing actions.
 - Provide explanations, summaries, or discussions naturally. Ask clarifying questions when requests are ambiguous.
+- When you have completely fulfilled a user's request, use the thought tool with nextTool: "finished" to signal completion.
 
 If you use a tool, always check the tool result (including errors) before continuing. If a tool fails, analyze the error, adjust your plan, and try a different approach or fix the parameters. Do not repeat the same failed tool call. Always reason about tool results before proceeding.
 
@@ -4192,7 +4193,7 @@ When using tools, respond ONLY with a JSON object using this parameter framework
     /* other tool-specific parameters */
   },
   "requestId": "unique_id",
-  "finished": false // - Set to true only when the entire request is fully completed
+  "finished": false // - Generally keep this false; use the thought tool with nextTool: "finished" to signal task completion
 }
 `;
     AGENT_SYSTEM_PROMPT = buildAgentSystemPrompt();
@@ -12221,13 +12222,12 @@ var TaskContinuation = class {
       }
       const toolResultMessage = (_c = this.agentResponseHandler) == null ? void 0 : _c.createToolResultMessage(allToolResults);
       if (toolResultMessage) {
-        messages.push({ role: "assistant", content: initialResponseContent });
-        messages.push(toolResultMessage);
-        messages.push({
-          role: "system",
-          content: "Continue with the remaining parts of the task. Check your progress and continue until ALL parts of the user's request are complete. Set finished: true only when everything is done."
-        });
-        const continuationContent = await this.getContinuationResponse(messages, container);
+        const continuationMessages = [
+          ...messages,
+          { role: "assistant", content: initialResponseContent },
+          toolResultMessage
+        ];
+        const continuationContent = await this.getContinuationResponse(continuationMessages, container);
         if (continuationContent.trim()) {
           let processingResult;
           if (this.agentResponseHandler) {
@@ -12305,6 +12305,9 @@ var TaskContinuation = class {
           isFinished = true;
         }
       } catch (e) {
+        if (initialToolResults.length > 0) {
+          isFinished = this.checkIfTaskFinished(initialToolResults);
+        }
       }
       const updatedContent = responseContent + "\n\n" + continuationContent;
       await this.updateContainerContent(container, updatedContent);
@@ -12333,8 +12336,14 @@ var TaskContinuation = class {
    * Check if any tool results indicate the task is finished
    */
   checkIfTaskFinished(toolResults) {
-    return toolResults.some(({ command }) => {
-      return command.finished === true;
+    return toolResults.some(({ command, result }) => {
+      if (command.finished === true) {
+        return true;
+      }
+      if (command.action === "thought" && result.success && result.data) {
+        return result.data.nextTool === "finished" || result.data.finished === true;
+      }
+      return false;
     });
   }
   /**
