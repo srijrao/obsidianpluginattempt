@@ -10766,10 +10766,10 @@ init_types();
 // src/settings/SettingTab.ts
 var import_obsidian32 = require("obsidian");
 
-// src/commands/viewCommands.ts
+// src/components/commands/viewCommands.ts
 init_pluginUtils();
 
-// src/managers/viewManager.ts
+// src/utils/viewManager.ts
 async function activateView(app, viewType, reveal = true) {
   app.workspace.detachLeavesOfType(viewType);
   let leaf = app.workspace.getRightLeaf(false) || app.workspace.getLeaf(true);
@@ -13303,7 +13303,7 @@ var ChatView = class extends import_obsidian26.ItemView {
   // All reasoning/task status rendering and helpers are now handled by MessageRenderer
 };
 
-// src/commands/viewCommands.ts
+// src/components/commands/viewCommands.ts
 var VIEW_TYPE_MODEL_SETTINGS = "model-settings-view";
 function registerViewCommands(plugin) {
   registerCommand(
@@ -13328,10 +13328,10 @@ function registerViewCommands(plugin) {
   );
 }
 
-// src/commands/aiStreamCommands.ts
+// src/components/commands/aiStreamCommands.ts
 init_pluginUtils();
 
-// src/handlers/aiCompletionHandler.ts
+// src/components/aiCompletionHandler.ts
 init_providers();
 
 // src/components/parseSelection.ts
@@ -13405,7 +13405,7 @@ ${separator}
   return position.line + (prefix ? 1 : 0) + 2;
 }
 
-// src/handlers/aiCompletionHandler.ts
+// src/components/aiCompletionHandler.ts
 async function handleAICompletion(editor, settings, processMessages2, getSystemMessage2, activeStream, setActiveStream) {
   var _a2, _b;
   let text;
@@ -13516,7 +13516,7 @@ The current time is ${currentTime} ${timeZoneString}.`;
   return systemMessage;
 }
 
-// src/commands/aiStreamCommands.ts
+// src/components/commands/aiStreamCommands.ts
 function registerAIStreamCommands(plugin, settings, processMessages2, activeStream, setActiveStream) {
   registerCommand(
     plugin,
@@ -13552,7 +13552,7 @@ function registerAIStreamCommands(plugin, settings, processMessages2, activeStre
   );
 }
 
-// src/commands/noteCommands.ts
+// src/components/commands/noteCommands.ts
 init_pluginUtils();
 function registerNoteCommands(plugin, settings, activateChatViewAndLoadMessages) {
   registerCommand(
@@ -13612,7 +13612,7 @@ function registerNoteCommands(plugin, settings, activateChatViewAndLoadMessages)
   );
 }
 
-// src/commands/generateNoteTitleCommand.ts
+// src/components/commands/generateNoteTitleCommand.ts
 init_pluginUtils();
 function registerGenerateNoteTitleCommand(plugin, settings, processMessages2) {
   registerCommand(
@@ -15358,7 +15358,7 @@ function debugLog(debugMode, level = "debug", ...args) {
   }
 }
 
-// src/managers/agentModeManager.ts
+// src/components/chat/agent/agentModeManager.ts
 var AgentModeManager = class {
   constructor(settings, saveSettings, emitSettingsChange, debugLog2) {
     this.settings = settings;
