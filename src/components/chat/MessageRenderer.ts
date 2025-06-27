@@ -372,7 +372,8 @@ export class MessageRenderer {
         return output;
     }    /**
      * Get message content formatted for clipboard copy, including tool results
-     */    getMessageContentForCopy(messageData: Message): string {
+     */
+    getMessageContentForCopy(messageData: Message): string {
         let content = messageData.content;
         
         if (messageData.toolResults && messageData.toolResults.length > 0) {
@@ -384,14 +385,7 @@ export class MessageRenderer {
                 taskStatus: messageData.taskStatus
             }, null, 2);
             content += '\n```\n';
-              // Add the formatted displays using ToolRichDisplay
-            messageData.toolResults.forEach((toolResult: ToolExecutionResult) => {
-                const toolDisplay = new ToolRichDisplay({
-                    command: toolResult.command,
-                    result: toolResult.result
-                });
-                content += '\n\n' + toolDisplay.toMarkdown();
-            });
+            // Removed ToolRichDisplay.toMarkdown() output to avoid duplicate markdown
         }
 
         return content;

@@ -5071,13 +5071,6 @@ ${result.error}`;
             taskStatus: messageData.taskStatus
           }, null, 2);
           content += "\n```\n";
-          messageData.toolResults.forEach((toolResult) => {
-            const toolDisplay = new ToolRichDisplay({
-              command: toolResult.command,
-              result: toolResult.result
-            });
-            content += "\n\n" + toolDisplay.toMarkdown();
-          });
         }
         return content;
       }
@@ -9388,7 +9381,15 @@ var init_providers = __esm({
 });
 
 // src/components/chat/chatPersistence.ts
+function log(level, ...args) {
+  if (typeof window !== "undefined" && window.plugin && typeof window.plugin.debugLog === "function") {
+    window.plugin.debugLog(level, "[chatPersistence]", ...args);
+  } else if (typeof console !== "undefined") {
+    if (level !== "debug") console[level]("[chatPersistence]", ...args);
+  }
+}
 function buildChatYaml(settings, provider, model) {
+  log("info", "[buildChatYaml] Building chat YAML frontmatter", { selectedModel: settings.selectedModel, provider, model });
   if (settings.selectedModel) {
     const providerType = getProviderFromUnifiedModel(settings.selectedModel);
     const modelId = getModelIdFromUnifiedModel(settings.selectedModel);
@@ -9396,10 +9397,10 @@ function buildChatYaml(settings, provider, model) {
       provider: providerType,
       model: modelId,
       unified_model: settings.selectedModel,
-      // Add unified model ID for future compatibility
       system_message: settings.systemMessage,
       temperature: settings.temperature
     };
+    log("debug", "[buildChatYaml] Using unified model format", yamlObj);
     return `---
 ${dump(yamlObj)}---
 `;
@@ -9410,6 +9411,7 @@ ${dump(yamlObj)}---
       system_message: settings.systemMessage,
       temperature: settings.temperature
     };
+    log("debug", "[buildChatYaml] Using legacy model format", yamlObj);
     return `---
 ${dump(yamlObj)}---
 `;
@@ -9440,15 +9442,19 @@ async function saveChatAsNote({
   chatNoteFolder,
   agentResponseHandler
 }) {
+  log("info", "[saveChatAsNote] Starting chat note save process", { hasMessages: !!messages, hasChatContent: typeof chatContent === "string" });
   let content = "";
   if (typeof chatContent === "string") {
     content = chatContent;
+    log("info", "[saveChatAsNote] Using provided chatContent string directly.");
   } else if (messages) {
+    log("info", "[saveChatAsNote] Building chat content from message DOM nodes.");
     const messageRenderer = new MessageRenderer(app);
     messages.forEach((el, index) => {
       var _a2;
       const htmlElement = el;
       if (htmlElement.classList.contains("tool-display-message")) {
+        log("debug", `[saveChatAsNote] Skipping tool-display-message at index ${index}`);
         return;
       }
       const messageDataStr = htmlElement.dataset.messageData;
@@ -9456,14 +9462,18 @@ async function saveChatAsNote({
       if (messageDataStr) {
         try {
           messageData = JSON.parse(messageDataStr);
+          log("debug", `[saveChatAsNote] Parsed messageData at index ${index}`, messageData);
         } catch (e) {
+          log("warn", `[saveChatAsNote] Failed to parse messageData at index ${index}`, e);
         }
       }
       if (messageData && messageData.toolResults && messageData.toolResults.length > 0) {
+        log("info", `[saveChatAsNote] Formatting message with toolResults at index ${index}`);
         content += messageRenderer.getMessageContentForCopy(messageData);
       } else {
         const rawContent = htmlElement.dataset.rawContent;
         const msg = rawContent !== void 0 ? rawContent : ((_a2 = el.querySelector(".message-content")) == null ? void 0 : _a2.textContent) || "";
+        log("debug", `[saveChatAsNote] Appending regular message at index ${index}`, { msg });
         content += msg;
       }
       if (index < messages.length - 1) {
@@ -9471,9 +9481,11 @@ async function saveChatAsNote({
       }
     });
   } else {
+    log("error", "[saveChatAsNote] Neither messages nor chatContent provided. Aborting.");
     throw new Error("Either messages or chatContent must be provided");
   }
   const yaml = buildChatYaml(settings, provider, model);
+  log("info", "[saveChatAsNote] YAML frontmatter built. Stripping any existing YAML from chat content.");
   content = content.replace(/^---[\s\S]*?---\n?/, "");
   const noteContent = yaml + "\n" + content.trimStart();
   const now = /* @__PURE__ */ new Date();
@@ -9482,16 +9494,23 @@ async function saveChatAsNote({
   let filePath = fileName;
   const folder = chatNoteFolder == null ? void 0 : chatNoteFolder.trim();
   if (folder) {
+    log("info", `[saveChatAsNote] Ensuring chat note folder exists: ${folder}`);
     const folderExists = app.vault.getAbstractFileByPath(folder);
     if (!folderExists) {
       try {
         await app.vault.createFolder(folder);
+        log("info", `[saveChatAsNote] Created chat note folder: ${folder}`);
       } catch (e) {
         if (!app.vault.getAbstractFileByPath(folder)) {
+          log("error", `[saveChatAsNote] Failed to create folder for chat note: ${folder}`, e);
           new import_obsidian14.Notice("Failed to create folder for chat note.");
           return;
+        } else {
+          log("warn", `[saveChatAsNote] Folder already exists after race: ${folder}`);
         }
       }
+    } else {
+      log("debug", `[saveChatAsNote] Folder already exists: ${folder}`);
     }
     filePath = folder.replace(/[/\\]+$/, "") + "/" + fileName;
   }
@@ -9502,14 +9521,18 @@ async function saveChatAsNote({
     const base = extIndex !== -1 ? fileName.substring(0, extIndex) : fileName;
     const ext = extIndex !== -1 ? fileName.substring(extIndex) : "";
     finalFilePath = (folder ? folder.replace(/[/\\]+$/, "") + "/" : "") + `${base} (${attempt})${ext}`;
+    log("warn", `[saveChatAsNote] File already exists, trying new filename: ${finalFilePath}`);
     attempt++;
   }
   try {
     await app.vault.create(finalFilePath, noteContent);
+    log("info", `[saveChatAsNote] Chat successfully saved as note: ${finalFilePath}`);
     new import_obsidian14.Notice(`Chat saved as note: ${finalFilePath}`);
   } catch (e) {
+    log("error", `[saveChatAsNote] Failed to save chat as note: ${finalFilePath}`, e);
     new import_obsidian14.Notice("Failed to save chat as note.");
   }
+  log("info", "[saveChatAsNote] Save process complete.");
 }
 async function loadChatYamlAndApplySettings({
   app,
@@ -9517,21 +9540,29 @@ async function loadChatYamlAndApplySettings({
   settings,
   file
 }) {
+  log("info", "[loadChatYamlAndApplySettings] Reading chat note file", { file: (file == null ? void 0 : file.path) || (file == null ? void 0 : file.name) || file });
   let content = await app.vault.read(file);
+  log("debug", "[loadChatYamlAndApplySettings] File content loaded. Extracting YAML frontmatter.");
   const yamlMatch = content.match(/^---\n([\s\S]*?)\n---/);
   let yamlObj = {};
   if (yamlMatch) {
     try {
       yamlObj = load(yamlMatch[1]) || {};
+      log("info", "[loadChatYamlAndApplySettings] YAML frontmatter parsed", yamlObj);
     } catch (e) {
+      log("warn", "[loadChatYamlAndApplySettings] Failed to parse YAML frontmatter", e);
       yamlObj = {};
     }
+  } else {
+    log("warn", "[loadChatYamlAndApplySettings] No YAML frontmatter found in file.");
   }
   if (yamlObj.unified_model) {
     settings.selectedModel = yamlObj.unified_model;
+    log("info", "[loadChatYamlAndApplySettings] Loaded unified_model from YAML", yamlObj.unified_model);
   } else if (yamlObj.provider && yamlObj.model) {
     const unifiedModelId = `${yamlObj.provider}:${yamlObj.model}`;
     settings.selectedModel = unifiedModelId;
+    log("info", "[loadChatYamlAndApplySettings] Loaded legacy provider/model from YAML", { provider: yamlObj.provider, model: yamlObj.model });
     settings.provider = yamlObj.provider;
     switch (yamlObj.provider) {
       case "openai":
@@ -9547,18 +9578,28 @@ async function loadChatYamlAndApplySettings({
         settings.ollamaSettings.model = yamlObj.model;
         break;
     }
+  } else {
+    log("warn", "[loadChatYamlAndApplySettings] No model/provider found in YAML. Using existing settings.");
   }
   let newSystemMessage = yamlObj.system_message || settings.systemMessage;
   let newTemperature = settings.temperature;
   if (yamlObj.temperature !== void 0) {
     const tempNum = parseFloat(yamlObj.temperature);
-    if (!isNaN(tempNum)) newTemperature = tempNum;
+    if (!isNaN(tempNum)) {
+      newTemperature = tempNum;
+      log("info", "[loadChatYamlAndApplySettings] Loaded temperature from YAML", newTemperature);
+    } else {
+      log("warn", "[loadChatYamlAndApplySettings] Invalid temperature in YAML, using existing value.", yamlObj.temperature);
+    }
   }
   settings.systemMessage = newSystemMessage;
   settings.temperature = newTemperature;
+  log("info", "[loadChatYamlAndApplySettings] Applied settings from YAML", { selectedModel: settings.selectedModel, systemMessage: newSystemMessage, temperature: newTemperature });
   if (plugin.onSettingsLoadedFromNote) {
+    log("debug", "[loadChatYamlAndApplySettings] Calling plugin.onSettingsLoadedFromNote");
     plugin.onSettingsLoadedFromNote(settings);
   }
+  log("info", "[loadChatYamlAndApplySettings] YAML load/apply process complete.");
   return {
     provider: yamlObj.provider,
     model: yamlObj.model,
