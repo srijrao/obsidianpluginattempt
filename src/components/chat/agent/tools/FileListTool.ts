@@ -1,7 +1,7 @@
 // FileListTool.ts
 // Tool for listing files in a specified folder in the vault
 import { App, TFile, TFolder, Vault } from 'obsidian';
-import { Tool, ToolResult } from '../agent/ToolRegistry';
+import { Tool, ToolResult } from '../ToolRegistry';
 import { PathValidator } from './pathValidation';
 
 export interface FileListParams {

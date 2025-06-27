@@ -2,7 +2,7 @@
 // Tool for renaming files within the vault
 
 import { App, TFile } from 'obsidian';
-import { Tool, ToolResult } from '../agent/ToolRegistry';
+import { Tool, ToolResult } from '../ToolRegistry';
 import { PathValidator } from './pathValidation';
 
 export interface FileRenameParams {

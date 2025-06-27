@@ -1,5 +1,5 @@
 import { App, TFile, TFolder } from 'obsidian';
-import { Tool, ToolResult } from '../agent/ToolRegistry';
+import { Tool, ToolResult } from '../ToolRegistry';
 import { PathValidator } from './pathValidation';
 
 export interface FileMoveParams {

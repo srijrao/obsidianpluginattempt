@@ -1,5 +1,5 @@
 import { App, TFile } from 'obsidian';
-import { Tool, ToolResult } from '../agent/ToolRegistry';
+import { Tool, ToolResult } from '../ToolRegistry';
 
 export interface FileSearchParams {
     query?: string;

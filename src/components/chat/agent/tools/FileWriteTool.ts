@@ -1,7 +1,7 @@
 import { App, TFile } from 'obsidian';
-import { Tool, ToolResult } from '../agent/ToolRegistry';
-import { createFile, writeFile } from '../../FileHandler';
-import { BackupManager } from '../../BackupManager';
+import { Tool, ToolResult } from '../ToolRegistry';
+import { createFile, writeFile } from '../../../FileHandler';
+import { BackupManager } from '../../../BackupManager';
 import { PathValidator } from './pathValidation';
 
 export interface FileWriteParams {

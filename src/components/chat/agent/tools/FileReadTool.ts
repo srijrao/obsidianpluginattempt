@@ -1,6 +1,6 @@
 import { App, TFile } from 'obsidian';
-import { Tool, ToolResult } from '../agent/ToolRegistry';
-import { readFile } from '../../FileHandler';
+import { Tool, ToolResult } from '../ToolRegistry';
+import { readFile } from '../../../FileHandler';
 import { PathValidator } from './pathValidation';
 
 export interface FileReadParams {

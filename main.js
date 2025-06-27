@@ -26,10 +26,10 @@ var __copyProps = (to, from, except, desc) => {
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
 
-// src/components/chat/tools/FileSearchTool.ts
+// src/components/chat/agent/tools/FileSearchTool.ts
 var FileSearchTool;
 var init_FileSearchTool = __esm({
-  "src/components/chat/tools/FileSearchTool.ts"() {
+  "src/components/chat/agent/tools/FileSearchTool.ts"() {
     FileSearchTool = class {
       constructor(app) {
         this.app = app;
@@ -2773,10 +2773,10 @@ var init_FileHandler = __esm({
   }
 });
 
-// src/components/chat/tools/pathValidation.ts
+// src/components/chat/agent/tools/pathValidation.ts
 var import_path, PathValidator;
 var init_pathValidation = __esm({
-  "src/components/chat/tools/pathValidation.ts"() {
+  "src/components/chat/agent/tools/pathValidation.ts"() {
     import_path = require("path");
     PathValidator = class {
       constructor(app) {
@@ -2868,10 +2868,10 @@ var init_pathValidation = __esm({
   }
 });
 
-// src/components/chat/tools/FileReadTool.ts
+// src/components/chat/agent/tools/FileReadTool.ts
 var import_obsidian2, FileReadTool;
 var init_FileReadTool = __esm({
-  "src/components/chat/tools/FileReadTool.ts"() {
+  "src/components/chat/agent/tools/FileReadTool.ts"() {
     import_obsidian2 = require("obsidian");
     init_FileHandler();
     init_pathValidation();
@@ -3199,10 +3199,10 @@ var init_BackupManager = __esm({
   }
 });
 
-// src/components/chat/tools/FileWriteTool.ts
+// src/components/chat/agent/tools/FileWriteTool.ts
 var import_obsidian4, FileWriteTool;
 var init_FileWriteTool = __esm({
-  "src/components/chat/tools/FileWriteTool.ts"() {
+  "src/components/chat/agent/tools/FileWriteTool.ts"() {
     import_obsidian4 = require("obsidian");
     init_FileHandler();
     init_BackupManager();
@@ -3401,10 +3401,10 @@ var init_filediffhandler = __esm({
   }
 });
 
-// src/components/chat/tools/FileDiffTool.ts
+// src/components/chat/agent/tools/FileDiffTool.ts
 var import_obsidian6, FileDiffTool;
 var init_FileDiffTool = __esm({
-  "src/components/chat/tools/FileDiffTool.ts"() {
+  "src/components/chat/agent/tools/FileDiffTool.ts"() {
     import_obsidian6 = require("obsidian");
     init_filediffhandler();
     init_pathValidation();
@@ -3592,10 +3592,10 @@ var init_FileDiffTool = __esm({
   }
 });
 
-// src/components/chat/tools/FileMoveTool.ts
+// src/components/chat/agent/tools/FileMoveTool.ts
 var import_obsidian7, FileMoveTool;
 var init_FileMoveTool = __esm({
-  "src/components/chat/tools/FileMoveTool.ts"() {
+  "src/components/chat/agent/tools/FileMoveTool.ts"() {
     import_obsidian7 = require("obsidian");
     init_pathValidation();
     FileMoveTool = class {
@@ -3705,10 +3705,10 @@ var init_FileMoveTool = __esm({
   }
 });
 
-// src/components/chat/tools/ThoughtTool.ts
+// src/components/chat/agent/tools/ThoughtTool.ts
 var ThoughtTool;
 var init_ThoughtTool = __esm({
-  "src/components/chat/tools/ThoughtTool.ts"() {
+  "src/components/chat/agent/tools/ThoughtTool.ts"() {
     ThoughtTool = class {
       constructor(app) {
         this.app = app;
@@ -3842,10 +3842,10 @@ Example (finishing task):
   }
 });
 
-// src/components/chat/tools/FileListTool.ts
+// src/components/chat/agent/tools/FileListTool.ts
 var import_obsidian8, FileListTool;
 var init_FileListTool = __esm({
-  "src/components/chat/tools/FileListTool.ts"() {
+  "src/components/chat/agent/tools/FileListTool.ts"() {
     import_obsidian8 = require("obsidian");
     init_pathValidation();
     FileListTool = class {
@@ -3912,10 +3912,10 @@ var init_FileListTool = __esm({
   }
 });
 
-// src/components/chat/tools/FileRenameTool.ts
+// src/components/chat/agent/tools/FileRenameTool.ts
 var import_obsidian9, FileRenameTool;
 var init_FileRenameTool = __esm({
-  "src/components/chat/tools/FileRenameTool.ts"() {
+  "src/components/chat/agent/tools/FileRenameTool.ts"() {
     import_obsidian9 = require("obsidian");
     init_pathValidation();
     FileRenameTool = class {
@@ -4000,7 +4000,7 @@ var init_FileRenameTool = __esm({
   }
 });
 
-// src/components/chat/tools/toolcollect.ts
+// src/components/chat/agent/tools/toolcollect.ts
 function getAllToolClasses() {
   return [
     FileSearchTool,
@@ -4082,7 +4082,7 @@ function createToolInstances(app, plugin) {
   return tools;
 }
 var init_toolcollect = __esm({
-  "src/components/chat/tools/toolcollect.ts"() {
+  "src/components/chat/agent/tools/toolcollect.ts"() {
     init_FileSearchTool();
     init_FileReadTool();
     init_FileWriteTool();

@@ -1,5 +1,5 @@
 import { App } from 'obsidian';
-import { Tool, ToolResult } from '../agent/ToolRegistry';
+import { Tool, ToolResult } from '../ToolRegistry';
 
 /**
  * Parameters for the ThoughtTool.

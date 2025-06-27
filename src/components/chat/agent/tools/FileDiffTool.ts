@@ -1,11 +1,11 @@
 import { App, TFile } from 'obsidian';
-import { Tool, ToolResult } from '../agent/ToolRegistry';
+import { Tool, ToolResult } from '../ToolRegistry';
 import { 
     FileChangeSuggestion, 
     insertFileChangeSuggestion, 
     showFileChangeSuggestionsModal,
     formatSuggestionForDisplay 
-} from '../filediffhandler';
+} from './../../../../components/chat/filediffhandler';
 import { PathValidator } from './pathValidation';
 
 export interface FileDiffParams {
