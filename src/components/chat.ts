@@ -106,8 +106,21 @@ export class ChatView extends ItemView {
                 }
             },
             onToolDisplay: (display: ToolRichDisplay) => {
-                // Insert the rich tool display into the messages container
-                this.insertToolDisplay(display);
+                // Display tools in real-time as they execute
+                const toolWrapper = document.createElement('div');
+                toolWrapper.className = 'real-time-tool-display';
+                toolWrapper.appendChild(display.getElement());
+                
+                // Find the current temp container (streaming message)
+                const tempContainer = this.messagesContainer.querySelector('.ai-chat-message.assistant:last-child');
+                if (tempContainer) {
+                    const messageContent = tempContainer.querySelector('.message-content');
+                    if (messageContent) {
+                        messageContent.appendChild(toolWrapper);
+                        // Scroll to show the new tool display
+                        this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+                    }
+                }
             }
         });
         
@@ -423,11 +436,16 @@ export class ChatView extends ItemView {
         if (!this.responseStreamer) {
             throw new Error("ResponseStreamer not initialized");
         }
+        
+        // Get current chat history to check for already executed commands
+        const chatHistory = await this.chatHistoryManager.getHistory();
+        
         const responseContent = await this.responseStreamer.streamAssistantResponse(
             messages,
             container,
             originalTimestamp,
-            originalContent
+            originalContent,
+            chatHistory
         );
         // Update chat history if we have a timestamp
         if (originalTimestamp && responseContent.trim() !== "") {

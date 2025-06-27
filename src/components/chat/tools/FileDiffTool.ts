@@ -59,7 +59,7 @@ export class FileDiffTool implements Tool {
         const suggestedContent = params.suggestedContent || (params as any).text;
         const { originalContent, action = 'suggest', insertPosition } = params;
 
-        if (!inputPath) {
+        if (inputPath === undefined || inputPath === null) {
             return {
                 success: false,
                 error: 'path parameter is required'

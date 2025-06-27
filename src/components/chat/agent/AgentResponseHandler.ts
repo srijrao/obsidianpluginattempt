@@ -46,9 +46,11 @@ export class AgentResponseHandler {
     /**
      * Process an AI response and handle any tool commands
      * @param response The AI response text
+     * @param contextLabel Label for debugging
+     * @param chatHistory Optional chat history to check for already executed commands
      * @returns Object containing processed text and execution results
      */
-    async processResponse(response: string, contextLabel: string = "main"): Promise<{
+    async processResponse(response: string, contextLabel: string = "main", chatHistory?: any[]): Promise<{
         processedText: string;
         toolResults: Array<{ command: ToolCommand; result: ToolResult }>;
         hasTools: boolean;
@@ -59,7 +61,6 @@ export class AgentResponseHandler {
 
         // Check if agent mode is enabled
         if (!this.context.plugin.isAgentModeEnabled()) {
-            // Removed redundant console.log for cleaner production code.
             return {
                 processedText: response,
                 toolResults: [],
@@ -69,8 +70,6 @@ export class AgentResponseHandler {
 
         // Parse response for tool commands
         const { text, commands } = this.commandParser.parseResponse(response);
-        
-        // Removed redundant console.log for cleaner production code.
 
         if (commands.length === 0) {
             if (this.context.plugin.settings.debugMode) {
@@ -80,6 +79,25 @@ export class AgentResponseHandler {
                 processedText: text,
                 toolResults: [],
                 hasTools: false
+            };
+        }
+
+        // Filter out commands that have already been executed (check chat history)
+        const commandsToExecute = chatHistory ? 
+            this.filterAlreadyExecutedCommands(commands, chatHistory, contextLabel) : 
+            commands;
+
+        if (commandsToExecute.length === 0) {
+            if (this.context.plugin.settings.debugMode) {
+                this.context.plugin.debugLog('debug', `[AgentResponseHandler][${contextLabel}] All commands already executed, skipping`);
+            }
+            
+            // Return existing results from chat history if available
+            const existingResults = this.getExistingToolResults(commands, chatHistory || []);
+            return {
+                processedText: text,
+                toolResults: existingResults,
+                hasTools: true
             };
         }        // Check execution limits
         const agentSettings = this.context.plugin.getAgentModeSettings();
@@ -112,8 +130,26 @@ export class AgentResponseHandler {
                 toolResults.push({ command, result });
                 this.executionCount++;
 
-                // Create and manage rich tool display
-                this.createToolDisplay(command, result);
+                // Create and display tool result in real-time
+                if (this.context.onToolDisplay) {
+                    const richDisplay = new ToolRichDisplay({
+                        command,
+                        result,
+                        onRerun: () => this.rerunTool(command),
+                        onCopy: async () => {
+                            const displayText = this.generateToolMarkdown(command, result);
+                            try {
+                                await navigator.clipboard.writeText(displayText);
+                            } catch (error) {
+                                console.error('Failed to copy tool result:', error);
+                            }
+                        }
+                    });
+                    this.context.onToolDisplay(richDisplay);
+                }
+
+                // Also cache markdown for message content persistence
+                this.cacheToolMarkdown(command, result);
 
                 // Notify context about tool result
                 this.context.onToolResult(result, command);
@@ -135,8 +171,26 @@ export class AgentResponseHandler {
                     requestId: command.requestId                };
                 toolResults.push({ command, result: errorResult });
                 
-                // Create tool display for error case too
-                this.createToolDisplay(command, errorResult);
+                // Create and display error result in real-time
+                if (this.context.onToolDisplay) {
+                    const richDisplay = new ToolRichDisplay({
+                        command,
+                        result: errorResult,
+                        onRerun: () => this.rerunTool(command),
+                        onCopy: async () => {
+                            const displayText = this.generateToolMarkdown(command, errorResult);
+                            try {
+                                await navigator.clipboard.writeText(displayText);
+                            } catch (error) {
+                                console.error('Failed to copy tool result:', error);
+                            }
+                        }
+                    });
+                    this.context.onToolDisplay(richDisplay);
+                }
+                
+                // Also cache markdown for message content persistence
+                this.cacheToolMarkdown(command, errorResult);
                 
                 this.context.onToolResult(errorResult, command);
             }
@@ -763,7 +817,7 @@ ${resultData}`;
     /**
      * Enhanced tool result processing with UI integration
      */
-    async processResponseWithUI(response: string, contextLabel: string = "ui"): Promise<{
+    async processResponseWithUI(response: string, contextLabel: string = "ui", chatHistory?: any[]): Promise<{
         processedText: string;
         toolResults: Array<{ command: ToolCommand; result: ToolResult }>;
         hasTools: boolean;
@@ -771,8 +825,8 @@ ${resultData}`;
         taskStatus: TaskStatus;
         shouldShowLimitWarning: boolean;
     }> {
-        // Process the response normally
-        const result = await this.processResponse(response, contextLabel);
+        // Process the response normally with chat history check
+        const result = await this.processResponse(response, contextLabel, chatHistory);
         
         // Create task status
         let status: TaskStatus['status'] = 'completed';
@@ -816,5 +870,88 @@ ${resultData}`;
     private getEffectiveToolLimit(): number {
         const agentSettings = this.context.plugin.getAgentModeSettings();
         return this.temporaryMaxToolCalls || agentSettings.maxToolCalls;
+    }
+
+    /**
+     * Filter out commands that have already been executed based on chat history
+     */
+    private filterAlreadyExecutedCommands(commands: ToolCommand[], chatHistory: any[], contextLabel: string): ToolCommand[] {
+        const filteredCommands: ToolCommand[] = [];
+        
+        for (const command of commands) {
+            const commandKey = this.generateCommandKey(command);
+            const alreadyExecuted = this.isCommandInChatHistory(commandKey, chatHistory);
+            
+            if (alreadyExecuted) {
+                if (this.context.plugin.settings.debugMode) {
+                    this.context.plugin.debugLog('debug', `[AgentResponseHandler][${contextLabel}] Skipping already executed command`, { command, commandKey });
+                }
+            } else {
+                filteredCommands.push(command);
+            }
+        }
+        
+        return filteredCommands;
+    }
+
+    /**
+     * Get existing tool results from chat history for already executed commands
+     */
+    private getExistingToolResults(commands: ToolCommand[], chatHistory: any[]): Array<{ command: ToolCommand; result: ToolResult }> {
+        const existingResults: Array<{ command: ToolCommand; result: ToolResult }> = [];
+        
+        for (const command of commands) {
+            const commandKey = this.generateCommandKey(command);
+            const existingResult = this.findToolResultInChatHistory(commandKey, chatHistory);
+            
+            if (existingResult) {
+                existingResults.push({ command, result: existingResult });
+            }
+        }
+        
+        return existingResults;
+    }
+
+    /**
+     * Generate a unique key for a command to check for duplicates
+     */
+    private generateCommandKey(command: ToolCommand): string {
+        // Create a key based on action, parameters, and requestId
+        const params = JSON.stringify(command.parameters || {});
+        return `${command.action}:${params}:${command.requestId || 'no-id'}`;
+    }
+
+    /**
+     * Check if a command has already been executed by looking in chat history
+     */
+    private isCommandInChatHistory(commandKey: string, chatHistory: any[]): boolean {
+        for (const message of chatHistory) {
+            if (message.sender === 'assistant' && message.toolResults) {
+                for (const toolResult of message.toolResults) {
+                    const existingKey = this.generateCommandKey(toolResult.command);
+                    if (existingKey === commandKey) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Find existing tool result in chat history
+     */
+    private findToolResultInChatHistory(commandKey: string, chatHistory: any[]): ToolResult | null {
+        for (const message of chatHistory) {
+            if (message.sender === 'assistant' && message.toolResults) {
+                for (const toolResult of message.toolResults) {
+                    const existingKey = this.generateCommandKey(toolResult.command);
+                    if (existingKey === commandKey) {
+                        return toolResult.result;
+                    }
+                }
+            }
+        }
+        return null;
     }
 }

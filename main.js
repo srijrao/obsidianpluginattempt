@@ -2790,8 +2790,8 @@ var init_pathValidation = __esm({
        * @returns The normalized vault-relative path or throws an error if invalid
        */
       validateAndNormalizePath(inputPath) {
-        if (!inputPath || typeof inputPath !== "string") {
-          throw new Error("Path is required and must be a string");
+        if (inputPath === void 0 || inputPath === null || typeof inputPath !== "string") {
+          throw new Error("Path must be a string");
         }
         const cleanPath = inputPath.trim();
         if (cleanPath === "" || cleanPath === "." || cleanPath === "./" || cleanPath === "/") {
@@ -2899,7 +2899,7 @@ var init_FileReadTool = __esm({
         var _a2, _b, _c;
         const inputPath = params.path || params.filePath;
         const { maxSize = 1024 * 1024 } = params;
-        if (!inputPath) {
+        if (inputPath === void 0 || inputPath === null) {
           return {
             success: false,
             error: "path parameter is required"
@@ -3243,7 +3243,7 @@ var init_FileWriteTool = __esm({
       async execute(params, context) {
         const inputPath = params.path || params.filePath || params.filename;
         const { content, createIfNotExists = true, backup = true } = params;
-        if (!inputPath) {
+        if (inputPath === void 0 || inputPath === null) {
           return {
             success: false,
             error: "path parameter is required"
@@ -3448,7 +3448,7 @@ var init_FileDiffTool = __esm({
         const inputPath = params.path || params.filePath;
         const suggestedContent = params.suggestedContent || params.text;
         const { originalContent, action = "suggest", insertPosition } = params;
-        if (!inputPath) {
+        if (inputPath === void 0 || inputPath === null) {
           return {
             success: false,
             error: "path parameter is required"
@@ -3634,7 +3634,7 @@ var init_FileMoveTool = __esm({
         if (!inputSourcePath && params.path) inputSourcePath = params.path;
         if (!inputDestinationPath && (params.new_path || params.newPath)) inputDestinationPath = params.new_path || params.newPath;
         const { createFolders = true, overwrite = false } = params;
-        if (!inputSourcePath || !inputDestinationPath) {
+        if (inputSourcePath === void 0 || inputSourcePath === null || inputDestinationPath === void 0 || inputDestinationPath === null) {
           return {
             success: false,
             error: "Both sourcePath and destinationPath parameters are required (aliases: path, new_path, newPath)"
@@ -3893,21 +3893,15 @@ var init_FileListTool = __esm({
         __publicField(this, "name", "file_list");
         __publicField(this, "description", "List all files in a specified folder in the vault");
         __publicField(this, "parameters", {
-          path: { type: "string", description: "Path to the folder (relative to vault root or absolute path within vault)", required: true },
+          path: { type: "string", description: "Path to the folder (relative to vault root or absolute path within vault). Defaults to vault root if not provided.", required: false },
           recursive: { type: "boolean", description: "Whether to list files recursively", default: false }
         });
         __publicField(this, "pathValidator");
         this.pathValidator = new PathValidator(app);
       }
       async execute(params, context) {
-        const inputPath = params.path || params.folderPath;
+        const inputPath = params.path || params.folderPath || params.folder || "";
         const { recursive = false } = params;
-        if (!inputPath && inputPath !== "") {
-          return {
-            success: false,
-            error: "path parameter is required"
-          };
-        }
         let folderPath;
         try {
           folderPath = this.pathValidator.validateAndNormalizePath(inputPath);
@@ -3918,11 +3912,16 @@ var init_FileListTool = __esm({
           };
         }
         const vault = this.app.vault;
-        const folder = vault.getAbstractFileByPath(folderPath);
+        let folder;
+        if (folderPath === "" || folderPath === "/") {
+          folder = vault.getRoot();
+        } else {
+          folder = vault.getAbstractFileByPath(folderPath);
+        }
         if (!folder || !(folder instanceof import_obsidian8.TFolder)) {
           return {
             success: false,
-            error: "Folder not found: " + folderPath
+            error: "Folder not found: " + (folderPath || "(root)")
           };
         }
         const filesFound = [];
@@ -3986,7 +3985,7 @@ var init_FileRenameTool = __esm({
       async execute(params, context) {
         const { path: inputPath, newName, newPath, overwrite = false } = params;
         const finalNewName = newName || newPath;
-        if (!inputPath || !finalNewName) {
+        if (inputPath === void 0 || inputPath === null || finalNewName === void 0 || finalNewName === null) {
           return {
             success: false,
             error: "Both path and newName (or newPath) parameters are required"
@@ -4972,7 +4971,6 @@ var init_MessageRenderer = __esm({
       * Render message with embedded tool displays
       */
       async renderMessageWithToolDisplays(message, container, component) {
-        var _a2;
         const messageContent = container.querySelector(".message-content");
         if (!messageContent) {
           console.error("No .message-content element found in container");
@@ -4980,38 +4978,33 @@ var init_MessageRenderer = __esm({
         }
         messageContent.empty();
         container.classList.add("has-rich-tools");
-        const parts = this.parseMessageWithTools(message.content);
-        for (const part of parts) {
-          if (part.type === "text" && ((_a2 = part.content) == null ? void 0 : _a2.trim())) {
-            const textDiv = document.createElement("div");
-            textDiv.className = "message-text-part";
-            await import_obsidian13.MarkdownRenderer.render(this.app, part.content, textDiv, "", component || new import_obsidian13.Component());
-            messageContent.appendChild(textDiv);
-          } else if (part.type === "tool" && part.command && message.toolResults) {
-            const toolExecutionResult = message.toolResults.find(
-              (tr) => tr.command.action === part.command.action && this.compareToolParams(tr.command.parameters, part.command.parameters)
-            );
-            if (toolExecutionResult) {
-              const richDisplay = new ToolRichDisplay({
-                command: part.command,
-                result: toolExecutionResult.result,
-                onRerun: () => {
-                },
-                onCopy: async () => {
-                  const displayText = this.formatToolForCopy(part.command, toolExecutionResult.result);
-                  try {
-                    await navigator.clipboard.writeText(displayText);
-                  } catch (error) {
-                    console.error("Failed to copy tool result:", error);
-                  }
+        if (message.toolResults && message.toolResults.length > 0) {
+          for (const toolExecutionResult of message.toolResults) {
+            const richDisplay = new ToolRichDisplay({
+              command: toolExecutionResult.command,
+              result: toolExecutionResult.result,
+              onRerun: () => {
+              },
+              onCopy: async () => {
+                const displayText = this.formatToolForCopy(toolExecutionResult.command, toolExecutionResult.result);
+                try {
+                  await navigator.clipboard.writeText(displayText);
+                } catch (error) {
+                  console.error("Failed to copy tool result:", error);
                 }
-              });
-              const toolWrapper = document.createElement("div");
-              toolWrapper.className = "embedded-tool-display";
-              toolWrapper.appendChild(richDisplay.getElement());
-              messageContent.appendChild(toolWrapper);
-            }
+              }
+            });
+            const toolWrapper = document.createElement("div");
+            toolWrapper.className = "embedded-tool-display";
+            toolWrapper.appendChild(richDisplay.getElement());
+            messageContent.appendChild(toolWrapper);
           }
+        }
+        if (message.content && message.content.trim()) {
+          const textDiv = document.createElement("div");
+          textDiv.className = "message-text-part";
+          await import_obsidian13.MarkdownRenderer.render(this.app, message.content, textDiv, "", component || new import_obsidian13.Component());
+          messageContent.appendChild(textDiv);
         }
       }
       /**
@@ -11307,15 +11300,40 @@ var CommandParser = class {
           delete parameters.action;
           delete parameters.requestId;
         }
-        commands.push({
-          command: {
-            action: parsed.action,
-            parameters,
-            requestId: parsed.requestId || this.generateRequestId(),
-            finished: parsed.finished || false
-          },
-          originalText: text.trim()
-        });
+        if (parsed.action === "finished") {
+          const finalMessage = parsed.message || parsed.result || parsed.response || (parameters == null ? void 0 : parameters.message) || (parameters == null ? void 0 : parameters.result) || (parameters == null ? void 0 : parameters.response) || "Task completed";
+          if (this.plugin) {
+            this.plugin.debugLog("debug", "[CommandParser] Converting finished action to thought", {
+              parsed,
+              finalMessage,
+              parameters
+            });
+          }
+          commands.push({
+            command: {
+              action: "thought",
+              parameters: {
+                thought: finalMessage,
+                nextTool: "finished",
+                category: "conclusion",
+                confidence: 10
+              },
+              requestId: parsed.requestId || this.generateRequestId(),
+              finished: true
+            },
+            originalText: text.trim()
+          });
+        } else {
+          commands.push({
+            command: {
+              action: parsed.action,
+              parameters,
+              requestId: parsed.requestId || this.generateRequestId(),
+              finished: parsed.finished || false
+            },
+            originalText: text.trim()
+          });
+        }
         return commands;
       }
     } catch (error) {
@@ -11342,15 +11360,40 @@ var CommandParser = class {
               delete parameters.action;
               delete parameters.requestId;
             }
-            commands.push({
-              command: {
-                action: parsed.action,
-                parameters,
-                requestId: parsed.requestId || this.generateRequestId(),
-                finished: parsed.finished || false
-              },
-              originalText
-            });
+            if (parsed.action === "finished") {
+              const finalMessage = parsed.message || parsed.result || parsed.response || (parameters == null ? void 0 : parameters.message) || (parameters == null ? void 0 : parameters.result) || (parameters == null ? void 0 : parameters.response) || "Task completed";
+              if (this.plugin) {
+                this.plugin.debugLog("debug", "[CommandParser] Converting finished action to thought (pattern match)", {
+                  parsed,
+                  finalMessage,
+                  parameters
+                });
+              }
+              commands.push({
+                command: {
+                  action: "thought",
+                  parameters: {
+                    thought: finalMessage,
+                    nextTool: "finished",
+                    category: "conclusion",
+                    confidence: 10
+                  },
+                  requestId: parsed.requestId || this.generateRequestId(),
+                  finished: true
+                },
+                originalText
+              });
+            } else {
+              commands.push({
+                command: {
+                  action: parsed.action,
+                  parameters,
+                  requestId: parsed.requestId || this.generateRequestId(),
+                  finished: parsed.finished || false
+                },
+                originalText
+              });
+            }
           }
         } catch (error) {
           continue;
@@ -11456,9 +11499,11 @@ var AgentResponseHandler = class {
   /**
    * Process an AI response and handle any tool commands
    * @param response The AI response text
+   * @param contextLabel Label for debugging
+   * @param chatHistory Optional chat history to check for already executed commands
    * @returns Object containing processed text and execution results
    */
-  async processResponse(response, contextLabel = "main") {
+  async processResponse(response, contextLabel = "main", chatHistory) {
     if (this.context.plugin.settings.debugMode) {
       this.context.plugin.debugLog("debug", `[AgentResponseHandler][${contextLabel}] Processing response`, { response });
     }
@@ -11478,6 +11523,18 @@ var AgentResponseHandler = class {
         processedText: text,
         toolResults: [],
         hasTools: false
+      };
+    }
+    const commandsToExecute = chatHistory ? this.filterAlreadyExecutedCommands(commands, chatHistory, contextLabel) : commands;
+    if (commandsToExecute.length === 0) {
+      if (this.context.plugin.settings.debugMode) {
+        this.context.plugin.debugLog("debug", `[AgentResponseHandler][${contextLabel}] All commands already executed, skipping`);
+      }
+      const existingResults = this.getExistingToolResults(commands, chatHistory || []);
+      return {
+        processedText: text,
+        toolResults: existingResults,
+        hasTools: true
       };
     }
     const agentSettings = this.context.plugin.getAgentModeSettings();
@@ -11509,7 +11566,23 @@ var AgentResponseHandler = class {
         }
         toolResults.push({ command, result });
         this.executionCount++;
-        this.createToolDisplay(command, result);
+        if (this.context.onToolDisplay) {
+          const richDisplay = new ToolRichDisplay({
+            command,
+            result,
+            onRerun: () => this.rerunTool(command),
+            onCopy: async () => {
+              const displayText = this.generateToolMarkdown(command, result);
+              try {
+                await navigator.clipboard.writeText(displayText);
+              } catch (error) {
+                console.error("Failed to copy tool result:", error);
+              }
+            }
+          });
+          this.context.onToolDisplay(richDisplay);
+        }
+        this.cacheToolMarkdown(command, result);
         this.context.onToolResult(result, command);
         if (this.executionCount >= effectiveLimit) {
           break;
@@ -11525,7 +11598,23 @@ var AgentResponseHandler = class {
           requestId: command.requestId
         };
         toolResults.push({ command, result: errorResult });
-        this.createToolDisplay(command, errorResult);
+        if (this.context.onToolDisplay) {
+          const richDisplay = new ToolRichDisplay({
+            command,
+            result: errorResult,
+            onRerun: () => this.rerunTool(command),
+            onCopy: async () => {
+              const displayText = this.generateToolMarkdown(command, errorResult);
+              try {
+                await navigator.clipboard.writeText(displayText);
+              } catch (error2) {
+                console.error("Failed to copy tool result:", error2);
+              }
+            }
+          });
+          this.context.onToolDisplay(richDisplay);
+        }
+        this.cacheToolMarkdown(command, errorResult);
         this.context.onToolResult(errorResult, command);
       }
     }
@@ -12074,8 +12163,8 @@ ${resultText}`;
   /**
    * Enhanced tool result processing with UI integration
    */
-  async processResponseWithUI(response, contextLabel = "ui") {
-    const result = await this.processResponse(response, contextLabel);
+  async processResponseWithUI(response, contextLabel = "ui", chatHistory) {
+    const result = await this.processResponse(response, contextLabel, chatHistory);
     let status = "completed";
     if (result.hasTools) {
       if (this.isToolLimitReached()) {
@@ -12107,6 +12196,77 @@ ${resultText}`;
   getEffectiveToolLimit() {
     const agentSettings = this.context.plugin.getAgentModeSettings();
     return this.temporaryMaxToolCalls || agentSettings.maxToolCalls;
+  }
+  /**
+   * Filter out commands that have already been executed based on chat history
+   */
+  filterAlreadyExecutedCommands(commands, chatHistory, contextLabel) {
+    const filteredCommands = [];
+    for (const command of commands) {
+      const commandKey = this.generateCommandKey(command);
+      const alreadyExecuted = this.isCommandInChatHistory(commandKey, chatHistory);
+      if (alreadyExecuted) {
+        if (this.context.plugin.settings.debugMode) {
+          this.context.plugin.debugLog("debug", `[AgentResponseHandler][${contextLabel}] Skipping already executed command`, { command, commandKey });
+        }
+      } else {
+        filteredCommands.push(command);
+      }
+    }
+    return filteredCommands;
+  }
+  /**
+   * Get existing tool results from chat history for already executed commands
+   */
+  getExistingToolResults(commands, chatHistory) {
+    const existingResults = [];
+    for (const command of commands) {
+      const commandKey = this.generateCommandKey(command);
+      const existingResult = this.findToolResultInChatHistory(commandKey, chatHistory);
+      if (existingResult) {
+        existingResults.push({ command, result: existingResult });
+      }
+    }
+    return existingResults;
+  }
+  /**
+   * Generate a unique key for a command to check for duplicates
+   */
+  generateCommandKey(command) {
+    const params = JSON.stringify(command.parameters || {});
+    return `${command.action}:${params}:${command.requestId || "no-id"}`;
+  }
+  /**
+   * Check if a command has already been executed by looking in chat history
+   */
+  isCommandInChatHistory(commandKey, chatHistory) {
+    for (const message of chatHistory) {
+      if (message.sender === "assistant" && message.toolResults) {
+        for (const toolResult of message.toolResults) {
+          const existingKey = this.generateCommandKey(toolResult.command);
+          if (existingKey === commandKey) {
+            return true;
+          }
+        }
+      }
+    }
+    return false;
+  }
+  /**
+   * Find existing tool result in chat history
+   */
+  findToolResultInChatHistory(commandKey, chatHistory) {
+    for (const message of chatHistory) {
+      if (message.sender === "assistant" && message.toolResults) {
+        for (const toolResult of message.toolResults) {
+          const existingKey = this.generateCommandKey(toolResult.command);
+          if (existingKey === commandKey) {
+            return toolResult.result;
+          }
+        }
+      }
+    }
+    return null;
   }
 };
 
@@ -12193,7 +12353,7 @@ var TaskContinuation = class {
   /**
   * Continue task execution until finished parameter is true
   */
-  async continueTaskUntilFinished(messages, container, initialResponseContent, currentContent, initialToolResults) {
+  async continueTaskUntilFinished(messages, container, initialResponseContent, currentContent, initialToolResults, chatHistory) {
     var _a2, _b, _c;
     let responseContent = currentContent;
     let maxIterations = 10;
@@ -12232,22 +12392,26 @@ var TaskContinuation = class {
         });
         const continuationContent = await this.getContinuationResponse(messages, container);
         if (continuationContent.trim()) {
+          let processingResult;
+          if (this.agentResponseHandler) {
+            processingResult = await this.agentResponseHandler.processResponse(continuationContent, "task-continuation", chatHistory);
+            if (processingResult.toolResults && processingResult.toolResults.length > 0) {
+              allToolResults = [...allToolResults, ...processingResult.toolResults];
+            }
+          }
           const continuationResult = await this.processContinuation(
             continuationContent,
             responseContent,
             container,
-            allToolResults
+            allToolResults,
             // pass all so far
+            chatHistory,
+            processingResult
+            // pass the already processed result to avoid double processing
           );
           responseContent = continuationResult.responseContent;
           isFinished = continuationResult.isFinished;
           initialResponseContent = continuationContent;
-          if (this.agentResponseHandler) {
-            const lastResults = await this.agentResponseHandler.processResponse(continuationContent, "task-continuation-tool-accumulation");
-            if (lastResults && lastResults.toolResults && lastResults.toolResults.length > 0) {
-              allToolResults = [...allToolResults, ...lastResults.toolResults];
-            }
-          }
         } else {
           isFinished = true;
         }
@@ -12273,38 +12437,41 @@ var TaskContinuation = class {
   /**
   * Process continuation response and update UI
   */
-  async processContinuation(continuationContent, responseContent, container, initialToolResults) {
-    if (this.agentResponseHandler) {
-      const continuationResult = await this.agentResponseHandler.processResponse(continuationContent);
-      if (continuationResult.hasTools) {
-        const cleanContinuationContent = continuationResult.processedText;
-        const isFinished = this.checkIfTaskFinished(continuationResult.toolResults);
-        const allToolResults = [...initialToolResults, ...continuationResult.toolResults];
-        const updatedContent = responseContent + "\n\n" + cleanContinuationContent;
-        const enhancedMessageData = this.createEnhancedMessageData(
-          updatedContent,
-          continuationResult,
-          allToolResults
-        );
-        this.updateContainerWithMessageData(container, enhancedMessageData, updatedContent);
-        return { responseContent: updatedContent, isFinished };
-      } else {
-        let isFinished = false;
-        try {
-          const parsed = JSON.parse(continuationContent);
-          if (parsed && parsed.finished === true) {
-            isFinished = true;
-          }
-        } catch (e) {
-        }
-        const updatedContent = responseContent + "\n\n" + continuationContent;
-        await this.updateContainerContent(container, updatedContent);
-        return { responseContent: updatedContent, isFinished };
-      }
+  async processContinuation(continuationContent, responseContent, container, initialToolResults, chatHistory, processingResult) {
+    let continuationResult;
+    if (processingResult) {
+      continuationResult = processingResult;
+    } else if (this.agentResponseHandler) {
+      continuationResult = await this.agentResponseHandler.processResponse(continuationContent, "main", chatHistory);
     } else {
       const updatedContent = responseContent + "\n\n" + continuationContent;
       await this.updateContainerContent(container, updatedContent);
       return { responseContent: updatedContent, isFinished: true };
+    }
+    if (continuationResult.hasTools) {
+      const cleanContinuationContent = continuationResult.processedText;
+      const isFinished = this.checkIfTaskFinished(continuationResult.toolResults);
+      const allToolResults = [...initialToolResults, ...continuationResult.toolResults];
+      const updatedContent = responseContent + "\n\n" + cleanContinuationContent;
+      const enhancedMessageData = this.createEnhancedMessageData(
+        updatedContent,
+        continuationResult,
+        allToolResults
+      );
+      this.updateContainerWithMessageData(container, enhancedMessageData, updatedContent);
+      return { responseContent: updatedContent, isFinished };
+    } else {
+      let isFinished = false;
+      try {
+        const parsed = JSON.parse(continuationContent);
+        if (parsed && parsed.finished === true) {
+          isFinished = true;
+        }
+      } catch (e) {
+      }
+      const updatedContent = responseContent + "\n\n" + continuationContent;
+      await this.updateContainerContent(container, updatedContent);
+      return { responseContent: updatedContent, isFinished };
     }
   }
   /**
@@ -12417,7 +12584,7 @@ var ResponseStreamer = class {
   * Streams AI assistant response with optional agent processing.
   * Handles agent mode integration, tool execution, and task continuation.
   */
-  async streamAssistantResponse(messages, container, originalTimestamp, originalContent) {
+  async streamAssistantResponse(messages, container, originalTimestamp, originalContent, chatHistory) {
     var _a2;
     this.plugin.debugLog("info", "[ResponseStreamer] streamAssistantResponse called", { messages, originalTimestamp });
     let responseContent = "";
@@ -12435,7 +12602,7 @@ var ResponseStreamer = class {
         abortController: this.activeStream || void 0
       });
       if (this.plugin.isAgentModeEnabled() && this.agentResponseHandler) {
-        responseContent = await this.processAgentResponse(responseContent, container, messages, "streamer-main");
+        responseContent = await this.processAgentResponse(responseContent, container, messages, "streamer-main", chatHistory);
       }
       return responseContent;
     } catch (error) {
@@ -12495,13 +12662,13 @@ var ResponseStreamer = class {
   /**
   * Processes agent response and handles tool execution or reasoning
   */
-  async processAgentResponse(responseContent, container, messages, contextLabel = "streamer") {
+  async processAgentResponse(responseContent, container, messages, contextLabel = "streamer", chatHistory) {
     if (!this.agentResponseHandler) {
       return responseContent;
     }
     try {
-      const agentResult = await this.agentResponseHandler.processResponseWithUI(responseContent, contextLabel);
-      return agentResult.hasTools ? await this.handleToolExecution(agentResult, container, responseContent, messages) : await this.handleNonToolResponse(agentResult, container, responseContent, messages);
+      const agentResult = await this.agentResponseHandler.processResponseWithUI(responseContent, contextLabel, chatHistory);
+      return agentResult.hasTools ? await this.handleToolExecution(agentResult, container, responseContent, messages, chatHistory) : await this.handleNonToolResponse(agentResult, container, responseContent, messages, chatHistory);
     } catch (error) {
       console.error("ResponseStreamer: Error processing agent response:", error);
       return responseContent;
@@ -12510,7 +12677,7 @@ var ResponseStreamer = class {
   /**
   * Handles responses that include tool execution
   */
-  async handleToolExecution(agentResult, container, responseContent, messages) {
+  async handleToolExecution(agentResult, container, responseContent, messages, chatHistory) {
     const finalContent = agentResult.processedText;
     const enhancedMessageData = this.createEnhancedMessageData(
       finalContent,
@@ -12518,18 +12685,18 @@ var ResponseStreamer = class {
       agentResult.toolResults
     );
     this.updateContainerWithMessageData(container, enhancedMessageData, finalContent);
-    return this.handleTaskCompletion(agentResult, finalContent, responseContent, messages, container);
+    return this.handleTaskCompletion(agentResult, finalContent, responseContent, messages, container, chatHistory);
   }
   /**
    * Handles responses without tool execution but potentially with reasoning
    */
-  async handleNonToolResponse(agentResult, container, responseContent, messages) {
+  async handleNonToolResponse(agentResult, container, responseContent, messages, chatHistory) {
     if (agentResult.reasoning) {
       const enhancedMessageData = this.createEnhancedMessageData(responseContent, agentResult);
       this.updateContainerWithMessageData(container, enhancedMessageData, responseContent);
     }
     if (this.isReasoningStep(responseContent)) {
-      return await this.handleReasoningContinuation(responseContent, messages, container);
+      return await this.handleReasoningContinuation(responseContent, messages, container, chatHistory);
     }
     return responseContent;
   }
@@ -12569,9 +12736,9 @@ var ResponseStreamer = class {
   /**
   * Handles task completion, continuation, and tool limit management
   */
-  async handleTaskCompletion(agentResult, finalContent, responseContent, messages, container) {
+  async handleTaskCompletion(agentResult, finalContent, responseContent, messages, container, chatHistory) {
     if (agentResult.shouldShowLimitWarning) {
-      return this.handleToolLimitReached(messages, container, responseContent, finalContent, agentResult.toolResults);
+      return this.handleToolLimitReached(messages, container, responseContent, finalContent, agentResult.toolResults, chatHistory);
     }
     if (agentResult.taskStatus.status === "completed") {
       this.showTaskCompletionNotification(
@@ -12585,16 +12752,17 @@ var ResponseStreamer = class {
       messages,
       container,
       responseContent,
-      finalContent
+      finalContent,
+      chatHistory
     );
   }
   /**
    * Handles tool limit reached scenario
    */
-  handleToolLimitReached(messages, container, responseContent, finalContent, toolResults) {
+  handleToolLimitReached(messages, container, responseContent, finalContent, toolResults, chatHistory) {
     const warning = this.agentResponseHandler.createToolLimitWarning();
     this.messagesContainer.appendChild(warning);
-    this.setupContinuationEventListeners(messages, container, responseContent, finalContent, toolResults);
+    this.setupContinuationEventListeners(messages, container, responseContent, finalContent, toolResults, chatHistory);
     this.showTaskCompletionNotification(
       "Tool execution limit reached. Choose how to continue above.",
       "warning"
@@ -12604,13 +12772,14 @@ var ResponseStreamer = class {
   /**
    * Sets up event listeners for task continuation
    */
-  setupContinuationEventListeners(messages, container, responseContent, finalContent, toolResults) {
+  setupContinuationEventListeners(messages, container, responseContent, finalContent, toolResults, chatHistory) {
     const continuationParams = {
       messages,
       container,
       responseContent,
       finalContent,
-      toolResults
+      toolResults,
+      chatHistory
     };
     this.messagesContainer.addEventListener("continueTask", () => {
       this.executeContinuation(continuationParams);
@@ -12625,7 +12794,7 @@ var ResponseStreamer = class {
   /**
    * Continues task if no limits are reached
    */
-  async continueTaskIfPossible(agentResult, messages, container, responseContent, finalContent) {
+  async continueTaskIfPossible(agentResult, messages, container, responseContent, finalContent, chatHistory) {
     var _a2;
     if (agentResult.shouldShowLimitWarning || ((_a2 = this.agentResponseHandler) == null ? void 0 : _a2.isToolLimitReached())) {
       return finalContent;
@@ -12636,7 +12805,8 @@ var ResponseStreamer = class {
       container,
       responseContent,
       finalContent,
-      agentResult.toolResults
+      agentResult.toolResults,
+      chatHistory || []
     );
     if (continuationResult.limitReachedDuringContinuation) {
       this.handleToolLimitReached(
@@ -12644,7 +12814,8 @@ var ResponseStreamer = class {
         container,
         responseContent,
         continuationResult.content,
-        agentResult.toolResults
+        agentResult.toolResults,
+        chatHistory
       );
     }
     return continuationResult.content;
@@ -12669,7 +12840,7 @@ var ResponseStreamer = class {
   /**
   * Handles reasoning continuation when AI response contains reasoning steps
   */
-  async handleReasoningContinuation(responseContent, messages, container) {
+  async handleReasoningContinuation(responseContent, messages, container, chatHistory) {
     var _a2;
     if ((_a2 = this.agentResponseHandler) == null ? void 0 : _a2.isToolLimitReached()) {
       return responseContent + "\n\n*[Tool execution limit reached - reasoning continuation stopped]*";
@@ -12717,7 +12888,7 @@ var ResponseStreamer = class {
    */
   async executeContinuation(params) {
     if (!this.agentResponseHandler) return;
-    const { messages, container, responseContent, finalContent, toolResults, additionalTools } = params;
+    const { messages, container, responseContent, finalContent, toolResults, additionalTools, chatHistory } = params;
     if (additionalTools) {
     } else {
       this.agentResponseHandler.resetExecutionCount();
@@ -12730,7 +12901,8 @@ var ResponseStreamer = class {
       messages,
       newBotMessage.getElement(),
       responseContent,
-      toolResults
+      toolResults,
+      chatHistory
     );
     if (continuationResult.limitReachedDuringContinuation) {
       this.handleToolLimitReached(
@@ -12738,7 +12910,8 @@ var ResponseStreamer = class {
         newBotMessage.getElement(),
         responseContent,
         continuationResult.content,
-        toolResults
+        toolResults,
+        chatHistory
       );
     }
     newBotMessage.setContent(continuationResult.content);
@@ -12774,14 +12947,15 @@ var ResponseStreamer = class {
   /**
    * Executes task continuation logic
    */
-  async executeTaskContinuation(messages, container, responseContent, toolResults) {
+  async executeTaskContinuation(messages, container, responseContent, toolResults, chatHistory) {
     const taskContinuation = this.createTaskContinuation();
     return await taskContinuation.continueTaskUntilFinished(
       messages,
       container,
       responseContent,
       "",
-      toolResults
+      toolResults,
+      chatHistory || []
     );
   }
 };
@@ -12968,7 +13142,17 @@ var ChatView = class extends import_obsidian26.ItemView {
         }
       },
       onToolDisplay: (display) => {
-        this.insertToolDisplay(display);
+        const toolWrapper = document.createElement("div");
+        toolWrapper.className = "real-time-tool-display";
+        toolWrapper.appendChild(display.getElement());
+        const tempContainer = this.messagesContainer.querySelector(".ai-chat-message.assistant:last-child");
+        if (tempContainer) {
+          const messageContent = tempContainer.querySelector(".message-content");
+          if (messageContent) {
+            messageContent.appendChild(toolWrapper);
+            this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+          }
+        }
       }
     });
     ui.saveNoteButton.addEventListener("click", handleSaveNote(this.messagesContainer, this.plugin, this.app, this.agentResponseHandler));
@@ -13226,11 +13410,13 @@ var ChatView = class extends import_obsidian26.ItemView {
     if (!this.responseStreamer) {
       throw new Error("ResponseStreamer not initialized");
     }
+    const chatHistory = await this.chatHistoryManager.getHistory();
     const responseContent = await this.responseStreamer.streamAssistantResponse(
       messages,
       container,
       originalTimestamp,
-      originalContent
+      originalContent,
+      chatHistory
     );
     if (originalTimestamp && responseContent.trim() !== "") {
       let messageData = void 0;

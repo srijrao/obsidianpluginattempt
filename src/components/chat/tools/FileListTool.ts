@@ -14,7 +14,7 @@ export class FileListTool implements Tool {
     name = 'file_list';
     description = 'List all files in a specified folder in the vault';
     parameters = {
-        path: { type: 'string', description: 'Path to the folder (relative to vault root or absolute path within vault)', required: true },
+        path: { type: 'string', description: 'Path to the folder (relative to vault root or absolute path within vault). Defaults to vault root if not provided.', required: false },
         recursive: { type: 'boolean', description: 'Whether to list files recursively', default: false }
     };
 
@@ -25,16 +25,10 @@ export class FileListTool implements Tool {
     }
 
     async execute(params: FileListParams, context: any): Promise<ToolResult> {
-        // Normalize parameter names for backward compatibility
-        const inputPath = params.path || params.folderPath;
+        // Normalize parameter names for backward compatibility - include 'folder' which AI often sends
+        // Default to root if no path is provided
+        const inputPath = params.path || params.folderPath || (params as any).folder || '';
         const { recursive = false } = params;
-        
-        if (!inputPath && inputPath !== '') {
-            return {
-                success: false,
-                error: 'path parameter is required'
-            };
-        }
 
         // Validate and normalize the path to ensure it's within the vault
         let folderPath: string;
@@ -48,12 +42,19 @@ export class FileListTool implements Tool {
         }
         
         const vault: Vault = this.app.vault;
-        const folder = vault.getAbstractFileByPath(folderPath);
+        let folder;
+        
+        // Handle root folder case
+        if (folderPath === '' || folderPath === '/') {
+            folder = vault.getRoot();
+        } else {
+            folder = vault.getAbstractFileByPath(folderPath);
+        }
         
         if (!folder || !(folder instanceof TFolder)) {
             return {
                 success: false,
-                error: 'Folder not found: ' + folderPath
+                error: 'Folder not found: ' + (folderPath || '(root)')
             };
         }
 

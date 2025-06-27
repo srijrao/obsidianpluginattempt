@@ -226,63 +226,56 @@ export class MessageRenderer {
             // Regular message rendering
             await this.renderRegularMessage(message, container, component);
         }
-    }/**
+    }    /**
      * Render message with embedded tool displays
      */
     private async renderMessageWithToolDisplays(message: Message, container: HTMLElement, component?: Component): Promise<void> {
-        // Removed redundant console.log and console.warn statements for cleaner production code.
-        
         const messageContent = container.querySelector('.message-content') as HTMLElement;
         if (!messageContent) {
             console.error('No .message-content element found in container');
             return;
-        }        // Clear existing content
+        }
+
+        // Clear existing content
         messageContent.empty();
         
         // Add class to indicate this message has rich tool displays
         container.classList.add('has-rich-tools');
 
-        // Parse the message content to extract tool calls and regular content
-        const parts = this.parseMessageWithTools(message.content);
-
-        for (const part of parts) {
-            if (part.type === 'text' && part.content?.trim()) {
-                // Render regular text content
-                const textDiv = document.createElement('div');
-                textDiv.className = 'message-text-part';
-                await MarkdownRenderer.render(this.app, part.content, textDiv, '', component || new Component());
-                messageContent.appendChild(textDiv);            } else if (part.type === 'tool' && part.command && message.toolResults) {
-                // Find the corresponding tool result
-                const toolExecutionResult = message.toolResults.find(tr => 
-                    tr.command.action === part.command!.action && 
-                    this.compareToolParams(tr.command.parameters, part.command!.parameters)
-                );
-
-                if (toolExecutionResult) {
-                    // Create rich display for this tool
-                    const richDisplay = new ToolRichDisplay({
-                        command: part.command,
-                        result: toolExecutionResult.result,
-                        onRerun: () => {
-                            // Re-run functionality can be added later if needed
-                        },
-                        onCopy: async () => {
-                            const displayText = this.formatToolForCopy(part.command!, toolExecutionResult.result);
-                            try {
-                                await navigator.clipboard.writeText(displayText);
-                            } catch (error) {
-                                console.error('Failed to copy tool result:', error);
-                            }
+        // Render all tool results as rich displays
+        if (message.toolResults && message.toolResults.length > 0) {
+            for (const toolExecutionResult of message.toolResults) {
+                // Create rich display for this tool
+                const richDisplay = new ToolRichDisplay({
+                    command: toolExecutionResult.command,
+                    result: toolExecutionResult.result,
+                    onRerun: () => {
+                        // Re-run functionality can be added later if needed
+                    },
+                    onCopy: async () => {
+                        const displayText = this.formatToolForCopy(toolExecutionResult.command, toolExecutionResult.result);
+                        try {
+                            await navigator.clipboard.writeText(displayText);
+                        } catch (error) {
+                            console.error('Failed to copy tool result:', error);
                         }
-                    });
+                    }
+                });
 
-                    // Create wrapper and append
-                    const toolWrapper = document.createElement('div');
-                    toolWrapper.className = 'embedded-tool-display';
-                    toolWrapper.appendChild(richDisplay.getElement());
-                    messageContent.appendChild(toolWrapper);
-                }
+                // Create wrapper and append
+                const toolWrapper = document.createElement('div');
+                toolWrapper.className = 'embedded-tool-display';
+                toolWrapper.appendChild(richDisplay.getElement());
+                messageContent.appendChild(toolWrapper);
             }
+        }
+
+        // Then render the message content if it exists
+        if (message.content && message.content.trim()) {
+            const textDiv = document.createElement('div');
+            textDiv.className = 'message-text-part';
+            await MarkdownRenderer.render(this.app, message.content, textDiv, '', component || new Component());
+            messageContent.appendChild(textDiv);
         }
     }
 

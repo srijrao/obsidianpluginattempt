@@ -51,7 +51,8 @@ export class FileMoveTool implements Tool {
 
         const { createFolders = true, overwrite = false } = params;
 
-        if (!inputSourcePath || !inputDestinationPath) {
+        if (inputSourcePath === undefined || inputSourcePath === null || 
+            inputDestinationPath === undefined || inputDestinationPath === null) {
             return {
                 success: false,
                 error: 'Both sourcePath and destinationPath parameters are required (aliases: path, new_path, newPath)'

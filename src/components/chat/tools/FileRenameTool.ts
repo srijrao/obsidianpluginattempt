@@ -43,7 +43,8 @@ export class FileRenameTool implements Tool {
         const { path: inputPath, newName, newPath, overwrite = false } = params;
         const finalNewName = newName || newPath;
 
-        if (!inputPath || !finalNewName) {
+        if (inputPath === undefined || inputPath === null || 
+            finalNewName === undefined || finalNewName === null) {
             return {
                 success: false,
                 error: 'Both path and newName (or newPath) parameters are required'

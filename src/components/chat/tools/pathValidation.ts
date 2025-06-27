@@ -18,8 +18,8 @@ export class PathValidator {
      * @returns The normalized vault-relative path or throws an error if invalid
      */
     validateAndNormalizePath(inputPath: string): string {
-        if (!inputPath || typeof inputPath !== 'string') {
-            throw new Error('Path is required and must be a string');
+        if (inputPath === undefined || inputPath === null || typeof inputPath !== 'string') {
+            throw new Error('Path must be a string');
         }
 
         // Remove any leading/trailing whitespace

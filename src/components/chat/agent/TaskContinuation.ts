@@ -20,7 +20,8 @@ export class TaskContinuation {
         container: HTMLElement,
         initialResponseContent: string,
         currentContent: string,
-        initialToolResults: Array<{ command: ToolCommand; result: ToolResult }>
+        initialToolResults: Array<{ command: ToolCommand; result: ToolResult }>,
+        chatHistory?: any[]
     ): Promise<{ content: string; limitReachedDuringContinuation: boolean; }> {
         let responseContent = currentContent;
         let maxIterations = 10; // Prevent infinite loops
@@ -66,23 +67,27 @@ export class TaskContinuation {
                 // Get continuation response
                 const continuationContent = await this.getContinuationResponse(messages, container);
                 if (continuationContent.trim()) {
+                    // Process for tools first
+                    let processingResult;
+                    if (this.agentResponseHandler) {
+                        processingResult = await this.agentResponseHandler.processResponse(continuationContent, "task-continuation", chatHistory);
+                        // Add new tool results from this step to the accumulator
+                        if (processingResult.toolResults && processingResult.toolResults.length > 0) {
+                            allToolResults = [...allToolResults, ...processingResult.toolResults];
+                        }
+                    }
+
                     const continuationResult = await this.processContinuation(
                         continuationContent,
                         responseContent,
                         container,
-                        allToolResults // pass all so far
+                        allToolResults, // pass all so far
+                        chatHistory,
+                        processingResult // pass the already processed result to avoid double processing
                     );
                     responseContent = continuationResult.responseContent;
                     isFinished = continuationResult.isFinished;
                     initialResponseContent = continuationContent;
-                    // Add new tool results from this step to the accumulator
-                    if (this.agentResponseHandler) {
-                        // Await the processResponse promise to get the actual result
-                        const lastResults = await this.agentResponseHandler.processResponse(continuationContent, "task-continuation-tool-accumulation");
-                        if (lastResults && lastResults.toolResults && lastResults.toolResults.length > 0) {
-                            allToolResults = [...allToolResults, ...lastResults.toolResults];
-                        }
-                    }
                 } else {
                     isFinished = true;
                 }
@@ -112,56 +117,61 @@ export class TaskContinuation {
         continuationContent: string,
         responseContent: string,
         container: HTMLElement,
-        initialToolResults: Array<{ command: ToolCommand; result: ToolResult }>
+        initialToolResults: Array<{ command: ToolCommand; result: ToolResult }>,
+        chatHistory?: any[],
+        processingResult?: { processedText: string; toolResults: Array<{ command: ToolCommand; result: ToolResult }>; hasTools: boolean }
     ): Promise<{ responseContent: string; isFinished: boolean }> {
-        // Process continuation for additional tool commands
-        if (this.agentResponseHandler) {
-            const continuationResult = await this.agentResponseHandler.processResponse(continuationContent);
-            
-            if (continuationResult.hasTools) {
-                // Use the clean processed text, not the display format
-                const cleanContinuationContent = continuationResult.processedText;
-                
-                // Check if this iteration is finished
-                const isFinished = this.checkIfTaskFinished(continuationResult.toolResults);
-                
-                // Combine tool results for the enhanced message data
-                const allToolResults = [...initialToolResults, ...continuationResult.toolResults];
-                
-                // Update content with clean text only
-                const updatedContent = responseContent + '\n\n' + cleanContinuationContent;
-                
-                // Create enhanced message data with all tool results
-                const enhancedMessageData = this.createEnhancedMessageData(
-                    updatedContent,
-                    continuationResult,
-                    allToolResults
-                );
-                
-                // Update container with enhanced message data
-                this.updateContainerWithMessageData(container, enhancedMessageData, updatedContent);
-                
-                return { responseContent: updatedContent, isFinished };
-            } else {
-                // If no tools were used, check if the response itself has finished: true
-                let isFinished = false;
-                try {
-                    const parsed = JSON.parse(continuationContent);
-                    if (parsed && parsed.finished === true) {
-                        isFinished = true;
-                    }
-                } catch (e) {
-                    // Not JSON, ignore
-                }
-                const updatedContent = responseContent + '\n\n' + continuationContent;
-                await this.updateContainerContent(container, updatedContent);
-                return { responseContent: updatedContent, isFinished };
-            }
+        // Use already processed result if available, otherwise process now
+        let continuationResult;
+        if (processingResult) {
+            continuationResult = processingResult;
+        } else if (this.agentResponseHandler) {
+            continuationResult = await this.agentResponseHandler.processResponse(continuationContent, "main", chatHistory);
         } else {
+            // No agent handler and no processing result
             const updatedContent = responseContent + '\n\n' + continuationContent;
             await this.updateContainerContent(container, updatedContent);
+            return { responseContent: updatedContent, isFinished: true };
+        }
             
-            return { responseContent: updatedContent, isFinished: true }; // If no agent handler, consider finished
+        if (continuationResult.hasTools) {
+            // Use the clean processed text, not the display format
+            const cleanContinuationContent = continuationResult.processedText;
+            
+            // Check if this iteration is finished
+            const isFinished = this.checkIfTaskFinished(continuationResult.toolResults);
+            
+            // Combine tool results for the enhanced message data
+            const allToolResults = [...initialToolResults, ...continuationResult.toolResults];
+            
+            // Update content with clean text only
+            const updatedContent = responseContent + '\n\n' + cleanContinuationContent;
+            
+            // Create enhanced message data with all tool results
+            const enhancedMessageData = this.createEnhancedMessageData(
+                updatedContent,
+                continuationResult,
+                allToolResults
+            );
+            
+            // Update container with enhanced message data
+            this.updateContainerWithMessageData(container, enhancedMessageData, updatedContent);
+            
+            return { responseContent: updatedContent, isFinished };
+        } else {
+            // If no tools were used, check if the response itself has finished: true
+            let isFinished = false;
+            try {
+                const parsed = JSON.parse(continuationContent);
+                if (parsed && parsed.finished === true) {
+                    isFinished = true;
+                }
+            } catch (e) {
+                // Not JSON, ignore
+            }
+            const updatedContent = responseContent + '\n\n' + continuationContent;
+            await this.updateContainerContent(container, updatedContent);
+            return { responseContent: updatedContent, isFinished };
         }
     }
 

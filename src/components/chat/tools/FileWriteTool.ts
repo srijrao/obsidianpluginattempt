@@ -42,12 +42,12 @@ export class FileWriteTool implements Tool {
         const defaultPath = app.vault.configDir + '/plugins/ai-assistant-for-obsidian';
         this.backupManager = backupManager || new BackupManager(app, defaultPath);
         this.pathValidator = new PathValidator(app);
-    }async execute(params: any, context: any): Promise<ToolResult> {
+    }    async execute(params: any, context: any): Promise<ToolResult> {
         // Normalize parameter names for backward compatibility
         const inputPath = params.path || params.filePath || params.filename;
         const { content, createIfNotExists = true, backup = true } = params;
 
-        if (!inputPath) {
+        if (inputPath === undefined || inputPath === null) {
             return {
                 success: false,
                 error: 'path parameter is required'

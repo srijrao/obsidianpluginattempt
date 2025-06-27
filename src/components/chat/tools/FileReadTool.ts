@@ -34,7 +34,7 @@ export class FileReadTool implements Tool {
         
         const { maxSize = 1024 * 1024 } = params;
 
-        if (!inputPath) {
+        if (inputPath === undefined || inputPath === null) {
             return {
                 success: false,
                 error: 'path parameter is required'

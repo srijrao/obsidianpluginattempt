@@ -13,6 +13,7 @@ interface ContinuationParams {
     finalContent: string;
     toolResults: Array<{ command: ToolCommand; result: ToolResult }>;
     additionalTools?: number;
+    chatHistory?: any[];
 }
 
 /**
@@ -39,7 +40,8 @@ export class ResponseStreamer {
         messages: Message[],
         container: HTMLElement,
         originalTimestamp?: string,
-        originalContent?: string
+        originalContent?: string,
+        chatHistory?: any[]
     ): Promise<string> {
         this.plugin.debugLog('info', '[ResponseStreamer] streamAssistantResponse called', { messages, originalTimestamp });
         let responseContent = '';
@@ -61,7 +63,7 @@ export class ResponseStreamer {
             });
 
             if (this.plugin.isAgentModeEnabled() && this.agentResponseHandler) {
-                responseContent = await this.processAgentResponse(responseContent, container, messages, "streamer-main");
+                responseContent = await this.processAgentResponse(responseContent, container, messages, "streamer-main", chatHistory);
             }
 
             return responseContent;
@@ -134,7 +136,8 @@ export class ResponseStreamer {
         responseContent: string,
         container: HTMLElement,
         messages: Message[],
-        contextLabel: string = "streamer"
+        contextLabel: string = "streamer",
+        chatHistory?: any[]
     ): Promise<string> {
         if (!this.agentResponseHandler) {
             // Removed redundant console.log for cleaner production code.
@@ -143,11 +146,11 @@ export class ResponseStreamer {
 
         // Removed redundant console.log for cleaner production code.
         try {
-            const agentResult = await this.agentResponseHandler.processResponseWithUI(responseContent, contextLabel);
+            const agentResult = await this.agentResponseHandler.processResponseWithUI(responseContent, contextLabel, chatHistory);
             // Removed redundant console.log for cleaner production code.
             return agentResult.hasTools 
-                ? await this.handleToolExecution(agentResult, container, responseContent, messages)
-                : await this.handleNonToolResponse(agentResult, container, responseContent, messages);
+                ? await this.handleToolExecution(agentResult, container, responseContent, messages, chatHistory)
+                : await this.handleNonToolResponse(agentResult, container, responseContent, messages, chatHistory);
         } catch (error) {
             console.error('ResponseStreamer: Error processing agent response:', error);
             return responseContent;
@@ -159,7 +162,8 @@ export class ResponseStreamer {
         agentResult: any,
         container: HTMLElement,
         responseContent: string,
-        messages: Message[]
+        messages: Message[],
+        chatHistory?: any[]
     ): Promise<string> {
         // Don't append legacy tool displays - only use rich displays
         const finalContent = agentResult.processedText;
@@ -172,7 +176,7 @@ export class ResponseStreamer {
         
         this.updateContainerWithMessageData(container, enhancedMessageData, finalContent);
         
-        return this.handleTaskCompletion(agentResult, finalContent, responseContent, messages, container);
+        return this.handleTaskCompletion(agentResult, finalContent, responseContent, messages, container, chatHistory);
     }
 
     /**
@@ -182,7 +186,8 @@ export class ResponseStreamer {
         agentResult: any,
         container: HTMLElement,
         responseContent: string,
-        messages: Message[]
+        messages: Message[],
+        chatHistory?: any[]
     ): Promise<string> {
         if (agentResult.reasoning) {
             const enhancedMessageData = this.createEnhancedMessageData(responseContent, agentResult);
@@ -190,7 +195,7 @@ export class ResponseStreamer {
         }
         
         if (this.isReasoningStep(responseContent)) {
-            return await this.handleReasoningContinuation(responseContent, messages, container);
+            return await this.handleReasoningContinuation(responseContent, messages, container, chatHistory);
         }
 
         return responseContent;
@@ -248,10 +253,11 @@ export class ResponseStreamer {
         finalContent: string,
         responseContent: string,
         messages: Message[],
-        container: HTMLElement
+        container: HTMLElement,
+        chatHistory?: any[]
     ): Promise<string> {
         if (agentResult.shouldShowLimitWarning) {
-            return this.handleToolLimitReached(messages, container, responseContent, finalContent, agentResult.toolResults);
+            return this.handleToolLimitReached(messages, container, responseContent, finalContent, agentResult.toolResults, chatHistory);
         }
         
         if (agentResult.taskStatus.status === 'completed') {
@@ -263,7 +269,7 @@ export class ResponseStreamer {
         }
 
         return await this.continueTaskIfPossible(
-            agentResult, messages, container, responseContent, finalContent
+            agentResult, messages, container, responseContent, finalContent, chatHistory
         );
     }
 
@@ -275,12 +281,13 @@ export class ResponseStreamer {
         container: HTMLElement,
         responseContent: string,
         finalContent: string,
-        toolResults: any[]
+        toolResults: any[],
+        chatHistory?: any[]
     ): string {
         const warning = this.agentResponseHandler!.createToolLimitWarning();
         this.messagesContainer.appendChild(warning);
         
-        this.setupContinuationEventListeners(messages, container, responseContent, finalContent, toolResults);
+        this.setupContinuationEventListeners(messages, container, responseContent, finalContent, toolResults, chatHistory);
         
         this.showTaskCompletionNotification(
             'Tool execution limit reached. Choose how to continue above.',
@@ -298,10 +305,11 @@ export class ResponseStreamer {
         container: HTMLElement,
         responseContent: string,
         finalContent: string,
-        toolResults: any[]
+        toolResults: any[],
+        chatHistory?: any[]
     ): void {
         const continuationParams: ContinuationParams = {
-            messages, container, responseContent, finalContent, toolResults
+            messages, container, responseContent, finalContent, toolResults, chatHistory
         };
 
         this.messagesContainer.addEventListener('continueTask', () => {
@@ -324,7 +332,8 @@ export class ResponseStreamer {
         messages: Message[],
         container: HTMLElement,
         responseContent: string,
-        finalContent: string
+        finalContent: string,
+        chatHistory?: any[]
     ): Promise<string> {
         if (agentResult.shouldShowLimitWarning || this.agentResponseHandler?.isToolLimitReached()) {
             return finalContent;
@@ -332,13 +341,13 @@ export class ResponseStreamer {
 
         const taskContinuation = this.createTaskContinuation();
         const continuationResult = await taskContinuation.continueTaskUntilFinished(
-            messages, container, responseContent, finalContent, agentResult.toolResults
+            messages, container, responseContent, finalContent, agentResult.toolResults, chatHistory || []
         );
         
         if (continuationResult.limitReachedDuringContinuation) {
             this.handleToolLimitReached(
                 messages, container, responseContent, 
-                continuationResult.content, agentResult.toolResults
+                continuationResult.content, agentResult.toolResults, chatHistory
             );
         }
         
@@ -368,7 +377,8 @@ export class ResponseStreamer {
     private async handleReasoningContinuation(
         responseContent: string,
         messages: Message[],
-        container: HTMLElement
+        container: HTMLElement,
+        chatHistory?: any[]
     ): Promise<string> {
         if (this.agentResponseHandler?.isToolLimitReached()) {
             // Removed redundant console.log for cleaner production code.
@@ -428,7 +438,7 @@ export class ResponseStreamer {
     private async executeContinuation(params: ContinuationParams): Promise<void> {
         if (!this.agentResponseHandler) return;
 
-        const { messages, container, responseContent, finalContent, toolResults, additionalTools } = params;
+        const { messages, container, responseContent, finalContent, toolResults, additionalTools, chatHistory } = params;
         
         if (additionalTools) {
             // Removed redundant console.log for cleaner production code.
@@ -444,13 +454,13 @@ export class ResponseStreamer {
         
         const newBotMessage = await this.createNewBotMessage();
         const continuationResult = await this.executeTaskContinuation(
-            messages, newBotMessage.getElement(), responseContent, toolResults
+            messages, newBotMessage.getElement(), responseContent, toolResults, chatHistory
         );
         
         if (continuationResult.limitReachedDuringContinuation) {
             this.handleToolLimitReached(
                 messages, newBotMessage.getElement(), responseContent, 
-                continuationResult.content, toolResults
+                continuationResult.content, toolResults, chatHistory
             );
         }
         
@@ -498,10 +508,12 @@ export class ResponseStreamer {
         messages: Message[],
         container: HTMLElement,
         responseContent: string,
-        toolResults: any[]
+        toolResults: any[],
+        chatHistory?: any[]
     ) {
         const taskContinuation = this.createTaskContinuation();
         return await taskContinuation.continueTaskUntilFinished(
-            messages, container, responseContent, '', toolResults
+            messages, container, responseContent, '', toolResults, chatHistory || []
         );
-    }}
+    }
+}
