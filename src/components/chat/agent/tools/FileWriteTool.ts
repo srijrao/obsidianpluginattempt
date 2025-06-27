@@ -1,6 +1,6 @@
 import { App, TFile } from 'obsidian';
 import { Tool, ToolResult } from '../ToolRegistry';
-import { createFile, writeFile } from '../../../FileHandler';
+import { createFile, writeFile } from '../../../../utils/FileHandler';
 import { BackupManager } from '../../../BackupManager';
 import { PathValidator } from './pathValidation';
 

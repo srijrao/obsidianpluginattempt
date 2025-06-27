@@ -1,8 +1,8 @@
 import { Editor } from 'obsidian';
 import { MyPluginSettings, Message } from '../types';
 import { createProvider, createProviderFromUnifiedModel } from '../../providers';
-import { parseSelection } from '../components/parseSelection';
-import { showNotice, insertSeparator } from '../utils/generalUtils';
+import { parseSelection } from './parseSelection';
+import { showNotice, insertSeparator } from './generalUtils';
 
 /**
  * Handles the AI completion logic for the editor.

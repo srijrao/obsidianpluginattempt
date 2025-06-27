@@ -2721,7 +2721,7 @@ var init_js_yaml = __esm({
   }
 });
 
-// src/components/FileHandler.ts
+// src/utils/FileHandler.ts
 function getVaultItem(app, path, type2) {
   const item = app.vault.getAbstractFileByPath(path);
   if (!item) {
@@ -2767,7 +2767,7 @@ async function writeFile(app, filePath, content) {
 }
 var import_obsidian;
 var init_FileHandler = __esm({
-  "src/components/FileHandler.ts"() {
+  "src/utils/FileHandler.ts"() {
     import_obsidian = require("obsidian");
     init_js_yaml();
   }
@@ -10782,7 +10782,7 @@ async function activateView(app, viewType, reveal = true) {
   }
 }
 
-// src/components/chat.ts
+// src/chat.ts
 var import_obsidian26 = require("obsidian");
 
 // src/components/chat/ChatHistoryManager.ts
@@ -11108,7 +11108,7 @@ function createChatUI(app, contentEl) {
   };
 }
 
-// src/components/chat.ts
+// src/chat.ts
 init_eventHandlers();
 init_chatPersistence();
 
@@ -12873,7 +12873,7 @@ var MessageRegenerator = class {
   }
 };
 
-// src/components/chat.ts
+// src/chat.ts
 init_MessageRenderer();
 var VIEW_TYPE_CHAT = "chat-view";
 var ChatView = class extends import_obsidian26.ItemView {
@@ -13331,10 +13331,10 @@ function registerViewCommands(plugin) {
 // src/components/commands/aiStreamCommands.ts
 init_pluginUtils();
 
-// src/components/aiCompletionHandler.ts
+// src/utils/aiCompletionHandler.ts
 init_providers();
 
-// src/components/parseSelection.ts
+// src/utils/parseSelection.ts
 function parseSelection(selection, chatSeparator, chatBoundaryString) {
   let insideChat = !chatBoundaryString;
   const lines = selection.split("\n");
@@ -13369,8 +13369,8 @@ function parseSelection(selection, chatSeparator, chatBoundaryString) {
 
 // src/utils/generalUtils.ts
 function showNotice(message) {
-  const { Notice: Notice19 } = require("obsidian");
-  new Notice19(message);
+  const { Notice: Notice18 } = require("obsidian");
+  new Notice18(message);
 }
 async function copyToClipboard3(text, successMsg = "Copied to clipboard", failMsg = "Failed to copy to clipboard") {
   try {
@@ -13405,7 +13405,7 @@ ${separator}
   return position.line + (prefix ? 1 : 0) + 2;
 }
 
-// src/components/aiCompletionHandler.ts
+// src/utils/aiCompletionHandler.ts
 async function handleAICompletion(editor, settings, processMessages2, getSystemMessage2, activeStream, setActiveStream) {
   var _a2, _b;
   let text;
@@ -13492,7 +13492,7 @@ ${settings.chatSeparator}
   }
 }
 
-// src/components/systemMessage.ts
+// src/utils/systemMessage.ts
 function getSystemMessage(settings) {
   let systemMessage = settings.systemMessage;
   if (settings.includeDateWithSystemMessage) {
@@ -15169,10 +15169,10 @@ var ModelSettingsView = class extends import_obsidian33.ItemView {
   }
 };
 
-// src/components/noteUtils.ts
+// src/utils/noteUtils.ts
 var import_obsidian34 = require("obsidian");
 
-// src/components/utils.ts
+// src/utils/utils.ts
 function findFile(app, filePath) {
   let file = app.vault.getAbstractFileByPath(filePath) || app.vault.getAbstractFileByPath(`${filePath}.md`);
   if (!file) {
@@ -15212,7 +15212,7 @@ function extractContentUnderHeader(content, headerText) {
   return extractedContent.join("\n");
 }
 
-// src/components/noteUtils.ts
+// src/utils/noteUtils.ts
 async function processObsidianLinks(content, app, settings, visitedNotes = /* @__PURE__ */ new Set(), currentDepth = 0) {
   var _a2;
   if (!settings.enableObsidianLinks) return content;

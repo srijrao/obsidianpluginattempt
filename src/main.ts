@@ -1,11 +1,10 @@
-import { App, Plugin, Notice, TFile, Editor } from 'obsidian';
+import { Plugin } from 'obsidian';
 import { MyPluginSettings, Message, DEFAULT_SETTINGS, AgentModeSettings } from './types';
 import { MyPluginSettingTab } from './settings';
-import { ChatView, VIEW_TYPE_CHAT } from './components/chat';
-import { parseSelection } from './components/parseSelection';
+import { ChatView, VIEW_TYPE_CHAT } from './chat';
 import { ModelSettingsView } from './components/ModelSettingsView';
-import { processMessages, getContextNotesContent } from './components/noteUtils';
-import { getSystemMessage } from './components/systemMessage';
+import { processMessages, getContextNotesContent } from './utils/noteUtils';
+import { getSystemMessage } from './utils/systemMessage';
 import { showNotice } from './utils/generalUtils';
 import { debugLog } from './utils/logger';
 import { activateView } from './utils/viewManager';

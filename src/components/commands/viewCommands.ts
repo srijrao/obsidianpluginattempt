@@ -1,7 +1,7 @@
 import { Plugin } from 'obsidian';
 import { registerCommand } from '../../utils/pluginUtils';
 import { activateView } from '../../utils/viewManager';
-import { VIEW_TYPE_CHAT } from '../chat';
+import { VIEW_TYPE_CHAT } from '../../chat';
 
 export const VIEW_TYPE_MODEL_SETTINGS = 'model-settings-view';
 

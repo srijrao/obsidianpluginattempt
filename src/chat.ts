@@ -1,21 +1,20 @@
 import { ItemView, WorkspaceLeaf, Notice, MarkdownRenderer, App } from 'obsidian';
-import MyPlugin from '../main';
-import { Message, TaskStatus } from '../types';
-import { createProvider, createProviderFromUnifiedModel } from '../../providers';
-import { ChatHistoryManager, ChatMessage } from './chat/ChatHistoryManager';
-import { createMessageElement } from './chat/Message';
-import { createChatUI, ChatUIElements } from './chat/ui';
-import { handleCopyAll, handleSaveNote, handleClearChat, handleSettings, handleHelp, handleReferenceNote } from './chat/eventHandlers';
-import { saveChatAsNote, loadChatYamlAndApplySettings } from './chat/chatPersistence';
-import { renderChatHistory } from './chat/chatHistoryUtils';
-import { ChatHelpModal } from './chat/ChatHelpModal';
-import { AgentResponseHandler, AgentContext } from './chat/agent/AgentResponseHandler';
-import { ToolCommand, ToolResult } from '../types';
-import { ContextBuilder } from './chat/agent/ContextBuilder';
-import { MessageRegenerator } from './chat/MessageRegenerator';
-import { ResponseStreamer } from './chat/ResponseStreamer';
-import { MessageRenderer } from './chat/MessageRenderer';
-import { ToolRichDisplay } from './chat/agent/ToolRichDisplay';
+import MyPlugin from './main';
+import { Message, TaskStatus, ToolCommand, ToolResult } from './types';
+import { createProvider, createProviderFromUnifiedModel } from '../providers';
+import { ChatHistoryManager, ChatMessage } from './components/chat/ChatHistoryManager';
+import { createMessageElement } from './components/chat/Message';
+import { createChatUI, ChatUIElements } from './components/chat/ui';
+import { handleCopyAll, handleSaveNote, handleClearChat, handleSettings, handleHelp, handleReferenceNote } from './components/chat/eventHandlers';
+import { saveChatAsNote, loadChatYamlAndApplySettings } from './components/chat/chatPersistence';
+import { renderChatHistory } from './components/chat/chatHistoryUtils';
+import { ChatHelpModal } from './components/chat/ChatHelpModal';
+import { AgentResponseHandler, AgentContext } from './components/chat/agent/AgentResponseHandler';
+import { ContextBuilder } from './components/chat/agent/ContextBuilder';
+import { MessageRegenerator } from './components/chat/MessageRegenerator';
+import { ResponseStreamer } from './components/chat/ResponseStreamer';
+import { MessageRenderer } from './components/chat/MessageRenderer';
+import { ToolRichDisplay } from './components/chat/agent/ToolRichDisplay';
 
 export const VIEW_TYPE_CHAT = 'chat-view';
 
@@ -192,7 +191,7 @@ export class ChatView extends ItemView {
             stopButton.classList.remove('hidden');
 
             // Add user message
-            const userMessageEl = await createMessageElement(this.app, 'user', content, this.chatHistoryManager, this.plugin, (el) => this.regenerateResponse(el), this);
+            const userMessageEl = await createMessageElement(this.app, 'user', content, this.chatHistoryManager, this.plugin, (el: HTMLElement) => this.regenerateResponse(el), this);
             this.messagesContainer.appendChild(userMessageEl);
             this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
             textarea.value = '';
@@ -274,7 +273,7 @@ export class ChatView extends ItemView {
             } catch (error) {
                 if (error.name !== 'AbortError') {
                     new Notice(`Error: ${error.message}`);
-                    await createMessageElement(this.app, 'assistant', `Error: ${error.message}`, this.chatHistoryManager, this.plugin, (el) => this.regenerateResponse(el), this);
+                    await createMessageElement(this.app, 'assistant', `Error: ${error.message}`, this.chatHistoryManager, this.plugin, (el: HTMLElement) => this.regenerateResponse(el), this);
                 }            } finally {
                 // Re-enable input and hide stop button
                 textarea.disabled = false;
@@ -303,7 +302,7 @@ export class ChatView extends ItemView {
         // Modular input handler for slash commands and keyboard shortcuts
         // (setupInputHandler will be imported from './chat/inputHandler')
         // @ts-ignore
-        import('./chat/inputHandler').then(({ setupInputHandler }) => {
+        import('./components/chat/inputHandler').then(({ setupInputHandler }) => {
             setupInputHandler(
                 textarea,
                 this.messagesContainer, // Pass messagesContainer for keyboard shortcuts
@@ -355,7 +354,7 @@ export class ChatView extends ItemView {
                 loadedHistory,
                 chatHistoryManager: this.chatHistoryManager,
                 plugin: this.plugin,
-                regenerateResponse: (el) => this.regenerateResponse(el),
+                regenerateResponse: (el: HTMLElement) => this.regenerateResponse(el),
                 scrollToBottom: true
             });        }
 
@@ -374,7 +373,7 @@ export class ChatView extends ItemView {
     }
 
     private async addMessage(role: 'user' | 'assistant', content: string, isError: boolean = false, enhancedData?: Partial<Pick<Message, 'reasoning' | 'taskStatus' | 'toolResults'>>): Promise<void> {
-        const messageEl = await createMessageElement(this.app, role, content, this.chatHistoryManager, this.plugin, (el) => this.regenerateResponse(el), this, enhancedData ? { role, content, ...enhancedData } : undefined);
+        const messageEl = await createMessageElement(this.app, role, content, this.chatHistoryManager, this.plugin, (el: HTMLElement) => this.regenerateResponse(el), this, enhancedData ? { role, content, ...enhancedData } : undefined);
         const uiTimestamp = messageEl.dataset.timestamp || new Date().toISOString();
         this.messagesContainer.appendChild(messageEl);
         this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
@@ -413,7 +412,7 @@ export class ChatView extends ItemView {
         let modelName = 'Unknown Model';
         const settings = this.plugin.settings;
         if (settings.selectedModel && settings.availableModels) {
-            const found = settings.availableModels.find(m => m.id === settings.selectedModel);
+            const found = settings.availableModels.find((m: any) => m.id === settings.selectedModel);
             if (found) modelName = found.name;
             else modelName = settings.selectedModel;
         } else if (settings.selectedModel) {

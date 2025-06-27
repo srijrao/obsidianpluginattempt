@@ -1,7 +1,7 @@
 import { Editor, Plugin, TFile } from 'obsidian';
 import { registerCommand } from '../../utils/pluginUtils';
 import { showNotice, copyToClipboard, moveCursorAfterInsert } from '../../utils/generalUtils';
-import { parseSelection } from '../parseSelection';
+import { parseSelection } from '../../utils/parseSelection';
 import { MyPluginSettings, Message } from '../../types';
 
 /**
