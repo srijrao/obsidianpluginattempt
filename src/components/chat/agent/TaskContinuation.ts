@@ -142,8 +142,9 @@ export class TaskContinuation {
             // Check if this iteration is finished
             const isFinished = this.checkIfTaskFinished(continuationResult.toolResults);
             
-            // Combine tool results for the enhanced message data
-            const allToolResults = [...initialToolResults, ...continuationResult.toolResults];
+            // Use the initialToolResults which already contains all accumulated tool results
+            // Don't add continuationResult.toolResults again as they're already included
+            const allToolResults = initialToolResults;
             
             // Update content with clean text only
             const updatedContent = responseContent + '\n\n' + cleanContinuationContent;

@@ -12294,7 +12294,7 @@ var TaskContinuation = class {
     if (continuationResult.hasTools) {
       const cleanContinuationContent = continuationResult.processedText;
       const isFinished = this.checkIfTaskFinished(continuationResult.toolResults);
-      const allToolResults = [...initialToolResults, ...continuationResult.toolResults];
+      const allToolResults = initialToolResults;
       const updatedContent = responseContent + "\n\n" + cleanContinuationContent;
       const enhancedMessageData = this.createEnhancedMessageData(
         updatedContent,
