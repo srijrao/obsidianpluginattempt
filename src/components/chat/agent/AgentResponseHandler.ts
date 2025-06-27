@@ -282,19 +282,61 @@ export class AgentResponseHandler {
     }
 
     /**
-     * Create a message with tool execution results for context
+     * Shared formatter for tool results (for DRY)
+     */
+    private formatToolResultLine(command: ToolCommand, result: ToolResult, opts?: { markdown?: boolean }): string {
+        const status = result.success ? (opts?.markdown ? '✅' : '✓') : (opts?.markdown ? '❌' : '✗');
+        const action = command.action.replace('_', ' ');
+        let context = '';
+        if (result.success && result.data) {
+            switch (command.action) {
+                case 'file_write':
+                case 'file_read':
+                case 'file_diff':
+                    if (result.data.filePath) {
+                        const relPath = this.getRelativePath(result.data.filePath);
+                        context = ` [[${relPath}]]`;
+                    }
+                    break;
+                case 'file_select':
+                    if (result.data.count !== undefined) {
+                        context = ` [[${result.data.count} files found]]`;
+                    }
+                    break;
+                case 'thought':
+                    if (result.data && result.data.formattedThought) {
+                        return result.data.formattedThought;
+                    }
+                    break;
+            }
+        }
+        if (opts?.markdown) {
+            return `${status} **${action}** completed successfully${context}`;
+        } else {
+            const data = result.success ? JSON.stringify(result.data, null, 2) : result.error;
+            return `${status} Tool: ${command.action}\nParameters: ${JSON.stringify(command.parameters, null, 2)}\nResult: ${data}`;
+        }
+    }
+
+    /**
+     * Format tool results for display in chat (markdown style)
+     */
+    formatToolResultsForDisplay(toolResults: Array<{ command: ToolCommand; result: ToolResult }>): string {
+        if (toolResults.length === 0) {
+            return '';
+        }
+        const resultText = toolResults.map(({ command, result }) => this.formatToolResultLine(command, result, { markdown: true })).join('\n');
+        return `\n\n**Tool Execution:**\n${resultText}`;
+    }
+
+    /**
+     * Create a message with tool execution results for context (plain style)
      */
     createToolResultMessage(toolResults: Array<{ command: ToolCommand; result: ToolResult }>): Message | null {
         if (toolResults.length === 0) {
             return null;
         }
-
-        const resultText = toolResults.map(({ command, result }) => {
-            const status = result.success ? '✓' : '✗';
-            const data = result.success ? JSON.stringify(result.data, null, 2) : result.error;
-            return `${status} Tool: ${command.action}\nParameters: ${JSON.stringify(command.parameters, null, 2)}\nResult: ${data}`;
-        }).join('\n\n');
-
+        const resultText = toolResults.map(({ command, result }) => this.formatToolResultLine(command, result)).join('\n\n');
         return {
             role: 'system',
             content: `Tool execution results:\n\n${resultText}`
@@ -430,166 +472,6 @@ ${resultData}`;
             relPath = relPath.slice(0, -3);
         }
         return relPath;
-    }
-
-    /**
-     * Format tool results for display in chat
-     */
-    formatToolResultsForDisplay(toolResults: Array<{ command: ToolCommand; result: ToolResult }>): string {
-        if (toolResults.length === 0) {
-            return '';
-        }
-
-        const resultText = toolResults.map(({ command, result }) => {
-            const status = result.success ? '✅' : '❌';
-            const action = command.action.replace('_', ' ');
-            
-            if (result.success) {
-                let context = '';
-                
-                // Add specific context based on the tool and result data
-                if (result.data) {
-                    switch (command.action) {
-                        case 'file_write':
-                        case 'file_read':
-                        case 'file_diff':
-                            if (result.data.filePath) {
-                                const relPath = this.getRelativePath(result.data.filePath);
-                                context = ` [[${relPath}]]`;
-                            }
-                            break;
-                        case 'file_select':
-                            if (result.data.count !== undefined) {
-                                context = ` [[${result.data.count} files found]]`;
-                            }
-                            break;
-                        case 'thought':
-                            if (result.data && result.data.formattedThought) {
-                                // Instead of creating collapsible element, always return formatted thought text
-                                return result.data.formattedThought;
-                            }
-                            break;
-                    }
-                }
-                
-                return `${status} **${action}** completed successfully${context}`;
-            } else {
-                return `${status} **${action}** failed: ${result.error}`;
-            }
-        }).join('\n');
-
-        return `\n\n**Tool Execution:**\n${resultText}`;
-    }
-
-    /**
-     * Create a collapsible reasoning display for structured reasoning results (returns DOM element, not HTML string)
-     */
-    private async createCollapsibleReasoningElement(reasoningData: any): Promise<HTMLElement> {
-        const { problem, steps, totalSteps, depth } = reasoningData;
-        const collapsibleId = 'reasoning-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
-
-        const container = document.createElement('div');
-        container.className = 'reasoning-container';
-        container.id = collapsibleId;
-
-        const summary = document.createElement('div');
-        summary.className = 'reasoning-summary';
-        
-        const toggle = document.createElement('span');
-        toggle.className = 'reasoning-toggle';
-        toggle.textContent = '▶';
-
-        const summaryText = document.createElement('span');
-        summaryText.innerHTML = `<strong>🧠 REASONING SESSION</strong> (${totalSteps} steps, ${depth} depth) - <em>Click to view details</em>`;
-        
-        summary.appendChild(toggle);
-        summary.appendChild(summaryText);
-
-        const details = document.createElement('div');
-        details.className = 'reasoning-details';
-
-        const problemDiv = document.createElement('div');
-        problemDiv.className = 'reasoning-problem';
-        problemDiv.innerHTML = `<strong>Problem:</strong> ${problem || 'No problem statement provided'}`;
-        details.appendChild(problemDiv);
-
-        if (steps && steps.length > 0) {
-            for (const step of steps) {
-                const stepDiv = document.createElement('div');
-                stepDiv.className = `reasoning-step ${step.category}`;
-                const categoryEmoji = this.getStepEmoji(step.category);
-                const confidenceBar = '●'.repeat(Math.floor(step.confidence || 5)) + '○'.repeat(10 - Math.floor(step.confidence || 5));
-                stepDiv.innerHTML = `
-                    <div class="step-header">${categoryEmoji} Step ${step.step}: ${step.title?.toUpperCase() || 'UNTITLED'}</div>
-                    <div class="step-confidence">Confidence: ${step.confidence || 5}/10 <span class="confidence-bar">${confidenceBar}</span></div>
-                    <div class="step-content"></div>
-                `;
-                // Render step content as Markdown
-                const contentDiv = stepDiv.querySelector('.step-content');
-                if (contentDiv) {
-                    await MarkdownRenderer.render(
-                        this.context.app,
-                        step.content || 'No content provided',
-                        contentDiv as HTMLElement,
-                        '',
-                        this.context.plugin
-                    );
-                }
-                details.appendChild(stepDiv);
-            }
-        }
-
-        const completion = document.createElement('div');
-        completion.className = 'reasoning-completion';
-        completion.textContent = `✅ Analysis completed in ${totalSteps} structured steps`;
-        details.appendChild(completion);
-
-        summary.addEventListener('click', () => {
-            const isExpanded = details.classList.toggle('expanded');
-            toggle.textContent = isExpanded ? '▼' : '▶';
-            summaryText.innerHTML = `<strong>🧠 REASONING SESSION</strong> (${totalSteps} steps, ${depth} depth) - <em>Click to ${isExpanded ? 'collapse' : 'view details'}</em>`;
-        });
-
-        container.appendChild(summary);
-        container.appendChild(details);
-
-        return container;
-    }
-
-    /**
-     * Get color for reasoning step categories
-     */
-    private getStepColor(category: string): string {
-        switch (category) {
-            case 'analysis': return '#4f46e5';
-            case 'information': return '#059669';
-            case 'approach': return '#dc2626';
-            case 'evaluation': return '#7c2d12';
-            case 'synthesis': return '#7c3aed';
-            case 'validation': return '#16a34a';
-            case 'refinement': return '#ea580c';
-            case 'conclusion': return '#1d4ed8';
-            case 'planning': return '#be123c';
-            default: return '#6b7280';
-        }
-    }
-
-    /**
-     * Get emoji for reasoning step categories
-     */
-    private getStepEmoji(category: string): string {
-        switch (category) {
-            case 'analysis': return '🔍';
-            case 'information': return '📊';
-            case 'approach': return '🎯';
-            case 'evaluation': return '⚖️';
-            case 'synthesis': return '🔗';
-            case 'validation': return '✅';
-            case 'refinement': return '⚡';
-            case 'conclusion': return '🎯';
-            case 'planning': return '📋';
-            default: return '💭';
-        }
     }
 
     /**
