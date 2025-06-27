@@ -17,7 +17,7 @@ export const getDynamicToolList = (enabledTools?: Record<string, boolean>) => {
     // Use static tool metadata to avoid instantiation issues
     const toolMetadata = getToolMetadata();
     return toolMetadata
-        .filter(tool => !enabledTools || enabledTools[tool.name] !== false)
+        .filter(tool => tool.name === 'thought' || !enabledTools || enabledTools[tool.name] !== false)
         .map(tool => ({
             name: tool.name,
             description: tool.description,

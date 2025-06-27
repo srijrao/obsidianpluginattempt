@@ -3723,6 +3723,8 @@ var init_ThoughtTool = __esm({
         __publicField(this, "name", "thought");
         __publicField(this, "description", `Record and display a single AI reasoning step, always suggesting the next tool to use (or 'finished' if complete). Output is machine-readable for both agent automation and user display. Requires 'thought' and 'nextTool' parameters; optionally includes step tracking, confidence, and a description of the next action.
 
+Never use 'action: finished'. When you are done, always use the 'thought' tool with 'nextTool': 'finished'.
+
 Example:
 {
   "action": "thought",
@@ -4166,7 +4168,7 @@ var init_promptConstants = __esm({
         window.aiAssistantPlugin.debugLog("debug", "[promptConstants] getDynamicToolList called", { enabledTools });
       }
       const toolMetadata = getToolMetadata();
-      return toolMetadata.filter((tool) => !enabledTools || enabledTools[tool.name] !== false).map((tool) => ({
+      return toolMetadata.filter((tool) => tool.name === "thought" || !enabledTools || enabledTools[tool.name] !== false).map((tool) => ({
         name: tool.name,
         description: tool.description,
         parameters: tool.parameters
@@ -11300,40 +11302,15 @@ var CommandParser = class {
           delete parameters.action;
           delete parameters.requestId;
         }
-        if (parsed.action === "finished") {
-          const finalMessage = parsed.message || parsed.result || parsed.response || (parameters == null ? void 0 : parameters.message) || (parameters == null ? void 0 : parameters.result) || (parameters == null ? void 0 : parameters.response) || "Task completed";
-          if (this.plugin) {
-            this.plugin.debugLog("debug", "[CommandParser] Converting finished action to thought", {
-              parsed,
-              finalMessage,
-              parameters
-            });
-          }
-          commands.push({
-            command: {
-              action: "thought",
-              parameters: {
-                thought: finalMessage,
-                nextTool: "finished",
-                category: "conclusion",
-                confidence: 10
-              },
-              requestId: parsed.requestId || this.generateRequestId(),
-              finished: true
-            },
-            originalText: text.trim()
-          });
-        } else {
-          commands.push({
-            command: {
-              action: parsed.action,
-              parameters,
-              requestId: parsed.requestId || this.generateRequestId(),
-              finished: parsed.finished || false
-            },
-            originalText: text.trim()
-          });
-        }
+        commands.push({
+          command: {
+            action: parsed.action,
+            parameters,
+            requestId: parsed.requestId || this.generateRequestId(),
+            finished: parsed.finished || false
+          },
+          originalText: text.trim()
+        });
         return commands;
       }
     } catch (error) {
@@ -11360,40 +11337,15 @@ var CommandParser = class {
               delete parameters.action;
               delete parameters.requestId;
             }
-            if (parsed.action === "finished") {
-              const finalMessage = parsed.message || parsed.result || parsed.response || (parameters == null ? void 0 : parameters.message) || (parameters == null ? void 0 : parameters.result) || (parameters == null ? void 0 : parameters.response) || "Task completed";
-              if (this.plugin) {
-                this.plugin.debugLog("debug", "[CommandParser] Converting finished action to thought (pattern match)", {
-                  parsed,
-                  finalMessage,
-                  parameters
-                });
-              }
-              commands.push({
-                command: {
-                  action: "thought",
-                  parameters: {
-                    thought: finalMessage,
-                    nextTool: "finished",
-                    category: "conclusion",
-                    confidence: 10
-                  },
-                  requestId: parsed.requestId || this.generateRequestId(),
-                  finished: true
-                },
-                originalText
-              });
-            } else {
-              commands.push({
-                command: {
-                  action: parsed.action,
-                  parameters,
-                  requestId: parsed.requestId || this.generateRequestId(),
-                  finished: parsed.finished || false
-                },
-                originalText
-              });
-            }
+            commands.push({
+              command: {
+                action: parsed.action,
+                parameters,
+                requestId: parsed.requestId || this.generateRequestId(),
+                finished: parsed.finished || false
+              },
+              originalText
+            });
           }
         } catch (error) {
           continue;
@@ -11694,19 +11646,64 @@ var AgentResponseHandler = class {
     };
   }
   /**
-   * Create a message with tool execution results for context
+   * Shared formatter for tool results (for DRY)
+   */
+  formatToolResultLine(command, result, opts) {
+    const status = result.success ? (opts == null ? void 0 : opts.markdown) ? "\u2705" : "\u2713" : (opts == null ? void 0 : opts.markdown) ? "\u274C" : "\u2717";
+    const action = command.action.replace("_", " ");
+    let context = "";
+    if (result.success && result.data) {
+      switch (command.action) {
+        case "file_write":
+        case "file_read":
+        case "file_diff":
+          if (result.data.filePath) {
+            const relPath = this.getRelativePath(result.data.filePath);
+            context = ` [[${relPath}]]`;
+          }
+          break;
+        case "file_select":
+          if (result.data.count !== void 0) {
+            context = ` [[${result.data.count} files found]]`;
+          }
+          break;
+        case "thought":
+          if (result.data && result.data.formattedThought) {
+            return result.data.formattedThought;
+          }
+          break;
+      }
+    }
+    if (opts == null ? void 0 : opts.markdown) {
+      return `${status} **${action}** completed successfully${context}`;
+    } else {
+      const data = result.success ? JSON.stringify(result.data, null, 2) : result.error;
+      return `${status} Tool: ${command.action}
+Parameters: ${JSON.stringify(command.parameters, null, 2)}
+Result: ${data}`;
+    }
+  }
+  /**
+   * Format tool results for display in chat (markdown style)
+   */
+  formatToolResultsForDisplay(toolResults) {
+    if (toolResults.length === 0) {
+      return "";
+    }
+    const resultText = toolResults.map(({ command, result }) => this.formatToolResultLine(command, result, { markdown: true })).join("\n");
+    return `
+
+**Tool Execution:**
+${resultText}`;
+  }
+  /**
+   * Create a message with tool execution results for context (plain style)
    */
   createToolResultMessage(toolResults) {
     if (toolResults.length === 0) {
       return null;
     }
-    const resultText = toolResults.map(({ command, result }) => {
-      const status = result.success ? "\u2713" : "\u2717";
-      const data = result.success ? JSON.stringify(result.data, null, 2) : result.error;
-      return `${status} Tool: ${command.action}
-Parameters: ${JSON.stringify(command.parameters, null, 2)}
-Result: ${data}`;
-    }).join("\n\n");
+    const resultText = toolResults.map(({ command, result }) => this.formatToolResultLine(command, result)).join("\n\n");
     return {
       role: "system",
       content: `Tool execution results:
@@ -11817,166 +11814,6 @@ ${resultData}`;
       relPath = relPath.slice(0, -3);
     }
     return relPath;
-  }
-  /**
-   * Format tool results for display in chat
-   */
-  formatToolResultsForDisplay(toolResults) {
-    if (toolResults.length === 0) {
-      return "";
-    }
-    const resultText = toolResults.map(({ command, result }) => {
-      const status = result.success ? "\u2705" : "\u274C";
-      const action = command.action.replace("_", " ");
-      if (result.success) {
-        let context = "";
-        if (result.data) {
-          switch (command.action) {
-            case "file_write":
-            case "file_read":
-            case "file_diff":
-              if (result.data.filePath) {
-                const relPath = this.getRelativePath(result.data.filePath);
-                context = ` [[${relPath}]]`;
-              }
-              break;
-            case "file_select":
-              if (result.data.count !== void 0) {
-                context = ` [[${result.data.count} files found]]`;
-              }
-              break;
-            case "thought":
-              if (result.data && result.data.formattedThought) {
-                return result.data.formattedThought;
-              }
-              break;
-          }
-        }
-        return `${status} **${action}** completed successfully${context}`;
-      } else {
-        return `${status} **${action}** failed: ${result.error}`;
-      }
-    }).join("\n");
-    return `
-
-**Tool Execution:**
-${resultText}`;
-  }
-  /**
-   * Create a collapsible reasoning display for structured reasoning results (returns DOM element, not HTML string)
-   */
-  async createCollapsibleReasoningElement(reasoningData) {
-    var _a2;
-    const { problem, steps, totalSteps, depth } = reasoningData;
-    const collapsibleId = "reasoning-" + Date.now() + "-" + Math.random().toString(36).substr(2, 9);
-    const container = document.createElement("div");
-    container.className = "reasoning-container";
-    container.id = collapsibleId;
-    const summary = document.createElement("div");
-    summary.className = "reasoning-summary";
-    const toggle = document.createElement("span");
-    toggle.className = "reasoning-toggle";
-    toggle.textContent = "\u25B6";
-    const summaryText = document.createElement("span");
-    summaryText.innerHTML = `<strong>\u{1F9E0} REASONING SESSION</strong> (${totalSteps} steps, ${depth} depth) - <em>Click to view details</em>`;
-    summary.appendChild(toggle);
-    summary.appendChild(summaryText);
-    const details = document.createElement("div");
-    details.className = "reasoning-details";
-    const problemDiv = document.createElement("div");
-    problemDiv.className = "reasoning-problem";
-    problemDiv.innerHTML = `<strong>Problem:</strong> ${problem || "No problem statement provided"}`;
-    details.appendChild(problemDiv);
-    if (steps && steps.length > 0) {
-      for (const step of steps) {
-        const stepDiv = document.createElement("div");
-        stepDiv.className = `reasoning-step ${step.category}`;
-        const categoryEmoji = this.getStepEmoji(step.category);
-        const confidenceBar = "\u25CF".repeat(Math.floor(step.confidence || 5)) + "\u25CB".repeat(10 - Math.floor(step.confidence || 5));
-        stepDiv.innerHTML = `
-                    <div class="step-header">${categoryEmoji} Step ${step.step}: ${((_a2 = step.title) == null ? void 0 : _a2.toUpperCase()) || "UNTITLED"}</div>
-                    <div class="step-confidence">Confidence: ${step.confidence || 5}/10 <span class="confidence-bar">${confidenceBar}</span></div>
-                    <div class="step-content"></div>
-                `;
-        const contentDiv = stepDiv.querySelector(".step-content");
-        if (contentDiv) {
-          await import_obsidian21.MarkdownRenderer.render(
-            this.context.app,
-            step.content || "No content provided",
-            contentDiv,
-            "",
-            this.context.plugin
-          );
-        }
-        details.appendChild(stepDiv);
-      }
-    }
-    const completion = document.createElement("div");
-    completion.className = "reasoning-completion";
-    completion.textContent = `\u2705 Analysis completed in ${totalSteps} structured steps`;
-    details.appendChild(completion);
-    summary.addEventListener("click", () => {
-      const isExpanded = details.classList.toggle("expanded");
-      toggle.textContent = isExpanded ? "\u25BC" : "\u25B6";
-      summaryText.innerHTML = `<strong>\u{1F9E0} REASONING SESSION</strong> (${totalSteps} steps, ${depth} depth) - <em>Click to ${isExpanded ? "collapse" : "view details"}</em>`;
-    });
-    container.appendChild(summary);
-    container.appendChild(details);
-    return container;
-  }
-  /**
-   * Get color for reasoning step categories
-   */
-  getStepColor(category) {
-    switch (category) {
-      case "analysis":
-        return "#4f46e5";
-      case "information":
-        return "#059669";
-      case "approach":
-        return "#dc2626";
-      case "evaluation":
-        return "#7c2d12";
-      case "synthesis":
-        return "#7c3aed";
-      case "validation":
-        return "#16a34a";
-      case "refinement":
-        return "#ea580c";
-      case "conclusion":
-        return "#1d4ed8";
-      case "planning":
-        return "#be123c";
-      default:
-        return "#6b7280";
-    }
-  }
-  /**
-   * Get emoji for reasoning step categories
-   */
-  getStepEmoji(category) {
-    switch (category) {
-      case "analysis":
-        return "\u{1F50D}";
-      case "information":
-        return "\u{1F4CA}";
-      case "approach":
-        return "\u{1F3AF}";
-      case "evaluation":
-        return "\u2696\uFE0F";
-      case "synthesis":
-        return "\u{1F517}";
-      case "validation":
-        return "\u2705";
-      case "refinement":
-        return "\u26A1";
-      case "conclusion":
-        return "\u{1F3AF}";
-      case "planning":
-        return "\u{1F4CB}";
-      default:
-        return "\u{1F4AD}";
-    }
   }
   /**
    * Process tool results and extract reasoning data for enhanced message display
@@ -12933,6 +12770,7 @@ var ResponseStreamer = class {
     element.style.opacity = "0.8";
     element.style.fontStyle = "italic";
     this.messagesContainer.appendChild(element);
+    this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
   }
   /**
    * Creates new bot message for continuation response
@@ -14631,6 +14469,13 @@ var AgentSettingsSection = class {
       }
       if (typeof tool.name === "undefined") {
         console.error("[AI Assistant] Settings: CRITICAL - Tool object has undefined name:", tool);
+      }
+      if (tool.name === "thought") {
+        if (!this.plugin.settings.enabledTools) {
+          this.plugin.settings.enabledTools = {};
+        }
+        this.plugin.settings.enabledTools["thought"] = true;
+        return;
       }
       this.settingCreators.createToggleSetting(
         containerEl,

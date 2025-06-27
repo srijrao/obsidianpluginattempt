@@ -150,51 +150,47 @@ export class AgentConfigSection {
             cls: 'setting-item-description',
             attr: { style: 'margin-bottom: 0.5em;' }
         });
-        // Use centralized tool creation function to get properly instantiated tools
-        const tools = createToolInstances(this.app, this.plugin); // Use this.app
+        const tools = createToolInstances(this.app, this.plugin);
         if (!this.plugin.settings.enabledTools) {
-            // Removed redundant console.log for cleaner production code.
             this.plugin.settings.enabledTools = {};
         }
-
         tools.forEach(tool => {
-            // CRITICAL LOGGING: Check the tool object and its name property
             if (!tool) {
                 console.error('[AI Assistant] Settings: Encountered an undefined tool object in tools array!');
-                return; // Skip this iteration
+                return;
             }
-            // Removed redundant console.log for cleaner production code.
             if (typeof tool.name === 'undefined') {
                 console.error('[AI Assistant] Settings: CRITICAL - Tool object has undefined name:', tool);
             }
-
+            // Do not render a toggle for the 'thought' tool; it is always enabled
+            if (tool.name === 'thought') {
+                if (!this.plugin.settings.enabledTools) {
+                    this.plugin.settings.enabledTools = {};
+                }
+                this.plugin.settings.enabledTools['thought'] = true;
+                return;
+            }
             this.settingCreators.createToggleSetting(
                 containerEl,
                 `${tool.name} (${tool.description})`,
                 `Enable or disable the "${tool.name}" tool.`,
                 () => {
-                    // CRITICAL LOGGING: Check tool.name before accessing enabledTools
-                    // Removed redundant console.log for cleaner production code.
                     if (typeof tool.name === 'undefined') {
                         console.error('[AI Assistant] Settings: CRITICAL - Trying to get toggle state for tool with undefined name!');
-                        return false; // Default to false if name is undefined
+                        return false;
                     }
                     return !!this.plugin.settings.enabledTools && this.plugin.settings.enabledTools[tool.name] !== false;
                 },
                 async (value) => {
-                    // CRITICAL LOGGING: Check tool.name before setting enabledTools
-                    // Removed redundant console.log for cleaner production code.
                     if (typeof tool.name === 'undefined') {
                         console.error('[AI Assistant] Settings: CRITICAL - Trying to set toggle state for tool with undefined name! Skipping save.');
                         return;
                     }
                     if (!this.plugin.settings.enabledTools) {
-                        // This should have been initialized above, but as a safeguard
                         this.plugin.settings.enabledTools = {};
                     }
                     this.plugin.settings.enabledTools[tool.name] = value;
                     await this.plugin.saveSettings();
-                    // Removed redundant console.log for cleaner production code.
                 }
             );
         });
