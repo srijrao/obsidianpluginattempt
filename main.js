@@ -3725,7 +3725,9 @@ var init_ThoughtTool = __esm({
 
 Never use 'action: finished'. When you are done, always use the 'thought' tool with 'nextTool': 'finished'.
 
-Example:
+IMPORTANT: When nextTool is 'finished', include your final response to the user in the 'thought' parameter. This is the ONLY way to communicate your final answer to the user.
+
+Example (continuing task):
 {
   "action": "thought",
   "parameters": {
@@ -3733,11 +3735,21 @@ Example:
     "nextTool": "file_write",
     "nextActionDescription": "Write a description of the tool's use"
   }
+}
+
+Example (finishing task):
+{
+  "action": "thought",
+  "parameters": {
+    "thought": "Based on my search, here are the files in your vault: Note1.md, Note2.md, and Ideas.md. The file 'Note1.md' contains your project planning notes.",
+    "nextTool": "finished",
+    "nextActionDescription": "Task completed - provided file information to user"
+  }
 }`);
         __publicField(this, "parameters", {
           thought: {
             type: "string",
-            description: `REQUIRED. The main thought or reasoning step to record. Use the key 'thought' (not 'text', 'message', or any other name). This must always be present and non-empty. Example: { "thought": "I will summarize the note before editing." }`,
+            description: `REQUIRED. The main thought or reasoning step to record. Use the key 'thought' (not 'text', 'message', or any other name). This must always be present and non-empty. IMPORTANT: When nextTool is 'finished', this should contain your final response to the user, not just internal reasoning. Example: { "thought": "I will summarize the note before editing." } or when finished: { "thought": "Here are the files in your vault: Note1.md, Note2.md, Ideas.md" }`,
             required: true
           },
           reasoning: {
@@ -3753,7 +3765,7 @@ Example:
           },
           nextTool: {
             type: "string",
-            description: `REQUIRED. Name of the next tool to use, or 'finished' if no further action is needed. Always include this key. Example: { "nextTool": "file_write" } or { "nextTool": "finished" }.`,
+            description: `REQUIRED. Name of the next tool to use, or 'finished' if no further action is needed. When 'finished', the 'thought' parameter must contain your final response to the user. Always include this key. Example: { "nextTool": "file_write" } or { "nextTool": "finished" }.`,
             required: true
           },
           nextActionDescription: {
