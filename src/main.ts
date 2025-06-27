@@ -8,8 +8,8 @@ import { processMessages, getContextNotesContent } from './components/noteUtils'
 import { getSystemMessage } from './components/systemMessage';
 import { showNotice } from './utils/generalUtils';
 import { debugLog } from './utils/logger';
-import { activateView } from './managers/viewManager';
-import { AgentModeManager } from './managers/agentModeManager';
+import { activateView } from './utils/viewManager';
+import { AgentModeManager } from './components/chat/agent/agentModeManager';
 import { BackupManager } from './components/BackupManager';
 import {
     registerViewCommands,
@@ -17,7 +17,7 @@ import {
     registerNoteCommands,
     registerGenerateNoteTitleCommand,
     VIEW_TYPE_MODEL_SETTINGS
-} from './commands';
+} from './components/commands';
 import { registerYamlAttributeCommands } from './YAMLHandler';
 
 /**

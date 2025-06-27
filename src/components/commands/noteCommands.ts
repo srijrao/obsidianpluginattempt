@@ -1,8 +1,8 @@
 import { Editor, Plugin, TFile } from 'obsidian';
-import { registerCommand } from '../utils/pluginUtils';
-import { showNotice, copyToClipboard, moveCursorAfterInsert } from '../utils/generalUtils';
-import { parseSelection } from '../components/parseSelection';
-import { MyPluginSettings, Message } from '../types';
+import { registerCommand } from '../../utils/pluginUtils';
+import { showNotice, copyToClipboard, moveCursorAfterInsert } from '../../utils/generalUtils';
+import { parseSelection } from '../parseSelection';
+import { MyPluginSettings, Message } from '../../types';
 
 /**
  * Registers note-related commands.

@@ -1,6 +1,6 @@
 import { App, PluginSettingTab, Setting, Notice } from 'obsidian';
 import MyPlugin from '../main';
-import { VIEW_TYPE_MODEL_SETTINGS } from '../commands';
+import { VIEW_TYPE_MODEL_SETTINGS } from '../components/commands';
 import { CollapsibleSectionRenderer } from '../components/chat/CollapsibleSection';
 
 // Import the new section classes

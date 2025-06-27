@@ -1,9 +1,9 @@
 import { Editor, Plugin } from 'obsidian';
-import { registerCommand } from '../utils/pluginUtils';
-import { handleAICompletion } from '../handlers/aiCompletionHandler';
-import { showNotice } from '../utils/generalUtils';
-import { MyPluginSettings, Message } from '../types';
-import { getSystemMessage } from '../components/systemMessage';
+import { registerCommand } from '../../utils/pluginUtils';
+import { handleAICompletion } from '../aiCompletionHandler';
+import { showNotice } from '../../utils/generalUtils';
+import { MyPluginSettings, Message } from '../../types';
+import { getSystemMessage } from '../systemMessage';
 
 /**
  * Registers AI stream-related commands.

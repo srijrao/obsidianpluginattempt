@@ -1,6 +1,6 @@
 import { Plugin } from 'obsidian';
-import { registerCommand } from '../utils/pluginUtils';
-import { MyPluginSettings, Message } from '../types';
+import { registerCommand } from '../../utils/pluginUtils';
+import { MyPluginSettings, Message } from '../../types';
 
 /**
  * Registers the generate note title command.
@@ -19,7 +19,7 @@ export function registerGenerateNoteTitleCommand(
             id: 'generate-note-title',
             name: 'Generate Note Title',
             callback: async () => {
-                const { generateNoteTitle } = await import("../YAMLHandler");
+                const { generateNoteTitle } = await import("../../YAMLHandler");
                 await generateNoteTitle(
                     plugin.app,
                     settings,

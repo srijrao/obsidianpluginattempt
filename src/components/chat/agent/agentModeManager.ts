@@ -1,4 +1,4 @@
-import { MyPluginSettings, AgentModeSettings } from '../types';
+import { MyPluginSettings, AgentModeSettings } from '../../../types';
 
 export class AgentModeManager {
     constructor(
