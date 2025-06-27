@@ -39,7 +39,7 @@ export class AgentSettingsSection {
             () => this.plugin.settings.agentMode?.enabled ?? false,
             async (value) => {
                 if (!this.plugin.settings.agentMode) {
-                    this.plugin.settings.agentMode = { enabled: false, maxToolCalls: 10, timeoutMs: 30000 };
+                    this.plugin.settings.agentMode = { enabled: false, maxToolCalls: 10, timeoutMs: 30000, maxIterations: 3 };
                 }
                 this.plugin.settings.agentMode.enabled = value;
                 await this.plugin.saveSettings();
@@ -54,7 +54,7 @@ export class AgentSettingsSection {
             () => this.plugin.settings.agentMode?.maxToolCalls ?? 10,
             async (value) => {
                 if (!this.plugin.settings.agentMode) {
-                    this.plugin.settings.agentMode = { enabled: false, maxToolCalls: 10, timeoutMs: 30000 };
+                    this.plugin.settings.agentMode = { enabled: false, maxToolCalls: 10, timeoutMs: 30000, maxIterations: 3 };
                 }
                 this.plugin.settings.agentMode.maxToolCalls = value;
                 await this.plugin.saveSettings();
@@ -69,9 +69,24 @@ export class AgentSettingsSection {
             () => (this.plugin.settings.agentMode?.timeoutMs ?? 30000) / 1000,
             async (value) => {
                 if (!this.plugin.settings.agentMode) {
-                    this.plugin.settings.agentMode = { enabled: false, maxToolCalls: 10, timeoutMs: 30000 };
+                    this.plugin.settings.agentMode = { enabled: false, maxToolCalls: 10, timeoutMs: 30000, maxIterations: 3 };
                 }
                 this.plugin.settings.agentMode.timeoutMs = value * 1000;
+                await this.plugin.saveSettings();
+            }
+        );
+
+        this.settingCreators.createSliderSetting(
+            containerEl, 
+            'Max Iterations per Task Continuation',
+            'Maximum number of times the agent can iterate in a single task continuation to prevent infinite loops.',
+            { min: 1, max: 20, step: 1 },
+            () => this.plugin.settings.agentMode?.maxIterations ?? 3,
+            async (value) => {
+                if (!this.plugin.settings.agentMode) {
+                    this.plugin.settings.agentMode = { enabled: false, maxToolCalls: 10, timeoutMs: 30000, maxIterations: 3 };
+                }
+                this.plugin.settings.agentMode.maxIterations = value;
                 await this.plugin.saveSettings();
             }
         );

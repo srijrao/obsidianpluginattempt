@@ -4304,7 +4304,13 @@ var init_settings = __esm({
       },
       enabledTools: {},
       enabledModels: {},
-      debugMode: false
+      debugMode: false,
+      agentMode: {
+        enabled: false,
+        maxToolCalls: 10,
+        timeoutMs: 3e4,
+        maxIterations: 3
+      }
     };
   }
 });
@@ -12192,14 +12198,14 @@ var TaskContinuation = class {
   * Continue task execution until finished parameter is true
   */
   async continueTaskUntilFinished(messages, container, initialResponseContent, currentContent, initialToolResults, chatHistory) {
-    var _a2, _b, _c;
+    var _a2, _b, _c, _d, _e;
     let responseContent = currentContent;
-    let maxIterations = 10;
+    let maxIterations = (_b = (_a2 = this.plugin.settings.agentMode) == null ? void 0 : _a2.maxIterations) != null ? _b : 3;
     let iteration = 0;
     let limitReachedDuringContinuation = false;
     let allToolResults = [...initialToolResults];
     let isFinished = this.checkIfTaskFinished(allToolResults);
-    if ((_a2 = this.agentResponseHandler) == null ? void 0 : _a2.isToolLimitReached()) {
+    if ((_c = this.agentResponseHandler) == null ? void 0 : _c.isToolLimitReached()) {
       return {
         content: responseContent + "\n\n*[Tool execution limit reached - task continuation stopped]*",
         limitReachedDuringContinuation: true
@@ -12215,12 +12221,12 @@ var TaskContinuation = class {
     }
     while (!isFinished && iteration < maxIterations) {
       iteration++;
-      if ((_b = this.agentResponseHandler) == null ? void 0 : _b.isToolLimitReached()) {
+      if ((_d = this.agentResponseHandler) == null ? void 0 : _d.isToolLimitReached()) {
         responseContent += "\n\n*[Tool execution limit reached during continuation]*";
         limitReachedDuringContinuation = true;
         break;
       }
-      const toolResultMessage = (_c = this.agentResponseHandler) == null ? void 0 : _c.createToolResultMessage(allToolResults);
+      const toolResultMessage = (_e = this.agentResponseHandler) == null ? void 0 : _e.createToolResultMessage(allToolResults);
       if (toolResultMessage) {
         const continuationMessages = [
           ...messages,
@@ -14369,7 +14375,7 @@ var AgentSettingsSection = class {
       },
       async (value) => {
         if (!this.plugin.settings.agentMode) {
-          this.plugin.settings.agentMode = { enabled: false, maxToolCalls: 10, timeoutMs: 3e4 };
+          this.plugin.settings.agentMode = { enabled: false, maxToolCalls: 10, timeoutMs: 3e4, maxIterations: 3 };
         }
         this.plugin.settings.agentMode.enabled = value;
         await this.plugin.saveSettings();
@@ -14386,7 +14392,7 @@ var AgentSettingsSection = class {
       },
       async (value) => {
         if (!this.plugin.settings.agentMode) {
-          this.plugin.settings.agentMode = { enabled: false, maxToolCalls: 10, timeoutMs: 3e4 };
+          this.plugin.settings.agentMode = { enabled: false, maxToolCalls: 10, timeoutMs: 3e4, maxIterations: 3 };
         }
         this.plugin.settings.agentMode.maxToolCalls = value;
         await this.plugin.saveSettings();
@@ -14403,9 +14409,26 @@ var AgentSettingsSection = class {
       },
       async (value) => {
         if (!this.plugin.settings.agentMode) {
-          this.plugin.settings.agentMode = { enabled: false, maxToolCalls: 10, timeoutMs: 3e4 };
+          this.plugin.settings.agentMode = { enabled: false, maxToolCalls: 10, timeoutMs: 3e4, maxIterations: 3 };
         }
         this.plugin.settings.agentMode.timeoutMs = value * 1e3;
+        await this.plugin.saveSettings();
+      }
+    );
+    this.settingCreators.createSliderSetting(
+      containerEl,
+      "Max Iterations per Task Continuation",
+      "Maximum number of times the agent can iterate in a single task continuation to prevent infinite loops.",
+      { min: 1, max: 20, step: 1 },
+      () => {
+        var _a2, _b;
+        return (_b = (_a2 = this.plugin.settings.agentMode) == null ? void 0 : _a2.maxIterations) != null ? _b : 3;
+      },
+      async (value) => {
+        if (!this.plugin.settings.agentMode) {
+          this.plugin.settings.agentMode = { enabled: false, maxToolCalls: 10, timeoutMs: 3e4, maxIterations: 3 };
+        }
+        this.plugin.settings.agentMode.maxIterations = value;
         await this.plugin.saveSettings();
       }
     );
@@ -15392,7 +15415,8 @@ var AgentModeManager = class {
     return this.settings.agentMode || {
       enabled: false,
       maxToolCalls: 5,
-      timeoutMs: 3e4
+      timeoutMs: 3e4,
+      maxIterations: 3
     };
   }
   isAgentModeEnabled() {
@@ -15405,7 +15429,8 @@ var AgentModeManager = class {
       this.settings.agentMode = {
         enabled: false,
         maxToolCalls: 5,
-        timeoutMs: 3e4
+        timeoutMs: 3e4,
+        maxIterations: 3
       };
       this.debugLog("debug", "[agentModeManager.ts] Initialized agentMode settings");
     }
@@ -15450,7 +15475,8 @@ var _MyPlugin = class _MyPlugin extends import_obsidian35.Plugin {
     return this.settings.agentMode || {
       enabled: false,
       maxToolCalls: 5,
-      timeoutMs: 3e4
+      timeoutMs: 3e4,
+      maxIterations: 3
     };
   }
   isAgentModeEnabled() {
@@ -15463,7 +15489,8 @@ var _MyPlugin = class _MyPlugin extends import_obsidian35.Plugin {
       this.settings.agentMode = {
         enabled: false,
         maxToolCalls: 5,
-        timeoutMs: 3e4
+        timeoutMs: 3e4,
+        maxIterations: 3
       };
       this.debugLog("debug", "[main.ts] Initialized agentMode settings");
     }

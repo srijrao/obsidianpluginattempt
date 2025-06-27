@@ -297,4 +297,10 @@ export const DEFAULT_SETTINGS: MyPluginSettings = {
     enabledTools: {},
     enabledModels: {},
     debugMode: false,
+    agentMode: {
+        enabled: false,
+        maxToolCalls: 10,
+        timeoutMs: 30000,
+        maxIterations: 3
+    },
 };

@@ -67,7 +67,8 @@ export default class MyPlugin extends Plugin {
         return this.settings.agentMode || {
             enabled: false,
             maxToolCalls: 5,
-            timeoutMs: 30000
+            timeoutMs: 30000,
+            maxIterations: 3
         };
     }
 
@@ -82,7 +83,8 @@ export default class MyPlugin extends Plugin {
             this.settings.agentMode = {
                 enabled: false,
                 maxToolCalls: 5,
-                timeoutMs: 30000
+                timeoutMs: 30000,
+                maxIterations: 3
             };
             this.debugLog('debug', '[main.ts] Initialized agentMode settings');
         }

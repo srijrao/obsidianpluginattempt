@@ -23,4 +23,5 @@ export interface AgentModeSettings {
     enabled: boolean;
     maxToolCalls: number;
     timeoutMs: number;
+    maxIterations: number; // Maximum iterations for task continuation
 }

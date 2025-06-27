@@ -12,7 +12,8 @@ export class AgentModeManager {
         return this.settings.agentMode || {
             enabled: false,
             maxToolCalls: 5,
-            timeoutMs: 30000
+            timeoutMs: 30000,
+            maxIterations: 3
         };
     }
 
@@ -27,7 +28,8 @@ export class AgentModeManager {
             this.settings.agentMode = {
                 enabled: false,
                 maxToolCalls: 5,
-                timeoutMs: 30000
+                timeoutMs: 30000,
+                maxIterations: 3
             };
             this.debugLog('debug', '[agentModeManager.ts] Initialized agentMode settings');
         }
