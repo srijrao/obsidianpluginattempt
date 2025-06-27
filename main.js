@@ -3706,23 +3706,14 @@ var init_FileMoveTool = __esm({
 });
 
 // src/components/chat/tools/ThoughtTool.ts
-var ThoughtCategory, ThoughtTool;
+var ThoughtTool;
 var init_ThoughtTool = __esm({
   "src/components/chat/tools/ThoughtTool.ts"() {
-    ThoughtCategory = /* @__PURE__ */ ((ThoughtCategory2) => {
-      ThoughtCategory2["Analysis"] = "analysis";
-      ThoughtCategory2["Planning"] = "planning";
-      ThoughtCategory2["ProblemSolving"] = "problem-solving";
-      ThoughtCategory2["Reflection"] = "reflection";
-      ThoughtCategory2["Conclusion"] = "conclusion";
-      return ThoughtCategory2;
-    })(ThoughtCategory || {});
     ThoughtTool = class {
       constructor(app) {
         this.app = app;
         __publicField(this, "name", "thought");
-        __publicField(this, "description", `Record and display a single AI reasoning step, always suggesting the next tool to use (or 'finished' if complete). Output is machine-readable for both agent automation and user display. Requires 'thought' and 'nextTool' parameters; optionally includes step tracking, confidence, and a description of the next action.
-
+        __publicField(this, "description", `Record and display a single AI reasoning step, always suggesting the next tool to use (or 'finished' if complete). Output is machine-readable for both agent automation and user display. Requires 'thought' and 'nextTool' parameters; optionally includes step tracking and a description of the next action.
 Never use 'action: finished'. When you are done, always use the 'thought' tool with 'nextTool': 'finished'.
 
 IMPORTANT: When nextTool is 'finished', include your final response to the user in the 'thought' parameter. This is the ONLY way to communicate your final answer to the user.
@@ -3756,12 +3747,6 @@ Example (finishing task):
             type: "string",
             description: "Optional. Alias for 'thought' (for legacy/compatibility only). Do NOT use unless specifically instructed. Always prefer 'thought'.",
             required: false
-          },
-          category: {
-            type: "string",
-            enum: Object.values(ThoughtCategory),
-            description: "Optional. Category of the thought for organization. Must be one of: 'analysis', 'planning', 'problem-solving', 'reflection', 'conclusion'.",
-            default: "analysis" /* Analysis */
           },
           nextTool: {
             type: "string",
@@ -3804,15 +3789,11 @@ Example (finishing task):
         const finished = nextTool.toLowerCase() === "finished";
         const step = typeof params.step === "number" && params.step > 0 ? params.step : void 0;
         const totalSteps = typeof params.totalSteps === "number" && params.totalSteps > 0 ? params.totalSteps : void 0;
-        const category = Object.values(ThoughtCategory).includes(params.category) ? params.category : "analysis" /* Analysis */;
-        const confidence = this.validateConfidence(params.confidence);
         const timestamp2 = (/* @__PURE__ */ new Date()).toISOString();
         const stepInfo = step && totalSteps ? `Step ${step}/${totalSteps}` : step ? `Step ${step}` : "";
         const formattedThought = this.renderThought({
           thought,
           stepInfo,
-          category,
-          confidence,
           timestamp: timestamp2,
           nextTool,
           nextActionDescription,
@@ -3825,8 +3806,6 @@ Example (finishing task):
           success: true,
           data: {
             thought,
-            category,
-            confidence,
             step,
             totalSteps,
             timestamp: timestamp2,
@@ -3844,12 +3823,10 @@ Example (finishing task):
        * @returns Formatted string
        */
       renderThought(opts) {
-        const { thought, stepInfo, category, confidence, timestamp: timestamp2, nextTool, nextActionDescription, finished } = opts;
-        const emoji = this.getCategoryEmoji(category);
-        const confidenceBar = "\u25CF".repeat(confidence) + "\u25CB".repeat(10 - confidence);
-        let header = `${emoji} **${category.replace("-", " ").toUpperCase()}**`;
-        if (stepInfo) header += ` | ${stepInfo}`;
-        header += ` | Confidence: ${confidence}/10 ${confidenceBar} | ${new Date(timestamp2).toLocaleTimeString()}`;
+        const { thought, stepInfo, timestamp: timestamp2, nextTool, nextActionDescription, finished } = opts;
+        let header = "";
+        if (stepInfo) header = `${stepInfo}`;
+        header += `${header ? " | " : ""}${new Date(timestamp2).toLocaleTimeString()}`;
         const statusEmoji = finished ? "\u2705" : "\u23ED\uFE0F";
         const nextAction = finished ? "Process Complete" : `Next: ${nextTool}`;
         header += ` | ${statusEmoji} ${nextAction}`;
@@ -3860,36 +3837,6 @@ Example (finishing task):
 > \u{1F4CB} **Next Action:** ${nextActionDescription}`;
         }
         return content;
-      }
-      /**
-       * Get an emoji for a given category.
-       * @param category - ThoughtCategory
-       * @returns Emoji string
-       */
-      getCategoryEmoji(category) {
-        switch (category) {
-          case "analysis" /* Analysis */:
-            return "\u{1F50D}";
-          case "planning" /* Planning */:
-            return "\u{1F4CB}";
-          case "problem-solving" /* ProblemSolving */:
-            return "\u{1F9E9}";
-          case "reflection" /* Reflection */:
-            return "\u{1F914}";
-          case "conclusion" /* Conclusion */:
-            return "\u2705";
-          default:
-            return "\u{1F4AD}";
-        }
-      }
-      /**
-       * Ensure confidence is an integer between 1 and 10 (default 7).
-       * @param confidence - number | undefined
-       * @returns number
-       */
-      validateConfidence(confidence) {
-        if (typeof confidence !== "number" || isNaN(confidence)) return 7;
-        return Math.max(1, Math.min(10, Math.round(confidence)));
       }
     };
   }
@@ -4187,11 +4134,7 @@ var init_promptConstants = __esm({
       }));
     };
     AGENT_SYSTEM_PROMPT_TEMPLATE = `
-- You are an AI assistant in an Obsidian Vault with access to powerful tools for vault management and interaction.
-- Try to use tools whenever possible to perform tasks. Start by using the 'thought' tool to outline your plan before executing actions.
-- Provide explanations, summaries, or discussions naturally. Ask clarifying questions when requests are ambiguous.
-- When you have completely fulfilled a user's request, use the thought tool with nextTool: "finished" to signal completion.
-
+- You are an AI assistant in an Obsidian Vault with access to powerful tools for vault management and interaction. Start by using the 'thought' tool to outline your plan before executing actions.
 If you use a tool, always check the tool result (including errors) before continuing. If a tool fails, analyze the error, adjust your plan, and try a different approach or fix the parameters. Do not repeat the same failed tool call. Always reason about tool results before proceeding.
 
 Available tools:
@@ -4204,8 +4147,7 @@ When using tools, respond ONLY with a JSON object using this parameter framework
     "path": "path/to/file.md",  // - Use relative paths from vault root (e.g., "My Note.md" or "folder/My Note.md")
     /* other tool-specific parameters */
   },
-  "requestId": "unique_id",
-  "finished": false // - Generally keep this false; use the thought tool with nextTool: "finished" to signal task completion
+  "requestId": "unique_id"
 }
 `;
     AGENT_SYSTEM_PROMPT = buildAgentSystemPrompt();
@@ -11859,7 +11801,7 @@ ${resultData}`;
    * Convert ThoughtTool result data to structured ReasoningData
    */
   convertThoughtToolResultToReasoning(thoughtData) {
-    var _a2, _b, _c;
+    var _a2, _b;
     const reasoningId = "reasoning-" + Date.now() + "-" + Math.random().toString(36).substr(2, 9);
     if (thoughtData.reasoning === "structured" && thoughtData.steps) {
       return {
@@ -11869,14 +11811,11 @@ ${resultData}`;
         problem: thoughtData.problem,
         steps: thoughtData.steps.map((step) => ({
           step: step.step,
-          category: step.category,
           title: step.title,
-          content: step.content,
-          confidence: step.confidence
+          content: step.content
         })),
-        confidence: ((_a2 = thoughtData.steps[thoughtData.steps.length - 1]) == null ? void 0 : _a2.confidence) || 7,
         depth: thoughtData.depth,
-        isCollapsed: ((_b = this.context.plugin.settings.uiBehavior) == null ? void 0 : _b.collapseOldReasoning) || false
+        isCollapsed: ((_a2 = this.context.plugin.settings.uiBehavior) == null ? void 0 : _a2.collapseOldReasoning) || false
       };
     } else {
       return {
@@ -11884,8 +11823,7 @@ ${resultData}`;
         timestamp: thoughtData.timestamp || (/* @__PURE__ */ new Date()).toISOString(),
         type: "simple",
         summary: thoughtData.thought || thoughtData.formattedThought,
-        confidence: thoughtData.confidence || 7,
-        isCollapsed: ((_c = this.context.plugin.settings.uiBehavior) == null ? void 0 : _c.collapseOldReasoning) || false
+        isCollapsed: ((_b = this.context.plugin.settings.uiBehavior) == null ? void 0 : _b.collapseOldReasoning) || false
       };
     }
   }

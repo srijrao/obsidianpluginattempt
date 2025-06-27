@@ -2,17 +2,6 @@ import { App } from 'obsidian';
 import { Tool, ToolResult } from '../agent/ToolRegistry';
 
 /**
- * Enum for core thought categories.
- */
-export enum ThoughtCategory {
-    Analysis = 'analysis',
-    Planning = 'planning',
-    ProblemSolving = 'problem-solving',
-    Reflection = 'reflection',
-    Conclusion = 'conclusion'
-}
-
-/**
  * Parameters for the ThoughtTool.
  * Enhanced with next tool suggestion and completion tracking.
  */
@@ -29,14 +18,6 @@ export interface ThoughtParams {
      * Total number of steps in the process (optional).
      */
     totalSteps?: number;
-    /**
-     * Category of the thought for organization and display.
-     */
-    category?: ThoughtCategory;
-    /**
-     * Confidence level in this thought (1-10 scale, optional).
-     */
-    confidence?: number;
     /**
      * Name of the next tool to use, or "finished" if no further action is needed.
      */
@@ -58,8 +39,7 @@ export interface ThoughtParams {
  */
 export class ThoughtTool implements Tool {
     name = 'thought';
-    description = `Record and display a single AI reasoning step, always suggesting the next tool to use (or 'finished' if complete). Output is machine-readable for both agent automation and user display. Requires 'thought' and 'nextTool' parameters; optionally includes step tracking, confidence, and a description of the next action.
-
+    description = `Record and display a single AI reasoning step, always suggesting the next tool to use (or 'finished' if complete). Output is machine-readable for both agent automation and user display. Requires 'thought' and 'nextTool' parameters; optionally includes step tracking and a description of the next action.
 Never use 'action: finished'. When you are done, always use the 'thought' tool with 'nextTool': 'finished'.
 
 IMPORTANT: When nextTool is 'finished', include your final response to the user in the 'thought' parameter. This is the ONLY way to communicate your final answer to the user.
@@ -94,12 +74,6 @@ Example (finishing task):
             type: 'string',
             description: "Optional. Alias for 'thought' (for legacy/compatibility only). Do NOT use unless specifically instructed. Always prefer 'thought'.",
             required: false
-        },
-        category: {
-            type: 'string',
-            enum: Object.values(ThoughtCategory),
-            description: "Optional. Category of the thought for organization. Must be one of: 'analysis', 'planning', 'problem-solving', 'reflection', 'conclusion'.",
-            default: ThoughtCategory.Analysis
         },
         nextTool: {
             type: 'string',
@@ -148,10 +122,6 @@ Example (finishing task):
         const finished = nextTool.toLowerCase() === 'finished';
         const step = typeof params.step === 'number' && params.step > 0 ? params.step : undefined;
         const totalSteps = typeof params.totalSteps === 'number' && params.totalSteps > 0 ? params.totalSteps : undefined;
-        const category: ThoughtCategory = Object.values(ThoughtCategory).includes(params.category as ThoughtCategory)
-            ? params.category as ThoughtCategory
-            : ThoughtCategory.Analysis;
-        const confidence = this.validateConfidence(params.confidence);
 
         // MCP: Timestamp for traceability
         const timestamp = new Date().toISOString();
@@ -167,8 +137,6 @@ Example (finishing task):
         const formattedThought = this.renderThought({
             thought,
             stepInfo,
-            category,
-            confidence,
             timestamp,
             nextTool,
             nextActionDescription,
@@ -183,8 +151,6 @@ Example (finishing task):
             success: true,
             data: {
                 thought,
-                category,
-                confidence,
                 step,
                 totalSteps,
                 timestamp,
@@ -205,20 +171,16 @@ Example (finishing task):
     private renderThought(opts: {
         thought: string;
         stepInfo?: string;
-        category: ThoughtCategory;
-        confidence: number;
         timestamp: string;
         nextTool: string;
         nextActionDescription?: string;
         finished: boolean;
     }): string {
-        const { thought, stepInfo, category, confidence, timestamp, nextTool, nextActionDescription, finished } = opts;
-        const emoji = this.getCategoryEmoji(category);
-        const confidenceBar = '●'.repeat(confidence) + '○'.repeat(10 - confidence);
+        const { thought, stepInfo, timestamp, nextTool, nextActionDescription, finished } = opts;
 
-        let header = `${emoji} **${category.replace('-', ' ').toUpperCase()}**`;
-        if (stepInfo) header += ` | ${stepInfo}`;
-        header += ` | Confidence: ${confidence}/10 ${confidenceBar} | ${new Date(timestamp).toLocaleTimeString()}`;
+        let header = '';
+        if (stepInfo) header = `${stepInfo}`;
+        header += `${header ? ' | ' : ''}${new Date(timestamp).toLocaleTimeString()}`;
 
         // Add next action information
         const statusEmoji = finished ? '✅' : '⏭️';
@@ -233,31 +195,5 @@ Example (finishing task):
         }
 
         return content;
-    }
-
-    /**
-     * Get an emoji for a given category.
-     * @param category - ThoughtCategory
-     * @returns Emoji string
-     */
-    private getCategoryEmoji(category: ThoughtCategory): string {
-        switch (category) {
-            case ThoughtCategory.Analysis: return '🔍';
-            case ThoughtCategory.Planning: return '📋';
-            case ThoughtCategory.ProblemSolving: return '🧩';
-            case ThoughtCategory.Reflection: return '🤔';
-            case ThoughtCategory.Conclusion: return '✅';
-            default: return '💭';
-        }
-    }
-
-    /**
-     * Ensure confidence is an integer between 1 and 10 (default 7).
-     * @param confidence - number | undefined
-     * @returns number
-     */
-    private validateConfidence(confidence: number | undefined): number {
-        if (typeof confidence !== 'number' || isNaN(confidence)) return 7;
-        return Math.max(1, Math.min(10, Math.round(confidence)));
     }
 }

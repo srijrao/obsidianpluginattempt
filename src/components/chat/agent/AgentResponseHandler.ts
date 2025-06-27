@@ -518,12 +518,9 @@ ${resultData}`;
                 problem: thoughtData.problem,
                 steps: thoughtData.steps.map((step: any) => ({
                     step: step.step,
-                    category: step.category as any,
                     title: step.title,
-                    content: step.content,
-                    confidence: step.confidence
+                    content: step.content
                 })),
-                confidence: thoughtData.steps[thoughtData.steps.length - 1]?.confidence || 7,
                 depth: thoughtData.depth,
                 isCollapsed: this.context.plugin.settings.uiBehavior?.collapseOldReasoning || false
             };
@@ -534,7 +531,6 @@ ${resultData}`;
                 timestamp: thoughtData.timestamp || new Date().toISOString(),
                 type: 'simple',
                 summary: thoughtData.thought || thoughtData.formattedThought,
-                confidence: thoughtData.confidence || 7,
                 isCollapsed: this.context.plugin.settings.uiBehavior?.collapseOldReasoning || false
             };
         }
