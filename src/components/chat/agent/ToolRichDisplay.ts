@@ -231,13 +231,14 @@ export class ToolRichDisplay extends Component {
         
         if (this.options.command.action === 'thought' && data) {
             const thought = data.thought || data.reasoning || '';
-            const truncated = thought.length > 100 ? thought.substring(0, 100) + '...' : thought;
-            return `<span class="tool-success">🧠 ${truncated}</span>`;
+            // No truncation
+            return `<span class="tool-success">🧠 ${thought}</span>`;
         }
         
         // Generic handling for other cases
         if (typeof data === 'string') {
-            return data.length > 100 ? data.substring(0, 100) + '...' : data;
+            // No truncation
+            return data;
         }
         
         if (Array.isArray(data)) {

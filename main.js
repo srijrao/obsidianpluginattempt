@@ -4615,11 +4615,10 @@ var init_ToolRichDisplay = __esm({
         }
         if (this.options.command.action === "thought" && data) {
           const thought = data.thought || data.reasoning || "";
-          const truncated = thought.length > 100 ? thought.substring(0, 100) + "..." : thought;
-          return `<span class="tool-success">\u{1F9E0} ${truncated}</span>`;
+          return `<span class="tool-success">\u{1F9E0} ${thought}</span>`;
         }
         if (typeof data === "string") {
-          return data.length > 100 ? data.substring(0, 100) + "..." : data;
+          return data;
         }
         if (Array.isArray(data)) {
           return `${data.length} items returned`;
