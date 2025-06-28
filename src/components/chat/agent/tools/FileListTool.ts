@@ -63,33 +63,60 @@ export class FileListTool implements Tool {
         const itemsList: string[] = [];
         let totalItems = 0;
         
-        const walk = (currentFolder: TFolder, indent: string = '') => {
-            // Check if we've reached the limit
-            if (totalItems >= maxResults) {
+        const walk = (currentFolder: TFolder, indent: string = '', remainingLimit: number = maxResults) => {
+            // Check if we've reached the overall limit
+            if (totalItems >= maxResults || remainingLimit <= 0) {
                 return;
             }
             
-            for (const child of currentFolder.children) {
-                // Check limit before adding each item
-                if (totalItems >= maxResults) {
+            // Separate files and folders
+            const files = currentFolder.children.filter(child => child instanceof TFile);
+            const folders = currentFolder.children.filter(child => child instanceof TFolder);
+            
+            // Calculate how many items we can take from each folder
+            const folderCount = recursive ? folders.length : 0;
+            const fileSlots = Math.max(1, Math.floor(remainingLimit / Math.max(1, folderCount + 1)));
+            
+            // Add files from current folder (limited by fileSlots)
+            let filesAdded = 0;
+            for (const file of files) {
+                if (totalItems >= maxResults || filesAdded >= fileSlots) {
                     break;
                 }
+                itemsList.push(`${indent}📄${file.name}`);
+                totalItems++;
+                filesAdded++;
+            }
+            
+            // Add folders and recursively process them if recursive is enabled
+            if (recursive && folderCount > 0) {
+                const remainingAfterFiles = remainingLimit - filesAdded;
+                const perFolderLimit = Math.max(1, Math.floor(remainingAfterFiles / folderCount));
                 
-                if (child instanceof TFile) {
-                    itemsList.push(`${indent}📄${child.name}`);
-                    totalItems++;
-                } else if (child instanceof TFolder) {
-                    itemsList.push(`${indent}📁${child.name}/(`);
+                for (const subfolder of folders) {
+                    if (totalItems >= maxResults) {
+                        break;
+                    }
+                    
+                    itemsList.push(`${indent}📁${subfolder.name}/(`);
                     totalItems++;
                     
-                    if (recursive) {
-                        walk(child, indent + '  ');
-                        if (totalItems < maxResults) {
-                            itemsList.push(`${indent})`);
-                        }
-                    } else {
+                    // Recursively walk the subfolder with its allocated limit
+                    walk(subfolder as TFolder, indent + '  ', perFolderLimit);
+                    
+                    if (totalItems < maxResults) {
                         itemsList.push(`${indent})`);
                     }
+                }
+            } else {
+                // Non-recursive: just list folder names
+                for (const subfolder of folders) {
+                    if (totalItems >= maxResults) {
+                        break;
+                    }
+                    itemsList.push(`${indent}📁${subfolder.name}/(`);
+                    totalItems++;
+                    itemsList.push(`${indent})`);
                 }
             }
         };

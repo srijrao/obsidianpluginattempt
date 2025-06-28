@@ -1288,28 +1288,45 @@ var init_FileListTool = __esm({
         }
         const itemsList = [];
         let totalItems = 0;
-        const walk = (currentFolder, indent = "") => {
-          if (totalItems >= maxResults) {
+        const walk = (currentFolder, indent = "", remainingLimit = maxResults) => {
+          if (totalItems >= maxResults || remainingLimit <= 0) {
             return;
           }
-          for (const child of currentFolder.children) {
-            if (totalItems >= maxResults) {
+          const files = currentFolder.children.filter((child) => child instanceof import_obsidian7.TFile);
+          const folders = currentFolder.children.filter((child) => child instanceof import_obsidian7.TFolder);
+          const folderCount = recursive ? folders.length : 0;
+          const fileSlots = Math.max(1, Math.floor(remainingLimit / Math.max(1, folderCount + 1)));
+          let filesAdded = 0;
+          for (const file of files) {
+            if (totalItems >= maxResults || filesAdded >= fileSlots) {
               break;
             }
-            if (child instanceof import_obsidian7.TFile) {
-              itemsList.push(`${indent}\u{1F4C4}${child.name}`);
+            itemsList.push(`${indent}\u{1F4C4}${file.name}`);
+            totalItems++;
+            filesAdded++;
+          }
+          if (recursive && folderCount > 0) {
+            const remainingAfterFiles = remainingLimit - filesAdded;
+            const perFolderLimit = Math.max(1, Math.floor(remainingAfterFiles / folderCount));
+            for (const subfolder of folders) {
+              if (totalItems >= maxResults) {
+                break;
+              }
+              itemsList.push(`${indent}\u{1F4C1}${subfolder.name}/(`);
               totalItems++;
-            } else if (child instanceof import_obsidian7.TFolder) {
-              itemsList.push(`${indent}\u{1F4C1}${child.name}/(`);
-              totalItems++;
-              if (recursive) {
-                walk(child, indent + "  ");
-                if (totalItems < maxResults) {
-                  itemsList.push(`${indent})`);
-                }
-              } else {
+              walk(subfolder, indent + "  ", perFolderLimit);
+              if (totalItems < maxResults) {
                 itemsList.push(`${indent})`);
               }
+            }
+          } else {
+            for (const subfolder of folders) {
+              if (totalItems >= maxResults) {
+                break;
+              }
+              itemsList.push(`${indent}\u{1F4C1}${subfolder.name}/(`);
+              totalItems++;
+              itemsList.push(`${indent})`);
             }
           }
         };
