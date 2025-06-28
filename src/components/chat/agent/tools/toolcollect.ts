@@ -10,7 +10,7 @@
 // 3. Use only instance properties (not static) for name/description/parameters.
 // 4. Return ToolResult objects for all outcomes (no thrown errors).
 // 5. Import and add your tool to getAllToolClasses() below.
-// 6. Add tool metadata to getToolMetadata() for prompt generation.
+// 6. Tool metadata is automatically collected via getToolMetadata().
 // 7. Test tool registration and agent access in the plugin UI.
 // 
 // See FileMoveTool.ts or FileWriteTool.ts for good examples.
@@ -41,7 +41,7 @@ export function getAllToolClasses(): any[] {
     ];
 }
 
-export function getToolMetadata(): Array<{name: string, description: string, parameters: any}> {
+export function getToolMetadata(): Array<{name: string, description: string, parameters: any, parameterDescriptions: Record<string, string>, parameterRequired: Record<string, boolean>}> {
     // Create mock app parameter for tools that require it
     const mockApp = {
         vault: {
@@ -88,14 +88,31 @@ export function getToolMetadata(): Array<{name: string, description: string, par
             });
             return undefined;
         }
+        // Extract parameter descriptions and required status
+        let parameterDescriptions: Record<string, string> = {};
+        let parameterRequired: Record<string, boolean> = {};
+        if (instance.parameters && typeof instance.parameters === 'object') {
+            for (const [param, value] of Object.entries(instance.parameters)) {
+                if (value && typeof value === 'object') {
+                    if ('description' in value) {
+                        parameterDescriptions[param] = typeof value.description === 'string' ? value.description : '';
+                    }
+                    if ('required' in value) {
+                        parameterRequired[param] = Boolean(value.required);
+                    }
+                }
+            }
+        }
         return {
             name: instance.name,
             description: instance.description,
-            parameters: instance.parameters
+            parameters: instance.parameters,
+            parameterDescriptions,
+            parameterRequired
         };
     });
     
-    const filteredMetadata = metadata.filter((item): item is {name: string, description: string, parameters: any} => !!item);
+    const filteredMetadata = metadata.filter((item): item is {name: string, description: string, parameters: any, parameterDescriptions: Record<string, string>, parameterRequired: Record<string, boolean>} => !!item);
     console.log('[toolcollect] getToolMetadata result:', filteredMetadata.map(m => m.name));
     return filteredMetadata;
 }

@@ -11,26 +11,26 @@ export interface FileMoveParams {
 
 export class FileMoveTool implements Tool {
     name = 'file_move';
-    description = 'Move or rename files within the vault';
+    description = 'Relocates or renames files within the vault, providing options to create necessary directories and handle existing files. This tool is vital for organizing and restructuring content.';
     parameters = {
         sourcePath: {
             type: 'string',
-            description: 'Path to the source file (relative to vault root or absolute path within vault)',
+            description: 'Path of the source file.',
             required: true
         },
         destinationPath: {
             type: 'string',
-            description: 'Destination path for the file (relative to vault root or absolute path within vault)',
+            description: 'New path for the file.',
             required: true
         },
         createFolders: {
             type: 'boolean',
-            description: 'Whether to create parent folders if they don\'t exist',
+            description: 'Create parent folders if they don\'t exist.',
             default: true
         },
         overwrite: {
             type: 'boolean',
-            description: 'Whether to overwrite destination if it exists',
+            description: 'Overwrite destination if it exists.',
             default: false
         }
     };

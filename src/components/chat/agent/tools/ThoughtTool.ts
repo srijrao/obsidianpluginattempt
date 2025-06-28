@@ -39,34 +39,22 @@ export interface ThoughtParams {
  */
 export class ThoughtTool implements Tool {
     name = 'thought';
-    description = `AI reasoning, always suggesting the next tool to use (or 'finished' if complete). Output is machine-readable for both agent automation and user display. Requires 'thought' and 'nextTool' parameters;
-
-IMPORTANT: When nextTool is 'finished', include your final response to the user in the 'thought' parameter. This is the ONLY way to communicate your final answer to the user.
-
-Example (finishing task):
-{
-  "action": "thought",
-  "parameters": {
-    "thought": "Based on my search, here are the files in your vault: Note1.md, Note2.md, and Ideas.md. The file 'Note1.md' contains your project planning notes.",
-    "nextTool": "finished",
-    "nextActionDescription": "Task completed - provided file information to user"
-  }
-}`;
+    description = 'Record AI reasoning and suggest next tool. When nextTool is "finished", include final response in thought parameter.';
 
     parameters = {
         thought: {
             type: 'string',
-            description: "REQUIRED. The main thought or reasoning step to record. Use the key 'thought' (not 'text', 'message', or any other name).",
+            description: 'The reasoning step to record',
             required: true
         },
         nextTool: {
             type: 'string',
-            description: "REQUIRED. Name of the next tool to use, or 'finished' if no further action is needed. When 'finished', the 'thought' parameter must contain your final response to the user. Always include this key. Example: { \"nextTool\": \"file_write\" } or { \"nextTool\": \"finished\" }.",
+            description: 'Next tool name or "finished" if complete',
             required: true
         },
         nextActionDescription: {
             type: 'string',
-            description: 'REQUIRED. Brief description of the recommended next step or action.',
+            description: 'Brief description of next step',
             required: true
         }
     };
@@ -160,24 +148,13 @@ Example (finishing task):
         nextActionDescription?: string;
         finished: boolean;
     }): string {
-        const { thought, stepInfo, timestamp, nextTool, nextActionDescription, finished } = opts;
+        const { thought, stepInfo, nextTool, finished } = opts;
 
-        let header = '';
-        if (stepInfo) header = `${stepInfo}`;
-        header += `${header ? ' | ' : ''}${new Date(timestamp).toLocaleTimeString()}`;
+        // Lightweight header with essential info only
+        const statusEmoji = finished ? '✅' : '🤔';
+        const stepPrefix = stepInfo ? `${stepInfo} ` : '';
+        const header = `${statusEmoji} ${stepPrefix}${finished ? 'Complete' : `→ ${nextTool}`}`;
 
-        // Add next action information
-        const statusEmoji = finished ? '✅' : '⏭️';
-        const nextAction = finished ? 'Process Complete' : `Next: ${nextTool}`;
-        header += ` | ${statusEmoji} ${nextAction}`;
-
-        let content = `${header}\n> ${thought}`;
-
-        // Add next action description if provided and not finished
-        if (nextActionDescription && !finished) {
-            content += `\n> 📋 **Next Action:** ${nextActionDescription}`;
-        }
-
-        return content;
+        return `${header}\n> ${thought}`;
     }
 }

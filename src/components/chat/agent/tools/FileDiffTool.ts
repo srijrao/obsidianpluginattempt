@@ -19,31 +19,31 @@ export interface FileDiffParams {
 
 export class FileDiffTool implements Tool {
     name = 'file_diff';
-    description = 'Compare and suggest changes to files';    parameters = {
+    description = 'Manages file changes: compares content, applies modifications, or presents suggestions for user review. This tool is essential for precise file manipulation and collaborative editing workflows.';    parameters = {
         path: {
             type: 'string',
-            description: 'Path to the file to compare/modify (relative to vault root or absolute path within vault)',
+            description: 'Path to the file.',
             required: true
         },
         originalContent: {
             type: 'string',
-            description: 'Original content for comparison (if not provided, reads from file)',
+            description: 'Original content for comparison.',
             required: false
         },
         suggestedContent: {
             type: 'string',
-            description: 'Suggested new content for the file',
+            description: 'New content for the file.',
             required: true
         },
         action: {
             type: 'string',
             enum: ['compare', 'apply', 'suggest'],
-            description: 'Action to perform: compare files, apply changes, or show suggestion UI',
+            description: 'Action: compare, apply, or suggest changes.',
             default: 'suggest'
         },
         insertPosition: {
             type: 'number',
-            description: 'Line number to insert suggestion at (for suggest action)',
+            description: 'Line number for suggestion insertion.',
             required: false
         }
     };

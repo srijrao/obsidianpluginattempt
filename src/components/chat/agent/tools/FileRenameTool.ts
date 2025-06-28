@@ -13,21 +13,21 @@ export interface FileRenameParams {
 
 export class FileRenameTool implements Tool {
     name = 'file_rename';
-    description = 'Rename a file within the vault (does not move directories)';
+    description = 'Renames a file within the vault, allowing for simple name changes without altering its directory. This tool is useful for maintaining consistent naming conventions and improving file organization.';
     parameters = {
         path: {
             type: 'string',
-            description: 'Current path to the file (relative to vault root or absolute path within vault)',
+            description: 'Path to the file.',
             required: true
         },
         newName: {
             type: 'string',
-            description: 'New name for the file (not a path, just the filename)',
+            description: 'New name for the file.',
             required: true
         },
         overwrite: {
             type: 'boolean',
-            description: 'Whether to overwrite if a file with the new name exists',
+            description: 'Overwrite if a file with the new name exists.',
             default: false
         }
     };

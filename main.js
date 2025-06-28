@@ -34,22 +34,22 @@ var init_FileSearchTool = __esm({
       constructor(app) {
         this.app = app;
         __publicField(this, "name", "file_search");
-        __publicField(this, "description", "Search for files in the vault by name or path");
+        __publicField(this, "description", "Searches for files within the vault based on a query and specified file types, returning a limited number of results. This tool is useful for quickly locating relevant documents and assets.");
         __publicField(this, "parameters", {
           query: {
             type: "string",
-            description: "Search query to find files (searches filename and path)",
+            description: "Search query for files.",
             required: false
           },
           filterType: {
             type: "string",
             enum: ["markdown", "image", "all"],
-            description: "Type of files to show",
+            description: "Type of files to include.",
             default: "markdown"
           },
           maxResults: {
             type: "number",
-            description: "Maximum number of results to return",
+            description: "Maximum number of results.",
             default: 10
           }
         });
@@ -250,16 +250,16 @@ var init_FileReadTool = __esm({
       constructor(app) {
         this.app = app;
         __publicField(this, "name", "file_read");
-        __publicField(this, "description", "Read file contents from the vault");
+        __publicField(this, "description", "Reads and retrieves the content of a specified file from the vault, with an option to limit the maximum file size. This tool is fundamental for accessing and processing file data.");
         __publicField(this, "parameters", {
           path: {
             type: "string",
-            description: "Path to the file to read (relative to vault root or absolute path within vault)",
+            description: "Path to the file.",
             required: true
           },
           maxSize: {
             type: "number",
-            description: "Maximum file size in bytes (default 1MB)",
+            description: "Maximum file size in bytes.",
             default: 1024 * 1024
           }
         });
@@ -624,31 +624,31 @@ var init_FileWriteTool = __esm({
       constructor(app, backupManager) {
         this.app = app;
         __publicField(this, "name", "file_write");
-        __publicField(this, "description", "Write/modify file contents in the vault");
+        __publicField(this, "description", "Writes or modifies the content of a file in the vault, with options for creating new files, backing up existing ones, and creating parent directories. This tool is essential for managing file content.");
         __publicField(this, "parameters", {
           path: {
             type: "string",
-            description: "Path to the file to write (relative to vault root or absolute path within vault)",
+            description: "Path to the file.",
             required: true
           },
           content: {
             type: "string",
-            description: "Content to write to the file",
+            description: "Content to write.",
             required: true
           },
           createIfNotExists: {
             type: "boolean",
-            description: "Whether to create the file if it does not exist",
+            description: "Create file if it doesn't exist.",
             default: true
           },
           backup: {
             type: "boolean",
-            description: "Whether to create a backup before modifying existing files",
+            description: "Create backup before modifying.",
             default: true
           },
           createParentFolders: {
             type: "boolean",
-            description: "Whether to create parent folders if they do not exist",
+            description: "Create parent folders if they don't exist.",
             required: true
           }
         });
@@ -847,32 +847,32 @@ var init_FileDiffTool = __esm({
       constructor(app) {
         this.app = app;
         __publicField(this, "name", "file_diff");
-        __publicField(this, "description", "Compare and suggest changes to files");
+        __publicField(this, "description", "Manages file changes: compares content, applies modifications, or presents suggestions for user review. This tool is essential for precise file manipulation and collaborative editing workflows.");
         __publicField(this, "parameters", {
           path: {
             type: "string",
-            description: "Path to the file to compare/modify (relative to vault root or absolute path within vault)",
+            description: "Path to the file.",
             required: true
           },
           originalContent: {
             type: "string",
-            description: "Original content for comparison (if not provided, reads from file)",
+            description: "Original content for comparison.",
             required: false
           },
           suggestedContent: {
             type: "string",
-            description: "Suggested new content for the file",
+            description: "New content for the file.",
             required: true
           },
           action: {
             type: "string",
             enum: ["compare", "apply", "suggest"],
-            description: "Action to perform: compare files, apply changes, or show suggestion UI",
+            description: "Action: compare, apply, or suggest changes.",
             default: "suggest"
           },
           insertPosition: {
             type: "number",
-            description: "Line number to insert suggestion at (for suggest action)",
+            description: "Line number for suggestion insertion.",
             required: false
           }
         });
@@ -1037,26 +1037,26 @@ var init_FileMoveTool = __esm({
       constructor(app) {
         this.app = app;
         __publicField(this, "name", "file_move");
-        __publicField(this, "description", "Move or rename files within the vault");
+        __publicField(this, "description", "Relocates or renames files within the vault, providing options to create necessary directories and handle existing files. This tool is vital for organizing and restructuring content.");
         __publicField(this, "parameters", {
           sourcePath: {
             type: "string",
-            description: "Path to the source file (relative to vault root or absolute path within vault)",
+            description: "Path of the source file.",
             required: true
           },
           destinationPath: {
             type: "string",
-            description: "Destination path for the file (relative to vault root or absolute path within vault)",
+            description: "New path for the file.",
             required: true
           },
           createFolders: {
             type: "boolean",
-            description: "Whether to create parent folders if they don't exist",
+            description: "Create parent folders if they don't exist.",
             default: true
           },
           overwrite: {
             type: "boolean",
-            description: "Whether to overwrite destination if it exists",
+            description: "Overwrite destination if it exists.",
             default: false
           }
         });
@@ -1148,33 +1148,21 @@ var init_ThoughtTool = __esm({
       constructor(app) {
         this.app = app;
         __publicField(this, "name", "thought");
-        __publicField(this, "description", `AI reasoning, always suggesting the next tool to use (or 'finished' if complete). Output is machine-readable for both agent automation and user display. Requires 'thought' and 'nextTool' parameters;
-
-IMPORTANT: When nextTool is 'finished', include your final response to the user in the 'thought' parameter. This is the ONLY way to communicate your final answer to the user.
-
-Example (finishing task):
-{
-  "action": "thought",
-  "parameters": {
-    "thought": "Based on my search, here are the files in your vault: Note1.md, Note2.md, and Ideas.md. The file 'Note1.md' contains your project planning notes.",
-    "nextTool": "finished",
-    "nextActionDescription": "Task completed - provided file information to user"
-  }
-}`);
+        __publicField(this, "description", 'Record AI reasoning and suggest next tool. When nextTool is "finished", include final response in thought parameter.');
         __publicField(this, "parameters", {
           thought: {
             type: "string",
-            description: "REQUIRED. The main thought or reasoning step to record. Use the key 'thought' (not 'text', 'message', or any other name).",
+            description: "The reasoning step to record",
             required: true
           },
           nextTool: {
             type: "string",
-            description: `REQUIRED. Name of the next tool to use, or 'finished' if no further action is needed. When 'finished', the 'thought' parameter must contain your final response to the user. Always include this key. Example: { "nextTool": "file_write" } or { "nextTool": "finished" }.`,
+            description: 'Next tool name or "finished" if complete',
             required: true
           },
           nextActionDescription: {
             type: "string",
-            description: "REQUIRED. Brief description of the recommended next step or action.",
+            description: "Brief description of next step",
             required: true
           }
         });
@@ -1242,20 +1230,12 @@ Example (finishing task):
        * @returns Formatted string
        */
       renderThought(opts) {
-        const { thought, stepInfo, timestamp: timestamp2, nextTool, nextActionDescription, finished } = opts;
-        let header = "";
-        if (stepInfo) header = `${stepInfo}`;
-        header += `${header ? " | " : ""}${new Date(timestamp2).toLocaleTimeString()}`;
-        const statusEmoji = finished ? "\u2705" : "\u23ED\uFE0F";
-        const nextAction = finished ? "Process Complete" : `Next: ${nextTool}`;
-        header += ` | ${statusEmoji} ${nextAction}`;
-        let content = `${header}
+        const { thought, stepInfo, nextTool, finished } = opts;
+        const statusEmoji = finished ? "\u2705" : "\u{1F914}";
+        const stepPrefix = stepInfo ? `${stepInfo} ` : "";
+        const header = `${statusEmoji} ${stepPrefix}${finished ? "Complete" : `\u2192 ${nextTool}`}`;
+        return `${header}
 > ${thought}`;
-        if (nextActionDescription && !finished) {
-          content += `
-> \u{1F4CB} **Next Action:** ${nextActionDescription}`;
-        }
-        return content;
       }
     };
   }
@@ -1271,10 +1251,10 @@ var init_FileListTool = __esm({
       constructor(app) {
         this.app = app;
         __publicField(this, "name", "file_list");
-        __publicField(this, "description", "List all files and folders in a specified folder in the vault");
+        __publicField(this, "description", "Retrieves a comprehensive list of files and folders within a specified directory, offering options for recursive traversal. This tool is crucial for understanding project structure and navigating the file system.");
         __publicField(this, "parameters", {
-          path: { type: "string", description: "Path to the folder (relative to vault root or absolute path within vault). Defaults to vault root if not provided.", required: false },
-          recursive: { type: "boolean", description: "Whether to list files recursively", default: false }
+          path: { type: "string", description: "Path to the folder.", required: false },
+          recursive: { type: "boolean", description: "List files recursively.", default: false }
         });
         __publicField(this, "pathValidator");
         this.pathValidator = new PathValidator(app);
@@ -1346,21 +1326,21 @@ var init_FileRenameTool = __esm({
       constructor(app) {
         this.app = app;
         __publicField(this, "name", "file_rename");
-        __publicField(this, "description", "Rename a file within the vault (does not move directories)");
+        __publicField(this, "description", "Renames a file within the vault, allowing for simple name changes without altering its directory. This tool is useful for maintaining consistent naming conventions and improving file organization.");
         __publicField(this, "parameters", {
           path: {
             type: "string",
-            description: "Current path to the file (relative to vault root or absolute path within vault)",
+            description: "Path to the file.",
             required: true
           },
           newName: {
             type: "string",
-            description: "New name for the file (not a path, just the filename)",
+            description: "New name for the file.",
             required: true
           },
           overwrite: {
             type: "boolean",
-            description: "Whether to overwrite if a file with the new name exists",
+            description: "Overwrite if a file with the new name exists.",
             default: false
           }
         });
@@ -1478,10 +1458,26 @@ function getToolMetadata() {
       });
       return void 0;
     }
+    let parameterDescriptions = {};
+    let parameterRequired = {};
+    if (instance.parameters && typeof instance.parameters === "object") {
+      for (const [param, value] of Object.entries(instance.parameters)) {
+        if (value && typeof value === "object") {
+          if ("description" in value) {
+            parameterDescriptions[param] = typeof value.description === "string" ? value.description : "";
+          }
+          if ("required" in value) {
+            parameterRequired[param] = Boolean(value.required);
+          }
+        }
+      }
+    }
     return {
       name: instance.name,
       description: instance.description,
-      parameters: instance.parameters
+      parameters: instance.parameters,
+      parameterDescriptions,
+      parameterRequired
     };
   });
   const filteredMetadata = metadata.filter((item) => !!item);

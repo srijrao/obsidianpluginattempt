@@ -12,10 +12,10 @@ export interface FileListParams {
 
 export class FileListTool implements Tool {
     name = 'file_list';
-    description = 'List all files and folders in a specified folder in the vault';
+    description = 'Retrieves a comprehensive list of files and folders within a specified directory, offering options for recursive traversal. This tool is crucial for understanding project structure and navigating the file system.';
     parameters = {
-        path: { type: 'string', description: 'Path to the folder (relative to vault root or absolute path within vault). Defaults to vault root if not provided.', required: false },
-        recursive: { type: 'boolean', description: 'Whether to list files recursively', default: false }
+        path: { type: 'string', description: 'Path to the folder.', required: false },
+        recursive: { type: 'boolean', description: 'List files recursively.', default: false }
     };
 
     private pathValidator: PathValidator;

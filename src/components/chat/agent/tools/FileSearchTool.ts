@@ -9,22 +9,22 @@ export interface FileSearchParams {
 
 export class FileSearchTool implements Tool {
     name = 'file_search';
-    description = 'Search for files in the vault by name or path';
+    description = 'Searches for files within the vault based on a query and specified file types, returning a limited number of results. This tool is useful for quickly locating relevant documents and assets.';
     parameters = {
         query: {
             type: 'string',
-            description: 'Search query to find files (searches filename and path)',
+            description: 'Search query for files.',
             required: false
         },
         filterType: {
             type: 'string',
             enum: ['markdown', 'image', 'all'],
-            description: 'Type of files to show',
+            description: 'Type of files to include.',
             default: 'markdown'
         },
         maxResults: {
             type: 'number',
-            description: 'Maximum number of results to return',
+            description: 'Maximum number of results.',
             default: 10
         }
     };

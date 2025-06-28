@@ -62,31 +62,31 @@ export interface FileWriteParams {
 
 export class FileWriteTool implements Tool {
     name = 'file_write';
-    description = 'Write/modify file contents in the vault';
+    description = 'Writes or modifies the content of a file in the vault, with options for creating new files, backing up existing ones, and creating parent directories. This tool is essential for managing file content.';
     parameters = {
         path: {
             type: 'string',
-            description: 'Path to the file to write (relative to vault root or absolute path within vault)',
+            description: 'Path to the file.',
             required: true
         },
         content: {
             type: 'string',
-            description: 'Content to write to the file',
+            description: 'Content to write.',
             required: true
         },
         createIfNotExists: {
             type: 'boolean',
-            description: 'Whether to create the file if it does not exist',
+            description: 'Create file if it doesn\'t exist.',
             default: true
         },
         backup: {
             type: 'boolean',
-            description: 'Whether to create a backup before modifying existing files',
+            description: 'Create backup before modifying.',
             default: true
         },
         createParentFolders: {
             type: 'boolean',
-            description: 'Whether to create parent folders if they do not exist',
+            description: 'Create parent folders if they don\'t exist.',
             required: true
         }
     };
