@@ -8,18 +8,16 @@ export interface VaultTreeParams {
     path?: string; // Starting path (defaults to root)
     maxDepth?: number; // Maximum depth to traverse
     maxItems?: number; // Maximum total items to include
-    showFiles?: boolean; // Whether to include files (default: true)
     showFolders?: boolean; // Whether to include folders (default: true)
 }
 
 export class VaultTreeTool implements Tool {
     name = 'vault_tree';
-    description = 'Generates a hierarchical tree view of the vault structure, showing the complete folder and file organization in a visual tree format. Perfect for understanding the overall vault organization.';
+    description = 'Generates a hierarchical tree view of the vault structure, showing only folders and their organization in a visual tree format. Perfect for understanding the overall vault organization.';
     parameters = {
         path: { type: 'string', description: 'Starting path for the tree (defaults to vault root)', required: false },
         maxDepth: { type: 'number', description: 'Maximum depth to traverse', default: 10 },
         maxItems: { type: 'number', description: 'Maximum total items to include', default: 200 },
-        showFiles: { type: 'boolean', description: 'Whether to include files in the tree', default: true },
         showFolders: { type: 'boolean', description: 'Whether to include folders in the tree', default: true }
     };
 
@@ -34,7 +32,6 @@ export class VaultTreeTool implements Tool {
             path = '',
             maxDepth = 10,
             maxItems = 200,
-            showFiles = true,
             showFolders = true
         } = params;
 
@@ -73,8 +70,7 @@ export class VaultTreeTool implements Tool {
         const buildTree = (
             folder: TFolder,
             prefix: string = '',
-            depth: number = 0,
-            isLast: boolean = true
+            depth: number = 0
         ): void => {
             // Check limits
             if (depth > maxDepth || totalItems >= maxItems) {
@@ -86,8 +82,8 @@ export class VaultTreeTool implements Tool {
 
             // Add current folder if not root and showFolders is true
             if (depth > 0 && showFolders) {
-                const connector = isLast ? '└── ' : '├── ';
-                treeLines.push(`${prefix}${connector}📁 ${folder.name}/`);
+                const itemCount = folder.children.length;
+                treeLines.push(`${prefix}📁${folder.name}/(${itemCount} items)`);
                 totalItems++;
                 if (totalItems >= maxItems) {
                     truncated = true;
@@ -105,9 +101,8 @@ export class VaultTreeTool implements Tool {
                 return a.name.localeCompare(b.name);
             });
 
-            // Filter children based on showFiles and showFolders settings
+            // Filter children based on showFolders setting (only show folders)
             const filteredChildren = children.filter(child => {
-                if (child instanceof TFile) return showFiles;
                 if (child instanceof TFolder) return showFolders;
                 return false;
             });
@@ -119,20 +114,14 @@ export class VaultTreeTool implements Tool {
                     return;
                 }
 
-                const isLastChild = index === filteredChildren.length - 1;
                 const newPrefix = depth > 0 
-                    ? prefix + (isLast ? '    ' : '│   ')
+                    ? prefix + '  '
                     : '';
 
                 if (child instanceof TFile) {
-                    if (showFiles) {
-                        const connector = isLastChild ? '└── ' : '├── ';
-                        const fileIcon = this.getFileIcon(child.extension);
-                        treeLines.push(`${newPrefix}${connector}${fileIcon} ${child.name}`);
-                        totalItems++;
-                    }
+                    // Files are not displayed in this tool
                 } else if (child instanceof TFolder) {
-                    buildTree(child, newPrefix, depth + 1, isLastChild);
+                    buildTree(child, newPrefix, depth + 1);
                 }
             });
         };
@@ -140,20 +129,20 @@ export class VaultTreeTool implements Tool {
         try {
             // Start building the tree
             if (startPath === '' || startPath === '/') {
-                treeLines.push('📁 Vault Root/');
+                const rootItemCount = startFolder.children.length;
+                treeLines.push(`📁Vault Root/(${rootItemCount} items)`);
                 totalItems++;
             }
             
             buildTree(startFolder, '', startPath === '' || startPath === '/' ? 0 : -1);
 
-            const tree = treeLines.join('\n');
+            const tree = treeLines.join(',\n');
             const stats = {
                 totalItems,
                 maxDepth,
                 maxItems,
                 truncated,
                 startPath: startPath || '/',
-                showFiles,
                 showFolders
             };
 

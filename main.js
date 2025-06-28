@@ -1685,12 +1685,11 @@ var init_VaultTreeTool = __esm({
       constructor(app) {
         this.app = app;
         __publicField(this, "name", "vault_tree");
-        __publicField(this, "description", "Generates a hierarchical tree view of the vault structure, showing the complete folder and file organization in a visual tree format. Perfect for understanding the overall vault organization.");
+        __publicField(this, "description", "Generates a hierarchical tree view of the vault structure, showing only folders and their organization in a visual tree format. Perfect for understanding the overall vault organization.");
         __publicField(this, "parameters", {
           path: { type: "string", description: "Starting path for the tree (defaults to vault root)", required: false },
           maxDepth: { type: "number", description: "Maximum depth to traverse", default: 10 },
           maxItems: { type: "number", description: "Maximum total items to include", default: 200 },
-          showFiles: { type: "boolean", description: "Whether to include files in the tree", default: true },
           showFolders: { type: "boolean", description: "Whether to include folders in the tree", default: true }
         });
         __publicField(this, "pathValidator");
@@ -1701,7 +1700,6 @@ var init_VaultTreeTool = __esm({
           path = "",
           maxDepth = 10,
           maxItems = 200,
-          showFiles = true,
           showFolders = true
         } = params;
         let startPath;
@@ -1729,7 +1727,7 @@ var init_VaultTreeTool = __esm({
         const treeLines = [];
         let totalItems = 0;
         let truncated = false;
-        const buildTree = (folder, prefix = "", depth = 0, isLast = true) => {
+        const buildTree = (folder, prefix = "", depth = 0) => {
           if (depth > maxDepth || totalItems >= maxItems) {
             if (totalItems >= maxItems) {
               truncated = true;
@@ -1737,8 +1735,8 @@ var init_VaultTreeTool = __esm({
             return;
           }
           if (depth > 0 && showFolders) {
-            const connector = isLast ? "\u2514\u2500\u2500 " : "\u251C\u2500\u2500 ";
-            treeLines.push(`${prefix}${connector}\u{1F4C1} ${folder.name}/`);
+            const itemCount = folder.children.length;
+            treeLines.push(`${prefix}\u{1F4C1}${folder.name}/(${itemCount} items)`);
             totalItems++;
             if (totalItems >= maxItems) {
               truncated = true;
@@ -1752,7 +1750,6 @@ var init_VaultTreeTool = __esm({
             return a.name.localeCompare(b.name);
           });
           const filteredChildren = children.filter((child) => {
-            if (child instanceof import_obsidian9.TFile) return showFiles;
             if (child instanceof import_obsidian9.TFolder) return showFolders;
             return false;
           });
@@ -1761,34 +1758,27 @@ var init_VaultTreeTool = __esm({
               truncated = true;
               return;
             }
-            const isLastChild = index === filteredChildren.length - 1;
-            const newPrefix = depth > 0 ? prefix + (isLast ? "    " : "\u2502   ") : "";
+            const newPrefix = depth > 0 ? prefix + "  " : "";
             if (child instanceof import_obsidian9.TFile) {
-              if (showFiles) {
-                const connector = isLastChild ? "\u2514\u2500\u2500 " : "\u251C\u2500\u2500 ";
-                const fileIcon = this.getFileIcon(child.extension);
-                treeLines.push(`${newPrefix}${connector}${fileIcon} ${child.name}`);
-                totalItems++;
-              }
             } else if (child instanceof import_obsidian9.TFolder) {
-              buildTree(child, newPrefix, depth + 1, isLastChild);
+              buildTree(child, newPrefix, depth + 1);
             }
           });
         };
         try {
           if (startPath === "" || startPath === "/") {
-            treeLines.push("\u{1F4C1} Vault Root/");
+            const rootItemCount = startFolder.children.length;
+            treeLines.push(`\u{1F4C1}Vault Root/(${rootItemCount} items)`);
             totalItems++;
           }
           buildTree(startFolder, "", startPath === "" || startPath === "/" ? 0 : -1);
-          const tree = treeLines.join("\n");
+          const tree = treeLines.join(",\n");
           const stats = {
             totalItems,
             maxDepth,
             maxItems,
             truncated,
             startPath: startPath || "/",
-            showFiles,
             showFolders
           };
           return {
