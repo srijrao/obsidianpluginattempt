@@ -39,7 +39,7 @@ export interface ThoughtParams {
  */
 export class ThoughtTool implements Tool {
     name = 'thought';
-    description = `Record and display a single AI reasoning step, always suggesting the next tool to use (or 'finished' if complete). Output is machine-readable for both agent automation and user display. Requires 'thought' and 'nextTool' parameters; optionally includes step tracking and a description of the next action.
+    description = `Record and display a single AI reasoning step, always suggesting the next tool to use (or 'finished' if complete). Output is machine-readable for both agent automation and user display. Requires 'thought' and 'nextTool' parameters;
 Never use 'action: finished'. When you are done, always use the 'thought' tool with 'nextTool': 'finished'.
 
 IMPORTANT: When nextTool is 'finished', include your final response to the user in the 'thought' parameter. This is the ONLY way to communicate your final answer to the user.

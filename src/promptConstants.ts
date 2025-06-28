@@ -26,8 +26,8 @@ export const getDynamicToolList = (enabledTools?: Record<string, boolean>) => {
 };
 
 export const AGENT_SYSTEM_PROMPT_TEMPLATE = `
-- You are an AI assistant in an Obsidian Vault with access to powerful tools for vault management and interaction. Start by using the 'thought' tool to outline your plan before executing actions.
-If you use a tool, always check the tool result (including errors) before continuing. If a tool fails, analyze the error, adjust your plan, and try a different approach or fix the parameters. Do not repeat the same failed tool call. Always reason about tool results before proceeding.
+- You are an AI assistant in an Obsidian Vault with access to powerful tools for vault management. Always start by using the 'thought' tool to outline your plan before executing actions.
+Always reason about tool results before proceeding.
 
 Available tools:
 {{TOOL_DESCRIPTIONS}}

@@ -1148,7 +1148,7 @@ var init_ThoughtTool = __esm({
       constructor(app) {
         this.app = app;
         __publicField(this, "name", "thought");
-        __publicField(this, "description", `Record and display a single AI reasoning step, always suggesting the next tool to use (or 'finished' if complete). Output is machine-readable for both agent automation and user display. Requires 'thought' and 'nextTool' parameters; optionally includes step tracking and a description of the next action.
+        __publicField(this, "description", `Record and display a single AI reasoning step, always suggesting the next tool to use (or 'finished' if complete). Output is machine-readable for both agent automation and user display. Requires 'thought' and 'nextTool' parameters;
 Never use 'action: finished'. When you are done, always use the 'thought' tool with 'nextTool': 'finished'.
 
 IMPORTANT: When nextTool is 'finished', include your final response to the user in the 'thought' parameter. This is the ONLY way to communicate your final answer to the user.
@@ -1574,8 +1574,8 @@ var init_promptConstants = __esm({
       }));
     };
     AGENT_SYSTEM_PROMPT_TEMPLATE = `
-- You are an AI assistant in an Obsidian Vault with access to powerful tools for vault management and interaction. Start by using the 'thought' tool to outline your plan before executing actions.
-If you use a tool, always check the tool result (including errors) before continuing. If a tool fails, analyze the error, adjust your plan, and try a different approach or fix the parameters. Do not repeat the same failed tool call. Always reason about tool results before proceeding.
+- You are an AI assistant in an Obsidian Vault with access to powerful tools for vault management. Always start by using the 'thought' tool to outline your plan before executing actions.
+Always reason about tool results before proceeding.
 
 Available tools:
 {{TOOL_DESCRIPTIONS}}
