@@ -1,6 +1,6 @@
 import { App, TFile } from 'obsidian';
 import { Tool, ToolResult } from '../ToolRegistry';
-import { createFile, writeFile } from '../../../../utils/FileHandler';
+import { createFile, writeFile, createFileWithParents } from '../../../../utils/FileHandler';
 import { BackupManager } from '../../../BackupManager';
 import { PathValidator } from './pathValidation';
 
@@ -10,6 +10,7 @@ export interface FileWriteParams {
     content: string;
     createIfNotExists?: boolean;
     backup?: boolean;
+    createParentFolders: boolean; // Now required
 }
 
 export class FileWriteTool implements Tool {
@@ -35,22 +36,36 @@ export class FileWriteTool implements Tool {
             type: 'boolean',
             description: 'Whether to create a backup before modifying existing files',
             default: true
+        },
+        createParentFolders: {
+            type: 'boolean',
+            description: 'Whether to create parent folders if they do not exist',
+            required: true
         }
-    };    private backupManager: BackupManager;
-    private pathValidator: PathValidator;    constructor(private app: App, backupManager?: BackupManager) {
+    };
+    private backupManager: BackupManager;
+    private pathValidator: PathValidator;
+    constructor(private app: App, backupManager?: BackupManager) {
         // Initialize backup manager with provided instance or create a default one
         const defaultPath = app.vault.configDir + '/plugins/ai-assistant-for-obsidian';
         this.backupManager = backupManager || new BackupManager(app, defaultPath);
         this.pathValidator = new PathValidator(app);
-    }    async execute(params: any, context: any): Promise<ToolResult> {
+    }
+    async execute(params: any, context: any): Promise<ToolResult> {
         // Normalize parameter names for backward compatibility
         const inputPath = params.path || params.filePath || params.filename;
-        const { content, createIfNotExists = true, backup = true } = params;
+        const { content, createIfNotExists = true, backup = true, createParentFolders } = params;
 
         if (inputPath === undefined || inputPath === null) {
             return {
                 success: false,
                 error: 'path parameter is required'
+            };
+        }
+        if (typeof createParentFolders !== 'boolean') {
+            return {
+                success: false,
+                error: 'createParentFolders parameter is required and must be boolean'
             };
         }
 
@@ -74,7 +89,6 @@ export class FileWriteTool implements Tool {
 
         try {
             const file = this.app.vault.getAbstractFileByPath(filePath);
-            
             if (!file) {
                 // File doesn't exist
                 if (!createIfNotExists) {
@@ -83,17 +97,27 @@ export class FileWriteTool implements Tool {
                         error: `File not found and createIfNotExists is false: ${filePath}`
                     };
                 }
-
-                // Use existing utility to create new file
-                const result = await createFile(this.app, filePath, content);
-                
+                // Use FileHandler utility to create file, with or without parent folders
+                let result: string;
+                if (createParentFolders) {
+                    result = await createFileWithParents(this.app, filePath, content);
+                } else {
+                    // Check if parent exists
+                    const parentPath = filePath.split('/').slice(0, -1).join('/');
+                    if (parentPath && !this.app.vault.getAbstractFileByPath(parentPath)) {
+                        return {
+                            success: false,
+                            error: `Parent folder does not exist: ${parentPath}`
+                        };
+                    }
+                    result = await createFile(this.app, filePath, content);
+                }
                 if (result.startsWith('Failed to create')) {
                     return {
                         success: false,
                         error: result
                     };
                 }
-
                 return {
                     success: true,
                     data: {
@@ -103,35 +127,30 @@ export class FileWriteTool implements Tool {
                     }
                 };
             }
-
             if (!(file instanceof TFile)) {
                 return {
                     success: false,
                     error: `Path is not a file: ${filePath}`
                 };
-            }            // File exists, handle backup if requested
+            }
+            // File exists, handle backup if requested
             if (backup) {
                 const originalContent = await this.app.vault.read(file);
-                
                 // Only create backup if content is actually changing
                 const shouldBackup = await this.backupManager.shouldCreateBackup(filePath, content);
                 if (shouldBackup) {
-                    // Removed redundant console.log for cleaner production code.
                     await this.backupManager.createBackup(filePath, originalContent);
-                } else {
-                    // Removed redundant console.log for cleaner production code.
                 }
             }
-
             // Use existing utility to modify file
             const result = await writeFile(this.app, filePath, content);
-            
             if (result.startsWith('Failed to write')) {
                 return {
                     success: false,
                     error: result
                 };
-            }            return {
+            }
+            return {
                 success: true,
                 data: {
                     action: 'modified',

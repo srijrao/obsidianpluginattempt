@@ -2746,6 +2746,24 @@ async function createFile(app, filePath, content = "") {
     return `Failed to create file: ${(err == null ? void 0 : err.message) || err}`;
   }
 }
+async function createFileWithParents(app, filePath, content = "") {
+  const parts = filePath.split("/");
+  parts.pop();
+  let current = "";
+  for (const part of parts) {
+    current = current ? `${current}/${part}` : part;
+    if (current && !app.vault.getAbstractFileByPath(current)) {
+      try {
+        await app.vault.createFolder(current);
+      } catch (err) {
+        if (!/already exists/i.test((err == null ? void 0 : err.message) || "")) {
+          return `Failed to create parent folder: ${(err == null ? void 0 : err.message) || err}`;
+        }
+      }
+    }
+  }
+  return createFile(app, filePath, content);
+}
 async function readFile(app, filePath) {
   const file = getVaultItem(app, filePath, "file");
   if (!file) return itemNotFoundError(filePath, "file");
@@ -3232,6 +3250,11 @@ var init_FileWriteTool = __esm({
             type: "boolean",
             description: "Whether to create a backup before modifying existing files",
             default: true
+          },
+          createParentFolders: {
+            type: "boolean",
+            description: "Whether to create parent folders if they do not exist",
+            required: true
           }
         });
         __publicField(this, "backupManager");
@@ -3242,11 +3265,17 @@ var init_FileWriteTool = __esm({
       }
       async execute(params, context) {
         const inputPath = params.path || params.filePath || params.filename;
-        const { content, createIfNotExists = true, backup = true } = params;
+        const { content, createIfNotExists = true, backup = true, createParentFolders } = params;
         if (inputPath === void 0 || inputPath === null) {
           return {
             success: false,
             error: "path parameter is required"
+          };
+        }
+        if (typeof createParentFolders !== "boolean") {
+          return {
+            success: false,
+            error: "createParentFolders parameter is required and must be boolean"
           };
         }
         let filePath;
@@ -3273,7 +3302,19 @@ var init_FileWriteTool = __esm({
                 error: `File not found and createIfNotExists is false: ${filePath}`
               };
             }
-            const result2 = await createFile(this.app, filePath, content);
+            let result2;
+            if (createParentFolders) {
+              result2 = await createFileWithParents(this.app, filePath, content);
+            } else {
+              const parentPath = filePath.split("/").slice(0, -1).join("/");
+              if (parentPath && !this.app.vault.getAbstractFileByPath(parentPath)) {
+                return {
+                  success: false,
+                  error: `Parent folder does not exist: ${parentPath}`
+                };
+              }
+              result2 = await createFile(this.app, filePath, content);
+            }
             if (result2.startsWith("Failed to create")) {
               return {
                 success: false,
@@ -3300,7 +3341,6 @@ var init_FileWriteTool = __esm({
             const shouldBackup = await this.backupManager.shouldCreateBackup(filePath, content);
             if (shouldBackup) {
               await this.backupManager.createBackup(filePath, originalContent);
-            } else {
             }
           }
           const result = await writeFile(this.app, filePath, content);
@@ -4268,7 +4308,7 @@ var init_settings = __esm({
         enabled: false,
         maxToolCalls: 10,
         timeoutMs: 3e4,
-        maxIterations: 3
+        maxIterations: 10
       }
     };
   }
@@ -12195,7 +12235,7 @@ var TaskContinuation = class {
   async continueTaskUntilFinished(messages, container, initialResponseContent, currentContent, initialToolResults, chatHistory) {
     var _a2, _b, _c, _d, _e;
     let responseContent = currentContent;
-    let maxIterations = (_b = (_a2 = this.plugin.settings.agentMode) == null ? void 0 : _a2.maxIterations) != null ? _b : 3;
+    let maxIterations = (_b = (_a2 = this.plugin.settings.agentMode) == null ? void 0 : _a2.maxIterations) != null ? _b : 10;
     let iteration = 0;
     let limitReachedDuringContinuation = false;
     let allToolResults = [...initialToolResults];
@@ -14370,7 +14410,7 @@ var AgentSettingsSection = class {
       },
       async (value) => {
         if (!this.plugin.settings.agentMode) {
-          this.plugin.settings.agentMode = { enabled: false, maxToolCalls: 10, timeoutMs: 3e4, maxIterations: 3 };
+          this.plugin.settings.agentMode = { enabled: false, maxToolCalls: 10, timeoutMs: 3e4, maxIterations: 10 };
         }
         this.plugin.settings.agentMode.enabled = value;
         await this.plugin.saveSettings();
@@ -14387,7 +14427,7 @@ var AgentSettingsSection = class {
       },
       async (value) => {
         if (!this.plugin.settings.agentMode) {
-          this.plugin.settings.agentMode = { enabled: false, maxToolCalls: 10, timeoutMs: 3e4, maxIterations: 3 };
+          this.plugin.settings.agentMode = { enabled: false, maxToolCalls: 10, timeoutMs: 3e4, maxIterations: 10 };
         }
         this.plugin.settings.agentMode.maxToolCalls = value;
         await this.plugin.saveSettings();
@@ -14404,7 +14444,7 @@ var AgentSettingsSection = class {
       },
       async (value) => {
         if (!this.plugin.settings.agentMode) {
-          this.plugin.settings.agentMode = { enabled: false, maxToolCalls: 10, timeoutMs: 3e4, maxIterations: 3 };
+          this.plugin.settings.agentMode = { enabled: false, maxToolCalls: 10, timeoutMs: 3e4, maxIterations: 10 };
         }
         this.plugin.settings.agentMode.timeoutMs = value * 1e3;
         await this.plugin.saveSettings();
@@ -14417,11 +14457,11 @@ var AgentSettingsSection = class {
       { min: 1, max: 20, step: 1 },
       () => {
         var _a2, _b;
-        return (_b = (_a2 = this.plugin.settings.agentMode) == null ? void 0 : _a2.maxIterations) != null ? _b : 3;
+        return (_b = (_a2 = this.plugin.settings.agentMode) == null ? void 0 : _a2.maxIterations) != null ? _b : 10;
       },
       async (value) => {
         if (!this.plugin.settings.agentMode) {
-          this.plugin.settings.agentMode = { enabled: false, maxToolCalls: 10, timeoutMs: 3e4, maxIterations: 3 };
+          this.plugin.settings.agentMode = { enabled: false, maxToolCalls: 10, timeoutMs: 3e4, maxIterations: 10 };
         }
         this.plugin.settings.agentMode.maxIterations = value;
         await this.plugin.saveSettings();
@@ -15411,7 +15451,7 @@ var AgentModeManager = class {
       enabled: false,
       maxToolCalls: 5,
       timeoutMs: 3e4,
-      maxIterations: 3
+      maxIterations: 10
     };
   }
   isAgentModeEnabled() {
@@ -15425,7 +15465,7 @@ var AgentModeManager = class {
         enabled: false,
         maxToolCalls: 5,
         timeoutMs: 3e4,
-        maxIterations: 3
+        maxIterations: 10
       };
       this.debugLog("debug", "[agentModeManager.ts] Initialized agentMode settings");
     }
@@ -15471,7 +15511,7 @@ var _MyPlugin = class _MyPlugin extends import_obsidian35.Plugin {
       enabled: false,
       maxToolCalls: 5,
       timeoutMs: 3e4,
-      maxIterations: 3
+      maxIterations: 10
     };
   }
   isAgentModeEnabled() {
@@ -15485,7 +15525,7 @@ var _MyPlugin = class _MyPlugin extends import_obsidian35.Plugin {
         enabled: false,
         maxToolCalls: 5,
         timeoutMs: 3e4,
-        maxIterations: 3
+        maxIterations: 10
       };
       this.debugLog("debug", "[main.ts] Initialized agentMode settings");
     }

@@ -41,7 +41,7 @@ export class AgentConfigSection {
                     () => this.plugin.settings.agentMode?.enabled ?? false,
                     async (value) => {
                         if (!this.plugin.settings.agentMode) {
-                            this.plugin.settings.agentMode = { enabled: false, maxToolCalls: 10, timeoutMs: 30000, maxIterations: 3 };
+                            this.plugin.settings.agentMode = { enabled: false, maxToolCalls: 10, timeoutMs: 30000, maxIterations: 10 };
                         }
                         this.plugin.settings.agentMode.enabled = value;
                         await this.plugin.saveSettings();
@@ -52,7 +52,7 @@ export class AgentConfigSection {
                     () => this.plugin.settings.agentMode?.maxToolCalls ?? 10,
                     async (value) => {
                         if (!this.plugin.settings.agentMode) {
-                            this.plugin.settings.agentMode = { enabled: false, maxToolCalls: 10, timeoutMs: 30000, maxIterations: 3 };
+                            this.plugin.settings.agentMode = { enabled: false, maxToolCalls: 10, timeoutMs: 30000, maxIterations: 10 };
                         }
                         this.plugin.settings.agentMode.maxToolCalls = value;
                         await this.plugin.saveSettings();
@@ -62,7 +62,7 @@ export class AgentConfigSection {
                     () => (this.plugin.settings.agentMode?.timeoutMs ?? 30000) / 1000,
                     async (value) => {
                         if (!this.plugin.settings.agentMode) {
-                            this.plugin.settings.agentMode = { enabled: false, maxToolCalls: 10, timeoutMs: 30000, maxIterations: 3 };
+                            this.plugin.settings.agentMode = { enabled: false, maxToolCalls: 10, timeoutMs: 30000, maxIterations: 10 };
                         }
                         this.plugin.settings.agentMode.timeoutMs = value * 1000;
                         await this.plugin.saveSettings();

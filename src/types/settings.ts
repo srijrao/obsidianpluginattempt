@@ -301,6 +301,6 @@ export const DEFAULT_SETTINGS: MyPluginSettings = {
         enabled: false,
         maxToolCalls: 10,
         timeoutMs: 30000,
-        maxIterations: 3
+        maxIterations: 10
     },
 };

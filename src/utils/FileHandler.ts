@@ -411,6 +411,33 @@ export async function createFolder(app: App, folderPath: string): Promise<string
 }
 
 /**
+ * Creates a new file with optional content, creating parent folders if needed.
+ * @param {App} app - The Obsidian App instance.
+ * @param {string} filePath - Path to the new file (relative to vault root).
+ * @param {string} [content=''] - Optional initial content for the file.
+ * @returns {Promise<string>} A promise describing the result of the operation.
+ */
+export async function createFileWithParents(app: App, filePath: string, content = ''): Promise<string> {
+    const parts = filePath.split('/');
+    parts.pop(); // remove file name
+    let current = '';
+    for (const part of parts) {
+        current = current ? `${current}/${part}` : part;
+        if (current && !app.vault.getAbstractFileByPath(current)) {
+            try {
+                await app.vault.createFolder(current);
+            } catch (err: any) {
+                // Ignore if already exists due to race, else fail
+                if (!/already exists/i.test(err?.message || '')) {
+                    return `Failed to create parent folder: ${err?.message || err}`;
+                }
+            }
+        }
+    }
+    return createFile(app, filePath, content);
+}
+
+/**
  * Reads the contents of a file as a string.
  * @param {App} app - The Obsidian App instance.
  * @param {string} filePath - Path to the file (relative to vault root).

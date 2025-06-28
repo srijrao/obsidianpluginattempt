@@ -24,7 +24,7 @@ export class TaskContinuation {
         chatHistory?: any[]
     ): Promise<{ content: string; limitReachedDuringContinuation: boolean; }> {
         let responseContent = currentContent;
-        let maxIterations = this.plugin.settings.agentMode?.maxIterations ?? 3; // Configurable iteration limit
+        let maxIterations = this.plugin.settings.agentMode?.maxIterations ?? 10; // Configurable iteration limit
         let iteration = 0;
         let limitReachedDuringContinuation = false;
         // Accumulate all tool results across iterations
