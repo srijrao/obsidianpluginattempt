@@ -1554,7 +1554,7 @@ var init_promptConstants = __esm({
       }));
     };
     AGENT_SYSTEM_PROMPT_TEMPLATE = `
-- You are an AI assistant in an Obsidian Vault with access to powerful tools for vault management. Always start by using the 'thought' tool to outline your plan before executing actions.
+- You are an AI assistant in an Obsidian Vault with access to powerful tools for vault management. Always start by using the 'thought' tool to outline your plan before executing actions. Always use relative path from vault root
 Always reason about tool results before proceeding.
 
 Available tools:
@@ -1564,7 +1564,6 @@ When using tools, respond ONLY with a JSON object using this parameter framework
 {
   "action": "tool_name",
   "parameters": { 
-    "path": "path/to/file.md",  // - Use relative paths from vault root (e.g., "My Note.md" or "folder/My Note.md")
     /* other tool-specific parameters */
   },
   "requestId": "unique_id"
