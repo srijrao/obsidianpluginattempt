@@ -16,7 +16,7 @@ function log(level: 'debug' | 'info' | 'warn' | 'error', ...args: any[]) {
 }
 
 export function buildChatYaml(settings: MyPluginSettings, provider?: string, model?: string): string {
-    log('info', '[buildChatYaml] Building chat YAML frontmatter', { selectedModel: settings.selectedModel, provider, model });
+    log('info', '[buildChatYaml] Entered function', { settings, provider, model });
     if (settings.selectedModel) {
         const providerType = getProviderFromUnifiedModel(settings.selectedModel);
         const modelId = getModelIdFromUnifiedModel(settings.selectedModel);
@@ -28,6 +28,7 @@ export function buildChatYaml(settings: MyPluginSettings, provider?: string, mod
             temperature: settings.temperature
         };
         log('debug', '[buildChatYaml] Using unified model format', yamlObj);
+        log('info', '[buildChatYaml] Returning YAML for unified model', { yaml: `---\n${yaml.dump(yamlObj)}---\n` });
         return `---\n${yaml.dump(yamlObj)}---\n`;
     } else {
         const yamlObj = {
@@ -37,11 +38,13 @@ export function buildChatYaml(settings: MyPluginSettings, provider?: string, mod
             temperature: settings.temperature
         };
         log('debug', '[buildChatYaml] Using legacy model format', yamlObj);
+        log('info', '[buildChatYaml] Returning YAML for legacy model', { yaml: `---\n${yaml.dump(yamlObj)}---\n` });
         return `---\n${yaml.dump(yamlObj)}---\n`;
     }
 }
 
 function getCurrentModelForProvider(settings: MyPluginSettings): string {
+    log('debug', '[getCurrentModelForProvider] Called', { provider: settings.provider });
     switch (settings.provider) {
         case 'openai':
             return settings.openaiSettings.model;
@@ -81,7 +84,7 @@ export async function saveChatAsNote({
     chatNoteFolder?: string,
     agentResponseHandler?: any
 }) {
-    log('info', '[saveChatAsNote] Starting chat note save process', { hasMessages: !!messages, hasChatContent: typeof chatContent === 'string' });
+    log('info', '[saveChatAsNote] Entered function', { hasMessages: !!messages, hasChatContent: typeof chatContent === 'string' });
     let content = '';
     if (typeof chatContent === 'string') {
         content = chatContent;
@@ -118,6 +121,7 @@ export async function saveChatAsNote({
                 content += '\n\n' + chatSeparator + '\n\n';
             }
         });
+        log('debug', '[saveChatAsNote] messages NodeList length:', { length: messages.length });
     } else {
         log('error', '[saveChatAsNote] Neither messages nor chatContent provided. Aborting.');
         throw new Error('Either messages or chatContent must be provided');
@@ -165,18 +169,18 @@ export async function saveChatAsNote({
         const base = extIndex !== -1 ? fileName.substring(0, extIndex) : fileName;
         const ext = extIndex !== -1 ? fileName.substring(extIndex) : '';
         finalFilePath = (folder ? folder.replace(/[/\\]+$/, '') + '/' : '') + `${base} (${attempt})${ext}`;
-        log('warn', `[saveChatAsNote] File already exists, trying new filename: ${finalFilePath}`);
+        log('warn', '[saveChatAsNote] File already exists, trying new filename', { finalFilePath });
         attempt++;
     }
     try {
         await app.vault.create(finalFilePath, noteContent);
-        log('info', `[saveChatAsNote] Chat successfully saved as note: ${finalFilePath}`);
+        log('info', '[saveChatAsNote] Chat successfully saved as note', { finalFilePath });
         new Notice(`Chat saved as note: ${finalFilePath}`);
     } catch (e) {
-        log('error', `[saveChatAsNote] Failed to save chat as note: ${finalFilePath}`, e);
+        log('error', '[saveChatAsNote] Failed to save chat as note', { finalFilePath, error: e });
         new Notice('Failed to save chat as note.');
     }
-    log('info', '[saveChatAsNote] Save process complete.');
+    log('info', '[saveChatAsNote] Exiting function. Save process complete.');
 }
 
 /**
@@ -194,9 +198,9 @@ export async function loadChatYamlAndApplySettings({
     settings: MyPluginSettings,
     file: any
 }) {
-    log('info', '[loadChatYamlAndApplySettings] Reading chat note file', { file: file?.path || file?.name || file });
-    let content = await app.vault.read(file);
+    log('info', '[loadChatYamlAndApplySettings] Entered function', { file: file?.path || file?.name || file });
     log('debug', '[loadChatYamlAndApplySettings] File content loaded. Extracting YAML frontmatter.');
+    let content = await app.vault.read(file);
     const yamlMatch = content.match(/^---\n([\s\S]*?)\n---/);
     let yamlObj: any = {};
     if (yamlMatch) {
@@ -214,10 +218,12 @@ export async function loadChatYamlAndApplySettings({
     if (yamlObj.unified_model) {
         settings.selectedModel = yamlObj.unified_model;
         log('info', '[loadChatYamlAndApplySettings] Loaded unified_model from YAML', yamlObj.unified_model);
+        log('info', '[loadChatYamlAndApplySettings] Set selectedModel from unified_model', { selectedModel: settings.selectedModel });
     } else if (yamlObj.provider && yamlObj.model) {
         const unifiedModelId = `${yamlObj.provider}:${yamlObj.model}`;
         settings.selectedModel = unifiedModelId;
         log('info', '[loadChatYamlAndApplySettings] Loaded legacy provider/model from YAML', { provider: yamlObj.provider, model: yamlObj.model });
+        log('info', '[loadChatYamlAndApplySettings] Set selectedModel from provider/model', { selectedModel: settings.selectedModel });
         settings.provider = yamlObj.provider;
         switch (yamlObj.provider) {
             case 'openai':
@@ -254,7 +260,7 @@ export async function loadChatYamlAndApplySettings({
         log('debug', '[loadChatYamlAndApplySettings] Calling plugin.onSettingsLoadedFromNote');
         plugin.onSettingsLoadedFromNote(settings);
     }
-    log('info', '[loadChatYamlAndApplySettings] YAML load/apply process complete.');
+    log('info', '[loadChatYamlAndApplySettings] Exiting function. YAML load/apply process complete.');
     return {
         provider: yamlObj.provider,
         model: yamlObj.model,
