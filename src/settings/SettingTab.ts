@@ -122,7 +122,7 @@ export class MyPluginSettingTab extends PluginSettingTab {
 
         CollapsibleSectionRenderer.createCollapsibleSection(
             containerEl,
-            'Backup Management',
+            'Backup & Trash Management',
             (sectionEl: HTMLElement) => this.backupManagementSection.render(sectionEl),
             this.plugin,
             'backupManagementExpanded'

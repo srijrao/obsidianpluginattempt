@@ -1847,7 +1847,7 @@ var init_FileDeleteTool = __esm({
       constructor(app, backupManager) {
         this.app = app;
         __publicField(this, "name", "file_delete");
-        __publicField(this, "description", "Deletes files or folders from the vault with optional backup creation. For folders, creates backups of all contained files before deletion. Use with caution as this permanently removes files/folders from the vault.");
+        __publicField(this, "description", "Safely deletes files or folders from the vault by moving them to a .trash folder (default) or permanently deleting them. The trash option provides safer file management and allows restoration. For folders, creates backups of all contained files before deletion.");
         __publicField(this, "parameters", {
           path: {
             type: "string",
@@ -1863,6 +1863,11 @@ var init_FileDeleteTool = __esm({
             type: "boolean",
             description: "Extra confirmation that deletion is intended.",
             default: true
+          },
+          useTrash: {
+            type: "boolean",
+            description: "Move to .trash folder instead of permanent deletion (default: true for safety).",
+            default: true
           }
         });
         __publicField(this, "backupManager");
@@ -1873,7 +1878,7 @@ var init_FileDeleteTool = __esm({
       }
       async execute(params, context) {
         const inputPath = params.path || params.filePath;
-        const { backup = true, confirmDeletion = true } = params;
+        const { backup = true, confirmDeletion = true, useTrash = true } = params;
         if (inputPath === void 0 || inputPath === null) {
           return {
             success: false,
@@ -1921,25 +1926,53 @@ var init_FileDeleteTool = __esm({
                 };
               }
             }
-            try {
-              await this.app.vault.delete(target);
-            } catch (deleteError) {
-              return {
-                success: false,
-                error: `Failed to delete file: ${deleteError.message}`
-              };
+            let actionTaken = "";
+            let trashPath = "";
+            if (useTrash) {
+              try {
+                trashPath = await this.moveToTrash(target, filePath);
+                actionTaken = "moved to trash";
+              } catch (trashError) {
+                return {
+                  success: false,
+                  error: `Failed to move file to trash: ${trashError.message}`
+                };
+              }
+            } else {
+              try {
+                await this.app.vault.delete(target);
+                actionTaken = "permanently deleted";
+              } catch (deleteError) {
+                if (deleteError.message && deleteError.message.includes("EPERM")) {
+                  try {
+                    await this.app.vault.adapter.remove(filePath);
+                    actionTaken = "permanently deleted";
+                  } catch (adapterError) {
+                    return {
+                      success: false,
+                      error: `Failed to delete file (tried multiple methods): ${deleteError.message}. Adapter error: ${adapterError.message}`
+                    };
+                  }
+                } else {
+                  return {
+                    success: false,
+                    error: `Failed to delete file: ${deleteError.message}`
+                  };
+                }
+              }
             }
             totalSize = originalContent.length;
             return {
               success: true,
               data: {
-                action: "deleted",
+                action: actionTaken,
                 type: "file",
                 filePath,
+                trashPath: useTrash ? trashPath : void 0,
                 size: totalSize,
                 backupCreated,
                 backupCount,
-                message: `File '${filePath}' has been deleted${backupCreated ? " (backup created)" : ""}.`
+                message: `File '${filePath}' has been ${actionTaken}${backupCreated ? " (backup created)" : ""}${useTrash ? `. Location: ${trashPath}` : ""}.`
               }
             };
           } else if (target instanceof import_obsidian10.TFolder) {
@@ -1956,24 +1989,57 @@ var init_FileDeleteTool = __esm({
                 };
               }
             }
-            try {
-              await this.app.vault.delete(target);
-            } catch (deleteError) {
-              return {
-                success: false,
-                error: `Failed to delete folder: ${deleteError.message}`
-              };
+            let actionTaken = "";
+            let trashPath = "";
+            if (useTrash) {
+              try {
+                trashPath = await this.moveToTrash(target, filePath);
+                actionTaken = "moved to trash";
+              } catch (trashError) {
+                return {
+                  success: false,
+                  error: `Failed to move folder to trash: ${trashError.message}`
+                };
+              }
+            } else {
+              try {
+                await this.app.vault.delete(target);
+                actionTaken = "permanently deleted";
+              } catch (deleteError) {
+                if (deleteError.message && deleteError.message.includes("EPERM")) {
+                  try {
+                    await this.app.vault.adapter.rmdir(filePath, true);
+                    actionTaken = "permanently deleted";
+                  } catch (adapterError) {
+                    try {
+                      await this.recursivelyDeleteFolder(target);
+                      actionTaken = "permanently deleted";
+                    } catch (recursiveError) {
+                      return {
+                        success: false,
+                        error: `Failed to delete folder (tried multiple methods): ${deleteError.message}. Last attempt: ${recursiveError.message}`
+                      };
+                    }
+                  }
+                } else {
+                  return {
+                    success: false,
+                    error: `Failed to delete folder: ${deleteError.message}`
+                  };
+                }
+              }
             }
             return {
               success: true,
               data: {
-                action: "deleted",
+                action: actionTaken,
                 type: "folder",
                 filePath,
+                trashPath: useTrash ? trashPath : void 0,
                 size: totalSize,
                 backupCreated,
                 backupCount,
-                message: `Folder '${filePath}' has been deleted${backupCreated ? ` (${backupCount} files backed up)` : ""}.`
+                message: `Folder '${filePath}' has been ${actionTaken}${backupCreated ? ` (${backupCount} files backed up)` : ""}${useTrash ? `. Location: ${trashPath}` : ""}.`
               }
             };
           } else {
@@ -2022,6 +2088,62 @@ var init_FileDeleteTool = __esm({
           backupCount,
           totalSize
         };
+      }
+      /**
+       * Recursively deletes a folder by deleting all its contents first
+       * This is a fallback method for Windows permission issues
+       */
+      async recursivelyDeleteFolder(folder) {
+        for (const child of [...folder.children]) {
+          if (child instanceof import_obsidian10.TFile) {
+            try {
+              await this.app.vault.delete(child);
+            } catch (error) {
+              await this.app.vault.adapter.remove(child.path);
+            }
+          } else if (child instanceof import_obsidian10.TFolder) {
+            await this.recursivelyDeleteFolder(child);
+          }
+        }
+        try {
+          await this.app.vault.delete(folder);
+        } catch (error) {
+          await this.app.vault.adapter.rmdir(folder.path, false);
+        }
+      }
+      /**
+       * Ensures the .trash folder exists in the vault root
+       */
+      async ensureTrashFolderExists() {
+        const trashPath = ".trash";
+        const existingTrash = this.app.vault.getAbstractFileByPath(trashPath);
+        if (!existingTrash) {
+          await this.app.vault.createFolder(trashPath);
+        } else if (!(existingTrash instanceof import_obsidian10.TFolder)) {
+          throw new Error('A file named ".trash" already exists - cannot create trash folder');
+        }
+        return trashPath;
+      }
+      /**
+       * Generates a unique name for the trash item to avoid conflicts
+       */
+      generateTrashName(originalPath) {
+        const timestamp2 = (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-");
+        const basename = originalPath.split("/").pop() || "unknown";
+        const extension = basename.includes(".") ? "" : "";
+        const nameWithoutExt = basename.replace(/\.[^/.]+$/, "");
+        const ext = basename.includes(".") ? basename.substring(basename.lastIndexOf(".")) : "";
+        return `${nameWithoutExt}_deleted_${timestamp2}${ext}`;
+      }
+      /**
+       * Moves a file or folder to the trash folder instead of permanently deleting it
+       */
+      async moveToTrash(target, originalPath) {
+        const trashPath = await this.ensureTrashFolderExists();
+        const trashName = this.generateTrashName(originalPath);
+        const destinationPath = `${trashPath}/${trashName}`;
+        await this.app.fileManager.renameFile(target, destinationPath);
+        return destinationPath;
       }
     };
   }
@@ -15567,6 +15689,7 @@ var BackupManagementSection = class {
   }
   async render(containerEl) {
     await this.renderBackupManagement(containerEl);
+    await this.renderTrashManagement(containerEl);
   }
   /**
    * Renders the Backup Management section.
@@ -15702,6 +15825,139 @@ Stored at: ${backup.backupFilePath || "Unknown location"}`, 5e3);
           }
         }
       };
+    }
+  }
+  /**
+   * Renders the Trash Management section.
+   * @param containerEl The HTML element to append the section to.
+   */
+  async renderTrashManagement(containerEl) {
+    containerEl.createEl("div", { attr: { style: "margin-top: 2em; border-top: 1px solid var(--background-modifier-border); padding-top: 1em;" } });
+    containerEl.createEl("h3", { text: "Trash Management" });
+    containerEl.createEl("div", {
+      text: "Manage files and folders moved to the .trash folder. Files in trash can be restored or permanently deleted.",
+      cls: "setting-item-description",
+      attr: { style: "margin-bottom: 1em;" }
+    });
+    const trashPath = ".trash";
+    const trashFolder = this.plugin.app.vault.getAbstractFileByPath(trashPath);
+    if (!trashFolder) {
+      containerEl.createEl("div", {
+        text: "No trash folder found. Trash folder will be created automatically when files are deleted with soft delete.",
+        cls: "setting-item-description"
+      });
+      return;
+    }
+    if (!(trashFolder instanceof import_obsidian32.TFolder)) {
+      containerEl.createEl("div", {
+        text: "Error: .trash exists but is not a folder.",
+        cls: "setting-item-description"
+      });
+      return;
+    }
+    const trashItems = trashFolder.children || [];
+    const fileCount = trashItems.filter((item) => item instanceof import_obsidian32.TFile).length;
+    const folderCount = trashItems.filter((item) => item instanceof import_obsidian32.TFolder).length;
+    containerEl.createEl("div", {
+      text: `Trash contains: ${fileCount} files, ${folderCount} folders`,
+      cls: "setting-item-description",
+      attr: { style: "margin-bottom: 1em; font-weight: bold;" }
+    });
+    const actionsContainer = containerEl.createDiv({ attr: { style: "margin-bottom: 1em;" } });
+    const refreshBtn = actionsContainer.createEl("button", {
+      text: "Refresh Trash",
+      cls: "mod-cta"
+    });
+    refreshBtn.style.marginRight = "0.5em";
+    refreshBtn.onclick = () => {
+    };
+    if (trashItems.length > 0) {
+      const emptyTrashBtn = actionsContainer.createEl("button", {
+        text: "Empty Trash",
+        cls: "mod-warning"
+      });
+      emptyTrashBtn.style.marginRight = "0.5em";
+      emptyTrashBtn.onclick = async () => {
+        const confirmed = await DialogHelpers.showConfirmationDialog(
+          "Empty Trash",
+          `Are you sure you want to permanently delete all ${trashItems.length} items in trash? This cannot be undone.`
+        );
+        if (confirmed) {
+          try {
+            for (const item of trashItems) {
+              await this.plugin.app.vault.delete(item);
+            }
+            new import_obsidian32.Notice(`Emptied trash - permanently deleted ${trashItems.length} items`);
+          } catch (error) {
+            new import_obsidian32.Notice(`Error emptying trash: ${error.message}`);
+          }
+        }
+      };
+    }
+    if (trashItems.length === 0) {
+      containerEl.createEl("div", {
+        text: "Trash is empty.",
+        cls: "setting-item-description"
+      });
+      return;
+    }
+    const trashList = containerEl.createDiv({ cls: "trash-list" });
+    for (const item of trashItems.slice(0, 20)) {
+      const trashItem = trashList.createDiv({ cls: "trash-item", attr: { style: "margin-bottom: 0.5em; padding: 0.5em; border: 1px solid var(--background-modifier-border); border-radius: 4px;" } });
+      const itemInfo = trashItem.createDiv({ cls: "trash-item-info" });
+      const isFolder = item instanceof import_obsidian32.TFolder;
+      const icon = isFolder ? "\u{1F4C1}" : "\u{1F4C4}";
+      const size = !isFolder && item instanceof import_obsidian32.TFile && item.stat ? ` (${Math.round(item.stat.size / 1024)} KB)` : "";
+      itemInfo.createEl("span", {
+        text: `${icon} ${item.name}${size}`,
+        cls: "trash-item-name"
+      });
+      const itemActions = trashItem.createDiv({ cls: "trash-item-actions", attr: { style: "margin-top: 0.5em;" } });
+      const restoreBtn = itemActions.createEl("button", {
+        text: "Restore",
+        cls: "mod-cta"
+      });
+      restoreBtn.style.marginRight = "0.5em";
+      restoreBtn.onclick = async () => {
+        const confirmed = await DialogHelpers.showConfirmationDialog(
+          "Restore Item",
+          `Restore "${item.name}" to vault root? If an item with the same name exists, it will be overwritten.`
+        );
+        if (confirmed) {
+          try {
+            const newPath = item.name;
+            await this.plugin.app.fileManager.renameFile(item, newPath);
+            new import_obsidian32.Notice(`Restored "${item.name}" to vault root`);
+          } catch (error) {
+            new import_obsidian32.Notice(`Error restoring item: ${error.message}`);
+          }
+        }
+      };
+      const deleteBtn = itemActions.createEl("button", {
+        text: "Delete Permanently",
+        cls: "mod-warning"
+      });
+      deleteBtn.onclick = async () => {
+        const confirmed = await DialogHelpers.showConfirmationDialog(
+          "Delete Permanently",
+          `Permanently delete "${item.name}"? This cannot be undone.`
+        );
+        if (confirmed) {
+          try {
+            await this.plugin.app.vault.delete(item);
+            new import_obsidian32.Notice(`Permanently deleted "${item.name}"`);
+          } catch (error) {
+            new import_obsidian32.Notice(`Error deleting item: ${error.message}`);
+          }
+        }
+      };
+    }
+    if (trashItems.length > 20) {
+      containerEl.createEl("div", {
+        text: `... and ${trashItems.length - 20} more items. Empty trash to remove all items.`,
+        cls: "setting-item-description",
+        attr: { style: "margin-top: 1em; font-style: italic;" }
+      });
     }
   }
 };
@@ -15876,7 +16132,7 @@ var MyPluginSettingTab = class extends import_obsidian33.PluginSettingTab {
     );
     CollapsibleSectionRenderer.createCollapsibleSection(
       containerEl,
-      "Backup Management",
+      "Backup & Trash Management",
       (sectionEl) => this.backupManagementSection.render(sectionEl),
       this.plugin,
       "backupManagementExpanded"
