@@ -80,8 +80,10 @@ export class BackupManagementSection {
 
                 // Backup info
                 const backupInfo = backupItem.createDiv({ cls: 'backup-info' });
+                const sizeKB = backup.fileSize ? Math.round(backup.fileSize / 1024) : 0;
+                const fileType = backup.isBinary ? 'Binary' : 'Text';
                 backupInfo.createEl('span', {
-                    text: `${backup.readableTimestamp} (${Math.round(backup.content.length / 1024)} KB)`,
+                    text: `${backup.readableTimestamp} (${sizeKB} KB, ${fileType})`,
                     cls: 'backup-timestamp'
                 });
 
@@ -135,16 +137,27 @@ export class BackupManagementSection {
                     }
                 };
 
-                // Preview button (show first 200 characters)
-                const previewBtn = backupActions.createEl('button', {
-                    text: 'Preview',
-                    cls: 'mod-muted'
-                });
-                previewBtn.onclick = () => {
-                    const preview = backup.content.substring(0, 200);
-                    const truncated = backup.content.length > 200 ? '...' : '';
-                    new Notice(`Preview: ${preview}${truncated}`, 10000);
-                };
+                // Preview button (show first 200 characters for text files only)
+                if (!backup.isBinary && backup.content) {
+                    const previewBtn = backupActions.createEl('button', {
+                        text: 'Preview',
+                        cls: 'mod-muted'
+                    });
+                    previewBtn.onclick = () => {
+                        const preview = backup.content!.substring(0, 200);
+                        const truncated = backup.content!.length > 200 ? '...' : '';
+                        new Notice(`Preview: ${preview}${truncated}`, 10000);
+                    };
+                } else if (backup.isBinary) {
+                    const infoBtn = backupActions.createEl('button', {
+                        text: 'File Info',
+                        cls: 'mod-muted'
+                    });
+                    infoBtn.onclick = () => {
+                        const sizeKB = backup.fileSize ? Math.round(backup.fileSize / 1024) : 0;
+                        new Notice(`Binary file backup: ${sizeKB} KB\nStored at: ${backup.backupFilePath || 'Unknown location'}`, 5000);
+                    };
+                }
             });
 
             // Delete all backups for this file

@@ -9,6 +9,7 @@ export interface ChatUIElements {
     saveNoteButton: HTMLButtonElement;
     clearButton: HTMLButtonElement;
     messagesContainer: HTMLElement;
+    toolContinuationContainer: HTMLElement; // Add tool continuation container
     inputContainer: HTMLElement;
     textarea: HTMLTextAreaElement;
     sendButton: HTMLButtonElement;
@@ -83,6 +84,10 @@ export function createChatUI(app: App, contentEl: HTMLElement): ChatUIElements {
     // Messages container - add tabindex to make it focusable for keyboard events
     const messagesContainer = contentEl.createDiv('ai-chat-messages');
     messagesContainer.setAttribute('tabindex', '0');
+
+    // --- TOOL CONTINUATION DIALOG CONTAINER (above input) ---
+    const toolContinuationContainer = contentEl.createDiv('ai-tool-continuation-container');
+    toolContinuationContainer.style.display = 'none'; // Hidden by default
 
     // --- INPUT CONTAINER AT BOTTOM ---
     const inputContainer = contentEl.createDiv('ai-chat-input-container');
@@ -169,6 +174,7 @@ export function createChatUI(app: App, contentEl: HTMLElement): ChatUIElements {
         saveNoteButton,
         clearButton,
         messagesContainer,
+        toolContinuationContainer,
         inputContainer,
         textarea,
         sendButton,

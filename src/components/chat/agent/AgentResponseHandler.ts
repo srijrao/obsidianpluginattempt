@@ -11,6 +11,7 @@ export interface AgentContext {
     app: App;
     plugin: MyPlugin;
     messagesContainer: HTMLElement;
+    toolContinuationContainer?: HTMLElement; // Optional for backward compatibility
     onToolResult: (toolResult: ToolResult, command: ToolCommand) => void;
     onToolDisplay?: (display: ToolRichDisplay) => void;
 }
@@ -30,6 +31,13 @@ export class AgentResponseHandler {
         this.commandParser = new CommandParser(this.context.plugin);
         this.toolRegistry = new ToolRegistry(this.context.plugin);
         this.initializeTools();
+    }
+
+    /**
+     * Get the agent context
+     */
+    getContext(): AgentContext {
+        return this.context;
     }
 
     private initializeTools() {
@@ -565,6 +573,18 @@ ${resultData}`;
         const effectiveLimit = this.getEffectiveToolLimit();
         return Math.max(0, effectiveLimit - this.executionCount);
     }    /**
+     * Hide the tool continuation container if it's empty
+     */
+    private hideToolContinuationContainerIfEmpty(): void {
+        if (this.context.toolContinuationContainer) {
+            // Check if the container has any child elements
+            if (this.context.toolContinuationContainer.children.length === 0) {
+                this.context.toolContinuationContainer.style.display = 'none';
+            }
+        }
+    }
+
+    /**
      * Create tool limit warning UI element
      */
     createToolLimitWarning(): HTMLElement {
@@ -612,6 +632,10 @@ ${resultData}`;
                 if (additionalTools > 0) {
                     this.addToolExecutions(additionalTools);
                     warning.remove();
+                    
+                    // Hide the tool continuation container if it's empty
+                    this.hideToolContinuationContainerIfEmpty();
+                    
                     // Trigger task continuation with additional tools
                     this.context.messagesContainer.dispatchEvent(new CustomEvent('continueTaskWithAdditionalTools', {
                         detail: { additionalTools }
@@ -625,6 +649,10 @@ ${resultData}`;
             continueButton.onclick = () => {
                 this.resetExecutionCount();
                 warning.remove();
+                
+                // Hide the tool continuation container if it's empty
+                this.hideToolContinuationContainerIfEmpty();
+                
                 // Trigger task continuation (this would need to be handled by the chat view)
                 this.context.messagesContainer.dispatchEvent(new CustomEvent('continueTask'));
             };

@@ -285,7 +285,15 @@ export class ResponseStreamer {
         chatHistory?: any[]
     ): string {
         const warning = this.agentResponseHandler!.createToolLimitWarning();
-        this.messagesContainer.appendChild(warning);
+        
+        // Use tool continuation container if available, otherwise fall back to messages container
+        const targetContainer = this.agentResponseHandler!.getContext().toolContinuationContainer || this.messagesContainer;
+        targetContainer.appendChild(warning);
+        
+        // Show the tool continuation container if it was hidden
+        if (this.agentResponseHandler!.getContext().toolContinuationContainer) {
+            this.agentResponseHandler!.getContext().toolContinuationContainer!.style.display = 'block';
+        }
         
         this.setupContinuationEventListeners(messages, container, responseContent, finalContent, toolResults, chatHistory);
         

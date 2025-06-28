@@ -96,6 +96,7 @@ export class ChatView extends ItemView {
             app: this.app,
             plugin: this.plugin,
             messagesContainer: this.messagesContainer,
+            toolContinuationContainer: ui.toolContinuationContainer,
             onToolResult: (toolResult: ToolResult, command: ToolCommand) => {
                 // Handle tool results (could display inline notifications, etc.)
                 if (toolResult.success) {

@@ -26,6 +26,8 @@ import { FileMoveTool } from './FileMoveTool';
 import { ThoughtTool } from './ThoughtTool';
 import { FileListTool } from './FileListTool';
 import { FileRenameTool } from './FileRenameTool';
+import { VaultTreeTool } from './VaultTreeTool';
+import { FileDeleteTool } from './FileDeleteTool';
 
 export function getAllToolClasses(): any[] {
     
@@ -37,7 +39,9 @@ export function getAllToolClasses(): any[] {
         FileMoveTool,
         ThoughtTool,
         FileListTool,
-        FileRenameTool
+        FileRenameTool,
+        VaultTreeTool,
+        FileDeleteTool
     ];
 }
 
@@ -129,7 +133,7 @@ export function createToolInstances(app: any, plugin?: any): any[] {
     
     const tools = toolClasses.map(ToolClass => {
         
-        const instance = plugin && ToolClass.name === 'FileWriteTool' 
+        const instance = plugin && (ToolClass.name === 'FileWriteTool' || ToolClass.name === 'FileDeleteTool')
             ? new ToolClass(app, plugin.backupManager)
             : new ToolClass(app);
         

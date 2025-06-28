@@ -931,6 +931,18 @@
     }
 }
 
+/* Tool continuation container */
+.ai-tool-continuation-container {
+    margin-bottom: 8px;
+    padding: 0;
+    border-radius: 4px;
+    background: transparent;
+}
+
+.ai-tool-continuation-container:empty {
+    display: none !important;
+}
+
 /* Tool limit warning */
 .tool-limit-warning {
     background: rgba(245, 158, 11, 0.1);
