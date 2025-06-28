@@ -1148,7 +1148,7 @@ var init_ThoughtTool = __esm({
       constructor(app) {
         this.app = app;
         __publicField(this, "name", "thought");
-        __publicField(this, "description", 'Record AI reasoning and suggest next tool. When nextTool is "finished", include final response in thought parameter.');
+        __publicField(this, "description", 'Record AI reasoning and suggest next tool. When nextTool is "finished", include final response in thought parameter. When planning, check the file list tool for available files and folders.');
         __publicField(this, "parameters", {
           thought: {
             type: "string",
@@ -1157,7 +1157,7 @@ var init_ThoughtTool = __esm({
           },
           nextTool: {
             type: "string",
-            description: 'Next tool name or "finished" if complete',
+            description: 'Next tool name or "finished" if complete. ALWAYS use "finished" to indicate no further action is needed.',
             required: true
           },
           nextActionDescription: {
@@ -1172,30 +1172,31 @@ var init_ThoughtTool = __esm({
         if (context && context.plugin && typeof context.plugin.debugLog === "function") {
           context.plugin.debugLog("info", "[ThoughtTool] execute called", { params, context });
         }
-        if ((!params.thought || params.thought.trim().length === 0) && params.reasoning) {
+        const actualParams = params.parameters || params;
+        if ((!actualParams.thought || actualParams.thought.trim().length === 0) && actualParams.reasoning) {
           if (context && context.plugin && typeof context.plugin.debugLog === "function") {
-            context.plugin.debugLog("debug", "[ThoughtTool] Aliasing reasoning to thought", { params });
+            context.plugin.debugLog("debug", "[ThoughtTool] Aliasing reasoning to thought", { params: actualParams });
           }
-          params.thought = params.reasoning;
+          actualParams.thought = actualParams.reasoning;
         }
-        if (!params.thought || typeof params.thought !== "string" || params.thought.trim().length === 0) {
+        if (!actualParams.thought || typeof actualParams.thought !== "string" || actualParams.thought.trim().length === 0) {
           if (context && context.plugin && typeof context.plugin.debugLog === "function") {
-            context.plugin.debugLog("warn", "[ThoughtTool] Missing or invalid thought parameter", { params });
+            context.plugin.debugLog("warn", "[ThoughtTool] Missing or invalid thought parameter", { params: actualParams });
           }
           return { success: false, error: 'Parameter "thought" is required and must be a non-empty string.' };
         }
-        if (!params.nextTool || typeof params.nextTool !== "string" || params.nextTool.trim().length === 0) {
+        if (!actualParams.nextTool || typeof actualParams.nextTool !== "string" || actualParams.nextTool.trim().length === 0) {
           return {
             success: false,
             error: 'Parameter "nextTool" is required and must be a non-empty string.'
           };
         }
-        const thought = params.thought.trim();
-        const nextTool = params.nextTool.trim();
-        const nextActionDescription = ((_a2 = params.nextActionDescription) == null ? void 0 : _a2.trim()) || void 0;
+        const thought = actualParams.thought.trim();
+        const nextTool = actualParams.nextTool.trim();
+        const nextActionDescription = ((_a2 = actualParams.nextActionDescription) == null ? void 0 : _a2.trim()) || void 0;
         const finished = nextTool.toLowerCase() === "finished";
-        const step = typeof params.step === "number" && params.step > 0 ? params.step : void 0;
-        const totalSteps = typeof params.totalSteps === "number" && params.totalSteps > 0 ? params.totalSteps : void 0;
+        const step = typeof actualParams.step === "number" && actualParams.step > 0 ? actualParams.step : void 0;
+        const totalSteps = typeof actualParams.totalSteps === "number" && actualParams.totalSteps > 0 ? actualParams.totalSteps : void 0;
         const timestamp2 = (/* @__PURE__ */ new Date()).toISOString();
         const stepInfo = step && totalSteps ? `Step ${step}/${totalSteps}` : step ? `Step ${step}` : "";
         const formattedThought = this.renderThought({
@@ -1207,7 +1208,7 @@ var init_ThoughtTool = __esm({
           finished
         });
         if (context && context.plugin && typeof context.plugin.debugLog === "function") {
-          context.plugin.debugLog("info", "[ThoughtTool] ThoughtTool execution complete", { result: { thought: params.thought } });
+          context.plugin.debugLog("info", "[ThoughtTool] ThoughtTool execution complete", { result: { thought: actualParams.thought } });
         }
         return {
           success: true,
@@ -1531,7 +1532,13 @@ function buildAgentSystemPrompt(enabledTools, customTemplate) {
     window.aiAssistantPlugin.debugLog("debug", "[promptConstants] buildAgentSystemPrompt called", { enabledTools, customTemplate });
   }
   const toolList = getDynamicToolList(enabledTools);
-  const toolDescriptions = toolList.map((tool, idx) => `${idx + 1}. ${tool.name} - ${tool.description}`).join("\n");
+  const toolDescriptions = toolList.map((tool, idx) => {
+    let paramDesc = "";
+    if (tool.parameterDescriptions && Object.keys(tool.parameterDescriptions).length > 0) {
+      paramDesc = "\n    Parameters:\n" + Object.entries(tool.parameterDescriptions).map(([param, desc]) => `      - ${param}: ${desc}`).join("\n");
+    }
+    return `${idx + 1}. ${tool.name} - ${tool.description}${paramDesc}`;
+  }).join("\n");
   const template = customTemplate || AGENT_SYSTEM_PROMPT_TEMPLATE;
   return template.replace("{{TOOL_DESCRIPTIONS}}", toolDescriptions);
 }
@@ -1550,23 +1557,33 @@ var init_promptConstants = __esm({
       return toolMetadata.filter((tool) => tool.name === "thought" || !enabledTools || enabledTools[tool.name] !== false).map((tool) => ({
         name: tool.name,
         description: tool.description,
-        parameters: tool.parameters
+        parameters: tool.parameters,
+        parameterDescriptions: tool.parameterDescriptions
       }));
     };
     AGENT_SYSTEM_PROMPT_TEMPLATE = `
-- You are an AI assistant in an Obsidian Vault with access to powerful tools for vault management. Always start by using the 'thought' tool to outline your plan before executing actions. Always use relative path from vault root
-Always reason about tool results before proceeding.
+- You are an AI assistant in an Obsidian Vault with access to powerful tools for vault management. ALWAYS start by using the 'thought' tool to outline your plan before executing actions, and at the end of the task. ALWAYS use relative path from vault root
+ALWAYS reason about tool results before proceeding. Respond ONLY with a JSON object
 
 Available tools:
 {{TOOL_DESCRIPTIONS}}
 
 When using tools, respond ONLY with a JSON object using this parameter framework:
 {
-  "action": "tool_name",
+  "action": "tool_name", // thought, file_search, file_read, etc.
   "parameters": { 
     /* other tool-specific parameters */
   },
   "requestId": "unique_id"
+}
+  example:
+  {
+  "action": "thought",
+  "parameters": {
+    "thought": "...",
+    "nextTool": "finished",
+    "nextActionDescription": "..."
+  }
 }
 `;
     AGENT_SYSTEM_PROMPT = buildAgentSystemPrompt();
@@ -11312,6 +11329,7 @@ var CommandParser = class {
    * @returns Array of extracted commands with their original text
    */
   extractCommands(text) {
+    var _a2, _b;
     const commands = [];
     try {
       const parsed = JSON.parse(text.trim());
@@ -11328,6 +11346,23 @@ var CommandParser = class {
             parameters,
             requestId: parsed.requestId || this.generateRequestId(),
             finished: parsed.finished || false
+          },
+          originalText: text.trim()
+        });
+        return commands;
+      } else if (parsed.thought && parsed.nextTool) {
+        commands.push({
+          command: {
+            action: "thought",
+            parameters: {
+              thought: parsed.thought,
+              nextTool: parsed.nextTool,
+              nextActionDescription: parsed.nextActionDescription,
+              step: parsed.step,
+              totalSteps: parsed.totalSteps
+            },
+            requestId: this.generateRequestId(),
+            finished: ((_a2 = parsed.nextTool) == null ? void 0 : _a2.toLowerCase()) === "finished"
           },
           originalText: text.trim()
         });
@@ -11363,6 +11398,22 @@ var CommandParser = class {
                 parameters,
                 requestId: parsed.requestId || this.generateRequestId(),
                 finished: parsed.finished || false
+              },
+              originalText
+            });
+          } else if (parsed.thought && parsed.nextTool) {
+            commands.push({
+              command: {
+                action: "thought",
+                parameters: {
+                  thought: parsed.thought,
+                  nextTool: parsed.nextTool,
+                  nextActionDescription: parsed.nextActionDescription,
+                  step: parsed.step,
+                  totalSteps: parsed.totalSteps
+                },
+                requestId: this.generateRequestId(),
+                finished: ((_b = parsed.nextTool) == null ? void 0 : _b.toLowerCase()) === "finished"
               },
               originalText
             });

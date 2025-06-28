@@ -39,7 +39,7 @@ export interface ThoughtParams {
  */
 export class ThoughtTool implements Tool {
     name = 'thought';
-    description = 'Record AI reasoning and suggest next tool. When nextTool is "finished", include final response in thought parameter.';
+    description = 'Record AI reasoning and suggest next tool. When nextTool is "finished", include final response in thought parameter. When planning, check the file list tool for available files and folders.';
 
     parameters = {
         thought: {
@@ -49,7 +49,7 @@ export class ThoughtTool implements Tool {
         },
         nextTool: {
             type: 'string',
-            description: 'Next tool name or "finished" if complete',
+            description: 'Next tool name or "finished" if complete. ALWAYS use "finished" to indicate no further action is needed.',
             required: true
         },
         nextActionDescription: {
@@ -61,26 +61,29 @@ export class ThoughtTool implements Tool {
 
     constructor(private app: App) { }
 
-    async execute(params: ThoughtParams, context: any): Promise<ToolResult> {
+    async execute(params: any, context: any): Promise<ToolResult> {
         if (context && context.plugin && typeof context.plugin.debugLog === 'function') {
             context.plugin.debugLog('info', '[ThoughtTool] execute called', { params, context });
         }
 
+        // Extract parameters from nested structure if needed
+        const actualParams = params.parameters || params;
+
         // Alias older 'reasoning' field into 'thought' so we stay compliant
-        if ((!params.thought || params.thought.trim().length === 0) && (params as any).reasoning) {
+        if ((!actualParams.thought || actualParams.thought.trim().length === 0) && (actualParams as any).reasoning) {
             if (context && context.plugin && typeof context.plugin.debugLog === 'function') {
-                context.plugin.debugLog('debug', '[ThoughtTool] Aliasing reasoning to thought', { params });
+                context.plugin.debugLog('debug', '[ThoughtTool] Aliasing reasoning to thought', { params: actualParams });
             }
-            params.thought = (params as any).reasoning;
+            actualParams.thought = (actualParams as any).reasoning;
         }
-        if (!params.thought || typeof params.thought !== 'string' || params.thought.trim().length === 0) {
+        if (!actualParams.thought || typeof actualParams.thought !== 'string' || actualParams.thought.trim().length === 0) {
             if (context && context.plugin && typeof context.plugin.debugLog === 'function') {
-                context.plugin.debugLog('warn', '[ThoughtTool] Missing or invalid thought parameter', { params });
+                context.plugin.debugLog('warn', '[ThoughtTool] Missing or invalid thought parameter', { params: actualParams });
             }
             return { success: false, error: 'Parameter "thought" is required and must be a non-empty string.' };
         }
 
-        if (!params.nextTool || typeof params.nextTool !== 'string' || params.nextTool.trim().length === 0) {
+        if (!actualParams.nextTool || typeof actualParams.nextTool !== 'string' || actualParams.nextTool.trim().length === 0) {
             return {
                 success: false,
                 error: 'Parameter "nextTool" is required and must be a non-empty string.'
@@ -88,12 +91,12 @@ export class ThoughtTool implements Tool {
         }
 
         // MCP: Validate and normalize parameters
-        const thought = params.thought.trim();
-        const nextTool = params.nextTool.trim();
-        const nextActionDescription = params.nextActionDescription?.trim() || undefined;
+        const thought = actualParams.thought.trim();
+        const nextTool = actualParams.nextTool.trim();
+        const nextActionDescription = actualParams.nextActionDescription?.trim() || undefined;
         const finished = nextTool.toLowerCase() === 'finished';
-        const step = typeof params.step === 'number' && params.step > 0 ? params.step : undefined;
-        const totalSteps = typeof params.totalSteps === 'number' && params.totalSteps > 0 ? params.totalSteps : undefined;
+        const step = typeof actualParams.step === 'number' && actualParams.step > 0 ? actualParams.step : undefined;
+        const totalSteps = typeof actualParams.totalSteps === 'number' && actualParams.totalSteps > 0 ? actualParams.totalSteps : undefined;
 
         // MCP: Timestamp for traceability
         const timestamp = new Date().toISOString();
@@ -117,7 +120,7 @@ export class ThoughtTool implements Tool {
 
         // MCP: Return result in strict format with enhanced machine-readable JSON
         if (context && context.plugin && typeof context.plugin.debugLog === 'function') {
-            context.plugin.debugLog('info', '[ThoughtTool] ThoughtTool execution complete', { result: { thought: params.thought } });
+            context.plugin.debugLog('info', '[ThoughtTool] ThoughtTool execution complete', { result: { thought: actualParams.thought } });
         }
         return {
             success: true,

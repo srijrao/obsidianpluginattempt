@@ -147,6 +147,25 @@ export class CommandParser {
                 });
                 return commands;
             }
+            // Handle special case for thought tool flat format
+            else if (parsed.thought && parsed.nextTool) {
+                commands.push({
+                    command: {
+                        action: 'thought',
+                        parameters: {
+                            thought: parsed.thought,
+                            nextTool: parsed.nextTool,
+                            nextActionDescription: parsed.nextActionDescription,
+                            step: parsed.step,
+                            totalSteps: parsed.totalSteps
+                        },
+                        requestId: this.generateRequestId(),
+                        finished: parsed.nextTool?.toLowerCase() === 'finished'
+                    },
+                    originalText: text.trim()
+                });
+                return commands;
+            }
         } catch (error) {
             // Not raw JSON, continue with pattern matching
         }
@@ -185,6 +204,24 @@ export class CommandParser {
                                 parameters: parameters,
                                 requestId: parsed.requestId || this.generateRequestId(),
                                 finished: parsed.finished || false
+                            },
+                            originalText
+                        });
+                    }
+                    // Handle special case for thought tool flat format
+                    else if (parsed.thought && parsed.nextTool) {
+                        commands.push({
+                            command: {
+                                action: 'thought',
+                                parameters: {
+                                    thought: parsed.thought,
+                                    nextTool: parsed.nextTool,
+                                    nextActionDescription: parsed.nextActionDescription,
+                                    step: parsed.step,
+                                    totalSteps: parsed.totalSteps
+                                },
+                                requestId: this.generateRequestId(),
+                                finished: parsed.nextTool?.toLowerCase() === 'finished'
                             },
                             originalText
                         });

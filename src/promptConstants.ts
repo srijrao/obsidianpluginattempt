@@ -21,24 +21,34 @@ export const getDynamicToolList = (enabledTools?: Record<string, boolean>) => {
         .map(tool => ({
             name: tool.name,
             description: tool.description,
-            parameters: tool.parameters
+            parameters: tool.parameters,
+            parameterDescriptions: tool.parameterDescriptions
         }));
 };
 
 export const AGENT_SYSTEM_PROMPT_TEMPLATE = `
-- You are an AI assistant in an Obsidian Vault with access to powerful tools for vault management. Always start by using the 'thought' tool to outline your plan before executing actions. Always use relative path from vault root
-Always reason about tool results before proceeding.
+- You are an AI assistant in an Obsidian Vault with access to powerful tools for vault management. ALWAYS start by using the 'thought' tool to outline your plan before executing actions, and at the end of the task. ALWAYS use relative path from vault root
+ALWAYS reason about tool results before proceeding. Respond ONLY with a JSON object
 
 Available tools:
 {{TOOL_DESCRIPTIONS}}
 
 When using tools, respond ONLY with a JSON object using this parameter framework:
 {
-  "action": "tool_name",
+  "action": "tool_name", // thought, file_search, file_read, etc.
   "parameters": { 
     /* other tool-specific parameters */
   },
   "requestId": "unique_id"
+}
+  example:
+  {
+  "action": "thought",
+  "parameters": {
+    "thought": "...",
+    "nextTool": "finished",
+    "nextActionDescription": "..."
+  }
 }
 `;
 
@@ -47,7 +57,16 @@ export function buildAgentSystemPrompt(enabledTools?: Record<string, boolean>, c
         (window as any).aiAssistantPlugin.debugLog('debug', '[promptConstants] buildAgentSystemPrompt called', { enabledTools, customTemplate });
     }
     const toolList = getDynamicToolList(enabledTools);
-    const toolDescriptions = toolList.map((tool, idx) => `${idx + 1}. ${tool.name} - ${tool.description}`).join('\n');
+    const toolDescriptions = toolList.map((tool, idx) => {
+        // Build parameter descriptions string
+        let paramDesc = '';
+        if (tool.parameterDescriptions && Object.keys(tool.parameterDescriptions).length > 0) {
+            paramDesc = '\n    Parameters:\n' + Object.entries(tool.parameterDescriptions)
+                .map(([param, desc]) => `      - ${param}: ${desc}`)
+                .join('\n');
+        }
+        return `${idx + 1}. ${tool.name} - ${tool.description}${paramDesc}`;
+    }).join('\n');
     const template = customTemplate || AGENT_SYSTEM_PROMPT_TEMPLATE;
     return template.replace('{{TOOL_DESCRIPTIONS}}', toolDescriptions);
 }
