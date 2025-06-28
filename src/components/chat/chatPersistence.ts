@@ -125,7 +125,11 @@ export async function saveChatAsNote({
     const yaml = buildChatYaml(settings, provider, model);
     log('info', '[saveChatAsNote] YAML frontmatter built. Stripping any existing YAML from chat content.');
     content = content.replace(/^---[\s\S]*?---\n?/, '');
-    const noteContent = yaml + '\n' + content.trimStart();
+    // Normalize all newlines to \n, then replace 3+ consecutive newlines with exactly two
+    content = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    content = content.replace(/\n{3,}/g, '\n\n');
+    content = content.replace(/\n+$/, ''); // Remove trailing newlines
+    const noteContent = yaml + '\n' + content + '\n';
     // Generate filename with timestamp
     const now = new Date();
     const pad = (n: number) => n.toString().padStart(2, '0');
