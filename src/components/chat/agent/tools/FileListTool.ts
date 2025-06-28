@@ -8,6 +8,7 @@ export interface FileListParams {
     path: string; // Path to the folder
     folderPath?: string; // Alias for path for backward compatibility
     recursive?: boolean;
+    maxResults?: number;
 }
 
 export class FileListTool implements Tool {
@@ -15,7 +16,8 @@ export class FileListTool implements Tool {
     description = 'Retrieves a comprehensive list of files and folders within a specified directory, offering options for recursive traversal. This tool is crucial for understanding project structure and navigating the file system.';
     parameters = {
         path: { type: 'string', description: 'Path to the folder.', required: false },
-        recursive: { type: 'boolean', description: 'List files recursively.', default: false }
+        recursive: { type: 'boolean', description: 'List files recursively.', default: false },
+        maxResults: { type: 'number', description: 'Maximum number of results to return.', default: 100 }
     };
 
     private pathValidator: PathValidator;
@@ -28,7 +30,7 @@ export class FileListTool implements Tool {
         // Normalize parameter names for backward compatibility - include 'folder' which AI often sends
         // Default to root if no path is provided
         const inputPath = params.path || params.folderPath || (params as any).folder || '';
-        const { recursive = false } = params;
+        const { recursive = false, maxResults = 100 } = params;
 
         // Validate and normalize the path to ensure it's within the vault
         let folderPath: string;
@@ -58,19 +60,35 @@ export class FileListTool implements Tool {
             };
         }
 
-        const filesFound: string[] = [];
-        const walk = (currentFolder: TFolder) => {
-            // Add the folder itself (with trailing slash)
-            filesFound.push(currentFolder.path.endsWith("/") ? currentFolder.path : currentFolder.path + "/");
+        const itemsList: string[] = [];
+        let totalItems = 0;
+        
+        const walk = (currentFolder: TFolder, indent: string = '') => {
+            // Check if we've reached the limit
+            if (totalItems >= maxResults) {
+                return;
+            }
+            
             for (const child of currentFolder.children) {
+                // Check limit before adding each item
+                if (totalItems >= maxResults) {
+                    break;
+                }
+                
                 if (child instanceof TFile) {
-                    filesFound.push(child.path);
+                    itemsList.push(`${indent}📄${child.name}`);
+                    totalItems++;
                 } else if (child instanceof TFolder) {
+                    itemsList.push(`${indent}📁${child.name}/(`);
+                    totalItems++;
+                    
                     if (recursive) {
-                        walk(child);
+                        walk(child, indent + '  ');
+                        if (totalItems < maxResults) {
+                            itemsList.push(`${indent})`);
+                        }
                     } else {
-                        // Add subfolder if not recursing
-                        filesFound.push(child.path.endsWith("/") ? child.path : child.path + "/");
+                        itemsList.push(`${indent})`);
                     }
                 }
             }
@@ -78,9 +96,20 @@ export class FileListTool implements Tool {
 
         try {
             walk(folder);
+            
+            const truncated = totalItems >= maxResults;
+            const listing = itemsList.join(',\n');
+            
             return {
                 success: true,
-                data: { files: filesFound, count: filesFound.length, path: folderPath, recursive }
+                data: { 
+                    items: listing,
+                    count: totalItems, 
+                    path: folderPath, 
+                    recursive,
+                    maxResults,
+                    truncated
+                }
             };
         } catch (error) {
             return {

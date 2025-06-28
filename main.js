@@ -1255,14 +1255,15 @@ var init_FileListTool = __esm({
         __publicField(this, "description", "Retrieves a comprehensive list of files and folders within a specified directory, offering options for recursive traversal. This tool is crucial for understanding project structure and navigating the file system.");
         __publicField(this, "parameters", {
           path: { type: "string", description: "Path to the folder.", required: false },
-          recursive: { type: "boolean", description: "List files recursively.", default: false }
+          recursive: { type: "boolean", description: "List files recursively.", default: false },
+          maxResults: { type: "number", description: "Maximum number of results to return.", default: 100 }
         });
         __publicField(this, "pathValidator");
         this.pathValidator = new PathValidator(app);
       }
       async execute(params, context) {
         const inputPath = params.path || params.folderPath || params.folder || "";
-        const { recursive = false } = params;
+        const { recursive = false, maxResults = 100 } = params;
         let folderPath;
         try {
           folderPath = this.pathValidator.validateAndNormalizePath(inputPath);
@@ -1285,26 +1286,47 @@ var init_FileListTool = __esm({
             error: "Folder not found: " + (folderPath || "(root)")
           };
         }
-        const filesFound = [];
-        const walk = (currentFolder) => {
-          filesFound.push(currentFolder.path.endsWith("/") ? currentFolder.path : currentFolder.path + "/");
+        const itemsList = [];
+        let totalItems = 0;
+        const walk = (currentFolder, indent = "") => {
+          if (totalItems >= maxResults) {
+            return;
+          }
           for (const child of currentFolder.children) {
+            if (totalItems >= maxResults) {
+              break;
+            }
             if (child instanceof import_obsidian7.TFile) {
-              filesFound.push(child.path);
+              itemsList.push(`${indent}\u{1F4C4}${child.name}`);
+              totalItems++;
             } else if (child instanceof import_obsidian7.TFolder) {
+              itemsList.push(`${indent}\u{1F4C1}${child.name}/(`);
+              totalItems++;
               if (recursive) {
-                walk(child);
+                walk(child, indent + "  ");
+                if (totalItems < maxResults) {
+                  itemsList.push(`${indent})`);
+                }
               } else {
-                filesFound.push(child.path.endsWith("/") ? child.path : child.path + "/");
+                itemsList.push(`${indent})`);
               }
             }
           }
         };
         try {
           walk(folder);
+          const truncated = totalItems >= maxResults;
+          const listing = itemsList.join(",\n");
           return {
             success: true,
-            data: { files: filesFound, count: filesFound.length, path: folderPath, recursive }
+            data: {
+              items: listing,
+              count: totalItems,
+              path: folderPath,
+              recursive,
+              maxResults,
+              truncated
+            }
           };
         } catch (error) {
           return {
