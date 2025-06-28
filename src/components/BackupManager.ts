@@ -307,6 +307,40 @@ export class BackupManager {
     }
 
     /**
+     * Deletes all backups for all files
+     */
+    async deleteAllBackups(): Promise<void> {
+        try {
+            const backupData = await this.loadBackupData();
+            
+            // Clean up all binary backup files
+            for (const filePath in backupData.backups) {
+                const backups = backupData.backups[filePath];
+                if (backups) {
+                    for (const backup of backups) {
+                        if (backup.isBinary && backup.backupFilePath) {
+                            try {
+                                const adapter = this.app.vault.adapter;
+                                if (await adapter.exists(backup.backupFilePath)) {
+                                    await adapter.remove(backup.backupFilePath);
+                                }
+                            } catch (error) {
+                                console.error('Failed to clean up binary backup file:', error);
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // Clear all backups data
+            await this.saveBackupData({ backups: {} });
+        } catch (error) {
+            console.error('Failed to delete all backups:', error);
+            throw error;
+        }
+    }
+
+    /**
      * Checks if content is different from the most recent backup
      */
     async shouldCreateBackup(filePath: string, newContent?: string): Promise<boolean> {

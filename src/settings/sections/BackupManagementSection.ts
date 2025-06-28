@@ -1,8 +1,9 @@
-import { App, Setting, Notice, TFolder, TFile } from 'obsidian';
+import { App, PluginSettingTab, Setting, Notice, TFolder, TFile } from 'obsidian';
 import MyPlugin from '../../main';
 import { SettingCreators } from '../components/SettingCreators';
 import { CollapsibleSectionRenderer } from '../../components/chat/CollapsibleSection';
-import { DialogHelpers } from '../components/DialogHelpers'; // Import DialogHelpers
+import { DialogHelpers } from '../components/DialogHelpers';
+import { FileBackup } from '../../types/backup';
 
 export class BackupManagementSection {
     private plugin: MyPlugin;
@@ -36,24 +37,54 @@ export class BackupManagementSection {
         const totalBackups = await backupManager.getTotalBackupCount();
         const totalSize = await backupManager.getTotalBackupSize();
         const sizeInKB = Math.round(totalSize / 1024);
-          containerEl.createEl('div', {
+        containerEl.createEl('div', {
             text: `Total backups: ${totalBackups} (${sizeInKB} KB)`,
             cls: 'setting-item-description',
             attr: { style: 'margin-bottom: 1em; font-weight: bold;' }
         });
 
+        // Add action buttons container
+        const actionsContainer = containerEl.createDiv({ attr: { style: 'margin-bottom: 1em;' } });
+
         // Add refresh button
-        const refreshButton = containerEl.createEl('button', {
+        const refreshButton = actionsContainer.createEl('button', {
             text: 'Refresh Backup List',
             cls: 'mod-cta'
         });
-        refreshButton.style.marginBottom = '1em';
+        refreshButton.style.marginRight = '0.5em';
         refreshButton.onclick = () => {
             // Re-render needs to be handled by the main settings tab
+            this.renderBackupManagement(containerEl.parentElement!);
         };
 
         // Get all files with backups
         const backupFiles = await backupManager.getAllBackupFiles();
+
+        // Add delete all backups button if there are backups
+        if (backupFiles.length > 0) {
+            const deleteAllBtn = actionsContainer.createEl('button', {
+                text: 'Delete All Backups',
+                cls: 'mod-warning'
+            });
+            deleteAllBtn.onclick = async () => {
+                const totalBackups = await backupManager.getTotalBackupCount();
+                const confirmed = await DialogHelpers.showConfirmationDialog(
+                    'Delete All Backups',
+                    `Are you sure you want to delete ALL ${totalBackups} backups for ALL files? This action cannot be undone and will permanently remove all backup data.`
+                );
+
+                if (confirmed) {
+                    try {
+                        await backupManager.deleteAllBackups();
+                        new Notice('Deleted all backups successfully');
+                        // Re-render needs to be handled by the main settings tab
+                        this.renderBackupManagement(containerEl.parentElement!);
+                    } catch (error) {
+                        new Notice(`Error deleting all backups: ${error.message}`);
+                    }
+                }
+            };
+        }
 
         if (backupFiles.length === 0) {
             containerEl.createEl('div', {
@@ -63,6 +94,19 @@ export class BackupManagementSection {
             return;
         }
 
+        // Create collapsible backup list
+        CollapsibleSectionRenderer.createCollapsibleSection(
+            containerEl,
+            'Backup Files List',
+            (backupListEl: HTMLElement) => {
+                this.renderBackupFilesList(backupListEl, backupFiles, backupManager);
+            },
+            this.plugin,
+            'backupManagementExpanded'
+        );
+    }
+
+    private async renderBackupFilesList(containerEl: HTMLElement, backupFiles: string[], backupManager: any): Promise<void> {
         // Create backup list
         for (const filePath of backupFiles) {
             const backups = await backupManager.getBackupsForFile(filePath);
@@ -76,7 +120,7 @@ export class BackupManagementSection {
             // Backups for this file
             const backupList = fileSection.createDiv({ cls: 'backup-list' });
 
-            backups.forEach((backup, index) => {
+            backups.forEach((backup: FileBackup) => {
                 const backupItem = backupList.createDiv({ cls: 'backup-item' });
 
                 // Backup info

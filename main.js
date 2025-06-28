@@ -636,6 +636,35 @@ var init_BackupManager = __esm({
         }
       }
       /**
+       * Deletes all backups for all files
+       */
+      async deleteAllBackups() {
+        try {
+          const backupData = await this.loadBackupData();
+          for (const filePath in backupData.backups) {
+            const backups = backupData.backups[filePath];
+            if (backups) {
+              for (const backup of backups) {
+                if (backup.isBinary && backup.backupFilePath) {
+                  try {
+                    const adapter = this.app.vault.adapter;
+                    if (await adapter.exists(backup.backupFilePath)) {
+                      await adapter.remove(backup.backupFilePath);
+                    }
+                  } catch (error) {
+                    console.error("Failed to clean up binary backup file:", error);
+                  }
+                }
+              }
+            }
+          }
+          await this.saveBackupData({ backups: {} });
+        } catch (error) {
+          console.error("Failed to delete all backups:", error);
+          throw error;
+        }
+      }
+      /**
        * Checks if content is different from the most recent backup
        */
       async shouldCreateBackup(filePath, newContent) {
@@ -15711,14 +15740,38 @@ var BackupManagementSection = class {
       cls: "setting-item-description",
       attr: { style: "margin-bottom: 1em; font-weight: bold;" }
     });
-    const refreshButton = containerEl.createEl("button", {
+    const actionsContainer = containerEl.createDiv({ attr: { style: "margin-bottom: 1em;" } });
+    const refreshButton = actionsContainer.createEl("button", {
       text: "Refresh Backup List",
       cls: "mod-cta"
     });
-    refreshButton.style.marginBottom = "1em";
+    refreshButton.style.marginRight = "0.5em";
     refreshButton.onclick = () => {
+      this.renderBackupManagement(containerEl.parentElement);
     };
     const backupFiles = await backupManager.getAllBackupFiles();
+    if (backupFiles.length > 0) {
+      const deleteAllBtn = actionsContainer.createEl("button", {
+        text: "Delete All Backups",
+        cls: "mod-warning"
+      });
+      deleteAllBtn.onclick = async () => {
+        const totalBackups2 = await backupManager.getTotalBackupCount();
+        const confirmed = await DialogHelpers.showConfirmationDialog(
+          "Delete All Backups",
+          `Are you sure you want to delete ALL ${totalBackups2} backups for ALL files? This action cannot be undone and will permanently remove all backup data.`
+        );
+        if (confirmed) {
+          try {
+            await backupManager.deleteAllBackups();
+            new import_obsidian32.Notice("Deleted all backups successfully");
+            this.renderBackupManagement(containerEl.parentElement);
+          } catch (error) {
+            new import_obsidian32.Notice(`Error deleting all backups: ${error.message}`);
+          }
+        }
+      };
+    }
     if (backupFiles.length === 0) {
       containerEl.createEl("div", {
         text: "No backups found.",
@@ -15726,13 +15779,24 @@ var BackupManagementSection = class {
       });
       return;
     }
+    CollapsibleSectionRenderer.createCollapsibleSection(
+      containerEl,
+      "Backup Files List",
+      (backupListEl) => {
+        this.renderBackupFilesList(backupListEl, backupFiles, backupManager);
+      },
+      this.plugin,
+      "backupManagementExpanded"
+    );
+  }
+  async renderBackupFilesList(containerEl, backupFiles, backupManager) {
     for (const filePath of backupFiles) {
       const backups = await backupManager.getBackupsForFile(filePath);
       if (backups.length === 0) continue;
       const fileSection = containerEl.createDiv({ cls: "backup-file-section" });
       fileSection.createEl("h4", { text: filePath, cls: "backup-file-path" });
       const backupList = fileSection.createDiv({ cls: "backup-list" });
-      backups.forEach((backup, index) => {
+      backups.forEach((backup) => {
         const backupItem = backupList.createDiv({ cls: "backup-item" });
         const backupInfo = backupItem.createDiv({ cls: "backup-info" });
         const sizeKB = backup.fileSize ? Math.round(backup.fileSize / 1024) : 0;
