@@ -1148,20 +1148,9 @@ var init_ThoughtTool = __esm({
       constructor(app) {
         this.app = app;
         __publicField(this, "name", "thought");
-        __publicField(this, "description", `Record and display a single AI reasoning step, always suggesting the next tool to use (or 'finished' if complete). Output is machine-readable for both agent automation and user display. Requires 'thought' and 'nextTool' parameters;
-Never use 'action: finished'. When you are done, always use the 'thought' tool with 'nextTool': 'finished'.
+        __publicField(this, "description", `AI reasoning, always suggesting the next tool to use (or 'finished' if complete). Output is machine-readable for both agent automation and user display. Requires 'thought' and 'nextTool' parameters;
 
 IMPORTANT: When nextTool is 'finished', include your final response to the user in the 'thought' parameter. This is the ONLY way to communicate your final answer to the user.
-
-Example (continuing task):
-{
-  "action": "thought",
-  "parameters": {
-    "thought": "I will summarize the note before editing.",
-    "nextTool": "file_write",
-    "nextActionDescription": "Write a description of the tool's use"
-  }
-}
 
 Example (finishing task):
 {
@@ -1175,13 +1164,8 @@ Example (finishing task):
         __publicField(this, "parameters", {
           thought: {
             type: "string",
-            description: `REQUIRED. The main thought or reasoning step to record. Use the key 'thought' (not 'text', 'message', or any other name). This must always be present and non-empty. IMPORTANT: When nextTool is 'finished', this should contain your final response to the user, not just internal reasoning. Example: { "thought": "I will summarize the note before editing." } or when finished: { "thought": "Here are the files in your vault: Note1.md, Note2.md, Ideas.md" }`,
+            description: "REQUIRED. The main thought or reasoning step to record. Use the key 'thought' (not 'text', 'message', or any other name).",
             required: true
-          },
-          reasoning: {
-            type: "string",
-            description: "Optional. Alias for 'thought' (for legacy/compatibility only). Do NOT use unless specifically instructed. Always prefer 'thought'.",
-            required: false
           },
           nextTool: {
             type: "string",
