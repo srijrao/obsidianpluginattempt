@@ -1,8 +1,55 @@
 import { App, TFile } from 'obsidian';
 import { Tool, ToolResult } from '../ToolRegistry';
-import { createFile, writeFile, createFileWithParents } from '../../../../utils/FileHandler';
 import { BackupManager } from '../../../BackupManager';
 import { PathValidator } from './pathValidation';
+
+// Helper to create parent folders for a file path
+async function createFileWithParents(app: App, filePath: string, content = ''): Promise<string> {
+    const parts = filePath.split('/');
+    parts.pop(); // remove file name
+    let current = '';
+    for (const part of parts) {
+        current = current ? `${current}/${part}` : part;
+        if (current && !app.vault.getAbstractFileByPath(current)) {
+            try {
+                await app.vault.createFolder(current);
+            } catch (err: any) {
+                // Ignore if already exists due to race, else fail
+                if (!/already exists/i.test(err?.message || '')) {
+                    return `Failed to create parent folder: ${err?.message || err}`;
+                }
+            }
+        }
+    }
+    try {
+        await app.vault.create(filePath, content);
+        return `Created file '${filePath}'.`;
+    } catch (err: any) {
+        return `Failed to create file: ${err?.message || err}`;
+    }
+}
+
+async function createFileDirect(app: App, filePath: string, content = ''): Promise<string> {
+    try {
+        await app.vault.create(filePath, content);
+        return `Created file '${filePath}'.`;
+    } catch (err: any) {
+        return `Failed to create file: ${err?.message || err}`;
+    }
+}
+
+async function writeFileDirect(app: App, filePath: string, content: string): Promise<string> {
+    const file = app.vault.getAbstractFileByPath(filePath);
+    if (!file || !(file instanceof TFile)) {
+        return `File not found or is not a file: "${filePath}"`;
+    }
+    try {
+        await app.vault.modify(file, content);
+        return `Wrote to file '${filePath}'.`;
+    } catch (err: any) {
+        return `Failed to write file: ${err?.message || err}`;
+    }
+}
 
 export interface FileWriteParams {
     path: string;
@@ -97,7 +144,7 @@ export class FileWriteTool implements Tool {
                         error: `File not found and createIfNotExists is false: ${filePath}`
                     };
                 }
-                // Use FileHandler utility to create file, with or without parent folders
+                // Use direct logic to create file, with or without parent folders
                 let result: string;
                 if (createParentFolders) {
                     result = await createFileWithParents(this.app, filePath, content);
@@ -110,7 +157,7 @@ export class FileWriteTool implements Tool {
                             error: `Parent folder does not exist: ${parentPath}`
                         };
                     }
-                    result = await createFile(this.app, filePath, content);
+                    result = await createFileDirect(this.app, filePath, content);
                 }
                 if (result.startsWith('Failed to create')) {
                     return {
@@ -142,8 +189,8 @@ export class FileWriteTool implements Tool {
                     await this.backupManager.createBackup(filePath, originalContent);
                 }
             }
-            // Use existing utility to modify file
-            const result = await writeFile(this.app, filePath, content);
+            // Use direct logic to modify file
+            const result = await writeFileDirect(this.app, filePath, content);
             if (result.startsWith('Failed to write')) {
                 return {
                     success: false,

@@ -1,7 +1,19 @@
 import { App, TFile } from 'obsidian';
 import { Tool, ToolResult } from '../ToolRegistry';
-import { readFile } from '../../../../utils/FileHandler';
 import { PathValidator } from './pathValidation';
+
+// Direct file reading logic
+async function readFileDirect(app: App, filePath: string): Promise<string> {
+    const file = app.vault.getAbstractFileByPath(filePath);
+    if (!file || !(file instanceof TFile)) {
+        return `File not found or is not a file: "${filePath}"`;
+    }
+    try {
+        return await app.vault.read(file);
+    } catch (err: any) {
+        return `Failed to read file: ${err?.message || err}`;
+    }
+}
 
 export interface FileReadParams {
     path: string;
@@ -62,10 +74,10 @@ export class FileReadTool implements Tool {
                 };
             }
 
-            // Use existing utility function from FileHandler
-            let content = await readFile(this.app, filePath);
+            // Use direct file reading logic
+            let content = await readFileDirect(this.app, filePath);
 
-            // Check if content indicates an error (readFile returns error strings)
+            // Check if content indicates an error
             if (content.startsWith('File not found') || content.startsWith('Failed to read')) {
                 return {
                     success: false,
