@@ -236,23 +236,6 @@ export default class MyPlugin extends Plugin {
     }
 
     /**
-     * Retrieves the system message based on current plugin settings.
-     * @returns The system message string.
-     */
-    public getSystemMessage(): string {
-        return getSystemMessage(this.settings);
-    }
-
-    /**
-     * Activates and reveals a specific view type in the workspace.
-     * @param viewType The type of view to activate.
-     * @param reveal Whether to reveal the leaf after setting its view state. Defaults to true.
-     */
-    async activateView(viewType: string, reveal: boolean = true) {
-        await activateView(this.app, viewType, reveal);
-    }
-
-    /**
      * Loads plugin settings from data.
      */
     public async loadSettings() {
@@ -283,15 +266,6 @@ export default class MyPlugin extends Plugin {
      */
     private async processMessages(messages: Message[]): Promise<Message[]> {
         return processMessages(messages, this.app, this.settings);
-    }
-
-    /**
-     * Retrieves content from context notes.
-     * @param contextNotesText The text containing context note links.
-     * @returns A promise that resolves to the combined content of context notes.
-     */
-    public async getContextNotesContent(contextNotesText: string): Promise<string> {
-        return getContextNotesContent(contextNotesText, this.app);
     }
 
     /**

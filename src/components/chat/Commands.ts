@@ -5,6 +5,8 @@ import MyPlugin from '../../main';
 import { BotMessage } from './BotMessage';
 import { UserMessage } from './UserMessage';
 import { MessageRenderer } from './MessageRenderer';
+import { getSystemMessage } from '../../utils/systemMessage';
+import { getContextNotesContent } from '../../utils/noteUtils';
 
 export interface IChatCommands {
     sendMessage(content: string): Promise<void>;
@@ -54,11 +56,11 @@ export class Commands extends Component implements IChatCommands {
             const provider = this.plugin.settings.selectedModel 
                 ? createProviderFromUnifiedModel(this.plugin.settings, this.plugin.settings.selectedModel)
                 : createProvider(this.plugin.settings);
-            let systemMessage = this.plugin.getSystemMessage();
+            let systemMessage = getSystemMessage(this.plugin.settings);
 
             // Process context notes
             if (this.plugin.settings.enableContextNotes && this.plugin.settings.contextNotes) {
-                const contextContent = await this.plugin.getContextNotesContent(this.plugin.settings.contextNotes);
+                const contextContent = await getContextNotesContent(this.plugin.settings.contextNotes, this.plugin.app);
                 systemMessage += `\n\nContext Notes:\n${contextContent}`;
             }
 
@@ -186,12 +188,12 @@ export class Commands extends Component implements IChatCommands {
     async regenerateResponse(messageEl: HTMLElement): Promise<void> {
         // Get all messages up to this point for context
         const messages: Message[] = [
-            { role: 'system', content: this.plugin.getSystemMessage() }
+            { role: 'system', content: getSystemMessage(this.plugin.settings) }
         ];
 
         // Add context notes if enabled
         if (this.plugin.settings.enableContextNotes && this.plugin.settings.contextNotes) {
-            const contextContent = await this.plugin.getContextNotesContent(this.plugin.settings.contextNotes);
+            const contextContent = await getContextNotesContent(this.plugin.settings.contextNotes, this.plugin.app);
             messages[0].content += `\n\nContext Notes:\n${contextContent}`;
         }
 

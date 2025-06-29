@@ -1,6 +1,8 @@
 import { App } from 'obsidian';
 import { Message } from '../../../types';
 import MyPlugin from '../../../main';
+import { getSystemMessage } from '../../../utils/systemMessage';
+import { getContextNotesContent } from '../../../utils/noteUtils';
 
 /**
  * Handles building context messages for AI conversations
@@ -13,12 +15,12 @@ export class ContextBuilder {
 
     async buildContextMessages(): Promise<Message[]> {
         const messages: Message[] = [
-            { role: 'system', content: this.plugin.getSystemMessage() }
+            { role: 'system', content: getSystemMessage(this.plugin.settings) }
         ];
 
         // Add context notes if enabled
         if (this.plugin.settings.enableContextNotes && this.plugin.settings.contextNotes) {
-            const contextContent = await this.plugin.getContextNotesContent(this.plugin.settings.contextNotes);
+            const contextContent = await getContextNotesContent(this.plugin.settings.contextNotes, this.plugin.app);
             messages[0].content += `\n\nContext Notes:\n${contextContent}`;
         }        // Add current note content if enabled
         if (this.plugin.settings.referenceCurrentNote) {
