@@ -181,13 +181,28 @@ export class FileWriteTool implements Tool {
                 };
             }
             // File exists, handle backup if requested
+            let originalContent: string | undefined = undefined;
+            if (backup || true) {
+                originalContent = await this.app.vault.read(file);
+            }
+            // Only create backup if content is actually changing
             if (backup) {
-                const originalContent = await this.app.vault.read(file);
-                // Only create backup if content is actually changing
                 const shouldBackup = await this.backupManager.shouldCreateBackup(filePath, content);
                 if (shouldBackup) {
                     await this.backupManager.createBackup(filePath, originalContent);
                 }
+            }
+            // Only write if content is different
+            if (originalContent === content) {
+                return {
+                    success: true,
+                    data: {
+                        action: 'unchanged',
+                        filePath,
+                        size: content.length,
+                        backupCreated: backup
+                    }
+                };
             }
             // Use direct logic to modify file
             const result = await writeFileDirect(this.app, filePath, content);

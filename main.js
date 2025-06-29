@@ -61,23 +61,20 @@ var init_FileSearchTool = __esm({
             var _a2;
             return ["png", "jpg", "jpeg", "gif", "svg", "webp"].includes((_a2 = f.extension) == null ? void 0 : _a2.toLowerCase());
           }) : this.app.vault.getFiles();
-          let matchingFiles = allFiles;
+          let matchingFiles = [];
           if (query.trim()) {
             const normalizedQuery = query.toLowerCase();
             const queryWords = normalizedQuery.split(/\s+/).filter((word) => word.length > 0);
-            matchingFiles = [];
             for (const file of allFiles) {
               const searchText = `${file.path} ${file.basename}`.toLowerCase();
               const searchTextNormalized = searchText.replace(/_/g, " ");
-              if (queryWords.every(
-                (word) => searchText.includes(word) || searchTextNormalized.includes(word)
-              )) {
+              if (queryWords.every((word) => searchText.includes(word) || searchTextNormalized.includes(word))) {
                 matchingFiles.push(file);
-                if (matchingFiles.length >= maxResults) {
-                  break;
-                }
+                if (matchingFiles.length >= maxResults) break;
               }
             }
+          } else {
+            matchingFiles = allFiles.slice(0, maxResults);
           }
           if (matchingFiles.length === 0) {
             return {
@@ -714,6 +711,7 @@ var init_BackupManager = __esm({
        * Saves backup data to the JSON file
        */
       async saveBackupData(backupData) {
+        var _a2;
         try {
           const adapter = this.app.vault.adapter;
           const backupDir = this.backupFilePath.substring(0, this.backupFilePath.lastIndexOf("/"));
@@ -723,7 +721,9 @@ var init_BackupManager = __esm({
             }
           } catch (mkdirError) {
           }
-          await adapter.write(this.backupFilePath, JSON.stringify(backupData, null, 2));
+          const debug3 = (_a2 = window == null ? void 0 : window.aiAssistantPlugin) == null ? void 0 : _a2.debugMode;
+          const json2 = debug3 ? JSON.stringify(backupData, null, 2) : JSON.stringify(backupData);
+          await adapter.write(this.backupFilePath, json2);
         } catch (error) {
           console.error("Failed to save backup data:", error);
           throw error;
@@ -991,12 +991,26 @@ var init_FileWriteTool = __esm({
               error: `Path is not a file: ${filePath}`
             };
           }
+          let originalContent = void 0;
+          if (backup || true) {
+            originalContent = await this.app.vault.read(file);
+          }
           if (backup) {
-            const originalContent = await this.app.vault.read(file);
             const shouldBackup = await this.backupManager.shouldCreateBackup(filePath, content);
             if (shouldBackup) {
               await this.backupManager.createBackup(filePath, originalContent);
             }
+          }
+          if (originalContent === content) {
+            return {
+              success: true,
+              data: {
+                action: "unchanged",
+                filePath,
+                size: content.length,
+                backupCreated: backup
+              }
+            };
           }
           const result = await writeFileDirect(this.app, filePath, content);
           if (result.startsWith("Failed to write")) {

@@ -402,7 +402,6 @@ export class BackupManager {
     private async saveBackupData(backupData: BackupData): Promise<void> {
         try {
             const adapter = this.app.vault.adapter;
-            
             // Ensure the directory exists
             const backupDir = this.backupFilePath.substring(0, this.backupFilePath.lastIndexOf('/'));
             try {
@@ -411,10 +410,11 @@ export class BackupManager {
                 }
             } catch (mkdirError) {
                 // Directory might already exist or there might be permission issues
-                // Removed redundant console.warn for cleaner production code.
             }
-            
-            await adapter.write(this.backupFilePath, JSON.stringify(backupData, null, 2));
+            // Only pretty-print if debug mode is enabled
+            const debug = (window as any)?.aiAssistantPlugin?.debugMode;
+            const json = debug ? JSON.stringify(backupData, null, 2) : JSON.stringify(backupData);
+            await adapter.write(this.backupFilePath, json);
         } catch (error) {
             console.error('Failed to save backup data:', error);
             throw error;

@@ -208,16 +208,14 @@ export class FileDiffTool implements Tool {
     }
 
     private generateDiff(original: string, suggested: string): string {
+        // TODO: For large files, consider using a more efficient diff algorithm/library (e.g. diff-match-patch)
         const originalLines = original.split('\n');
         const suggestedLines = suggested.split('\n');
-        
         const diff: string[] = [];
         const maxLines = Math.max(originalLines.length, suggestedLines.length);
-        
         for (let i = 0; i < maxLines; i++) {
             const originalLine = originalLines[i] || '';
             const suggestedLine = suggestedLines[i] || '';
-            
             if (originalLine !== suggestedLine) {
                 if (originalLine && !suggestedLine) {
                     diff.push(`-${originalLine}`);
@@ -229,7 +227,6 @@ export class FileDiffTool implements Tool {
                 }
             }
         }
-        
         return diff.join('\n');
     }
 }

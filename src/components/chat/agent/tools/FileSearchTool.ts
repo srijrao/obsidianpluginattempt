@@ -42,32 +42,23 @@ export class FileSearchTool implements Tool {
                     this.app.vault.getFiles().filter(f => ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp'].includes(f.extension?.toLowerCase())) :
                     this.app.vault.getFiles();
 
-            let matchingFiles = allFiles;
+            let matchingFiles: any[] = [];
 
-            // If query is provided, filter files efficiently
             if (query.trim()) {
                 const normalizedQuery = query.toLowerCase();
                 const queryWords = normalizedQuery.split(/\s+/).filter(word => word.length > 0);
-                
-                matchingFiles = [];
-                
-                // First pass: look for exact matches (most efficient)
+                // Efficiently collect up to maxResults matches
                 for (const file of allFiles) {
                     const searchText = `${file.path} ${file.basename}`.toLowerCase();
                     const searchTextNormalized = searchText.replace(/_/g, ' ');
-                    
-                    // Check if all query words are present
-                    if (queryWords.every(word => 
-                        searchText.includes(word) || searchTextNormalized.includes(word)
-                    )) {
+                    if (queryWords.every(word => searchText.includes(word) || searchTextNormalized.includes(word))) {
                         matchingFiles.push(file);
-                        
-                        // Early termination if we have enough results
-                        if (matchingFiles.length >= maxResults) {
-                            break;
-                        }
+                        if (matchingFiles.length >= maxResults) break;
                     }
                 }
+            } else {
+                // No query: just take up to maxResults
+                matchingFiles = allFiles.slice(0, maxResults);
             }
 
             if (matchingFiles.length === 0) {
@@ -77,12 +68,11 @@ export class FileSearchTool implements Tool {
                 };
             }
 
-            // Limit results and sort by modification time (most recent first)
+            // Sort only the collected matches (not all files)
             const limitedFiles = matchingFiles
                 .sort((a, b) => (b.stat?.mtime || 0) - (a.stat?.mtime || 0))
                 .slice(0, maxResults);
 
-            // Get file objects with metadata
             const files = limitedFiles.map(file => ({
                 path: file.path,
                 name: file.name,
