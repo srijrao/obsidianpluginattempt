@@ -119,7 +119,7 @@ export class ResponseStreamer {
         const contentEl = container.querySelector('.message-content') as HTMLElement;
         if (!contentEl) return;
 
-        container.dataset.rawContent = content;
+        this.updateContainerDataset(container, content);
         contentEl.empty();
         await MarkdownRenderer.render(
             this.plugin.app,
@@ -241,6 +241,20 @@ export class ResponseStreamer {
     }
 
     /**
+     * DRY helper: Updates container dataset values for rawContent and messageData
+     */
+    private updateContainerDataset(
+        container: HTMLElement,
+        rawContent: string,
+        messageData?: Message
+    ): void {
+        container.dataset.rawContent = rawContent;
+        if (messageData) {
+            container.dataset.messageData = JSON.stringify(messageData);
+        }
+    }
+
+    /**
      * Checks if response content indicates a reasoning step
      */
     private isReasoningStep(responseContent: string): boolean {
@@ -261,7 +275,7 @@ export class ResponseStreamer {
         }
         
         if (agentResult.taskStatus.status === 'completed') {
-            this.showTaskCompletionNotification(
+            this.agentResponseHandler!.showTaskCompletionNotification(
                 `Task completed successfully! Used ${agentResult.taskStatus.toolExecutionCount} tools.`,
                 'success'
             );
@@ -297,7 +311,7 @@ export class ResponseStreamer {
         
         this.setupContinuationEventListeners(messages, container, responseContent, finalContent, toolResults, chatHistory);
         
-        this.showTaskCompletionNotification(
+        this.agentResponseHandler!.showTaskCompletionNotification(
             'Tool execution limit reached. Choose how to continue above.',
             'warning'
         );
@@ -375,11 +389,6 @@ export class ResponseStreamer {
     }
 
     /**
-     * Shows task completion notification
-     */
-    private showTaskCompletionNotification(message: string, type: 'success' | 'warning'): void {
-        this.agentResponseHandler!.showTaskCompletionNotification(message, type);
-    }    /**
      * Handles reasoning continuation when AI response contains reasoning steps
      */
     private async handleReasoningContinuation(
@@ -401,7 +410,6 @@ export class ResponseStreamer {
         const continuationContent = await this.getContinuationResponse(messages, container);
         if (continuationContent.trim()) {
             const updatedContent = responseContent + '\n\n' + continuationContent;
-            container.dataset.rawContent = updatedContent;
             await this.updateMessageContent(container, updatedContent);
             return updatedContent;
         }

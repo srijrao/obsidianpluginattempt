@@ -12422,6 +12422,25 @@ var ToolRegistry = class {
 // src/components/chat/agent/AgentResponseHandler.ts
 init_ToolRichDisplay();
 init_toolcollect();
+var CONSTANTS = {
+  NOTIFICATION_DISPLAY_DELAY: 100,
+  NOTIFICATION_AUTO_REMOVE_DELAY: 5e3,
+  NOTIFICATION_FADE_DELAY: 300,
+  MAX_ADDITIONAL_TOOLS: 100,
+  // Maximum additional tools that can be added
+  REASONING_ID_PREFIX: "reasoning-",
+  TOOL_DISPLAY_ID_SEPARATOR: "-",
+  ERROR_MESSAGES: {
+    TOOL_EXECUTION_FAILED: "Tool execution failed",
+    TOOL_EXECUTION_TIMEOUT: "Tool execution timed out",
+    COPY_FAILED: "Failed to copy tool result",
+    RERUN_FAILED: "Failed to re-run tool"
+  },
+  JSON_INDENT: 2,
+  MD_EXTENSION: ".md",
+  PATH_SEPARATOR: "/",
+  COMMAND_KEY_SEPARATOR: ":"
+};
 var AgentResponseHandler = class {
   // Cache markdown representations
   constructor(context) {
@@ -12434,9 +12453,7 @@ var AgentResponseHandler = class {
     __publicField(this, "toolDisplays", /* @__PURE__ */ new Map());
     // Track tool displays
     __publicField(this, "toolMarkdownCache", /* @__PURE__ */ new Map());
-    if (this.context.plugin && typeof this.context.plugin.debugLog === "function") {
-      this.context.plugin.debugLog("debug", "[AgentResponseHandler] constructor called");
-    }
+    this.debugLog("constructor called");
     this.commandParser = new CommandParser(this.context.plugin);
     this.toolRegistry = new ToolRegistry(this.context.plugin);
     this.initializeTools();
@@ -12447,10 +12464,17 @@ var AgentResponseHandler = class {
   getContext() {
     return this.context;
   }
-  initializeTools() {
-    if (this.context.plugin && typeof this.context.plugin.debugLog === "function") {
-      this.context.plugin.debugLog("debug", "[AgentResponseHandler] initializeTools called");
+  /**
+   * Common debug logging helper to reduce repetition
+   */
+  debugLog(message, data, contextLabel = "AgentResponseHandler") {
+    var _a2, _b;
+    if (((_b = (_a2 = this.context.plugin) == null ? void 0 : _a2.settings) == null ? void 0 : _b.debugMode) && typeof this.context.plugin.debugLog === "function") {
+      this.context.plugin.debugLog("debug", `[${contextLabel}] ${message}`, data);
     }
+  }
+  initializeTools() {
+    this.debugLog("initializeTools called");
     const tools = createToolInstances(this.context.app, this.context.plugin);
     for (const tool of tools) {
       this.toolRegistry.register(tool);
@@ -12464,124 +12488,102 @@ var AgentResponseHandler = class {
    * @returns Object containing processed text and execution results
    */
   async processResponse(response, contextLabel = "main", chatHistory) {
-    if (this.context.plugin.settings.debugMode) {
-      this.context.plugin.debugLog("debug", `[AgentResponseHandler][${contextLabel}] Processing response`, { response });
-    }
+    this.debugLog("Processing response", { response }, contextLabel);
     if (!this.context.plugin.isAgentModeEnabled()) {
-      return {
-        processedText: response,
-        toolResults: [],
-        hasTools: false
-      };
+      return this.createProcessResponseResult(response, [], false);
     }
     const { text, commands } = this.commandParser.parseResponse(response);
     if (commands.length === 0) {
-      if (this.context.plugin.settings.debugMode) {
-        this.context.plugin.debugLog("debug", `[AgentResponseHandler][${contextLabel}] No tool commands found in response`);
-      }
-      return {
-        processedText: text,
-        toolResults: [],
-        hasTools: false
-      };
+      this.debugLog("No tool commands found in response", void 0, contextLabel);
+      return this.createProcessResponseResult(text, [], false);
     }
     const commandsToExecute = chatHistory ? this.filterAlreadyExecutedCommands(commands, chatHistory, contextLabel) : commands;
     if (commandsToExecute.length === 0) {
-      if (this.context.plugin.settings.debugMode) {
-        this.context.plugin.debugLog("debug", `[AgentResponseHandler][${contextLabel}] All commands already executed, skipping`);
-      }
+      this.debugLog("All commands already executed, skipping", void 0, contextLabel);
       const existingResults = this.getExistingToolResults(commands, chatHistory || []);
-      return {
-        processedText: text,
-        toolResults: existingResults,
-        hasTools: true
-      };
+      return this.createProcessResponseResult(text, existingResults, true);
     }
-    const agentSettings = this.context.plugin.getAgentModeSettings();
     const effectiveLimit = this.getEffectiveToolLimit();
     if (this.executionCount >= effectiveLimit) {
-      if (this.context.plugin.settings.debugMode) {
-        this.context.plugin.debugLog("debug", `[AgentResponseHandler][${contextLabel}] Tool execution limit reached`, { executionCount: this.executionCount, effectiveLimit });
-      }
+      this.debugLog("Tool execution limit reached", { executionCount: this.executionCount, effectiveLimit }, contextLabel);
       new import_obsidian22.Notice(`Agent mode: Maximum tool calls (${effectiveLimit}) reached`);
-      return {
-        processedText: text + `
+      return this.createProcessResponseResult(
+        text + `
 
 *${effectiveLimit} [Tool execution limit reached]*`,
-        toolResults: [],
-        hasTools: true
-      };
+        [],
+        true
+      );
     }
+    return await this.executeToolCommands(commandsToExecute, text, contextLabel);
+  }
+  /**
+   * Helper method to create consistent process response results
+   */
+  createProcessResponseResult(text, toolResults, hasTools) {
+    return {
+      processedText: text,
+      toolResults,
+      hasTools
+    };
+  }
+  /**
+   * Execute tool commands and handle results
+   */
+  async executeToolCommands(commands, text, contextLabel) {
     const toolResults = [];
+    const agentSettings = this.context.plugin.getAgentModeSettings();
+    const effectiveLimit = this.getEffectiveToolLimit();
     for (const command of commands) {
       try {
-        const startTime = Date.now();
-        if (this.context.plugin.settings.debugMode) {
-          this.context.plugin.debugLog("debug", `[AgentResponseHandler][${contextLabel}] Executing tool`, { command });
-        }
-        const result = await this.executeToolWithTimeout(command, agentSettings.timeoutMs);
-        const executionTime = Date.now() - startTime;
-        if (this.context.plugin.settings.debugMode) {
-          this.context.plugin.debugLog("debug", `[AgentResponseHandler][${contextLabel}] Tool execution result`, { command, result, executionTime });
-        }
-        toolResults.push({ command, result });
-        this.executionCount++;
-        if (this.context.onToolDisplay) {
-          const richDisplay = new ToolRichDisplay({
-            command,
-            result,
-            onRerun: () => this.rerunTool(command),
-            onCopy: async () => {
-              const displayText = this.generateToolMarkdown(command, result);
-              try {
-                await navigator.clipboard.writeText(displayText);
-              } catch (error) {
-                console.error("Failed to copy tool result:", error);
-              }
-            }
-          });
-          this.context.onToolDisplay(richDisplay);
-        }
-        this.cacheToolMarkdown(command, result);
-        this.context.onToolResult(result, command);
+        const result = await this.executeToolWithLogging(command, agentSettings.timeoutMs, contextLabel);
+        this.handleToolExecutionSuccess(command, result, toolResults);
         if (this.executionCount >= effectiveLimit) {
           break;
         }
       } catch (error) {
-        if (this.context.plugin.settings.debugMode) {
-          this.context.plugin.debugLog("debug", `[AgentResponseHandler][${contextLabel}] Tool execution error`, { command, error });
-        }
-        console.error(`AgentResponseHandler: Tool '${command.action}' failed with error:`, error);
-        const errorResult = {
-          success: false,
-          error: `Tool execution failed: ${error.message}`,
-          requestId: command.requestId
-        };
-        toolResults.push({ command, result: errorResult });
-        if (this.context.onToolDisplay) {
-          const richDisplay = new ToolRichDisplay({
-            command,
-            result: errorResult,
-            onRerun: () => this.rerunTool(command),
-            onCopy: async () => {
-              const displayText = this.generateToolMarkdown(command, errorResult);
-              try {
-                await navigator.clipboard.writeText(displayText);
-              } catch (error2) {
-                console.error("Failed to copy tool result:", error2);
-              }
-            }
-          });
-          this.context.onToolDisplay(richDisplay);
-        }
-        this.cacheToolMarkdown(command, errorResult);
-        this.context.onToolResult(errorResult, command);
+        this.handleToolExecutionError(command, error, toolResults, contextLabel);
       }
     }
+    return this.createProcessResponseResult(text, toolResults, true);
+  }
+  /**
+   * Execute tool with comprehensive logging
+   */
+  async executeToolWithLogging(command, timeoutMs, contextLabel) {
+    const startTime = Date.now();
+    this.debugLog("Executing tool", { command }, contextLabel);
+    const result = await this.executeToolWithTimeout(command, timeoutMs);
+    const executionTime = Date.now() - startTime;
+    this.debugLog("Tool execution result", { command, result, executionTime }, contextLabel);
+    return result;
+  }
+  /**
+   * Handle successful tool execution
+   */
+  handleToolExecutionSuccess(command, result, toolResults) {
+    toolResults.push({ command, result });
+    this.executionCount++;
+    this.createToolDisplay(command, result);
+    this.context.onToolResult(result, command);
+  }
+  /**
+   * Handle tool execution errors
+   */
+  handleToolExecutionError(command, error, toolResults, contextLabel) {
+    this.debugLog("Tool execution error", { command, error }, contextLabel);
+    console.error(`AgentResponseHandler: Tool '${command.action}' failed with error:`, error);
+    const errorResult = this.createErrorResult(command, error);
+    this.handleToolExecutionSuccess(command, errorResult, toolResults);
+  }
+  /**
+   * Create error result for failed tool execution
+   */
+  createErrorResult(command, error) {
     return {
-      processedText: text,
-      toolResults,
-      hasTools: true
+      success: false,
+      error: `${CONSTANTS.ERROR_MESSAGES.TOOL_EXECUTION_FAILED}: ${error.message}`,
+      requestId: command.requestId
     };
   }
   /**
@@ -12590,7 +12592,7 @@ var AgentResponseHandler = class {
   async executeToolWithTimeout(command, timeoutMs) {
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
-        reject(new Error(`Tool execution timed out after ${timeoutMs}ms`));
+        reject(new Error(`${CONSTANTS.ERROR_MESSAGES.TOOL_EXECUTION_TIMEOUT} after ${timeoutMs}ms`));
       }, timeoutMs);
       this.toolRegistry.execute(command).then((result) => {
         clearTimeout(timeout);
@@ -12602,8 +12604,8 @@ var AgentResponseHandler = class {
     });
   }
   /**
-  * Reset execution count (call at start of new conversation)
-  */
+   * Reset execution count (call at start of new conversation)
+   */
   resetExecutionCount() {
     this.executionCount = 0;
     this.temporaryMaxToolCalls = void 0;
@@ -12636,11 +12638,10 @@ var AgentResponseHandler = class {
     return Array.from(this.toolMarkdownCache.values());
   }
   /**
-  * Get combined tool markdown for saving
-  */
+   * Get combined tool markdown for saving
+   */
   getCombinedToolMarkdown() {
-    const markdowns = this.getToolMarkdown();
-    return markdowns.join("\n");
+    return this.getToolMarkdown().join("\n");
   }
   /**
    * Get tool execution statistics
@@ -12654,42 +12655,87 @@ var AgentResponseHandler = class {
     };
   }
   /**
-   * Shared formatter for tool results (for DRY)
+   * Unified tool result formatter for DRY (display, copy, markdown)
    */
-  formatToolResultLine(command, result, opts) {
-    const status = result.success ? (opts == null ? void 0 : opts.markdown) ? "\u2705" : "\u2713" : (opts == null ? void 0 : opts.markdown) ? "\u274C" : "\u2717";
+  formatToolResult(command, result, opts) {
+    const style = (opts == null ? void 0 : opts.style) || "plain";
+    const status = this.getStatusIcon(result.success, style);
     const action = command.action.replace("_", " ");
-    let context = "";
-    if (result.success && result.data) {
-      switch (command.action) {
-        case "file_write":
-        case "file_read":
-        case "file_diff":
-          if (result.data.filePath) {
-            const relPath = this.getRelativePath(result.data.filePath);
-            context = ` [[${relPath}]]`;
-          }
-          break;
-        case "file_select":
-          if (result.data.count !== void 0) {
-            context = ` [[${result.data.count} files found]]`;
-          }
-          break;
-        case "thought":
-          if (result.data && result.data.formattedThought) {
-            return result.data.formattedThought;
-          }
-          break;
-      }
+    const context = this.getResultContext(command, result);
+    switch (style) {
+      case "markdown":
+        return `${status} **${action}** completed successfully${context}`;
+      case "copy":
+        return this.formatToolResultForCopy(command, result, status);
+      default:
+        return this.formatToolResultPlain(command, result, status);
     }
-    if (opts == null ? void 0 : opts.markdown) {
-      return `${status} **${action}** completed successfully${context}`;
+  }
+  /**
+   * Get status icon based on success state and style
+   */
+  getStatusIcon(success, style) {
+    if (success) {
+      return style === "markdown" ? "\u2705" : style === "copy" ? "SUCCESS" : "\u2713";
     } else {
-      const data = result.success ? JSON.stringify(result.data, null, 2) : result.error;
-      return `${status} Tool: ${command.action}
-Parameters: ${JSON.stringify(command.parameters, null, 2)}
-Result: ${data}`;
+      return style === "markdown" ? "\u274C" : style === "copy" ? "ERROR" : "\u2717";
     }
+  }
+  /**
+   * Get contextual information for tool result
+   */
+  getResultContext(command, result) {
+    var _a2;
+    if (!result.success || !result.data) return "";
+    switch (command.action) {
+      case "file_write":
+      case "file_read":
+      case "file_diff":
+        if (result.data.filePath) {
+          const relPath = this.getRelativePath(result.data.filePath);
+          return ` [[${relPath}]]`;
+        }
+        break;
+      case "file_select":
+        if (result.data.count !== void 0) {
+          return ` [[${result.data.count} files found]]`;
+        }
+        break;
+      case "thought":
+        if ((_a2 = result.data) == null ? void 0 : _a2.formattedThought) {
+          return result.data.formattedThought;
+        }
+        break;
+    }
+    return "";
+  }
+  /**
+   * Format tool result for copy operation
+   */
+  formatToolResultForCopy(command, result, status) {
+    const params = this.stringifyJson(command.parameters);
+    const resultData = result.success ? this.stringifyJson(result.data) : result.error;
+    return `TOOL EXECUTION: ${command.action}
+STATUS: ${status}
+PARAMETERS:
+${params}
+RESULT:
+${resultData}`;
+  }
+  /**
+   * Format tool result in plain style
+   */
+  formatToolResultPlain(command, result, status) {
+    const data = result.success ? this.stringifyJson(result.data) : result.error;
+    return `${status} Tool: ${command.action}
+Parameters: ${this.stringifyJson(command.parameters)}
+Result: ${data}`;
+  }
+  /**
+   * Helper method to stringify JSON with consistent indentation
+   */
+  stringifyJson(obj) {
+    return JSON.stringify(obj, null, CONSTANTS.JSON_INDENT);
   }
   /**
    * Format tool results for display in chat (markdown style)
@@ -12698,7 +12744,9 @@ Result: ${data}`;
     if (toolResults.length === 0) {
       return "";
     }
-    const resultText = toolResults.map(({ command, result }) => this.formatToolResultLine(command, result, { markdown: true })).join("\n");
+    const resultText = toolResults.map(
+      ({ command, result }) => this.formatToolResult(command, result, { style: "markdown" })
+    ).join("\n");
     return `
 
 **Tool Execution:**
@@ -12711,7 +12759,9 @@ ${resultText}`;
     if (toolResults.length === 0) {
       return null;
     }
-    const resultText = toolResults.map(({ command, result }) => this.formatToolResultLine(command, result)).join("\n\n");
+    const resultText = toolResults.map(
+      ({ command, result }) => this.formatToolResult(command, result, { style: "plain" })
+    ).join("\n\n");
     return {
       role: "system",
       content: `Tool execution results:
@@ -12720,60 +12770,61 @@ ${resultText}`
     };
   }
   /**
-   * Create and manage rich tool display
+   * Create and manage rich tool display (centralized)
    */
   createToolDisplay(command, result) {
-    const displayId = `${command.action}-${command.requestId || Date.now()}`;
+    const displayId = this.generateDisplayId(command);
     const toolDisplay = new ToolRichDisplay({
       command,
       result,
-      onRerun: () => {
-        this.rerunTool(command);
-      },
-      onCopy: async () => {
-        const displayText = this.formatToolForCopy(command, result);
-        try {
-          await navigator.clipboard.writeText(displayText);
-        } catch (error) {
-          console.error("Failed to copy tool result:", error);
-        }
-      }
+      onRerun: () => this.rerunTool(command),
+      onCopy: () => this.copyToolResult(command, result)
     });
     this.toolDisplays.set(displayId, toolDisplay);
-    const markdown = toolDisplay.toMarkdown();
-    this.toolMarkdownCache.set(displayId, markdown);
+    this.toolMarkdownCache.set(displayId, toolDisplay.toMarkdown());
     if (this.context.onToolDisplay) {
       this.context.onToolDisplay(toolDisplay);
     }
     this.cacheToolMarkdown(command, result);
   }
   /**
-   * Cache tool markdown representation
+   * Generate display ID for tool
+   */
+  generateDisplayId(command) {
+    return `${command.action}${CONSTANTS.TOOL_DISPLAY_ID_SEPARATOR}${command.requestId || Date.now()}`;
+  }
+  /**
+   * Copy tool result to clipboard
+   */
+  async copyToolResult(command, result) {
+    const displayText = this.formatToolResult(command, result, { style: "copy" });
+    try {
+      await navigator.clipboard.writeText(displayText);
+    } catch (error) {
+      console.error(CONSTANTS.ERROR_MESSAGES.COPY_FAILED, error);
+    }
+  }
+  /**
+   * Cache tool markdown representation (uses unified formatter)
    */
   cacheToolMarkdown(command, result) {
     const cacheKey = `${command.action}-${command.requestId}`;
-    const markdown = this.generateToolMarkdown(command, result);
-    this.toolMarkdownCache.set(cacheKey, markdown);
-  }
-  /**
-   * Generate markdown for tool display
-   */
-  generateToolMarkdown(command, result) {
-    const status = result.success ? "SUCCESS" : "ERROR";
-    const params = JSON.stringify(command.parameters, null, 2);
-    const resultData = result.success ? JSON.stringify(result.data, null, 2) : result.error;
-    return `### TOOL EXECUTION: ${command.action}
-**Status:** ${status}
+    const statusText = result.success ? "SUCCESS" : "ERROR";
+    const resultData = result.success ? this.stringifyJson(result.data) : result.error;
+    const markdown = `### TOOL EXECUTION: ${command.action}
+**Status:** ${statusText}
 
 **Parameters:**
 \`\`\`json
-${params}
+${this.stringifyJson(command.parameters)}
 \`\`\`
 
 **Result:**
 \`\`\`json
 ${resultData}
-\`\`\``;
+\`\`\`
+`;
+    this.toolMarkdownCache.set(cacheKey, markdown);
   }
   /**
    * Re-run a tool with the same parameters
@@ -12782,46 +12833,36 @@ ${resultData}
     try {
       const agentSettings = this.context.plugin.getAgentModeSettings();
       const result = await this.executeToolWithTimeout(originalCommand, agentSettings.timeoutMs);
-      const displayId = `${originalCommand.action}-${originalCommand.requestId || Date.now()}`;
-      const existingDisplay = this.toolDisplays.get(displayId);
-      if (existingDisplay) {
-        existingDisplay.updateResult(result);
-        this.toolMarkdownCache.set(displayId, existingDisplay.toMarkdown());
-      }
+      this.createToolDisplay(originalCommand, result);
       this.context.onToolResult(result, originalCommand);
     } catch (error) {
-      console.error(`Failed to re-run tool ${originalCommand.action}:`, error);
+      console.error(`${CONSTANTS.ERROR_MESSAGES.RERUN_FAILED} ${originalCommand.action}:`, error);
     }
   }
-  /**
-   * Format tool execution for clipboard copy
-   */
-  formatToolForCopy(command, result) {
-    const status = result.success ? "SUCCESS" : "ERROR";
-    const params = JSON.stringify(command.parameters, null, 2);
-    const resultData = result.success ? JSON.stringify(result.data, null, 2) : result.error;
-    return `TOOL EXECUTION: ${command.action}
-STATUS: ${status}
-PARAMETERS:
-${params}
-RESULT:
-${resultData}`;
-  }
+  // Removed: formatToolForCopy (now handled by formatToolResult)
   /**
    * Helper to ensure a file path is relative to the vault root and strips .md extension for Obsidian links
    */
   getRelativePath(filePath) {
     const adapter = this.context.app.vault.adapter;
-    const vaultRoot = (adapter == null ? void 0 : adapter.basePath) ? adapter.basePath.replace(/\\/g, "/") : "";
-    let relPath = filePath.replace(/\\/g, "/");
+    const vaultRoot = (adapter == null ? void 0 : adapter.basePath) ? this.normalizePath(adapter.basePath) : "";
+    let relPath = this.normalizePath(filePath);
     if (vaultRoot && relPath.startsWith(vaultRoot)) {
       relPath = relPath.slice(vaultRoot.length);
-      if (relPath.startsWith("/")) relPath = relPath.slice(1);
+      if (relPath.startsWith(CONSTANTS.PATH_SEPARATOR)) {
+        relPath = relPath.slice(1);
+      }
     }
-    if (relPath.toLowerCase().endsWith(".md")) {
-      relPath = relPath.slice(0, -3);
+    if (relPath.toLowerCase().endsWith(CONSTANTS.MD_EXTENSION)) {
+      relPath = relPath.slice(0, -CONSTANTS.MD_EXTENSION.length);
     }
     return relPath;
+  }
+  /**
+   * Normalize path separators to forward slashes
+   */
+  normalizePath(path) {
+    return path.replace(/\\/g, CONSTANTS.PATH_SEPARATOR);
   }
   /**
    * Process tool results and extract reasoning data for enhanced message display
@@ -12848,12 +12889,16 @@ ${resultData}`;
    * Convert ThoughtTool result data to structured ReasoningData
    */
   convertThoughtToolResultToReasoning(thoughtData) {
-    var _a2, _b;
-    const reasoningId = "reasoning-" + Date.now() + "-" + Math.random().toString(36).substr(2, 9);
+    var _a2;
+    const reasoningId = this.generateReasoningId();
+    const baseData = {
+      id: reasoningId,
+      timestamp: thoughtData.timestamp || (/* @__PURE__ */ new Date()).toISOString(),
+      isCollapsed: ((_a2 = this.context.plugin.settings.uiBehavior) == null ? void 0 : _a2.collapseOldReasoning) || false
+    };
     if (thoughtData.reasoning === "structured" && thoughtData.steps) {
       return {
-        id: reasoningId,
-        timestamp: thoughtData.timestamp || (/* @__PURE__ */ new Date()).toISOString(),
+        ...baseData,
         type: "structured",
         problem: thoughtData.problem,
         steps: thoughtData.steps.map((step) => ({
@@ -12861,18 +12906,23 @@ ${resultData}`;
           title: step.title,
           content: step.content
         })),
-        depth: thoughtData.depth,
-        isCollapsed: ((_a2 = this.context.plugin.settings.uiBehavior) == null ? void 0 : _a2.collapseOldReasoning) || false
+        depth: thoughtData.depth
       };
     } else {
       return {
-        id: reasoningId,
-        timestamp: thoughtData.timestamp || (/* @__PURE__ */ new Date()).toISOString(),
+        ...baseData,
         type: "simple",
-        summary: thoughtData.thought || thoughtData.formattedThought,
-        isCollapsed: ((_b = this.context.plugin.settings.uiBehavior) == null ? void 0 : _b.collapseOldReasoning) || false
+        summary: thoughtData.thought || thoughtData.formattedThought
       };
     }
+  }
+  /**
+   * Generate unique reasoning ID
+   */
+  generateReasoningId() {
+    const timestamp2 = Date.now();
+    const random = Math.random().toString(36).substr(2, 9);
+    return `${CONSTANTS.REASONING_ID_PREFIX}${timestamp2}-${random}`;
   }
   /**
    * Create task status object based on current execution state
@@ -12920,7 +12970,15 @@ ${resultData}`;
     warning.className = "tool-limit-warning";
     const agentSettings = this.context.plugin.getAgentModeSettings();
     const effectiveLimit = this.getEffectiveToolLimit();
-    warning.innerHTML = `
+    warning.innerHTML = this.createToolLimitWarningHTML(effectiveLimit, agentSettings.maxToolCalls);
+    this.attachToolLimitWarningHandlers(warning, agentSettings);
+    return warning;
+  }
+  /**
+   * Create HTML content for tool limit warning
+   */
+  createToolLimitWarningHTML(effectiveLimit, maxToolCalls) {
+    return `
             <div class="tool-limit-warning-text">
                 <strong>\u26A0\uFE0F Tool execution limit reached</strong><br>
                 Used ${this.executionCount}/${effectiveLimit} tool calls. 
@@ -12929,7 +12987,7 @@ ${resultData}`;
             <div class="tool-limit-warning-actions">
                 <div class="tool-limit-input-group">
                     <label for="additional-tools">Add more executions:</label>
-                    <input type="number" id="additional-tools" min="1" max="50" value="${agentSettings.maxToolCalls}" placeholder="5">
+                    <input type="number" id="additional-tools" min="1" max="${CONSTANTS.MAX_ADDITIONAL_TOOLS}" value="${maxToolCalls}" placeholder="5">
                     <button class="ai-chat-add-tools-button">Add & Continue</button>
                 </div>
                 <div class="tool-limit-button-group">
@@ -12938,6 +12996,19 @@ ${resultData}`;
                 </div>
             </div>
         `;
+  }
+  /**
+   * Attach event handlers to tool limit warning elements
+   */
+  attachToolLimitWarningHandlers(warning, agentSettings) {
+    this.attachSettingsHandler(warning);
+    this.attachAddToolsHandler(warning, agentSettings);
+    this.attachContinueHandler(warning);
+  }
+  /**
+   * Attach settings link handler
+   */
+  attachSettingsHandler(warning) {
     const settingsLink = warning.querySelector(".tool-limit-settings-link");
     if (settingsLink) {
       settingsLink.onclick = () => {
@@ -12945,6 +13016,11 @@ ${resultData}`;
         this.context.app.setting.openTabById(this.context.plugin.manifest.id);
       };
     }
+  }
+  /**
+   * Attach add tools button handler
+   */
+  attachAddToolsHandler(warning, agentSettings) {
     const addToolsButton = warning.querySelector(".ai-chat-add-tools-button");
     if (addToolsButton) {
       addToolsButton.onclick = () => {
@@ -12952,24 +13028,31 @@ ${resultData}`;
         const additionalTools = parseInt(input.value) || agentSettings.maxToolCalls;
         if (additionalTools > 0) {
           this.addToolExecutions(additionalTools);
-          warning.remove();
-          this.hideToolContinuationContainerIfEmpty();
-          this.context.messagesContainer.dispatchEvent(new CustomEvent("continueTaskWithAdditionalTools", {
-            detail: { additionalTools }
-          }));
+          this.removeWarningAndTriggerContinuation(warning, "continueTaskWithAdditionalTools", { additionalTools });
         }
       };
     }
+  }
+  /**
+   * Attach continue button handler
+   */
+  attachContinueHandler(warning) {
     const continueButton = warning.querySelector(".ai-chat-continue-button");
     if (continueButton) {
       continueButton.onclick = () => {
         this.resetExecutionCount();
-        warning.remove();
-        this.hideToolContinuationContainerIfEmpty();
-        this.context.messagesContainer.dispatchEvent(new CustomEvent("continueTask"));
+        this.removeWarningAndTriggerContinuation(warning, "continueTask");
       };
     }
-    return warning;
+  }
+  /**
+   * Remove warning and trigger task continuation
+   */
+  removeWarningAndTriggerContinuation(warning, eventType, detail) {
+    warning.remove();
+    this.hideToolContinuationContainerIfEmpty();
+    const event = detail ? new CustomEvent(eventType, { detail }) : new CustomEvent(eventType);
+    this.context.messagesContainer.dispatchEvent(event);
   }
   /**
    * Create task completion notification
@@ -12977,20 +13060,38 @@ ${resultData}`;
   createTaskCompletionNotification(message, type2 = "success") {
     const notification = document.createElement("div");
     notification.className = `task-completion-notification ${type2}`;
+    const icon = this.getNotificationIcon(type2);
     notification.innerHTML = `
             <div style="display: flex; align-items: center; gap: 8px;">
-                <span>${type2 === "success" ? "\u2705" : type2 === "error" ? "\u274C" : "\u26A0\uFE0F"}</span>
+                <span>${icon}</span>
                 <span>${message}</span>
             </div>
         `;
+    this.setupNotificationAutoRemoval(notification);
+    return notification;
+  }
+  /**
+   * Get notification icon based on type
+   */
+  getNotificationIcon(type2) {
+    const icons = {
+      success: "\u2705",
+      error: "\u274C",
+      warning: "\u26A0\uFE0F"
+    };
+    return icons[type2];
+  }
+  /**
+   * Setup auto-removal for notifications
+   */
+  setupNotificationAutoRemoval(notification) {
     setTimeout(() => {
       notification.classList.add("show");
-    }, 100);
+    }, CONSTANTS.NOTIFICATION_DISPLAY_DELAY);
     setTimeout(() => {
       notification.classList.remove("show");
-      setTimeout(() => notification.remove(), 300);
-    }, 5e3);
-    return notification;
+      setTimeout(() => notification.remove(), CONSTANTS.NOTIFICATION_FADE_DELAY);
+    }, CONSTANTS.NOTIFICATION_AUTO_REMOVE_DELAY);
   }
   /**
    * Show task completion notification
@@ -13086,8 +13187,12 @@ ${resultData}`;
    * Generate a unique key for a command to check for duplicates
    */
   generateCommandKey(command) {
-    const params = JSON.stringify(command.parameters || {});
-    return `${command.action}:${params}:${command.requestId || "no-id"}`;
+    const params = this.stringifyJson(command.parameters || {});
+    return [
+      command.action,
+      params,
+      command.requestId || "no-id"
+    ].join(CONSTANTS.COMMAND_KEY_SEPARATOR);
   }
   /**
    * Check if a command has already been executed by looking in chat history
@@ -13702,7 +13807,7 @@ var ResponseStreamer = class {
   async updateMessageContent(container, content) {
     const contentEl = container.querySelector(".message-content");
     if (!contentEl) return;
-    container.dataset.rawContent = content;
+    this.updateContainerDataset(container, content);
     contentEl.empty();
     await import_obsidian26.MarkdownRenderer.render(
       this.plugin.app,
@@ -13782,6 +13887,15 @@ var ResponseStreamer = class {
     this.messageRenderer.updateMessageWithEnhancedData(container, messageData);
   }
   /**
+   * DRY helper: Updates container dataset values for rawContent and messageData
+   */
+  updateContainerDataset(container, rawContent, messageData) {
+    container.dataset.rawContent = rawContent;
+    if (messageData) {
+      container.dataset.messageData = JSON.stringify(messageData);
+    }
+  }
+  /**
    * Checks if response content indicates a reasoning step
    */
   isReasoningStep(responseContent) {
@@ -13795,7 +13909,7 @@ var ResponseStreamer = class {
       return this.handleToolLimitReached(messages, container, responseContent, finalContent, agentResult.toolResults, chatHistory);
     }
     if (agentResult.taskStatus.status === "completed") {
-      this.showTaskCompletionNotification(
+      this.agentResponseHandler.showTaskCompletionNotification(
         `Task completed successfully! Used ${agentResult.taskStatus.toolExecutionCount} tools.`,
         "success"
       );
@@ -13821,7 +13935,7 @@ var ResponseStreamer = class {
       this.agentResponseHandler.getContext().toolContinuationContainer.style.display = "block";
     }
     this.setupContinuationEventListeners(messages, container, responseContent, finalContent, toolResults, chatHistory);
-    this.showTaskCompletionNotification(
+    this.agentResponseHandler.showTaskCompletionNotification(
       "Tool execution limit reached. Choose how to continue above.",
       "warning"
     );
@@ -13890,14 +14004,8 @@ var ResponseStreamer = class {
     );
   }
   /**
-   * Shows task completion notification
+   * Handles reasoning continuation when AI response contains reasoning steps
    */
-  showTaskCompletionNotification(message, type2) {
-    this.agentResponseHandler.showTaskCompletionNotification(message, type2);
-  }
-  /**
-  * Handles reasoning continuation when AI response contains reasoning steps
-  */
   async handleReasoningContinuation(responseContent, messages, container, chatHistory) {
     var _a2;
     if ((_a2 = this.agentResponseHandler) == null ? void 0 : _a2.isToolLimitReached()) {
@@ -13910,7 +14018,6 @@ var ResponseStreamer = class {
     const continuationContent = await this.getContinuationResponse(messages, container);
     if (continuationContent.trim()) {
       const updatedContent = responseContent + "\n\n" + continuationContent;
-      container.dataset.rawContent = updatedContent;
       await this.updateMessageContent(container, updatedContent);
       return updatedContent;
     }
