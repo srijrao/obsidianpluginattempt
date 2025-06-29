@@ -1553,6 +1553,11 @@ var init_FileListTool = __esm({
           folder = vault.getRoot();
         } else {
           folder = vault.getAbstractFileByPath(folderPath);
+          if (!folder) {
+            const allFolders = vault.getAllLoadedFiles().filter((f) => f instanceof import_obsidian7.TFolder);
+            const match = allFolders.find((f) => f.path.toLowerCase() === folderPath.toLowerCase());
+            if (match) folder = match;
+          }
         }
         if (!folder || !(folder instanceof import_obsidian7.TFolder)) {
           return {

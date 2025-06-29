@@ -51,6 +51,12 @@ export class FileListTool implements Tool {
             folder = vault.getRoot();
         } else {
             folder = vault.getAbstractFileByPath(folderPath);
+            // If not found, try case-insensitive match
+            if (!folder) {
+                const allFolders = vault.getAllLoadedFiles().filter(f => f instanceof TFolder);
+                const match = allFolders.find(f => f.path.toLowerCase() === folderPath.toLowerCase());
+                if (match) folder = match;
+            }
         }
         
         if (!folder || !(folder instanceof TFolder)) {
