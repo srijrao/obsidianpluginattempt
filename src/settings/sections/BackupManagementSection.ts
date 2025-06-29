@@ -245,17 +245,48 @@ export class BackupManagementSection {
         });
 
         const trashPath = '.trash';
-        const trashFolder = this.plugin.app.vault.getAbstractFileByPath(trashPath);
+        let trashFolder = this.plugin.app.vault.getAbstractFileByPath(trashPath);
+
+        // Debug log for troubleshooting
+        // eslint-disable-next-line no-console
+        console.log('[AI Assistant Debug] .trash lookup:', trashFolder, 'Type:', trashFolder?.constructor?.name);
+
+        let trashItems: { name: string, isFolder: boolean, size?: number }[] = [];
+        let fallbackUsed = false;
 
         if (!trashFolder) {
-            containerEl.createEl('div', {
-                text: 'No trash folder found. Trash folder will be created automatically when files are deleted with soft delete.',
-                cls: 'setting-item-description'
-            });
-            return;
-        }
-
-        if (!(trashFolder instanceof TFolder)) {
+            // Fallback: read .trash from file system directly
+            fallbackUsed = true;
+            try {
+                const adapter = this.plugin.app.vault.adapter;
+                if (await adapter.exists(trashPath)) {
+                    const files = await adapter.list(trashPath);
+                    // files.files and files.folders are arrays of absolute paths
+                    trashItems = [
+                        ...files.files.map(f => ({ name: f.substring(f.lastIndexOf('/') + 1), isFolder: false })),
+                        ...files.folders.map(f => ({ name: f.substring(f.lastIndexOf('/') + 1), isFolder: true }))
+                    ];
+                } else {
+                    containerEl.createEl('div', {
+                        text: 'No trash folder found. Trash folder will be created automatically when files are deleted with soft delete.',
+                        cls: 'setting-item-description'
+                    });
+                    return;
+                }
+            } catch (e) {
+                containerEl.createEl('div', {
+                    text: 'Error reading trash folder from file system.',
+                    cls: 'setting-item-description'
+                });
+                return;
+            }
+        } else if (trashFolder instanceof TFolder) {
+            trashItems = (trashFolder as TFolder).children.map(item => ({
+                name: item.name,
+                isFolder: item instanceof TFolder,
+                size: (item instanceof TFile && item.stat) ? item.stat.size : undefined
+            }));
+        } else {
             containerEl.createEl('div', {
                 text: 'Error: .trash exists but is not a folder.',
                 cls: 'setting-item-description'
@@ -264,12 +295,11 @@ export class BackupManagementSection {
         }
 
         // Count items in trash
-        const trashItems = (trashFolder as TFolder).children || [];
-        const fileCount = trashItems.filter((item) => item instanceof TFile).length;
-        const folderCount = trashItems.filter((item) => item instanceof TFolder).length;
+        const fileCount = trashItems.filter((item) => !item.isFolder).length;
+        const folderCount = trashItems.filter((item) => item.isFolder).length;
 
         containerEl.createEl('div', {
-            text: `Trash contains: ${fileCount} files, ${folderCount} folders`,
+            text: `Trash contains: ${fileCount} files, ${folderCount} folders${fallbackUsed ? ' (filesystem fallback)' : ''}`,
             cls: 'setting-item-description',
             attr: { style: 'margin-bottom: 1em; font-weight: bold;' }
         });
@@ -284,7 +314,7 @@ export class BackupManagementSection {
         });
         refreshBtn.style.marginRight = '0.5em';
         refreshBtn.onclick = () => {
-            // Re-render needs to be handled by the main settings tab
+            this.renderTrashManagement(containerEl.parentElement!);
         };
 
         // Empty trash button
@@ -302,12 +332,17 @@ export class BackupManagementSection {
 
                 if (confirmed) {
                     try {
-                        // Delete all items in trash
+                        const adapter = this.plugin.app.vault.adapter;
                         for (const item of trashItems) {
-                            await this.plugin.app.vault.delete(item);
+                            const fullPath = `${trashPath}/${item.name}`;
+                            if (item.isFolder) {
+                                await adapter.rmdir(fullPath, true);
+                            } else {
+                                await adapter.remove(fullPath);
+                            }
                         }
                         new Notice(`Emptied trash - permanently deleted ${trashItems.length} items`);
-                        // Re-render needs to be handled by the main settings tab
+                        this.renderTrashManagement(containerEl.parentElement!);
                     } catch (error) {
                         new Notice(`Error emptying trash: ${error.message}`);
                     }
@@ -332,10 +367,8 @@ export class BackupManagementSection {
 
             // Item info
             const itemInfo = trashItem.createDiv({ cls: 'trash-item-info' });
-            const isFolder = item instanceof TFolder;
-            const icon = isFolder ? '📁' : '📄';
-            const size = !isFolder && item instanceof TFile && item.stat ? ` (${Math.round(item.stat.size / 1024)} KB)` : '';
-            
+            const icon = item.isFolder ? '📁' : '📄';
+            const size = !item.isFolder && item.size ? ` (${Math.round(item.size / 1024)} KB)` : '';
             itemInfo.createEl('span', {
                 text: `${icon} ${item.name}${size}`,
                 cls: 'trash-item-name'
@@ -344,30 +377,38 @@ export class BackupManagementSection {
             // Item actions
             const itemActions = trashItem.createDiv({ cls: 'trash-item-actions', attr: { style: 'margin-top: 0.5em;' } });
 
-            // Restore button
-            const restoreBtn = itemActions.createEl('button', {
-                text: 'Restore',
-                cls: 'mod-cta'
-            });
-            restoreBtn.style.marginRight = '0.5em';
-            restoreBtn.onclick = async () => {
-                const confirmed = await DialogHelpers.showConfirmationDialog(
-                    'Restore Item',
-                    `Restore "${item.name}" to vault root? If an item with the same name exists, it will be overwritten.`
-                );
+            // Restore button (not available in fallback mode)
+            if (!fallbackUsed) {
+                const restoreBtn = itemActions.createEl('button', {
+                    text: 'Restore',
+                    cls: 'mod-cta'
+                });
+                restoreBtn.style.marginRight = '0.5em';
+                restoreBtn.onclick = async () => {
+                    const confirmed = await DialogHelpers.showConfirmationDialog(
+                        'Restore Item',
+                        `Restore "${item.name}" to vault root? If an item with the same name exists, it will be overwritten.`
+                    );
 
-                if (confirmed) {
-                    try {
-                        // Move back to vault root
-                        const newPath = item.name;
-                        await this.plugin.app.fileManager.renameFile(item, newPath);
-                        new Notice(`Restored "${item.name}" to vault root`);
-                        // Re-render needs to be handled by the main settings tab
-                    } catch (error) {
-                        new Notice(`Error restoring item: ${error.message}`);
+                    if (confirmed) {
+                        try {
+                            // Move back to vault root
+                            const trashFolderObj = this.plugin.app.vault.getAbstractFileByPath(trashPath);
+                            if (trashFolderObj instanceof TFolder) {
+                                const fileObj = (trashFolderObj as TFolder).children.find((child: any) => child.name === item.name);
+                                if (fileObj) {
+                                    const newPath = item.name;
+                                    await this.plugin.app.fileManager.renameFile(fileObj, newPath);
+                                    new Notice(`Restored "${item.name}" to vault root`);
+                                    this.renderTrashManagement(containerEl.parentElement!);
+                                }
+                            }
+                        } catch (error) {
+                            new Notice(`Error restoring item: ${error.message}`);
+                        }
                     }
-                }
-            };
+                };
+            }
 
             // Delete permanently button
             const deleteBtn = itemActions.createEl('button', {
@@ -382,9 +423,15 @@ export class BackupManagementSection {
 
                 if (confirmed) {
                     try {
-                        await this.plugin.app.vault.delete(item);
+                        const adapter = this.plugin.app.vault.adapter;
+                        const fullPath = `${trashPath}/${item.name}`;
+                        if (item.isFolder) {
+                            await adapter.rmdir(fullPath, true);
+                        } else {
+                            await adapter.remove(fullPath);
+                        }
                         new Notice(`Permanently deleted "${item.name}"`);
-                        // Re-render needs to be handled by the main settings tab
+                        this.renderTrashManagement(containerEl.parentElement!);
                     } catch (error) {
                         new Notice(`Error deleting item: ${error.message}`);
                     }

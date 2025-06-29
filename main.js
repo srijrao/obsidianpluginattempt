@@ -15896,6 +15896,7 @@ Stored at: ${backup.backupFilePath || "Unknown location"}`, 5e3);
    * @param containerEl The HTML element to append the section to.
    */
   async renderTrashManagement(containerEl) {
+    var _a2;
     containerEl.createEl("div", { attr: { style: "margin-top: 2em; border-top: 1px solid var(--background-modifier-border); padding-top: 1em;" } });
     containerEl.createEl("h3", { text: "Trash Management" });
     containerEl.createEl("div", {
@@ -15904,26 +15905,51 @@ Stored at: ${backup.backupFilePath || "Unknown location"}`, 5e3);
       attr: { style: "margin-bottom: 1em;" }
     });
     const trashPath = ".trash";
-    const trashFolder = this.plugin.app.vault.getAbstractFileByPath(trashPath);
+    let trashFolder = this.plugin.app.vault.getAbstractFileByPath(trashPath);
+    console.log("[AI Assistant Debug] .trash lookup:", trashFolder, "Type:", (_a2 = trashFolder == null ? void 0 : trashFolder.constructor) == null ? void 0 : _a2.name);
+    let trashItems = [];
+    let fallbackUsed = false;
     if (!trashFolder) {
-      containerEl.createEl("div", {
-        text: "No trash folder found. Trash folder will be created automatically when files are deleted with soft delete.",
-        cls: "setting-item-description"
-      });
-      return;
-    }
-    if (!(trashFolder instanceof import_obsidian32.TFolder)) {
+      fallbackUsed = true;
+      try {
+        const adapter = this.plugin.app.vault.adapter;
+        if (await adapter.exists(trashPath)) {
+          const files = await adapter.list(trashPath);
+          trashItems = [
+            ...files.files.map((f) => ({ name: f.substring(f.lastIndexOf("/") + 1), isFolder: false })),
+            ...files.folders.map((f) => ({ name: f.substring(f.lastIndexOf("/") + 1), isFolder: true }))
+          ];
+        } else {
+          containerEl.createEl("div", {
+            text: "No trash folder found. Trash folder will be created automatically when files are deleted with soft delete.",
+            cls: "setting-item-description"
+          });
+          return;
+        }
+      } catch (e) {
+        containerEl.createEl("div", {
+          text: "Error reading trash folder from file system.",
+          cls: "setting-item-description"
+        });
+        return;
+      }
+    } else if (trashFolder instanceof import_obsidian32.TFolder) {
+      trashItems = trashFolder.children.map((item) => ({
+        name: item.name,
+        isFolder: item instanceof import_obsidian32.TFolder,
+        size: item instanceof import_obsidian32.TFile && item.stat ? item.stat.size : void 0
+      }));
+    } else {
       containerEl.createEl("div", {
         text: "Error: .trash exists but is not a folder.",
         cls: "setting-item-description"
       });
       return;
     }
-    const trashItems = trashFolder.children || [];
-    const fileCount = trashItems.filter((item) => item instanceof import_obsidian32.TFile).length;
-    const folderCount = trashItems.filter((item) => item instanceof import_obsidian32.TFolder).length;
+    const fileCount = trashItems.filter((item) => !item.isFolder).length;
+    const folderCount = trashItems.filter((item) => item.isFolder).length;
     containerEl.createEl("div", {
-      text: `Trash contains: ${fileCount} files, ${folderCount} folders`,
+      text: `Trash contains: ${fileCount} files, ${folderCount} folders${fallbackUsed ? " (filesystem fallback)" : ""}`,
       cls: "setting-item-description",
       attr: { style: "margin-bottom: 1em; font-weight: bold;" }
     });
@@ -15934,6 +15960,7 @@ Stored at: ${backup.backupFilePath || "Unknown location"}`, 5e3);
     });
     refreshBtn.style.marginRight = "0.5em";
     refreshBtn.onclick = () => {
+      this.renderTrashManagement(containerEl.parentElement);
     };
     if (trashItems.length > 0) {
       const emptyTrashBtn = actionsContainer.createEl("button", {
@@ -15948,10 +15975,17 @@ Stored at: ${backup.backupFilePath || "Unknown location"}`, 5e3);
         );
         if (confirmed) {
           try {
+            const adapter = this.plugin.app.vault.adapter;
             for (const item of trashItems) {
-              await this.plugin.app.vault.delete(item);
+              const fullPath = `${trashPath}/${item.name}`;
+              if (item.isFolder) {
+                await adapter.rmdir(fullPath, true);
+              } else {
+                await adapter.remove(fullPath);
+              }
             }
             new import_obsidian32.Notice(`Emptied trash - permanently deleted ${trashItems.length} items`);
+            this.renderTrashManagement(containerEl.parentElement);
           } catch (error) {
             new import_obsidian32.Notice(`Error emptying trash: ${error.message}`);
           }
@@ -15969,34 +16003,42 @@ Stored at: ${backup.backupFilePath || "Unknown location"}`, 5e3);
     for (const item of trashItems.slice(0, 20)) {
       const trashItem = trashList.createDiv({ cls: "trash-item", attr: { style: "margin-bottom: 0.5em; padding: 0.5em; border: 1px solid var(--background-modifier-border); border-radius: 4px;" } });
       const itemInfo = trashItem.createDiv({ cls: "trash-item-info" });
-      const isFolder = item instanceof import_obsidian32.TFolder;
-      const icon = isFolder ? "\u{1F4C1}" : "\u{1F4C4}";
-      const size = !isFolder && item instanceof import_obsidian32.TFile && item.stat ? ` (${Math.round(item.stat.size / 1024)} KB)` : "";
+      const icon = item.isFolder ? "\u{1F4C1}" : "\u{1F4C4}";
+      const size = !item.isFolder && item.size ? ` (${Math.round(item.size / 1024)} KB)` : "";
       itemInfo.createEl("span", {
         text: `${icon} ${item.name}${size}`,
         cls: "trash-item-name"
       });
       const itemActions = trashItem.createDiv({ cls: "trash-item-actions", attr: { style: "margin-top: 0.5em;" } });
-      const restoreBtn = itemActions.createEl("button", {
-        text: "Restore",
-        cls: "mod-cta"
-      });
-      restoreBtn.style.marginRight = "0.5em";
-      restoreBtn.onclick = async () => {
-        const confirmed = await DialogHelpers.showConfirmationDialog(
-          "Restore Item",
-          `Restore "${item.name}" to vault root? If an item with the same name exists, it will be overwritten.`
-        );
-        if (confirmed) {
-          try {
-            const newPath = item.name;
-            await this.plugin.app.fileManager.renameFile(item, newPath);
-            new import_obsidian32.Notice(`Restored "${item.name}" to vault root`);
-          } catch (error) {
-            new import_obsidian32.Notice(`Error restoring item: ${error.message}`);
+      if (!fallbackUsed) {
+        const restoreBtn = itemActions.createEl("button", {
+          text: "Restore",
+          cls: "mod-cta"
+        });
+        restoreBtn.style.marginRight = "0.5em";
+        restoreBtn.onclick = async () => {
+          const confirmed = await DialogHelpers.showConfirmationDialog(
+            "Restore Item",
+            `Restore "${item.name}" to vault root? If an item with the same name exists, it will be overwritten.`
+          );
+          if (confirmed) {
+            try {
+              const trashFolderObj = this.plugin.app.vault.getAbstractFileByPath(trashPath);
+              if (trashFolderObj instanceof import_obsidian32.TFolder) {
+                const fileObj = trashFolderObj.children.find((child) => child.name === item.name);
+                if (fileObj) {
+                  const newPath = item.name;
+                  await this.plugin.app.fileManager.renameFile(fileObj, newPath);
+                  new import_obsidian32.Notice(`Restored "${item.name}" to vault root`);
+                  this.renderTrashManagement(containerEl.parentElement);
+                }
+              }
+            } catch (error) {
+              new import_obsidian32.Notice(`Error restoring item: ${error.message}`);
+            }
           }
-        }
-      };
+        };
+      }
       const deleteBtn = itemActions.createEl("button", {
         text: "Delete Permanently",
         cls: "mod-warning"
@@ -16008,8 +16050,15 @@ Stored at: ${backup.backupFilePath || "Unknown location"}`, 5e3);
         );
         if (confirmed) {
           try {
-            await this.plugin.app.vault.delete(item);
+            const adapter = this.plugin.app.vault.adapter;
+            const fullPath = `${trashPath}/${item.name}`;
+            if (item.isFolder) {
+              await adapter.rmdir(fullPath, true);
+            } else {
+              await adapter.remove(fullPath);
+            }
             new import_obsidian32.Notice(`Permanently deleted "${item.name}"`);
+            this.renderTrashManagement(containerEl.parentElement);
           } catch (error) {
             new import_obsidian32.Notice(`Error deleting item: ${error.message}`);
           }
