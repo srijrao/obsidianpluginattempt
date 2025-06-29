@@ -2649,7 +2649,7 @@ var import_obsidian13, ToolRichDisplay;
 var init_ToolRichDisplay = __esm({
   "src/components/chat/agent/ToolRichDisplay.ts"() {
     import_obsidian13 = require("obsidian");
-    ToolRichDisplay = class extends import_obsidian13.Component {
+    ToolRichDisplay = class _ToolRichDisplay extends import_obsidian13.Component {
       constructor(options) {
         super();
         __publicField(this, "element");
@@ -2667,89 +2667,10 @@ var init_ToolRichDisplay = __esm({
         if (window.aiAssistantPlugin && typeof window.aiAssistantPlugin.debugLog === "function") {
           window.aiAssistantPlugin.debugLog("debug", "[ToolRichDisplay] createToolDisplay called", { command: this.options.command, result: this.options.result });
         }
-        const container = document.createElement("div");
-        container.className = "tool-rich-display";
-        const iconDiv = document.createElement("div");
-        iconDiv.className = "tool-rich-icon";
-        iconDiv.innerHTML = this.getToolIcon();
-        container.appendChild(iconDiv);
-        const infoDiv = document.createElement("div");
-        infoDiv.className = "tool-rich-info";
-        const titleDiv = document.createElement("div");
-        titleDiv.className = "tool-rich-title";
-        titleDiv.innerText = this.getToolDisplayName();
-        const statusSpan = document.createElement("span");
-        statusSpan.className = `tool-rich-status ${this.options.result.success ? "success" : "error"}`;
-        statusSpan.innerText = this.options.result.success ? "Success" : "Error";
-        titleDiv.appendChild(statusSpan);
-        infoDiv.appendChild(titleDiv);
-        if (this.options.command.parameters && Object.keys(this.options.command.parameters).length > 0) {
-          const paramsDiv = document.createElement("div");
-          paramsDiv.innerHTML = `<strong>Parameters:</strong> ${this.formatParameters()}`;
-          infoDiv.appendChild(paramsDiv);
-        }
-        const resultDiv = document.createElement("div");
-        resultDiv.innerHTML = `<strong>Result:</strong> ${this.getResultSummary()}`;
-        infoDiv.appendChild(resultDiv);
-        const details = this.getDetailedResult();
-        if (details) {
-          const toggle = document.createElement("div");
-          toggle.className = "tool-rich-details-toggle";
-          toggle.innerText = "Show details \u25BC";
-          const detailsDiv = document.createElement("div");
-          detailsDiv.className = "tool-rich-details";
-          detailsDiv.style.display = "none";
-          detailsDiv.innerHTML = `<pre>${details}</pre>`;
-          toggle.onclick = () => {
-            const isExpanded = detailsDiv.classList.contains("expanded");
-            if (isExpanded) {
-              detailsDiv.classList.remove("expanded");
-              detailsDiv.style.display = "none";
-              toggle.innerText = "Show details \u25BC";
-            } else {
-              detailsDiv.classList.add("expanded");
-              detailsDiv.style.display = "block";
-              toggle.innerText = "Hide details \u25B2";
-            }
-          };
-          infoDiv.appendChild(toggle);
-          infoDiv.appendChild(detailsDiv);
-        }
-        const actionsDiv = document.createElement("div");
-        actionsDiv.className = "tool-rich-actions";
-        if (this.options.onRerun) {
-          const rerunBtn = document.createElement("button");
-          rerunBtn.className = "tool-rich-action-btn";
-          rerunBtn.innerText = "Re-run";
-          rerunBtn.onclick = this.options.onRerun;
-          actionsDiv.appendChild(rerunBtn);
-        }
-        if (this.options.onCopy) {
-          const copyBtn = document.createElement("button");
-          copyBtn.className = "tool-rich-action-btn";
-          copyBtn.innerText = "Copy";
-          copyBtn.onclick = this.options.onCopy;
-          actionsDiv.appendChild(copyBtn);
-        }
-        const copyResultBtn = document.createElement("button");
-        copyResultBtn.className = "tool-rich-action-btn";
-        copyResultBtn.innerText = "Copy Result";
-        copyResultBtn.onclick = async () => {
-          const resultText = this.options.result.success ? JSON.stringify(this.options.result.data, null, 2) : this.options.result.error || "Unknown error";
-          try {
-            await navigator.clipboard.writeText(resultText);
-            copyResultBtn.innerText = "Copied!";
-            setTimeout(() => {
-              copyResultBtn.innerText = "Copy Result";
-            }, 2e3);
-          } catch (error) {
-            console.error("Failed to copy to clipboard:", error);
-          }
-        };
-        actionsDiv.appendChild(copyResultBtn);
-        infoDiv.appendChild(actionsDiv);
-        container.appendChild(infoDiv);
-        return container;
+        return _ToolRichDisplay.createDisplayElement(this.options.command, this.options.result, {
+          onRerun: this.options.onRerun,
+          onCopy: this.options.onCopy
+        });
       }
       getToolIcon() {
         const iconMap = {
@@ -2851,7 +2772,10 @@ var init_ToolRichDisplay = __esm({
        */
       updateResult(result) {
         this.options.result = result;
-        const newElement = this.createToolDisplay();
+        const newElement = _ToolRichDisplay.createDisplayElement(this.options.command, this.options.result, {
+          onRerun: this.options.onRerun,
+          onCopy: this.options.onCopy
+        });
         this.element.replaceWith(newElement);
         this.element = newElement;
       }
@@ -2906,6 +2830,219 @@ ${details}
 `;
         }
         return markdown;
+      }
+      /**
+       * Static method to create a tool display element for notes (without re-run functionality)
+       */
+      static createNoteDisplay(command, result, options) {
+        return _ToolRichDisplay.createDisplayElement(command, result, {
+          ...options,
+          isNote: true
+        });
+      }
+      /**
+       * Static method to create a tool display element with customizable options
+       */
+      static createDisplayElement(command, result, options) {
+        const container = document.createElement("div");
+        container.className = (options == null ? void 0 : options.isNote) ? "tool-rich-display tool-rich-display-note" : "tool-rich-display";
+        const iconDiv = document.createElement("div");
+        iconDiv.className = "tool-rich-icon";
+        iconDiv.innerHTML = _ToolRichDisplay.getStaticToolIcon(command.action);
+        container.appendChild(iconDiv);
+        const infoDiv = document.createElement("div");
+        infoDiv.className = "tool-rich-info";
+        const titleDiv = document.createElement("div");
+        titleDiv.className = "tool-rich-title";
+        titleDiv.innerText = _ToolRichDisplay.getStaticToolDisplayName(command.action);
+        const statusSpan = document.createElement("span");
+        statusSpan.className = `tool-rich-status ${result.success ? "success" : "error"}`;
+        statusSpan.innerText = result.success ? "Success" : "Error";
+        titleDiv.appendChild(statusSpan);
+        infoDiv.appendChild(titleDiv);
+        if (command.parameters && Object.keys(command.parameters).length > 0) {
+          const paramsDiv = document.createElement("div");
+          paramsDiv.innerHTML = `<strong>Parameters:</strong> ${_ToolRichDisplay.formatStaticParameters(command.parameters)}`;
+          infoDiv.appendChild(paramsDiv);
+        }
+        const resultDiv = document.createElement("div");
+        resultDiv.innerHTML = `<strong>Result:</strong> ${_ToolRichDisplay.getStaticResultSummary(command, result)}`;
+        infoDiv.appendChild(resultDiv);
+        const details = _ToolRichDisplay.getStaticDetailedResult(result);
+        if (details) {
+          const toggle = document.createElement("div");
+          toggle.className = "tool-rich-details-toggle";
+          toggle.innerText = "Show details \u25BC";
+          const detailsDiv = document.createElement("div");
+          detailsDiv.className = "tool-rich-details";
+          detailsDiv.style.display = "none";
+          detailsDiv.innerHTML = `<pre>${details}</pre>`;
+          toggle.onclick = () => {
+            const isExpanded = detailsDiv.classList.contains("expanded");
+            if (isExpanded) {
+              detailsDiv.classList.remove("expanded");
+              detailsDiv.style.display = "none";
+              toggle.innerText = "Show details \u25BC";
+            } else {
+              detailsDiv.classList.add("expanded");
+              detailsDiv.style.display = "block";
+              toggle.innerText = "Hide details \u25B2";
+            }
+          };
+          infoDiv.appendChild(toggle);
+          infoDiv.appendChild(detailsDiv);
+        }
+        const actionsDiv = document.createElement("div");
+        actionsDiv.className = "tool-rich-actions";
+        if (!(options == null ? void 0 : options.isNote) && (options == null ? void 0 : options.onRerun)) {
+          const rerunBtn = document.createElement("button");
+          rerunBtn.className = "tool-rich-action-btn";
+          rerunBtn.innerText = "Re-run";
+          rerunBtn.onclick = options.onRerun;
+          actionsDiv.appendChild(rerunBtn);
+        }
+        if (options == null ? void 0 : options.onCopy) {
+          const copyBtn = document.createElement("button");
+          copyBtn.className = "tool-rich-action-btn";
+          copyBtn.innerText = "Copy";
+          copyBtn.onclick = options.onCopy;
+          actionsDiv.appendChild(copyBtn);
+        }
+        const copyResultBtn = document.createElement("button");
+        copyResultBtn.className = "tool-rich-action-btn";
+        copyResultBtn.innerText = "Copy Result";
+        copyResultBtn.onclick = async () => {
+          const resultText = result.success ? JSON.stringify(result.data, null, 2) : result.error || "Unknown error";
+          try {
+            await navigator.clipboard.writeText(resultText);
+            copyResultBtn.innerText = "Copied!";
+            setTimeout(() => {
+              copyResultBtn.innerText = "Copy Result";
+            }, 2e3);
+          } catch (error) {
+            console.error("Failed to copy to clipboard:", error);
+          }
+        };
+        actionsDiv.appendChild(copyResultBtn);
+        infoDiv.appendChild(actionsDiv);
+        container.appendChild(infoDiv);
+        return container;
+      }
+      static getStaticToolIcon(action) {
+        const iconMap = {
+          "file_search": "\u{1F50D}",
+          "file_read": "\u{1F4D6}",
+          "file_write": "\u270D\uFE0F",
+          "file_diff": "\u{1F504}",
+          "file_move": "\u{1F4C1}",
+          "file_rename": "\u{1F3F7}\uFE0F",
+          "file_list": "\u{1F4CB}",
+          "thought": "\u{1F9E0}"
+        };
+        return iconMap[action] || "\u{1F527}";
+      }
+      static getStaticToolDisplayName(action) {
+        const nameMap = {
+          "file_search": "File Search",
+          "file_read": "File Read",
+          "file_write": "File Write",
+          "file_diff": "File Diff",
+          "file_move": "File Move",
+          "file_rename": "File Rename",
+          "file_list": "File List",
+          "thought": "Thought Process"
+        };
+        return nameMap[action] || action;
+      }
+      static formatStaticParameters(params) {
+        const formatted = Object.entries(params).map(([key, value]) => `${key}: ${typeof value === "string" && value.length > 50 ? value.substring(0, 50) + "..." : JSON.stringify(value)}`).join(", ");
+        return `<code>${formatted}</code>`;
+      }
+      static getStaticResultSummary(command, result) {
+        if (!result.success) {
+          return `<span class="tool-error">${result.error || "Unknown error"}</span>`;
+        }
+        const data = result.data;
+        if (command.action === "file_write" && data) {
+          const action = data.action || "modified";
+          const filePath = data.filePath || "unknown file";
+          const size = data.size ? ` (${data.size} bytes)` : "";
+          if (action === "created") {
+            return `<span class="tool-success">\u{1F4DD} Created file: <strong>${filePath}</strong>${size}</span>`;
+          } else {
+            return `<span class="tool-success">\u{1F4BE} Saved file: <strong>${filePath}</strong>${size}</span>`;
+          }
+        }
+        if (command.action === "file_read" && data) {
+          const filePath = data.filePath || command.parameters.path;
+          const size = data.content ? ` (${data.content.length} chars)` : "";
+          return `<span class="tool-success">\u{1F4D6} Read file: <strong>${filePath}</strong>${size}</span>`;
+        }
+        if (command.action === "file_search" && data) {
+          const count = data.count || (Array.isArray(data.files) ? data.files.length : 0);
+          return `<span class="tool-success">\u{1F50D} Found ${count} file${count !== 1 ? "s" : ""}</span>`;
+        }
+        if (command.action === "file_list" && data) {
+          const count = data.count || (Array.isArray(data.files) ? data.files.length : 0);
+          const path = data.path || command.parameters.path;
+          return `<span class="tool-success">\u{1F4CB} Listed ${count} file${count !== 1 ? "s" : ""} in <strong>${path}</strong></span>`;
+        }
+        if (command.action === "file_move" && data) {
+          const from = command.parameters.sourcePath;
+          const to = command.parameters.destinationPath;
+          return `<span class="tool-success">\u{1F4C1} Moved <strong>${from}</strong> \u2192 <strong>${to}</strong></span>`;
+        }
+        if (command.action === "file_rename" && data) {
+          const oldName = command.parameters.path;
+          const newName = command.parameters.newName;
+          return `<span class="tool-success">\u{1F3F7}\uFE0F Renamed <strong>${oldName}</strong> \u2192 <strong>${newName}</strong></span>`;
+        }
+        if (command.action === "thought" && data) {
+          const thought = data.thought || data.reasoning || "";
+          return `<span class="tool-success">\u{1F9E0} ${thought}</span>`;
+        }
+        if (typeof data === "string") {
+          return data;
+        }
+        if (Array.isArray(data)) {
+          return `${data.length} items returned`;
+        }
+        if (typeof data === "object" && data !== null) {
+          const keys = Object.keys(data);
+          return `Object with ${keys.length} properties`;
+        }
+        return "Success";
+      }
+      static getStaticDetailedResult(result) {
+        if (!result.success) {
+          return result.error || "Unknown error occurred";
+        }
+        if (result.data) {
+          return typeof result.data === "string" ? result.data : JSON.stringify(result.data, null, 2);
+        }
+        return null;
+      }
+      /**
+       * Render a tool execution block (array of toolResults) into a container element.
+       * Used by both markdown and code block processors.
+       */
+      static renderToolExecutionBlock(toolData, container, onCopy) {
+        container.innerHTML = "";
+        container.className = "ai-tool-execution-container";
+        if (toolData.toolResults && Array.isArray(toolData.toolResults)) {
+          for (const toolResult of toolData.toolResults) {
+            if (toolResult.command && toolResult.result) {
+              const toolDisplay = _ToolRichDisplay.createNoteDisplay(
+                toolResult.command,
+                toolResult.result,
+                {
+                  onCopy: onCopy ? () => onCopy(toolResult.result) : void 0
+                }
+              );
+              container.appendChild(toolDisplay);
+            }
+          }
+        }
       }
     };
   }
@@ -16538,6 +16675,7 @@ var AgentModeManager = class {
 
 // src/main.ts
 init_BackupManager();
+init_ToolRichDisplay();
 init_YAMLHandler();
 var _MyPlugin = class _MyPlugin extends import_obsidian36.Plugin {
   constructor() {
@@ -16695,6 +16833,12 @@ var _MyPlugin = class _MyPlugin extends import_obsidian36.Plugin {
         return debugLog((_a2 = this.settings.debugMode) != null ? _a2 : false, level, ...args);
       }
     );
+    this.registerMarkdownPostProcessor((element, context) => {
+      this.processToolExecutionBlocks(element, context);
+    });
+    this.registerMarkdownCodeBlockProcessor("ai-tool-execution", (source, el, ctx) => {
+      this.processToolExecutionCodeBlock(source, el, ctx);
+    });
   }
   /**
    * Enhanced debug logger for the plugin.
@@ -16767,6 +16911,77 @@ var _MyPlugin = class _MyPlugin extends import_obsidian36.Plugin {
   onunload() {
     _MyPlugin.registeredViewTypes.delete(VIEW_TYPE_MODEL_SETTINGS);
     _MyPlugin.registeredViewTypes.delete(VIEW_TYPE_CHAT);
+  }
+  /**
+   * Process ai-tool-execution code blocks specifically for Live Preview mode
+   */
+  processToolExecutionCodeBlock(source, element, context) {
+    this.debugLog("debug", "[main.ts] processToolExecutionCodeBlock called for Live Preview", { source: source.substring(0, 100) + "...", element, context });
+    try {
+      const toolData = JSON.parse(source);
+      this.debugLog("debug", "[main.ts] Parsed tool data from code block", { toolData });
+      ToolRichDisplay.renderToolExecutionBlock(toolData, element, async (resultText) => {
+        try {
+          await navigator.clipboard.writeText(resultText);
+          showNotice("Copied to clipboard!");
+        } catch (error) {
+          console.error("Failed to copy to clipboard:", error);
+          showNotice("Failed to copy to clipboard");
+        }
+      });
+      this.debugLog("info", "[main.ts] Rendered tool displays in Live Preview");
+    } catch (error) {
+      console.error("Failed to parse ai-tool-execution code block:", error);
+      this.debugLog("error", "[main.ts] Failed to parse ai-tool-execution code block", { error });
+      const pre = document.createElement("pre");
+      const code = document.createElement("code");
+      code.textContent = source;
+      pre.appendChild(code);
+      element.innerHTML = "";
+      element.appendChild(pre);
+    }
+  }
+  /**
+   * Process ai-tool-execution blocks in markdown and replace them with rich tool displays
+   */
+  processToolExecutionBlocks(element, context) {
+    var _a2, _b;
+    this.debugLog("debug", "[main.ts] processToolExecutionBlocks called", { element, context });
+    const codeBlocks = element.querySelectorAll("pre > code");
+    this.debugLog("debug", "[main.ts] Found code blocks", { count: codeBlocks.length });
+    for (const codeBlock of Array.from(codeBlocks)) {
+      const codeElement = codeBlock;
+      const preElement = codeElement.parentElement;
+      this.debugLog("debug", "[main.ts] Checking code block", {
+        className: codeElement.className,
+        textContent: ((_a2 = codeElement.textContent) == null ? void 0 : _a2.substring(0, 100)) + "..."
+      });
+      const text = ((_b = codeElement.textContent) == null ? void 0 : _b.trim()) || "";
+      const isAIToolExecution = codeElement.className.includes("language-ai-tool-execution") || text.startsWith('{"toolResults"') || text.startsWith('{\n  "toolResults"');
+      if (isAIToolExecution) {
+        this.debugLog("info", "[main.ts] Found ai-tool-execution block");
+        try {
+          const toolData = JSON.parse(text);
+          this.debugLog("debug", "[main.ts] Parsed tool data", { toolData });
+          const toolContainer = document.createElement("div");
+          toolContainer.className = "ai-tool-execution-container";
+          ToolRichDisplay.renderToolExecutionBlock(toolData, toolContainer, async (resultText) => {
+            try {
+              await navigator.clipboard.writeText(resultText);
+              showNotice("Copied to clipboard!");
+            } catch (error) {
+              console.error("Failed to copy to clipboard:", error);
+              showNotice("Failed to copy to clipboard");
+            }
+          });
+          preElement.replaceWith(toolContainer);
+          this.debugLog("info", "[main.ts] Replaced code block with tool displays");
+        } catch (error) {
+          console.error("Failed to parse ai-tool-execution block:", error);
+          this.debugLog("error", "[main.ts] Failed to parse ai-tool-execution block", { error });
+        }
+      }
+    }
   }
 };
 __publicField(_MyPlugin, "registeredViewTypes", /* @__PURE__ */ new Set());
