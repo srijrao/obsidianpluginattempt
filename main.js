@@ -11335,12 +11335,12 @@ var BotMessage_exports = {};
 __export(BotMessage_exports, {
   BotMessage: () => BotMessage
 });
-var import_obsidian25, BotMessage;
+var import_obsidian24, BotMessage;
 var init_BotMessage = __esm({
   "src/components/chat/BotMessage.ts"() {
-    import_obsidian25 = require("obsidian");
+    import_obsidian24 = require("obsidian");
     init_Buttons();
-    BotMessage = class extends import_obsidian25.Component {
+    BotMessage = class extends import_obsidian24.Component {
       constructor(app, plugin, content) {
         super();
         __publicField(this, "app");
@@ -11363,7 +11363,7 @@ var init_BotMessage = __esm({
         this.content = content;
         this.element.dataset.rawContent = content;
         this.contentEl.empty();
-        await import_obsidian25.MarkdownRenderer.render(
+        await import_obsidian24.MarkdownRenderer.render(
           this.app,
           content,
           this.contentEl,
@@ -11377,7 +11377,7 @@ var init_BotMessage = __esm({
         messageEl.dataset.rawContent = this.content;
         const messageContainer = messageEl.createDiv("message-container");
         this.contentEl = messageContainer.createDiv("message-content");
-        import_obsidian25.MarkdownRenderer.render(
+        import_obsidian24.MarkdownRenderer.render(
           this.app,
           this.content,
           this.contentEl,
@@ -11539,7 +11539,7 @@ async function generateNoteTitle(app, settings, processMessages2) {
   debug2("Starting generateNoteTitle");
   const activeFile = app.workspace.getActiveFile();
   if (!activeFile) {
-    new import_obsidian29.Notice("No active note found.");
+    new import_obsidian28.Notice("No active note found.");
     return;
   }
   let noteContent = await app.vault.cachedRead(activeFile);
@@ -11564,7 +11564,7 @@ async function generateNoteTitle(app, settings, processMessages2) {
       settings.enableContextNotes = originalEnableContextNotes;
       if (!processedMessages || processedMessages.length === 0) {
         debug2("No processed messages!");
-        new import_obsidian29.Notice("No valid messages to send to the model. Please check your note content.");
+        new import_obsidian28.Notice("No valid messages to send to the model. Please check your note content.");
         return;
       }
       debug2("Calling provider.getCompletion");
@@ -11592,28 +11592,28 @@ async function generateNoteTitle(app, settings, processMessages2) {
             const newPath = parentPath ? parentPath + "/" + sanitized + ext : sanitized + ext;
             if (file.path !== newPath) {
               await app.fileManager.renameFile(file, newPath);
-              new import_obsidian29.Notice(`Note renamed to: ${sanitized}${ext}`);
+              new import_obsidian28.Notice(`Note renamed to: ${sanitized}${ext}`);
             } else {
-              new import_obsidian29.Notice(`Note title is already: ${sanitized}${ext}`);
+              new import_obsidian28.Notice(`Note title is already: ${sanitized}${ext}`);
             }
           }
         } else if (outputMode === "metadata") {
           const file = app.workspace.getActiveFile();
           if (file) {
             await upsertYamlField(app, file, "title", title);
-            new import_obsidian29.Notice(`Inserted title into metadata: ${title}`);
+            new import_obsidian28.Notice(`Inserted title into metadata: ${title}`);
           }
         } else {
           try {
             await navigator.clipboard.writeText(title);
-            new import_obsidian29.Notice(`Generated title (copied): ${title}`);
+            new import_obsidian28.Notice(`Generated title (copied): ${title}`);
           } catch (e) {
-            new import_obsidian29.Notice(`Generated title: ${title}`);
+            new import_obsidian28.Notice(`Generated title: ${title}`);
           }
         }
       } else {
         debug2("No title generated after sanitization.");
-        new import_obsidian29.Notice("No title generated.");
+        new import_obsidian28.Notice("No title generated.");
       }
     } catch (processError) {
       debug2("Error in processMessages or provider.getCompletion:", processError);
@@ -11621,14 +11621,14 @@ async function generateNoteTitle(app, settings, processMessages2) {
       throw processError;
     }
   } catch (err) {
-    new import_obsidian29.Notice("Error generating title: " + ((_b = err == null ? void 0 : err.message) != null ? _b : err));
+    new import_obsidian28.Notice("Error generating title: " + ((_b = err == null ? void 0 : err.message) != null ? _b : err));
   }
 }
 async function generateYamlAttribute(app, settings, processMessages2, attributeName, prompt, outputMode = "metadata") {
   debug2(`Starting generateYamlAttribute for ${attributeName}`);
   const activeFile = app.workspace.getActiveFile();
   if (!activeFile) {
-    new import_obsidian29.Notice("No active note found.");
+    new import_obsidian28.Notice("No active note found.");
     return;
   }
   let noteContent = await app.vault.cachedRead(activeFile);
@@ -11647,7 +11647,7 @@ async function generateYamlAttribute(app, settings, processMessages2, attributeN
     settings.enableContextNotes = originalEnableContextNotes;
     if (!processedMessages || processedMessages.length === 0) {
       debug2("No processed messages!");
-      new import_obsidian29.Notice("No valid messages to send to the model. Please check your note content.");
+      new import_obsidian28.Notice("No valid messages to send to the model. Please check your note content.");
       return;
     }
     debug2("Calling provider.getCompletion");
@@ -11668,18 +11668,18 @@ async function generateYamlAttribute(app, settings, processMessages2, attributeN
       debug2("Output mode:", outputMode);
       if (outputMode === "metadata") {
         await upsertYamlField(app, activeFile, attributeName, value);
-        new import_obsidian29.Notice(`Inserted ${attributeName} into metadata: ${value}`);
+        new import_obsidian28.Notice(`Inserted ${attributeName} into metadata: ${value}`);
       } else {
         try {
           await navigator.clipboard.writeText(value);
-          new import_obsidian29.Notice(`Generated ${attributeName} (copied): ${value}`);
+          new import_obsidian28.Notice(`Generated ${attributeName} (copied): ${value}`);
         } catch (e) {
-          new import_obsidian29.Notice(`Generated ${attributeName}: ${value}`);
+          new import_obsidian28.Notice(`Generated ${attributeName}: ${value}`);
         }
       }
     } else {
       debug2(`No value generated for ${attributeName} after sanitization.`);
-      new import_obsidian29.Notice(`No value generated for ${attributeName}.`);
+      new import_obsidian28.Notice(`No value generated for ${attributeName}.`);
     }
   } catch (processError) {
     debug2("Error in processMessages or provider.getCompletion:", processError);
@@ -11746,10 +11746,10 @@ function registerYamlAttributeCommands(plugin, settings, processMessages2, yamlA
   }
   return newCommandIds;
 }
-var import_obsidian29, DEBUG;
+var import_obsidian28, DEBUG;
 var init_YAMLHandler = __esm({
   "src/YAMLHandler.ts"() {
-    import_obsidian29 = require("obsidian");
+    import_obsidian28 = require("obsidian");
     init_providers();
     init_promptConstants();
     init_pluginUtils();
@@ -11764,11 +11764,11 @@ __export(main_exports, {
   default: () => MyPlugin
 });
 module.exports = __toCommonJS(main_exports);
-var import_obsidian36 = require("obsidian");
+var import_obsidian35 = require("obsidian");
 init_types();
 
 // src/settings/SettingTab.ts
-var import_obsidian34 = require("obsidian");
+var import_obsidian33 = require("obsidian");
 
 // src/components/commands/viewCommands.ts
 init_pluginUtils();
@@ -11787,7 +11787,7 @@ async function activateView(app, viewType, reveal = true) {
 }
 
 // src/chat.ts
-var import_obsidian28 = require("obsidian");
+var import_obsidian27 = require("obsidian");
 
 // src/components/chat/ChatHistoryManager.ts
 var import_obsidian11 = require("obsidian");
@@ -12167,9 +12167,6 @@ async function renderChatHistory({
   }
 }
 
-// src/components/chat/agent/AgentResponseHandler/AgentResponseHandler.ts
-var import_obsidian22 = require("obsidian");
-
 // src/components/chat/CommandParser.ts
 init_toolcollect();
 var CommandParser = class {
@@ -12457,161 +12454,64 @@ function stringifyJson(obj) {
   return JSON.stringify(obj, null, CONSTANTS.JSON_INDENT);
 }
 
-// src/components/chat/agent/AgentResponseHandler/AgentResponseHandler.ts
-var AgentResponseHandler = class {
+// src/components/chat/agent/AgentResponseHandler/TaskNotificationManager.ts
+var TaskNotificationManager = class {
   constructor(context) {
+    __publicField(this, "context");
     this.context = context;
-    __publicField(this, "commandParser");
-    __publicField(this, "toolRegistry");
-    __publicField(this, "executionCount", 0);
-    __publicField(this, "temporaryMaxToolCalls");
-    __publicField(this, "toolDisplays", /* @__PURE__ */ new Map());
-    __publicField(this, "toolMarkdownCache", /* @__PURE__ */ new Map());
-    this.debugLog("constructor called");
-    this.commandParser = new CommandParser(this.context.plugin);
-    this.toolRegistry = new ToolRegistry(this.context.plugin);
-    this.initializeTools();
   }
-  getContext() {
-    return this.context;
+  createTaskCompletionNotification(message, type2 = "success") {
+    const notification = document.createElement("div");
+    notification.className = `task-completion-notification ${type2}`;
+    const icon = this.getNotificationIcon(type2);
+    notification.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <span>${icon}</span>
+                <span>${message}</span>
+            </div>
+        `;
+    this.setupNotificationAutoRemoval(notification);
+    return notification;
   }
-  debugLog(message, data, contextLabel = "AgentResponseHandler") {
-    var _a2, _b;
-    if (((_b = (_a2 = this.context.plugin) == null ? void 0 : _a2.settings) == null ? void 0 : _b.debugMode) && typeof this.context.plugin.debugLog === "function") {
-      this.context.plugin.debugLog("debug", `[${contextLabel}] ${message}`, data);
+  showTaskCompletionNotification(message, type2 = "success") {
+    var _a2;
+    if (!((_a2 = this.context.plugin.settings.uiBehavior) == null ? void 0 : _a2.showCompletionNotifications)) {
+      return;
     }
+    const notification = this.createTaskCompletionNotification(message, type2);
+    document.body.appendChild(notification);
   }
-  initializeTools() {
-    this.debugLog("initializeTools called");
-    const tools = createToolInstances(this.context.app, this.context.plugin);
-    for (const tool of tools) {
-      this.toolRegistry.register(tool);
-    }
+  updateTaskProgress(current, total, description) {
   }
-  async processResponse(response, contextLabel = "main", chatHistory) {
-    this.debugLog("Processing response", { response }, contextLabel);
-    if (!this.context.plugin.isAgentModeEnabled()) {
-      return this.createProcessResponseResult(response, [], false);
-    }
-    const { text, commands } = this.commandParser.parseResponse(response);
-    if (commands.length === 0) {
-      this.debugLog("No tool commands found in response", void 0, contextLabel);
-      return this.createProcessResponseResult(text, [], false);
-    }
-    const commandsToExecute = chatHistory ? this.filterAlreadyExecutedCommands(commands, chatHistory, contextLabel) : commands;
-    if (commandsToExecute.length === 0) {
-      this.debugLog("All commands already executed, skipping", void 0, contextLabel);
-      const existingResults = this.getExistingToolResults(commands, chatHistory || []);
-      return this.createProcessResponseResult(text, existingResults, true);
-    }
-    const effectiveLimit = this.getEffectiveToolLimit();
-    if (this.executionCount >= effectiveLimit) {
-      this.debugLog("Tool execution limit reached", { executionCount: this.executionCount, effectiveLimit }, contextLabel);
-      new import_obsidian22.Notice(`Agent mode: Maximum tool calls (${effectiveLimit}) reached`);
-      return this.createProcessResponseResult(
-        text + `
+  hideTaskProgress() {
+  }
+  getNotificationIcon(type2) {
+    const icons = {
+      success: "\u2705",
+      error: "\u274C",
+      warning: "\u26A0\uFE0F"
+    };
+    return icons[type2];
+  }
+  setupNotificationAutoRemoval(notification) {
+    setTimeout(() => {
+      notification.classList.add("show");
+    }, CONSTANTS.NOTIFICATION_DISPLAY_DELAY);
+    setTimeout(() => {
+      notification.classList.remove("show");
+      setTimeout(() => notification.remove(), CONSTANTS.NOTIFICATION_FADE_DELAY);
+    }, CONSTANTS.NOTIFICATION_AUTO_REMOVE_DELAY);
+  }
+};
 
-*${effectiveLimit} [Tool execution limit reached]*`,
-        [],
-        true
-      );
+// src/components/chat/agent/AgentResponseHandler/ToolResultFormatter.ts
+var ToolResultFormatter = class {
+  getStatusIcon(success, style) {
+    if (success) {
+      return style === "markdown" ? "\u2705" : style === "copy" ? "SUCCESS" : "\u2713";
+    } else {
+      return style === "markdown" ? "\u274C" : style === "copy" ? "ERROR" : "\u2717";
     }
-    return await this.executeToolCommands(commandsToExecute, text, contextLabel);
-  }
-  createProcessResponseResult(text, toolResults, hasTools) {
-    return {
-      processedText: text,
-      toolResults,
-      hasTools
-    };
-  }
-  async executeToolCommands(commands, text, contextLabel) {
-    const toolResults = [];
-    const agentSettings = this.context.plugin.getAgentModeSettings();
-    const effectiveLimit = this.getEffectiveToolLimit();
-    for (const command of commands) {
-      try {
-        const result = await this.executeToolWithLogging(command, agentSettings.timeoutMs, contextLabel);
-        this.handleToolExecutionSuccess(command, result, toolResults);
-        if (this.executionCount >= effectiveLimit) {
-          break;
-        }
-      } catch (error) {
-        this.handleToolExecutionError(command, error, toolResults, contextLabel);
-      }
-    }
-    return this.createProcessResponseResult(text, toolResults, true);
-  }
-  async executeToolWithLogging(command, timeoutMs, contextLabel) {
-    const startTime = Date.now();
-    this.debugLog("Executing tool", { command }, contextLabel);
-    const result = await this.executeToolWithTimeout(command, timeoutMs);
-    const executionTime = Date.now() - startTime;
-    this.debugLog("Tool execution result", { command, result, executionTime }, contextLabel);
-    return result;
-  }
-  handleToolExecutionSuccess(command, result, toolResults) {
-    toolResults.push({ command, result });
-    this.executionCount++;
-    this.createToolDisplay(command, result);
-    this.context.onToolResult(result, command);
-  }
-  handleToolExecutionError(command, error, toolResults, contextLabel) {
-    this.debugLog("Tool execution error", { command, error }, contextLabel);
-    console.error(`AgentResponseHandler: Tool '${command.action}' failed with error:`, error);
-    const errorResult = this.createErrorResult(command, error);
-    this.handleToolExecutionSuccess(command, errorResult, toolResults);
-  }
-  createErrorResult(command, error) {
-    return {
-      success: false,
-      error: `${CONSTANTS.ERROR_MESSAGES.TOOL_EXECUTION_FAILED}: ${error.message}`,
-      requestId: command.requestId
-    };
-  }
-  async executeToolWithTimeout(command, timeoutMs) {
-    return new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        reject(new Error(`${CONSTANTS.ERROR_MESSAGES.TOOL_EXECUTION_TIMEOUT} after ${timeoutMs}ms`));
-      }, timeoutMs);
-      this.toolRegistry.execute(command).then((result) => {
-        clearTimeout(timeout);
-        resolve(result);
-      }).catch((error) => {
-        clearTimeout(timeout);
-        reject(error);
-      });
-    });
-  }
-  resetExecutionCount() {
-    this.executionCount = 0;
-    this.temporaryMaxToolCalls = void 0;
-    this.toolDisplays.clear();
-    this.toolMarkdownCache.clear();
-  }
-  getAvailableTools() {
-    return this.toolRegistry.getAvailableTools();
-  }
-  getToolDisplays() {
-    return new Map(this.toolDisplays);
-  }
-  clearToolDisplays() {
-    this.toolDisplays.clear();
-    this.toolMarkdownCache.clear();
-  }
-  getToolMarkdown() {
-    return Array.from(this.toolMarkdownCache.values());
-  }
-  getCombinedToolMarkdown() {
-    return this.getToolMarkdown().join("\n");
-  }
-  getExecutionStats() {
-    const effectiveLimit = this.getEffectiveToolLimit();
-    return {
-      executionCount: this.executionCount,
-      maxToolCalls: effectiveLimit,
-      remaining: Math.max(0, effectiveLimit - this.executionCount)
-    };
   }
   formatToolResult(command, result, opts) {
     const style = (opts == null ? void 0 : opts.style) || "plain";
@@ -12627,13 +12527,6 @@ var AgentResponseHandler = class {
         return this.formatToolResultPlain(command, result, status);
     }
   }
-  getStatusIcon(success, style) {
-    if (success) {
-      return style === "markdown" ? "\u2705" : style === "copy" ? "SUCCESS" : "\u2713";
-    } else {
-      return style === "markdown" ? "\u274C" : style === "copy" ? "ERROR" : "\u2717";
-    }
-  }
   getResultContext(command, result) {
     var _a2;
     if (!result.success || !result.data) return "";
@@ -12642,8 +12535,7 @@ var AgentResponseHandler = class {
       case "file_read":
       case "file_diff":
         if (result.data.filePath) {
-          const relPath = this.getRelativePath(result.data.filePath);
-          return ` [[${relPath}]]`;
+          return ` [[${result.data.filePath}]]`;
         }
         break;
       case "file_select":
@@ -12701,75 +12593,82 @@ ${resultText}`;
 ${resultText}`
     };
   }
-  createToolDisplay(command, result) {
-    const displayId = this.generateDisplayId(command);
-    const toolDisplay = new ToolRichDisplay({
-      command,
-      result,
-      onRerun: () => this.rerunTool(command),
-      onCopy: () => this.copyToolResult(command, result)
+};
+
+// src/components/chat/agent/AgentResponseHandler/ToolExecutor.ts
+var ToolExecutor = class {
+  constructor(toolRegistry, onToolResult, createToolDisplay) {
+    __publicField(this, "toolRegistry");
+    __publicField(this, "executionCount", 0);
+    __publicField(this, "onToolResult");
+    __publicField(this, "createToolDisplay");
+    this.toolRegistry = toolRegistry;
+    this.onToolResult = onToolResult;
+    this.createToolDisplay = createToolDisplay;
+  }
+  async executeToolWithLogging(command, timeoutMs, contextLabel, debugLog2) {
+    const startTime = Date.now();
+    if (debugLog2) debugLog2("Executing tool", { command }, contextLabel);
+    const result = await this.executeToolWithTimeout(command, timeoutMs);
+    const executionTime = Date.now() - startTime;
+    if (debugLog2) debugLog2("Tool execution result", { command, result, executionTime }, contextLabel);
+    return result;
+  }
+  async executeToolWithTimeout(command, timeoutMs) {
+    return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error(`${CONSTANTS.ERROR_MESSAGES.TOOL_EXECUTION_TIMEOUT} after ${timeoutMs}ms`));
+      }, timeoutMs);
+      this.toolRegistry.execute(command).then((result) => {
+        clearTimeout(timeout);
+        resolve(result);
+      }).catch((error) => {
+        clearTimeout(timeout);
+        reject(error);
+      });
     });
-    this.toolDisplays.set(displayId, toolDisplay);
-    this.toolMarkdownCache.set(displayId, toolDisplay.toMarkdown());
-    if (this.context.onToolDisplay) {
-      this.context.onToolDisplay(toolDisplay);
-    }
-    this.cacheToolMarkdown(command, result);
   }
-  generateDisplayId(command) {
-    return `${command.action}${CONSTANTS.TOOL_DISPLAY_ID_SEPARATOR}${command.requestId || Date.now()}`;
+  handleToolExecutionSuccess(command, result, toolResults) {
+    toolResults.push({ command, result });
+    this.executionCount++;
+    this.createToolDisplay(command, result);
+    this.onToolResult(result, command);
   }
-  async copyToolResult(command, result) {
-    const displayText = this.formatToolResult(command, result, { style: "copy" });
+  handleToolExecutionError(command, error, toolResults, contextLabel, debugLog2) {
+    if (debugLog2) debugLog2("Tool execution error", { command, error }, contextLabel);
+    console.error(`ToolExecutor: Tool '${command.action}' failed with error:`, error);
+    const errorResult = this.createErrorResult(command, error);
+    this.handleToolExecutionSuccess(command, errorResult, toolResults);
+  }
+  createErrorResult(command, error) {
+    return {
+      success: false,
+      error: `${CONSTANTS.ERROR_MESSAGES.TOOL_EXECUTION_FAILED}: ${error.message}`,
+      requestId: command.requestId
+    };
+  }
+  async rerunTool(originalCommand, timeoutMs) {
     try {
-      await navigator.clipboard.writeText(displayText);
-    } catch (error) {
-      console.error(CONSTANTS.ERROR_MESSAGES.COPY_FAILED, error);
-    }
-  }
-  cacheToolMarkdown(command, result) {
-    const cacheKey = `${command.action}-${command.requestId}`;
-    const statusText = result.success ? "SUCCESS" : "ERROR";
-    const resultData = result.success ? stringifyJson(result.data) : result.error;
-    const markdown = `### TOOL EXECUTION: ${command.action}
-**Status:** ${statusText}
-
-**Parameters:**
-\`\`\`json
-${stringifyJson(command.parameters)}
-\`\`\`
-
-**Result:**
-\`\`\`json
-${resultData}
-\`\`\`
-`;
-    this.toolMarkdownCache.set(cacheKey, markdown);
-  }
-  async rerunTool(originalCommand) {
-    try {
-      const agentSettings = this.context.plugin.getAgentModeSettings();
-      const result = await this.executeToolWithTimeout(originalCommand, agentSettings.timeoutMs);
+      const result = await this.executeToolWithTimeout(originalCommand, timeoutMs);
       this.createToolDisplay(originalCommand, result);
-      this.context.onToolResult(result, originalCommand);
+      this.onToolResult(result, originalCommand);
     } catch (error) {
       console.error(`${CONSTANTS.ERROR_MESSAGES.RERUN_FAILED} ${originalCommand.action}:`, error);
     }
   }
-  getRelativePath(filePath) {
-    const adapter = this.context.app.vault.adapter;
-    const vaultRoot = (adapter == null ? void 0 : adapter.basePath) ? normalizePath2(adapter.basePath) : "";
-    let relPath = normalizePath2(filePath);
-    if (vaultRoot && relPath.startsWith(vaultRoot)) {
-      relPath = relPath.slice(vaultRoot.length);
-      if (relPath.startsWith(CONSTANTS.PATH_SEPARATOR)) {
-        relPath = relPath.slice(1);
-      }
-    }
-    if (relPath.toLowerCase().endsWith(CONSTANTS.MD_EXTENSION)) {
-      relPath = relPath.slice(0, -CONSTANTS.MD_EXTENSION.length);
-    }
-    return relPath;
+  getExecutionCount() {
+    return this.executionCount;
+  }
+  resetExecutionCount() {
+    this.executionCount = 0;
+  }
+};
+
+// src/components/chat/agent/AgentResponseHandler/ReasoningProcessor.ts
+var ReasoningProcessor = class {
+  constructor(context) {
+    __publicField(this, "context");
+    this.context = context;
   }
   processToolResultsForMessage(toolResults) {
     const toolExecutionResults = toolResults.map(({ command, result }) => ({
@@ -12820,48 +12719,31 @@ ${resultData}
   generateReasoningId() {
     const timestamp2 = Date.now();
     const random = Math.random().toString(36).substr(2, 9);
-    return `${CONSTANTS.REASONING_ID_PREFIX}${timestamp2}-${random}`;
+    return `reasoning-${timestamp2}-${random}`;
   }
-  createTaskStatus(status, progress) {
-    const agentSettings = this.context.plugin.getAgentModeSettings();
-    return {
-      status,
-      progress,
-      toolExecutionCount: this.executionCount,
-      maxToolExecutions: agentSettings.maxToolCalls,
-      canContinue: status === "limit_reached" || status === "stopped",
-      lastUpdateTime: (/* @__PURE__ */ new Date()).toISOString()
-    };
-  }
-  isToolLimitReached() {
-    const effectiveLimit = this.getEffectiveToolLimit();
-    return this.executionCount >= effectiveLimit;
-  }
-  getRemainingToolExecutions() {
-    const effectiveLimit = this.getEffectiveToolLimit();
-    return Math.max(0, effectiveLimit - this.executionCount);
-  }
-  hideToolContinuationContainerIfEmpty() {
-    if (this.context.toolContinuationContainer) {
-      if (this.context.toolContinuationContainer.children.length === 0) {
-        this.context.toolContinuationContainer.style.display = "none";
-      }
-    }
+};
+
+// src/components/chat/agent/AgentResponseHandler/ToolLimitWarningUI.ts
+var ToolLimitWarningUI = class {
+  constructor(context) {
+    __publicField(this, "context");
+    this.context = context;
   }
   createToolLimitWarning() {
     const warning = document.createElement("div");
     warning.className = "tool-limit-warning";
     const agentSettings = this.context.plugin.getAgentModeSettings();
     const effectiveLimit = this.getEffectiveToolLimit();
-    warning.innerHTML = this.createToolLimitWarningHTML(effectiveLimit, agentSettings.maxToolCalls);
+    const executionCount = this.context.getExecutionCount();
+    warning.innerHTML = this.createToolLimitWarningHTML(executionCount, effectiveLimit, agentSettings.maxToolCalls);
     this.attachToolLimitWarningHandlers(warning, agentSettings);
     return warning;
   }
-  createToolLimitWarningHTML(effectiveLimit, maxToolCalls) {
+  createToolLimitWarningHTML(executionCount, effectiveLimit, maxToolCalls) {
     return `
             <div class="tool-limit-warning-text">
                 <strong>\u26A0\uFE0F Tool execution limit reached</strong><br>
-                Used ${this.executionCount}/${effectiveLimit} tool calls. 
+                Used ${executionCount}/${effectiveLimit} tool calls. 
                 Choose how to proceed:
             </div>
             <div class="tool-limit-warning-actions">
@@ -12898,7 +12780,7 @@ ${resultData}
         const input = warning.querySelector("#additional-tools");
         const additionalTools = parseInt(input.value) || agentSettings.maxToolCalls;
         if (additionalTools > 0) {
-          this.addToolExecutions(additionalTools);
+          this.context.addToolExecutions(additionalTools);
           this.removeWarningAndTriggerContinuation(warning, "continueTaskWithAdditionalTools", { additionalTools });
         }
       };
@@ -12908,7 +12790,7 @@ ${resultData}
     const continueButton = warning.querySelector(".ai-chat-continue-button");
     if (continueButton) {
       continueButton.onclick = () => {
-        this.resetExecutionCount();
+        this.context.resetExecutionCount();
         this.removeWarningAndTriggerContinuation(warning, "continueTask");
       };
     }
@@ -12919,71 +12801,240 @@ ${resultData}
     const event = detail ? new CustomEvent(eventType, { detail }) : new CustomEvent(eventType);
     this.context.messagesContainer.dispatchEvent(event);
   }
-  createTaskCompletionNotification(message, type2 = "success") {
-    const notification = document.createElement("div");
-    notification.className = `task-completion-notification ${type2}`;
-    const icon = this.getNotificationIcon(type2);
-    notification.innerHTML = `
-            <div style="display: flex; align-items: center; gap: 8px;">
-                <span>${icon}</span>
-                <span>${message}</span>
-            </div>
-        `;
-    this.setupNotificationAutoRemoval(notification);
-    return notification;
-  }
-  getNotificationIcon(type2) {
-    const icons = {
-      success: "\u2705",
-      error: "\u274C",
-      warning: "\u26A0\uFE0F"
-    };
-    return icons[type2];
-  }
-  setupNotificationAutoRemoval(notification) {
-    setTimeout(() => {
-      notification.classList.add("show");
-    }, CONSTANTS.NOTIFICATION_DISPLAY_DELAY);
-    setTimeout(() => {
-      notification.classList.remove("show");
-      setTimeout(() => notification.remove(), CONSTANTS.NOTIFICATION_FADE_DELAY);
-    }, CONSTANTS.NOTIFICATION_AUTO_REMOVE_DELAY);
-  }
-  showTaskCompletionNotification(message, type2 = "success") {
-    var _a2;
-    if (!((_a2 = this.context.plugin.settings.uiBehavior) == null ? void 0 : _a2.showCompletionNotifications)) {
-      return;
-    }
-    const notification = this.createTaskCompletionNotification(message, type2);
-    document.body.appendChild(notification);
-  }
-  updateTaskProgress(current, total, description) {
-  }
-  hideTaskProgress() {
-  }
-  async processResponseWithUI(response, contextLabel = "ui", chatHistory) {
-    const result = await this.processResponse(response, contextLabel, chatHistory);
-    let status = "completed";
-    if (result.hasTools) {
-      if (this.isToolLimitReached()) {
-        status = "limit_reached";
-      } else {
-        status = "running";
+  hideToolContinuationContainerIfEmpty() {
+    if (this.context.toolContinuationContainer) {
+      if (this.context.toolContinuationContainer.children.length === 0) {
+        this.context.toolContinuationContainer.style.display = "none";
       }
     }
-    const taskStatus = this.createTaskStatus(status);
-    const { reasoning } = this.processToolResultsForMessage(result.toolResults);
-    const shouldShowLimitWarning = this.isToolLimitReached() && result.hasTools;
+  }
+  getEffectiveToolLimit() {
+    const agentSettings = this.context.plugin.getAgentModeSettings();
+    return this.context.getTemporaryMaxToolCalls() || agentSettings.maxToolCalls;
+  }
+};
+
+// src/components/chat/agent/AgentResponseHandler/AgentResponseHandler.ts
+var AgentResponseHandler = class {
+  constructor(context) {
+    this.context = context;
+    __publicField(this, "commandParser");
+    __publicField(this, "toolRegistry");
+    __publicField(this, "executionCount", 0);
+    __publicField(this, "temporaryMaxToolCalls");
+    __publicField(this, "toolDisplays", /* @__PURE__ */ new Map());
+    __publicField(this, "toolMarkdownCache", /* @__PURE__ */ new Map());
+    __publicField(this, "notificationManager");
+    __publicField(this, "toolResultFormatter");
+    __publicField(this, "toolExecutor");
+    __publicField(this, "reasoningProcessor");
+    __publicField(this, "toolLimitWarningUI");
+    this.debugLog("constructor called");
+    this.commandParser = new CommandParser(this.context.plugin);
+    this.toolRegistry = new ToolRegistry(this.context.plugin);
+    this.notificationManager = new TaskNotificationManager(context);
+    this.toolResultFormatter = new ToolResultFormatter();
+    this.toolExecutor = new ToolExecutor(
+      this.toolRegistry,
+      (result, command) => this.context.onToolResult(result, command),
+      (command, result) => this.createToolDisplay(command, result)
+    );
+    this.reasoningProcessor = new ReasoningProcessor(context);
+    this.toolLimitWarningUI = new ToolLimitWarningUI(this);
+    this.initializeTools();
+  }
+  getContext() {
+    return this.context;
+  }
+  debugLog(message, data, contextLabel = "AgentResponseHandler") {
+    var _a2, _b;
+    if (((_b = (_a2 = this.context.plugin) == null ? void 0 : _a2.settings) == null ? void 0 : _b.debugMode) && typeof this.context.plugin.debugLog === "function") {
+      this.context.plugin.debugLog("debug", `[${contextLabel}] ${message}`, data);
+    }
+  }
+  initializeTools() {
+    this.debugLog("initializeTools called");
+    const tools = createToolInstances(this.context.app, this.context.plugin);
+    for (const tool of tools) {
+      this.toolRegistry.register(tool);
+    }
+  }
+  async processResponse(response, contextLabel = "main", chatHistory) {
+    this.debugLog("Processing response", { response }, contextLabel);
+    if (!this.context.plugin.isAgentModeEnabled()) {
+      return this.createProcessResponseResult(response, [], false);
+    }
+    const { text, commands } = this.commandParser.parseResponse(response);
+    if (commands.length === 0) {
+      this.debugLog("No tool commands found in response", void 0, contextLabel);
+      return this.createProcessResponseResult(text, [], false);
+    }
+    const commandsToExecute = chatHistory ? this.filterAlreadyExecutedCommands(commands, chatHistory, contextLabel) : commands;
+    if (commandsToExecute.length === 0) {
+      this.debugLog("All commands already executed, skipping", void 0, contextLabel);
+      const existingResults = this.getExistingToolResults(commands, chatHistory || []);
+      return this.createProcessResponseResult(text, existingResults, true);
+    }
+    const effectiveLimit = this.getEffectiveToolLimit();
+    if (this.executionCount >= effectiveLimit) {
+      this.debugLog("Tool execution limit reached", { executionCount: this.executionCount, effectiveLimit }, contextLabel);
+      this.notificationManager.showTaskCompletionNotification(`Agent mode: Maximum tool calls (${effectiveLimit}) reached`, "warning");
+      return this.createProcessResponseResult(
+        text + `
+
+*${effectiveLimit} [Tool execution limit reached]*`,
+        [],
+        true
+      );
+    }
+    return await this.executeToolCommands(commandsToExecute, text, contextLabel);
+  }
+  createProcessResponseResult(text, toolResults, hasTools) {
     return {
-      ...result,
-      reasoning,
-      taskStatus,
-      shouldShowLimitWarning
+      processedText: text,
+      toolResults,
+      hasTools
     };
   }
-  addToolExecutions(additionalCount) {
+  async executeToolCommands(commands, text, contextLabel) {
+    const toolResults = [];
     const agentSettings = this.context.plugin.getAgentModeSettings();
-    this.temporaryMaxToolCalls = (this.temporaryMaxToolCalls || agentSettings.maxToolCalls) + additionalCount;
+    const effectiveLimit = this.getEffectiveToolLimit();
+    for (const command of commands) {
+      try {
+        const result = await this.toolExecutor.executeToolWithLogging(command, agentSettings.timeoutMs, contextLabel, this.debugLog.bind(this));
+        toolResults.push({ command, result });
+        this.executionCount++;
+        this.createToolDisplay(command, result);
+        this.context.onToolResult(result, command);
+        if (this.executionCount >= effectiveLimit) {
+          break;
+        }
+      } catch (error) {
+        this.debugLog("Tool execution error", { command, error }, contextLabel);
+        console.error(`AgentResponseHandler: Tool '${command.action}' failed with error:`, error);
+        const errorResult = {
+          success: false,
+          error: `${CONSTANTS.ERROR_MESSAGES.TOOL_EXECUTION_FAILED}: ${error.message}`,
+          requestId: command.requestId
+        };
+        toolResults.push({ command, result: errorResult });
+        this.createToolDisplay(command, errorResult);
+        this.context.onToolResult(errorResult, command);
+      }
+    }
+    return this.createProcessResponseResult(text, toolResults, true);
+  }
+  // For ToolLimitWarningUI compatibility
+  getExecutionCount() {
+    return this.executionCount;
+  }
+  addToolExecutions(count) {
+    const agentSettings = this.context.plugin.getAgentModeSettings();
+    this.temporaryMaxToolCalls = (this.temporaryMaxToolCalls || agentSettings.maxToolCalls) + count;
+  }
+  resetExecutionCount() {
+    this.executionCount = 0;
+    this.temporaryMaxToolCalls = void 0;
+    this.toolDisplays.clear();
+    this.toolMarkdownCache.clear();
+  }
+  getTemporaryMaxToolCalls() {
+    return this.temporaryMaxToolCalls;
+  }
+  getAvailableTools() {
+    return this.toolRegistry.getAvailableTools();
+  }
+  getToolDisplays() {
+    return new Map(this.toolDisplays);
+  }
+  clearToolDisplays() {
+    this.toolDisplays.clear();
+    this.toolMarkdownCache.clear();
+  }
+  getToolMarkdown() {
+    return Array.from(this.toolMarkdownCache.values());
+  }
+  getCombinedToolMarkdown() {
+    return this.getToolMarkdown().join("\n");
+  }
+  getExecutionStats() {
+    const effectiveLimit = this.getEffectiveToolLimit();
+    return {
+      executionCount: this.executionCount,
+      maxToolCalls: effectiveLimit,
+      remaining: Math.max(0, effectiveLimit - this.executionCount)
+    };
+  }
+  createToolDisplay(command, result) {
+    const displayId = this.generateDisplayId(command);
+    const toolDisplay = new ToolRichDisplay({
+      command,
+      result,
+      onRerun: () => this.rerunTool(command),
+      onCopy: () => this.copyToolResult(command, result)
+    });
+    this.toolDisplays.set(displayId, toolDisplay);
+    this.toolMarkdownCache.set(displayId, toolDisplay.toMarkdown());
+    if (this.context.onToolDisplay) {
+      this.context.onToolDisplay(toolDisplay);
+    }
+    this.cacheToolMarkdown(command, result);
+  }
+  generateDisplayId(command) {
+    return `${command.action}${CONSTANTS.TOOL_DISPLAY_ID_SEPARATOR}${command.requestId || Date.now()}`;
+  }
+  async copyToolResult(command, result) {
+    const displayText = this.toolResultFormatter.formatToolResult(command, result, { style: "copy" });
+    try {
+      await navigator.clipboard.writeText(displayText);
+    } catch (error) {
+      console.error(CONSTANTS.ERROR_MESSAGES.COPY_FAILED, error);
+    }
+  }
+  cacheToolMarkdown(command, result) {
+    const cacheKey = `${command.action}-${command.requestId}`;
+    const statusText = result.success ? "SUCCESS" : "ERROR";
+    const resultData = result.success ? stringifyJson(result.data) : result.error;
+    const markdown = `### TOOL EXECUTION: ${command.action}
+**Status:** ${statusText}
+
+**Parameters:**
+\`\`\`json
+${stringifyJson(command.parameters)}
+\`\`\`
+
+**Result:**
+\`\`\`json
+${resultData}
+\`\`\`
+`;
+    this.toolMarkdownCache.set(cacheKey, markdown);
+  }
+  async rerunTool(originalCommand) {
+    try {
+      const agentSettings = this.context.plugin.getAgentModeSettings();
+      const result = await this.toolExecutor.executeToolWithLogging(originalCommand, agentSettings.timeoutMs, "rerun", this.debugLog.bind(this));
+      this.createToolDisplay(originalCommand, result);
+      this.context.onToolResult(result, originalCommand);
+    } catch (error) {
+      console.error(`${CONSTANTS.ERROR_MESSAGES.RERUN_FAILED} ${originalCommand.action}:`, error);
+    }
+  }
+  getRelativePath(filePath) {
+    const adapter = this.context.app.vault.adapter;
+    const vaultRoot = (adapter == null ? void 0 : adapter.basePath) ? normalizePath2(adapter.basePath) : "";
+    let relPath = normalizePath2(filePath);
+    if (vaultRoot && relPath.startsWith(vaultRoot)) {
+      relPath = relPath.slice(vaultRoot.length);
+      if (relPath.startsWith(CONSTANTS.PATH_SEPARATOR)) {
+        relPath = relPath.slice(1);
+      }
+    }
+    if (relPath.toLowerCase().endsWith(CONSTANTS.MD_EXTENSION)) {
+      relPath = relPath.slice(0, -CONSTANTS.MD_EXTENSION.length);
+    }
+    return relPath;
   }
   getEffectiveToolLimit() {
     const agentSettings = this.context.plugin.getAgentModeSettings();
@@ -13049,6 +13100,56 @@ ${resultData}
     }
     return null;
   }
+  // Delegated public API for compatibility with other modules
+  isToolLimitReached() {
+    const effectiveLimit = this.getEffectiveToolLimit();
+    return this.executionCount >= effectiveLimit;
+  }
+  createToolResultMessage(toolResults) {
+    return this.toolResultFormatter.createToolResultMessage(toolResults);
+  }
+  hideTaskProgress() {
+    this.notificationManager.hideTaskProgress();
+  }
+  processResponseWithUI(response, contextLabel = "ui", chatHistory) {
+    return (async () => {
+      const result = await this.processResponse(response, contextLabel, chatHistory);
+      let status = "completed";
+      if (result.hasTools) {
+        if (this.isToolLimitReached()) {
+          status = "limit_reached";
+        } else {
+          status = "running";
+        }
+      }
+      const taskStatus = this.createTaskStatus(status);
+      const { reasoning } = this.reasoningProcessor.processToolResultsForMessage(result.toolResults);
+      const shouldShowLimitWarning = this.isToolLimitReached() && result.hasTools;
+      return {
+        ...result,
+        reasoning,
+        taskStatus,
+        shouldShowLimitWarning
+      };
+    })();
+  }
+  showTaskCompletionNotification(message, type2 = "success") {
+    this.notificationManager.showTaskCompletionNotification(message, type2);
+  }
+  createToolLimitWarning() {
+    return this.toolLimitWarningUI.createToolLimitWarning();
+  }
+  createTaskStatus(status, progress) {
+    const agentSettings = this.context.plugin.getAgentModeSettings();
+    return {
+      status,
+      progress,
+      toolExecutionCount: this.executionCount,
+      maxToolExecutions: agentSettings.maxToolCalls,
+      canContinue: status === "limit_reached" || status === "stopped",
+      lastUpdateTime: (/* @__PURE__ */ new Date()).toISOString()
+    };
+  }
 };
 
 // src/utils/systemMessage.ts
@@ -13076,7 +13177,7 @@ The current time is ${currentTime} ${timeZoneString}.`;
 }
 
 // src/utils/noteUtils.ts
-var import_obsidian23 = require("obsidian");
+var import_obsidian22 = require("obsidian");
 
 // src/utils/utils.ts
 function findFile(app, filePath) {
@@ -13133,7 +13234,7 @@ async function processObsidianLinks(content, app, settings, visitedNotes = /* @_
         let file = findFile(app, filePath);
         const headerMatch = filePath.match(/(.*?)#(.*)/);
         let extractedContent = "";
-        if (file && file instanceof import_obsidian23.TFile) {
+        if (file && file instanceof import_obsidian22.TFile) {
           if (visitedNotes.has(file.path)) {
             extractedContent = "[Recursive link omitted: already included]";
           } else {
@@ -13160,10 +13261,10 @@ ${extractedContent}
 `
           );
         } else {
-          new import_obsidian23.Notice(`File not found: ${filePath}. Ensure the file name and path are correct.`);
+          new import_obsidian22.Notice(`File not found: ${filePath}. Ensure the file name and path are correct.`);
         }
       } catch (error) {
-        new import_obsidian23.Notice(`Error processing link for ${filePath}: ${error.message}`);
+        new import_obsidian22.Notice(`Error processing link for ${filePath}: ${error.message}`);
       }
     }
   }
@@ -13181,7 +13282,7 @@ async function processContextNotes(contextNotesText, app) {
         const baseFileName = headerMatch ? headerMatch[1].trim() : fileName;
         const headerName = headerMatch ? headerMatch[2].trim() : null;
         let file = findFile(app, baseFileName);
-        if (file && file instanceof import_obsidian23.TFile) {
+        if (file && file instanceof import_obsidian22.TFile) {
           const noteContent = await app.vault.cachedRead(file);
           contextContent += `---
 From note: ${file.basename}
@@ -13308,15 +13409,15 @@ ${currentNoteContent}`
 };
 
 // src/components/chat/MessageRegenerator.ts
-var import_obsidian27 = require("obsidian");
+var import_obsidian26 = require("obsidian");
 
 // src/components/chat/ResponseStreamer.ts
-var import_obsidian26 = require("obsidian");
+var import_obsidian25 = require("obsidian");
 init_providers();
 init_MessageRenderer();
 
 // src/components/chat/agent/TaskContinuation.ts
-var import_obsidian24 = require("obsidian");
+var import_obsidian23 = require("obsidian");
 var TaskContinuation = class {
   constructor(plugin, agentResponseHandler, messagesContainer, component) {
     this.plugin = plugin;
@@ -13458,7 +13559,7 @@ var TaskContinuation = class {
     const contentEl = container.querySelector(".message-content");
     if (contentEl) {
       contentEl.empty();
-      await import_obsidian24.MarkdownRenderer.render(
+      await import_obsidian23.MarkdownRenderer.render(
         this.plugin.app,
         content,
         contentEl,
@@ -13632,7 +13733,7 @@ var ResponseStreamer = class {
     if (!contentEl) return;
     this.updateContainerDataset(container, content);
     contentEl.empty();
-    await import_obsidian26.MarkdownRenderer.render(
+    await import_obsidian25.MarkdownRenderer.render(
       this.plugin.app,
       content,
       contentEl,
@@ -14041,7 +14142,7 @@ var MessageRegenerator = class {
       );
     } catch (error) {
       if (error.name !== "AbortError") {
-        new import_obsidian27.Notice(`Error: ${error.message}`);
+        new import_obsidian26.Notice(`Error: ${error.message}`);
         assistantContainer.remove();
       }
     } finally {
@@ -14057,7 +14158,7 @@ var MessageRegenerator = class {
 // src/chat.ts
 init_MessageRenderer();
 var VIEW_TYPE_CHAT = "chat-view";
-var ChatView = class extends import_obsidian28.ItemView {
+var ChatView = class extends import_obsidian27.ItemView {
   constructor(leaf, plugin) {
     super(leaf);
     __publicField(this, "plugin");
@@ -14097,7 +14198,7 @@ var ChatView = class extends import_obsidian28.ItemView {
     try {
       loadedHistory = await this.chatHistoryManager.getHistory();
     } catch (e) {
-      new import_obsidian28.Notice("Failed to load chat history.");
+      new import_obsidian27.Notice("Failed to load chat history.");
       loadedHistory = [];
     }
     const ui = createChatUI(this.app, contentEl);
@@ -14167,14 +14268,14 @@ var ChatView = class extends import_obsidian28.ItemView {
       if (this.plugin.isAgentModeEnabled()) {
         ui.agentModeButton.classList.add("active");
         ui.agentModeButton.setAttribute("title", "Agent Mode: ON - AI can use tools");
-        new import_obsidian28.Notice("Agent Mode enabled - AI can now use tools");
+        new import_obsidian27.Notice("Agent Mode enabled - AI can now use tools");
         if (this.agentResponseHandler) {
           this.agentResponseHandler.resetExecutionCount();
         }
       } else {
         ui.agentModeButton.classList.remove("active");
         ui.agentModeButton.setAttribute("title", "Agent Mode: OFF - Regular chat");
-        new import_obsidian28.Notice("Agent Mode disabled");
+        new import_obsidian27.Notice("Agent Mode disabled");
       }
     });
     if (this.plugin.isAgentModeEnabled()) {
@@ -14205,7 +14306,7 @@ var ChatView = class extends import_obsidian28.ItemView {
           content
         });
       } catch (e) {
-        new import_obsidian28.Notice("Failed to save user message: " + e.message);
+        new import_obsidian27.Notice("Failed to save user message: " + e.message);
       }
       try {
         const messages = await this.buildContextMessages();
@@ -14264,7 +14365,7 @@ var ChatView = class extends import_obsidian28.ItemView {
         }
       } catch (error) {
         if (error.name !== "AbortError") {
-          new import_obsidian28.Notice(`Error: ${error.message}`);
+          new import_obsidian27.Notice(`Error: ${error.message}`);
           await createMessageElement(this.app, "assistant", `Error: ${error.message}`, this.chatHistoryManager, this.plugin, (el) => this.regenerateResponse(el), this);
         }
       } finally {
@@ -14362,7 +14463,7 @@ var ChatView = class extends import_obsidian28.ItemView {
         ...enhancedData || {}
       });
     } catch (e) {
-      new import_obsidian28.Notice("Failed to save chat message: " + e.message);
+      new import_obsidian27.Notice("Failed to save chat message: " + e.message);
     }
   }
   async onClose() {
@@ -14463,9 +14564,9 @@ var ChatView = class extends import_obsidian28.ItemView {
       const content = display.toMarkdown();
       try {
         await navigator.clipboard.writeText(content);
-        new import_obsidian28.Notice("Tool result copied to clipboard");
+        new import_obsidian27.Notice("Tool result copied to clipboard");
       } catch (error) {
-        new import_obsidian28.Notice("Failed to copy to clipboard");
+        new import_obsidian27.Notice("Failed to copy to clipboard");
         console.error("Clipboard error:", error);
       }
     });
@@ -14551,8 +14652,8 @@ function parseSelection(selection, chatSeparator, chatBoundaryString) {
 
 // src/utils/generalUtils.ts
 function showNotice(message) {
-  const { Notice: Notice18 } = require("obsidian");
-  new Notice18(message);
+  const { Notice: Notice17 } = require("obsidian");
+  new Notice17(message);
 }
 async function copyToClipboard3(text, successMsg = "Copied to clipboard", failMsg = "Failed to copy to clipboard") {
   try {
@@ -14826,7 +14927,7 @@ var CollapsibleSectionRenderer = class {
 };
 
 // src/settings/components/SettingCreators.ts
-var import_obsidian30 = require("obsidian");
+var import_obsidian29 = require("obsidian");
 var SettingCreators = class {
   constructor(plugin, reRenderCallback) {
     __publicField(this, "plugin");
@@ -14845,7 +14946,7 @@ var SettingCreators = class {
    * @param options Additional options for the text input (e.g., trim, undefinedIfEmpty, isTextArea).
    */
   createTextSetting(containerEl, name, desc, placeholder, getValue, setValue, options) {
-    new import_obsidian30.Setting(containerEl).setName(name).setDesc(desc).then((setting) => {
+    new import_obsidian29.Setting(containerEl).setName(name).setDesc(desc).then((setting) => {
       const textInputOptions = {
         trim: options == null ? void 0 : options.trim,
         undefinedIfEmpty: options == null ? void 0 : options.undefinedIfEmpty
@@ -14889,7 +14990,7 @@ var SettingCreators = class {
    * @param setValue A function to set the new value of the setting.
    */
   createDropdownSetting(containerEl, name, desc, options, getValue, setValue) {
-    new import_obsidian30.Setting(containerEl).setName(name).setDesc(desc).addDropdown((drop) => {
+    new import_obsidian29.Setting(containerEl).setName(name).setDesc(desc).addDropdown((drop) => {
       Object.entries(options).forEach(([key, display]) => drop.addOption(key, display));
       drop.setValue(getValue());
       drop.onChange(async (value) => {
@@ -14908,7 +15009,7 @@ var SettingCreators = class {
    * @param onChangeCallback An optional callback to run after the value changes and settings are saved.
    */
   createToggleSetting(containerEl, name, desc, getValue, setValue, onChangeCallback) {
-    new import_obsidian30.Setting(containerEl).setName(name).setDesc(desc).addToggle((toggle) => toggle.setValue(getValue()).onChange(async (value) => {
+    new import_obsidian29.Setting(containerEl).setName(name).setDesc(desc).addToggle((toggle) => toggle.setValue(getValue()).onChange(async (value) => {
       await setValue(value);
       if (onChangeCallback) {
         onChangeCallback();
@@ -14926,7 +15027,7 @@ var SettingCreators = class {
    * @param setValue A function to set the new numeric value.
    */
   createSliderSetting(containerEl, name, desc, limits, getValue, setValue) {
-    new import_obsidian30.Setting(containerEl).setName(name).setDesc(desc).addSlider((slider) => {
+    new import_obsidian29.Setting(containerEl).setName(name).setDesc(desc).addSlider((slider) => {
       slider.setLimits(limits.min, limits.max, limits.step).setValue(getValue()).setDynamicTooltip().onChange(async (value) => {
         await setValue(value);
         this.reRenderCallback();
@@ -14994,7 +15095,7 @@ var GeneralSettingsSection = class {
 };
 
 // src/settings/sections/AIModelConfigurationSection.ts
-var import_obsidian31 = require("obsidian");
+var import_obsidian30 = require("obsidian");
 init_providers();
 var AIModelConfigurationSection = class {
   constructor(plugin, settingCreators) {
@@ -15119,7 +15220,7 @@ var AIModelConfigurationSection = class {
    */
   renderProviderTestSection(containerEl, provider, displayName) {
     const settings = this.plugin.settings[`${provider}Settings`];
-    new import_obsidian31.Setting(containerEl).setName("Test Connection").setDesc(`Verify your API key and fetch available models for ${displayName}`).addButton((button) => button.setButtonText("Test").onClick(async () => {
+    new import_obsidian30.Setting(containerEl).setName("Test Connection").setDesc(`Verify your API key and fetch available models for ${displayName}`).addButton((button) => button.setButtonText("Test").onClick(async () => {
       button.setButtonText("Testing...");
       button.setDisabled(true);
       try {
@@ -15138,17 +15239,17 @@ var AIModelConfigurationSection = class {
           await this.plugin.saveSettings();
           this.plugin.settings.availableModels = await getAllAvailableModels(this.plugin.settings);
           await this.plugin.saveSettings();
-          new import_obsidian31.Notice(result.message);
+          new import_obsidian30.Notice(result.message);
         } else {
           settings.lastTestResult = {
             timestamp: Date.now(),
             success: false,
             message: result.message
           };
-          new import_obsidian31.Notice(result.message);
+          new import_obsidian30.Notice(result.message);
         }
       } catch (error) {
-        new import_obsidian31.Notice(`Error: ${error.message}`);
+        new import_obsidian30.Notice(`Error: ${error.message}`);
       } finally {
         button.setButtonText("Test");
         button.setDisabled(false);
@@ -15186,30 +15287,30 @@ var AIModelConfigurationSection = class {
           if (preset.maxTokens !== void 0) this.plugin.settings.maxTokens = preset.maxTokens;
           if (preset.enableStreaming !== void 0) this.plugin.settings.enableStreaming = preset.enableStreaming;
           await this.plugin.saveSettings();
-          new import_obsidian31.Notice(`Applied preset: ${preset.name}`);
+          new import_obsidian30.Notice(`Applied preset: ${preset.name}`);
         };
       });
     }
-    new import_obsidian31.Setting(containerEl).setName("System Message").setDesc("Set the system message for the AI").addTextArea((text) => text.setPlaceholder("You are a helpful assistant.").setValue(this.plugin.settings.systemMessage).onChange(async (value) => {
+    new import_obsidian30.Setting(containerEl).setName("System Message").setDesc("Set the system message for the AI").addTextArea((text) => text.setPlaceholder("You are a helpful assistant.").setValue(this.plugin.settings.systemMessage).onChange(async (value) => {
       this.plugin.settings.systemMessage = value;
       await this.plugin.saveSettings();
     }));
-    new import_obsidian31.Setting(containerEl).setName("Enable Streaming").setDesc("Enable or disable streaming for completions").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableStreaming).onChange(async (value) => {
+    new import_obsidian30.Setting(containerEl).setName("Enable Streaming").setDesc("Enable or disable streaming for completions").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableStreaming).onChange(async (value) => {
       this.plugin.settings.enableStreaming = value;
       await this.plugin.saveSettings();
     }));
-    new import_obsidian31.Setting(containerEl).setName("Temperature").setDesc("Set the randomness of the model's output (0-1)").addSlider((slider) => slider.setLimits(0, 1, 0.1).setValue(this.plugin.settings.temperature).setDynamicTooltip().onChange(async (value) => {
+    new import_obsidian30.Setting(containerEl).setName("Temperature").setDesc("Set the randomness of the model's output (0-1)").addSlider((slider) => slider.setLimits(0, 1, 0.1).setValue(this.plugin.settings.temperature).setDynamicTooltip().onChange(async (value) => {
       this.plugin.settings.temperature = value;
       await this.plugin.saveSettings();
     }));
-    new import_obsidian31.Setting(containerEl).setName("Refresh Available Models").setDesc("Test connections to all configured providers and refresh available models").addButton((button) => button.setButtonText("Refresh Models").onClick(async () => {
+    new import_obsidian30.Setting(containerEl).setName("Refresh Available Models").setDesc("Test connections to all configured providers and refresh available models").addButton((button) => button.setButtonText("Refresh Models").onClick(async () => {
       button.setButtonText("Refreshing...");
       button.setDisabled(true);
       try {
         await this.refreshAllAvailableModels();
-        new import_obsidian31.Notice("Successfully refreshed available models");
+        new import_obsidian30.Notice("Successfully refreshed available models");
       } catch (error) {
-        new import_obsidian31.Notice(`Error refreshing models: ${error.message}`);
+        new import_obsidian30.Notice(`Error refreshing models: ${error.message}`);
       } finally {
         button.setButtonText("Refresh Models");
         button.setDisabled(false);
@@ -15225,7 +15326,7 @@ var AIModelConfigurationSection = class {
       this.plugin.settings.availableModels = await getAllAvailableModels(this.plugin.settings);
       await this.plugin.saveSettings();
     }
-    new import_obsidian31.Setting(containerEl).setName("Selected Model").setDesc("Choose from all available models across all configured providers").addDropdown((dropdown) => {
+    new import_obsidian30.Setting(containerEl).setName("Selected Model").setDesc("Choose from all available models across all configured providers").addDropdown((dropdown) => {
       if (!this.plugin.settings.availableModels || this.plugin.settings.availableModels.length === 0) {
         dropdown.addOption("", "No models available - configure providers above");
       } else {
@@ -15308,16 +15409,16 @@ var AIModelConfigurationSection = class {
       attr: { style: "margin-bottom: 1em;" }
     });
     const buttonRow = containerEl.createDiv({ cls: "ai-models-button-row" });
-    new import_obsidian31.Setting(buttonRow).addButton((btn) => {
+    new import_obsidian30.Setting(buttonRow).addButton((btn) => {
       btn.setButtonText("Refresh Models").setCta().onClick(async () => {
         btn.setButtonText("Refreshing...");
         btn.setDisabled(true);
         try {
           this.plugin.settings.availableModels = await getAllAvailableModels(this.plugin.settings);
           await this.plugin.saveSettings();
-          new import_obsidian31.Notice("Available models refreshed.");
+          new import_obsidian30.Notice("Available models refreshed.");
         } catch (e) {
-          new import_obsidian31.Notice("Error refreshing models: " + ((e == null ? void 0 : e.message) || e));
+          new import_obsidian30.Notice("Error refreshing models: " + ((e == null ? void 0 : e.message) || e));
         } finally {
           btn.setButtonText("Refresh Models");
           btn.setDisabled(false);
@@ -15388,19 +15489,19 @@ var AIModelConfigurationSection = class {
     });
     const presetList = this.plugin.settings.modelSettingPresets || [];
     presetList.forEach((preset, idx) => {
-      new import_obsidian31.Setting(containerEl).setName("Preset Name").setDesc("Edit the name of this preset").addText((text) => {
+      new import_obsidian30.Setting(containerEl).setName("Preset Name").setDesc("Edit the name of this preset").addText((text) => {
         text.setPlaceholder("Preset Name").setValue(preset.name).onChange(async (value) => {
           preset.name = value != null ? value : "";
           await this.plugin.saveSettings();
         });
       });
-      new import_obsidian31.Setting(containerEl).setName("Model ID (provider:model)").setDesc("Edit the model for this preset").addText((text) => {
+      new import_obsidian30.Setting(containerEl).setName("Model ID (provider:model)").setDesc("Edit the model for this preset").addText((text) => {
         text.setPlaceholder("Model ID (provider:model)").setValue(preset.selectedModel || "").onChange(async (value) => {
           preset.selectedModel = value != null ? value : "";
           await this.plugin.saveSettings();
         });
       });
-      new import_obsidian31.Setting(containerEl).setName("System Message").setDesc("Edit the system message for this preset").addTextArea((text) => {
+      new import_obsidian30.Setting(containerEl).setName("System Message").setDesc("Edit the system message for this preset").addTextArea((text) => {
         text.setPlaceholder("System message").setValue(preset.systemMessage || "").onChange(async (value) => {
           preset.systemMessage = value != null ? value : "";
           await this.plugin.saveSettings();
@@ -15413,7 +15514,7 @@ var AIModelConfigurationSection = class {
         preset.temperature = value;
         await this.plugin.saveSettings();
       });
-      new import_obsidian31.Setting(containerEl).setName("Max Tokens").setDesc("Edit the max tokens for this preset").addText((text) => {
+      new import_obsidian30.Setting(containerEl).setName("Max Tokens").setDesc("Edit the max tokens for this preset").addText((text) => {
         var _a2;
         text.setPlaceholder("Max tokens").setValue(((_a2 = preset.maxTokens) == null ? void 0 : _a2.toString()) || "").onChange(async (value) => {
           const num = parseInt(value != null ? value : "", 10);
@@ -15428,7 +15529,7 @@ var AIModelConfigurationSection = class {
         preset.enableStreaming = value;
         await this.plugin.saveSettings();
       });
-      new import_obsidian31.Setting(containerEl).addExtraButton(
+      new import_obsidian30.Setting(containerEl).addExtraButton(
         (btn) => btn.setIcon("cross").setTooltip("Delete").onClick(async () => {
           var _a2;
           (_a2 = this.plugin.settings.modelSettingPresets) == null ? void 0 : _a2.splice(idx, 1);
@@ -15436,7 +15537,7 @@ var AIModelConfigurationSection = class {
         })
       );
     });
-    new import_obsidian31.Setting(containerEl).addButton(
+    new import_obsidian30.Setting(containerEl).addButton(
       (btn) => btn.setButtonText("Add Preset").setCta().onClick(async () => {
         if (!this.plugin.settings.modelSettingPresets) this.plugin.settings.modelSettingPresets = [];
         this.plugin.settings.modelSettingPresets.push(JSON.parse(JSON.stringify({
@@ -15650,7 +15751,7 @@ var AgentSettingsSection = class {
 };
 
 // src/settings/sections/ContentNoteHandlingSection.ts
-var import_obsidian32 = require("obsidian");
+var import_obsidian31 = require("obsidian");
 var ContentNoteHandlingSection = class {
   constructor(plugin, settingCreators) {
     __publicField(this, "plugin");
@@ -15765,7 +15866,7 @@ var ContentNoteHandlingSection = class {
     );
     const contextNotesContainer = containerEl.createDiv("context-notes-container");
     contextNotesContainer.style.marginBottom = "24px";
-    new import_obsidian32.Setting(contextNotesContainer).setName("Context Notes").setDesc("Notes to attach as context (supports [[filename]] and [[filename#header]] syntax)").addTextArea((text) => {
+    new import_obsidian31.Setting(contextNotesContainer).setName("Context Notes").setDesc("Notes to attach as context (supports [[filename]] and [[filename#header]] syntax)").addTextArea((text) => {
       text.setPlaceholder("[[Note Name]]\n[[Another Note#Header]]").setValue(this.plugin.settings.contextNotes || "").onChange(async (value) => {
         this.plugin.settings.contextNotes = value;
         await this.plugin.saveSettings();
@@ -15840,7 +15941,7 @@ var ContentNoteHandlingSection = class {
       genContainer.style.padding = "1em";
       genContainer.style.marginBottom = "1em";
       genContainer.createEl("h4", { text: autoCommandName });
-      new import_obsidian32.Setting(genContainer).setName("YAML Attribute Name").setDesc("The YAML field name to insert/update").addText((text) => {
+      new import_obsidian31.Setting(genContainer).setName("YAML Attribute Name").setDesc("The YAML field name to insert/update").addText((text) => {
         text.setPlaceholder("YAML Attribute Name").setValue(gen.attributeName).onChange(async (value) => {
           if (this.plugin.settings.yamlAttributeGenerators) {
             this.plugin.settings.yamlAttributeGenerators[idx].attributeName = value != null ? value : "";
@@ -15849,7 +15950,7 @@ var ContentNoteHandlingSection = class {
           }
         });
       });
-      new import_obsidian32.Setting(genContainer).setName("Prompt for LLM").setDesc("The prompt to send to the AI for generating the YAML value").addTextArea((text) => {
+      new import_obsidian31.Setting(genContainer).setName("Prompt for LLM").setDesc("The prompt to send to the AI for generating the YAML value").addTextArea((text) => {
         text.setPlaceholder("Prompt for LLM").setValue(gen.prompt).onChange(async (value) => {
           if (this.plugin.settings.yamlAttributeGenerators) {
             this.plugin.settings.yamlAttributeGenerators[idx].prompt = value != null ? value : "";
@@ -15859,7 +15960,7 @@ var ContentNoteHandlingSection = class {
         text.inputEl.rows = 3;
         text.inputEl.style.width = "100%";
       });
-      new import_obsidian32.Setting(genContainer).setName("Output Mode").setDesc("Where to put the generated YAML attribute").addDropdown((drop) => {
+      new import_obsidian31.Setting(genContainer).setName("Output Mode").setDesc("Where to put the generated YAML attribute").addDropdown((drop) => {
         drop.addOption("clipboard", "Copy to clipboard");
         drop.addOption("metadata", "Insert into metadata");
         drop.setValue(gen.outputMode);
@@ -15870,7 +15971,7 @@ var ContentNoteHandlingSection = class {
           }
         });
       });
-      new import_obsidian32.Setting(genContainer).addExtraButton((btn) => {
+      new import_obsidian31.Setting(genContainer).addExtraButton((btn) => {
         btn.setIcon("cross").setTooltip("Delete this YAML generator").onClick(async () => {
           if (this.plugin.settings.yamlAttributeGenerators) {
             this.plugin.settings.yamlAttributeGenerators.splice(idx, 1);
@@ -15879,7 +15980,7 @@ var ContentNoteHandlingSection = class {
         });
       });
     });
-    new import_obsidian32.Setting(containerEl).addButton((btn) => {
+    new import_obsidian31.Setting(containerEl).addButton((btn) => {
       btn.setButtonText("Add YAML Attribute Generator").setCta().onClick(async () => {
         if (!this.plugin.settings.yamlAttributeGenerators) this.plugin.settings.yamlAttributeGenerators = [];
         this.plugin.settings.yamlAttributeGenerators.push({
@@ -15895,7 +15996,7 @@ var ContentNoteHandlingSection = class {
 };
 
 // src/settings/sections/BackupManagementSection.ts
-var import_obsidian33 = require("obsidian");
+var import_obsidian32 = require("obsidian");
 
 // src/settings/components/DialogHelpers.ts
 var DialogHelpers = class {
@@ -16014,10 +16115,10 @@ var BackupManagementSection = class {
         if (confirmed) {
           try {
             await backupManager.deleteAllBackups();
-            new import_obsidian33.Notice("Deleted all backups successfully");
+            new import_obsidian32.Notice("Deleted all backups successfully");
             this.renderBackupManagement(containerEl.parentElement);
           } catch (error) {
-            new import_obsidian33.Notice(`Error deleting all backups: ${error.message}`);
+            new import_obsidian32.Notice(`Error deleting all backups: ${error.message}`);
           }
         }
       };
@@ -16070,12 +16171,12 @@ var BackupManagementSection = class {
             try {
               const result = await backupManager.restoreBackup(backup);
               if (result.success) {
-                new import_obsidian33.Notice(`Successfully restored backup for ${filePath}`);
+                new import_obsidian32.Notice(`Successfully restored backup for ${filePath}`);
               } else {
-                new import_obsidian33.Notice(`Failed to restore backup: ${result.error}`);
+                new import_obsidian32.Notice(`Failed to restore backup: ${result.error}`);
               }
             } catch (error) {
-              new import_obsidian33.Notice(`Error restoring backup: ${error.message}`);
+              new import_obsidian32.Notice(`Error restoring backup: ${error.message}`);
             }
           }
         };
@@ -16092,9 +16193,9 @@ var BackupManagementSection = class {
           if (confirmed) {
             try {
               await backupManager.deleteSpecificBackup(filePath, backup.timestamp);
-              new import_obsidian33.Notice(`Deleted backup for ${filePath}`);
+              new import_obsidian32.Notice(`Deleted backup for ${filePath}`);
             } catch (error) {
-              new import_obsidian33.Notice(`Error deleting backup: ${error.message}`);
+              new import_obsidian32.Notice(`Error deleting backup: ${error.message}`);
             }
           }
         };
@@ -16106,7 +16207,7 @@ var BackupManagementSection = class {
           previewBtn.onclick = () => {
             const preview = backup.content.substring(0, 200);
             const truncated = backup.content.length > 200 ? "..." : "";
-            new import_obsidian33.Notice(`Preview: ${preview}${truncated}`, 1e4);
+            new import_obsidian32.Notice(`Preview: ${preview}${truncated}`, 1e4);
           };
         } else if (backup.isBinary) {
           const infoBtn = backupActions.createEl("button", {
@@ -16115,7 +16216,7 @@ var BackupManagementSection = class {
           });
           infoBtn.onclick = () => {
             const sizeKB2 = backup.fileSize ? Math.round(backup.fileSize / 1024) : 0;
-            new import_obsidian33.Notice(`Binary file backup: ${sizeKB2} KB
+            new import_obsidian32.Notice(`Binary file backup: ${sizeKB2} KB
 Stored at: ${backup.backupFilePath || "Unknown location"}`, 5e3);
           };
         }
@@ -16133,9 +16234,9 @@ Stored at: ${backup.backupFilePath || "Unknown location"}`, 5e3);
         if (confirmed) {
           try {
             await backupManager.deleteBackupsForFile(filePath);
-            new import_obsidian33.Notice(`Deleted all backups for ${filePath}`);
+            new import_obsidian32.Notice(`Deleted all backups for ${filePath}`);
           } catch (error) {
-            new import_obsidian33.Notice(`Error deleting backups: ${error.message}`);
+            new import_obsidian32.Notice(`Error deleting backups: ${error.message}`);
           }
         }
       };
@@ -16183,11 +16284,11 @@ Stored at: ${backup.backupFilePath || "Unknown location"}`, 5e3);
         });
         return;
       }
-    } else if (trashFolder instanceof import_obsidian33.TFolder) {
+    } else if (trashFolder instanceof import_obsidian32.TFolder) {
       trashItems = trashFolder.children.map((item) => ({
         name: item.name,
-        isFolder: item instanceof import_obsidian33.TFolder,
-        size: item instanceof import_obsidian33.TFile && item.stat ? item.stat.size : void 0
+        isFolder: item instanceof import_obsidian32.TFolder,
+        size: item instanceof import_obsidian32.TFile && item.stat ? item.stat.size : void 0
       }));
     } else {
       containerEl.createEl("div", {
@@ -16234,10 +16335,10 @@ Stored at: ${backup.backupFilePath || "Unknown location"}`, 5e3);
                 await adapter.remove(fullPath);
               }
             }
-            new import_obsidian33.Notice(`Emptied trash - permanently deleted ${trashItems.length} items`);
+            new import_obsidian32.Notice(`Emptied trash - permanently deleted ${trashItems.length} items`);
             this.renderTrashManagement(containerEl.parentElement);
           } catch (error) {
-            new import_obsidian33.Notice(`Error emptying trash: ${error.message}`);
+            new import_obsidian32.Notice(`Error emptying trash: ${error.message}`);
           }
         }
       };
@@ -16274,17 +16375,17 @@ Stored at: ${backup.backupFilePath || "Unknown location"}`, 5e3);
           if (confirmed) {
             try {
               const trashFolderObj = this.plugin.app.vault.getAbstractFileByPath(trashPath);
-              if (trashFolderObj instanceof import_obsidian33.TFolder) {
+              if (trashFolderObj instanceof import_obsidian32.TFolder) {
                 const fileObj = trashFolderObj.children.find((child) => child.name === item.name);
                 if (fileObj) {
                   const newPath = item.name;
                   await this.plugin.app.fileManager.renameFile(fileObj, newPath);
-                  new import_obsidian33.Notice(`Restored "${item.name}" to vault root`);
+                  new import_obsidian32.Notice(`Restored "${item.name}" to vault root`);
                   this.renderTrashManagement(containerEl.parentElement);
                 }
               }
             } catch (error) {
-              new import_obsidian33.Notice(`Error restoring item: ${error.message}`);
+              new import_obsidian32.Notice(`Error restoring item: ${error.message}`);
             }
           }
         };
@@ -16307,10 +16408,10 @@ Stored at: ${backup.backupFilePath || "Unknown location"}`, 5e3);
             } else {
               await adapter.remove(fullPath);
             }
-            new import_obsidian33.Notice(`Permanently deleted "${item.name}"`);
+            new import_obsidian32.Notice(`Permanently deleted "${item.name}"`);
             this.renderTrashManagement(containerEl.parentElement);
           } catch (error) {
-            new import_obsidian33.Notice(`Error deleting item: ${error.message}`);
+            new import_obsidian32.Notice(`Error deleting item: ${error.message}`);
           }
         }
       };
@@ -16409,7 +16510,7 @@ var ChatHistorySettingsSection = class {
 };
 
 // src/settings/SettingTab.ts
-var MyPluginSettingTab = class extends import_obsidian34.PluginSettingTab {
+var MyPluginSettingTab = class extends import_obsidian33.PluginSettingTab {
   constructor(app, plugin) {
     super(app, plugin);
     __publicField(this, "plugin");
@@ -16500,7 +16601,7 @@ var MyPluginSettingTab = class extends import_obsidian34.PluginSettingTab {
       this.plugin,
       "backupManagementExpanded"
     );
-    new import_obsidian34.Setting(containerEl).setName("Reset All Settings to Default").setDesc("Reset all plugin settings (except API keys) to their original default values.").addButton((button) => button.setButtonText("Reset").onClick(async () => {
+    new import_obsidian33.Setting(containerEl).setName("Reset All Settings to Default").setDesc("Reset all plugin settings (except API keys) to their original default values.").addButton((button) => button.setButtonText("Reset").onClick(async () => {
       const { DEFAULT_SETTINGS: DEFAULT_SETTINGS2 } = await Promise.resolve().then(() => (init_types(), types_exports));
       const { DEFAULT_TITLE_PROMPT: DEFAULT_TITLE_PROMPT2 } = await Promise.resolve().then(() => (init_promptConstants(), promptConstants_exports));
       const preservedApiKeys = {
@@ -16518,15 +16619,15 @@ var MyPluginSettingTab = class extends import_obsidian34.PluginSettingTab {
       setTimeout(() => {
         activateView(this.plugin.app, VIEW_TYPE_MODEL_SETTINGS);
       }, 100);
-      new import_obsidian34.Notice("All settings (except API keys) reset to default.");
+      new import_obsidian33.Notice("All settings (except API keys) reset to default.");
     }));
   }
 };
 
 // src/components/ModelSettingsView.ts
-var import_obsidian35 = require("obsidian");
+var import_obsidian34 = require("obsidian");
 var VIEW_TYPE_MODEL_SETTINGS2 = "model-settings-view";
-var ModelSettingsView = class extends import_obsidian35.ItemView {
+var ModelSettingsView = class extends import_obsidian34.ItemView {
   constructor(leaf, plugin) {
     super(leaf);
     __publicField(this, "plugin");
@@ -16619,7 +16720,7 @@ var AgentModeManager = class {
 init_BackupManager();
 init_ToolRichDisplay();
 init_YAMLHandler();
-var _MyPlugin = class _MyPlugin extends import_obsidian36.Plugin {
+var _MyPlugin = class _MyPlugin extends import_obsidian35.Plugin {
   constructor() {
     super(...arguments);
     __publicField(this, "settings");

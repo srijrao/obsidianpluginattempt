@@ -15,6 +15,14 @@ export interface AgentContext {
     onToolDisplay?: (display: ToolRichDisplay) => void;
 }
 
+// Extends AgentContext to allow ToolLimitWarningUI to call these methods for UI actions
+export interface AgentContextWithToolLimit extends AgentContext {
+    getExecutionCount: () => number;
+    addToolExecutions: (count: number) => void;
+    resetExecutionCount: () => void;
+    getTemporaryMaxToolCalls: () => number | undefined;
+}
+
 // Types for better type safety
 export type ToolResultFormatStyle = "markdown" | "copy" | "plain";
 export type NotificationType = "success" | "error" | "warning";

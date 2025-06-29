@@ -1,4 +1,4 @@
-import { App, Notice, MarkdownRenderer } from "obsidian";
+import { App } from "obsidian";
 import MyPlugin from "../../../../main";
 import { ToolCommand, ToolResult, Message, ReasoningData, TaskStatus, ToolExecutionResult } from "../../../../types";
 import { CommandParser } from "../../CommandParser";
@@ -16,6 +16,11 @@ import {
     ChatHistoryProcessingResult
 } from "./types";
 import { normalizePath, stringifyJson } from "./utils";
+import { TaskNotificationManager } from "./TaskNotificationManager";
+import { ToolResultFormatter } from "./ToolResultFormatter";
+import { ToolExecutor } from "./ToolExecutor";
+import { ReasoningProcessor } from "./ReasoningProcessor";
+import { ToolLimitWarningUI } from "./ToolLimitWarningUI";
 
 /**
  * Main AgentResponseHandler class, refactored for modularity.
@@ -27,11 +32,25 @@ export class AgentResponseHandler {
     private temporaryMaxToolCalls?: number;
     private toolDisplays: Map<string, ToolRichDisplay> = new Map();
     private toolMarkdownCache: Map<string, string> = new Map();
+    private notificationManager: TaskNotificationManager;
+    private toolResultFormatter: ToolResultFormatter;
+    private toolExecutor: ToolExecutor;
+    private reasoningProcessor: ReasoningProcessor;
+    private toolLimitWarningUI: ToolLimitWarningUI;
 
     constructor(private context: AgentContext) {
         this.debugLog("constructor called");
         this.commandParser = new CommandParser(this.context.plugin);
         this.toolRegistry = new ToolRegistry(this.context.plugin);
+        this.notificationManager = new TaskNotificationManager(context);
+        this.toolResultFormatter = new ToolResultFormatter();
+        this.toolExecutor = new ToolExecutor(
+            this.toolRegistry,
+            (result, command) => this.context.onToolResult(result, command),
+            (command, result) => this.createToolDisplay(command, result)
+        );
+        this.reasoningProcessor = new ReasoningProcessor(context);
+        this.toolLimitWarningUI = new ToolLimitWarningUI(this as any); // Cast to AgentContextWithToolLimit
         this.initializeTools();
     }
 
@@ -88,7 +107,8 @@ export class AgentResponseHandler {
         const effectiveLimit = this.getEffectiveToolLimit();
         if (this.executionCount >= effectiveLimit) {
             this.debugLog("Tool execution limit reached", { executionCount: this.executionCount, effectiveLimit }, contextLabel);
-            new Notice(`Agent mode: Maximum tool calls (${effectiveLimit}) reached`);
+            // Replace Notice usage with notificationManager
+            this.notificationManager.showTaskCompletionNotification(`Agent mode: Maximum tool calls (${effectiveLimit}) reached`, "warning");
             return this.createProcessResponseResult(
                 text + `\n\n*${effectiveLimit} [Tool execution limit reached]*`,
                 [],
@@ -122,86 +142,50 @@ export class AgentResponseHandler {
 
         for (const command of commands) {
             try {
-                const result = await this.executeToolWithLogging(command, agentSettings.timeoutMs, contextLabel);
-                this.handleToolExecutionSuccess(command, result, toolResults);
+                // Replace toolExecutor.executeTool with executeToolWithLogging
+                const result = await this.toolExecutor.executeToolWithLogging(command, agentSettings.timeoutMs, contextLabel, this.debugLog.bind(this));
+                toolResults.push({ command, result });
+                this.executionCount++;
+                this.createToolDisplay(command, result);
+                this.context.onToolResult(result, command);
 
                 if (this.executionCount >= effectiveLimit) {
                     break;
                 }
             } catch (error: any) {
-                this.handleToolExecutionError(command, error, toolResults, contextLabel);
+                this.debugLog("Tool execution error", { command, error }, contextLabel);
+                console.error(`AgentResponseHandler: Tool '${command.action}' failed with error:`, error);
+
+                const errorResult = {
+                    success: false,
+                    error: `${CONSTANTS.ERROR_MESSAGES.TOOL_EXECUTION_FAILED}: ${error.message}`,
+                    requestId: command.requestId
+                };
+                toolResults.push({ command, result: errorResult });
+                this.createToolDisplay(command, errorResult);
+                this.context.onToolResult(errorResult, command);
             }
         }
 
         return this.createProcessResponseResult(text, toolResults, true);
     }
 
-    private async executeToolWithLogging(command: ToolCommand, timeoutMs: number, contextLabel: string): Promise<ToolResult> {
-        const startTime = Date.now();
-        this.debugLog("Executing tool", { command }, contextLabel);
-
-        const result = await this.executeToolWithTimeout(command, timeoutMs);
-        const executionTime = Date.now() - startTime;
-
-        this.debugLog("Tool execution result", { command, result, executionTime }, contextLabel);
-        return result;
+    // For ToolLimitWarningUI compatibility
+    getExecutionCount(): number {
+        return this.executionCount;
     }
-
-    private handleToolExecutionSuccess(
-        command: ToolCommand,
-        result: ToolResult,
-        toolResults: Array<{ command: ToolCommand; result: ToolResult }>
-    ): void {
-        toolResults.push({ command, result });
-        this.executionCount++;
-        this.createToolDisplay(command, result);
-        this.context.onToolResult(result, command);
+    addToolExecutions(count: number) {
+        const agentSettings = this.context.plugin.getAgentModeSettings();
+        this.temporaryMaxToolCalls = (this.temporaryMaxToolCalls || agentSettings.maxToolCalls) + count;
     }
-
-    private handleToolExecutionError(
-        command: ToolCommand,
-        error: any,
-        toolResults: Array<{ command: ToolCommand; result: ToolResult }>,
-        contextLabel: string
-    ): void {
-        this.debugLog("Tool execution error", { command, error }, contextLabel);
-        console.error(`AgentResponseHandler: Tool '${command.action}' failed with error:`, error);
-
-        const errorResult = this.createErrorResult(command, error);
-        this.handleToolExecutionSuccess(command, errorResult, toolResults);
-    }
-
-    private createErrorResult(command: ToolCommand, error: any): ToolResult {
-        return {
-            success: false,
-            error: `${CONSTANTS.ERROR_MESSAGES.TOOL_EXECUTION_FAILED}: ${error.message}`,
-            requestId: command.requestId
-        };
-    }
-
-    private async executeToolWithTimeout(command: ToolCommand, timeoutMs: number): Promise<ToolResult> {
-        return new Promise((resolve, reject) => {
-            const timeout = setTimeout(() => {
-                reject(new Error(`${CONSTANTS.ERROR_MESSAGES.TOOL_EXECUTION_TIMEOUT} after ${timeoutMs}ms`));
-            }, timeoutMs);
-
-            this.toolRegistry.execute(command)
-                .then(result => {
-                    clearTimeout(timeout);
-                    resolve(result);
-                })
-                .catch(error => {
-                    clearTimeout(timeout);
-                    reject(error);
-                });
-        });
-    }
-
     resetExecutionCount(): void {
         this.executionCount = 0;
         this.temporaryMaxToolCalls = undefined;
         this.toolDisplays.clear();
         this.toolMarkdownCache.clear();
+    }
+    getTemporaryMaxToolCalls(): number | undefined {
+        return this.temporaryMaxToolCalls;
     }
 
     getAvailableTools() {
@@ -234,102 +218,6 @@ export class AgentResponseHandler {
         };
     }
 
-    private formatToolResult(
-        command: ToolCommand,
-        result: ToolResult,
-        opts?: { style?: ToolResultFormatStyle }
-    ): string {
-        const style = opts?.style || "plain";
-        const status = this.getStatusIcon(result.success, style);
-        const action = command.action.replace("_", " ");
-        const context = this.getResultContext(command, result);
-
-        switch (style) {
-            case "markdown":
-                return `${status} **${action}** completed successfully${context}`;
-            case "copy":
-                return this.formatToolResultForCopy(command, result, status);
-            default:
-                return this.formatToolResultPlain(command, result, status);
-        }
-    }
-
-    private getStatusIcon(success: boolean, style: ToolResultFormatStyle): string {
-        if (success) {
-            return style === "markdown" ? "✅" : style === "copy" ? "SUCCESS" : "✓";
-        } else {
-            return style === "markdown" ? "❌" : style === "copy" ? "ERROR" : "✗";
-        }
-    }
-
-    private getResultContext(command: ToolCommand, result: ToolResult): string {
-        if (!result.success || !result.data) return "";
-
-        switch (command.action) {
-            case "file_write":
-            case "file_read":
-            case "file_diff":
-                if (result.data.filePath) {
-                    const relPath = this.getRelativePath(result.data.filePath);
-                    return ` [[${relPath}]]`;
-                }
-                break;
-            case "file_select":
-                if (result.data.count !== undefined) {
-                    return ` [[${result.data.count} files found]]`;
-                }
-                break;
-            case "thought":
-                if (result.data?.formattedThought) {
-                    return result.data.formattedThought;
-                }
-                break;
-        }
-        return "";
-    }
-
-    private formatToolResultForCopy(command: ToolCommand, result: ToolResult, status: string): string {
-        const params = stringifyJson(command.parameters);
-        const resultData = result.success
-            ? stringifyJson(result.data)
-            : result.error;
-
-        return `TOOL EXECUTION: ${command.action}
-STATUS: ${status}
-PARAMETERS:
-${params}
-RESULT:
-${resultData}`;
-    }
-
-    private formatToolResultPlain(command: ToolCommand, result: ToolResult, status: string): string {
-        const data = result.success ? stringifyJson(result.data) : result.error;
-        return `${status} Tool: ${command.action}\nParameters: ${stringifyJson(command.parameters)}\nResult: ${data}`;
-    }
-
-    formatToolResultsForDisplay(toolResults: Array<{ command: ToolCommand; result: ToolResult }>): string {
-        if (toolResults.length === 0) {
-            return "";
-        }
-        const resultText = toolResults.map(({ command, result }) =>
-            this.formatToolResult(command, result, { style: "markdown" })
-        ).join("\n");
-        return `\n\n**Tool Execution:**\n${resultText}`;
-    }
-
-    createToolResultMessage(toolResults: Array<{ command: ToolCommand; result: ToolResult }>): Message | null {
-        if (toolResults.length === 0) {
-            return null;
-        }
-        const resultText = toolResults.map(({ command, result }) =>
-            this.formatToolResult(command, result, { style: "plain" })
-        ).join("\n\n");
-        return {
-            role: "system",
-            content: `Tool execution results:\n\n${resultText}`
-        };
-    }
-
     private createToolDisplay(command: ToolCommand, result: ToolResult): void {
         const displayId = this.generateDisplayId(command);
 
@@ -355,7 +243,7 @@ ${resultData}`;
     }
 
     private async copyToolResult(command: ToolCommand, result: ToolResult): Promise<void> {
-        const displayText = this.formatToolResult(command, result, { style: "copy" });
+        const displayText = this.toolResultFormatter.formatToolResult(command, result, { style: "copy" });
         try {
             await navigator.clipboard.writeText(displayText);
         } catch (error) {
@@ -387,7 +275,8 @@ ${resultData}
     private async rerunTool(originalCommand: ToolCommand): Promise<void> {
         try {
             const agentSettings = this.context.plugin.getAgentModeSettings();
-            const result = await this.executeToolWithTimeout(originalCommand, agentSettings.timeoutMs);
+            // Replace toolExecutor.executeTool with executeToolWithLogging
+            const result = await this.toolExecutor.executeToolWithLogging(originalCommand, agentSettings.timeoutMs, "rerun", this.debugLog.bind(this));
             this.createToolDisplay(originalCommand, result);
             this.context.onToolResult(result, originalCommand);
         } catch (error: any) {
@@ -411,284 +300,6 @@ ${resultData}
             relPath = relPath.slice(0, -CONSTANTS.MD_EXTENSION.length);
         }
         return relPath;
-    }
-
-    processToolResultsForMessage(toolResults: Array<{ command: ToolCommand; result: ToolResult }>): {
-        reasoning?: ReasoningData;
-        toolExecutionResults: ToolExecutionResult[];
-    } {
-        const toolExecutionResults: ToolExecutionResult[] = toolResults.map(({ command, result }) => ({
-            command,
-            result,
-            timestamp: new Date().toISOString()
-        }));
-
-        let reasoning: ReasoningData | undefined;
-
-        for (const { command, result } of toolResults) {
-            if (command.action === "thought" && result.success && result.data) {
-                reasoning = this.convertThoughtToolResultToReasoning(result.data);
-                break;
-            }
-        }
-
-        return {
-            reasoning,
-            toolExecutionResults
-        };
-    }
-
-    private convertThoughtToolResultToReasoning(thoughtData: any): ReasoningData {
-        const reasoningId = this.generateReasoningId();
-        const baseData = {
-            id: reasoningId,
-            timestamp: thoughtData.timestamp || new Date().toISOString(),
-            isCollapsed: this.context.plugin.settings.uiBehavior?.collapseOldReasoning || false
-        };
-
-        if (thoughtData.reasoning === "structured" && thoughtData.steps) {
-            return {
-                ...baseData,
-                type: "structured",
-                problem: thoughtData.problem,
-                steps: thoughtData.steps.map((step: any) => ({
-                    step: step.step,
-                    title: step.title,
-                    content: step.content
-                })),
-                depth: thoughtData.depth
-            };
-        } else {
-            return {
-                ...baseData,
-                type: "simple",
-                summary: thoughtData.thought || thoughtData.formattedThought
-            };
-        }
-    }
-
-    private generateReasoningId(): string {
-        const timestamp = Date.now();
-        const random = Math.random().toString(36).substr(2, 9);
-        return `${CONSTANTS.REASONING_ID_PREFIX}${timestamp}-${random}`;
-    }
-
-    createTaskStatus(status: TaskStatus["status"], progress?: TaskStatus["progress"]): TaskStatus {
-        const agentSettings = this.context.plugin.getAgentModeSettings();
-
-        return {
-            status,
-            progress,
-            toolExecutionCount: this.executionCount,
-            maxToolExecutions: agentSettings.maxToolCalls,
-            canContinue: status === "limit_reached" || status === "stopped",
-            lastUpdateTime: new Date().toISOString()
-        };
-    }
-
-    isToolLimitReached(): boolean {
-        const effectiveLimit = this.getEffectiveToolLimit();
-        return this.executionCount >= effectiveLimit;
-    }
-
-    getRemainingToolExecutions(): number {
-        const effectiveLimit = this.getEffectiveToolLimit();
-        return Math.max(0, effectiveLimit - this.executionCount);
-    }
-
-    private hideToolContinuationContainerIfEmpty(): void {
-        if (this.context.toolContinuationContainer) {
-            if (this.context.toolContinuationContainer.children.length === 0) {
-                this.context.toolContinuationContainer.style.display = "none";
-            }
-        }
-    }
-
-    createToolLimitWarning(): HTMLElement {
-        const warning = document.createElement("div");
-        warning.className = "tool-limit-warning";
-
-        const agentSettings = this.context.plugin.getAgentModeSettings();
-        const effectiveLimit = this.getEffectiveToolLimit();
-
-        warning.innerHTML = this.createToolLimitWarningHTML(effectiveLimit, agentSettings.maxToolCalls);
-        this.attachToolLimitWarningHandlers(warning, agentSettings);
-
-        return warning;
-    }
-
-    private createToolLimitWarningHTML(effectiveLimit: number, maxToolCalls: number): string {
-        return `
-            <div class="tool-limit-warning-text">
-                <strong>⚠️ Tool execution limit reached</strong><br>
-                Used ${this.executionCount}/${effectiveLimit} tool calls. 
-                Choose how to proceed:
-            </div>
-            <div class="tool-limit-warning-actions">
-                <div class="tool-limit-input-group">
-                    <label for="additional-tools">Add more executions:</label>
-                    <input type="number" id="additional-tools" min="1" max="${CONSTANTS.MAX_ADDITIONAL_TOOLS}" value="${maxToolCalls}" placeholder="5">
-                    <button class="ai-chat-add-tools-button">Add & Continue</button>
-                </div>
-                <div class="tool-limit-button-group">
-                    <button class="ai-chat-continue-button">Reset & Continue</button>
-                    <span class="tool-limit-settings-link">Open Settings</span>
-                </div>
-            </div>
-        `;
-    }
-
-    private attachToolLimitWarningHandlers(warning: HTMLElement, agentSettings: any): void {
-        this.attachSettingsHandler(warning);
-        this.attachAddToolsHandler(warning, agentSettings);
-        this.attachContinueHandler(warning);
-    }
-
-    private attachSettingsHandler(warning: HTMLElement): void {
-        const settingsLink = warning.querySelector(".tool-limit-settings-link") as HTMLElement;
-        if (settingsLink) {
-            settingsLink.onclick = () => {
-                (this.context.app as any).setting.open();
-                (this.context.app as any).setting.openTabById(this.context.plugin.manifest.id);
-            };
-        }
-    }
-
-    private attachAddToolsHandler(warning: HTMLElement, agentSettings: any): void {
-        const addToolsButton = warning.querySelector(".ai-chat-add-tools-button") as HTMLElement;
-        if (addToolsButton) {
-            addToolsButton.onclick = () => {
-                const input = warning.querySelector("#additional-tools") as HTMLInputElement;
-                const additionalTools = parseInt(input.value) || agentSettings.maxToolCalls;
-
-                if (additionalTools > 0) {
-                    this.addToolExecutions(additionalTools);
-                    this.removeWarningAndTriggerContinuation(warning, "continueTaskWithAdditionalTools", { additionalTools });
-                }
-            };
-        }
-    }
-
-    private attachContinueHandler(warning: HTMLElement): void {
-        const continueButton = warning.querySelector(".ai-chat-continue-button") as HTMLElement;
-        if (continueButton) {
-            continueButton.onclick = () => {
-                this.resetExecutionCount();
-                this.removeWarningAndTriggerContinuation(warning, "continueTask");
-            };
-        }
-    }
-
-    private removeWarningAndTriggerContinuation(warning: HTMLElement, eventType: string, detail?: any): void {
-        warning.remove();
-        this.hideToolContinuationContainerIfEmpty();
-
-        const event = detail
-            ? new CustomEvent(eventType, { detail })
-            : new CustomEvent(eventType);
-
-        this.context.messagesContainer.dispatchEvent(event);
-    }
-
-    createTaskCompletionNotification(
-        message: string,
-        type: NotificationType = "success"
-    ): HTMLElement {
-        const notification = document.createElement("div");
-        notification.className = `task-completion-notification ${type}`;
-
-        const icon = this.getNotificationIcon(type);
-        notification.innerHTML = `
-            <div style="display: flex; align-items: center; gap: 8px;">
-                <span>${icon}</span>
-                <span>${message}</span>
-            </div>
-        `;
-
-        this.setupNotificationAutoRemoval(notification);
-        return notification;
-    }
-
-    private getNotificationIcon(type: NotificationType): string {
-        const icons = {
-            success: "✅",
-            error: "❌",
-            warning: "⚠️"
-        };
-        return icons[type];
-    }
-
-    private setupNotificationAutoRemoval(notification: HTMLElement): void {
-        setTimeout(() => {
-            notification.classList.add("show");
-        }, CONSTANTS.NOTIFICATION_DISPLAY_DELAY);
-
-        setTimeout(() => {
-            notification.classList.remove("show");
-            setTimeout(() => notification.remove(), CONSTANTS.NOTIFICATION_FADE_DELAY);
-        }, CONSTANTS.NOTIFICATION_AUTO_REMOVE_DELAY);
-    }
-
-    showTaskCompletionNotification(
-        message: string,
-        type: NotificationType = "success"
-    ): void {
-        if (!this.context.plugin.settings.uiBehavior?.showCompletionNotifications) {
-            return;
-        }
-
-        const notification = this.createTaskCompletionNotification(message, type);
-        document.body.appendChild(notification);
-    }
-
-    updateTaskProgress(current: number, total?: number, description?: string): void {
-        // Progress indicator removed
-    }
-
-    hideTaskProgress(): void {
-        // Progress indicator removed
-    }
-
-    async processResponseWithUI(
-        response: string,
-        contextLabel: string = "ui",
-        chatHistory?: any[]
-    ): Promise<{
-        processedText: string;
-        toolResults: Array<{ command: ToolCommand; result: ToolResult }>;
-        hasTools: boolean;
-        reasoning?: ReasoningData;
-        taskStatus: TaskStatus;
-        shouldShowLimitWarning: boolean;
-    }> {
-        const result = await this.processResponse(response, contextLabel, chatHistory);
-
-        let status: TaskStatus["status"] = "completed";
-        if (result.hasTools) {
-            if (this.isToolLimitReached()) {
-                status = "limit_reached";
-            } else {
-                status = "running";
-            }
-        }
-
-        const taskStatus = this.createTaskStatus(status);
-
-        const { reasoning } = this.processToolResultsForMessage(result.toolResults);
-
-        const shouldShowLimitWarning = this.isToolLimitReached() && result.hasTools;
-
-        return {
-            ...result,
-            reasoning,
-            taskStatus,
-            shouldShowLimitWarning
-        };
-    }
-
-    addToolExecutions(additionalCount: number) {
-        const agentSettings = this.context.plugin.getAgentModeSettings();
-        this.temporaryMaxToolCalls = (this.temporaryMaxToolCalls || agentSettings.maxToolCalls) + additionalCount;
     }
 
     private getEffectiveToolLimit(): number {
@@ -765,5 +376,67 @@ ${resultData}
             }
         }
         return null;
+    }
+
+    // Delegated public API for compatibility with other modules
+    isToolLimitReached(): boolean {
+        const effectiveLimit = this.getEffectiveToolLimit();
+        return this.executionCount >= effectiveLimit;
+    }
+    createToolResultMessage(toolResults: Array<{ command: ToolCommand; result: ToolResult }>): Message | null {
+        return this.toolResultFormatter.createToolResultMessage(toolResults);
+    }
+    hideTaskProgress(): void {
+        this.notificationManager.hideTaskProgress();
+    }
+    processResponseWithUI(
+        response: string,
+        contextLabel: string = "ui",
+        chatHistory?: any[]
+    ): Promise<{
+        processedText: string;
+        toolResults: Array<{ command: ToolCommand; result: ToolResult }>;
+        hasTools: boolean;
+        reasoning?: ReasoningData;
+        taskStatus: TaskStatus;
+        shouldShowLimitWarning: boolean;
+    }> {
+        return (async () => {
+            const result = await this.processResponse(response, contextLabel, chatHistory);
+            let status: TaskStatus["status"] = "completed";
+            if (result.hasTools) {
+                if (this.isToolLimitReached()) {
+                    status = "limit_reached";
+                } else {
+                    status = "running";
+                }
+            }
+            const taskStatus = this.createTaskStatus(status);
+            const { reasoning } = this.reasoningProcessor.processToolResultsForMessage(result.toolResults);
+            const shouldShowLimitWarning = this.isToolLimitReached() && result.hasTools;
+            return {
+                ...result,
+                reasoning,
+                taskStatus,
+                shouldShowLimitWarning
+            };
+        })();
+    }
+    showTaskCompletionNotification(message: string, type: NotificationType = "success"): void {
+        this.notificationManager.showTaskCompletionNotification(message, type);
+    }
+    createToolLimitWarning(): HTMLElement {
+        return this.toolLimitWarningUI.createToolLimitWarning();
+    }
+    createTaskStatus(status: TaskStatus["status"], progress?: TaskStatus["progress"]): TaskStatus {
+        const agentSettings = this.context.plugin.getAgentModeSettings();
+        return {
+            status,
+            progress,
+            toolExecutionCount: this.executionCount,
+            maxToolExecutions: agentSettings.maxToolCalls,
+            canContinue: status === "limit_reached" || status === "stopped",
+            lastUpdateTime: new Date().toISOString()
+        };
     }
 }
