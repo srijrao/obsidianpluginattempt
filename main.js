@@ -12167,7 +12167,7 @@ async function renderChatHistory({
   }
 }
 
-// src/components/chat/agent/AgentResponseHandler.ts
+// src/components/chat/agent/AgentResponseHandler/AgentResponseHandler.ts
 var import_obsidian22 = require("obsidian");
 
 // src/components/chat/CommandParser.ts
@@ -12424,9 +12424,11 @@ var ToolRegistry = class {
   }
 };
 
-// src/components/chat/agent/AgentResponseHandler.ts
+// src/components/chat/agent/AgentResponseHandler/AgentResponseHandler.ts
 init_ToolRichDisplay();
 init_toolcollect();
+
+// src/components/chat/agent/AgentResponseHandler/constants.ts
 var CONSTANTS = {
   NOTIFICATION_DISPLAY_DELAY: 100,
   NOTIFICATION_AUTO_REMOVE_DELAY: 5e3,
@@ -12446,32 +12448,33 @@ var CONSTANTS = {
   PATH_SEPARATOR: "/",
   COMMAND_KEY_SEPARATOR: ":"
 };
+
+// src/components/chat/agent/AgentResponseHandler/utils.ts
+function normalizePath2(path) {
+  return path.replace(/\\/g, CONSTANTS.PATH_SEPARATOR);
+}
+function stringifyJson(obj) {
+  return JSON.stringify(obj, null, CONSTANTS.JSON_INDENT);
+}
+
+// src/components/chat/agent/AgentResponseHandler/AgentResponseHandler.ts
 var AgentResponseHandler = class {
-  // Cache markdown representations
   constructor(context) {
     this.context = context;
     __publicField(this, "commandParser");
     __publicField(this, "toolRegistry");
     __publicField(this, "executionCount", 0);
     __publicField(this, "temporaryMaxToolCalls");
-    // Temporary increase for tool call limit
     __publicField(this, "toolDisplays", /* @__PURE__ */ new Map());
-    // Track tool displays
     __publicField(this, "toolMarkdownCache", /* @__PURE__ */ new Map());
     this.debugLog("constructor called");
     this.commandParser = new CommandParser(this.context.plugin);
     this.toolRegistry = new ToolRegistry(this.context.plugin);
     this.initializeTools();
   }
-  /**
-   * Get the agent context
-   */
   getContext() {
     return this.context;
   }
-  /**
-   * Common debug logging helper to reduce repetition
-   */
   debugLog(message, data, contextLabel = "AgentResponseHandler") {
     var _a2, _b;
     if (((_b = (_a2 = this.context.plugin) == null ? void 0 : _a2.settings) == null ? void 0 : _b.debugMode) && typeof this.context.plugin.debugLog === "function") {
@@ -12485,13 +12488,6 @@ var AgentResponseHandler = class {
       this.toolRegistry.register(tool);
     }
   }
-  /**
-   * Process an AI response and handle any tool commands
-   * @param response The AI response text
-   * @param contextLabel Label for debugging
-   * @param chatHistory Optional chat history to check for already executed commands
-   * @returns Object containing processed text and execution results
-   */
   async processResponse(response, contextLabel = "main", chatHistory) {
     this.debugLog("Processing response", { response }, contextLabel);
     if (!this.context.plugin.isAgentModeEnabled()) {
@@ -12522,9 +12518,6 @@ var AgentResponseHandler = class {
     }
     return await this.executeToolCommands(commandsToExecute, text, contextLabel);
   }
-  /**
-   * Helper method to create consistent process response results
-   */
   createProcessResponseResult(text, toolResults, hasTools) {
     return {
       processedText: text,
@@ -12532,9 +12525,6 @@ var AgentResponseHandler = class {
       hasTools
     };
   }
-  /**
-   * Execute tool commands and handle results
-   */
   async executeToolCommands(commands, text, contextLabel) {
     const toolResults = [];
     const agentSettings = this.context.plugin.getAgentModeSettings();
@@ -12552,9 +12542,6 @@ var AgentResponseHandler = class {
     }
     return this.createProcessResponseResult(text, toolResults, true);
   }
-  /**
-   * Execute tool with comprehensive logging
-   */
   async executeToolWithLogging(command, timeoutMs, contextLabel) {
     const startTime = Date.now();
     this.debugLog("Executing tool", { command }, contextLabel);
@@ -12563,27 +12550,18 @@ var AgentResponseHandler = class {
     this.debugLog("Tool execution result", { command, result, executionTime }, contextLabel);
     return result;
   }
-  /**
-   * Handle successful tool execution
-   */
   handleToolExecutionSuccess(command, result, toolResults) {
     toolResults.push({ command, result });
     this.executionCount++;
     this.createToolDisplay(command, result);
     this.context.onToolResult(result, command);
   }
-  /**
-   * Handle tool execution errors
-   */
   handleToolExecutionError(command, error, toolResults, contextLabel) {
     this.debugLog("Tool execution error", { command, error }, contextLabel);
     console.error(`AgentResponseHandler: Tool '${command.action}' failed with error:`, error);
     const errorResult = this.createErrorResult(command, error);
     this.handleToolExecutionSuccess(command, errorResult, toolResults);
   }
-  /**
-   * Create error result for failed tool execution
-   */
   createErrorResult(command, error) {
     return {
       success: false,
@@ -12591,9 +12569,6 @@ var AgentResponseHandler = class {
       requestId: command.requestId
     };
   }
-  /**
-   * Execute a tool command with timeout
-   */
   async executeToolWithTimeout(command, timeoutMs) {
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
@@ -12608,49 +12583,28 @@ var AgentResponseHandler = class {
       });
     });
   }
-  /**
-   * Reset execution count (call at start of new conversation)
-   */
   resetExecutionCount() {
     this.executionCount = 0;
     this.temporaryMaxToolCalls = void 0;
     this.toolDisplays.clear();
     this.toolMarkdownCache.clear();
   }
-  /**
-   * Get available tools information
-   */
   getAvailableTools() {
     return this.toolRegistry.getAvailableTools();
   }
-  /**
-   * Get all current tool displays
-   */
   getToolDisplays() {
     return new Map(this.toolDisplays);
   }
-  /**
-   * Clear all tool displays
-   */
   clearToolDisplays() {
     this.toolDisplays.clear();
     this.toolMarkdownCache.clear();
   }
-  /**
-   * Get all tool markdown representations
-   */
   getToolMarkdown() {
     return Array.from(this.toolMarkdownCache.values());
   }
-  /**
-   * Get combined tool markdown for saving
-   */
   getCombinedToolMarkdown() {
     return this.getToolMarkdown().join("\n");
   }
-  /**
-   * Get tool execution statistics
-   */
   getExecutionStats() {
     const effectiveLimit = this.getEffectiveToolLimit();
     return {
@@ -12659,9 +12613,6 @@ var AgentResponseHandler = class {
       remaining: Math.max(0, effectiveLimit - this.executionCount)
     };
   }
-  /**
-   * Unified tool result formatter for DRY (display, copy, markdown)
-   */
   formatToolResult(command, result, opts) {
     const style = (opts == null ? void 0 : opts.style) || "plain";
     const status = this.getStatusIcon(result.success, style);
@@ -12676,9 +12627,6 @@ var AgentResponseHandler = class {
         return this.formatToolResultPlain(command, result, status);
     }
   }
-  /**
-   * Get status icon based on success state and style
-   */
   getStatusIcon(success, style) {
     if (success) {
       return style === "markdown" ? "\u2705" : style === "copy" ? "SUCCESS" : "\u2713";
@@ -12686,9 +12634,6 @@ var AgentResponseHandler = class {
       return style === "markdown" ? "\u274C" : style === "copy" ? "ERROR" : "\u2717";
     }
   }
-  /**
-   * Get contextual information for tool result
-   */
   getResultContext(command, result) {
     var _a2;
     if (!result.success || !result.data) return "";
@@ -12714,12 +12659,9 @@ var AgentResponseHandler = class {
     }
     return "";
   }
-  /**
-   * Format tool result for copy operation
-   */
   formatToolResultForCopy(command, result, status) {
-    const params = this.stringifyJson(command.parameters);
-    const resultData = result.success ? this.stringifyJson(result.data) : result.error;
+    const params = stringifyJson(command.parameters);
+    const resultData = result.success ? stringifyJson(result.data) : result.error;
     return `TOOL EXECUTION: ${command.action}
 STATUS: ${status}
 PARAMETERS:
@@ -12727,24 +12669,12 @@ ${params}
 RESULT:
 ${resultData}`;
   }
-  /**
-   * Format tool result in plain style
-   */
   formatToolResultPlain(command, result, status) {
-    const data = result.success ? this.stringifyJson(result.data) : result.error;
+    const data = result.success ? stringifyJson(result.data) : result.error;
     return `${status} Tool: ${command.action}
-Parameters: ${this.stringifyJson(command.parameters)}
+Parameters: ${stringifyJson(command.parameters)}
 Result: ${data}`;
   }
-  /**
-   * Helper method to stringify JSON with consistent indentation
-   */
-  stringifyJson(obj) {
-    return JSON.stringify(obj, null, CONSTANTS.JSON_INDENT);
-  }
-  /**
-   * Format tool results for display in chat (markdown style)
-   */
   formatToolResultsForDisplay(toolResults) {
     if (toolResults.length === 0) {
       return "";
@@ -12757,9 +12687,6 @@ Result: ${data}`;
 **Tool Execution:**
 ${resultText}`;
   }
-  /**
-   * Create a message with tool execution results for context (plain style)
-   */
   createToolResultMessage(toolResults) {
     if (toolResults.length === 0) {
       return null;
@@ -12774,9 +12701,6 @@ ${resultText}`;
 ${resultText}`
     };
   }
-  /**
-   * Create and manage rich tool display (centralized)
-   */
   createToolDisplay(command, result) {
     const displayId = this.generateDisplayId(command);
     const toolDisplay = new ToolRichDisplay({
@@ -12792,15 +12716,9 @@ ${resultText}`
     }
     this.cacheToolMarkdown(command, result);
   }
-  /**
-   * Generate display ID for tool
-   */
   generateDisplayId(command) {
     return `${command.action}${CONSTANTS.TOOL_DISPLAY_ID_SEPARATOR}${command.requestId || Date.now()}`;
   }
-  /**
-   * Copy tool result to clipboard
-   */
   async copyToolResult(command, result) {
     const displayText = this.formatToolResult(command, result, { style: "copy" });
     try {
@@ -12809,19 +12727,16 @@ ${resultText}`
       console.error(CONSTANTS.ERROR_MESSAGES.COPY_FAILED, error);
     }
   }
-  /**
-   * Cache tool markdown representation (uses unified formatter)
-   */
   cacheToolMarkdown(command, result) {
     const cacheKey = `${command.action}-${command.requestId}`;
     const statusText = result.success ? "SUCCESS" : "ERROR";
-    const resultData = result.success ? this.stringifyJson(result.data) : result.error;
+    const resultData = result.success ? stringifyJson(result.data) : result.error;
     const markdown = `### TOOL EXECUTION: ${command.action}
 **Status:** ${statusText}
 
 **Parameters:**
 \`\`\`json
-${this.stringifyJson(command.parameters)}
+${stringifyJson(command.parameters)}
 \`\`\`
 
 **Result:**
@@ -12831,9 +12746,6 @@ ${resultData}
 `;
     this.toolMarkdownCache.set(cacheKey, markdown);
   }
-  /**
-   * Re-run a tool with the same parameters
-   */
   async rerunTool(originalCommand) {
     try {
       const agentSettings = this.context.plugin.getAgentModeSettings();
@@ -12844,14 +12756,10 @@ ${resultData}
       console.error(`${CONSTANTS.ERROR_MESSAGES.RERUN_FAILED} ${originalCommand.action}:`, error);
     }
   }
-  // Removed: formatToolForCopy (now handled by formatToolResult)
-  /**
-   * Helper to ensure a file path is relative to the vault root and strips .md extension for Obsidian links
-   */
   getRelativePath(filePath) {
     const adapter = this.context.app.vault.adapter;
-    const vaultRoot = (adapter == null ? void 0 : adapter.basePath) ? this.normalizePath(adapter.basePath) : "";
-    let relPath = this.normalizePath(filePath);
+    const vaultRoot = (adapter == null ? void 0 : adapter.basePath) ? normalizePath2(adapter.basePath) : "";
+    let relPath = normalizePath2(filePath);
     if (vaultRoot && relPath.startsWith(vaultRoot)) {
       relPath = relPath.slice(vaultRoot.length);
       if (relPath.startsWith(CONSTANTS.PATH_SEPARATOR)) {
@@ -12863,15 +12771,6 @@ ${resultData}
     }
     return relPath;
   }
-  /**
-   * Normalize path separators to forward slashes
-   */
-  normalizePath(path) {
-    return path.replace(/\\/g, CONSTANTS.PATH_SEPARATOR);
-  }
-  /**
-   * Process tool results and extract reasoning data for enhanced message display
-   */
   processToolResultsForMessage(toolResults) {
     const toolExecutionResults = toolResults.map(({ command, result }) => ({
       command,
@@ -12890,9 +12789,6 @@ ${resultData}
       toolExecutionResults
     };
   }
-  /**
-   * Convert ThoughtTool result data to structured ReasoningData
-   */
   convertThoughtToolResultToReasoning(thoughtData) {
     var _a2;
     const reasoningId = this.generateReasoningId();
@@ -12921,17 +12817,11 @@ ${resultData}
       };
     }
   }
-  /**
-   * Generate unique reasoning ID
-   */
   generateReasoningId() {
     const timestamp2 = Date.now();
     const random = Math.random().toString(36).substr(2, 9);
     return `${CONSTANTS.REASONING_ID_PREFIX}${timestamp2}-${random}`;
   }
-  /**
-   * Create task status object based on current execution state
-   */
   createTaskStatus(status, progress) {
     const agentSettings = this.context.plugin.getAgentModeSettings();
     return {
@@ -12943,23 +12833,14 @@ ${resultData}
       lastUpdateTime: (/* @__PURE__ */ new Date()).toISOString()
     };
   }
-  /**
-  * Check if tool execution limit has been reached
-  */
   isToolLimitReached() {
     const effectiveLimit = this.getEffectiveToolLimit();
     return this.executionCount >= effectiveLimit;
   }
-  /**
-   * Get remaining tool executions
-   */
   getRemainingToolExecutions() {
     const effectiveLimit = this.getEffectiveToolLimit();
     return Math.max(0, effectiveLimit - this.executionCount);
   }
-  /**
-  * Hide the tool continuation container if it's empty
-  */
   hideToolContinuationContainerIfEmpty() {
     if (this.context.toolContinuationContainer) {
       if (this.context.toolContinuationContainer.children.length === 0) {
@@ -12967,9 +12848,6 @@ ${resultData}
       }
     }
   }
-  /**
-   * Create tool limit warning UI element
-   */
   createToolLimitWarning() {
     const warning = document.createElement("div");
     warning.className = "tool-limit-warning";
@@ -12979,9 +12857,6 @@ ${resultData}
     this.attachToolLimitWarningHandlers(warning, agentSettings);
     return warning;
   }
-  /**
-   * Create HTML content for tool limit warning
-   */
   createToolLimitWarningHTML(effectiveLimit, maxToolCalls) {
     return `
             <div class="tool-limit-warning-text">
@@ -13002,17 +12877,11 @@ ${resultData}
             </div>
         `;
   }
-  /**
-   * Attach event handlers to tool limit warning elements
-   */
   attachToolLimitWarningHandlers(warning, agentSettings) {
     this.attachSettingsHandler(warning);
     this.attachAddToolsHandler(warning, agentSettings);
     this.attachContinueHandler(warning);
   }
-  /**
-   * Attach settings link handler
-   */
   attachSettingsHandler(warning) {
     const settingsLink = warning.querySelector(".tool-limit-settings-link");
     if (settingsLink) {
@@ -13022,9 +12891,6 @@ ${resultData}
       };
     }
   }
-  /**
-   * Attach add tools button handler
-   */
   attachAddToolsHandler(warning, agentSettings) {
     const addToolsButton = warning.querySelector(".ai-chat-add-tools-button");
     if (addToolsButton) {
@@ -13038,9 +12904,6 @@ ${resultData}
       };
     }
   }
-  /**
-   * Attach continue button handler
-   */
   attachContinueHandler(warning) {
     const continueButton = warning.querySelector(".ai-chat-continue-button");
     if (continueButton) {
@@ -13050,18 +12913,12 @@ ${resultData}
       };
     }
   }
-  /**
-   * Remove warning and trigger task continuation
-   */
   removeWarningAndTriggerContinuation(warning, eventType, detail) {
     warning.remove();
     this.hideToolContinuationContainerIfEmpty();
     const event = detail ? new CustomEvent(eventType, { detail }) : new CustomEvent(eventType);
     this.context.messagesContainer.dispatchEvent(event);
   }
-  /**
-   * Create task completion notification
-   */
   createTaskCompletionNotification(message, type2 = "success") {
     const notification = document.createElement("div");
     notification.className = `task-completion-notification ${type2}`;
@@ -13075,9 +12932,6 @@ ${resultData}
     this.setupNotificationAutoRemoval(notification);
     return notification;
   }
-  /**
-   * Get notification icon based on type
-   */
   getNotificationIcon(type2) {
     const icons = {
       success: "\u2705",
@@ -13086,9 +12940,6 @@ ${resultData}
     };
     return icons[type2];
   }
-  /**
-   * Setup auto-removal for notifications
-   */
   setupNotificationAutoRemoval(notification) {
     setTimeout(() => {
       notification.classList.add("show");
@@ -13098,9 +12949,6 @@ ${resultData}
       setTimeout(() => notification.remove(), CONSTANTS.NOTIFICATION_FADE_DELAY);
     }, CONSTANTS.NOTIFICATION_AUTO_REMOVE_DELAY);
   }
-  /**
-   * Show task completion notification
-   */
   showTaskCompletionNotification(message, type2 = "success") {
     var _a2;
     if (!((_a2 = this.context.plugin.settings.uiBehavior) == null ? void 0 : _a2.showCompletionNotifications)) {
@@ -13109,19 +12957,10 @@ ${resultData}
     const notification = this.createTaskCompletionNotification(message, type2);
     document.body.appendChild(notification);
   }
-  /**
-   * Update task progress in UI
-   */
   updateTaskProgress(current, total, description) {
   }
-  /**
-   * Hide task progress indicator
-   */
   hideTaskProgress() {
   }
-  /**
-   * Enhanced tool result processing with UI integration
-   */
   async processResponseWithUI(response, contextLabel = "ui", chatHistory) {
     const result = await this.processResponse(response, contextLabel, chatHistory);
     let status = "completed";
@@ -13142,23 +12981,14 @@ ${resultData}
       shouldShowLimitWarning
     };
   }
-  /**
-   * Add additional tool executions to the current limit (temporary increase)
-   */
   addToolExecutions(additionalCount) {
     const agentSettings = this.context.plugin.getAgentModeSettings();
     this.temporaryMaxToolCalls = (this.temporaryMaxToolCalls || agentSettings.maxToolCalls) + additionalCount;
   }
-  /**
-   * Get current effective tool limit (considering temporary increases)
-   */
   getEffectiveToolLimit() {
     const agentSettings = this.context.plugin.getAgentModeSettings();
     return this.temporaryMaxToolCalls || agentSettings.maxToolCalls;
   }
-  /**
-   * Filter out commands that have already been executed based on chat history
-   */
   filterAlreadyExecutedCommands(commands, chatHistory, contextLabel) {
     const filteredCommands = [];
     for (const command of commands) {
@@ -13174,9 +13004,6 @@ ${resultData}
     }
     return filteredCommands;
   }
-  /**
-   * Get existing tool results from chat history for already executed commands
-   */
   getExistingToolResults(commands, chatHistory) {
     const existingResults = [];
     for (const command of commands) {
@@ -13188,20 +13015,14 @@ ${resultData}
     }
     return existingResults;
   }
-  /**
-   * Generate a unique key for a command to check for duplicates
-   */
   generateCommandKey(command) {
-    const params = this.stringifyJson(command.parameters || {});
+    const params = stringifyJson(command.parameters || {});
     return [
       command.action,
       params,
       command.requestId || "no-id"
     ].join(CONSTANTS.COMMAND_KEY_SEPARATOR);
   }
-  /**
-   * Check if a command has already been executed by looking in chat history
-   */
   isCommandInChatHistory(commandKey, chatHistory) {
     for (const message of chatHistory) {
       if (message.sender === "assistant" && message.toolResults) {
@@ -13215,9 +13036,6 @@ ${resultData}
     }
     return false;
   }
-  /**
-   * Find existing tool result in chat history
-   */
   findToolResultInChatHistory(commandKey, chatHistory) {
     for (const message of chatHistory) {
       if (message.sender === "assistant" && message.toolResults) {
