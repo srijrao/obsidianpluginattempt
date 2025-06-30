@@ -1,4 +1,5 @@
 import { App, Modal, Notice, TFile, Vault, Editor } from 'obsidian';
+import { Diff, diffLines } from 'diff';
 
 /**
  * Interface for a file change suggestion, including file details and callbacks.
@@ -71,6 +72,12 @@ class FileChangeSuggestionsModal extends Modal {
     const { contentEl } = this;
     contentEl.empty();
     contentEl.addClass('ai-assistant-modal');
+    // Set modal size directly
+    contentEl.style.minWidth = '600px';
+    contentEl.style.maxWidth = '80vw';
+    contentEl.style.minHeight = '400px';
+    contentEl.style.maxHeight = '80vh';
+    contentEl.style.overflowY = 'auto';
     contentEl.createEl('h2', { text: 'File Change Suggestions' });
 
     this.suggestions.forEach((s) => {
@@ -259,4 +266,45 @@ export function renderInlineSuggestions(
       editor.addWidget(change.to, createSuggestionWidget(idx + i, onAccept, onReject), false);
     });
   }
+}
+
+/**
+ * Interface representing a change in a line of text.
+ */
+export interface LineChange {
+  type: 'add' | 'remove' | 'context';
+  value: string;
+  line: number; // line number in the original or new file
+}
+
+/**
+ * Generate a list of line changes between two texts.
+ * @param oldText The original file content.
+ * @param newText The new (suggested) file content.
+ * @returns Array of LineChange objects.
+ */
+export function getLineChanges(oldText: string, newText: string): LineChange[] {
+  const diff = diffLines(oldText, newText);
+  const changes: LineChange[] = [];
+  let oldLine = 0;
+  let newLine = 0;
+  for (const part of diff) {
+    const lines = part.value.split('\n');
+    // Remove trailing empty string from split if present
+    if (lines[lines.length - 1] === '') lines.pop();
+    for (const line of lines) {
+      if (part.added) {
+        changes.push({ type: 'add', value: line, line: newLine });
+        newLine++;
+      } else if (part.removed) {
+        changes.push({ type: 'remove', value: line, line: oldLine });
+        oldLine++;
+      } else {
+        changes.push({ type: 'context', value: line, line: oldLine });
+        oldLine++;
+        newLine++;
+      }
+    }
+  }
+  return changes;
 }

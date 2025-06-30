@@ -1078,6 +1078,11 @@ var init_filediffhandler = __esm({
         const { contentEl } = this;
         contentEl.empty();
         contentEl.addClass("ai-assistant-modal");
+        contentEl.style.minWidth = "600px";
+        contentEl.style.maxWidth = "80vw";
+        contentEl.style.minHeight = "400px";
+        contentEl.style.maxHeight = "80vh";
+        contentEl.style.overflowY = "auto";
         contentEl.createEl("h2", { text: "File Change Suggestions" });
         this.suggestions.forEach((s) => {
           const container = contentEl.createDiv("suggestion-container");
