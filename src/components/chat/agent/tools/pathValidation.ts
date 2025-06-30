@@ -8,7 +8,7 @@ export class PathValidator {
     private vaultPath: string;
 
     constructor(private app: App) {
-        // Get the vault's base path - this should be the root directory of the vault
+        
         this.vaultPath = (this.app.vault.adapter as any).basePath || '';
     }
 
@@ -22,10 +22,10 @@ export class PathValidator {
             throw new Error('Path must be a string');
         }
 
-        // Remove any leading/trailing whitespace
+        
         const cleanPath = inputPath.trim();
 
-        // Handle vault root: empty, '.', or '/'
+        
         if (cleanPath === '' || cleanPath === '.' || cleanPath === './' || cleanPath === '/') {
             return '';
         }
@@ -33,36 +33,36 @@ export class PathValidator {
         let normalizedPath: string;
 
         if (isAbsolute(cleanPath)) {
-            // For absolute paths, ensure they're within the vault
+            
             const absoluteVaultPath = normalize(this.vaultPath);
             const absoluteInputPath = normalize(cleanPath);
 
-            // Check if the absolute path is within the vault
+            
             if (!absoluteInputPath.startsWith(absoluteVaultPath)) {
                 throw new Error(`Path '${cleanPath}' is outside the vault. Only paths within the vault are allowed.`);
             }
 
-            // Convert to vault-relative path
+            
             normalizedPath = relative(absoluteVaultPath, absoluteInputPath);
         } else {
-            // For relative paths, normalize and ensure they don't escape the vault
+            
             normalizedPath = normalize(cleanPath);
             
-            // Prevent path traversal attacks (../, ../../, etc.)
+            
             if (normalizedPath.startsWith('../') || normalizedPath.includes('/../') || normalizedPath === '..') {
                 throw new Error(`Path '${cleanPath}' attempts to access files outside the vault. Only paths within the vault are allowed.`);
             }
         }
 
-        // Convert backslashes to forward slashes for consistency (Obsidian uses forward slashes)
+        
         normalizedPath = normalizedPath.replace(/\\/g, '/');
         
-        // Remove leading slash if present (vault paths should be relative)
+        
         if (normalizedPath.startsWith('/')) {
             normalizedPath = normalizedPath.substring(1);
         }
 
-        // Handle current directory reference
+        
         if (normalizedPath === '.' || normalizedPath === './') {
             normalizedPath = '';
         }

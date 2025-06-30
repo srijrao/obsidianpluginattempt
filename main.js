@@ -337,7 +337,6 @@ var init_BackupManager = __esm({
   "src/components/BackupManager.ts"() {
     init_typeguards();
     BackupManager = class {
-      // Limit backups to prevent excessive storage
       constructor(app, pluginDataPath) {
         __publicField(this, "app");
         __publicField(this, "backupFilePath");
@@ -353,12 +352,10 @@ var init_BackupManager = __esm({
        */
       isBinaryFile(filePath) {
         const textExtensions = [
-          // Markdown and text
           ".md",
           ".txt",
           ".text",
           ".rtf",
-          // Code and markup
           ".js",
           ".ts",
           ".jsx",
@@ -377,7 +374,6 @@ var init_BackupManager = __esm({
           ".ini",
           ".conf",
           ".config",
-          // Programming languages
           ".py",
           ".java",
           ".c",
@@ -406,7 +402,6 @@ var init_BackupManager = __esm({
           ".ps1",
           ".bat",
           ".cmd",
-          // Web and data
           ".svg",
           ".csv",
           ".tsv",
@@ -414,7 +409,6 @@ var init_BackupManager = __esm({
           ".sql",
           ".graphql",
           ".gql",
-          // Documentation
           ".tex",
           ".latex",
           ".bib",
@@ -422,13 +416,11 @@ var init_BackupManager = __esm({
           ".rst",
           ".asciidoc",
           ".adoc",
-          // Configuration and other text formats
           ".gitignore",
           ".gitattributes",
           ".editorconfig",
           ".env",
           ".properties",
-          // No extension (often text files like README, LICENSE, etc.)
           ""
         ];
         const extension = filePath.toLowerCase().substring(filePath.lastIndexOf("."));
@@ -2247,7 +2239,6 @@ var init_VaultTreeTool = __esm({
             data: {
               tree,
               stats,
-              // Legacy format for compatibility
               items: tree,
               count: totalItems,
               path: startPath || "/"
@@ -2780,7 +2771,7 @@ Available tools:
 
 When using tools, respond ONLY with a JSON object using this parameter framework:
 {
-  "action": "tool_name", // thought, file_search, file_read, etc.
+  "action": "tool_name", 
   "parameters": { 
     /* other tool-specific parameters */
   },
@@ -2855,7 +2846,6 @@ var init_settings = __esm({
       expandLinkedNotesRecursively: false,
       maxLinkExpansionDepth: 2,
       chatNoteFolder: "",
-      // Default to vault root
       yamlAttributeGenerators: [
         {
           attributeName: "summary",
@@ -2875,7 +2865,6 @@ var init_settings = __esm({
         "Date Settings": true,
         "Note Reference Settings": true,
         "Provider Configuration": true,
-        // For the main group of provider configs
         "AI Model Configuration": true
       },
       apiKeysExpanded: {},
@@ -2896,7 +2885,6 @@ var init_settings = __esm({
         }
       ],
       customAgentSystemMessage: void 0,
-      // Use default agent system message
       uiBehavior: {
         collapseOldReasoning: true,
         showCompletionNotifications: true,
@@ -12527,11 +12515,9 @@ function createChatUI(app, contentEl) {
     stopButton,
     helpButton,
     agentModeButton,
-    // <-- add to return object
     referenceNoteButton,
     referenceNoteIndicator,
     modelNameDisplay
-    // Add to return object
   };
 }
 
@@ -12574,9 +12560,7 @@ async function renderChatHistory({
         plugin,
         regenerateResponse,
         plugin,
-        // parentComponent
         messageData
-        // Pass enhanced message object with tool results
       );
       messageEl.dataset.timestamp = msg.timestamp;
       messagesContainer.appendChild(messageEl);
@@ -12725,11 +12709,8 @@ var CommandParser = class {
     }
     const patterns = [
       /```json\s*(\{[\s\S]*?\})\s*```/g,
-      // JSON in code blocks
       /```\s*(\{[\s\S]*?\})\s*```/g,
-      // JSON in generic code blocks
       /(\{[\s\S]*?\})/g
-      // Any JSON-like objects
     ];
     for (const pattern of patterns) {
       let match;
@@ -12896,7 +12877,6 @@ var CONSTANTS = {
   NOTIFICATION_AUTO_REMOVE_DELAY: 5e3,
   NOTIFICATION_FADE_DELAY: 300,
   MAX_ADDITIONAL_TOOLS: 100,
-  // Maximum additional tools that can be added
   REASONING_ID_PREFIX: "reasoning-",
   TOOL_DISPLAY_ID_SEPARATOR: "-",
   ERROR_MESSAGES: {
@@ -13390,7 +13370,6 @@ var AgentResponseHandler = class {
     }
     return this.createProcessResponseResult(text, toolResults, true);
   }
-  // For ToolLimitWarningUI compatibility
   getExecutionCount() {
     return this.executionCount;
   }
@@ -13565,7 +13544,6 @@ ${resultData}
     }
     return null;
   }
-  // Delegated public API for compatibility with other modules
   isToolLimitReached() {
     const effectiveLimit = this.getEffectiveToolLimit();
     return this.executionCount >= effectiveLimit;
@@ -13948,10 +13926,8 @@ var TaskContinuation = class {
             responseContent,
             container,
             allToolResults,
-            // pass all so far
             chatHistory,
             processingResult
-            // pass the already processed result to avoid double processing
           );
           responseContent = continuationResult.responseContent;
           isFinished = continuationResult.isFinished;
@@ -14076,7 +14052,6 @@ var TaskContinuation = class {
           streamCallback: async (chunk) => {
             continuationContent += chunk;
           }
-          // Note: We don't pass activeStream here as this is a background operation
         }
       );
       if (this.plugin.settings.debugMode) {
@@ -14637,11 +14612,8 @@ var ChatView = class extends import_obsidian23.ItemView {
     __publicField(this, "inputContainer");
     __publicField(this, "activeStream", null);
     __publicField(this, "referenceNoteIndicator");
-    // Add this property
     __publicField(this, "modelNameDisplay");
-    // Add model name display property
     __publicField(this, "agentResponseHandler", null);
-    // Helper classes for refactoring
     __publicField(this, "contextBuilder");
     __publicField(this, "messageRegenerator", null);
     __publicField(this, "responseStreamer", null);
@@ -14815,7 +14787,6 @@ var ChatView = class extends import_obsidian23.ItemView {
             (el) => this.regenerateResponse(el),
             this,
             enhancedMessageData
-            // Pass enhanced data to createMessageElement
           );
           this.messagesContainer.appendChild(messageEl);
           console.log("DEBUG: About to save message to history with toolResults:", !!(enhancedMessageData == null ? void 0 : enhancedMessageData.toolResults));
@@ -14861,7 +14832,6 @@ var ChatView = class extends import_obsidian23.ItemView {
       setupInputHandler2(
         textarea,
         this.messagesContainer,
-        // Pass messagesContainer for keyboard shortcuts
         sendMessage,
         async (cmd) => {
           switch (cmd) {
@@ -14966,7 +14936,6 @@ var ChatView = class extends import_obsidian23.ItemView {
   async buildContextMessages() {
     return await this.contextBuilder.buildContextMessages();
   }
-  // Delegated to ResponseStreamer for DRY and clarity
   async streamAssistantResponse(messages, container, originalTimestamp, originalContent) {
     if (!this.responseStreamer) {
       throw new Error("ResponseStreamer not initialized");
@@ -15052,8 +15021,6 @@ var ChatView = class extends import_obsidian23.ItemView {
     this.messagesContainer.appendChild(toolDisplayWrapper);
     this.scrollMessagesToBottom();
   }
-  // Task continuation logic is now delegated to TaskContinuation and ResponseStreamer
-  // All reasoning/task status rendering and helpers are now handled by MessageRenderer
 };
 
 // src/components/commands/viewCommands.ts
@@ -16054,7 +16021,6 @@ var AIModelConfigurationSection = class {
           model.name || model.id,
           `Enable or disable "${model.name || model.id}" (${model.id}) in model selection menus.`,
           () => this.plugin.settings.enabledModels[model.id] !== false,
-          // default to true
           async (value) => {
             this.plugin.settings.enabledModels[model.id] = value;
             await this.plugin.saveSettings();
@@ -16763,7 +16729,6 @@ var BackupManagementSection = class {
         });
         restoreBtn.onclick = async () => {
           const confirmed = await DialogHelpers.showConfirmationDialog(
-            // Use DialogHelpers
             "Restore Backup",
             `Are you sure you want to restore the backup from ${backup.readableTimestamp}? This will overwrite the current file content.`
           );
@@ -16786,7 +16751,6 @@ var BackupManagementSection = class {
         });
         deleteBtn.onclick = async () => {
           const confirmed = await DialogHelpers.showConfirmationDialog(
-            // Use DialogHelpers
             "Delete Backup",
             `Are you sure you want to delete the backup from ${backup.readableTimestamp}?`
           );
@@ -16827,7 +16791,6 @@ Stored at: ${backup.backupFilePath || "Unknown location"}`, 5e3);
       });
       deleteAllBtn.onclick = async () => {
         const confirmed = await DialogHelpers.showConfirmationDialog(
-          // Use DialogHelpers
           "Delete All Backups",
           `Are you sure you want to delete all ${backups.length} backups for ${filePath}?`
         );
@@ -17115,7 +17078,6 @@ var MyPluginSettingTab = class extends import_obsidian29.PluginSettingTab {
     super(app, plugin);
     __publicField(this, "plugin");
     __publicField(this, "settingCreators");
-    // Section instances
     __publicField(this, "generalSettingsSection");
     __publicField(this, "aiModelConfigurationSection");
     __publicField(this, "agentSettingsSection");
@@ -17280,7 +17242,6 @@ var AgentModeManager = class {
   isAgentModeEnabled() {
     return this.getAgentModeSettings().enabled;
   }
-  // Debug: Log when agent mode is toggled
   async setAgentModeEnabled(enabled) {
     this.debugLog("info", "[agentModeManager.ts] setAgentModeEnabled called", { enabled });
     if (!this.settings.agentMode) {
@@ -17329,7 +17290,6 @@ var _MyPlugin = class _MyPlugin extends import_obsidian31.Plugin {
       }
     }
   }
-  // --- Agent Mode State Integration ---
   getAgentModeSettings() {
     return this.settings.agentMode || {
       enabled: false,
@@ -17341,7 +17301,6 @@ var _MyPlugin = class _MyPlugin extends import_obsidian31.Plugin {
   isAgentModeEnabled() {
     return this.getAgentModeSettings().enabled;
   }
-  // Debug: Log when agent mode is toggled
   async setAgentModeEnabled(enabled) {
     this.debugLog("info", "[main.ts] setAgentModeEnabled called", { enabled });
     if (!this.settings.agentMode) {

@@ -22,7 +22,7 @@ export class SessionModal extends Modal {
             .addText(text => text
                 .setValue(this.initialName)
                 .onChange(async (value) => {
-                    // Store the value for use in the submit handler
+                    
                     this.initialName = value;
                 }));
 

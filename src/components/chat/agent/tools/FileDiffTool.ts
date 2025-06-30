@@ -5,7 +5,6 @@ import { PathValidator } from './pathValidation';
 import { debugLog } from '../../../../utils/logger';
 import { isTFile } from '../../../../utils/typeguards';
 
-
 /**
  * Interface for a file change suggestion, including file details and callbacks.
  */
@@ -43,17 +42,17 @@ export async function insertFileChangeSuggestion(
   position?: number
 ): Promise<void> {
   console.warn('insertFileChangeSuggestion is deprecated. Use showFileChangeSuggestionsModal instead.');
-  // DEPRECATED: This directly modifies the file which is not desired
-  // const content = await vault.read(file);
-  // const lines = content.split('\n');
-  // const suggestionBlock = createSuggestionBlock(suggestionText);
+  
+  
+  
+  
   //
-  // if (position !== undefined && position >= 0 && position <= lines.length) {
-  //   lines.splice(position, 0, suggestionBlock);
-  // } else {
-  //   lines.push(suggestionBlock);
-  // }
-  // await vault.modify(file, lines.join('\n'));
+  
+  
+  
+  
+  
+  
 }
 
 /**
@@ -65,11 +64,11 @@ export async function insertFileChangeSuggestion(
  */
 export async function removeSuggestionBlockFromFile(vault: Vault, file: TFile): Promise<void> {
   console.warn('removeSuggestionBlockFromFile is deprecated. No longer needed with modal-based suggestions.');
-  // DEPRECATED: No longer needed with modal approach
-  // const content = await vault.read(file);
-  // // Regex to match a suggestion code block (greedy, multiline)
-  // const newContent = content.replace(/```suggestion[\s\S]*?```\s*/m, '');
-  // await vault.modify(file, newContent);
+  
+  
+  
+  
+  
 }
 
 /**
@@ -87,7 +86,7 @@ class FileChangeSuggestionsModal extends Modal {
     const { contentEl } = this;
     contentEl.empty();
     contentEl.addClass('ai-assistant-modal');
-    // Set modal size directly
+    
     contentEl.style.minWidth = '600px';
     contentEl.style.maxWidth = '80vw';
     contentEl.style.minHeight = '400px';
@@ -100,7 +99,7 @@ class FileChangeSuggestionsModal extends Modal {
 
   renderSuggestions() {
     const { contentEl } = this;
-    // Remove all suggestion containers except the title
+    
     Array.from(contentEl.querySelectorAll('.suggestion-container, .no-suggestions')).forEach(el => el.remove());
 
     if (!this.suggestions.length) {
@@ -112,7 +111,7 @@ class FileChangeSuggestionsModal extends Modal {
       const container = contentEl.createDiv('suggestion-container');
       container.createEl('h4', { text: s.file?.path || '(No file path)' });
       
-      // Format the diff text better for display
+      
       const diffEl = container.createEl('pre', { cls: 'suggestion-diff' });
       diffEl.style.backgroundColor = '#f5f5f5';
       diffEl.style.border = '1px solid #ddd';
@@ -123,7 +122,7 @@ class FileChangeSuggestionsModal extends Modal {
       diffEl.style.fontSize = '12px';
       diffEl.style.lineHeight = '1.4';
       
-      // Apply syntax highlighting to diff lines
+      
       if (s.suggestionText) {
         const lines = s.suggestionText.split('\n');
         lines.forEach(line => {
@@ -167,7 +166,7 @@ class FileChangeSuggestionsModal extends Modal {
         } catch (e) {
           new Notice('Failed to accept suggestion: ' + (e?.message || e));
         }
-        // Remove this suggestion and re-render
+        
         this.suggestions.splice(idx, 1);
         this.renderSuggestions();
         if (this.suggestions.length === 0) {
@@ -181,7 +180,7 @@ class FileChangeSuggestionsModal extends Modal {
         } catch (e) {
           new Notice('Failed to reject suggestion: ' + (e?.message || e));
         }
-        // Remove this suggestion and re-render
+        
         this.suggestions.splice(idx, 1);
         this.renderSuggestions();
         if (this.suggestions.length === 0) {
@@ -254,9 +253,9 @@ export function showInlineFileChangeSuggestion(
   suggestionText: string,
   line: number
 ) {
-  // DEPRECATED: This directly modifies the file which pollutes it with suggestion blocks
-  // const suggestionBlock = createSuggestionBlock(suggestionText);
-  // editor.replaceRange(suggestionBlock, { line, ch: 0 });
+  
+  
+  
   console.warn('showInlineFileChangeSuggestion is deprecated. Use showFileChangeSuggestionsModal instead.');
 }
 
@@ -274,18 +273,17 @@ export function highlightFileChangeSuggestion(
   className = 'ai-suggestion-highlight',
   duration = 2000
 ) {
-  // DEPRECATED: These CodeMirror methods are not available on Obsidian's Editor interface
+  
   // @ts-ignore: CodeMirror's addLineClass is available in Obsidian's Editor but is not part of the TypeScript definitions.
-  // const handle = editor.addLineClass(line, 'background', className);
-  // setTimeout(() => {
-  //   // @ts-ignore: CodeMirror's removeLineClass is available in Obsidian's Editor.
-  //   // @ts-ignore: CodeMirror's removeLineClass is available in Obsidian's Editor but not in its type definitions.
-  //   editor.removeLineClass(line, 'background', className);
-  // }, duration);
+  
+  
+  
+  
+  
+  
   console.warn('highlightFileChangeSuggestion is deprecated due to unsupported CodeMirror methods.');
 }
 
-// Constants for button symbols
 const BUTTON_SYMBOLS = {
   accept: '✓',
   reject: '✗',
@@ -347,24 +345,24 @@ export function renderInlineSuggestions(
   onAccept: (changeIdx: number) => void,
   onReject: (changeIdx: number) => void
 ) {
-  // DEPRECATED: These CodeMirror methods are not available on Obsidian's Editor interface
+  
   console.warn('renderInlineSuggestions is deprecated due to unsupported CodeMirror methods. Use showFileChangeSuggestionsModal instead.');
   
-  // const batchSize = 50; // Process changes in batches of 50
-  // for (let i = 0; i < changes.length; i += batchSize) {
-  //   const batch = changes.slice(i, i + batchSize);
-  //   batch.forEach((change, idx) => {
-  //     const className = change.type === 'add' ? 'ai-suggestion-add' : 'ai-suggestion-remove';
-  //     // @ts-ignore: CodeMirror's markText is available in Obsidian's Editor but is not part of the TypeScript definitions for the Editor interface.
-  //     editor.markText(change.from, change.to, {
-  //       className,
-  //       clearOnEnter: false,
-  //       title: change.type === 'add' ? 'Suggested addition' : 'Suggested removal',
-  //     });
-  //     // @ts-ignore: CodeMirror's addWidget is available in Obsidian's Editor but is not included in the TypeScript type definitions.
-  //     editor.addWidget(change.to, createSuggestionWidget(idx + i, onAccept, onReject), false);
-  //   });
-  // }
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
 }
 
 /**
@@ -373,7 +371,7 @@ export function renderInlineSuggestions(
 export interface LineChange {
   type: 'add' | 'remove' | 'context';
   value: string;
-  line: number; // line number in the original or new file
+  line: number; 
 }
 
 /**
@@ -389,7 +387,7 @@ export function getLineChanges(oldText: string, newText: string): LineChange[] {
   let newLine = 0;
   for (const part of diff) {
     const lines = part.value.split('\n');
-    // Remove trailing empty string from split if present
+    
     if (lines[lines.length - 1] === '') lines.pop();
     for (const line of lines) {
       if (part.added) {
@@ -410,12 +408,12 @@ export function getLineChanges(oldText: string, newText: string): LineChange[] {
 
 export interface FileDiffParams {
     path: string;
-    filePath?: string; // Legacy support
+    filePath?: string; 
     originalContent?: string;
     suggestedContent: string;
     action?: 'compare' | 'apply' | 'suggest';
     insertPosition?: number;
-    editor?: Editor; // NEW: Optional editor for inline suggestions
+    editor?: Editor; 
 }
 
 export class FileDiffTool implements Tool {
@@ -454,9 +452,9 @@ export class FileDiffTool implements Tool {
         const debugMode = context?.plugin?.settings?.debugMode ?? true;
         debugLog(debugMode, 'debug', '[FileDiffTool] execute called with params:', params);
 
-        // Normalize parameter names for backward compatibility
+        
         const inputPath = params.path || params.filePath;
-        // Fallback: support legacy 'text' param as 'suggestedContent'
+        
         const suggestedContent = params.suggestedContent || (params as any).text;
         const { originalContent, insertPosition, editor } = params;
 
@@ -468,7 +466,7 @@ export class FileDiffTool implements Tool {
             };
         }
 
-        // Validate and normalize the path to ensure it's within the vault
+        
         let filePath: string;
         try {
             filePath = this.pathValidator.validateAndNormalizePath(inputPath);
@@ -493,7 +491,7 @@ export class FileDiffTool implements Tool {
             const file = this.app.vault.getAbstractFileByPath(filePath);
             debugLog(debugMode, 'debug', '[FileDiffTool] Got file:', file);
 
-            // Type guard for TFile - use centralized utility
+            
             if (!isTFile(file)) {
                 debugLog(debugMode, 'warn', '[FileDiffTool] File not found or not a TFile:', filePath);
                 return {
@@ -505,17 +503,17 @@ export class FileDiffTool implements Tool {
             const currentContent = originalContent || await this.app.vault.read(file);
             debugLog(debugMode, 'debug', '[FileDiffTool] Current content loaded.');
 
-            // Try to get or open an editor for the target file
+            
             let activeEditor = editor;
             if (!activeEditor) {
                 activeEditor = await this.getOrOpenFileEditor(file, debugMode);
             }
 
-            // Use inline suggestion if editor is available
+            
             if (activeEditor) {
                 return await this.showInlineSuggestion(activeEditor, file, currentContent, suggestedContent, insertPosition, debugMode);
             } else {
-                // Fallback: generate diff and return it as suggestion without requiring editor
+                
                 debugLog(debugMode, 'debug', '[FileDiffTool] No editor available, generating text-based diff suggestion');
                 const diff = this.generateDiff(currentContent, suggestedContent, debugMode);
                 
@@ -531,7 +529,7 @@ export class FileDiffTool implements Tool {
                     };
                 }
 
-                // Return the diff as a suggestion that can be displayed in the chat
+                
                 return {
                     success: true,
                     data: {
@@ -570,8 +568,8 @@ export class FileDiffTool implements Tool {
             };
         }
 
-        // Instead of inserting into the file or using unsupported editor methods,
-        // show a modal with the suggestion that allows accept/reject
+        
+        
         debugLog(debugMode, 'debug', '[FileDiffTool] Showing file change suggestion modal');
         
         const suggestion: FileChangeSuggestion = {
@@ -584,7 +582,7 @@ export class FileDiffTool implements Tool {
             },
             onReject: async () => {
                 debugLog(debugMode, 'debug', '[FileDiffTool] User rejected suggestion');
-                // Nothing to do on reject since we didn't modify the file yet
+                
                 new Notice(`Rejected changes to ${file.path}`);
             }
         };
@@ -608,7 +606,7 @@ export class FileDiffTool implements Tool {
         const diff: string[] = [];
         for (const part of diffParts) {
             const lines = part.value.split('\n');
-            // Remove trailing empty string from split if present
+            
             if (lines[lines.length - 1] === '') lines.pop();
             for (const line of lines) {
                 if (part.added) {
@@ -616,7 +614,7 @@ export class FileDiffTool implements Tool {
                 } else if (part.removed) {
                     diff.push(`-${line}`);
                 }
-                // context lines are omitted from the diff output
+                
             }
         }
         debugLog(debugMode, 'debug', '[FileDiffTool] Diff result:', diff);
@@ -630,25 +628,25 @@ export class FileDiffTool implements Tool {
         debugLog(debugMode, 'debug', '[FileDiffTool] Attempting to get or open editor for file:', file.path);
         
         try {
-            // First, check if the file is already open in any leaf
+            
             const leaves = this.app.workspace.getLeavesOfType('markdown');
             for (const leaf of leaves) {
                 if (leaf.view && 'file' in leaf.view && leaf.view.file === file) {
                     debugLog(debugMode, 'debug', '[FileDiffTool] Found existing editor for file');
                     if ('editor' in leaf.view && leaf.view.editor) {
-                        // Make this leaf active
+                        
                         this.app.workspace.setActiveLeaf(leaf);
                         return leaf.view.editor as Editor;
                     }
                 }
             }
             
-            // File is not open, try to open it
+            
             debugLog(debugMode, 'debug', '[FileDiffTool] File not open, attempting to open it');
             const leaf = this.app.workspace.getUnpinnedLeaf();
             if (leaf) {
                 await leaf.openFile(file);
-                // Wait a bit for the view to initialize
+                
                 await new Promise(resolve => setTimeout(resolve, 100));
                 
                 if (leaf.view && 'editor' in leaf.view && leaf.view.editor) {

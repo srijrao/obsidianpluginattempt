@@ -82,7 +82,7 @@ export class ToolRichDisplay extends Component {
         
         const data = this.options.result.data;
         
-        // Special handling for file operations
+        
         if (this.options.command.action === 'file_write' && data) {
             const action = data.action || 'modified';
             const filePath = data.filePath || 'unknown file';
@@ -126,13 +126,13 @@ export class ToolRichDisplay extends Component {
         
         if (this.options.command.action === 'thought' && data) {
             const thought = data.thought || data.reasoning || '';
-            // No truncation
+            
             return `<span class="tool-success">🧠 ${thought}</span>`;
         }
         
-        // Generic handling for other cases
+        
         if (typeof data === 'string') {
-            // No truncation
+            
             return data;
         }
         
@@ -184,7 +184,7 @@ export class ToolRichDisplay extends Component {
         
         let markdown = `\n### ${icon} ${toolName} ${status}\n\n`;
         
-        // Add parameters
+        
         if (command.parameters && Object.keys(command.parameters).length > 0) {
             markdown += `**Parameters:**\n`;
             Object.entries(command.parameters).forEach(([key, value]) => {
@@ -196,14 +196,14 @@ export class ToolRichDisplay extends Component {
             markdown += '\n';
         }
         
-        // Add result
+        
         if (result.success) {
             markdown += `**Result:** ${this.getResultSummary()}\n\n`;
             
-            // Add detailed result if available and different from summary
+            
             const details = this.getDetailedResult();
             if (details && details !== this.getResultSummary()) {
-                // Check if details are short enough to display inline
+                
                 if (details.length <= 200) {
                     markdown += `**Details:** \`${details}\`\n\n`;
                 } else {
@@ -238,17 +238,17 @@ export class ToolRichDisplay extends Component {
         const container = document.createElement('div');
         container.className = options?.isNote ? 'tool-rich-display tool-rich-display-note' : 'tool-rich-display';
 
-        // Icon
+        
         const iconDiv = document.createElement('div');
         iconDiv.className = 'tool-rich-icon';
         iconDiv.innerHTML = ToolRichDisplay.getStaticToolIcon(command.action);
         container.appendChild(iconDiv);
 
-        // Info section
+        
         const infoDiv = document.createElement('div');
         infoDiv.className = 'tool-rich-info';
 
-        // Title and status
+        
         const titleDiv = document.createElement('div');
         titleDiv.className = 'tool-rich-title';
         titleDiv.innerText = ToolRichDisplay.getStaticToolDisplayName(command.action);
@@ -259,19 +259,19 @@ export class ToolRichDisplay extends Component {
         titleDiv.appendChild(statusSpan);
         infoDiv.appendChild(titleDiv);
 
-        // Parameters display
+        
         if (command.parameters && Object.keys(command.parameters).length > 0) {
             const paramsDiv = document.createElement('div');
             paramsDiv.innerHTML = `<strong>Parameters:</strong> ${ToolRichDisplay.formatStaticParameters(command.parameters)}`;
             infoDiv.appendChild(paramsDiv);
         }
 
-        // Result summary
+        
         const resultDiv = document.createElement('div');
         resultDiv.innerHTML = `<strong>Result:</strong> ${ToolRichDisplay.getStaticResultSummary(command, result)}`;
         infoDiv.appendChild(resultDiv);
 
-        // Details toggle and content
+        
         const details = ToolRichDisplay.getStaticDetailedResult(result);
         if (details) {
             const toggle = document.createElement('div');
@@ -280,7 +280,7 @@ export class ToolRichDisplay extends Component {
             
             const detailsDiv = document.createElement('div');
             detailsDiv.className = 'tool-rich-details';
-            detailsDiv.style.display = 'none'; // Hide by default
+            detailsDiv.style.display = 'none'; 
             detailsDiv.innerHTML = `<pre>${details}</pre>`;
             
             toggle.onclick = () => {
@@ -300,11 +300,11 @@ export class ToolRichDisplay extends Component {
             infoDiv.appendChild(detailsDiv);
         }
 
-        // Actions
+        
         const actionsDiv = document.createElement('div');
         actionsDiv.className = 'tool-rich-actions';
         
-        // Only add re-run button if not in note mode and callback is provided
+        
         if (!options?.isNote && options?.onRerun) {
             const rerunBtn = document.createElement('button');
             rerunBtn.className = 'tool-rich-action-btn';
@@ -321,7 +321,7 @@ export class ToolRichDisplay extends Component {
             actionsDiv.appendChild(copyBtn);
         }
 
-        // Copy result button (always available)
+        
         const copyResultBtn = document.createElement('button');
         copyResultBtn.className = 'tool-rich-action-btn';
         copyResultBtn.innerText = 'Copy Result';
@@ -395,7 +395,7 @@ export class ToolRichDisplay extends Component {
         
         const data = result.data;
         
-        // Special handling for file operations
+        
         if (command.action === 'file_write' && data) {
             const action = data.action || 'modified';
             const filePath = data.filePath || 'unknown file';
@@ -442,7 +442,7 @@ export class ToolRichDisplay extends Component {
             return `<span class="tool-success">🧠 ${thought}</span>`;
         }
         
-        // Generic handling for other cases
+        
         if (typeof data === 'string') {
             return data;
         }

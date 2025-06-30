@@ -14,7 +14,7 @@ export class MessageRenderer {
      */
     updateMessageWithEnhancedData(container: HTMLElement, messageData: Message, component?: Component): void {
         debugLog(true, 'debug', '[MessageRenderer] updateMessageWithEnhancedData called', { messageData });
-        // Remove existing reasoning and task status elements
+        
         const existingReasoning = container.querySelector('.reasoning-container');
         const existingTaskStatus = container.querySelector('.task-status-container');
         if (existingReasoning) existingReasoning.remove();
@@ -23,19 +23,19 @@ export class MessageRenderer {
         const messageContainer = container.querySelector('.message-container');
         if (!messageContainer) return;
 
-        // Add reasoning section if present
+        
         if (messageData.reasoning) {
             const reasoningEl = this.createReasoningSection(messageData.reasoning);
             messageContainer.insertBefore(reasoningEl, messageContainer.firstChild);
         }
 
-        // Add task status section if present
+        
         if (messageData.taskStatus) {
             const taskStatusEl = this.createTaskStatusSection(messageData.taskStatus);
             messageContainer.insertBefore(taskStatusEl, messageContainer.firstChild);
         }
 
-        // Update main content
+        
         const contentEl = container.querySelector('.message-content') as HTMLElement;
         if (contentEl) {
             contentEl.empty();            MarkdownRenderer.render(
@@ -83,7 +83,7 @@ export class MessageRenderer {
             details.classList.add('expanded');
         }
 
-        // Add reasoning content based on type
+        
         if (reasoning.type === 'structured' && reasoning.steps) {
             if (reasoning.problem) {
                 const problemDiv = document.createElement('div');
@@ -115,7 +115,7 @@ export class MessageRenderer {
             details.appendChild(summaryDiv);
         }
 
-        // Add toggle functionality
+        
         header.addEventListener('click', () => {
             const isExpanded = details.classList.contains('expanded');
             if (isExpanded) {
@@ -152,7 +152,7 @@ export class MessageRenderer {
             </div>
         `;
 
-        // Add tool execution count
+        
         if (taskStatus.toolExecutionCount > 0) {
             const toolInfo = document.createElement('div');
             toolInfo.className = 'task-tool-info';
@@ -216,11 +216,11 @@ export class MessageRenderer {
      * Render a complete message with tool displays if present
      */
     async renderMessage(message: Message, container: HTMLElement, component?: Component): Promise<void> {
-        // Check if this message has tool results that need rich display rendering
+        
         if (message.toolResults && message.toolResults.length > 0) {
             await this.renderMessageWithToolDisplays(message, container, component);
         } else {
-            // Regular message rendering
+            
             await this.renderRegularMessage(message, container, component);
         }
     }    /**
@@ -233,21 +233,21 @@ export class MessageRenderer {
             return;
         }
 
-        // Clear existing content
+        
         messageContent.empty();
         
-        // Add class to indicate this message has rich tool displays
+        
         container.classList.add('has-rich-tools');
 
-        // Render all tool results as rich displays
+        
         if (message.toolResults && message.toolResults.length > 0) {
             for (const toolExecutionResult of message.toolResults) {
-                // Create rich display for this tool
+                
                 const richDisplay = new ToolRichDisplay({
                     command: toolExecutionResult.command,
                     result: toolExecutionResult.result,
                     onRerun: () => {
-                        // Re-run functionality can be added later if needed
+                        
                     },
                     onCopy: async () => {
                         const displayText = this.formatToolForCopy(toolExecutionResult.command, toolExecutionResult.result);
@@ -259,7 +259,7 @@ export class MessageRenderer {
                     }
                 });
 
-                // Create wrapper and append
+                
                 const toolWrapper = document.createElement('div');
                 toolWrapper.className = 'embedded-tool-display';
                 toolWrapper.appendChild(richDisplay.getElement());
@@ -267,7 +267,7 @@ export class MessageRenderer {
             }
         }
 
-        // Then render the message content if it exists
+        
         if (message.content && message.content.trim()) {
             const textDiv = document.createElement('div');
             textDiv.className = 'message-text-part';
@@ -293,14 +293,14 @@ export class MessageRenderer {
     private parseMessageWithTools(content: string): Array<{type: 'text' | 'tool', content?: string, command?: ToolCommand}> {
         const parts: Array<{type: 'text' | 'tool', content?: string, command?: ToolCommand}> = [];
 
-        // Look for tool call patterns in the content
+        
         const toolCallRegex = /```json\s*\{[^}]*"action":\s*"([^"]+)"[^}]*\}[^`]*```/g;
 
         let lastIndex = 0;
         let match;
 
         while ((match = toolCallRegex.exec(content)) !== null) {
-            // Add text before this tool call
+            
             if (match.index > lastIndex) {
                 const textContent = content.slice(lastIndex, match.index).trim();
                 if (textContent) {
@@ -308,20 +308,20 @@ export class MessageRenderer {
                 }
             }
 
-            // Parse the tool command
+            
             try {
                 const toolJson = match[0].replace(/```json\s*/, '').replace(/\s*```[\s\S]*?$/, '');
                 const command = JSON.parse(toolJson) as ToolCommand;
                 parts.push({ type: 'tool', command });
             } catch (e) {
-                // If parsing fails, treat as regular text
+                
                 parts.push({ type: 'text', content: match[0] });
             }
 
             lastIndex = match.index + match[0].length;
         }
 
-        // Add remaining text
+        
         if (lastIndex < content.length) {
             const remainingContent = content.slice(lastIndex).trim();
             if (remainingContent) {
@@ -329,7 +329,7 @@ export class MessageRenderer {
             }
         }
 
-        // If no tool calls found, return the entire content as text
+        
         if (parts.length === 0) {
             parts.push({ type: 'text', content });
         }
@@ -354,12 +354,12 @@ export class MessageRenderer {
         
         let output = `${status} **${command.action}** ${statusText}`;
         
-        // Add parameters section
+        
         if (command.parameters && Object.keys(command.parameters).length > 0) {
             output += `\n\n**Parameters:**\n\`\`\`json\n${JSON.stringify(command.parameters, null, 2)}\n\`\`\``;
         }
         
-        // Add result section
+        
         if (result.success) {
             output += `\n\n**Result:**\n\`\`\`json\n${JSON.stringify(result.data, null, 2)}\n\`\`\``;
         } else {
@@ -374,7 +374,7 @@ export class MessageRenderer {
         let content = messageData.content;
         
         if (messageData.toolResults && messageData.toolResults.length > 0) {
-            // Create a custom markdown block with embedded data
+            
             content += '\n\n```ai-tool-execution\n';
             content += JSON.stringify({
                 toolResults: messageData.toolResults,
@@ -382,7 +382,7 @@ export class MessageRenderer {
                 taskStatus: messageData.taskStatus
             }, null, 2);
             content += '\n```\n';
-            // Removed ToolRichDisplay.toMarkdown() output to avoid duplicate markdown
+            
         }
 
         return content;
@@ -408,10 +408,10 @@ export class MessageRenderer {
      * Remove tool data blocks from content to get clean content for display
      */
     cleanContentFromToolData(content: string): string {
-        // Remove the ai-tool-execution block and tool display sections
+        
         let cleanContent = content.replace(/```ai-tool-execution\n[\s\S]*?\n```\n?/g, '');
         
-        // Remove tool display sections (they start with **Tool Execution:** or similar patterns)
+        
         cleanContent = cleanContent.replace(/\n\n\*\*Tool Execution:\*\*[\s\S]*?(?=\n\n\*\*Tool Execution:\*\*|\n\n[^*]|$)/g, '');
         
         return cleanContent.trim();

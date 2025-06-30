@@ -58,7 +58,7 @@ export class DialogHelpers {
 
             document.body.appendChild(modal);
 
-            // Close on background click
+            
             modal.onclick = (e) => {
                 if (e.target === modal) {
                     document.body.removeChild(modal);

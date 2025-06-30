@@ -24,16 +24,16 @@ export class TaskContinuation {
         chatHistory?: any[]
     ): Promise<{ content: string; limitReachedDuringContinuation: boolean; }> {
         let responseContent = currentContent;
-        let maxIterations = this.plugin.settings.agentMode?.maxIterations ?? 10; // Configurable iteration limit
+        let maxIterations = this.plugin.settings.agentMode?.maxIterations ?? 10; 
         let iteration = 0;
         let limitReachedDuringContinuation = false;
-        // Accumulate all tool results across iterations
+        
         let allToolResults = [...initialToolResults];
-        // Check if any of the initial tool results indicate finished: true
+        
         let isFinished = this.checkIfTaskFinished(allToolResults);
-        // Check if tool limit is reached before starting continuation
+        
         if (this.agentResponseHandler?.isToolLimitReached()) {
-            // Removed redundant console.log for cleaner production code.
+            
             return { 
                 content: responseContent + '\n\n*[Tool execution limit reached - task continuation stopped]*',
                 limitReachedDuringContinuation: true 
@@ -50,29 +50,29 @@ export class TaskContinuation {
         while (!isFinished && iteration < maxIterations) {
             iteration++;
             if (this.agentResponseHandler?.isToolLimitReached()) {
-                // Removed redundant console.log for cleaner production code.
+                
                 responseContent += '\n\n*[Tool execution limit reached during continuation]*';
                 limitReachedDuringContinuation = true;
                 break;
             }
-            // Always include all tool results so far
+            
             const toolResultMessage = this.agentResponseHandler?.createToolResultMessage(allToolResults);
             if (toolResultMessage) {
-                // Create a copy of messages for continuation to avoid modifying the original
+                
                 const continuationMessages: Message[] = [
                     ...messages,
                     { role: 'assistant', content: initialResponseContent },
                     toolResultMessage
                 ];
                 
-                // Get continuation response
+                
                 const continuationContent = await this.getContinuationResponse(continuationMessages, container);
                 if (continuationContent.trim()) {
-                    // Process for tools first
+                    
                     let processingResult;
                     if (this.agentResponseHandler) {
                         processingResult = await this.agentResponseHandler.processResponse(continuationContent, "task-continuation", chatHistory);
-                        // Add new tool results from this step to the accumulator
+                        
                         if (processingResult.toolResults && processingResult.toolResults.length > 0) {
                             allToolResults = [...allToolResults, ...processingResult.toolResults];
                         }
@@ -82,9 +82,9 @@ export class TaskContinuation {
                         continuationContent,
                         responseContent,
                         container,
-                        allToolResults, // pass all so far
+                        allToolResults, 
                         chatHistory,
-                        processingResult // pass the already processed result to avoid double processing
+                        processingResult 
                     );
                     responseContent = continuationResult.responseContent;
                     isFinished = continuationResult.isFinished;
@@ -109,7 +109,7 @@ export class TaskContinuation {
             }
             responseContent += '\n\n*[Task continuation reached maximum iterations - stopping to prevent infinite loop]*';
         }
-        // Removed redundant console.log for cleaner production code.
+        
         return { content: responseContent, limitReachedDuringContinuation };
     }    /**
      * Process continuation response and update UI
@@ -122,46 +122,46 @@ export class TaskContinuation {
         chatHistory?: any[],
         processingResult?: { processedText: string; toolResults: Array<{ command: ToolCommand; result: ToolResult }>; hasTools: boolean }
     ): Promise<{ responseContent: string; isFinished: boolean }> {
-        // Use already processed result if available, otherwise process now
+        
         let continuationResult;
         if (processingResult) {
             continuationResult = processingResult;
         } else if (this.agentResponseHandler) {
             continuationResult = await this.agentResponseHandler.processResponse(continuationContent, "main", chatHistory);
         } else {
-            // No agent handler and no processing result
+            
             const updatedContent = responseContent + '\n\n' + continuationContent;
             await this.updateContainerContent(container, updatedContent);
             return { responseContent: updatedContent, isFinished: true };
         }
             
         if (continuationResult.hasTools) {
-            // Use the clean processed text, not the display format
+            
             const cleanContinuationContent = continuationResult.processedText;
             
-            // Check if this iteration is finished
+            
             const isFinished = this.checkIfTaskFinished(continuationResult.toolResults);
             
-            // Use the initialToolResults which already contains all accumulated tool results
-            // Don't add continuationResult.toolResults again as they're already included
+            
+            
             const allToolResults = initialToolResults;
             
-            // Update content with clean text only
+            
             const updatedContent = responseContent + '\n\n' + cleanContinuationContent;
             
-            // Create enhanced message data with all tool results
+            
             const enhancedMessageData = this.createEnhancedMessageData(
                 updatedContent,
                 continuationResult,
                 allToolResults
             );
             
-            // Update container with enhanced message data
+            
             this.updateContainerWithMessageData(container, enhancedMessageData, updatedContent);
             
             return { responseContent: updatedContent, isFinished };
         } else {
-            // If no tools were used, check if the response itself has finished: true
+            
             let isFinished = false;
             try {
                 const parsed = JSON.parse(continuationContent);
@@ -169,11 +169,11 @@ export class TaskContinuation {
                     isFinished = true;
                 }
             } catch (e) {
-                // Not JSON, check if this is a plain text response after tool execution
-                // If we have tool results from previous iterations and this is just plain text,
-                // it's likely the final user-facing response
+                
+                
+                
                 if (initialToolResults.length > 0) {
-                    // Check if any previous tool results indicated completion
+                    
                     isFinished = this.checkIfTaskFinished(initialToolResults);
                 }
             }
@@ -207,14 +207,14 @@ export class TaskContinuation {
      */
     private checkIfTaskFinished(toolResults: Array<{ command: ToolCommand; result: ToolResult }>): boolean {
         return toolResults.some(({ command, result }) => {
-            // Check if the command has finished: true parameter
+            
             if ((command as any).finished === true) {
                 return true;
             }
             
-            // Check if this is a thought tool indicating completion
+            
             if (command.action === 'thought' && result.success && result.data) {
-                // Check if nextTool is "finished" or result indicates finished
+                
                 return result.data.nextTool === 'finished' || result.data.finished === true;
             }
             
@@ -231,16 +231,16 @@ export class TaskContinuation {
             if (this.plugin.settings.debugMode) {
                 this.plugin.debugLog('debug', '[TaskContinuation] getContinuationResponse', { messages });
             }
-            // Check if tool limit is reached before making API call
+            
             if (this.agentResponseHandler?.isToolLimitReached()) {
-                // Removed redundant console.log for cleaner production code.
+                
                 return '*[Tool execution limit reached - no continuation response]*';
             }
             
-            // Import provider utilities
+            
             const { createProvider, createProviderFromUnifiedModel } = await import('../../../../providers');
             
-            // Use the same provider setup as the main response
+            
             const provider = this.plugin.settings.selectedModel 
                 ? createProviderFromUnifiedModel(this.plugin.settings, this.plugin.settings.selectedModel)
                 : createProvider(this.plugin.settings);
@@ -254,14 +254,14 @@ export class TaskContinuation {
                     maxTokens: this.plugin.settings.maxTokens,
                     streamCallback: async (chunk: string) => {
                         continuationContent += chunk;
-                        // Don't update the UI during continuation streaming
-                        // The caller will handle the final update
+                        
+                        
                     },
-                    // Note: We don't pass activeStream here as this is a background operation
+                    
                 }
             );
 
-            // Removed verbose log for continuation response received
+            
             if (this.plugin.settings.debugMode) {
                 this.plugin.debugLog('debug', '[TaskContinuation] Continuation response received', { continuationContent });
             }
@@ -272,7 +272,7 @@ export class TaskContinuation {
             }
             console.error('TaskContinuation: Error getting continuation response:', error);
             if (error.name !== 'AbortError') {
-                // Return a fallback message instead of throwing
+                
                 return `*[Error getting continuation: ${error.message}]*`;
             }
             return '';
@@ -315,6 +315,6 @@ export class TaskContinuation {
     ): void {
         container.dataset.messageData = JSON.stringify(messageData);
         container.dataset.rawContent = rawContent;
-        // Note: MessageRenderer update would need to be called by the parent if needed
+        
     }
 }

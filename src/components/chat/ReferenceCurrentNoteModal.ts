@@ -14,7 +14,7 @@ export class ReferenceCurrentNoteModal extends Modal {
         this.contentEl.empty();
         this.contentEl.addClass('ai-reference-note-modal');
 
-        // Main toggle setting
+        
         new Setting(this.contentEl)
             .setName('Reference current note')
             .setDesc('When enabled, the AI will have access to the content of the currently active note in your conversations. This helps the AI understand the context of what you\'re working on.')
@@ -25,7 +25,7 @@ export class ReferenceCurrentNoteModal extends Modal {
                     await this.plugin.saveSettings();
                 }));
 
-        // Information section
+        
         const infoContainer = this.contentEl.createDiv('reference-note-info');
         infoContainer.createEl('h3', { text: 'How it works:' });
         
@@ -35,7 +35,7 @@ export class ReferenceCurrentNoteModal extends Modal {
         infoList.createEl('li', { text: 'This feature respects your privacy - only the currently active note is shared' });
         infoList.createEl('li', { text: 'You can toggle this on/off at any time without affecting existing conversations' });
 
-        // Current status
+        
         const statusContainer = this.contentEl.createDiv('reference-note-status');
         const currentFile = this.app.workspace.getActiveFile();
         if (currentFile) {
@@ -50,13 +50,13 @@ export class ReferenceCurrentNoteModal extends Modal {
             });
         }
 
-        // Quick actions section
+        
         const actionsContainer = this.contentEl.createDiv('reference-note-actions');
         actionsContainer.createEl('h3', { text: 'Quick Actions:' });
         
         const buttonContainer = actionsContainer.createDiv('modal-button-container');
         
-        // Toggle button
+        
         const toggleButton = buttonContainer.createEl('button', {
             text: this.plugin.settings.referenceCurrentNote ? 'Disable' : 'Enable',
             cls: this.plugin.settings.referenceCurrentNote ? 'mod-warning' : 'mod-cta'
@@ -65,15 +65,15 @@ export class ReferenceCurrentNoteModal extends Modal {
             this.plugin.settings.referenceCurrentNote = !this.plugin.settings.referenceCurrentNote;
             await this.plugin.saveSettings();
             
-            // Update button text and style
+            
             toggleButton.textContent = this.plugin.settings.referenceCurrentNote ? 'Disable' : 'Enable';
             toggleButton.className = this.plugin.settings.referenceCurrentNote ? 'mod-warning' : 'mod-cta';
             
-            // Update the toggle switch
-            this.onOpen(); // Refresh the modal to show updated state
+            
+            this.onOpen(); 
         });
 
-        // Close button
+        
         const closeButton = buttonContainer.createEl('button', {
             text: 'Close'
         });

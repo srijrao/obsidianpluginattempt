@@ -14,8 +14,8 @@ function getFormattedChatContent(messagesContainer: HTMLElement, plugin: MyPlugi
     messages.forEach((el, index) => {
         const htmlElement = el as HTMLElement;
         
-        // Skip standalone tool displays - they are visual artifacts, not conversation content
-        // The actual tool results are already included in the assistant messages that contain them
+        
+        
         if (htmlElement.classList.contains('tool-display-message')) {
             return;
         }
@@ -76,7 +76,7 @@ export function handleClearChat(messagesContainer: HTMLElement, chatHistoryManag
 
 export function handleSettings(app: App, plugin: MyPlugin) {
     return () => {
-        // Lazy import to avoid circular dependency if needed
+        
         const { SettingsModal } = require('./SettingsModal');
         const settingsModal = new SettingsModal(app, plugin);
         settingsModal.open();
@@ -94,7 +94,7 @@ export function handleReferenceNote(app: App, plugin: MyPlugin) {
         plugin.settings.referenceCurrentNote = !plugin.settings.referenceCurrentNote;
         plugin.saveSettings();
         new Notice(`Reference current note: ${plugin.settings.referenceCurrentNote ? 'ON' : 'OFF'}`);
-        // Optionally, trigger a custom event for immediate UI update
+        
         app.workspace.trigger('ai-assistant:reference-note-toggled');
     };
 }
@@ -108,14 +108,14 @@ export function handleCopyMessage(messageEl: HTMLElement, plugin: MyPlugin) {
             try {
                 const parsedData = JSON.parse(messageData);
                 const renderer = new MessageRenderer(plugin.app);
-                // Use the same logic as copy all for rich content
+                
                 contentToCopy = renderer.getMessageContentForCopy(parsedData);
             } catch (e) {
-                // Fallback to raw content
+                
                 contentToCopy = messageEl.dataset.rawContent || '';
             }
         } else {
-            // Regular message without tool data
+            
             contentToCopy = messageEl.dataset.rawContent || '';
         }
         
@@ -135,7 +135,7 @@ export function handleEditMessage(messageEl: HTMLElement, chatHistoryManager: Ch
         if (!contentEl) return;
         
         if (!contentEl.hasClass('editing')) {
-            // Switch to edit mode
+            
             const textarea = document.createElement('textarea');
             textarea.value = messageEl.dataset.rawContent || '';
             textarea.className = 'message-content editing';
@@ -173,7 +173,7 @@ export function handleEditMessage(messageEl: HTMLElement, chatHistoryManager: Ch
                     
                     messageEl.dataset.rawContent = newContent;
                     contentEl.empty();
-                      // Re-render the message properly
+                      
                     if (enhancedData && enhancedData.toolResults) {
                         const renderer = new MessageRenderer(plugin.app);
                         await renderer.renderMessage({

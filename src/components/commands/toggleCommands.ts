@@ -12,7 +12,7 @@ export function registerToggleCommands(
     plugin: Plugin,
     settings: MyPluginSettings
 ) {
-    // Toggle Enable Obsidian Link command
+    
     registerCommand(
         plugin,
         {
@@ -28,7 +28,7 @@ export function registerToggleCommands(
         }
     );
 
-    // Toggle Enable Context Notes command
+    
     registerCommand(
         plugin,
         {

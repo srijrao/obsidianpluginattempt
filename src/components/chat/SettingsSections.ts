@@ -17,10 +17,10 @@ export class SettingsSections {
      * AI Model Settings Section
      */
     async renderAIModelSettings(containerEl: HTMLElement, onRefresh?: () => void): Promise<void> {
-        // Prevent duplicate UI: clear container first
+        
         while (containerEl.firstChild) containerEl.removeChild(containerEl.firstChild);
 
-        // --- Model Setting Presets UI ---
+        
         if (this.plugin.settings.modelSettingPresets && this.plugin.settings.modelSettingPresets.length > 0) {
             const presetContainer = containerEl.createDiv();
             presetContainer.addClass('model-preset-buttons');
@@ -29,14 +29,14 @@ export class SettingsSections {
                 const btn = presetContainer.createEl('button', { text: preset.name });
                 btn.style.marginRight = '0.5em';
                 btn.onclick = async () => {
-                    // Apply preset fields to current settings
+                    
                     if (preset.selectedModel !== undefined) this.plugin.settings.selectedModel = preset.selectedModel;
                     if (preset.systemMessage !== undefined) this.plugin.settings.systemMessage = preset.systemMessage;
                     if (preset.temperature !== undefined) this.plugin.settings.temperature = preset.temperature;
                     if (preset.maxTokens !== undefined) this.plugin.settings.maxTokens = preset.maxTokens;
                     if (preset.enableStreaming !== undefined) this.plugin.settings.enableStreaming = preset.enableStreaming;
                     await this.plugin.saveSettings();
-                    // Debounce onRefresh to prevent duplicate UI
+                    
                     if (onRefresh) {
                         if ((window as any)._aiModelSettingsRefreshTimeout) {
                             clearTimeout((window as any)._aiModelSettingsRefreshTimeout);
@@ -58,11 +58,11 @@ export class SettingsSections {
                 text.setPlaceholder('You are a helpful assistant.')
                     .setValue(this.plugin.settings.systemMessage)
                     .onChange((value) => {
-                        // Store value locally while typing, don't save yet
+                        
                         this.plugin.settings.systemMessage = value;
                     });
                 
-                // Save only when the user leaves the field
+                
                 text.inputEl.addEventListener('blur', async () => {
                     await this.plugin.saveSettings();
                 });
@@ -92,7 +92,7 @@ export class SettingsSections {
                     await this.plugin.saveSettings();
                 }));
 
-        // Refresh available models button
+        
         new Setting(containerEl)
             .setName('Refresh Available Models')
             .setDesc('Test connections to all configured providers and refresh available models')
@@ -114,7 +114,7 @@ export class SettingsSections {
                     }
                 }));
 
-        // Unified model selection dropdown
+        
         await this.renderUnifiedModelDropdown(containerEl);
     }
 
@@ -177,11 +177,11 @@ export class SettingsSections {
                 text.setPlaceholder('[[Note Name]]\n[[Another Note#Header]]')
                     .setValue(this.plugin.settings.contextNotes || '')
                     .onChange((value) => {
-                        // Store value locally while typing, don't save yet
+                        
                         this.plugin.settings.contextNotes = value;
                     });
                 
-                // Save only when the user leaves the field
+                
                 text.inputEl.addEventListener('blur', async () => {
                     await this.plugin.saveSettings();
                 });
@@ -202,7 +202,6 @@ export class SettingsSections {
                 }));
     }
 
-
     /**
      * Provider Configuration Section
      */
@@ -212,7 +211,7 @@ export class SettingsSections {
             cls: 'setting-item-description'
         });
         
-        // Render all provider configurations
+        
         this.renderOpenAIConfig(containerEl);
         this.renderAnthropicConfig(containerEl);
         this.renderGeminiConfig(containerEl);
@@ -223,7 +222,7 @@ export class SettingsSections {
      * Renders the unified model selection dropdown
      */
     private async renderUnifiedModelDropdown(containerEl: HTMLElement): Promise<void> {
-        // Ensure we have available models
+        
         if (!this.plugin.settings.availableModels || this.plugin.settings.availableModels.length === 0) {
             this.plugin.settings.availableModels = await getAllAvailableModels(this.plugin.settings);
             await this.plugin.saveSettings();
@@ -233,14 +232,14 @@ export class SettingsSections {
             .setName('Selected Model')
             .setDesc('Choose from all available models across all configured providers')
             .addDropdown(dropdown => {
-                // Add a default option if no models are available
+                
                 if (!this.plugin.settings.availableModels || this.plugin.settings.availableModels.length === 0) {
                     dropdown.addOption('', 'No models available - configure providers below');
                 } else {
                     dropdown.addOption('', 'Select a model...');
-                    // Group models by provider for better organization
+                    
                     const modelsByProvider: Record<string, any[]> = {};
-                    // Filter models by enabledModels
+                    
                     const enabledModels = this.plugin.settings.enabledModels || {};
                     const filteredModels = this.plugin.settings.availableModels.filter(model => enabledModels[model.id] !== false);
                     filteredModels.forEach(model => {
@@ -249,7 +248,7 @@ export class SettingsSections {
                         }
                         modelsByProvider[model.provider].push(model);
                     });
-                    // Add models grouped by provider
+                    
                     Object.entries(modelsByProvider).forEach(([provider, models]) => {
                         models.forEach(model => {
                             dropdown.addOption(model.id, model.name);
@@ -260,7 +259,7 @@ export class SettingsSections {
                     .setValue(this.plugin.settings.selectedModel || '')
                     .onChange(async (value) => {
                         this.plugin.settings.selectedModel = value;
-                        // Update the provider setting based on selected model
+                        
                         if (value) {
                             const provider = getProviderFromUnifiedModel(value);
                             this.plugin.settings.provider = provider;
@@ -268,7 +267,7 @@ export class SettingsSections {
                         await this.plugin.saveSettings();
                     });
             });
-        // Show current selection info if a model is selected
+        
         if (this.plugin.settings.selectedModel && this.plugin.settings.availableModels) {
             const selectedModel = this.plugin.settings.availableModels.find(
                 model => model.id === this.plugin.settings.selectedModel
@@ -289,12 +288,12 @@ export class SettingsSections {
         for (const providerType of providers) {
             try {
                 const originalProvider = this.plugin.settings.provider;
-                this.plugin.settings.provider = providerType; // Temporarily set provider to test connection
+                this.plugin.settings.provider = providerType; 
 
                 const providerInstance = createProvider(this.plugin.settings);
                 const result = await providerInstance.testConnection();
 
-                this.plugin.settings.provider = originalProvider; // Restore original provider
+                this.plugin.settings.provider = originalProvider; 
 
                 const providerSettings = this.plugin.settings[`${providerType}Settings` as keyof typeof this.plugin.settings] as any;
 
@@ -390,11 +389,11 @@ export class SettingsSections {
                     text.setPlaceholder('https://api.openai.com/v1')
                         .setValue(this.plugin.settings.openaiSettings.baseUrl || '')
                         .onChange((value) => {
-                            // Store value locally while typing, don't save yet
+                            
                             this.plugin.settings.openaiSettings.baseUrl = value;
                         });
                     
-                    // Save only when the user leaves the field
+                    
                     text.inputEl.addEventListener('blur', async () => {
                         await this.plugin.saveSettings();
                     });
@@ -456,14 +455,14 @@ export class SettingsSections {
                     button.setButtonText('Testing...');
                     button.setDisabled(true);
                     try {
-                        // Temporarily set provider to test connection
+                        
                         const originalProvider = this.plugin.settings.provider;
                         this.plugin.settings.provider = provider;
                         
                         const providerInstance = createProvider(this.plugin.settings);
                         const result = await providerInstance.testConnection();
                         
-                        // Restore original provider
+                        
                         this.plugin.settings.provider = originalProvider;
                         
                         if (result.success && result.models) {
@@ -475,7 +474,7 @@ export class SettingsSections {
                             };
                             await this.plugin.saveSettings();
                             
-                            // Refresh unified models
+                            
                             this.plugin.settings.availableModels = await getAllAvailableModels(this.plugin.settings);
                             await this.plugin.saveSettings();
                             

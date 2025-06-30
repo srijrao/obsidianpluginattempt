@@ -27,7 +27,7 @@ export class ChatInput extends Component {
         this.container = document.createElement('div');
         this.container.addClass('ai-chat-input-container');
 
-        // Create textarea
+        
         this.textarea = this.container.createEl('textarea', {
             cls: 'ai-chat-input',
             attr: {
@@ -36,19 +36,19 @@ export class ChatInput extends Component {
             }
         });
 
-        // Styling is handled by CSS class 'ai-chat-input'
+        
 
-        // Add button container
+        
         const buttonContainer = this.container.createDiv('ai-chat-buttons');
         buttonContainer.appendChild(this.buttons.getContainer());
 
-        // Configure buttons
+        
         const sendButton = this.buttons.getSendButton();
         sendButton.setDisabled(false);
         sendButton.onClick(() => this.handleSend());
 
         const stopButton = this.buttons.getStopButton();
-        stopButton.setDisabled(true); // Initially hidden
+        stopButton.setDisabled(true); 
         stopButton.onClick(() => this.handleStop());
 
         const clearButton = this.buttons.getClearButton();
@@ -59,7 +59,7 @@ export class ChatInput extends Component {
         settingsButton.setDisabled(false);
         settingsButton.onClick(() => this.handleSettings());
 
-        // Add event listeners
+        
         this.textarea.addEventListener('keydown', (e: KeyboardEvent) => {
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();

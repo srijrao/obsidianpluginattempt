@@ -2,12 +2,11 @@ import { App, TFile } from 'obsidian';
 import { Tool, ToolResult } from '../ToolRegistry';
 import { BackupManager } from '../../../BackupManager';
 import { PathValidator } from './pathValidation';
-import { isTFile } from '../../../../utils/typeguards'; // Import isTFile
+import { isTFile } from '../../../../utils/typeguards'; 
 
-// Helper to create parent folders for a file path
 async function createFileWithParents(app: App, filePath: string, content = ''): Promise<string> {
     const parts = filePath.split('/');
-    parts.pop(); // remove file name
+    parts.pop(); 
     let current = '';
     for (const part of parts) {
         current = current ? `${current}/${part}` : part;
@@ -15,7 +14,7 @@ async function createFileWithParents(app: App, filePath: string, content = ''): 
             try {
                 await app.vault.createFolder(current);
             } catch (err: any) {
-                // Ignore if already exists due to race, else fail
+                
                 if (!/already exists/i.test(err?.message || '')) {
                     return `Failed to create parent folder: ${err?.message || err}`;
                 }
@@ -54,11 +53,11 @@ async function writeFileDirect(app: App, filePath: string, content: string): Pro
 
 export interface FileWriteParams {
     path: string;
-    filePath?: string; // Legacy support
+    filePath?: string; 
     content: string;
     createIfNotExists?: boolean;
     backup?: boolean;
-    createParentFolders: boolean; // Now required
+    createParentFolders: boolean; 
 }
 
 export class FileWriteTool implements Tool {
@@ -94,13 +93,13 @@ export class FileWriteTool implements Tool {
     private backupManager: BackupManager;
     private pathValidator: PathValidator;
     constructor(private app: App, backupManager?: BackupManager) {
-        // Initialize backup manager with provided instance or create a default one
+        
         const defaultPath = app.vault.configDir + '/plugins/ai-assistant-for-obsidian';
         this.backupManager = backupManager || new BackupManager(app, defaultPath);
         this.pathValidator = new PathValidator(app);
     }
     async execute(params: any, context: any): Promise<ToolResult> {
-        // Normalize parameter names for backward compatibility
+        
         const inputPath = params.path || params.filePath || params.filename;
         const { content, createIfNotExists = true, backup = true, createParentFolders } = params;
 
@@ -117,7 +116,7 @@ export class FileWriteTool implements Tool {
             };
         }
 
-        // Validate and normalize the path to ensure it's within the vault
+        
         let filePath: string;
         try {
             filePath = this.pathValidator.validateAndNormalizePath(inputPath);
@@ -138,19 +137,19 @@ export class FileWriteTool implements Tool {
         try {
             const file = this.app.vault.getAbstractFileByPath(filePath);
             if (!file) {
-                // File doesn't exist
+                
                 if (!createIfNotExists) {
                     return {
                         success: false,
                         error: `File not found and createIfNotExists is false: ${filePath}`
                     };
                 }
-                // Use direct logic to create file, with or without parent folders
+                
                 let result: string;
                 if (createParentFolders) {
                     result = await createFileWithParents(this.app, filePath, content);
                 } else {
-                    // Check if parent exists
+                    
                     const parentPath = filePath.split('/').slice(0, -1).join('/');
                     if (parentPath && !this.app.vault.getAbstractFileByPath(parentPath)) {
                         return {
@@ -181,19 +180,19 @@ export class FileWriteTool implements Tool {
                     error: `Path is not a file: ${filePath}`
                 };
             }
-            // File exists, handle backup if requested
+            
             let originalContent: string | undefined = undefined;
             if (backup || true) {
                 originalContent = await this.app.vault.read(file);
             }
-            // Only create backup if content is actually changing
+            
             if (backup) {
                 const shouldBackup = await this.backupManager.shouldCreateBackup(filePath, content);
                 if (shouldBackup) {
                     await this.backupManager.createBackup(filePath, originalContent);
                 }
             }
-            // Only write if content is different
+            
             if (originalContent === content) {
                 return {
                     success: true,
@@ -205,7 +204,7 @@ export class FileWriteTool implements Tool {
                     }
                 };
             }
-            // Use direct logic to modify file
+            
             const result = await writeFileDirect(this.app, filePath, content);
             if (result.startsWith('Failed to write')) {
                 return {

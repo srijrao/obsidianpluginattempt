@@ -1,4 +1,4 @@
-// Debug: Log tool command creation and execution
+
 export interface ToolCommand {
     action: string;
     parameters: Record<string, any>;
@@ -23,5 +23,5 @@ export interface AgentModeSettings {
     enabled: boolean;
     maxToolCalls: number;
     timeoutMs: number;
-    maxIterations: number; // Maximum iterations for task continuation
+    maxIterations: number; 
 }

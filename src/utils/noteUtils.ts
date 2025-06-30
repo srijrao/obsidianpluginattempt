@@ -32,7 +32,7 @@ export async function processObsidianLinks(
                 const headerMatch = filePath.match(/(.*?)#(.*)/);
                 let extractedContent = "";
                 if (file && isTFile(file)) {
-                    // Prevent infinite recursion
+                    
                     if (visitedNotes.has(file.path)) {
                         extractedContent = '[Recursive link omitted: already included]';
                     } else {
@@ -43,7 +43,7 @@ export async function processObsidianLinks(
                         } else {
                             extractedContent = noteContent;
                         }
-                        // Recursively expand links if enabled and depth not exceeded
+                        
                         if (settings.expandLinkedNotesRecursively && currentDepth < (settings.maxLinkExpansionDepth ?? 2)) {
                             extractedContent = await processObsidianLinks(extractedContent, app, settings, visitedNotes, currentDepth + 1);
                         }
@@ -72,10 +72,10 @@ export async function processContextNotes(contextNotesText: string, app: App): P
     let contextContent = "";
     while ((match = linkRegex.exec(contextNotesText)) !== null) {
         if (match && match[1]) {
-            const originalLink = match[0]; // e.g., [[note#header|alias]]
-            // Split into file+header and alias
+            const originalLink = match[0]; 
+            
             const [fileAndHeader, alias] = match[1].split('|').map(s => s.trim());
-            // Split fileAndHeader into file and header
+            
             const headerMatch = fileAndHeader.match(/(.*?)#(.*)/);
             const baseFileName = headerMatch ? headerMatch[1].trim() : fileAndHeader;
             const headerName = headerMatch ? headerMatch[2].trim() : null;
@@ -83,7 +83,7 @@ export async function processContextNotes(contextNotesText: string, app: App): P
                 let file = findFile(app, baseFileName);
                 if (file && isTFile(file)) {
                     const noteContent = await app.vault.cachedRead(file);
-                    // Use the original link (with alias/header) as the section header
+                    
                     contextContent += `---\nAttached: ${originalLink}\n\n`;
                     if (headerName) {
                         const headerContent = extractContentUnderHeader(noteContent, headerName);

@@ -16,7 +16,7 @@ export function parseSelection(
     chatSeparator: string,
     chatBoundaryString?: string
 ): Message[] {
-    // If no chatBoundaryString is provided, start parsing right away
+    
     let insideChat = !chatBoundaryString;
 
     const lines = selection.split('\n');
@@ -26,7 +26,7 @@ export function parseSelection(
 
     for (const line of lines) {
         if (chatBoundaryString && line.trim() === chatBoundaryString) {
-            // If start and end boundaries are the same, toggle only once
+            
             if (!insideChat && currentContent.trim()) {
                 messages.push({ role: currentRole, content: currentContent.trim() });
                 currentContent = '';
@@ -35,10 +35,10 @@ export function parseSelection(
             continue;
         }
 
-        if (!insideChat) continue; // Ignore lines outside of a chat
+        if (!insideChat) continue; 
 
         if (line.trim() === chatSeparator) {
-            // If we hit a separator, save the current message and switch roles
+            
             if (currentContent.trim()) {
                 messages.push({ role: currentRole, content: currentContent.trim() });
             }
@@ -49,7 +49,7 @@ export function parseSelection(
         }
     }
 
-    // Save any remaining content
+    
     if (currentContent.trim()) {
         messages.push({ role: currentRole, content: currentContent.trim() });
     }

@@ -29,7 +29,7 @@ export class BotMessage extends Component {
         this.content = content;
         this.element.dataset.rawContent = content;
         
-        // Re-render markdown
+        
         this.contentEl.empty();
         await MarkdownRenderer.render(
             this.app,
@@ -45,13 +45,13 @@ export class BotMessage extends Component {
         messageEl.addClass('ai-chat-message', 'assistant');
         messageEl.dataset.rawContent = this.content;
 
-        // Create message container with content and actions
+        
         const messageContainer = messageEl.createDiv('message-container');
 
-        // Create content element
+        
         this.contentEl = messageContainer.createDiv('message-content');
         
-        // Render initial content
+        
         MarkdownRenderer.render(
             this.app,
             this.content,
@@ -60,7 +60,7 @@ export class BotMessage extends Component {
             this
         );
 
-        // Create action buttons
+        
         const buttons = new Buttons();
         const actions = buttons.createMessageActions([
             {
@@ -79,7 +79,7 @@ export class BotMessage extends Component {
                     const wasEditing = this.contentEl.hasClass('editing');
                     
                     if (!wasEditing) {
-                        // Switch to edit mode
+                        
                         const textarea = document.createElement('textarea');
                         textarea.value = messageEl.dataset.rawContent || '';
                         this.contentEl.empty();
@@ -87,7 +87,7 @@ export class BotMessage extends Component {
                         textarea.focus();
                         this.contentEl.addClass('editing');
                     } else {
-                        // Save edits
+                        
                         const textarea = this.contentEl.querySelector('textarea');
                         if (textarea) {
                             this.setContent(textarea.value);
@@ -115,12 +115,12 @@ export class BotMessage extends Component {
             }
         ]);
 
-        // Add hover behavior
+        
         messageEl.addEventListener('mouseenter', () => {
-            // Rely on CSS for display
+            
         });
         messageEl.addEventListener('mouseleave', () => {
-            // Rely on CSS for display
+            
         });
 
         messageContainer.appendChild(actions);

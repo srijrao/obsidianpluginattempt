@@ -101,7 +101,7 @@ export class Buttons extends Component {
     createMessageActions(buttons: IButtonConfig[]): HTMLElement {
         const actionsContainer = document.createElement('div');
         actionsContainer.addClass('message-actions');
-        // Rely on CSS for display and hover behavior
+        
 
         buttons.forEach(config => {
             const button = this.createButton(config);
@@ -159,7 +159,6 @@ export class Buttons extends Component {
     }
 }
 
-// Utility for creating action buttons and copying to clipboard
 export function createActionButton(label: string, tooltip: string, callback: () => void): HTMLElement {
     const button = document.createElement('button');
     button.addClass('ai-chat-action-button');
@@ -175,6 +174,6 @@ export async function copyToClipboard(text: string): Promise<void> {
     try {
         await navigator.clipboard.writeText(text);
     } catch (error) {
-        // Optionally handle error
+        
     }
 }

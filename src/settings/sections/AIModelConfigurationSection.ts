@@ -14,10 +14,10 @@ export class AIModelConfigurationSection {
     }
 
     async render(containerEl: HTMLElement): Promise<void> {
-        // API Keys & Providers section - each provider as collapsible sub-section
+        
         containerEl.createEl('h3', { text: 'API Keys & Providers' });
         
-        // OpenAI Provider
+        
         CollapsibleSectionRenderer.createCollapsibleSection(
             containerEl,
             'OpenAI Configuration',
@@ -53,7 +53,7 @@ export class AIModelConfigurationSection {
             'providerConfigExpanded'
         );
 
-        // Anthropic Provider
+        
         CollapsibleSectionRenderer.createCollapsibleSection(
             containerEl,
             'Anthropic Configuration',
@@ -76,7 +76,7 @@ export class AIModelConfigurationSection {
             'providerConfigExpanded'
         );
 
-        // Google Gemini Provider
+        
         CollapsibleSectionRenderer.createCollapsibleSection(
             containerEl,
             'Google Gemini Configuration',
@@ -99,7 +99,7 @@ export class AIModelConfigurationSection {
             'providerConfigExpanded'
         );
 
-        // Ollama Provider
+        
         CollapsibleSectionRenderer.createCollapsibleSection(
             containerEl,
             'Ollama Configuration',
@@ -132,19 +132,19 @@ export class AIModelConfigurationSection {
             'providerConfigExpanded'
         );
 
-        // Default AI Model Settings section
+        
         containerEl.createEl('h3', { text: 'Default AI Model Settings' });
         
         await this.renderAIModelSettings(containerEl);
         
-        // Model Management section
+        
         containerEl.createEl('h3', { text: 'Model Management' });
         
-        // Available Models subsection
+        
         containerEl.createEl('h4', { text: 'Available Models' });
         await this.renderAvailableModelsSection(containerEl);
         
-        // Model Setting Presets subsection
+        
         containerEl.createEl('h4', { text: 'Model Setting Presets' });
         this.renderModelSettingPresets(containerEl);
     }
@@ -164,14 +164,14 @@ export class AIModelConfigurationSection {
                     button.setButtonText('Testing...');
                     button.setDisabled(true);
                     try {
-                        // Temporarily set provider to test connection
+                        
                         const originalProvider = this.plugin.settings.provider;
                         this.plugin.settings.provider = provider;
                         
                         const providerInstance = createProvider(this.plugin.settings);
                         const result = await providerInstance.testConnection();
                         
-                        // Restore original provider
+                        
                         this.plugin.settings.provider = originalProvider;
                         
                         if (result.success && result.models) {
@@ -183,7 +183,7 @@ export class AIModelConfigurationSection {
                             };
                             await this.plugin.saveSettings();
                             
-                            // Refresh unified models
+                            
                             this.plugin.settings.availableModels = await getAllAvailableModels(this.plugin.settings);
                             await this.plugin.saveSettings();
                             
@@ -224,7 +224,7 @@ export class AIModelConfigurationSection {
      * AI Model Settings Section
      */
     async renderAIModelSettings(containerEl: HTMLElement): Promise<void> {
-        // --- Model Setting Presets UI ---
+        
         if (this.plugin.settings.modelSettingPresets && this.plugin.settings.modelSettingPresets.length > 0) {
             const presetContainer = containerEl.createDiv();
             presetContainer.addClass('model-preset-buttons');
@@ -233,7 +233,7 @@ export class AIModelConfigurationSection {
                 const btn = presetContainer.createEl('button', { text: preset.name });
                 btn.style.marginRight = '0.5em';
                 btn.onclick = async () => {
-                    // Apply preset fields to current settings
+                    
                     if (preset.selectedModel !== undefined) this.plugin.settings.selectedModel = preset.selectedModel;
                     if (preset.systemMessage !== undefined) this.plugin.settings.systemMessage = preset.systemMessage;
                     if (preset.temperature !== undefined) this.plugin.settings.temperature = preset.temperature;
@@ -252,11 +252,11 @@ export class AIModelConfigurationSection {
                 text.setPlaceholder('You are a helpful assistant.')
                     .setValue(this.plugin.settings.systemMessage)
                     .onChange((value) => {
-                        // Store value locally while typing, don't save yet
+                        
                         this.plugin.settings.systemMessage = value;
                     });
                 
-                // Save only when the user leaves the field
+                
                 text.inputEl.addEventListener('blur', async () => {
                     await this.plugin.saveSettings();
                 });
@@ -286,7 +286,7 @@ export class AIModelConfigurationSection {
                     await this.plugin.saveSettings();
                 }));
 
-        // Refresh available models button
+        
         new Setting(containerEl)
             .setName('Refresh Available Models')
             .setDesc('Test connections to all configured providers and refresh available models')
@@ -307,7 +307,7 @@ export class AIModelConfigurationSection {
                     }
                 }));
 
-        // Unified model selection dropdown
+        
         await this.renderUnifiedModelDropdown(containerEl);
     }
 
@@ -315,7 +315,7 @@ export class AIModelConfigurationSection {
      * Renders the unified model selection dropdown
      */
     private async renderUnifiedModelDropdown(containerEl: HTMLElement): Promise<void> {
-        // Ensure we have available models
+        
         if (!this.plugin.settings.availableModels || this.plugin.settings.availableModels.length === 0) {
             this.plugin.settings.availableModels = await getAllAvailableModels(this.plugin.settings);
             await this.plugin.saveSettings();
@@ -325,14 +325,14 @@ export class AIModelConfigurationSection {
             .setName('Selected Model')
             .setDesc('Choose from all available models across all configured providers')
             .addDropdown(dropdown => {
-                // Add a default option if no models are available
+                
                 if (!this.plugin.settings.availableModels || this.plugin.settings.availableModels.length === 0) {
                     dropdown.addOption('', 'No models available - configure providers above');
                 } else {
                     dropdown.addOption('', 'Select a model...');
-                    // Group models by provider for better organization
+                    
                     const modelsByProvider: Record<string, any[]> = {};
-                    // Filter models by enabledModels
+                    
                     const enabledModels = this.plugin.settings.enabledModels || {};
                     const filteredModels = this.plugin.settings.availableModels.filter(model => enabledModels[model.id] !== false);
                     filteredModels.forEach(model => {
@@ -341,7 +341,7 @@ export class AIModelConfigurationSection {
                         }
                         modelsByProvider[model.provider].push(model);
                     });
-                    // Add models grouped by provider
+                    
                     Object.entries(modelsByProvider).forEach(([provider, models]) => {
                         models.forEach(model => {
                             dropdown.addOption(model.id, model.name);
@@ -352,7 +352,7 @@ export class AIModelConfigurationSection {
                     .setValue(this.plugin.settings.selectedModel || '')
                     .onChange(async (value) => {
                         this.plugin.settings.selectedModel = value;
-                        // Update the provider setting based on selected model
+                        
                         if (value) {
                             const provider = getProviderFromUnifiedModel(value);
                             this.plugin.settings.provider = provider;
@@ -360,7 +360,7 @@ export class AIModelConfigurationSection {
                         await this.plugin.saveSettings();
                     });
             });
-        // Show current selection info if a model is selected
+        
         if (this.plugin.settings.selectedModel && this.plugin.settings.availableModels) {
             const selectedModel = this.plugin.settings.availableModels.find(
                 model => model.id === this.plugin.settings.selectedModel
@@ -381,12 +381,12 @@ export class AIModelConfigurationSection {
         for (const providerType of providers) {
             try {
                 const originalProvider = this.plugin.settings.provider;
-                this.plugin.settings.provider = providerType; // Temporarily set provider to test connection
+                this.plugin.settings.provider = providerType; 
 
                 const providerInstance = createProvider(this.plugin.settings);
                 const result = await providerInstance.testConnection();
 
-                this.plugin.settings.provider = originalProvider; // Restore original provider
+                this.plugin.settings.provider = originalProvider; 
 
                 const providerSettings = this.plugin.settings[`${providerType}Settings` as keyof typeof this.plugin.settings] as any;
 
@@ -423,7 +423,7 @@ export class AIModelConfigurationSection {
             attr: { style: 'margin-bottom: 1em;' }
         });
 
-        // Add a refresh button and all-on/all-off buttons
+        
         const buttonRow = containerEl.createDiv({ cls: 'ai-models-button-row' });
         new Setting(buttonRow)
             .addButton(btn => {
@@ -473,9 +473,9 @@ export class AIModelConfigurationSection {
                     });
             });
 
-        // Dynamically get all available models from settings (populated by providers)
+        
         let allModels = this.plugin.settings.availableModels || [];
-        // If not yet loaded, try to fetch them
+        
         if (allModels.length === 0) {
             allModels = await getAllAvailableModels(this.plugin.settings);
         }
@@ -485,7 +485,7 @@ export class AIModelConfigurationSection {
         if (allModels.length === 0) {
             containerEl.createEl('div', { text: 'No models found. Please configure your providers and refresh available models.', cls: 'setting-item-description' });
         } else {
-            // Sort models by provider, then alphabetically by name
+            
             allModels = allModels.slice().sort((a, b) => {
                 if (a.provider !== b.provider) {
                     return a.provider.localeCompare(b.provider);
@@ -497,7 +497,7 @@ export class AIModelConfigurationSection {
                     containerEl,
                     model.name || model.id,
                     `Enable or disable "${model.name || model.id}" (${model.id}) in model selection menus.`,
-                    () => this.plugin.settings.enabledModels![model.id] !== false, // default to true
+                    () => this.plugin.settings.enabledModels![model.id] !== false, 
                     async (value) => {
                         this.plugin.settings.enabledModels![model.id] = value;
                         await this.plugin.saveSettings();
@@ -519,7 +519,7 @@ export class AIModelConfigurationSection {
 
         const presetList = this.plugin.settings.modelSettingPresets || [];
         presetList.forEach((preset, idx) => {
-            // Preset Name
+            
             new Setting(containerEl)
                 .setName('Preset Name')
                 .setDesc('Edit the name of this preset')
@@ -527,17 +527,17 @@ export class AIModelConfigurationSection {
                     text.setPlaceholder('Preset Name')
                         .setValue(preset.name)
                         .onChange((value) => {
-                            // Store value locally while typing, don't save yet
+                            
                             preset.name = value ?? '';
                         });
                     
-                    // Save only when the user leaves the field
+                    
                     text.inputEl.addEventListener('blur', async () => {
                         await this.plugin.saveSettings();
                     });
                 });
 
-            // Model ID
+            
             new Setting(containerEl)
                 .setName('Model ID (provider:model)')
                 .setDesc('Edit the model for this preset')
@@ -545,17 +545,17 @@ export class AIModelConfigurationSection {
                     text.setPlaceholder('Model ID (provider:model)')
                         .setValue(preset.selectedModel || '')
                         .onChange((value) => {
-                            // Store value locally while typing, don't save yet
+                            
                             preset.selectedModel = value ?? '';
                         });
                     
-                    // Save only when the user leaves the field
+                    
                     text.inputEl.addEventListener('blur', async () => {
                         await this.plugin.saveSettings();
                     });
                 });
 
-            // System Message
+            
             new Setting(containerEl)
                 .setName('System Message')
                 .setDesc('Edit the system message for this preset')
@@ -563,23 +563,23 @@ export class AIModelConfigurationSection {
                     text.setPlaceholder('System message')
                         .setValue(preset.systemMessage || '')
                         .onChange((value) => {
-                            // Store value locally while typing, don't save yet
+                            
                             preset.systemMessage = value ?? '';
                         });
                     
-                    // Save only when the user leaves the field
+                    
                     text.inputEl.addEventListener('blur', async () => {
                         await this.plugin.saveSettings();
                     });
                 });
 
-            // Temperature
+            
             this.settingCreators.createSliderSetting(containerEl, 'Temperature', '', { min: 0, max: 1, step: 0.1 }, () => preset.temperature ?? 0.7, async (value) => {
                 preset.temperature = value;
                 await this.plugin.saveSettings();
             });
 
-            // Max Tokens
+            
             new Setting(containerEl)
                 .setName('Max Tokens')
                 .setDesc('Edit the max tokens for this preset')
@@ -587,24 +587,24 @@ export class AIModelConfigurationSection {
                     text.setPlaceholder('Max tokens')
                         .setValue(preset.maxTokens?.toString() || '')
                         .onChange((value) => {
-                            // Store value locally while typing, don't save yet
+                            
                             const num = parseInt(value ?? '', 10);
                             preset.maxTokens = isNaN(num) ? undefined : num;
                         });
                     
-                    // Save only when the user leaves the field
+                    
                     text.inputEl.addEventListener('blur', async () => {
                         await this.plugin.saveSettings();
                     });
                 });
 
-            // Enable Streaming
+            
             this.settingCreators.createToggleSetting(containerEl, 'Enable Streaming', '', () => preset.enableStreaming ?? true, async (value) => {
                 preset.enableStreaming = value;
                 await this.plugin.saveSettings();
             });
 
-            // Delete button
+            
             new Setting(containerEl)
                 .addExtraButton(btn => btn
                     .setIcon('cross')

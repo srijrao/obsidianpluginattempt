@@ -35,7 +35,7 @@ export class FileSearchTool implements Tool {
         const { query = '', filterType = 'markdown', maxResults = 10 } = params;
 
         try {
-            // Get all files based on filter type
+            
             const allFiles = filterType === 'markdown' ? 
                 this.app.vault.getMarkdownFiles() : 
                 filterType === 'image' ? 
@@ -47,7 +47,7 @@ export class FileSearchTool implements Tool {
             if (query.trim()) {
                 const normalizedQuery = query.toLowerCase();
                 const queryWords = normalizedQuery.split(/\s+/).filter(word => word.length > 0);
-                // Efficiently collect up to maxResults matches
+                
                 for (const file of allFiles) {
                     const searchText = `${file.path} ${file.basename}`.toLowerCase();
                     const searchTextNormalized = searchText.replace(/_/g, ' ');
@@ -57,7 +57,7 @@ export class FileSearchTool implements Tool {
                     }
                 }
             } else {
-                // No query: just take up to maxResults
+                
                 matchingFiles = allFiles.slice(0, maxResults);
             }
 
@@ -68,7 +68,7 @@ export class FileSearchTool implements Tool {
                 };
             }
 
-            // Sort only the collected matches (not all files)
+            
             const limitedFiles = matchingFiles
                 .sort((a, b) => (b.stat?.mtime || 0) - (a.stat?.mtime || 0))
                 .slice(0, maxResults);

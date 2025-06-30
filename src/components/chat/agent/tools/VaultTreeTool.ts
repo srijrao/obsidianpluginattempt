@@ -1,15 +1,15 @@
-// VaultTreeTool.ts
-// Tool for generating a hierarchical tree view of the vault structure
+
+
 import { App, TFile, TFolder, Vault } from 'obsidian';
 import { Tool, ToolResult } from '../ToolRegistry';
 import { PathValidator } from './pathValidation';
 import { isTFile, isTFolder } from '../../../../utils/typeguards';
 
 export interface VaultTreeParams {
-    path?: string; // Starting path (defaults to root)
-    maxDepth?: number; // Maximum depth to traverse
-    maxItems?: number; // Maximum total items to include
-    showFolders?: boolean; // Whether to include folders (default: true)
+    path?: string; 
+    maxDepth?: number; 
+    maxItems?: number; 
+    showFolders?: boolean; 
 }
 
 export class VaultTreeTool implements Tool {
@@ -36,7 +36,7 @@ export class VaultTreeTool implements Tool {
             showFolders = true
         } = params;
 
-        // Validate and normalize the path
+        
         let startPath: string;
         try {
             startPath = this.pathValidator.validateAndNormalizePath(path);
@@ -50,7 +50,7 @@ export class VaultTreeTool implements Tool {
         const vault: Vault = this.app.vault;
         let startFolder;
 
-        // Handle root folder case
+        
         if (startPath === '' || startPath === '/') {
             startFolder = vault.getRoot();
         } else {
@@ -73,7 +73,7 @@ export class VaultTreeTool implements Tool {
             prefix: string = '',
             depth: number = 0
         ): void => {
-            // Check limits
+            
             if (depth > maxDepth || totalItems >= maxItems) {
                 if (totalItems >= maxItems) {
                     truncated = true;
@@ -81,7 +81,7 @@ export class VaultTreeTool implements Tool {
                 return;
             }
 
-            // Add current folder if not root and showFolders is true
+            
             if (depth > 0 && showFolders) {
                 const itemCount = folder.children.length;
                 treeLines.push(`${prefix}📁${folder.name}/(${itemCount} items)`);
@@ -92,25 +92,25 @@ export class VaultTreeTool implements Tool {
                 }
             }
 
-            // Get children and sort them (folders first, then files, both alphabetically)
+            
             const children = [...folder.children];
             children.sort((a, b) => {
-                // Folders come before files
+                
                 if (isTFolder(a) && isTFile(b)) return -1;
                 if (isTFile(a) && isTFolder(b)) return 1;
                 if (isTFile(a) && isTFile(b)) return 1;
                 if (!isTFile(a) && isTFile(b)) return -1;
-                // Same type: alphabetical
+                
                 return a.name.localeCompare(b.name);
             });
 
-            // Filter children based on showFolders setting (only show folders)
+            
             const filteredChildren = children.filter(child => {
                 if (isTFolder(child)) return showFolders;
                 return false;
             });
 
-            // Process each child
+            
             filteredChildren.forEach((child, index) => {
                 if (totalItems >= maxItems) {
                     truncated = true;
@@ -122,7 +122,7 @@ export class VaultTreeTool implements Tool {
                     : '';
 
                 if (isTFile(child)) {
-                    // Files are not displayed in this tool
+                    
                 } else if (isTFolder(child)) {
                     buildTree(child, newPrefix, depth + 1);
                 }
@@ -130,7 +130,7 @@ export class VaultTreeTool implements Tool {
         };
 
         try {
-            // Start building the tree
+            
             if (startPath === '' || startPath === '/') {
                 const rootItemCount = startFolder.children.length;
                 treeLines.push(`📁Vault Root/(${rootItemCount} items)`);
@@ -154,7 +154,7 @@ export class VaultTreeTool implements Tool {
                 data: {
                     tree,
                     stats,
-                    // Legacy format for compatibility
+                    
                     items: tree,
                     count: totalItems,
                     path: startPath || '/'

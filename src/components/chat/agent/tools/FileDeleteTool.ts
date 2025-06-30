@@ -1,5 +1,5 @@
-// FileDeleteTool.ts
-// Tool for deleting files and folders from the vault with backup functionality
+
+
 import { App, TFile, TFolder } from 'obsidian';
 import { Tool, ToolResult } from '../ToolRegistry';
 import { BackupManager } from '../../../BackupManager';
@@ -7,11 +7,11 @@ import { PathValidator } from './pathValidation';
 import { isTFile, isTFolder } from '../../../../utils/typeguards';
 
 export interface FileDeleteParams {
-    path: string; // Path to the file or folder to delete
-    filePath?: string; // Legacy support
-    backup?: boolean; // Whether to create backup before deletion
-    confirmDeletion?: boolean; // Extra confirmation step
-    useTrash?: boolean; // Whether to move to trash instead of permanent deletion
+    path: string; 
+    filePath?: string; 
+    backup?: boolean; 
+    confirmDeletion?: boolean; 
+    useTrash?: boolean; 
 }
 
 export class FileDeleteTool implements Tool {
@@ -44,14 +44,14 @@ export class FileDeleteTool implements Tool {
     private pathValidator: PathValidator;
 
     constructor(private app: App, backupManager?: BackupManager) {
-        // Initialize backup manager with provided instance or create a default one
+        
         const defaultPath = app.vault.configDir + '/plugins/ai-assistant-for-obsidian';
         this.backupManager = backupManager || new BackupManager(app, defaultPath);
         this.pathValidator = new PathValidator(app);
     }
 
     async execute(params: FileDeleteParams, context: any): Promise<ToolResult> {
-        // Normalize parameter names for backward compatibility
+        
         const inputPath = params.path || params.filePath;
         const { backup = true, confirmDeletion = true, useTrash = true } = params;
 
@@ -62,7 +62,7 @@ export class FileDeleteTool implements Tool {
             };
         }
 
-        // Validate and normalize the path to ensure it's within the vault
+        
         let filePath: string;
         try {
             filePath = this.pathValidator.validateAndNormalizePath(inputPath);
@@ -95,10 +95,10 @@ export class FileDeleteTool implements Tool {
             let backupCount = 0;
 
             if (isTFile(target)) {
-                // Handle single file deletion
+                
                 let originalContent = '';
 
-                // Create backup if requested
+                
                 if (backup) {
                     try {
                         originalContent = await this.app.vault.read(target as TFile);
@@ -113,12 +113,12 @@ export class FileDeleteTool implements Tool {
                     }
                 }
 
-                // Handle deletion based on useTrash parameter
+                
                 let actionTaken = '';
                 let trashPath = '';
                 
                 if (useTrash) {
-                    // Move to trash (soft delete)
+                    
                     try {
                         trashPath = await this.moveToTrash(target as TFile, filePath);
                         actionTaken = 'moved to trash';
@@ -129,12 +129,12 @@ export class FileDeleteTool implements Tool {
                         };
                     }
                 } else {
-                    // Permanent deletion
+                    
                     try {
                         await this.app.vault.delete(target as TFile);
                         actionTaken = 'permanently deleted';
                     } catch (deleteError: any) {
-                        // For files, if standard delete fails, try adapter
+                        
                         if (deleteError.message && deleteError.message.includes('EPERM')) {
                             try {
                                 await this.app.vault.adapter.remove(filePath);
@@ -171,7 +171,7 @@ export class FileDeleteTool implements Tool {
                 };
 
             } else if (isTFolder(target)) {
-                // Handle folder deletion with recursive backup
+                
                 if (backup) {
                     try {
                         const result = await this.createFolderBackups(target as TFolder, '');
@@ -186,12 +186,12 @@ export class FileDeleteTool implements Tool {
                     }
                 }
 
-                // Handle deletion based on useTrash parameter
+                
                 let actionTaken = '';
                 let trashPath = '';
                 
                 if (useTrash) {
-                    // Move to trash (soft delete)
+                    
                     try {
                         trashPath = await this.moveToTrash(target as TFolder, filePath);
                         actionTaken = 'moved to trash';
@@ -202,19 +202,19 @@ export class FileDeleteTool implements Tool {
                         };
                     }
                 } else {
-                    // Permanent deletion - use multiple strategies for better Windows compatibility
+                    
                     try {
                         await this.app.vault.delete(target as TFolder);
                         actionTaken = 'permanently deleted';
                     } catch (deleteError: any) {
-                        // If the standard delete fails (common on Windows with EPERM), try alternative approaches
+                        
                         if (deleteError.message && deleteError.message.includes('EPERM')) {
                             try {
-                                // Try using the adapter directly for better Windows compatibility
+                                
                                 await this.app.vault.adapter.rmdir(filePath, true);
                                 actionTaken = 'permanently deleted';
                             } catch (adapterError: any) {
-                                // If adapter also fails, try recursive manual deletion
+                                
                                 try {
                                     await this.recursivelyDeleteFolder(target as TFolder);
                                     actionTaken = 'permanently deleted';
@@ -282,7 +282,7 @@ export class FileDeleteTool implements Tool {
                     anyBackupCreated = true;
                 } catch (error) {
                     console.error(`Failed to backup file ${child.path}:`, error);
-                    // Continue with other files even if one fails
+                    
                 }
             } else if (isTFolder(child)) {
                 const subResult = await this.createFolderBackups(child as TFolder, basePath ? `${basePath}/${child.name}` : child.path);
@@ -306,13 +306,13 @@ export class FileDeleteTool implements Tool {
      * This is a fallback method for Windows permission issues
      */
     private async recursivelyDeleteFolder(folder: TFolder): Promise<void> {
-        // Delete all children first
-        for (const child of [...folder.children]) { // Use spread to avoid modifying array during iteration
+        
+        for (const child of [...folder.children]) { 
             if (isTFile(child)) {
                 try {
                     await this.app.vault.delete(child as TFile);
                 } catch (error) {
-                    // Try adapter as fallback
+                    
                     await this.app.vault.adapter.remove(child.path);
                 }
             } else if (isTFolder(child)) {
@@ -320,11 +320,11 @@ export class FileDeleteTool implements Tool {
             }
         }
         
-        // Now delete the empty folder
+        
         try {
             await this.app.vault.delete(folder);
         } catch (error) {
-            // Try adapter as fallback
+            
             await this.app.vault.adapter.rmdir(folder.path, false);
         }
     }
@@ -366,7 +366,7 @@ export class FileDeleteTool implements Tool {
         const trashName = this.generateTrashName(originalPath);
         const destinationPath = `${trashPath}/${trashName}`;
         
-        // Use the file manager to move the item
+        
         await this.app.fileManager.renameFile(target, destinationPath);
         
         return destinationPath;

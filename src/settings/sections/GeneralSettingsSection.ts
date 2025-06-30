@@ -12,7 +12,7 @@ export class GeneralSettingsSection {
     }
 
     async render(containerEl: HTMLElement): Promise<void> {
-        // Plugin Behavior subsection
+        
         containerEl.createEl('h3', { text: 'Plugin Behavior' });
         
         this.settingCreators.createToggleSetting(
@@ -26,7 +26,7 @@ export class GeneralSettingsSection {
             }
         );
 
-        // Date Settings subsection
+        
         containerEl.createEl('h3', { text: 'Date & Time Settings' });
         
         this.settingCreators.createToggleSetting(
@@ -51,7 +51,7 @@ export class GeneralSettingsSection {
             }
         );
 
-        // Debug Mode subsection
+        
         containerEl.createEl('h3', { text: 'Debug Settings' });
         
         this.settingCreators.createToggleSetting(

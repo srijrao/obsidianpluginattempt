@@ -21,7 +21,7 @@ export class AgentModeManager {
         return this.getAgentModeSettings().enabled;
     }
 
-    // Debug: Log when agent mode is toggled
+    
     async setAgentModeEnabled(enabled: boolean) {
         this.debugLog('info', '[agentModeManager.ts] setAgentModeEnabled called', { enabled });
         if (!this.settings.agentMode) {

@@ -1,5 +1,5 @@
 import { App, WorkspaceLeaf, ItemView, Setting, Notice, TFile } from 'obsidian';
-import MyPlugin from '../main'; // Import MyPlugin
+import MyPlugin from '../main'; 
 import { createProvider, getAllAvailableModels, getProviderFromUnifiedModel } from '../../providers';
 import { CollapsibleSectionRenderer } from './chat/CollapsibleSection';
 
@@ -41,7 +41,7 @@ export class ModelSettingsView extends ItemView {
     async onOpen() {
         const { contentEl } = this;
         contentEl.empty();
-        // Register settings change listener (avoid duplicate listeners)
+        
         this.plugin.offSettingsChange(this._onSettingsChange);
         this.plugin.onSettingsChange(this._onSettingsChange);
         const settingsSections = new (await import('./chat/SettingsSections')).SettingsSections(this.plugin);
@@ -50,7 +50,7 @@ export class ModelSettingsView extends ItemView {
 
     async onClose() {
         this.plugin.offSettingsChange(this._onSettingsChange);
-        // Clean up any resources if needed
+        
     }
 
 }

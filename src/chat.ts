@@ -24,11 +24,11 @@ export class ChatView extends ItemView {
     private messagesContainer: HTMLElement;
     private inputContainer: HTMLElement;
     private activeStream: AbortController | null = null;
-    private referenceNoteIndicator: HTMLElement; // Add this property
-    private modelNameDisplay: HTMLElement; // Add model name display property
+    private referenceNoteIndicator: HTMLElement; 
+    private modelNameDisplay: HTMLElement; 
     private agentResponseHandler: AgentResponseHandler | null = null;
     
-    // Helper classes for refactoring
+    
     private contextBuilder: ContextBuilder;
     private messageRegenerator: MessageRegenerator | null = null;
     private responseStreamer: ResponseStreamer | null = null;
@@ -39,7 +39,7 @@ export class ChatView extends ItemView {
         this.plugin = plugin;
         this.chatHistoryManager = new ChatHistoryManager(this.app.vault, this.plugin.manifest.id, "chat-history.json");
         
-        // Initialize helper classes
+        
         this.contextBuilder = new ContextBuilder(this.app, this.plugin);
         this.messageRenderer = new MessageRenderer(this.app);
     }
@@ -61,44 +61,44 @@ export class ChatView extends ItemView {
         contentEl.empty();
         contentEl.addClass('ai-chat-view');
 
-        // Load persistent chat history before UI setup
+        
         let loadedHistory: ChatMessage[] = [];
         try {
             loadedHistory = await this.chatHistoryManager.getHistory();
         } catch (e) {
             new Notice("Failed to load chat history.");
             loadedHistory = [];
-        }        // Modular UI creation
+        }        
         const ui: ChatUIElements = createChatUI(this.app, contentEl);
         this.messagesContainer = ui.messagesContainer;
         this.inputContainer = ui.inputContainer;
         this.referenceNoteIndicator = ui.referenceNoteIndicator;
         this.modelNameDisplay = ui.modelNameDisplay;
         
-        // Update reference note indicator
+        
         this.updateReferenceNoteIndicator();
         this.updateModelNameDisplay();
         const textarea = ui.textarea;
         const sendButton = ui.sendButton;
-        const stopButton = ui.stopButton;        // Attach event handlers (except save note which needs agent response handler)
+        const stopButton = ui.stopButton;        
         ui.copyAllButton.addEventListener('click', handleCopyAll(this.messagesContainer, this.plugin));
         ui.clearButton.addEventListener('click', handleClearChat(this.messagesContainer, this.chatHistoryManager));
         ui.settingsButton.addEventListener('click', handleSettings(this.app, this.plugin));
         ui.helpButton.addEventListener('click', handleHelp(this.app));
-        // ui.referenceNoteButton.addEventListener('click', handleReferenceNote(this.app, this.plugin));
+        
         ui.referenceNoteButton.addEventListener('click', () => {
             this.plugin.settings.referenceCurrentNote = !this.plugin.settings.referenceCurrentNote;
             this.plugin.saveSettings();
             this.updateReferenceNoteIndicator();
         });
-        // --- AGENT MODE INTEGRATION ---        // Initialize agent response handler
+        
         this.agentResponseHandler = new AgentResponseHandler({
             app: this.app,
             plugin: this.plugin,
             messagesContainer: this.messagesContainer,
             toolContinuationContainer: ui.toolContinuationContainer,
             onToolResult: (toolResult: ToolResult, command: ToolCommand) => {
-                // Handle tool results (could display inline notifications, etc.)
+                
                 if (toolResult.success) {
                     console.log(`Tool ${command.action} completed successfully`, toolResult.data);
                 } else {
@@ -106,28 +106,28 @@ export class ChatView extends ItemView {
                 }
             },
             onToolDisplay: (display: ToolRichDisplay) => {
-                // Display tools in real-time as they execute
+                
                 const toolWrapper = document.createElement('div');
                 toolWrapper.className = 'real-time-tool-display';
                 toolWrapper.appendChild(display.getElement());
                 
-                // Find the current temp container (streaming message)
+                
                 const tempContainer = this.messagesContainer.querySelector('.ai-chat-message.assistant:last-child');
                 if (tempContainer) {
                     const messageContent = tempContainer.querySelector('.message-content');
                     if (messageContent) {
                         messageContent.appendChild(toolWrapper);
-                        // Scroll to show the new tool display
+                        
                         this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
                     }
                 }
             }
         });
         
-        // Now that agent response handler is initialized, attach the save note handler
+        
         ui.saveNoteButton.addEventListener('click', handleSaveNote(this.messagesContainer, this.plugin, this.app, this.agentResponseHandler));
         
-        // Initialize helper classes that depend on agentResponseHandler
+        
         this.responseStreamer = new ResponseStreamer(
             this.plugin,
             this.agentResponseHandler,
@@ -145,7 +145,7 @@ export class ChatView extends ItemView {
             this.activeStream
         );
 
-        // Agent mode button handler
+        
         ui.agentModeButton.addEventListener('click', async () => {
             const isCurrentlyEnabled = this.plugin.isAgentModeEnabled();
             await this.plugin.setAgentModeEnabled(!isCurrentlyEnabled);
@@ -155,7 +155,7 @@ export class ChatView extends ItemView {
                 ui.agentModeButton.setAttribute('title', 'Agent Mode: ON - AI can use tools');
                 new Notice('Agent Mode enabled - AI can now use tools');
                 
-                // Reset execution count for new session
+                
                 if (this.agentResponseHandler) {
                     this.agentResponseHandler.resetExecutionCount();
                 }
@@ -166,7 +166,7 @@ export class ChatView extends ItemView {
             }
         });
 
-        // Initialize button state
+        
         if (this.plugin.isAgentModeEnabled()) {
             ui.agentModeButton.classList.add('active');
             ui.agentModeButton.setAttribute('title', 'Agent Mode: ON - AI can use tools');
@@ -174,30 +174,30 @@ export class ChatView extends ItemView {
             ui.agentModeButton.classList.remove('active');
             ui.agentModeButton.setAttribute('title', 'Agent Mode: OFF - Regular chat');
         }
-        // All styling for messagesContainer and textarea is handled by CSS
+        
 
-        // --- HANDLE SEND MESSAGE ---
+        
         const sendMessage = async () => {
             const content = textarea.value.trim();
             if (!content) return;
 
-            // Reset tool execution count for new user message
+            
             if (this.agentResponseHandler) {
                 this.agentResponseHandler.resetExecutionCount();
             }
 
-            // Disable input and show stop button
+            
             textarea.disabled = true;
             sendButton.classList.add('hidden');
             stopButton.classList.remove('hidden');
 
-            // Add user message
+            
             const userMessageEl = await createMessageElement(this.app, 'user', content, this.chatHistoryManager, this.plugin, (el: HTMLElement) => this.regenerateResponse(el), this);
             this.messagesContainer.appendChild(userMessageEl);
             this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
             textarea.value = '';
 
-            // --- Save user message to chat history ---
+            
             try {
                 await this.chatHistoryManager.addMessage({
                     timestamp: userMessageEl.dataset.timestamp || new Date().toISOString(),
@@ -209,10 +209,10 @@ export class ChatView extends ItemView {
             }
 
             try {
-                // Build context and get chat history
+                
                 const messages = await this.buildContextMessages();
 
-                // Get all existing messages
+                
                 const messageElements = this.messagesContainer.querySelectorAll('.ai-chat-message');
                 messageElements.forEach(el => {
                     const role = el.classList.contains('user') ? 'user' : 'assistant';
@@ -220,14 +220,14 @@ export class ChatView extends ItemView {
                     messages.push({ role, content });
                 });
 
-                // Create temporary container for streaming display
+                
                 const tempContainer = document.createElement('div');
                 tempContainer.addClass('ai-chat-message', 'assistant');
                 tempContainer.createDiv('message-content');
                 this.messagesContainer.appendChild(tempContainer);
                 this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;                const responseContent = await this.streamAssistantResponse(messages, tempContainer);
 
-                // Extract enhanced message data before removing temp container
+                
                 let enhancedMessageData: any = undefined;
                 console.log('DEBUG: tempContainer.dataset.messageData exists:', !!tempContainer.dataset.messageData);
                 if (tempContainer.dataset.messageData) {
@@ -239,7 +239,7 @@ export class ChatView extends ItemView {
                     }
                 }
 
-                console.log('DEBUG: responseContent length:', responseContent.length, 'trimmed length:', responseContent.trim().length);                // Remove temporary container and create permanent message
+                console.log('DEBUG: responseContent length:', responseContent.length, 'trimmed length:', responseContent.trim().length);                
                 tempContainer.remove();
                 if (responseContent.trim() !== "" || (enhancedMessageData && enhancedMessageData.toolResults && enhancedMessageData.toolResults.length > 0)) {
                     const messageEl = await createMessageElement(
@@ -250,12 +250,12 @@ export class ChatView extends ItemView {
                         this.plugin, 
                         (el) => this.regenerateResponse(el), 
                         this,
-                        enhancedMessageData // Pass enhanced data to createMessageElement
+                        enhancedMessageData 
                     );
                     
                     this.messagesContainer.appendChild(messageEl);
                     
-                    // Save enhanced message data to chat history
+                    
                     console.log('DEBUG: About to save message to history with toolResults:', !!enhancedMessageData?.toolResults);
                     await this.chatHistoryManager.addMessage({
                         timestamp: messageEl.dataset.timestamp || new Date().toISOString(),
@@ -276,17 +276,17 @@ export class ChatView extends ItemView {
                     new Notice(`Error: ${error.message}`);
                     await createMessageElement(this.app, 'assistant', `Error: ${error.message}`, this.chatHistoryManager, this.plugin, (el: HTMLElement) => this.regenerateResponse(el), this);
                 }            } finally {
-                // Re-enable input and hide stop button
+                
                 textarea.disabled = false;
                 textarea.focus();
                 stopButton.classList.add('hidden');
                 sendButton.classList.remove('hidden');
                 this.activeStream = null;
-                // Progress indicator removed
+                
             }
         };
 
-        // --- BUTTON EVENT LISTENERS ---
+        
         sendButton.addEventListener('click', sendMessage);
         stopButton.addEventListener('click', () => {
             if (this.activeStream) {
@@ -296,17 +296,16 @@ export class ChatView extends ItemView {
                 textarea.focus();
                 stopButton.classList.add('hidden');
                 sendButton.classList.remove('hidden');
-                // Hide progress indicator if present
+                
             }
         });
 
-        // Modular input handler for slash commands and keyboard shortcuts
-        // (setupInputHandler will be imported from './chat/inputHandler')
-        // @ts-ignore
+        
+        
         import('./components/chat/inputHandler').then(({ setupInputHandler }) => {
             setupInputHandler(
                 textarea,
-                this.messagesContainer, // Pass messagesContainer for keyboard shortcuts
+                this.messagesContainer, 
                 sendMessage,
                 async (cmd: string) => {
                     switch (cmd) {
@@ -337,10 +336,10 @@ export class ChatView extends ItemView {
             );
         });
 
-        // Render loaded chat history
+        
         if (loadedHistory.length > 0) {
             this.messagesContainer.empty();
-            // If loading from a note, check for YAML frontmatter and update settings
+            
             const file = this.app.workspace.getActiveFile();
             if (file) {
                 await loadChatYamlAndApplySettings({
@@ -359,14 +358,14 @@ export class ChatView extends ItemView {
                 scrollToBottom: true
             });        }
 
-        this.updateReferenceNoteIndicator(); // Update indicator on open
+        this.updateReferenceNoteIndicator(); 
         
-        // Listen for active file changes to update the indicator
+        
         this.registerEvent(this.app.workspace.on('active-leaf-change', () => {
             this.updateReferenceNoteIndicator();
         }));
         
-        // Listen for settings changes to update the indicator  
+        
         this.plugin.onSettingsChange(() => {
             this.updateReferenceNoteIndicator();
             this.updateModelNameDisplay();
@@ -409,7 +408,7 @@ export class ChatView extends ItemView {
 
     private updateModelNameDisplay() {
         if (!this.modelNameDisplay) return;
-        // Try to get the model name from plugin settings
+        
         let modelName = 'Unknown Model';
         const settings = this.plugin.settings;
         if (settings.selectedModel && settings.availableModels) {
@@ -426,7 +425,7 @@ export class ChatView extends ItemView {
         return await this.contextBuilder.buildContextMessages();
     }
 
-    // Delegated to ResponseStreamer for DRY and clarity
+    
     private async streamAssistantResponse(
         messages: Message[],
         container: HTMLElement,
@@ -437,7 +436,7 @@ export class ChatView extends ItemView {
             throw new Error("ResponseStreamer not initialized");
         }
         
-        // Get current chat history to check for already executed commands
+        
         const chatHistory = await this.chatHistoryManager.getHistory();
         
         const responseContent = await this.responseStreamer.streamAssistantResponse(
@@ -447,7 +446,7 @@ export class ChatView extends ItemView {
             originalContent,
             chatHistory
         );
-        // Update chat history if we have a timestamp
+        
         if (originalTimestamp && responseContent.trim() !== "") {
             let messageData: any = undefined;
             if (container.dataset.messageData) {
@@ -468,7 +467,7 @@ export class ChatView extends ItemView {
 
     public clearMessages() {
         this.messagesContainer.empty();
-        // Reset tool execution count when chat is cleared
+        
         if (this.agentResponseHandler) {
             this.agentResponseHandler.resetExecutionCount();
         }
@@ -480,23 +479,23 @@ export class ChatView extends ItemView {
      * Insert a rich tool display into the messages container
      */
     private insertToolDisplay(display: ToolRichDisplay): void {
-        // Create a wrapper for the tool display
+        
         const toolDisplayWrapper = document.createElement('div');
         toolDisplayWrapper.className = 'ai-chat-message tool-display-message';
         
-        // Create a message container similar to regular messages
+        
         const messageContainer = toolDisplayWrapper.createDiv('message-container');
         messageContainer.appendChild(display.getElement());
         
-        // Add timestamp and data for consistency
+        
         toolDisplayWrapper.dataset.timestamp = new Date().toISOString();
         toolDisplayWrapper.dataset.rawContent = display.toMarkdown();
         
-        // Create actions container for tool display messages
+        
         const actionsEl = messageContainer.createDiv('message-actions');
         actionsEl.classList.add('hidden');
 
-        // Add hover behavior
+        
         toolDisplayWrapper.addEventListener('mouseenter', () => {
             actionsEl.classList.remove('hidden');
             actionsEl.classList.add('visible');
@@ -506,7 +505,7 @@ export class ChatView extends ItemView {
             actionsEl.classList.add('hidden');
         });
 
-        // Add copy button for tool display
+        
         const copyBtn = document.createElement('button');
         copyBtn.className = 'ai-chat-action-button';
         copyBtn.setAttribute('aria-label', 'Copy tool result');
@@ -523,7 +522,7 @@ export class ChatView extends ItemView {
         });
         actionsEl.appendChild(copyBtn);
 
-        // Add delete button for tool display
+        
         const deleteBtn = document.createElement('button');
         deleteBtn.className = 'ai-chat-action-button';
         deleteBtn.setAttribute('aria-label', 'Delete tool display');
@@ -533,16 +532,15 @@ export class ChatView extends ItemView {
         });
         actionsEl.appendChild(deleteBtn);
         
-        // Insert at the end of the messages container
+        
         this.messagesContainer.appendChild(toolDisplayWrapper);
         
-        // Scroll to show the new tool display
+        
         this.scrollMessagesToBottom();
     }
 
-    // Task continuation logic is now delegated to TaskContinuation and ResponseStreamer
+    
 
-    // All reasoning/task status rendering and helpers are now handled by MessageRenderer
+    
 }
 
-// --- HELP MODAL --- // This class is now in a separate file: ChatHelpModal.ts

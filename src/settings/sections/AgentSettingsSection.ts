@@ -23,7 +23,7 @@ export class AgentSettingsSection {
             this.plugin.debugLog('info', '[AgentSettingsSection] render called');
         }
 
-        // Agent Mode Settings subsection
+        
         containerEl.createEl('h3', { text: 'Agent Mode Settings' });
         
         containerEl.createEl('div', {
@@ -91,7 +91,7 @@ export class AgentSettingsSection {
             }
         );
 
-        // Agent System Message subsection
+        
         containerEl.createEl('h3', { text: 'Agent System Message' });
         
         containerEl.createEl('div', {
@@ -147,7 +147,7 @@ export class AgentSettingsSection {
             await this.plugin.saveSettings();
         });
 
-        // Agent Tools subsection
+        
         containerEl.createEl('h3', { text: 'Agent Tools' });
         
         this.renderToolToggles(containerEl);
@@ -174,7 +174,7 @@ export class AgentSettingsSection {
             if (typeof tool.name === 'undefined') {
                 console.error('[AI Assistant] Settings: CRITICAL - Tool object has undefined name:', tool);
             }
-            // Do not render a toggle for the 'thought' tool; it is always enabled
+            
             if (tool.name === 'thought') {
                 if (!this.plugin.settings.enabledTools) {
                     this.plugin.settings.enabledTools = {};

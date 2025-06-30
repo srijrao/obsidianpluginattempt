@@ -20,8 +20,8 @@ export function debounce<T extends (...args: any[]) => any>(func: T, wait: numbe
  * @param message The message to display.
  */
 export function showNotice(message: string) {
-    // Dynamically import Notice to avoid circular deps if needed
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    
+    
     const { Notice } = require('obsidian');
     new Notice(message);
 }

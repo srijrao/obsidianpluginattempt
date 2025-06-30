@@ -2,7 +2,7 @@ import { App, Setting, Notice } from 'obsidian';
 import MyPlugin from '../../main';
 import { SettingCreators } from '../components/SettingCreators';
 import { CollapsibleSectionRenderer } from '../../components/chat/CollapsibleSection';
-import { getAllAvailableModels } from '../../../providers'; // Adjust path as needed
+import { getAllAvailableModels } from '../../../providers'; 
 
 export class ModelManagementSection {
     private plugin: MyPlugin;
@@ -14,10 +14,10 @@ export class ModelManagementSection {
     }
 
     async render(containerEl: HTMLElement): Promise<void> {
-        // Section 2: Model Management
-        // This section will contain "Available Models" and "Model Setting Presets"
-        // "Available Models" is already collapsible via its own render method.
-        await this.renderAvailableModelsSection(containerEl); // Ensure its sectionKey is unique
+        
+        
+        
+        await this.renderAvailableModelsSection(containerEl); 
 
         CollapsibleSectionRenderer.createCollapsibleSection(
             containerEl,
@@ -44,7 +44,7 @@ export class ModelManagementSection {
 
         const presetList = this.plugin.settings.modelSettingPresets || [];
         presetList.forEach((preset, idx) => {
-            // Preset Name
+            
             new Setting(containerEl)
                 .setName('Preset Name')
                 .setDesc('Edit the name of this preset')
@@ -52,20 +52,20 @@ export class ModelManagementSection {
                     text.setPlaceholder('Preset Name')
                         .setValue(preset.name)
                         .onChange((value) => {
-                            // Store value locally while typing, don't save yet
+                            
                             preset.name = value ?? '';
-                            // Re-render to update the command name
-                            // This display() call needs to be handled by the main settings tab
-                            // For now, we'll just save and let the user manually refresh if needed
+                            
+                            
+                            
                         });
                     
-                    // Save only when the user leaves the field
+                    
                     text.inputEl.addEventListener('blur', async () => {
                         await this.plugin.saveSettings();
                     });
                 });
 
-            // Model ID
+            
             new Setting(containerEl)
                 .setName('Model ID (provider:model)')
                 .setDesc('Edit the model for this preset')
@@ -73,17 +73,17 @@ export class ModelManagementSection {
                     text.setPlaceholder('Model ID (provider:model)')
                         .setValue(preset.selectedModel || '')
                         .onChange((value) => {
-                            // Store value locally while typing, don't save yet
+                            
                             preset.selectedModel = value ?? '';
                         });
                     
-                    // Save only when the user leaves the field
+                    
                     text.inputEl.addEventListener('blur', async () => {
                         await this.plugin.saveSettings();
                     });
                 });
 
-            // System Message
+            
             new Setting(containerEl)
                 .setName('System Message')
                 .setDesc('Edit the system message for this preset')
@@ -91,23 +91,23 @@ export class ModelManagementSection {
                     text.setPlaceholder('System message')
                         .setValue(preset.systemMessage || '')
                         .onChange((value) => {
-                            // Store value locally while typing, don't save yet
+                            
                             preset.systemMessage = value ?? '';
                         });
                     
-                    // Save only when the user leaves the field
+                    
                     text.inputEl.addEventListener('blur', async () => {
                         await this.plugin.saveSettings();
                     });
                 });
 
-            // Temperature
+            
             this.settingCreators.createSliderSetting(containerEl, 'Temperature', '', { min: 0, max: 1, step: 0.1 }, () => preset.temperature ?? 0.7, async (value) => {
                 preset.temperature = value;
                 await this.plugin.saveSettings();
             });
 
-            // Max Tokens
+            
             new Setting(containerEl)
                 .setName('Max Tokens')
                 .setDesc('Edit the max tokens for this preset')
@@ -115,24 +115,24 @@ export class ModelManagementSection {
                     text.setPlaceholder('Max tokens')
                         .setValue(preset.maxTokens?.toString() || '')
                         .onChange((value) => {
-                            // Store value locally while typing, don't save yet
+                            
                             const num = parseInt(value ?? '', 10);
                             preset.maxTokens = isNaN(num) ? undefined : num;
                         });
                     
-                    // Save only when the user leaves the field
+                    
                     text.inputEl.addEventListener('blur', async () => {
                         await this.plugin.saveSettings();
                     });
                 });
 
-            // Enable Streaming
+            
             this.settingCreators.createToggleSetting(containerEl, 'Enable Streaming', '', () => preset.enableStreaming ?? true, async (value) => {
                 preset.enableStreaming = value;
                 await this.plugin.saveSettings();
             });
 
-            // Delete button
+            
             new Setting(containerEl)
                 .addExtraButton(btn => btn
                     .setIcon('cross')
@@ -140,8 +140,8 @@ export class ModelManagementSection {
                     .onClick(async () => {
                         this.plugin.settings.modelSettingPresets?.splice(idx, 1);
                         await this.plugin.saveSettings();
-                        // Re-render needs to be handled by the main settings tab
-                        // For now, we'll just save and let the user manually refresh if needed
+                        
+                        
                     })
                 );
         });
@@ -161,8 +161,8 @@ export class ModelManagementSection {
                         enableStreaming: this.plugin.settings.enableStreaming
                     })));
                     await this.plugin.saveSettings();
-                    // Re-render needs to be handled by the main settings tab
-                    // For now, we'll just save and let the user manually refresh if needed
+                    
+                    
                 })
             );
     }
@@ -182,7 +182,7 @@ export class ModelManagementSection {
                     attr: { style: 'margin-bottom: 1em;' }
                 });
 
-                // Add a refresh button and all-on/all-off buttons
+                
                 const buttonRow = sectionEl.createDiv({ cls: 'ai-models-button-row' });
                 new Setting(buttonRow)
                     .addButton(btn => {
@@ -195,7 +195,7 @@ export class ModelManagementSection {
                                     this.plugin.settings.availableModels = await getAllAvailableModels(this.plugin.settings);
                                     await this.plugin.saveSettings();
                                     new Notice('Available models refreshed.');
-                                    // Re-render needs to be handled by the main settings tab
+                                    
                                 } catch (e) {
                                     new Notice('Error refreshing models: ' + (e?.message || e));
                                 } finally {
@@ -216,7 +216,7 @@ export class ModelManagementSection {
                                     this.plugin.settings.enabledModels![model.id] = true;
                                 });
                                 await this.plugin.saveSettings();
-                                // Re-render needs to be handled by the main settings tab
+                                
                             });
                     })
                     .addButton(btn => {
@@ -231,13 +231,13 @@ export class ModelManagementSection {
                                     this.plugin.settings.enabledModels![model.id] = false;
                                 });
                                 await this.plugin.saveSettings();
-                                // Re-render needs to be handled by the main settings tab
+                                
                             });
                     });
 
-                // Dynamically get all available models from settings (populated by providers)
+                
                 let allModels = this.plugin.settings.availableModels || [];
-                // If not yet loaded, try to fetch them
+                
                 if (allModels.length === 0) {
                     allModels = await getAllAvailableModels(this.plugin.settings);
                 }
@@ -247,7 +247,7 @@ export class ModelManagementSection {
                 if (allModels.length === 0) {
                     sectionEl.createEl('div', { text: 'No models found. Please configure your providers and refresh available models.', cls: 'setting-item-description' });
                 } else {
-                    // Sort models by provider, then alphabetically by name
+                    
                     allModels = allModels.slice().sort((a, b) => {
                         if (a.provider !== b.provider) {
                             return a.provider.localeCompare(b.provider);
@@ -259,7 +259,7 @@ export class ModelManagementSection {
                             sectionEl,
                             model.name || model.id,
                             `Enable or disable "${model.name || model.id}" (${model.id}) in model selection menus.`,
-                            () => this.plugin.settings.enabledModels![model.id] !== false, // default to true
+                            () => this.plugin.settings.enabledModels![model.id] !== false, 
                             async (value) => {
                                 this.plugin.settings.enabledModels![model.id] = value;
                                 await this.plugin.saveSettings();

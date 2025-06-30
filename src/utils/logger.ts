@@ -10,19 +10,19 @@ export function debugLog(debugMode: boolean, level: 'debug' | 'info' | 'warn' | 
     const prefix = `[AI Assistant ${level.toUpperCase()} ${timestamp}]`;
     switch (level) {
         case 'info':
-            // eslint-disable-next-line no-console
+            
             console.info(prefix, ...args);
             break;
         case 'warn':
-            // eslint-disable-next-line no-console
+            
             console.warn(prefix, ...args);
             break;
         case 'error':
-            // eslint-disable-next-line no-console
+            
             console.error(prefix, ...args);
             break;
         default:
-            // eslint-disable-next-line no-console
+            
             console.debug(prefix, ...args);
     }
 }

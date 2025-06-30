@@ -66,10 +66,10 @@ export class ThoughtTool implements Tool {
             context.plugin.debugLog('info', '[ThoughtTool] execute called', { params, context });
         }
 
-        // Extract parameters from nested structure if needed
+        
         const actualParams = params.parameters || params;
 
-        // Alias older 'reasoning' field into 'thought' so we stay compliant
+        
         if ((!actualParams.thought || actualParams.thought.trim().length === 0) && (actualParams as any).reasoning) {
             if (context && context.plugin && typeof context.plugin.debugLog === 'function') {
                 context.plugin.debugLog('debug', '[ThoughtTool] Aliasing reasoning to thought', { params: actualParams });
@@ -90,7 +90,7 @@ export class ThoughtTool implements Tool {
             };
         }
 
-        // MCP: Validate and normalize parameters
+        
         const thought = actualParams.thought.trim();
         const nextTool = actualParams.nextTool.trim();
         const nextActionDescription = actualParams.nextActionDescription?.trim() || undefined;
@@ -98,17 +98,17 @@ export class ThoughtTool implements Tool {
         const step = typeof actualParams.step === 'number' && actualParams.step > 0 ? actualParams.step : undefined;
         const totalSteps = typeof actualParams.totalSteps === 'number' && actualParams.totalSteps > 0 ? actualParams.totalSteps : undefined;
 
-        // MCP: Timestamp for traceability
+        
         const timestamp = new Date().toISOString();
 
-        // Compose step info for display
+        
         const stepInfo = step && totalSteps
             ? `Step ${step}/${totalSteps}`
             : step
                 ? `Step ${step}`
                 : '';
 
-        // Render the thought in a visually distinct, MCP-friendly format
+        
         const formattedThought = this.renderThought({
             thought,
             stepInfo,
@@ -118,7 +118,7 @@ export class ThoughtTool implements Tool {
             finished
         });
 
-        // MCP: Return result in strict format with enhanced machine-readable JSON
+        
         if (context && context.plugin && typeof context.plugin.debugLog === 'function') {
             context.plugin.debugLog('info', '[ThoughtTool] ThoughtTool execution complete', { result: { thought: actualParams.thought } });
         }
@@ -153,7 +153,7 @@ export class ThoughtTool implements Tool {
     }): string {
         const { thought, stepInfo, nextTool, finished } = opts;
 
-        // Lightweight header with essential info only
+        
         const statusEmoji = finished ? '✅' : '🤔';
         const stepPrefix = stepInfo ? `${stepInfo} ` : '';
         const header = `${statusEmoji} ${stepPrefix}${finished ? 'Complete' : `→ ${nextTool}`}`;

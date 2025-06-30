@@ -1,5 +1,5 @@
 import { App, PluginSettingTab, Setting, Notice } from 'obsidian';
-import MyPlugin from '../../main'; // Adjust path as needed
+import MyPlugin from '../../main'; 
 
 /**
  * Utility class for creating common setting types in Obsidian plugin settings tabs.
@@ -57,7 +57,7 @@ export class SettingCreators {
      * @param options Additional options for processing the input value (e.g., trim, undefinedIfEmpty).
      */
     private configureTextInput(
-        textComponent: any, // TextComponent | TextAreaComponent
+        textComponent: any, 
         placeholder: string,
         getValue: () => string,
         setValue: (value: string | undefined) => Promise<void>,
@@ -67,7 +67,7 @@ export class SettingCreators {
             .setPlaceholder(placeholder)
             .setValue(getValue() ?? '')
             .onChange((value: string) => {
-                // Store value locally while typing, don't save or re-render yet
+                
                 let processedValue: string | undefined = value;
                 if (options?.trim && processedValue) {
                     processedValue = processedValue.trim();
@@ -75,15 +75,15 @@ export class SettingCreators {
                 if (options?.undefinedIfEmpty && processedValue === '') {
                     processedValue = undefined;
                 }
-                // Update the setting value in the settings object directly without saving
-                // We need to extract just the setting assignment part without the save
+                
+                
                 this.updateSettingValueOnly(setValue, processedValue);
             });
         
-        // Save and re-render only when the user leaves the field
+        
         textComponent.inputEl.addEventListener('blur', async () => {
             await this.plugin.saveSettings();
-            this.reRenderCallback(); // Re-render the settings tab after value changes
+            this.reRenderCallback(); 
         });
     }
 
@@ -91,10 +91,10 @@ export class SettingCreators {
      * Helper method to update setting value without saving
      */
     private updateSettingValueOnly(setValue: (value: string | undefined) => Promise<void>, value: string | undefined): void {
-        // Create a mock version that doesn't save
+        
         const originalSaveSettings = this.plugin.saveSettings;
         this.plugin.saveSettings = async () => {
-            // No-op during onChange
+            
         };
         
         try {
@@ -102,7 +102,7 @@ export class SettingCreators {
         } catch (e) {
             console.warn('Error updating setting value:', e);
         } finally {
-            // Restore original saveSettings
+            
             this.plugin.saveSettings = originalSaveSettings;
         }
     }
@@ -132,7 +132,7 @@ export class SettingCreators {
                 drop.setValue(getValue());
                 drop.onChange(async (value: string) => {
                     await setValue(value);
-                    this.reRenderCallback(); // Re-render the settings tab after value changes
+                    this.reRenderCallback(); 
                 });
             });
     }
@@ -164,7 +164,7 @@ export class SettingCreators {
                     if (onChangeCallback) {
                         onChangeCallback();
                     }
-                    this.reRenderCallback(); // Re-render the settings tab after value changes
+                    this.reRenderCallback(); 
                 }));
     }
 
@@ -194,7 +194,7 @@ export class SettingCreators {
                     .setDynamicTooltip()
                     .onChange(async (value: number) => {
                         await setValue(value);
-                        this.reRenderCallback(); // Re-render the settings tab after value changes
+                        this.reRenderCallback(); 
                     });
             });
     }

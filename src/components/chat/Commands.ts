@@ -45,29 +45,29 @@ export class Commands extends Component implements IChatCommands {
     async sendMessage(content: string): Promise<void> {
         if (!content.trim()) return;
 
-        // Create user message
+        
         const userMessage = new UserMessage(this.app, this.plugin, content);
         this.messagesContainer.appendChild(userMessage.getElement());
         this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
 
-        // Create abort controller for streaming
+        
         this.activeStream = new AbortController();        try {
-            // Use unified model if available, fallback to legacy provider selection
+            
             const provider = this.plugin.settings.selectedModel 
                 ? createProviderFromUnifiedModel(this.plugin.settings, this.plugin.settings.selectedModel)
                 : createProvider(this.plugin.settings);
             let systemMessage = getSystemMessage(this.plugin.settings);
 
-            // Process context notes
+            
             if (this.plugin.settings.enableContextNotes && this.plugin.settings.contextNotes) {
                 const contextContent = await getContextNotesContent(this.plugin.settings.contextNotes, this.plugin.app);
                 systemMessage += `\n\nContext Notes:\n${contextContent}`;
             }
 
-            // Prepare messages array
+            
             const messages: Message[] = [{ role: 'system', content: systemMessage }];
 
-            // Include current note content if enabled
+            
             if (this.plugin.settings.referenceCurrentNote) {
                 const currentFile = this.app.workspace.getActiveFile();
                 if (currentFile) {
@@ -79,15 +79,15 @@ export class Commands extends Component implements IChatCommands {
                 }
             }
 
-            // Add user message
+            
             messages.push({ role: 'user', content });
 
-            // Create bot message for streaming
+            
             const botMessage = new BotMessage(this.app, this.plugin, '');
             this.messagesContainer.appendChild(botMessage.getElement());
             this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
 
-            // Get completion from provider
+            
             await provider.getCompletion(
                 messages,
                 {
@@ -101,7 +101,7 @@ export class Commands extends Component implements IChatCommands {
                 }
             );
 
-            // Notify completion
+            
             if (this.onMessageSent) {
                 this.onMessageSent();
             }
@@ -140,29 +140,29 @@ export class Commands extends Component implements IChatCommands {
           messages.forEach((el, index) => {
             const htmlElement = el as HTMLElement;
             
-            // Skip tool display messages as they're handled inline now
+            
             if (htmlElement.classList.contains('tool-display-message')) {
                 return;
             }
             
-            // Get the message data from the element's dataset
+            
             let messageData = null;
             const messageDataStr = htmlElement.dataset.messageData;
             if (messageDataStr) {
                 try {
                     messageData = JSON.parse(messageDataStr);
                 } catch (e) {
-                    // Fallback to textContent if parsing fails
+                    
                 }
             }
-              // Removed redundant console.log for cleaner production code.
+              
             
             if (messageData && messageData.toolResults && messageData.toolResults.length > 0) {
-                // Use MessageRenderer to get properly formatted content with tool results
+                
                 const renderer = new MessageRenderer(this.plugin.app);
                 chatContent += renderer.getMessageContentForCopy(messageData);
             } else {
-                // For regular messages, use raw content if available, otherwise text content
+                
                 const rawContent = htmlElement.dataset.rawContent;
                 const content = rawContent !== undefined ? rawContent : el.querySelector('.message-content')?.textContent || '';
                 chatContent += content;
@@ -186,12 +186,12 @@ export class Commands extends Component implements IChatCommands {
      * Regenerate an AI response
      */
     async regenerateResponse(messageEl: HTMLElement): Promise<void> {
-        // Get all messages up to this point for context
+        
         const messages: Message[] = [
             { role: 'system', content: getSystemMessage(this.plugin.settings) }
         ];
 
-        // Add context notes if enabled
+        
         if (this.plugin.settings.enableContextNotes && this.plugin.settings.contextNotes) {
             const contextContent = await getContextNotesContent(this.plugin.settings.contextNotes, this.plugin.app);
             messages[0].content += `\n\nContext Notes:\n${contextContent}`;
@@ -200,7 +200,7 @@ export class Commands extends Component implements IChatCommands {
         const allMessages = Array.from(this.messagesContainer.querySelectorAll('.ai-chat-message'));
         const currentIndex = allMessages.indexOf(messageEl);
 
-        // Get all messages up to current message
+        
         for (let i = 0; i <= currentIndex; i++) {
             const el = allMessages[i];
             const role = el.classList.contains('user') ? 'user' : 'assistant';
@@ -208,21 +208,21 @@ export class Commands extends Component implements IChatCommands {
             messages.push({ role, content });
         }
 
-        // Determine which message to replace
+        
         let messageToReplace: HTMLElement;
         if (messageEl.classList.contains('assistant')) {
             messageToReplace = messageEl;
         } else {
             messageToReplace = messageEl.nextElementSibling as HTMLElement;
             if (!messageToReplace?.classList.contains('assistant')) {
-                return; // No assistant message to replace
+                return; 
             }
         }
 
-        // Remove the message to be replaced
+        
         messageToReplace.remove();
 
-        // Create new bot message
+        
         const botMessage = new BotMessage(this.app, this.plugin, '');
         this.messagesContainer.insertBefore(
             botMessage.getElement(),
@@ -231,9 +231,9 @@ export class Commands extends Component implements IChatCommands {
 
         this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
 
-        // Generate new response
+        
         this.activeStream = new AbortController();        try {
-            // Use unified model if available, fallback to legacy provider selection
+            
             const provider = this.plugin.settings.selectedModel 
                 ? createProviderFromUnifiedModel(this.plugin.settings, this.plugin.settings.selectedModel)
                 : createProvider(this.plugin.settings);

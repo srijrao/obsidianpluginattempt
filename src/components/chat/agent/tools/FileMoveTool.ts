@@ -43,10 +43,10 @@ export class FileMoveTool implements Tool {
     }
 
     async execute(params: FileMoveParams & Record<string, any>, context: any): Promise<ToolResult> {
-        // Parameter aliasing for robustness
+        
         let inputSourcePath = params.sourcePath;
         let inputDestinationPath = params.destinationPath;
-        // Accept legacy/incorrect parameter names as aliases
+        
         if (!inputSourcePath && params.path) inputSourcePath = params.path;
         if (!inputDestinationPath && (params.new_path || params.newPath)) inputDestinationPath = params.new_path || params.newPath;
 
@@ -60,7 +60,7 @@ export class FileMoveTool implements Tool {
             };
         }
 
-        // Validate and normalize both paths to ensure they're within the vault
+        
         let sourcePath: string;
         let destinationPath: string;
         try {
@@ -74,7 +74,7 @@ export class FileMoveTool implements Tool {
         }
 
         try {
-            // Check if source file exists
+            
             const sourceFile = this.app.vault.getAbstractFileByPath(sourcePath);
             
             if (!sourceFile) {
@@ -91,7 +91,7 @@ export class FileMoveTool implements Tool {
                 };
             }
 
-            // Check if destination exists
+            
             const destinationExists = this.app.vault.getAbstractFileByPath(destinationPath);
             
             if (destinationExists && !overwrite) {
@@ -101,13 +101,13 @@ export class FileMoveTool implements Tool {
                 };
             }
 
-            // Extract the destination folder path
+            
             const lastSlashIndex = destinationPath.lastIndexOf('/');
             const destinationFolder = lastSlashIndex !== -1 
                 ? destinationPath.substring(0, lastSlashIndex) 
                 : '';
 
-            // Create destination folders if needed
+            
             if (destinationFolder && createFolders) {
                 const folderExists = this.app.vault.getAbstractFileByPath(destinationFolder);
                 
@@ -121,7 +121,7 @@ export class FileMoveTool implements Tool {
                 }
             }
 
-            // Perform the move operation
+            
             await this.app.fileManager.renameFile(sourceFile, destinationPath);
 
             return {

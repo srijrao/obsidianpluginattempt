@@ -1,5 +1,5 @@
-// src/utils/typeguards.ts
-// Centralized type guard utilities for Obsidian file types
+
+
 import { TFile, TFolder, TAbstractFile } from 'obsidian';
 
 /**

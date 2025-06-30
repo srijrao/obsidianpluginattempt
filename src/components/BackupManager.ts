@@ -9,7 +9,7 @@ export class BackupManager {
     private app: App;
     private backupFilePath: string;
     private binaryBackupFolder: string;
-    private maxBackupsPerFile: number = 10; // Limit backups to prevent excessive storage
+    private maxBackupsPerFile: number = 10; 
 
     constructor(app: App, pluginDataPath: string) {
         this.app = app;
@@ -23,22 +23,22 @@ export class BackupManager {
      */
     private isBinaryFile(filePath: string): boolean {
         const textExtensions = [
-            // Markdown and text
+            
             '.md', '.txt', '.text', '.rtf',
-            // Code and markup
+            
             '.js', '.ts', '.jsx', '.tsx', '.html', '.htm', '.css', '.scss', '.sass', '.less',
             '.json', '.xml', '.yaml', '.yml', '.toml', '.ini', '.conf', '.config',
-            // Programming languages
+            
             '.py', '.java', '.c', '.cpp', '.h', '.hpp', '.cs', '.php', '.rb', '.go', '.rs', '.swift',
             '.kt', '.scala', '.clj', '.hs', '.elm', '.dart', '.r', '.m', '.pl', '.sh', '.bash', '.zsh',
             '.fish', '.ps1', '.bat', '.cmd',
-            // Web and data
+            
             '.svg', '.csv', '.tsv', '.log', '.sql', '.graphql', '.gql',
-            // Documentation
+            
             '.tex', '.latex', '.bib', '.org', '.rst', '.asciidoc', '.adoc',
-            // Configuration and other text formats
+            
             '.gitignore', '.gitattributes', '.editorconfig', '.env', '.properties',
-            // No extension (often text files like README, LICENSE, etc.)
+            
             ''
         ];
 
@@ -50,7 +50,7 @@ export class BackupManager {
      * Generates a unique backup file name for binary files
      */
     private generateBinaryBackupPath(filePath: string, timestamp: number): string {
-        const fileName = filePath.replace(/[\/\\]/g, '_'); // Replace path separators with underscores
+        const fileName = filePath.replace(/[\/\\]/g, '_'); 
         const extension = filePath.substring(filePath.lastIndexOf('.'));
         const nameWithoutExt = fileName.substring(0, fileName.lastIndexOf('.'));
         return `${this.binaryBackupFolder}/${nameWithoutExt}_${timestamp}${extension}`;
@@ -74,19 +74,19 @@ export class BackupManager {
             let backup: FileBackup;
 
             if (isBinary) {
-                // For binary files, copy the file to the binary backup folder
+                
                 const file = this.app.vault.getAbstractFileByPath(filePath);
                 if (file && isTFile(file)) {
                     const fileBuffer = await this.app.vault.readBinary(file);
                     const backupFilePath = this.generateBinaryBackupPath(filePath, timestamp);
                     
-                    // Ensure binary backup directory exists
+                    
                     const adapter = this.app.vault.adapter;
                     if (!await adapter.exists(this.binaryBackupFolder)) {
                         await adapter.mkdir(this.binaryBackupFolder);
                     }
 
-                    // Write the binary file
+                    
                     await adapter.writeBinary(backupFilePath, fileBuffer);
 
                     backup = {
@@ -102,7 +102,7 @@ export class BackupManager {
                     return;
                 }
             } else {
-                // For text files, store content directly
+                
                 if (currentContent === undefined) {
                     const file = this.app.vault.getAbstractFileByPath(filePath);
                     if (file && isTFile(file)) {
@@ -123,15 +123,15 @@ export class BackupManager {
                 };
             }
 
-            // Add backup to the beginning of the array (most recent first)
+            
             backupData.backups[filePath].unshift(backup);
 
-            // Limit the number of backups per file
+            
             if (backupData.backups[filePath].length > this.maxBackupsPerFile) {
                 const removedBackups = backupData.backups[filePath].slice(this.maxBackupsPerFile);
                 backupData.backups[filePath] = backupData.backups[filePath].slice(0, this.maxBackupsPerFile);
                 
-                // Clean up old binary backup files
+                
                 for (const removedBackup of removedBackups) {
                     if (removedBackup.isBinary && removedBackup.backupFilePath) {
                         try {
@@ -149,7 +149,7 @@ export class BackupManager {
             await this.saveBackupData(backupData);
         } catch (error) {
             console.error('Failed to create backup:', error);
-            // Don't throw the error to prevent file operations from failing
+            
         }
     }
 
@@ -189,7 +189,7 @@ export class BackupManager {
             const file = this.app.vault.getAbstractFileByPath(backup.filePath);
             
             if (backup.isBinary) {
-                // Handle binary file restoration
+                
                 if (!backup.backupFilePath) {
                     return { success: false, error: 'Binary backup file path is missing' };
                 }
@@ -202,7 +202,7 @@ export class BackupManager {
                 const binaryData = await adapter.readBinary(backup.backupFilePath);
                 
                 if (!file) {
-                    // File doesn't exist, create it
+                    
                     await this.app.vault.createBinary(backup.filePath, binaryData);
                     return { success: true };
                 }
@@ -211,17 +211,17 @@ export class BackupManager {
                     return { success: false, error: `Path is not a file: ${backup.filePath}` };
                 }
 
-                // Overwrite the existing binary file
+                
                 await this.app.vault.modifyBinary(file, binaryData);
                 return { success: true };
             } else {
-                // Handle text file restoration
+                
                 if (!backup.content) {
                     return { success: false, error: 'Text backup content is missing' };
                 }
 
                 if (!file) {
-                    // File doesn't exist, create it
+                    
                     await this.app.vault.create(backup.filePath, backup.content);
                     return { success: true };
                 }
@@ -230,7 +230,7 @@ export class BackupManager {
                     return { success: false, error: `Path is not a file: ${backup.filePath}` };
                 }
 
-                // Overwrite the existing text file
+                
                 await this.app.vault.modify(file, backup.content);
                 return { success: true };
             }
@@ -248,7 +248,7 @@ export class BackupManager {
             const backups = backupData.backups[filePath];
             
             if (backups) {
-                // Clean up binary backup files
+                
                 for (const backup of backups) {
                     if (backup.isBinary && backup.backupFilePath) {
                         try {
@@ -279,7 +279,7 @@ export class BackupManager {
             if (backupData.backups[filePath]) {
                 const backupToDelete = backupData.backups[filePath].find(b => b.timestamp === timestamp);
                 
-                // Clean up binary backup file if it exists
+                
                 if (backupToDelete && backupToDelete.isBinary && backupToDelete.backupFilePath) {
                     try {
                         const adapter = this.app.vault.adapter;
@@ -295,7 +295,7 @@ export class BackupManager {
                     backup => backup.timestamp !== timestamp
                 );
                 
-                // If no backups left for this file, remove the file entry
+                
                 if (backupData.backups[filePath].length === 0) {
                     delete backupData.backups[filePath];
                 }
@@ -314,7 +314,7 @@ export class BackupManager {
         try {
             const backupData = await this.loadBackupData();
             
-            // Clean up all binary backup files
+            
             for (const filePath in backupData.backups) {
                 const backups = backupData.backups[filePath];
                 if (backups) {
@@ -333,7 +333,7 @@ export class BackupManager {
                 }
             }
             
-            // Clear all backups data
+            
             await this.saveBackupData({ backups: {} });
         } catch (error) {
             console.error('Failed to delete all backups:', error);
@@ -348,30 +348,30 @@ export class BackupManager {
         try {
             const backups = await this.getBackupsForFile(filePath);
             if (backups.length === 0) {
-                return true; // No backups exist, so we should create one
+                return true; 
             }
 
             const mostRecentBackup = backups[0];
             
             if (mostRecentBackup.isBinary) {
-                // For binary files, always create backup if content might have changed
-                // We can't easily compare binary content without reading the full file
+                
+                
                 return true;
             } else {
-                // For text files, compare content
+                
                 if (newContent === undefined) {
                     const file = this.app.vault.getAbstractFileByPath(filePath);
                     if (file && isTFile(file)) {
                         newContent = await this.app.vault.read(file);
                     } else {
-                        return true; // File not found, create backup anyway
+                        return true; 
                     }
                 }
                 return mostRecentBackup.content !== newContent;
             }
         } catch (error) {
             console.error('Failed to check if backup should be created:', error);
-            return true; // Default to creating backup on error
+            return true; 
         }
     }
 
@@ -384,7 +384,7 @@ export class BackupManager {
             if (await adapter.exists(this.backupFilePath)) {
                 const content = await adapter.read(this.backupFilePath);
                 const parsed = JSON.parse(content);
-                // Ensure the structure is correct
+                
                 if (parsed && typeof parsed === 'object' && parsed.backups) {
                     return parsed;
                 }
@@ -393,7 +393,7 @@ export class BackupManager {
             console.error('Failed to load backup data:', error);
         }
 
-        // Return empty backup data if file doesn't exist or can't be read
+        
         return { backups: {} };
     }
 
@@ -403,16 +403,16 @@ export class BackupManager {
     private async saveBackupData(backupData: BackupData): Promise<void> {
         try {
             const adapter = this.app.vault.adapter;
-            // Ensure the directory exists
+            
             const backupDir = this.backupFilePath.substring(0, this.backupFilePath.lastIndexOf('/'));
             try {
                 if (!await adapter.exists(backupDir)) {
                     await adapter.mkdir(backupDir);
                 }
             } catch (mkdirError) {
-                // Directory might already exist or there might be permission issues
+                
             }
-            // Only pretty-print if debug mode is enabled
+            
             const debug = (window as any)?.aiAssistantPlugin?.debugMode;
             const json = debug ? JSON.stringify(backupData, null, 2) : JSON.stringify(backupData);
             await adapter.write(this.backupFilePath, json);
@@ -472,12 +472,12 @@ export class BackupManager {
                 await adapter.mkdir(backupDir);
             }
 
-            // Ensure binary backup directory exists
+            
             if (!await adapter.exists(this.binaryBackupFolder)) {
                 await adapter.mkdir(this.binaryBackupFolder);
             }
             
-            // Ensure the backup file exists with proper structure
+            
             if (!await adapter.exists(this.backupFilePath)) {
                 await this.saveBackupData({ backups: {} });
             }
@@ -509,7 +509,7 @@ export class BackupManager {
                 if (backupData.backups[filePath].length < originalLength) {
                     cleaned = true;
                     
-                    // Clean up old binary backup files
+                    
                     for (const removedBackup of removedBackups) {
                         if (removedBackup.isBinary && removedBackup.backupFilePath) {
                             try {
@@ -524,7 +524,7 @@ export class BackupManager {
                     }
                 }
 
-                // Remove empty file entries
+                
                 if (backupData.backups[filePath].length === 0) {
                     delete backupData.backups[filePath];
                 }

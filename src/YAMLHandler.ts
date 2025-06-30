@@ -19,7 +19,7 @@ function generateTableOfContents(noteContent: string): string {
             if (!match) return "";
             const level = match[1].length;
             const title = match[2].trim();
-            // Indent based on header level (2 spaces per level after H1)
+            
             return `${'  '.repeat(level - 1)}- ${title}`;
         })
         .join('\n');
@@ -41,18 +41,18 @@ export async function generateNoteTitle(
     let noteContent = await app.vault.cachedRead(activeFile);
     noteContent = noteContent.slice(0, 15000);
 
-    // Generate Table of Contents from all headers in the note
+    
     const toc = generateTableOfContents(noteContent);
 
-    // Use the default title prompt from promptConstants.ts
+    
     const prompt = DEFAULT_TITLE_PROMPT;
     const userContent = (toc && toc.trim().length > 0 ? "Table of Contents:\n" + toc + "\n\n" : "") + noteContent;    try {
         debugLog(DEBUG, 'debug', "Provider:", settings.provider);
-        // Use unified model if available, fallback to legacy provider selection
+        
         const provider = settings.selectedModel 
             ? createProviderFromUnifiedModel(settings, settings.selectedModel)
             : createProvider(settings);
-        // Compose messages: system = prompt, user = note content (with TOC)
+        
         const messages: Message[] = [
             { role: "system", content: prompt },
             { role: "user", content: userContent }
@@ -87,7 +87,7 @@ export async function generateNoteTitle(
             let title = resultBuffer.trim();
             debugLog(DEBUG, 'debug', "Extracted title before sanitization:", title);
 
-            // Remove forbidden characters: backslashes, forward slashes, colons
+            
             title = title.replace(/[\\/:]/g, "").trim();
             debugLog(DEBUG, 'debug', "Sanitized title:", title);
 
@@ -157,13 +157,13 @@ export async function generateYamlAttribute(
     let noteContent = await app.vault.cachedRead(activeFile);
     noteContent = noteContent.slice(0, 15000);
 
-    // Compose messages: system = default system message, user = prompt + note content
+    
     const messages: Message[] = [
         { role: "system", content: DEFAULT_YAML_SYSTEM_MESSAGE },
         { role: "user", content: prompt + "\n\n" + noteContent }
     ];
 
-    // Use processMessages for Obsidian link expansion, but skip context notes
+    
     debugLog(DEBUG, 'debug', "Original messages:", JSON.stringify(messages));
     const originalEnableContextNotes = settings.enableContextNotes;
     debugLog(DEBUG, 'debug', "Original enableContextNotes:", originalEnableContextNotes);
@@ -178,9 +178,9 @@ export async function generateYamlAttribute(
             debugLog(DEBUG, 'debug', "No processed messages!");
             new Notice("No valid messages to send to the model. Please check your note content.");
             return;
-        }        // Get completion (buffer streamed output)
+        }        
         debugLog(DEBUG, 'debug', "Calling provider.getCompletion");
-        // Use unified model if available, fallback to legacy provider selection
+        
         const provider = settings.selectedModel 
             ? createProviderFromUnifiedModel(settings, settings.selectedModel)
             : createProvider(settings);
@@ -195,17 +195,17 @@ export async function generateYamlAttribute(
 
         let value = resultBuffer.trim();
         debugLog(DEBUG, 'debug', "Extracted value before sanitization:", value);
-        value = value.replace(/[\\/]/g, "").trim(); // Allow colons in YAML values
+        value = value.replace(/[\\/]/g, "").trim(); 
         debugLog(DEBUG, 'debug', "Sanitized value:", value);
 
         if (value && typeof value === "string" && value.length > 0) {
             debugLog(DEBUG, 'debug', "Output mode:", outputMode);
             if (outputMode === "metadata") {
-                // Insert or update attribute in YAML frontmatter using helper
+                
                 await upsertYamlField(app, activeFile, attributeName, value);
                 new Notice(`Inserted ${attributeName} into metadata: ${value}`);
             } else {
-                // Clipboard (default)
+                
                 try {
                     await navigator.clipboard.writeText(value);
                     new Notice(`Generated ${attributeName} (copied): ${value}`);
@@ -235,7 +235,7 @@ export async function upsertYamlField(app: App, file: TFile, field: string, valu
     const frontmatterRegex = /^---\n([\s\S]*?)\n---/;
     const match = content.match(frontmatterRegex);
     if (match) {
-        // Parse YAML frontmatter
+        
         let yamlObj: any = {};
         try {
             yamlObj = yaml.load(match[1]) || {};
@@ -246,7 +246,7 @@ export async function upsertYamlField(app: App, file: TFile, field: string, valu
         const newYaml = yaml.dump(yamlObj, { lineWidth: -1 }).trim();
         newContent = content.replace(frontmatterRegex, `---\n${newYaml}\n---`);
     } else {
-        // No frontmatter, add it
+        
         const newYaml = yaml.dump({ [field]: value }, { lineWidth: -1 }).trim();
         newContent = `---\n${newYaml}\n---\n` + content;
     }

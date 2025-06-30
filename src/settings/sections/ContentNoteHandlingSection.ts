@@ -12,7 +12,7 @@ export class ContentNoteHandlingSection {
     }
 
     async render(containerEl: HTMLElement): Promise<void> {
-        // Chat Customization subsection
+        
         containerEl.createEl('h3', { text: 'Chat Customization' });
         
         this.settingCreators.createTextSetting(
@@ -88,7 +88,7 @@ export class ContentNoteHandlingSection {
             }
         );
 
-        // Note Reference Settings subsection
+        
         containerEl.createEl('h3', { text: 'Note Reference Settings' });
         
         this.settingCreators.createToggleSetting(
@@ -123,11 +123,11 @@ export class ContentNoteHandlingSection {
                 text.setPlaceholder('[[Note Name]]\n[[Another Note#Header]]')
                     .setValue(this.plugin.settings.contextNotes || '')
                     .onChange((value) => {
-                        // Store value locally while typing, don't save yet
+                        
                         this.plugin.settings.contextNotes = value;
                     });
                 
-                // Save only when the user leaves the field
+                
                 text.inputEl.addEventListener('blur', async () => {
                     await this.plugin.saveSettings();
                 });
@@ -136,7 +136,7 @@ export class ContentNoteHandlingSection {
                 text.inputEl.style.width = '100%';
             });
 
-        // Data Handling subsection
+        
         containerEl.createEl('h3', { text: 'Data Handling' });
         
         this.settingCreators.createToggleSetting(
@@ -177,7 +177,7 @@ export class ContentNoteHandlingSection {
             { trim: true }
         );
 
-        // YAML Attribute Generators subsection
+        
         containerEl.createEl('h3', { text: 'YAML Attribute Generators' });
         this.renderYamlAttributeGenerators(containerEl);
     }
@@ -196,7 +196,7 @@ export class ContentNoteHandlingSection {
         yamlGens.forEach((gen, idx) => {
             const autoCommandName = gen.attributeName ? `Generate YAML: ${gen.attributeName}` : `YAML Generator #${idx + 1}`;
             
-            // Generator container
+            
             const genContainer = containerEl.createDiv({ cls: 'yaml-generator-container' });
             genContainer.style.border = '1px solid var(--background-modifier-border)';
             genContainer.style.borderRadius = '6px';
@@ -212,14 +212,14 @@ export class ContentNoteHandlingSection {
                     text.setPlaceholder('YAML Attribute Name')
                         .setValue(gen.attributeName)
                         .onChange((value) => {
-                            // Store value locally while typing, don't save yet
+                            
                             if (this.plugin.settings.yamlAttributeGenerators) {
                                 this.plugin.settings.yamlAttributeGenerators[idx].attributeName = value ?? '';
                                 this.plugin.settings.yamlAttributeGenerators[idx].commandName = value ? `Generate YAML: ${value}` : '';
                             }
                         });
                     
-                    // Save only when the user leaves the field
+                    
                     text.inputEl.addEventListener('blur', async () => {
                         await this.plugin.saveSettings();
                     });
@@ -232,13 +232,13 @@ export class ContentNoteHandlingSection {
                     text.setPlaceholder('Prompt for LLM')
                         .setValue(gen.prompt)
                         .onChange((value) => {
-                            // Store value locally while typing, don't save yet
+                            
                             if (this.plugin.settings.yamlAttributeGenerators) {
                                 this.plugin.settings.yamlAttributeGenerators[idx].prompt = value ?? '';
                             }
                         });
                     
-                    // Save only when the user leaves the field
+                    
                     text.inputEl.addEventListener('blur', async () => {
                         await this.plugin.saveSettings();
                     });

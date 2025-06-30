@@ -33,7 +33,7 @@ export class ChatHelpModal extends Modal {
         sectionContainer.appendChild(header);
         sectionContainer.appendChild(content);
         
-        // Set content as the context for the callback
+        
         const originalContent = this.contentEl;
         this.contentEl = content;
         contentCallback();
@@ -46,7 +46,7 @@ export class ChatHelpModal extends Modal {
         this.titleEl.setText('AI Chat Help');
         this.contentEl.empty();
         
-        // Slash Commands Section
+        
         this.contentEl.appendChild(this.createCollapsibleSection('Slash Commands', () => {
             this.contentEl.innerHTML = `
                 <code>/clear</code> – Clear the chat<br>
@@ -58,7 +58,7 @@ export class ChatHelpModal extends Modal {
             `;
         }));
         
-        // Keyboard Shortcuts Section
+        
         this.contentEl.appendChild(this.createCollapsibleSection('Keyboard Shortcuts (when chat window or input is focused)', () => {
             this.contentEl.innerHTML = `
                 <code>Ctrl+Shift+X</code> – Clear chat<br>
@@ -70,7 +70,7 @@ export class ChatHelpModal extends Modal {
                 <br>
             `;
         }));
-          // Other Section
+          
         this.contentEl.appendChild(this.createCollapsibleSection('Other', () => {
             this.contentEl.innerHTML = `
                 <code>Enter</code> – Send message<br>
@@ -80,7 +80,7 @@ export class ChatHelpModal extends Modal {
             `;
         }));
 
-        // Reference Current Note Section
+        
         this.contentEl.appendChild(this.createCollapsibleSection('Reference Current Note', () => {
             this.contentEl.innerHTML = `
                 <strong>What is it?</strong><br>

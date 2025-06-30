@@ -12,7 +12,7 @@ export class ChatHistorySettingsSection {
     }
 
     async render(containerEl: HTMLElement): Promise<void> {
-        // Chat History & Sessions subsection
+        
         containerEl.createEl('h3', { text: 'Chat History & Sessions' });
         
         this.settingCreators.createSliderSetting(
@@ -38,7 +38,7 @@ export class ChatHistorySettingsSection {
             }
         );
 
-        // UI Behavior subsection
+        
         containerEl.createEl('h3', { text: 'UI Behavior' });
         
         this.settingCreators.createToggleSetting(

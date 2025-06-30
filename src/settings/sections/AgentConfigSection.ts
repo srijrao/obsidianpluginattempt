@@ -2,16 +2,16 @@ import { App, Setting, Notice } from 'obsidian';
 import MyPlugin from '../../main';
 import { SettingCreators } from '../components/SettingCreators';
 import { CollapsibleSectionRenderer } from '../../components/chat/CollapsibleSection';
-import { createToolInstances } from '../../components/chat/agent/tools/toolcollect'; // Adjust path as needed
-import { AGENT_SYSTEM_PROMPT_TEMPLATE } from '../../promptConstants'; // Adjust path as needed
+import { createToolInstances } from '../../components/chat/agent/tools/toolcollect'; 
+import { AGENT_SYSTEM_PROMPT_TEMPLATE } from '../../promptConstants'; 
 
 export class AgentConfigSection {
-    private app: App; // Add app property
+    private app: App; 
     private plugin: MyPlugin;
     private settingCreators: SettingCreators;
 
-    constructor(app: App, plugin: MyPlugin, settingCreators: SettingCreators) { // Add app to constructor
-        this.app = app; // Initialize app
+    constructor(app: App, plugin: MyPlugin, settingCreators: SettingCreators) { 
+        this.app = app; 
         this.plugin = plugin;
         this.settingCreators = settingCreators;
         if (this.plugin && typeof this.plugin.debugLog === 'function') {
@@ -68,7 +68,7 @@ export class AgentConfigSection {
                         await this.plugin.saveSettings();
                     });
 
-                // Custom Agent System Message Setting
+                
                 sectionEl.createEl('h4', { text: 'Agent System Message' });
                 sectionEl.createEl('div', {
                     text: 'Customize the system message used when Agent Mode is enabled. Use {{TOOL_DESCRIPTIONS}} to include the available tools list.',
@@ -103,7 +103,7 @@ export class AgentConfigSection {
                 resetButton.style.padding = '0.25em 0.5em';
                 resetButton.style.fontSize = '0.8em';
                 resetButton.addEventListener('click', async () => {
-                    // const { AGENT_SYSTEM_PROMPT_TEMPLATE } = await import('./promptConstants'); // Original import
+                    
                     textarea.value = AGENT_SYSTEM_PROMPT_TEMPLATE;
                     this.plugin.settings.customAgentSystemMessage = AGENT_SYSTEM_PROMPT_TEMPLATE;
                     await this.plugin.saveSettings();
@@ -162,7 +162,7 @@ export class AgentConfigSection {
             if (typeof tool.name === 'undefined') {
                 console.error('[AI Assistant] Settings: CRITICAL - Tool object has undefined name:', tool);
             }
-            // Do not render a toggle for the 'thought' tool; it is always enabled
+            
             if (tool.name === 'thought') {
                 if (!this.plugin.settings.enabledTools) {
                     this.plugin.settings.enabledTools = {};

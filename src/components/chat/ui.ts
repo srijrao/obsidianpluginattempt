@@ -9,20 +9,20 @@ export interface ChatUIElements {
     saveNoteButton: HTMLButtonElement;
     clearButton: HTMLButtonElement;
     messagesContainer: HTMLElement;
-    toolContinuationContainer: HTMLElement; // Add tool continuation container
+    toolContinuationContainer: HTMLElement; 
     inputContainer: HTMLElement;
     textarea: HTMLTextAreaElement;
     sendButton: HTMLButtonElement;
     stopButton: HTMLButtonElement;
     helpButton: HTMLButtonElement;
-    agentModeButton: HTMLButtonElement; // <-- add to interface
+    agentModeButton: HTMLButtonElement; 
     referenceNoteButton: HTMLButtonElement;
     referenceNoteIndicator: HTMLElement;
-    modelNameDisplay: HTMLElement; // Add model name display
+    modelNameDisplay: HTMLElement; 
 }
 
 export function createChatUI(app: App, contentEl: HTMLElement): ChatUIElements {
-    // --- FADED HELP MESSAGE NEAR TOP ---
+    
     const fadedHelp = contentEl.createDiv();
     fadedHelp.setText('Tip: Type /help or press Ctrl+Shift+H for chat commands and shortcuts. Use Ctrl+Shift+X to clear chat and Ctrl+Shift+C to copy.');
     fadedHelp.style.textAlign = 'center';
@@ -30,26 +30,26 @@ export function createChatUI(app: App, contentEl: HTMLElement): ChatUIElements {
     fadedHelp.style.fontSize = '0.95em';
     fadedHelp.style.margin = '0.5em 0 0.2em 0';
 
-    // --- BUTTONS ABOVE CHAT WINDOW ---
+    
     const topButtonContainer = contentEl.createDiv('ai-chat-buttons');
-    // Settings button
+    
     const settingsButton = document.createElement('button');
     settingsButton.setText('Settings');
     settingsButton.setAttribute('aria-label', 'Toggle model settings');
     topButtonContainer.appendChild(settingsButton);
-    // Copy All button
+    
     const copyAllButton = document.createElement('button');
     copyAllButton.textContent = 'Copy All';
     topButtonContainer.appendChild(copyAllButton);
-    // Save as Note button
+    
     const saveNoteButton = document.createElement('button');
     saveNoteButton.textContent = 'Save as Note';
     topButtonContainer.appendChild(saveNoteButton);
-    // Clear button
+    
     const clearButton = document.createElement('button');
     clearButton.textContent = 'Clear Chat';
     topButtonContainer.appendChild(clearButton);
-    // --- REFERENCE NOTE BUTTON ---
+    
     const referenceNoteButton = document.createElement('button');
     referenceNoteButton.setText('📝');
     referenceNoteButton.setAttribute('aria-label', 'Toggle referencing current note');
@@ -61,7 +61,7 @@ export function createChatUI(app: App, contentEl: HTMLElement): ChatUIElements {
     referenceNoteButton.style.marginBottom = '0.2em';
     referenceNoteButton.style.opacity = '0.7';
     topButtonContainer.appendChild(referenceNoteButton);
-    // --- REFERENCE NOTE INDICATOR ---
+    
     const referenceNoteIndicator = document.createElement('div');
     referenceNoteIndicator.className = 'ai-reference-note-indicator';
     referenceNoteIndicator.style.textAlign = 'center';
@@ -71,7 +71,7 @@ export function createChatUI(app: App, contentEl: HTMLElement): ChatUIElements {
     referenceNoteIndicator.style.display = 'none';
     topButtonContainer.appendChild(referenceNoteIndicator);
 
-    // --- MODEL NAME DISPLAY (always visible under buttons) ---
+    
     const modelNameDisplay = document.createElement('div');
     modelNameDisplay.className = 'ai-model-name-display';
     modelNameDisplay.style.textAlign = 'center';
@@ -81,17 +81,17 @@ export function createChatUI(app: App, contentEl: HTMLElement): ChatUIElements {
     modelNameDisplay.style.fontWeight = 'bold';
     topButtonContainer.appendChild(modelNameDisplay);
 
-    // Messages container - add tabindex to make it focusable for keyboard events
+    
     const messagesContainer = contentEl.createDiv('ai-chat-messages');
     messagesContainer.setAttribute('tabindex', '0');
 
-    // --- TOOL CONTINUATION DIALOG CONTAINER (above input) ---
+    
     const toolContinuationContainer = contentEl.createDiv('ai-tool-continuation-container');
-    toolContinuationContainer.style.display = 'none'; // Hidden by default
+    toolContinuationContainer.style.display = 'none'; 
 
-    // --- INPUT CONTAINER AT BOTTOM ---
+    
     const inputContainer = contentEl.createDiv('ai-chat-input-container');
-    // Textarea for input
+    
     const textarea = inputContainer.createEl('textarea', {
         cls: 'ai-chat-input',
         attr: {
@@ -100,16 +100,16 @@ export function createChatUI(app: App, contentEl: HTMLElement): ChatUIElements {
         }
     });
 
-    // Send button (now next to textarea)
+    
     const sendButton = inputContainer.createEl('button', {
         text: 'Send',
         cls: 'mod-cta'
     });
-    // Stop button (now next to textarea, hidden initially)
+    
     const stopButton = inputContainer.createEl('button', {
         text: 'Stop',
     });
-    stopButton.classList.add('hidden');    // --- TINY HELP BUTTON ABOVE SEND BUTTON ---
+    stopButton.classList.add('hidden');    
     const helpButton = inputContainer.createEl('button', {
         text: '?',
     });
@@ -124,7 +124,7 @@ export function createChatUI(app: App, contentEl: HTMLElement): ChatUIElements {
     helpButton.style.top = '-2.2em';
     helpButton.style.zIndex = '2';
 
-    // --- AGENT MODE BUTTON NEXT TO HELP BUTTON ---
+    
     const agentModeButton = inputContainer.createEl('button', {
         text: '🤖',
     });
@@ -135,14 +135,14 @@ export function createChatUI(app: App, contentEl: HTMLElement): ChatUIElements {
     agentModeButton.style.marginBottom = '0.2em';
     agentModeButton.style.opacity = '0.7';
     agentModeButton.style.position = 'absolute';
-    agentModeButton.style.right = '2.8em'; // Position to the left of help button
+    agentModeButton.style.right = '2.8em'; 
     agentModeButton.style.top = '-2.2em';
     agentModeButton.style.zIndex = '2';
 
-    // Add a class for agent mode active state
+    
     agentModeButton.classList.add('ai-agent-mode-btn');
 
-    // Utility to set agent mode button appearance
+    
     function setAgentModeActive(isActive: boolean) {
         if (isActive) {
             agentModeButton.classList.add('active');
@@ -150,14 +150,14 @@ export function createChatUI(app: App, contentEl: HTMLElement): ChatUIElements {
             agentModeButton.classList.remove('active');
         }
     }
-    // Expose the setter on the button for easy access
+    
     (agentModeButton as any).setActive = setAgentModeActive;
 
     inputContainer.appendChild(agentModeButton);
     
     inputContainer.style.position = 'relative';
 
-    // After all button creations in topButtonContainer, apply consistent font size and font family
+    
     [topButtonContainer.querySelectorAll('button')].forEach(btns => {
       btns.forEach(btn => {
         btn.style.fontSize = '0.85em';
@@ -180,9 +180,9 @@ export function createChatUI(app: App, contentEl: HTMLElement): ChatUIElements {
         sendButton,
         stopButton,
         helpButton,
-        agentModeButton, // <-- add to return object
+        agentModeButton, 
         referenceNoteButton,
         referenceNoteIndicator,
-        modelNameDisplay, // Add to return object
+        modelNameDisplay, 
     };
 }

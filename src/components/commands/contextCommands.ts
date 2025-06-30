@@ -12,7 +12,7 @@ export function registerContextCommands(
     plugin: Plugin,
     settings: MyPluginSettings
 ) {
-    // Toggle Enable Obsidian Link command
+    
     registerCommand(
         plugin,
         {
@@ -28,7 +28,7 @@ export function registerContextCommands(
         }
     );
 
-    // Toggle Enable Context Notes command
+    
     registerCommand(
         plugin,
         {
@@ -44,7 +44,7 @@ export function registerContextCommands(
         }
     );
 
-    // Clear Context Notes command
+    
     registerCommand(
         plugin,
         {
@@ -58,7 +58,7 @@ export function registerContextCommands(
         }
     );
 
-    // Copy Context Notes to Clipboard command
+    
     registerCommand(
         plugin,
         {
@@ -81,7 +81,7 @@ export function registerContextCommands(
         }
     );
 
-    // Add Current Note to Context Notes command
+    
     registerCommand(
         plugin,
         {
@@ -97,13 +97,13 @@ export function registerContextCommands(
                 const noteTitle = activeFile.basename;
                 const wikiLink = `[[${noteTitle}]]`;
 
-                // Check if this note is already in context notes
+                
                 if (settings.contextNotes && settings.contextNotes.includes(wikiLink)) {
                     showNotice(`"${noteTitle}" is already in context notes`);
                     return;
                 }
 
-                // Add the wiki link to context notes
+                
                 if (settings.contextNotes && settings.contextNotes.trim().length > 0) {
                     settings.contextNotes += `\n${wikiLink}`;
                 } else {

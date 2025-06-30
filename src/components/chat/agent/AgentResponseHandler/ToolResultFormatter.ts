@@ -39,7 +39,7 @@ export class ToolResultFormatter {
             case "file_read":
             case "file_diff":
                 if (result.data.filePath) {
-                    // getRelativePath should be injected or handled outside
+                    
                     return ` [[${result.data.filePath}]]`;
                 }
                 break;

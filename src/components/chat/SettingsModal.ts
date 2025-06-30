@@ -13,7 +13,7 @@ export class SettingsModal extends Modal {
         this.plugin = plugin;
         this.settingsSections = new SettingsSections(plugin);
         this.titleEl.setText('AI Model Settings');
-        // Listen for settings changes and refresh UI
+        
         this.plugin.onSettingsChange(this._onSettingsChange);
     }
 

@@ -1,16 +1,15 @@
-// Handles chat YAML load/save for chat notes
+
 import { MyPluginSettings } from '../../types';
 import { Notice } from 'obsidian';
 import * as yaml from 'js-yaml';
 import { getProviderFromUnifiedModel, getModelIdFromUnifiedModel } from '../../../providers';
 import { MessageRenderer } from './MessageRenderer';
 
-// Logging utility: uses plugin.debugLog if available, else falls back to console.log
 function log(level: 'debug' | 'info' | 'warn' | 'error', ...args: any[]) {
     if (typeof window !== 'undefined' && (window as any).plugin && typeof (window as any).plugin.debugLog === 'function') {
         (window as any).plugin.debugLog(level, '[chatPersistence]', ...args);
     } else if (typeof console !== 'undefined') {
-        // Only log info/warn/error by default
+        
         if (level !== 'debug') console[level]('[chatPersistence]', ...args);
     }
 }
@@ -129,12 +128,12 @@ export async function saveChatAsNote({
     const yaml = buildChatYaml(settings, provider, model);
     log('info', '[saveChatAsNote] YAML frontmatter built. Stripping any existing YAML from chat content.');
     content = content.replace(/^---[\s\S]*?---\n?/, '');
-    // Normalize all newlines to \n, then replace 3+ consecutive newlines with exactly two
+    
     content = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
     content = content.replace(/\n{3,}/g, '\n\n');
-    content = content.replace(/\n+$/, ''); // Remove trailing newlines
+    content = content.replace(/\n+$/, ''); 
     const noteContent = yaml + '\n' + content + '\n';
-    // Generate filename with timestamp
+    
     const now = new Date();
     const pad = (n: number) => n.toString().padStart(2, '0');
     const fileName = `Chat Export ${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())} ${pad(now.getHours())}-${pad(now.getMinutes())}.md`;
@@ -161,7 +160,7 @@ export async function saveChatAsNote({
         }
         filePath = folder.replace(/[/\\]+$/, '') + '/' + fileName;
     }
-    // Try to create the file, handle if it already exists
+    
     let finalFilePath = filePath;
     let attempt = 1;
     while (app.vault.getAbstractFileByPath(finalFilePath)) {
@@ -214,7 +213,7 @@ export async function loadChatYamlAndApplySettings({
     } else {
         log('warn', '[loadChatYamlAndApplySettings] No YAML frontmatter found in file.');
     }
-    // Handle unified model format first
+    
     if (yamlObj.unified_model) {
         settings.selectedModel = yamlObj.unified_model;
         log('info', '[loadChatYamlAndApplySettings] Loaded unified_model from YAML', yamlObj.unified_model);

@@ -39,11 +39,11 @@ export class TaskNotificationManager {
     }
 
     updateTaskProgress(current: number, total?: number, description?: string): void {
-        // Progress indicator removed
+        
     }
 
     hideTaskProgress(): void {
-        // Progress indicator removed
+        
     }
 
     private getNotificationIcon(type: NotificationType): string {

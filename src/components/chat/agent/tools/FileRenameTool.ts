@@ -1,5 +1,4 @@
-// FileRenameTool.ts
-// Tool for renaming files within the vault
+
 
 import { App, TFile } from 'obsidian';
 import { Tool, ToolResult } from '../ToolRegistry';
@@ -39,7 +38,7 @@ export class FileRenameTool implements Tool {
     }
 
     async execute(params: FileRenameParams & { newPath?: string }, context: any): Promise<ToolResult> {
-        // Accept both newName and newPath for compatibility
+        
         const { path: inputPath, newName, newPath, overwrite = false } = params;
         const finalNewName = newName || newPath;
 
@@ -51,7 +50,7 @@ export class FileRenameTool implements Tool {
             };
         }
 
-        // Validate and normalize the path to ensure it's within the vault
+        
         let path: string;
         try {
             path = this.pathValidator.validateAndNormalizePath(inputPath);

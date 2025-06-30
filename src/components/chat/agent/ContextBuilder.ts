@@ -18,11 +18,11 @@ export class ContextBuilder {
             { role: 'system', content: getSystemMessage(this.plugin.settings) }
         ];
 
-        // Add context notes if enabled
+        
         if (this.plugin.settings.enableContextNotes && this.plugin.settings.contextNotes) {
             const contextContent = await getContextNotesContent(this.plugin.settings.contextNotes, this.plugin.app);
             messages[0].content += `\n\nContext Notes:\n${contextContent}`;
-        }        // Add current note content if enabled
+        }        
         if (this.plugin.settings.referenceCurrentNote) {
             const currentFile = this.app.workspace.getActiveFile();
             if (currentFile) {
@@ -34,7 +34,7 @@ export class ContextBuilder {
             }
         }
 
-        // Debug: Log context building if debugMode is enabled
+        
         if (this.plugin.settings.debugMode) {
             this.plugin.debugLog('debug', '[ContextBuilder] Building context messages', {
                 enableContextNotes: this.plugin.settings.enableContextNotes,

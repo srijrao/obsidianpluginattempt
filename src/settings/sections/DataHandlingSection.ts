@@ -19,8 +19,8 @@ export class DataHandlingSection {
             async (sectionEl: HTMLElement) => {
                 this.settingCreators.createToggleSetting(sectionEl, 'Expand Linked Notes Recursively', 'If enabled, when fetching a note, also fetch and expand links within that note recursively (prevents infinite loops).',
                     () => this.plugin.settings.expandLinkedNotesRecursively ?? false,
-                    async (value) => { this.plugin.settings.expandLinkedNotesRecursively = value; await this.plugin.saveSettings(); /* this.display(); // Re-render to show/hide slider */ },
-                    () => { /* this.display(); */ }); // Re-render needs to be handled by the main settings tab
+                    async (value) => { this.plugin.settings.expandLinkedNotesRecursively = value; await this.plugin.saveSettings(); /* this.display(); 
+                    () => { /* this.display(); */ }); 
 
                 if (this.plugin.settings.expandLinkedNotesRecursively) {
                     this.settingCreators.createSliderSetting(sectionEl, 'Max Link Expansion Depth', 'Maximum depth for recursively expanding linked notes (1-3).',
@@ -34,8 +34,8 @@ export class DataHandlingSection {
                     async (value) => { this.plugin.settings.chatNoteFolder = value ?? ''; await this.plugin.saveSettings(); },
                     { trim: true });
 
-                // YAML Attribute Generators will be a sub-section here conceptually, rendered by its own method
-                this.renderYamlAttributeGenerators(sectionEl); // This method creates its own h3, which is fine as a sub-header
+                
+                this.renderYamlAttributeGenerators(sectionEl); 
             },
             this.plugin,
             'generalSectionsExpanded'
@@ -61,7 +61,7 @@ export class DataHandlingSection {
                         this.plugin.settings.yamlAttributeGenerators[idx].attributeName = value ?? '';
                         this.plugin.settings.yamlAttributeGenerators[idx].commandName = value ? `Generate YAML: ${value}` : '';
                         await this.plugin.saveSettings();
-                        // this.display(); // Re-render to update the command name - needs to be handled by main settings tab
+                        
                     }
                 }))
                 .addTextArea(text => this.settingCreators.createTextSetting(containerEl, 'Prompt for LLM', '', 'Prompt for LLM', () => gen.prompt, async (value) => {
@@ -88,7 +88,7 @@ export class DataHandlingSection {
                             if (this.plugin.settings.yamlAttributeGenerators) {
                                 this.plugin.settings.yamlAttributeGenerators.splice(idx, 1);
                                 await this.plugin.saveSettings();
-                                // this.display(); // Re-render needs to be handled by main settings tab
+                                
                             }
                         });
                 });
@@ -107,7 +107,7 @@ export class DataHandlingSection {
                             commandName: 'New YAML Generator'
                         });
                         await this.plugin.saveSettings();
-                        // this.display(); // Re-render needs to be handled by main settings tab
+                        
                     });
             });
     }

@@ -90,26 +90,26 @@ export class ResponseStreamer {
     private async addAgentSystemPrompt(messages: Message[]) {
         this.plugin.debugLog('debug', '[ResponseStreamer] addAgentSystemPrompt called', { messages });
         if (!this.plugin.isAgentModeEnabled()) return;        const { buildAgentSystemPrompt } = await import('../../promptConstants');
-        // Build dynamic prompt based on current plugin settings
+        
         const agentPrompt = buildAgentSystemPrompt(
             this.plugin.settings.enabledTools, 
             this.plugin.settings.customAgentSystemMessage
         );
         
-        // Removed redundant console.log for cleaner production code.
+        
         
         const systemMessageIndex = messages.findIndex(msg => msg.role === 'system');
         if (systemMessageIndex !== -1) {
             const originalContent = messages[systemMessageIndex].content;
             messages[systemMessageIndex].content = agentPrompt + '\n\n' + originalContent;
         } else {
-            // If no system message exists, create one
+            
             messages.unshift({
                 role: 'system',
                 content: agentPrompt
             });
         }
-        // Removed verbose logs for updated/created system message and prompt preview
+        
     }
 
     /**
@@ -140,14 +140,14 @@ export class ResponseStreamer {
         chatHistory?: any[]
     ): Promise<string> {
         if (!this.agentResponseHandler) {
-            // Removed redundant console.log for cleaner production code.
+            
             return responseContent;
         }
 
-        // Removed redundant console.log for cleaner production code.
+        
         try {
             const agentResult = await this.agentResponseHandler.processResponseWithUI(responseContent, contextLabel, chatHistory);
-            // Removed redundant console.log for cleaner production code.
+            
             return agentResult.hasTools 
                 ? await this.handleToolExecution(agentResult, container, responseContent, messages, chatHistory)
                 : await this.handleNonToolResponse(agentResult, container, responseContent, messages, chatHistory);
@@ -165,7 +165,7 @@ export class ResponseStreamer {
         messages: Message[],
         chatHistory?: any[]
     ): Promise<string> {
-        // Don't append legacy tool displays - only use rich displays
+        
         const finalContent = agentResult.processedText;
         
         const enhancedMessageData = this.createEnhancedMessageData(
@@ -300,11 +300,11 @@ export class ResponseStreamer {
     ): string {
         const warning = this.agentResponseHandler!.createToolLimitWarning();
         
-        // Use tool continuation container if available, otherwise fall back to messages container
+        
         const targetContainer = this.agentResponseHandler!.getContext().toolContinuationContainer || this.messagesContainer;
         targetContainer.appendChild(warning);
         
-        // Show the tool continuation container if it was hidden
+        
         if (this.agentResponseHandler!.getContext().toolContinuationContainer) {
             this.agentResponseHandler!.getContext().toolContinuationContainer!.style.display = 'block';
         }
@@ -398,7 +398,7 @@ export class ResponseStreamer {
         chatHistory?: any[]
     ): Promise<string> {
         if (this.agentResponseHandler?.isToolLimitReached()) {
-            // Removed redundant console.log for cleaner production code.
+            
             return responseContent + '\n\n*[Tool execution limit reached - reasoning continuation stopped]*';
         }
         
@@ -422,7 +422,7 @@ export class ResponseStreamer {
     async getContinuationResponse(messages: Message[], container: HTMLElement): Promise<string> {
         try {
             if (this.agentResponseHandler?.isToolLimitReached()) {
-                // Removed redundant console.log for cleaner production code.
+                
                 return '*[Tool execution limit reached - no continuation response]*';
             }
             
@@ -438,7 +438,7 @@ export class ResponseStreamer {
                 abortController: this.activeStream || undefined
             });
 
-            // Removed verbose logs for getting/received continuation response
+            
             return continuationContent;
         } catch (error) {
             console.error('ResponseStreamer: Error getting continuation response:', error);
@@ -457,10 +457,10 @@ export class ResponseStreamer {
         const { messages, container, responseContent, finalContent, toolResults, additionalTools, chatHistory } = params;
         
         if (additionalTools) {
-            // Removed redundant console.log for cleaner production code.
+            
         } else {
             this.agentResponseHandler.resetExecutionCount();
-            // Removed redundant console.log for cleaner production code.
+            
         }
 
         const continueMessage = this.createContinuationMessage(additionalTools);
@@ -504,7 +504,7 @@ export class ResponseStreamer {
         element.style.opacity = '0.8';
         element.style.fontStyle = 'italic';
         this.messagesContainer.appendChild(element);
-        // Always scroll to bottom after adding continuation UI
+        
         this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
     }
 

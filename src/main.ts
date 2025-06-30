@@ -62,7 +62,7 @@ export default class MyPlugin extends Plugin {
 
     private static registeredViewTypes = new Set<string>();
 
-    // --- Agent Mode State Integration ---
+    
 
     getAgentModeSettings(): AgentModeSettings {
         return this.settings.agentMode || {
@@ -77,7 +77,7 @@ export default class MyPlugin extends Plugin {
         return this.getAgentModeSettings().enabled;
     }
 
-    // Debug: Log when agent mode is toggled
+    
     async setAgentModeEnabled(enabled: boolean) {
         this.debugLog('info', '[main.ts] setAgentModeEnabled called', { enabled });
         if (!this.settings.agentMode) {
@@ -111,20 +111,20 @@ export default class MyPlugin extends Plugin {
         const chatView = leaves[0].view as ChatView;
         chatView.clearMessages();
         
-        // Import MessageRenderer to parse embedded tool data
+        
         const { MessageRenderer } = require('./components/chat/MessageRenderer');
         const messageRenderer = new MessageRenderer(this.app);
 
         for (const msg of messages) {
             if (msg.role === 'user' || msg.role === 'assistant') {
-                // Parse embedded tool data from content
+                
                 const toolData = messageRenderer.parseToolDataFromContent(msg.content);
                 
                 if (toolData) {
-                    // Clean the content by removing the tool data blocks
+                    
                     const cleanContent = messageRenderer.cleanContentFromToolData(msg.content);
                     
-                    // Add message with enhanced data
+                    
                     await chatView["addMessage"](msg.role, cleanContent, false, {
                         toolResults: toolData.toolResults,
                         reasoning: toolData.reasoning,
@@ -132,7 +132,7 @@ export default class MyPlugin extends Plugin {
                     });
                     this.debugLog('debug', '[main.ts] Added message with tool data', { role: msg.role, toolData });
                 } else {
-                    // Regular message without tool data
+                    
                     await chatView["addMessage"](msg.role, msg.content);
                     this.debugLog('debug', '[main.ts] Added regular message', { role: msg.role });
                 }
@@ -158,14 +158,14 @@ export default class MyPlugin extends Plugin {
     async onload() {
         await this.loadSettings();
 
-        // Initialize backup manager
+        
         const pluginDataPath = this.app.vault.configDir + '/plugins/ai-assistant-for-obsidian';
         this.backupManager = new BackupManager(this.app, pluginDataPath);
         
-        // Initialize backup system
+        
         await this.backupManager.initialize();
         
-        // Initialize agent mode manager
+        
         this.agentModeManager = new AgentModeManager(
             this.settings,
             () => this.saveSettings(),
@@ -178,7 +178,7 @@ export default class MyPlugin extends Plugin {
         this.registerPluginView(VIEW_TYPE_MODEL_SETTINGS, (leaf) => new ModelSettingsView(leaf, this));
         this.registerPluginView(VIEW_TYPE_CHAT, (leaf) => new ChatView(leaf, this));
 
-        // Register commands using the new command modules
+        
         registerViewCommands(this);
         
         registerAIStreamCommands(
@@ -201,7 +201,7 @@ export default class MyPlugin extends Plugin {
             (messages) => this.processMessages(messages)
         );
 
-        // Register context commands
+        
         registerContextCommands(this, this.settings);
 
         this.app.workspace.onLayoutReady(() => {
@@ -210,7 +210,7 @@ export default class MyPlugin extends Plugin {
             }
         });
 
-        // Register YAML attribute commands
+        
         this._yamlAttributeCommandIds = registerYamlAttributeCommands(
             this,
             this.settings,
@@ -219,12 +219,12 @@ export default class MyPlugin extends Plugin {
             (level, ...args) => debugLog(this.settings.debugMode ?? false, level, ...args)
         );
 
-        // Register markdown post-processor for ai-tool-execution blocks
+        
         this.registerMarkdownPostProcessor((element, context) => {
             this.processToolExecutionBlocks(element, context);
         });
 
-        // Register code block post-processor for Live Preview mode
+        
         this.registerMarkdownCodeBlockProcessor('ai-tool-execution', (source, el, ctx) => {
             this.processToolExecutionCodeBlock(source, el, ctx);
         });
@@ -252,7 +252,7 @@ export default class MyPlugin extends Plugin {
      */
     public async saveSettings() {
         await (this as Plugin).saveData(this.settings);
-        // Update YAML attribute commands after saving settings
+        
         this._yamlAttributeCommandIds = registerYamlAttributeCommands(
             this,
             this.settings,
@@ -260,7 +260,7 @@ export default class MyPlugin extends Plugin {
             this._yamlAttributeCommandIds,
             (level, ...args) => debugLog(this.settings.debugMode ?? false, level, ...args)
         );
-        this.emitSettingsChange(); // Notify listeners
+        this.emitSettingsChange(); 
     }
 
     /**
@@ -286,9 +286,9 @@ export default class MyPlugin extends Plugin {
      */
     private processToolExecutionCodeBlock(source: string, element: HTMLElement, context: any) {
         try {
-            // Parse the JSON data from the code block source
+            
             const toolData = JSON.parse(source);
-            // Use the unified static method for rendering
+            
             ToolRichDisplay.renderToolExecutionBlock(toolData, element, async (resultText: string) => {
                 try {
                     await navigator.clipboard.writeText(resultText);
@@ -299,10 +299,10 @@ export default class MyPlugin extends Plugin {
                 }
             });
         } catch (error) {
-            // If parsing fails, show the original content
+            
             console.error('Failed to parse ai-tool-execution code block:', error);
             this.debugLog('error', '[main.ts] Failed to parse ai-tool-execution code block', { error });
-            // Create fallback display
+            
             const pre = document.createElement('pre');
             const code = document.createElement('code');
             code.textContent = source;
@@ -320,20 +320,20 @@ export default class MyPlugin extends Plugin {
         for (const codeBlock of Array.from(codeBlocks)) {
             const codeElement = codeBlock as HTMLElement;
             const preElement = codeElement.parentElement as HTMLPreElement;
-            // Check if this is an ai-tool-execution block
-            // Check both by class name and by content pattern
+            
+            
             const text = codeElement.textContent?.trim() || '';
             const isAIToolExecution = codeElement.className.includes('language-ai-tool-execution') ||
                 text.startsWith('{"toolResults"') ||
                 text.startsWith('{\n  "toolResults"');
             if (isAIToolExecution) {
                 try {
-                    // Parse the JSON data
+                    
                     const toolData = JSON.parse(text);
-                    // Create a container for all tool displays
+                    
                     const toolContainer = document.createElement('div');
                     toolContainer.className = 'ai-tool-execution-container';
-                    // Use the unified static method for rendering
+                    
                     ToolRichDisplay.renderToolExecutionBlock(toolData, toolContainer, async (resultText: string) => {
                         try {
                             await navigator.clipboard.writeText(resultText);
@@ -343,10 +343,10 @@ export default class MyPlugin extends Plugin {
                             showNotice('Failed to copy to clipboard');
                         }
                     });
-                    // Replace the code block with the rich display
+                    
                     preElement.replaceWith(toolContainer);
                 } catch (error) {
-                    // If parsing fails, leave the original code block
+                    
                     console.error('Failed to parse ai-tool-execution block:', error);
                     this.debugLog('error', '[main.ts] Failed to parse ai-tool-execution block', { error });
                 }

@@ -44,24 +44,24 @@ export class ToolRegistry {
             if (this.plugin && this.plugin.settings && this.plugin.settings.debugMode) {
                 this.plugin.debugLog('[ToolRegistry] Executing tool', { command });
             }
-            // Inject editor for file_diff tool if not present
+            
             let parameters = { ...command.parameters };
             if (tool.name === 'file_diff' && !parameters.editor) {
                 const app = this.plugin?.app;
                 
-                // Try multiple approaches to get an active editor
+                
                 let editor = null;
                 
-                // Method 1: Try activeLeaf view editor
+                
                 try {
                     if (app?.workspace?.activeLeaf?.view?.editor) {
                         editor = app.workspace.activeLeaf.view.editor;
                     }
                 } catch (error) {
-                    // Ignore errors
+                    
                 }
                 
-                // Method 2: Try getting active markdown view
+                
                 if (!editor) {
                     try {
                         const activeView = app?.workspace?.getActiveViewOfType?.(app?.workspace?.viewRegistry?.getTypeByID?.('markdown'));
@@ -69,11 +69,11 @@ export class ToolRegistry {
                             editor = activeView.editor;
                         }
                     } catch (error) {
-                        // Ignore errors
+                        
                     }
                 }
                 
-                // Method 3: Try getting any markdown view with an editor
+                
                 if (!editor) {
                     try {
                         const leaves = app?.workspace?.getLeavesOfType?.('markdown');
@@ -86,11 +86,11 @@ export class ToolRegistry {
                             }
                         }
                     } catch (error) {
-                        // Ignore errors
+                        
                     }
                 }
                 
-                // Only add editor if we found one - FileDiffTool will handle the case where no editor is available
+                
                 if (editor) {
                     parameters.editor = editor;
                     if (this.plugin && this.plugin.settings && this.plugin.settings.debugMode) {

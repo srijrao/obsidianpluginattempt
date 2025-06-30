@@ -51,20 +51,20 @@ export abstract class Message extends Component implements IMessage {
             (window as any).aiAssistantPlugin.debugLog('debug', '[Message] constructor called', { role, content });
         }
         
-        // Create base message structure
+        
         this.element = document.createElement('div');
         this.element.addClass('ai-chat-message', role);
         
-        // Create container for content and actions
+        
         const container = this.element.createDiv('message-container');
         
-        // Create content element
+        
         this.contentElement = container.createDiv('message-content');
         
-        // Create actions container
+        
         this.actionsElement = container.createDiv('message-actions');
         
-        // Add hover behavior
+        
         this.element.addEventListener('mouseenter', () => {
             this.actionsElement.removeClass('hidden');
             this.actionsElement.addClass('visible');
@@ -128,14 +128,14 @@ export abstract class Message extends Component implements IMessage {
      */
     edit(): void {
         if (this.contentElement.hasClass('editing')) {
-            // Save edits
+            
             const textarea = this.contentElement.querySelector('textarea');
             if (textarea) {
                 this.setContent(textarea.value);
                 this.contentElement.removeClass('editing');
             }
         } else {
-            // Switch to edit mode
+            
             const textarea = document.createElement('textarea');
             textarea.value = this.rawContent;
             this.contentElement.empty();
@@ -182,11 +182,11 @@ export async function createMessageElement(
 ): Promise<HTMLElement> {
     const messageEl = document.createElement('div');
     messageEl.addClass('ai-chat-message', role);
-    const messageContainer = messageEl.createDiv('message-container');    // Store enhanced message data
+    const messageContainer = messageEl.createDiv('message-container');    
     messageEl.dataset.rawContent = content;
     messageEl.dataset.timestamp = new Date().toISOString();    if (messageData) {
         messageEl.dataset.messageData = JSON.stringify(messageData);
-    }// Use MessageRenderer for reasoning/task status and tool displays
+    }
     const messageRenderer = new MessageRenderer(app);
     let contentEl: HTMLElement | null = null;
     
@@ -197,9 +197,9 @@ export async function createMessageElement(
                 role: 'assistant',
                 content
             }, parentComponent);
-        }        // If the message has tool results, use the new rendering method
+        }        
         if (messageData && messageData.toolResults && messageData.toolResults.length > 0) {
-            // Ensure .message-content element exists before rendering
+            
             contentEl = messageEl.querySelector('.message-content') as HTMLElement;
             if (!contentEl) {
                 contentEl = messageContainer.createDiv('message-content');
@@ -211,7 +211,7 @@ export async function createMessageElement(
                 content
             }, messageEl, parentComponent);
         } else if (!messageData?.reasoning && !messageData?.taskStatus) {
-            // Only render regular markdown if no enhanced data is present
+            
             contentEl = messageEl.querySelector('.message-content') as HTMLElement;
             if (!contentEl) {
                 contentEl = messageContainer.createDiv('message-content');
@@ -219,7 +219,7 @@ export async function createMessageElement(
             await MarkdownRenderer.render(app, content, contentEl, '', parentComponent);
         }
     } else {
-        // User messages are always rendered normally
+        
         contentEl = messageEl.querySelector('.message-content') as HTMLElement;
         if (!contentEl) {
             contentEl = messageContainer.createDiv('message-content');
@@ -227,7 +227,7 @@ export async function createMessageElement(
         await MarkdownRenderer.render(app, content, contentEl, '', parentComponent);
     }
 
-    // Ensure contentEl is available for actions
+    
     if (!contentEl) {
         contentEl = messageEl.querySelector('.message-content') as HTMLElement;
         if (!contentEl) {
@@ -235,11 +235,11 @@ export async function createMessageElement(
         }
     }
 
-    // Create actions container
+    
     const actionsEl = messageContainer.createDiv('message-actions');
     actionsEl.classList.add('hidden');
 
-    // Add hover behavior
+    
     messageEl.addEventListener('mouseenter', () => {
         actionsEl.classList.remove('hidden');
         actionsEl.classList.add('visible');
@@ -247,16 +247,16 @@ export async function createMessageElement(
     messageEl.addEventListener('mouseleave', () => {
         actionsEl.classList.remove('visible');
         actionsEl.classList.add('hidden');
-    });    // Enhanced copy button that uses proper copy logic for tool content
+    });    
     actionsEl.appendChild(createActionButton('Copy', 'Copy message (including tool results)', handleCopyMessage(messageEl, plugin)));
 
-    // Edit button with enhanced tool content support
+    
     actionsEl.appendChild(createActionButton('Edit', 'Edit message', handleEditMessage(messageEl, chatHistoryManager, plugin)));
 
-    // Delete button
+    
     actionsEl.appendChild(createActionButton('Delete', 'Delete message', handleDeleteMessage(messageEl, chatHistoryManager, app)));
 
-    // Regenerate button (only for assistant messages)
+    
     if (role === 'assistant') {
         actionsEl.appendChild(createActionButton('Regenerate', 'Regenerate this response', handleRegenerateMessage(messageEl, regenerateCallback)));
     }
@@ -265,4 +265,3 @@ export async function createMessageElement(
     return messageEl;
 }
 
-// All reasoning/task status rendering and helpers are now handled by MessageRenderer.

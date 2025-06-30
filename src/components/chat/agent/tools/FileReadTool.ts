@@ -3,7 +3,6 @@ import { Tool, ToolResult } from '../ToolRegistry';
 import { PathValidator } from './pathValidation';
 import { isTFile } from '../../../../utils/typeguards';
 
-// Direct file reading logic
 async function readFileDirect(app: App, filePath: string): Promise<string> {
     const file = app.vault.getAbstractFileByPath(filePath);
     if (!file || !isTFile(file)) {
@@ -18,8 +17,8 @@ async function readFileDirect(app: App, filePath: string): Promise<string> {
 
 export interface FileReadParams {
     path: string;
-    filePath?: string; // Legacy support
-    maxSize?: number; // Maximum file size in bytes (default 1MB)
+    filePath?: string; 
+    maxSize?: number; 
 }
 
 export class FileReadTool implements Tool {
@@ -42,7 +41,7 @@ export class FileReadTool implements Tool {
     constructor(private app: App) {
         this.pathValidator = new PathValidator(app);
     }    async execute(params: FileReadParams, context: any): Promise<ToolResult> {
-        // Normalize parameter names for backward compatibility
+        
         const inputPath = params.path || params.filePath;
         
         const { maxSize = 1024 * 1024 } = params;
@@ -54,7 +53,7 @@ export class FileReadTool implements Tool {
             };
         }
 
-        // Validate and normalize the path to ensure it's within the vault
+        
         let filePath: string;
         try {
             filePath = this.pathValidator.validateAndNormalizePath(inputPath);
@@ -66,7 +65,7 @@ export class FileReadTool implements Tool {
         }
 
         try {
-            // Check file size before reading
+            
             const file = this.app.vault.getAbstractFileByPath(filePath);
             if (file && isTFile(file) && file.stat?.size && file.stat.size > maxSize) {
                 return {
@@ -75,10 +74,10 @@ export class FileReadTool implements Tool {
                 };
             }
 
-            // Use direct file reading logic
+            
             let content = await readFileDirect(this.app, filePath);
 
-            // Check if content indicates an error
+            
             if (content.startsWith('File not found') || content.startsWith('Failed to read')) {
                 return {
                     success: false,
@@ -86,15 +85,15 @@ export class FileReadTool implements Tool {
                 };
             }
 
-            // Clean up whitespace to reduce token usage
+            
             content = content
                 .split('\n')
-                .map(line => line.replace(/\s+$/g, '')) // Remove trailing spaces
+                .map(line => line.replace(/\s+$/g, '')) 
                 .join('\n')
-                .replace(/\n{3,}/g, '\n\n') // Collapse 3+ blank lines to 2
-                .replace(/ {3,}/g, '  ') // Collapse 3+ spaces to 2
-                .replace(/-{6,}/g, '-----') // Collapse 6+ dashes to 5
-                .trim(); // Remove leading/trailing whitespace
+                .replace(/\n{3,}/g, '\n\n') 
+                .replace(/ {3,}/g, '  ') 
+                .replace(/-{6,}/g, '-----') 
+                .trim(); 
 
             return {
                 success: true,

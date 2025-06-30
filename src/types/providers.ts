@@ -51,8 +51,8 @@ export interface AIProvider {
  * Represents a unified model from any provider
  */
 export interface UnifiedModel {
-    id: string;           // Unique identifier (e.g., "openai:gpt-4", "anthropic:claude-3-5-sonnet-latest")
-    name: string;         // Display name (e.g., "GPT-4 (OpenAI)", "Claude 3.5 Sonnet (Anthropic)")
+    id: string;           
+    name: string;         
     provider: 'openai' | 'anthropic' | 'gemini' | 'ollama';
-    modelId: string;      // The actual model ID for the provider (e.g., "gpt-4", "claude-3-5-sonnet-latest")
+    modelId: string;      
 }

@@ -1,23 +1,5 @@
-// TOOL DEVELOPMENT GUIDELINES FOR AI ASSISTANT PLUGIN
-// ----------------------------------------------------
-// To add a new tool for the agent system:
-// 1. Create a new file in this folder (e.g., FileExampleTool.ts).
-// 2. Implement the Tool interface from '../ToolRegistry':
-//    - name: string (unique tool name, e.g., 'file_example')
-//    - description: string (short summary for system prompt)
-//    - parameters: object (parameter schema for the tool)
-//    - execute(params, context): Promise<ToolResult> (main logic)
-// 3. Use only instance properties (not static) for name/description/parameters.
-// 4. Return ToolResult objects for all outcomes (no thrown errors).
-// 5. Import and add your tool to getAllToolClasses() below.
-// 6. Tool metadata is automatically collected via getToolMetadata().
-// 7. Test tool registration and agent access in the plugin UI.
-// 
-// See FileMoveTool.ts or FileWriteTool.ts for good examples.
-// ----------------------------------------------------
 
-// toolcollect.ts
-// Centralized static tool loader for all agent tool consumers
+
 import { FileSearchTool } from './FileSearchTool';
 import { FileReadTool } from './FileReadTool';
 import { FileWriteTool } from './FileWriteTool';
@@ -46,7 +28,7 @@ export function getAllToolClasses(): any[] {
 }
 
 export function getToolMetadata(): Array<{name: string, description: string, parameters: any, parameterDescriptions: Record<string, string>, parameterRequired: Record<string, boolean>}> {
-    // Create mock app parameter for tools that require it
+    
     const mockApp = {
         vault: {
             configDir: '',
@@ -63,19 +45,19 @@ export function getToolMetadata(): Array<{name: string, description: string, par
     const metadata = getAllToolClasses().map(ToolClass => {
         let instance;
         try {
-            // Try creating instance without parameters first
+            
             instance = new ToolClass();
         } catch (e) {
             try {
-                // Try with undefined parameters
+                
                 instance = new ToolClass(undefined, undefined);
             } catch (e2) {
                 try {
-                    // Try with mock app parameter for tools that require it
+                    
                     instance = new ToolClass(mockApp);
                 } catch (e3) {
                     try {
-                        // Try with mock app and backup manager
+                        
                         instance = new ToolClass(mockApp, undefined);
                     } catch (e4) {
                         console.warn(`Failed to instantiate tool class ${ToolClass.name} for metadata:`, e4);
@@ -92,7 +74,7 @@ export function getToolMetadata(): Array<{name: string, description: string, par
             });
             return undefined;
         }
-        // Extract parameter descriptions and required status
+        
         let parameterDescriptions: Record<string, string> = {};
         let parameterRequired: Record<string, boolean> = {};
         if (instance.parameters && typeof instance.parameters === 'object') {

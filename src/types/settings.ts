@@ -5,23 +5,23 @@ import { AgentModeSettings, UnifiedModel, ChatSession } from "../types";
  * Represents a YAML attribute generator for the settings UI
  */
 export interface YamlAttributeGenerator {
-    attributeName: string; // The YAML field to insert/update
-    prompt: string;        // The LLM prompt to use for generating the value
-    outputMode: "clipboard" | "metadata"; // Output mode
-    commandName: string;   // The name/label for the command
+    attributeName: string; 
+    prompt: string;        
+    outputMode: "clipboard" | "metadata"; 
+    commandName: string;   
 }
 
 /**
  * Represents a preset for model settings
  */
 export interface ModelSettingPreset {
-    name: string; // Display name for the preset
+    name: string; 
     selectedModel?: string;
     systemMessage?: string;
     temperature?: number;
     maxTokens?: number;
     enableStreaming?: boolean;
-    // Add more fields as needed
+    
 }
 
 /**
@@ -36,7 +36,7 @@ export interface MyPluginSettings {
     referenceCurrentNote: boolean;
 
     /** Selected unified model (new unified approach) */
-    selectedModel?: string; // Format: "provider:modelId" (e.g., "openai:gpt-4")
+    selectedModel?: string; 
     
     /** Available unified models from all providers */
     availableModels?: UnifiedModel[];
@@ -178,7 +178,7 @@ export interface MyPluginSettings {
     /** Debug mode for verbose logging and UI */
     debugMode?: boolean;
 
-    // Debug: Log when agent mode or tool settings are changed
+    
 }
 
 /**
@@ -248,7 +248,7 @@ export const DEFAULT_SETTINGS: MyPluginSettings = {
     expandLinkedNotesRecursively: false,
     maxLinkExpansionDepth: 2,
 
-    chatNoteFolder: '', // Default to vault root
+    chatNoteFolder: '', 
 
     yamlAttributeGenerators: [
         {
@@ -268,7 +268,7 @@ export const DEFAULT_SETTINGS: MyPluginSettings = {
         "AI Model Settings": true,
         "Date Settings": true,
         "Note Reference Settings": true,
-        "Provider Configuration": true, // For the main group of provider configs
+        "Provider Configuration": true, 
         "AI Model Configuration": true
     },
     apiKeysExpanded: {},
@@ -288,7 +288,7 @@ export const DEFAULT_SETTINGS: MyPluginSettings = {
             enableStreaming: true
         }
     ],
-    customAgentSystemMessage: undefined, // Use default agent system message
+    customAgentSystemMessage: undefined, 
     uiBehavior: {
         collapseOldReasoning: true,
         showCompletionNotifications: true,

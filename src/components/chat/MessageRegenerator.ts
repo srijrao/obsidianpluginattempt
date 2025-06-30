@@ -31,34 +31,34 @@ export class MessageRegenerator {
     }
 
     async regenerateResponse(messageEl: HTMLElement, buildContextMessages: () => Promise<Message[]>): Promise<void> {
-        // Disable input during regeneration
+        
         const textarea = this.inputContainer.querySelector('textarea');
         if (textarea) textarea.disabled = true;
 
-        // Find all message elements
+        
         const allMessages = Array.from(this.messagesContainer.querySelectorAll('.ai-chat-message'));
         const currentIndex = allMessages.indexOf(messageEl);
         const isUserClicked = messageEl.classList.contains('user');
 
-        // Find the target AI message to overwrite
+        
         let targetIndex = -1;
         if (isUserClicked) {
-            // If user message: find the next AI message after this user message
+            
             for (let i = currentIndex + 1; i < allMessages.length; i++) {
                 if (allMessages[i].classList.contains('assistant')) {
                     targetIndex = i;
                     break;
                 }
                 if (allMessages[i].classList.contains('user')) {
-                    break; // Stop if another user message is found first
+                    break; 
                 }
             }
         } else {
-            // If AI message: target is this message
+            
             targetIndex = currentIndex;
         }
 
-        // Gather context up to and including the relevant user message
+        
         let userMsgIndex = currentIndex;
         if (!isUserClicked) {
             userMsgIndex = currentIndex - 1;
@@ -67,7 +67,7 @@ export class MessageRegenerator {
             }
         }
 
-        // Build context messages and include prior chat history
+        
         const messages = await buildContextMessages();
         for (let i = 0; i <= userMsgIndex; i++) {
             const el = allMessages[i];
@@ -76,7 +76,7 @@ export class MessageRegenerator {
             messages.push({ role, content });
         }
 
-        // Remove the old AI message if overwriting
+        
         let originalTimestamp = new Date().toISOString();
         let originalContent = '';
         let insertAfterNode: HTMLElement | null = null;
@@ -87,14 +87,14 @@ export class MessageRegenerator {
             insertAfterNode = targetEl.previousElementSibling as HTMLElement;
             targetEl.remove();
         } else if (isUserClicked) {
-            // No AI message to overwrite, insert after user message
+            
             insertAfterNode = messageEl;
         } else {
-            // No user message found, insert at top
+            
             insertAfterNode = null;
         }
 
-        // Create new assistant message container for streaming
+        
         const assistantContainer = await createMessageElement(
             this.plugin.app, 
             'assistant', 
@@ -130,7 +130,7 @@ export class MessageRegenerator {
                 textarea.focus();
             }
             this.activeStream = null;
-            // Progress indicator removed
+            
         }
     }
 }

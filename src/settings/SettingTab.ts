@@ -4,7 +4,6 @@ import { VIEW_TYPE_MODEL_SETTINGS } from '../components/commands';
 import { CollapsibleSectionRenderer } from '../components/chat/CollapsibleSection';
 import { activateView } from '../utils/viewManager';
 
-// Import the new section classes
 import { SettingCreators } from './components/SettingCreators';
 import { GeneralSettingsSection } from './sections/GeneralSettingsSection';
 import { AIModelConfigurationSection } from './sections/AIModelConfigurationSection';
@@ -22,7 +21,7 @@ export class MyPluginSettingTab extends PluginSettingTab {
     plugin: MyPlugin;
     private settingCreators: SettingCreators;
 
-    // Section instances
+    
     private generalSettingsSection: GeneralSettingsSection;
     private aiModelConfigurationSection: AIModelConfigurationSection;
     private agentSettingsSection: AgentSettingsSection;
@@ -35,12 +34,12 @@ export class MyPluginSettingTab extends PluginSettingTab {
     constructor(app: App, plugin: MyPlugin) {
         super(app, plugin);
         this.plugin = plugin;
-        this.settingCreators = new SettingCreators(this.plugin, () => this.display()); // Pass the display method as a callback
+        this.settingCreators = new SettingCreators(this.plugin, () => this.display()); 
         if (this.plugin && typeof this.plugin.debugLog === 'function') {
             this.plugin.debugLog('debug', '[MyPluginSettingTab] constructor called');
         }
 
-        // Initialize section instances
+        
         this.generalSettingsSection = new GeneralSettingsSection(this.plugin, this.settingCreators);
         this.aiModelConfigurationSection = new AIModelConfigurationSection(this.plugin, this.settingCreators);
         this.agentSettingsSection = new AgentSettingsSection(this.app, this.plugin, this.settingCreators);
@@ -48,9 +47,9 @@ export class MyPluginSettingTab extends PluginSettingTab {
         this.backupManagementSection = new BackupManagementSection(this.plugin, this.settingCreators);
         this.chatHistorySettingsSection = new ChatHistorySettingsSection(this.plugin, this.settingCreators);
 
-        // Add settings change listener to refresh UI
+        
         this.settingsChangeListener = () => {
-            // Prevent infinite loop if display triggers another settings change
+            
             if (this.containerEl.isConnected) {
                 this.display();
             }
@@ -59,7 +58,7 @@ export class MyPluginSettingTab extends PluginSettingTab {
     }
 
     hide(): void {
-        // Remove the settings change listener when the tab is hidden/destroyed
+        
         if (this.settingsChangeListener) {
             this.plugin.offSettingsChange(this.settingsChangeListener);
             this.settingsChangeListener = null;
@@ -80,7 +79,7 @@ export class MyPluginSettingTab extends PluginSettingTab {
 
         containerEl.createEl('h2', { text: 'AI Assistant Settings' });
 
-        // Render sections as collapsible top-level sections
+        
         CollapsibleSectionRenderer.createCollapsibleSection(
             containerEl,
             'General Settings',
@@ -129,7 +128,7 @@ export class MyPluginSettingTab extends PluginSettingTab {
             'backupManagementExpanded'
         );
 
-        // Reset All Settings to Default (remains at the bottom, not collapsible)
+        
         new Setting(containerEl)
             .setName('Reset All Settings to Default')
             .setDesc('Reset all plugin settings (except API keys) to their original default values.')
@@ -139,14 +138,14 @@ export class MyPluginSettingTab extends PluginSettingTab {
                     const { DEFAULT_SETTINGS } = await import('../types');
                     const { DEFAULT_TITLE_PROMPT } = await import('../promptConstants');
 
-                    // Preserve API keys
+                    
                     const preservedApiKeys = {
                         openai: this.plugin.settings.openaiSettings.apiKey,
                         anthropic: this.plugin.settings.anthropicSettings.apiKey,
                         gemini: this.plugin.settings.geminiSettings.apiKey,
                     };
 
-                    // Reset all settings to default, then restore preserved API keys
+                    
                     this.plugin.settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
                     this.plugin.settings.openaiSettings.apiKey = preservedApiKeys.openai;
                     this.plugin.settings.anthropicSettings.apiKey = preservedApiKeys.anthropic;
@@ -154,9 +153,9 @@ export class MyPluginSettingTab extends PluginSettingTab {
                     this.plugin.settings.titlePrompt = DEFAULT_TITLE_PROMPT;
 
                     await this.plugin.saveSettings();
-                    this.display(); // Re-render the settings to show updated values
+                    this.display(); 
 
-                    // Force ModelSettingsView to refresh if open
+                    
                     setTimeout(() => {
                         activateView(this.plugin.app, VIEW_TYPE_MODEL_SETTINGS);
                     }, 100);
