@@ -1100,7 +1100,7 @@ var init_FileDiffTool = __esm({
         __publicField(this, "suggestions");
         this.suggestions = suggestions;
       }
-      onOpen() {
+      async onOpen() {
         const { contentEl } = this;
         contentEl.empty();
         contentEl.addClass("ai-assistant-modal");
@@ -1110,25 +1110,43 @@ var init_FileDiffTool = __esm({
         contentEl.style.maxHeight = "80vh";
         contentEl.style.overflowY = "auto";
         contentEl.createEl("h2", { text: "File Change Suggestions" });
-        this.suggestions.forEach((s) => {
+        this.renderSuggestions();
+      }
+      renderSuggestions() {
+        const { contentEl } = this;
+        Array.from(contentEl.querySelectorAll(".suggestion-container, .no-suggestions")).forEach((el) => el.remove());
+        if (!this.suggestions.length) {
+          contentEl.createEl("div", { text: "No suggestions available.", cls: "no-suggestions" });
+          return;
+        }
+        this.suggestions.forEach((s, idx) => {
+          var _a2;
           const container = contentEl.createDiv("suggestion-container");
-          container.createEl("h4", { text: s.file.path });
-          container.createEl("pre", { text: s.suggestionText });
+          container.createEl("h4", { text: ((_a2 = s.file) == null ? void 0 : _a2.path) || "(No file path)" });
+          container.createEl("pre", { text: s.suggestionText || "(No suggestion text)" });
           const btnRow = container.createDiv("suggestion-btn-row");
           const acceptBtn = btnRow.createEl("button", { text: "Accept" });
           const rejectBtn = btnRow.createEl("button", { text: "Reject" });
-          acceptBtn.onclick = () => {
-            var _a2;
-            (_a2 = s.onAccept) == null ? void 0 : _a2.call(s);
-            new import_obsidian4.Notice("Suggestion accepted");
-            this.close();
+          acceptBtn.onclick = async () => {
+            try {
+              if (s.onAccept) await s.onAccept();
+              new import_obsidian4.Notice("Suggestion accepted");
+            } catch (e) {
+              new import_obsidian4.Notice("Failed to accept suggestion: " + ((e == null ? void 0 : e.message) || e));
+            }
+            this.suggestions.splice(idx, 1);
+            this.renderSuggestions();
           };
           rejectBtn.onclick = async () => {
-            var _a2;
-            (_a2 = s.onReject) == null ? void 0 : _a2.call(s);
-            await removeSuggestionBlockFromFile(this.app.vault, s.file);
-            new import_obsidian4.Notice("Suggestion rejected and cleaned up");
-            this.close();
+            try {
+              if (s.onReject) await s.onReject();
+              await removeSuggestionBlockFromFile(this.app.vault, s.file);
+              new import_obsidian4.Notice("Suggestion rejected and cleaned up");
+            } catch (e) {
+              new import_obsidian4.Notice("Failed to reject suggestion: " + ((e == null ? void 0 : e.message) || e));
+            }
+            this.suggestions.splice(idx, 1);
+            this.renderSuggestions();
           };
         });
       }

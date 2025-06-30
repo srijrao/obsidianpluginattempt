@@ -72,7 +72,7 @@ class FileChangeSuggestionsModal extends Modal {
     this.suggestions = suggestions;
   }
 
-  onOpen() {
+  async onOpen() {
     const { contentEl } = this;
     contentEl.empty();
     contentEl.addClass('ai-assistant-modal');
@@ -84,25 +84,50 @@ class FileChangeSuggestionsModal extends Modal {
     contentEl.style.overflowY = 'auto';
     contentEl.createEl('h2', { text: 'File Change Suggestions' });
 
-    this.suggestions.forEach((s) => {
+    this.renderSuggestions();
+  }
+
+  renderSuggestions() {
+    const { contentEl } = this;
+    // Remove all suggestion containers except the title
+    Array.from(contentEl.querySelectorAll('.suggestion-container, .no-suggestions')).forEach(el => el.remove());
+
+    if (!this.suggestions.length) {
+      contentEl.createEl('div', { text: 'No suggestions available.', cls: 'no-suggestions' });
+      return;
+    }
+
+    this.suggestions.forEach((s, idx) => {
       const container = contentEl.createDiv('suggestion-container');
-      container.createEl('h4', { text: s.file.path });
-      container.createEl('pre', { text: s.suggestionText });
+      container.createEl('h4', { text: s.file?.path || '(No file path)' });
+      container.createEl('pre', { text: s.suggestionText || '(No suggestion text)' });
 
       const btnRow = container.createDiv('suggestion-btn-row');
       const acceptBtn = btnRow.createEl('button', { text: 'Accept' });
       const rejectBtn = btnRow.createEl('button', { text: 'Reject' });
 
-      acceptBtn.onclick = () => {
-        s.onAccept?.();
-        new Notice('Suggestion accepted');
-        this.close();
+      acceptBtn.onclick = async () => {
+        try {
+          if (s.onAccept) await s.onAccept();
+          new Notice('Suggestion accepted');
+        } catch (e) {
+          new Notice('Failed to accept suggestion: ' + (e?.message || e));
+        }
+        // Remove this suggestion and re-render
+        this.suggestions.splice(idx, 1);
+        this.renderSuggestions();
       };
       rejectBtn.onclick = async () => {
-        s.onReject?.();
-        await removeSuggestionBlockFromFile(this.app.vault, s.file);
-        new Notice('Suggestion rejected and cleaned up');
-        this.close();
+        try {
+          if (s.onReject) await s.onReject();
+          await removeSuggestionBlockFromFile(this.app.vault, s.file);
+          new Notice('Suggestion rejected and cleaned up');
+        } catch (e) {
+          new Notice('Failed to reject suggestion: ' + (e?.message || e));
+        }
+        // Remove this suggestion and re-render
+        this.suggestions.splice(idx, 1);
+        this.renderSuggestions();
       };
     });
   }
