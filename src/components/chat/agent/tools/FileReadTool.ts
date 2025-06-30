@@ -1,11 +1,12 @@
 import { App, TFile } from 'obsidian';
 import { Tool, ToolResult } from '../ToolRegistry';
 import { PathValidator } from './pathValidation';
+import { isTFile } from '../../../../utils/typeguards';
 
 // Direct file reading logic
 async function readFileDirect(app: App, filePath: string): Promise<string> {
     const file = app.vault.getAbstractFileByPath(filePath);
-    if (!file || !(file instanceof TFile)) {
+    if (!file || !isTFile(file)) {
         return `File not found or is not a file: "${filePath}"`;
     }
     try {
@@ -67,7 +68,7 @@ export class FileReadTool implements Tool {
         try {
             // Check file size before reading
             const file = this.app.vault.getAbstractFileByPath(filePath);
-            if (file && file instanceof TFile && file.stat?.size && file.stat.size > maxSize) {
+            if (file && isTFile(file) && file.stat?.size && file.stat.size > maxSize) {
                 return {
                     success: false,
                     error: `File too large (${file.stat.size} bytes, max ${maxSize} bytes): ${filePath}`
@@ -100,9 +101,9 @@ export class FileReadTool implements Tool {
                 data: {
                     content,
                     filePath,
-                    size: (file instanceof TFile) ? (file.stat?.size || 0) : 0,
-                    modified: (file instanceof TFile) ? (file.stat?.mtime || 0) : 0,
-                    extension: (file instanceof TFile) ? file.extension : undefined
+                    size: (isTFile(file)) ? (file.stat?.size || 0) : 0,
+                    modified: (isTFile(file)) ? (file.stat?.mtime || 0) : 0,
+                    extension: (isTFile(file)) ? file.extension : undefined
                 }
             };
         } catch (error: any) {

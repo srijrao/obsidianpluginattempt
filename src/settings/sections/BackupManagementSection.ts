@@ -4,6 +4,7 @@ import { SettingCreators } from '../components/SettingCreators';
 import { CollapsibleSectionRenderer } from '../../components/chat/CollapsibleSection';
 import { DialogHelpers } from '../components/DialogHelpers';
 import { FileBackup } from '../../types/backup';
+import { isTFile } from '../../utils/typeguards';
 
 export class BackupManagementSection {
     private plugin: MyPlugin;
@@ -284,7 +285,7 @@ export class BackupManagementSection {
             trashItems = (trashFolder as TFolder).children.map(item => ({
                 name: item.name,
                 isFolder: item instanceof TFolder,
-                size: (item instanceof TFile && item.stat) ? item.stat.size : undefined
+                size: (isTFile(item) && item.stat) ? item.stat.size : undefined
             }));
         } else {
             containerEl.createEl('div', {

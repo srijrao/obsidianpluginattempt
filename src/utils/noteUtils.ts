@@ -3,6 +3,13 @@ import { Message, MyPluginSettings } from '../types';
 import { findFile, extractContentUnderHeader } from './utils';
 
 /**
+ * Type guard to check if an object is an instance of TFile.
+ */
+function isTFile(f: any): f is TFile {
+    return f && typeof f === 'object' && typeof f.path === 'string' && typeof f.basename === 'string' && typeof f.extension === 'string' && f.stat;
+}
+
+/**
  * Process a single message content to include Obsidian note contents, recursively if enabled.
  */
 export async function processObsidianLinks(
@@ -24,7 +31,7 @@ export async function processObsidianLinks(
                 let file = findFile(app, filePath);
                 const headerMatch = filePath.match(/(.*?)#(.*)/);
                 let extractedContent = "";
-                if (file && file instanceof TFile) {
+                if (file && isTFile(file)) {
                     // Prevent infinite recursion
                     if (visitedNotes.has(file.path)) {
                         extractedContent = '[Recursive link omitted: already included]';
@@ -71,7 +78,7 @@ export async function processContextNotes(contextNotesText: string, app: App): P
                 const baseFileName = headerMatch ? headerMatch[1].trim() : fileName;
                 const headerName = headerMatch ? headerMatch[2].trim() : null;
                 let file = findFile(app, baseFileName);
-                if (file && file instanceof TFile) {
+                if (file && isTFile(file)) {
                     const noteContent = await app.vault.cachedRead(file);
                     contextContent += `---\nFrom note: ${file.basename}\n\n`;
                     if (headerName) {

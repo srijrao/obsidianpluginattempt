@@ -3,6 +3,7 @@ import { Diff, diffLines } from 'diff';
 import { Tool, ToolResult } from '../ToolRegistry';
 import { PathValidator } from './pathValidation';
 import { debugLog } from '../../../../utils/logger';
+import { isTFile } from '../../../../utils/typeguards';
 
 
 /**
@@ -345,6 +346,7 @@ export interface FileDiffParams {
     suggestedContent: string;
     action?: 'compare' | 'apply' | 'suggest';
     insertPosition?: number;
+    editor?: Editor; // NEW: Optional editor for inline suggestions
 }
 
 export class FileDiffTool implements Tool {
@@ -387,7 +389,7 @@ export class FileDiffTool implements Tool {
         const inputPath = params.path || params.filePath;
         // Fallback: support legacy 'text' param as 'suggestedContent'
         const suggestedContent = params.suggestedContent || (params as any).text;
-        const { originalContent, insertPosition } = params;
+        const { originalContent, insertPosition, editor } = params;
 
         if (inputPath === undefined || inputPath === null) {
             debugLog(debugMode, 'warn', '[FileDiffTool] Missing path parameter');
@@ -422,7 +424,8 @@ export class FileDiffTool implements Tool {
             const file = this.app.vault.getAbstractFileByPath(filePath);
             debugLog(debugMode, 'debug', '[FileDiffTool] Got file:', file);
 
-            if (!file || !(file instanceof TFile)) {
+            // Type guard for TFile - use centralized utility
+            if (!isTFile(file)) {
                 debugLog(debugMode, 'warn', '[FileDiffTool] File not found or not a TFile:', filePath);
                 return {
                     success: false,
@@ -433,8 +436,16 @@ export class FileDiffTool implements Tool {
             const currentContent = originalContent || await this.app.vault.read(file);
             debugLog(debugMode, 'debug', '[FileDiffTool] Current content loaded. Only suggest action supported.');
 
-            // Always show suggestion
-            return await this.showSuggestion(file, currentContent, suggestedContent, insertPosition, debugMode);
+            // Use inline suggestion if editor is provided
+            if (editor) {
+                return await this.showInlineSuggestion(editor, file, currentContent, suggestedContent, insertPosition, debugMode);
+            } else {
+                // Fallback: return error or message
+                return {
+                    success: false,
+                    error: 'Editor instance required for inline suggestions.'
+                };
+            }
         } catch (error: any) {
             debugLog(debugMode, 'error', '[FileDiffTool] Failed to process file diff:', error);
             return {
@@ -444,8 +455,8 @@ export class FileDiffTool implements Tool {
         }
     }
 
-    async showSuggestion(file: TFile, currentContent: string, suggestedContent: string, insertPosition: number | undefined, debugMode: boolean): Promise<ToolResult> {
-        debugLog(debugMode, 'debug', '[FileDiffTool] showSuggestion called');
+    async showInlineSuggestion(editor: Editor, file: TFile, currentContent: string, suggestedContent: string, insertPosition: number | undefined, debugMode: boolean): Promise<ToolResult> {
+        debugLog(debugMode, 'debug', '[FileDiffTool] showInlineSuggestion called');
         const diff = this.generateDiff(currentContent, suggestedContent, debugMode);
         debugLog(debugMode, 'debug', '[FileDiffTool] Suggestion diff:', diff);
 
@@ -461,68 +472,37 @@ export class FileDiffTool implements Tool {
             };
         }
 
-        try {
-            // Create suggestion with callbacks
-            const suggestion: FileChangeSuggestion = {
-                file,
-                suggestionText: diff,
-                onAccept: () => {
-                    debugLog(debugMode, 'debug', '[FileDiffTool] Suggestion accepted for file:', file.path);
-                    this.app.vault.modify(file, suggestedContent);
-                },
-                onReject: () => {
-                    debugLog(debugMode, 'debug', '[FileDiffTool] Suggestion rejected for file:', file.path);
-                    // Do nothing on reject
-                }
-            };
+        // Insert inline suggestion at the specified position or at the end
+        const line = insertPosition !== undefined ? insertPosition : editor.lastLine();
+        showInlineFileChangeSuggestion(editor, diff, line);
+        highlightFileChangeSuggestion(editor, line);
 
-            // Option 1: Show modal UI
-            debugLog(debugMode, 'debug', '[FileDiffTool] Showing file change suggestions modal');
-            showFileChangeSuggestionsModal(this.app, [suggestion]);
-
-            // Option 2: Insert suggestion block into file (if insertPosition provided)
-            if (insertPosition !== undefined) {
-                debugLog(debugMode, 'debug', '[FileDiffTool] Inserting suggestion block at position:', insertPosition);
-                await insertFileChangeSuggestion(this.app.vault, file, diff, insertPosition);
+        return {
+            success: true,
+            data: {
+                action: 'inline-suggest',
+                filePath: file.path,
+                diff,
+                line
             }
-
-            return {
-                success: true,
-                data: {
-                    action: 'suggest',
-                    filePath: file.path,
-                    diff,
-                    suggestionInserted: insertPosition !== undefined
-                }
-            };
-        } catch (error: any) {
-            debugLog(debugMode, 'error', '[FileDiffTool] Failed to show suggestion:', error);
-            return {
-                success: false,
-                error: `Failed to show suggestion: ${error.message}`
-            };
-        }
+        };
     }
 
     private generateDiff(original: string, suggested: string, debugMode: boolean): string {
-        // TODO: For large files, consider using a more efficient diff algorithm/library (e.g. diff-match-patch)
         debugLog(debugMode, 'debug', '[FileDiffTool] generateDiff called');
-        const originalLines = original.split('\n');
-        const suggestedLines = suggested.split('\n');
+        const diffParts = diffLines(original, suggested);
         const diff: string[] = [];
-        const maxLines = Math.max(originalLines.length, suggestedLines.length);
-        for (let i = 0; i < maxLines; i++) {
-            const originalLine = originalLines[i] || '';
-            const suggestedLine = suggestedLines[i] || '';
-            if (originalLine !== suggestedLine) {
-                if (originalLine && !suggestedLine) {
-                    diff.push(`-${originalLine}`);
-                } else if (!originalLine && suggestedLine) {
-                    diff.push(`+${suggestedLine}`);
-                } else if (originalLine !== suggestedLine) {
-                    diff.push(`-${originalLine}`);
-                    diff.push(`+${suggestedLine}`);
+        for (const part of diffParts) {
+            const lines = part.value.split('\n');
+            // Remove trailing empty string from split if present
+            if (lines[lines.length - 1] === '') lines.pop();
+            for (const line of lines) {
+                if (part.added) {
+                    diff.push(`+${line}`);
+                } else if (part.removed) {
+                    diff.push(`-${line}`);
                 }
+                // context lines are omitted from the diff output
             }
         }
         debugLog(debugMode, 'debug', '[FileDiffTool] Diff result:', diff);

@@ -1,6 +1,7 @@
 import { App, TFile, TFolder } from 'obsidian';
 import { Tool, ToolResult } from '../ToolRegistry';
 import { PathValidator } from './pathValidation';
+import { isTFile } from '../../../../utils/typeguards';
 
 export interface FileMoveParams {
     sourcePath: string;
@@ -83,7 +84,7 @@ export class FileMoveTool implements Tool {
                 };
             }
 
-            if (!(sourceFile instanceof TFile)) {
+            if (!isTFile(sourceFile)) {
                 return {
                     success: false,
                     error: `Source path is not a file: ${sourcePath}`

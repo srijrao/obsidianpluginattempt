@@ -44,7 +44,28 @@ export class ToolRegistry {
             if (this.plugin && this.plugin.settings && this.plugin.settings.debugMode) {
                 this.plugin.debugLog('[ToolRegistry] Executing tool', { command });
             }
-            const result = await tool.execute(command.parameters, {});
+            // Inject editor for file_diff tool if not present
+            let parameters = { ...command.parameters };
+            if (tool.name === 'file_diff' && !parameters.editor) {
+                const app = this.plugin?.app;
+                if (app?.workspace?.activeLeaf?.view?.editor) {
+                    parameters.editor = app.workspace.activeLeaf.view.editor;
+                } else {
+                    // Try getting the active editor from the workspace
+                    try {
+                        const markdownViewType = app?.workspace?.viewRegistry?.getTypeByID?.('markdown');
+                        if (markdownViewType) {
+                            const activeView = app?.workspace?.getActiveViewOfType?.(markdownViewType);
+                            if (activeView?.editor) {
+                                parameters.editor = activeView.editor;
+                            }
+                        }
+                    } catch (error) {
+                        // Silently ignore errors trying to get active markdown view
+                    }
+                }
+            }
+            const result = await tool.execute(parameters, {});
             if (this.plugin && this.plugin.settings && this.plugin.settings.debugMode) {
                 this.plugin.debugLog('[ToolRegistry] Tool execution result', { command, result });
             }

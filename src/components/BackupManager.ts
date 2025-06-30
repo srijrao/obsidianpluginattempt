@@ -1,5 +1,6 @@
 import { App, TFile } from 'obsidian';
 import { FileBackup, BackupData } from '../types';
+import { isTFile } from '../utils/typeguards';
 
 /**
  * Manages file backups stored in the plugin's data folder
@@ -75,7 +76,7 @@ export class BackupManager {
             if (isBinary) {
                 // For binary files, copy the file to the binary backup folder
                 const file = this.app.vault.getAbstractFileByPath(filePath);
-                if (file && file instanceof TFile) {
+                if (file && isTFile(file)) {
                     const fileBuffer = await this.app.vault.readBinary(file);
                     const backupFilePath = this.generateBinaryBackupPath(filePath, timestamp);
                     
@@ -104,7 +105,7 @@ export class BackupManager {
                 // For text files, store content directly
                 if (currentContent === undefined) {
                     const file = this.app.vault.getAbstractFileByPath(filePath);
-                    if (file && file instanceof TFile) {
+                    if (file && isTFile(file)) {
                         currentContent = await this.app.vault.read(file);
                     } else {
                         console.error('Text file not found or not accessible:', filePath);
@@ -206,7 +207,7 @@ export class BackupManager {
                     return { success: true };
                 }
 
-                if (!(file instanceof TFile)) {
+                if (!isTFile(file)) {
                     return { success: false, error: `Path is not a file: ${backup.filePath}` };
                 }
 
@@ -225,7 +226,7 @@ export class BackupManager {
                     return { success: true };
                 }
 
-                if (!(file instanceof TFile)) {
+                if (!isTFile(file)) {
                     return { success: false, error: `Path is not a file: ${backup.filePath}` };
                 }
 
@@ -360,7 +361,7 @@ export class BackupManager {
                 // For text files, compare content
                 if (newContent === undefined) {
                     const file = this.app.vault.getAbstractFileByPath(filePath);
-                    if (file && file instanceof TFile) {
+                    if (file && isTFile(file)) {
                         newContent = await this.app.vault.read(file);
                     } else {
                         return true; // File not found, create backup anyway

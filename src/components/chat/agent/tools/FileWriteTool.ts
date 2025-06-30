@@ -2,6 +2,7 @@ import { App, TFile } from 'obsidian';
 import { Tool, ToolResult } from '../ToolRegistry';
 import { BackupManager } from '../../../BackupManager';
 import { PathValidator } from './pathValidation';
+import { isTFile } from '../../../../utils/typeguards'; // Import isTFile
 
 // Helper to create parent folders for a file path
 async function createFileWithParents(app: App, filePath: string, content = ''): Promise<string> {
@@ -40,7 +41,7 @@ async function createFileDirect(app: App, filePath: string, content = ''): Promi
 
 async function writeFileDirect(app: App, filePath: string, content: string): Promise<string> {
     const file = app.vault.getAbstractFileByPath(filePath);
-    if (!file || !(file instanceof TFile)) {
+    if (!file || !isTFile(file)) {
         return `File not found or is not a file: "${filePath}"`;
     }
     try {
@@ -174,7 +175,7 @@ export class FileWriteTool implements Tool {
                     }
                 };
             }
-            if (!(file instanceof TFile)) {
+            if (!isTFile(file)) {
                 return {
                     success: false,
                     error: `Path is not a file: ${filePath}`

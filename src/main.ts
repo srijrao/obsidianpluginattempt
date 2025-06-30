@@ -281,11 +281,9 @@ export default class MyPlugin extends Plugin {
      * Process ai-tool-execution code blocks specifically for Live Preview mode
      */
     private processToolExecutionCodeBlock(source: string, element: HTMLElement, context: any) {
-        this.debugLog('debug', '[main.ts] processToolExecutionCodeBlock called for Live Preview', { source: source.substring(0, 100) + '...', element, context });
         try {
             // Parse the JSON data from the code block source
             const toolData = JSON.parse(source);
-            this.debugLog('debug', '[main.ts] Parsed tool data from code block', { toolData });
             // Use the unified static method for rendering
             ToolRichDisplay.renderToolExecutionBlock(toolData, element, async (resultText: string) => {
                 try {
@@ -296,7 +294,6 @@ export default class MyPlugin extends Plugin {
                     showNotice('Failed to copy to clipboard');
                 }
             });
-            this.debugLog('info', '[main.ts] Rendered tool displays in Live Preview');
         } catch (error) {
             // If parsing fails, show the original content
             console.error('Failed to parse ai-tool-execution code block:', error);
@@ -315,16 +312,10 @@ export default class MyPlugin extends Plugin {
      * Process ai-tool-execution blocks in markdown and replace them with rich tool displays
      */
     private processToolExecutionBlocks(element: HTMLElement, context: any) {
-        this.debugLog('debug', '[main.ts] processToolExecutionBlocks called', { element, context });
         const codeBlocks = element.querySelectorAll('pre > code');
-        this.debugLog('debug', '[main.ts] Found code blocks', { count: codeBlocks.length });
         for (const codeBlock of Array.from(codeBlocks)) {
             const codeElement = codeBlock as HTMLElement;
             const preElement = codeElement.parentElement as HTMLPreElement;
-            this.debugLog('debug', '[main.ts] Checking code block', {
-                className: codeElement.className,
-                textContent: codeElement.textContent?.substring(0, 100) + '...'
-            });
             // Check if this is an ai-tool-execution block
             // Check both by class name and by content pattern
             const text = codeElement.textContent?.trim() || '';
@@ -332,11 +323,9 @@ export default class MyPlugin extends Plugin {
                 text.startsWith('{"toolResults"') ||
                 text.startsWith('{\n  "toolResults"');
             if (isAIToolExecution) {
-                this.debugLog('info', '[main.ts] Found ai-tool-execution block');
                 try {
                     // Parse the JSON data
                     const toolData = JSON.parse(text);
-                    this.debugLog('debug', '[main.ts] Parsed tool data', { toolData });
                     // Create a container for all tool displays
                     const toolContainer = document.createElement('div');
                     toolContainer.className = 'ai-tool-execution-container';
@@ -352,7 +341,6 @@ export default class MyPlugin extends Plugin {
                     });
                     // Replace the code block with the rich display
                     preElement.replaceWith(toolContainer);
-                    this.debugLog('info', '[main.ts] Replaced code block with tool displays');
                 } catch (error) {
                     // If parsing fails, leave the original code block
                     console.error('Failed to parse ai-tool-execution block:', error);

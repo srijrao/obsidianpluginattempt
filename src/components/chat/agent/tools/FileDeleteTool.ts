@@ -4,6 +4,7 @@ import { App, TFile, TFolder } from 'obsidian';
 import { Tool, ToolResult } from '../ToolRegistry';
 import { BackupManager } from '../../../BackupManager';
 import { PathValidator } from './pathValidation';
+import { isTFile, isTFolder } from '../../../../utils/typeguards';
 
 export interface FileDeleteParams {
     path: string; // Path to the file or folder to delete
@@ -93,14 +94,14 @@ export class FileDeleteTool implements Tool {
             let totalSize = 0;
             let backupCount = 0;
 
-            if (target instanceof TFile) {
+            if (isTFile(target)) {
                 // Handle single file deletion
                 let originalContent = '';
 
                 // Create backup if requested
                 if (backup) {
                     try {
-                        originalContent = await this.app.vault.read(target);
+                        originalContent = await this.app.vault.read(target as TFile);
                         await this.backupManager.createBackup(filePath, originalContent);
                         backupCreated = true;
                         backupCount = 1;
@@ -119,7 +120,7 @@ export class FileDeleteTool implements Tool {
                 if (useTrash) {
                     // Move to trash (soft delete)
                     try {
-                        trashPath = await this.moveToTrash(target, filePath);
+                        trashPath = await this.moveToTrash(target as TFile, filePath);
                         actionTaken = 'moved to trash';
                     } catch (trashError: any) {
                         return {
@@ -130,7 +131,7 @@ export class FileDeleteTool implements Tool {
                 } else {
                     // Permanent deletion
                     try {
-                        await this.app.vault.delete(target);
+                        await this.app.vault.delete(target as TFile);
                         actionTaken = 'permanently deleted';
                     } catch (deleteError: any) {
                         // For files, if standard delete fails, try adapter
@@ -169,11 +170,11 @@ export class FileDeleteTool implements Tool {
                     }
                 };
 
-            } else if (target instanceof TFolder) {
+            } else if (isTFolder(target)) {
                 // Handle folder deletion with recursive backup
                 if (backup) {
                     try {
-                        const result = await this.createFolderBackups(target, '');
+                        const result = await this.createFolderBackups(target as TFolder, '');
                         backupCreated = result.backupCreated;
                         backupCount = result.backupCount;
                         totalSize = result.totalSize;
@@ -192,7 +193,7 @@ export class FileDeleteTool implements Tool {
                 if (useTrash) {
                     // Move to trash (soft delete)
                     try {
-                        trashPath = await this.moveToTrash(target, filePath);
+                        trashPath = await this.moveToTrash(target as TFolder, filePath);
                         actionTaken = 'moved to trash';
                     } catch (trashError: any) {
                         return {
@@ -203,7 +204,7 @@ export class FileDeleteTool implements Tool {
                 } else {
                     // Permanent deletion - use multiple strategies for better Windows compatibility
                     try {
-                        await this.app.vault.delete(target);
+                        await this.app.vault.delete(target as TFolder);
                         actionTaken = 'permanently deleted';
                     } catch (deleteError: any) {
                         // If the standard delete fails (common on Windows with EPERM), try alternative approaches
@@ -215,7 +216,7 @@ export class FileDeleteTool implements Tool {
                             } catch (adapterError: any) {
                                 // If adapter also fails, try recursive manual deletion
                                 try {
-                                    await this.recursivelyDeleteFolder(target);
+                                    await this.recursivelyDeleteFolder(target as TFolder);
                                     actionTaken = 'permanently deleted';
                                 } catch (recursiveError: any) {
                                     return {
@@ -271,9 +272,9 @@ export class FileDeleteTool implements Tool {
         let anyBackupCreated = false;
 
         for (const child of folder.children) {
-            if (child instanceof TFile) {
+            if (isTFile(child)) {
                 try {
-                    const content = await this.app.vault.read(child);
+                    const content = await this.app.vault.read(child as TFile);
                     const childPath = basePath ? `${basePath}/${child.name}` : child.path;
                     await this.backupManager.createBackup(childPath, content);
                     backupCount++;
@@ -283,8 +284,8 @@ export class FileDeleteTool implements Tool {
                     console.error(`Failed to backup file ${child.path}:`, error);
                     // Continue with other files even if one fails
                 }
-            } else if (child instanceof TFolder) {
-                const subResult = await this.createFolderBackups(child, basePath ? `${basePath}/${child.name}` : child.path);
+            } else if (isTFolder(child)) {
+                const subResult = await this.createFolderBackups(child as TFolder, basePath ? `${basePath}/${child.name}` : child.path);
                 backupCount += subResult.backupCount;
                 totalSize += subResult.totalSize;
                 if (subResult.backupCreated) {
@@ -307,15 +308,15 @@ export class FileDeleteTool implements Tool {
     private async recursivelyDeleteFolder(folder: TFolder): Promise<void> {
         // Delete all children first
         for (const child of [...folder.children]) { // Use spread to avoid modifying array during iteration
-            if (child instanceof TFile) {
+            if (isTFile(child)) {
                 try {
-                    await this.app.vault.delete(child);
+                    await this.app.vault.delete(child as TFile);
                 } catch (error) {
                     // Try adapter as fallback
                     await this.app.vault.adapter.remove(child.path);
                 }
-            } else if (child instanceof TFolder) {
-                await this.recursivelyDeleteFolder(child);
+            } else if (isTFolder(child)) {
+                await this.recursivelyDeleteFolder(child as TFolder);
             }
         }
         

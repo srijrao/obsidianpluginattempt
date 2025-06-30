@@ -3,6 +3,7 @@
 import { App, TFile, TFolder, Vault } from 'obsidian';
 import { Tool, ToolResult } from '../ToolRegistry';
 import { PathValidator } from './pathValidation';
+import { isTFile, isTFolder } from '../../../../utils/typeguards';
 
 export interface VaultTreeParams {
     path?: string; // Starting path (defaults to root)
@@ -95,15 +96,17 @@ export class VaultTreeTool implements Tool {
             const children = [...folder.children];
             children.sort((a, b) => {
                 // Folders come before files
-                if (a instanceof TFolder && b instanceof TFile) return -1;
-                if (a instanceof TFile && b instanceof TFolder) return 1;
+                if (isTFolder(a) && isTFile(b)) return -1;
+                if (isTFile(a) && isTFolder(b)) return 1;
+                if (isTFile(a) && isTFile(b)) return 1;
+                if (!isTFile(a) && isTFile(b)) return -1;
                 // Same type: alphabetical
                 return a.name.localeCompare(b.name);
             });
 
             // Filter children based on showFolders setting (only show folders)
             const filteredChildren = children.filter(child => {
-                if (child instanceof TFolder) return showFolders;
+                if (isTFolder(child)) return showFolders;
                 return false;
             });
 
@@ -118,9 +121,9 @@ export class VaultTreeTool implements Tool {
                     ? prefix + '  '
                     : '';
 
-                if (child instanceof TFile) {
+                if (isTFile(child)) {
                     // Files are not displayed in this tool
-                } else if (child instanceof TFolder) {
+                } else if (isTFolder(child)) {
                     buildTree(child, newPrefix, depth + 1);
                 }
             });
