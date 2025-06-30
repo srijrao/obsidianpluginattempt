@@ -12062,6 +12062,7 @@ async function generateYamlAttribute(app, settings, processMessages2, attributeN
     let resultBuffer = "";
     await provider.getCompletion(processedMessages, {
       temperature: 0,
+      // Always use temperature 0 for predictable YAML output
       streamCallback: (chunk) => {
         resultBuffer += chunk;
       }
@@ -14606,17 +14607,29 @@ var VIEW_TYPE_CHAT = "chat-view";
 var ChatView = class extends import_obsidian23.ItemView {
   constructor(leaf, plugin) {
     super(leaf);
+    // Plugin instance
     __publicField(this, "plugin");
+    // Manages persistent chat history
     __publicField(this, "chatHistoryManager");
+    // Container for chat messages
     __publicField(this, "messagesContainer");
+    // Container for input area
     __publicField(this, "inputContainer");
+    // Tracks the current streaming response (for aborting)
     __publicField(this, "activeStream", null);
+    // UI element indicating reference note status
     __publicField(this, "referenceNoteIndicator");
+    // UI element displaying current model name
     __publicField(this, "modelNameDisplay");
+    // Handles agent/tool responses and tool result display
     __publicField(this, "agentResponseHandler", null);
+    // Builds context for chat (e.g., reference note, system prompt)
     __publicField(this, "contextBuilder");
+    // Handles message regeneration (retry/modify)
     __publicField(this, "messageRegenerator", null);
+    // Handles streaming of assistant responses
     __publicField(this, "responseStreamer", null);
+    // Renders messages (markdown, etc.)
     __publicField(this, "messageRenderer");
     this.plugin = plugin;
     this.chatHistoryManager = new ChatHistoryManager(this.app.vault, this.plugin.manifest.id, "chat-history.json");
@@ -14632,6 +14645,9 @@ var ChatView = class extends import_obsidian23.ItemView {
   getIcon() {
     return "message-square";
   }
+  /**
+   * Called when the view is opened. Sets up UI, loads history, and wires up events.
+   */
   async onOpen() {
     const { contentEl } = this;
     contentEl.empty();
@@ -14890,6 +14906,10 @@ var ChatView = class extends import_obsidian23.ItemView {
       this.updateModelNameDisplay();
     });
   }
+  /**
+   * Adds a message to the UI and persists it to history.
+   * Optionally includes enhanced data (tool results, reasoning, etc.).
+   */
   async addMessage(role, content, isError = false, enhancedData) {
     const messageEl = await createMessageElement(this.app, role, content, this.chatHistoryManager, this.plugin, (el) => this.regenerateResponse(el), this, enhancedData ? { role, content, ...enhancedData } : void 0);
     const uiTimestamp = messageEl.dataset.timestamp || (/* @__PURE__ */ new Date()).toISOString();
@@ -14906,20 +14926,32 @@ var ChatView = class extends import_obsidian23.ItemView {
       new import_obsidian23.Notice("Failed to save chat message: " + e.message);
     }
   }
+  /**
+   * Called when the view is closed. Aborts any active streaming response.
+   */
   async onClose() {
     if (this.activeStream) {
       this.activeStream.abort();
       this.activeStream = null;
     }
   }
+  /**
+   * Regenerates an assistant response for a given message element.
+   */
   async regenerateResponse(messageEl) {
     if (this.messageRegenerator) {
       await this.messageRegenerator.regenerateResponse(messageEl, () => this.buildContextMessages());
     }
   }
+  /**
+   * Updates the reference note indicator UI.
+   */
   updateReferenceNoteIndicator() {
     this.contextBuilder.updateReferenceNoteIndicator(this.referenceNoteIndicator);
   }
+  /**
+   * Updates the model name display UI.
+   */
   updateModelNameDisplay() {
     if (!this.modelNameDisplay) return;
     let modelName = "Unknown Model";
@@ -14933,9 +14965,16 @@ var ChatView = class extends import_obsidian23.ItemView {
     }
     this.modelNameDisplay.textContent = `Model: ${modelName}`;
   }
+  /**
+   * Builds the context messages for the assistant (system prompt, reference note, etc.).
+   */
   async buildContextMessages() {
     return await this.contextBuilder.buildContextMessages();
   }
+  /**
+   * Streams the assistant response and updates the UI in real time.
+   * Optionally updates an existing message in history.
+   */
   async streamAssistantResponse(messages, container, originalTimestamp, originalContent) {
     if (!this.responseStreamer) {
       throw new Error("ResponseStreamer not initialized");
@@ -14966,18 +15005,25 @@ var ChatView = class extends import_obsidian23.ItemView {
     }
     return responseContent;
   }
+  /**
+   * Clears all messages from the UI and resets agent execution count.
+   */
   clearMessages() {
     this.messagesContainer.empty();
     if (this.agentResponseHandler) {
       this.agentResponseHandler.resetExecutionCount();
     }
   }
+  /**
+   * Scrolls the messages container to the bottom.
+   */
   scrollMessagesToBottom() {
     this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
   }
   /**
-  * Insert a rich tool display into the messages container
-  */
+   * Insert a rich tool display into the messages container.
+   * Used for displaying tool results outside of normal chat flow.
+   */
   insertToolDisplay(display) {
     const toolDisplayWrapper = document.createElement("div");
     toolDisplayWrapper.className = "ai-chat-message tool-display-message";
@@ -17267,20 +17313,52 @@ init_YAMLHandler();
 var _MyPlugin = class _MyPlugin extends import_obsidian31.Plugin {
   constructor() {
     super(...arguments);
+    /**
+     * Plugin settings object, loaded from disk or defaults.
+     */
     __publicField(this, "settings");
+    /**
+     * Reference to the model settings view, if open.
+     */
     __publicField(this, "modelSettingsView", null);
+    /**
+     * Reference to the current active streaming controller (for aborting AI responses).
+     */
     __publicField(this, "activeStream", null);
+    /**
+     * List of registered YAML attribute command IDs for cleanup/re-registration.
+     */
     __publicField(this, "_yamlAttributeCommandIds", []);
+    /**
+     * Listeners for settings changes (for reactive UI updates).
+     */
     __publicField(this, "settingsListeners", []);
+    /**
+     * Backup manager instance for handling plugin data backups.
+     */
     __publicField(this, "backupManager");
+    /**
+     * Agent mode manager instance for handling agent-related settings and logic.
+     */
     __publicField(this, "agentModeManager");
   }
+  /**
+   * Register a callback to be called when settings change.
+   * @param listener Callback function
+   */
   onSettingsChange(listener) {
     this.settingsListeners.push(listener);
   }
+  /**
+   * Remove a previously registered settings change callback.
+   * @param listener Callback function
+   */
   offSettingsChange(listener) {
     this.settingsListeners = this.settingsListeners.filter((l) => l !== listener);
   }
+  /**
+   * Notify all registered listeners that settings have changed.
+   */
   emitSettingsChange() {
     for (const listener of this.settingsListeners) {
       try {
@@ -17290,6 +17368,9 @@ var _MyPlugin = class _MyPlugin extends import_obsidian31.Plugin {
       }
     }
   }
+  /**
+   * Get the current agent mode settings, or defaults if not set.
+   */
   getAgentModeSettings() {
     return this.settings.agentMode || {
       enabled: false,
@@ -17298,9 +17379,16 @@ var _MyPlugin = class _MyPlugin extends import_obsidian31.Plugin {
       maxIterations: 10
     };
   }
+  /**
+   * Returns true if agent mode is enabled in settings.
+   */
   isAgentModeEnabled() {
     return this.getAgentModeSettings().enabled;
   }
+  /**
+   * Enable or disable agent mode and persist the change.
+   * @param enabled Whether agent mode should be enabled
+   */
   async setAgentModeEnabled(enabled) {
     this.debugLog("info", "[main.ts] setAgentModeEnabled called", { enabled });
     if (!this.settings.agentMode) {
@@ -17356,7 +17444,7 @@ var _MyPlugin = class _MyPlugin extends import_obsidian31.Plugin {
     this.debugLog("info", "[main.ts] Chat note loaded into chat view");
   }
   /**
-   * Registers a view type with Obsidian.
+   * Registers a view type with Obsidian, ensuring no duplicate registration.
    * @param viewType The type of the view.
    * @param viewCreator The function that creates the view.
    */
@@ -17366,6 +17454,10 @@ var _MyPlugin = class _MyPlugin extends import_obsidian31.Plugin {
       _MyPlugin.registeredViewTypes.add(viewType);
     }
   }
+  /**
+   * Called by Obsidian when the plugin is loaded.
+   * Handles initialization, settings, view registration, and command registration.
+   */
   async onload() {
     await this.loadSettings();
     const pluginDataPath = this.app.vault.configDir + "/plugins/ai-assistant-for-obsidian";
@@ -17437,6 +17529,7 @@ var _MyPlugin = class _MyPlugin extends import_obsidian31.Plugin {
   }
   /**
    * Loads plugin settings from data.
+   * Merges loaded data with default settings.
    */
   async loadSettings() {
     this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
@@ -17477,6 +17570,9 @@ var _MyPlugin = class _MyPlugin extends import_obsidian31.Plugin {
   }
   /**
    * Process ai-tool-execution code blocks specifically for Live Preview mode
+   * @param source The code block source string (should be JSON)
+   * @param element The HTML element to render into
+   * @param context The Obsidian context object
    */
   processToolExecutionCodeBlock(source, element, context) {
     try {
@@ -17503,6 +17599,8 @@ var _MyPlugin = class _MyPlugin extends import_obsidian31.Plugin {
   }
   /**
    * Process ai-tool-execution blocks in markdown and replace them with rich tool displays
+   * @param element The root HTML element containing markdown content
+   * @param context The Obsidian context object
    */
   processToolExecutionBlocks(element, context) {
     var _a2;
@@ -17511,7 +17609,7 @@ var _MyPlugin = class _MyPlugin extends import_obsidian31.Plugin {
       const codeElement = codeBlock;
       const preElement = codeElement.parentElement;
       const text = ((_a2 = codeElement.textContent) == null ? void 0 : _a2.trim()) || "";
-      const isAIToolExecution = codeElement.className.includes("language-ai-tool-execution") || text.startsWith('{"toolResults"') || text.startsWith('{\n  "toolResults"');
+      const isAIToolExecution = codeElement.className.includes("language-ai-tool-execution") || text.startsWith('{"toolResults"');
       if (isAIToolExecution) {
         try {
           const toolData = JSON.parse(text);
@@ -17535,6 +17633,9 @@ var _MyPlugin = class _MyPlugin extends import_obsidian31.Plugin {
     }
   }
 };
+/**
+ * Static set to track registered view types and avoid duplicate registration.
+ */
 __publicField(_MyPlugin, "registeredViewTypes", /* @__PURE__ */ new Set());
 var MyPlugin = _MyPlugin;
 /*! Bundled license information:
