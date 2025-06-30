@@ -122,10 +122,16 @@ export class ContentNoteHandlingSection {
             .addTextArea(text => {
                 text.setPlaceholder('[[Note Name]]\n[[Another Note#Header]]')
                     .setValue(this.plugin.settings.contextNotes || '')
-                    .onChange(async (value) => {
+                    .onChange((value) => {
+                        // Store value locally while typing, don't save yet
                         this.plugin.settings.contextNotes = value;
-                        await this.plugin.saveSettings();
                     });
+                
+                // Save only when the user leaves the field
+                text.inputEl.addEventListener('blur', async () => {
+                    await this.plugin.saveSettings();
+                });
+                
                 text.inputEl.rows = 4;
                 text.inputEl.style.width = '100%';
             });
@@ -205,13 +211,18 @@ export class ContentNoteHandlingSection {
                 .addText(text => {
                     text.setPlaceholder('YAML Attribute Name')
                         .setValue(gen.attributeName)
-                        .onChange(async (value) => {
+                        .onChange((value) => {
+                            // Store value locally while typing, don't save yet
                             if (this.plugin.settings.yamlAttributeGenerators) {
                                 this.plugin.settings.yamlAttributeGenerators[idx].attributeName = value ?? '';
                                 this.plugin.settings.yamlAttributeGenerators[idx].commandName = value ? `Generate YAML: ${value}` : '';
-                                await this.plugin.saveSettings();
                             }
                         });
+                    
+                    // Save only when the user leaves the field
+                    text.inputEl.addEventListener('blur', async () => {
+                        await this.plugin.saveSettings();
+                    });
                 });
 
             new Setting(genContainer)
@@ -220,12 +231,18 @@ export class ContentNoteHandlingSection {
                 .addTextArea(text => {
                     text.setPlaceholder('Prompt for LLM')
                         .setValue(gen.prompt)
-                        .onChange(async (value) => {
+                        .onChange((value) => {
+                            // Store value locally while typing, don't save yet
                             if (this.plugin.settings.yamlAttributeGenerators) {
                                 this.plugin.settings.yamlAttributeGenerators[idx].prompt = value ?? '';
-                                await this.plugin.saveSettings();
                             }
                         });
+                    
+                    // Save only when the user leaves the field
+                    text.inputEl.addEventListener('blur', async () => {
+                        await this.plugin.saveSettings();
+                    });
+                    
                     text.inputEl.rows = 3;
                     text.inputEl.style.width = '100%';
                 });

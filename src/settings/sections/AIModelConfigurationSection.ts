@@ -248,13 +248,21 @@ export class AIModelConfigurationSection {
         new Setting(containerEl)
             .setName('System Message')
             .setDesc('Set the system message for the AI')
-            .addTextArea(text => text
-                .setPlaceholder('You are a helpful assistant.')
-                .setValue(this.plugin.settings.systemMessage)
-                .onChange(async (value) => {
-                    this.plugin.settings.systemMessage = value;
+            .addTextArea(text => {
+                text.setPlaceholder('You are a helpful assistant.')
+                    .setValue(this.plugin.settings.systemMessage)
+                    .onChange((value) => {
+                        // Store value locally while typing, don't save yet
+                        this.plugin.settings.systemMessage = value;
+                    });
+                
+                // Save only when the user leaves the field
+                text.inputEl.addEventListener('blur', async () => {
                     await this.plugin.saveSettings();
-                }));
+                });
+                
+                return text;
+            });
 
         new Setting(containerEl)
             .setName('Enable Streaming')
@@ -518,10 +526,15 @@ export class AIModelConfigurationSection {
                 .addText(text => {
                     text.setPlaceholder('Preset Name')
                         .setValue(preset.name)
-                        .onChange(async (value) => {
+                        .onChange((value) => {
+                            // Store value locally while typing, don't save yet
                             preset.name = value ?? '';
-                            await this.plugin.saveSettings();
                         });
+                    
+                    // Save only when the user leaves the field
+                    text.inputEl.addEventListener('blur', async () => {
+                        await this.plugin.saveSettings();
+                    });
                 });
 
             // Model ID
@@ -531,10 +544,15 @@ export class AIModelConfigurationSection {
                 .addText(text => {
                     text.setPlaceholder('Model ID (provider:model)')
                         .setValue(preset.selectedModel || '')
-                        .onChange(async (value) => {
+                        .onChange((value) => {
+                            // Store value locally while typing, don't save yet
                             preset.selectedModel = value ?? '';
-                            await this.plugin.saveSettings();
                         });
+                    
+                    // Save only when the user leaves the field
+                    text.inputEl.addEventListener('blur', async () => {
+                        await this.plugin.saveSettings();
+                    });
                 });
 
             // System Message
@@ -544,10 +562,15 @@ export class AIModelConfigurationSection {
                 .addTextArea(text => {
                     text.setPlaceholder('System message')
                         .setValue(preset.systemMessage || '')
-                        .onChange(async (value) => {
+                        .onChange((value) => {
+                            // Store value locally while typing, don't save yet
                             preset.systemMessage = value ?? '';
-                            await this.plugin.saveSettings();
                         });
+                    
+                    // Save only when the user leaves the field
+                    text.inputEl.addEventListener('blur', async () => {
+                        await this.plugin.saveSettings();
+                    });
                 });
 
             // Temperature
@@ -563,11 +586,16 @@ export class AIModelConfigurationSection {
                 .addText(text => {
                     text.setPlaceholder('Max tokens')
                         .setValue(preset.maxTokens?.toString() || '')
-                        .onChange(async (value) => {
+                        .onChange((value) => {
+                            // Store value locally while typing, don't save yet
                             const num = parseInt(value ?? '', 10);
                             preset.maxTokens = isNaN(num) ? undefined : num;
-                            await this.plugin.saveSettings();
                         });
+                    
+                    // Save only when the user leaves the field
+                    text.inputEl.addEventListener('blur', async () => {
+                        await this.plugin.saveSettings();
+                    });
                 });
 
             // Enable Streaming

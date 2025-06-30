@@ -51,13 +51,18 @@ export class ModelManagementSection {
                 .addText(text => {
                     text.setPlaceholder('Preset Name')
                         .setValue(preset.name)
-                        .onChange(async (value) => {
+                        .onChange((value) => {
+                            // Store value locally while typing, don't save yet
                             preset.name = value ?? '';
-                            await this.plugin.saveSettings();
                             // Re-render to update the command name
                             // This display() call needs to be handled by the main settings tab
                             // For now, we'll just save and let the user manually refresh if needed
                         });
+                    
+                    // Save only when the user leaves the field
+                    text.inputEl.addEventListener('blur', async () => {
+                        await this.plugin.saveSettings();
+                    });
                 });
 
             // Model ID
@@ -67,10 +72,15 @@ export class ModelManagementSection {
                 .addText(text => {
                     text.setPlaceholder('Model ID (provider:model)')
                         .setValue(preset.selectedModel || '')
-                        .onChange(async (value) => {
+                        .onChange((value) => {
+                            // Store value locally while typing, don't save yet
                             preset.selectedModel = value ?? '';
-                            await this.plugin.saveSettings();
                         });
+                    
+                    // Save only when the user leaves the field
+                    text.inputEl.addEventListener('blur', async () => {
+                        await this.plugin.saveSettings();
+                    });
                 });
 
             // System Message
@@ -80,10 +90,15 @@ export class ModelManagementSection {
                 .addTextArea(text => {
                     text.setPlaceholder('System message')
                         .setValue(preset.systemMessage || '')
-                        .onChange(async (value) => {
+                        .onChange((value) => {
+                            // Store value locally while typing, don't save yet
                             preset.systemMessage = value ?? '';
-                            await this.plugin.saveSettings();
                         });
+                    
+                    // Save only when the user leaves the field
+                    text.inputEl.addEventListener('blur', async () => {
+                        await this.plugin.saveSettings();
+                    });
                 });
 
             // Temperature
@@ -99,11 +114,16 @@ export class ModelManagementSection {
                 .addText(text => {
                     text.setPlaceholder('Max tokens')
                         .setValue(preset.maxTokens?.toString() || '')
-                        .onChange(async (value) => {
+                        .onChange((value) => {
+                            // Store value locally while typing, don't save yet
                             const num = parseInt(value ?? '', 10);
                             preset.maxTokens = isNaN(num) ? undefined : num;
-                            await this.plugin.saveSettings();
                         });
+                    
+                    // Save only when the user leaves the field
+                    text.inputEl.addEventListener('blur', async () => {
+                        await this.plugin.saveSettings();
+                    });
                 });
 
             // Enable Streaming

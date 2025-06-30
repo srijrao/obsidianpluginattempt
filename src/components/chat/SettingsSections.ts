@@ -54,13 +54,21 @@ export class SettingsSections {
         new Setting(containerEl)
             .setName('System Message')
             .setDesc('Set the system message for the AI')
-            .addTextArea(text => text
-                .setPlaceholder('You are a helpful assistant.')
-                .setValue(this.plugin.settings.systemMessage)
-                .onChange(async (value) => {
-                    this.plugin.settings.systemMessage = value;
+            .addTextArea(text => {
+                text.setPlaceholder('You are a helpful assistant.')
+                    .setValue(this.plugin.settings.systemMessage)
+                    .onChange((value) => {
+                        // Store value locally while typing, don't save yet
+                        this.plugin.settings.systemMessage = value;
+                    });
+                
+                // Save only when the user leaves the field
+                text.inputEl.addEventListener('blur', async () => {
                     await this.plugin.saveSettings();
-                }));
+                });
+                
+                return text;
+            });
 
         new Setting(containerEl)
             .setName('Enable Streaming')
@@ -168,12 +176,19 @@ export class SettingsSections {
             .addTextArea(text => {
                 text.setPlaceholder('[[Note Name]]\n[[Another Note#Header]]')
                     .setValue(this.plugin.settings.contextNotes || '')
-                    .onChange(async (value) => {
+                    .onChange((value) => {
+                        // Store value locally while typing, don't save yet
                         this.plugin.settings.contextNotes = value;
-                        await this.plugin.saveSettings();
                     });
+                
+                // Save only when the user leaves the field
+                text.inputEl.addEventListener('blur', async () => {
+                    await this.plugin.saveSettings();
+                });
+                
                 text.inputEl.rows = 4;
                 text.inputEl.style.width = '100%';
+                return text;
             });
 
         new Setting(containerEl)
@@ -371,13 +386,21 @@ export class SettingsSections {
             new Setting(contentEl)
                 .setName('OpenAI Base URL')
                 .setDesc('Custom base URL for OpenAI API (optional)')
-                .addText(text => text
-                    .setPlaceholder('https://api.openai.com/v1')
-                    .setValue(this.plugin.settings.openaiSettings.baseUrl || '')
-                    .onChange(async (value) => {
-                        this.plugin.settings.openaiSettings.baseUrl = value;
+                .addText(text => {
+                    text.setPlaceholder('https://api.openai.com/v1')
+                        .setValue(this.plugin.settings.openaiSettings.baseUrl || '')
+                        .onChange((value) => {
+                            // Store value locally while typing, don't save yet
+                            this.plugin.settings.openaiSettings.baseUrl = value;
+                        });
+                    
+                    // Save only when the user leaves the field
+                    text.inputEl.addEventListener('blur', async () => {
                         await this.plugin.saveSettings();
-                    }));
+                    });
+                    
+                    return text;
+                });
         });
     }
 

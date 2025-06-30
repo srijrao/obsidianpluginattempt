@@ -66,17 +66,45 @@ export class SettingCreators {
         textComponent
             .setPlaceholder(placeholder)
             .setValue(getValue() ?? '')
-            .onChange(async (value: string) => {
+            .onChange((value: string) => {
+                // Store value locally while typing, don't save or re-render yet
                 let processedValue: string | undefined = value;
-                if (options?.trim) {
+                if (options?.trim && processedValue) {
                     processedValue = processedValue.trim();
                 }
                 if (options?.undefinedIfEmpty && processedValue === '') {
                     processedValue = undefined;
                 }
-                await setValue(processedValue);
-                this.reRenderCallback(); // Re-render the settings tab after value changes
+                // Update the setting value in the settings object directly without saving
+                // We need to extract just the setting assignment part without the save
+                this.updateSettingValueOnly(setValue, processedValue);
             });
+        
+        // Save and re-render only when the user leaves the field
+        textComponent.inputEl.addEventListener('blur', async () => {
+            await this.plugin.saveSettings();
+            this.reRenderCallback(); // Re-render the settings tab after value changes
+        });
+    }
+
+    /**
+     * Helper method to update setting value without saving
+     */
+    private updateSettingValueOnly(setValue: (value: string | undefined) => Promise<void>, value: string | undefined): void {
+        // Create a mock version that doesn't save
+        const originalSaveSettings = this.plugin.saveSettings;
+        this.plugin.saveSettings = async () => {
+            // No-op during onChange
+        };
+        
+        try {
+            setValue(value);
+        } catch (e) {
+            console.warn('Error updating setting value:', e);
+        } finally {
+            // Restore original saveSettings
+            this.plugin.saveSettings = originalSaveSettings;
+        }
     }
 
     /**

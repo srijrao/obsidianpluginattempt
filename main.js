@@ -11179,10 +11179,15 @@ var init_SettingsSections = __esm({
             };
           });
         }
-        new import_obsidian14.Setting(containerEl).setName("System Message").setDesc("Set the system message for the AI").addTextArea((text) => text.setPlaceholder("You are a helpful assistant.").setValue(this.plugin.settings.systemMessage).onChange(async (value) => {
-          this.plugin.settings.systemMessage = value;
-          await this.plugin.saveSettings();
-        }));
+        new import_obsidian14.Setting(containerEl).setName("System Message").setDesc("Set the system message for the AI").addTextArea((text) => {
+          text.setPlaceholder("You are a helpful assistant.").setValue(this.plugin.settings.systemMessage).onChange((value) => {
+            this.plugin.settings.systemMessage = value;
+          });
+          text.inputEl.addEventListener("blur", async () => {
+            await this.plugin.saveSettings();
+          });
+          return text;
+        });
         new import_obsidian14.Setting(containerEl).setName("Enable Streaming").setDesc("Enable or disable streaming for completions").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableStreaming).onChange(async (value) => {
           this.plugin.settings.enableStreaming = value;
           await this.plugin.saveSettings();
@@ -11235,12 +11240,15 @@ var init_SettingsSections = __esm({
         const contextNotesContainer = containerEl.createDiv("context-notes-container");
         contextNotesContainer.style.marginBottom = "24px";
         new import_obsidian14.Setting(contextNotesContainer).setName("Context Notes").setDesc("Notes to attach as context (supports [[filename]] and [[filename#header]] syntax)").addTextArea((text) => {
-          text.setPlaceholder("[[Note Name]]\n[[Another Note#Header]]").setValue(this.plugin.settings.contextNotes || "").onChange(async (value) => {
+          text.setPlaceholder("[[Note Name]]\n[[Another Note#Header]]").setValue(this.plugin.settings.contextNotes || "").onChange((value) => {
             this.plugin.settings.contextNotes = value;
+          });
+          text.inputEl.addEventListener("blur", async () => {
             await this.plugin.saveSettings();
           });
           text.inputEl.rows = 4;
           text.inputEl.style.width = "100%";
+          return text;
         });
         new import_obsidian14.Setting(containerEl).setName("Expand Linked Notes Recursively").setDesc("If enabled, when fetching a note, also fetch and expand links within that note recursively (prevents infinite loops).").addToggle((toggle) => {
           var _a2;
@@ -11390,10 +11398,15 @@ var init_SettingsSections = __esm({
        */
       renderOpenAIConfig(containerEl) {
         this._renderCollapsibleProviderConfig(containerEl, "openai", "OpenAI", (contentEl) => {
-          new import_obsidian14.Setting(contentEl).setName("OpenAI Base URL").setDesc("Custom base URL for OpenAI API (optional)").addText((text) => text.setPlaceholder("https://api.openai.com/v1").setValue(this.plugin.settings.openaiSettings.baseUrl || "").onChange(async (value) => {
-            this.plugin.settings.openaiSettings.baseUrl = value;
-            await this.plugin.saveSettings();
-          }));
+          new import_obsidian14.Setting(contentEl).setName("OpenAI Base URL").setDesc("Custom base URL for OpenAI API (optional)").addText((text) => {
+            text.setPlaceholder("https://api.openai.com/v1").setValue(this.plugin.settings.openaiSettings.baseUrl || "").onChange((value) => {
+              this.plugin.settings.openaiSettings.baseUrl = value;
+            });
+            text.inputEl.addEventListener("blur", async () => {
+              await this.plugin.saveSettings();
+            });
+            return text;
+          });
         });
       }
       /**
@@ -15517,17 +15530,35 @@ var SettingCreators = class {
    */
   configureTextInput(textComponent, placeholder, getValue, setValue, options) {
     var _a2;
-    textComponent.setPlaceholder(placeholder).setValue((_a2 = getValue()) != null ? _a2 : "").onChange(async (value) => {
+    textComponent.setPlaceholder(placeholder).setValue((_a2 = getValue()) != null ? _a2 : "").onChange((value) => {
       let processedValue = value;
-      if (options == null ? void 0 : options.trim) {
+      if ((options == null ? void 0 : options.trim) && processedValue) {
         processedValue = processedValue.trim();
       }
       if ((options == null ? void 0 : options.undefinedIfEmpty) && processedValue === "") {
         processedValue = void 0;
       }
-      await setValue(processedValue);
+      this.updateSettingValueOnly(setValue, processedValue);
+    });
+    textComponent.inputEl.addEventListener("blur", async () => {
+      await this.plugin.saveSettings();
       this.reRenderCallback();
     });
+  }
+  /**
+   * Helper method to update setting value without saving
+   */
+  updateSettingValueOnly(setValue, value) {
+    const originalSaveSettings = this.plugin.saveSettings;
+    this.plugin.saveSettings = async () => {
+    };
+    try {
+      setValue(value);
+    } catch (e) {
+      console.warn("Error updating setting value:", e);
+    } finally {
+      this.plugin.saveSettings = originalSaveSettings;
+    }
   }
   /**
    * Creates a dropdown setting.
@@ -15840,10 +15871,15 @@ var AIModelConfigurationSection = class {
         };
       });
     }
-    new import_obsidian26.Setting(containerEl).setName("System Message").setDesc("Set the system message for the AI").addTextArea((text) => text.setPlaceholder("You are a helpful assistant.").setValue(this.plugin.settings.systemMessage).onChange(async (value) => {
-      this.plugin.settings.systemMessage = value;
-      await this.plugin.saveSettings();
-    }));
+    new import_obsidian26.Setting(containerEl).setName("System Message").setDesc("Set the system message for the AI").addTextArea((text) => {
+      text.setPlaceholder("You are a helpful assistant.").setValue(this.plugin.settings.systemMessage).onChange((value) => {
+        this.plugin.settings.systemMessage = value;
+      });
+      text.inputEl.addEventListener("blur", async () => {
+        await this.plugin.saveSettings();
+      });
+      return text;
+    });
     new import_obsidian26.Setting(containerEl).setName("Enable Streaming").setDesc("Enable or disable streaming for completions").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableStreaming).onChange(async (value) => {
       this.plugin.settings.enableStreaming = value;
       await this.plugin.saveSettings();
@@ -16039,20 +16075,26 @@ var AIModelConfigurationSection = class {
     const presetList = this.plugin.settings.modelSettingPresets || [];
     presetList.forEach((preset, idx) => {
       new import_obsidian26.Setting(containerEl).setName("Preset Name").setDesc("Edit the name of this preset").addText((text) => {
-        text.setPlaceholder("Preset Name").setValue(preset.name).onChange(async (value) => {
+        text.setPlaceholder("Preset Name").setValue(preset.name).onChange((value) => {
           preset.name = value != null ? value : "";
+        });
+        text.inputEl.addEventListener("blur", async () => {
           await this.plugin.saveSettings();
         });
       });
       new import_obsidian26.Setting(containerEl).setName("Model ID (provider:model)").setDesc("Edit the model for this preset").addText((text) => {
-        text.setPlaceholder("Model ID (provider:model)").setValue(preset.selectedModel || "").onChange(async (value) => {
+        text.setPlaceholder("Model ID (provider:model)").setValue(preset.selectedModel || "").onChange((value) => {
           preset.selectedModel = value != null ? value : "";
+        });
+        text.inputEl.addEventListener("blur", async () => {
           await this.plugin.saveSettings();
         });
       });
       new import_obsidian26.Setting(containerEl).setName("System Message").setDesc("Edit the system message for this preset").addTextArea((text) => {
-        text.setPlaceholder("System message").setValue(preset.systemMessage || "").onChange(async (value) => {
+        text.setPlaceholder("System message").setValue(preset.systemMessage || "").onChange((value) => {
           preset.systemMessage = value != null ? value : "";
+        });
+        text.inputEl.addEventListener("blur", async () => {
           await this.plugin.saveSettings();
         });
       });
@@ -16065,9 +16107,11 @@ var AIModelConfigurationSection = class {
       });
       new import_obsidian26.Setting(containerEl).setName("Max Tokens").setDesc("Edit the max tokens for this preset").addText((text) => {
         var _a2;
-        text.setPlaceholder("Max tokens").setValue(((_a2 = preset.maxTokens) == null ? void 0 : _a2.toString()) || "").onChange(async (value) => {
+        text.setPlaceholder("Max tokens").setValue(((_a2 = preset.maxTokens) == null ? void 0 : _a2.toString()) || "").onChange((value) => {
           const num = parseInt(value != null ? value : "", 10);
           preset.maxTokens = isNaN(num) ? void 0 : num;
+        });
+        text.inputEl.addEventListener("blur", async () => {
           await this.plugin.saveSettings();
         });
       });
@@ -16416,8 +16460,10 @@ var ContentNoteHandlingSection = class {
     const contextNotesContainer = containerEl.createDiv("context-notes-container");
     contextNotesContainer.style.marginBottom = "24px";
     new import_obsidian27.Setting(contextNotesContainer).setName("Context Notes").setDesc("Notes to attach as context (supports [[filename]] and [[filename#header]] syntax)").addTextArea((text) => {
-      text.setPlaceholder("[[Note Name]]\n[[Another Note#Header]]").setValue(this.plugin.settings.contextNotes || "").onChange(async (value) => {
+      text.setPlaceholder("[[Note Name]]\n[[Another Note#Header]]").setValue(this.plugin.settings.contextNotes || "").onChange((value) => {
         this.plugin.settings.contextNotes = value;
+      });
+      text.inputEl.addEventListener("blur", async () => {
         await this.plugin.saveSettings();
       });
       text.inputEl.rows = 4;
@@ -16491,20 +16537,24 @@ var ContentNoteHandlingSection = class {
       genContainer.style.marginBottom = "1em";
       genContainer.createEl("h4", { text: autoCommandName });
       new import_obsidian27.Setting(genContainer).setName("YAML Attribute Name").setDesc("The YAML field name to insert/update").addText((text) => {
-        text.setPlaceholder("YAML Attribute Name").setValue(gen.attributeName).onChange(async (value) => {
+        text.setPlaceholder("YAML Attribute Name").setValue(gen.attributeName).onChange((value) => {
           if (this.plugin.settings.yamlAttributeGenerators) {
             this.plugin.settings.yamlAttributeGenerators[idx].attributeName = value != null ? value : "";
             this.plugin.settings.yamlAttributeGenerators[idx].commandName = value ? `Generate YAML: ${value}` : "";
-            await this.plugin.saveSettings();
           }
+        });
+        text.inputEl.addEventListener("blur", async () => {
+          await this.plugin.saveSettings();
         });
       });
       new import_obsidian27.Setting(genContainer).setName("Prompt for LLM").setDesc("The prompt to send to the AI for generating the YAML value").addTextArea((text) => {
-        text.setPlaceholder("Prompt for LLM").setValue(gen.prompt).onChange(async (value) => {
+        text.setPlaceholder("Prompt for LLM").setValue(gen.prompt).onChange((value) => {
           if (this.plugin.settings.yamlAttributeGenerators) {
             this.plugin.settings.yamlAttributeGenerators[idx].prompt = value != null ? value : "";
-            await this.plugin.saveSettings();
           }
+        });
+        text.inputEl.addEventListener("blur", async () => {
+          await this.plugin.saveSettings();
         });
         text.inputEl.rows = 3;
         text.inputEl.style.width = "100%";
