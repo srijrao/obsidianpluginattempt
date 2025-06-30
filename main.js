@@ -13732,16 +13732,17 @@ async function processContextNotes(contextNotesText, app) {
   let contextContent = "";
   while ((match = linkRegex.exec(contextNotesText)) !== null) {
     if (match && match[1]) {
-      const fileName = match[1].trim();
+      const originalLink = match[0];
+      const [fileAndHeader, alias] = match[1].split("|").map((s) => s.trim());
+      const headerMatch = fileAndHeader.match(/(.*?)#(.*)/);
+      const baseFileName = headerMatch ? headerMatch[1].trim() : fileAndHeader;
+      const headerName = headerMatch ? headerMatch[2].trim() : null;
       try {
-        const headerMatch = fileName.match(/(.*?)#(.*)/);
-        const baseFileName = headerMatch ? headerMatch[1].trim() : fileName;
-        const headerName = headerMatch ? headerMatch[2].trim() : null;
         let file = findFile(app, baseFileName);
         if (file && isTFile2(file)) {
           const noteContent = await app.vault.cachedRead(file);
           contextContent += `---
-From note: ${file.basename}
+Attached: ${originalLink}
 
 `;
           if (headerName) {
@@ -13752,12 +13753,12 @@ From note: ${file.basename}
           }
           contextContent += "\n\n";
         } else {
-          contextContent += `Note not found: ${fileName}
+          contextContent += `Note not found: ${originalLink}
 
 `;
         }
       } catch (error) {
-        contextContent += `Error processing note ${fileName}: ${error.message}
+        contextContent += `Error processing note ${originalLink}: ${error.message}
 
 `;
       }

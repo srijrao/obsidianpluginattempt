@@ -72,15 +72,19 @@ export async function processContextNotes(contextNotesText: string, app: App): P
     let contextContent = "";
     while ((match = linkRegex.exec(contextNotesText)) !== null) {
         if (match && match[1]) {
-            const fileName = match[1].trim();
+            const originalLink = match[0]; // e.g., [[note#header|alias]]
+            // Split into file+header and alias
+            const [fileAndHeader, alias] = match[1].split('|').map(s => s.trim());
+            // Split fileAndHeader into file and header
+            const headerMatch = fileAndHeader.match(/(.*?)#(.*)/);
+            const baseFileName = headerMatch ? headerMatch[1].trim() : fileAndHeader;
+            const headerName = headerMatch ? headerMatch[2].trim() : null;
             try {
-                const headerMatch = fileName.match(/(.*?)#(.*)/);
-                const baseFileName = headerMatch ? headerMatch[1].trim() : fileName;
-                const headerName = headerMatch ? headerMatch[2].trim() : null;
                 let file = findFile(app, baseFileName);
                 if (file && isTFile(file)) {
                     const noteContent = await app.vault.cachedRead(file);
-                    contextContent += `---\nFrom note: ${file.basename}\n\n`;
+                    // Use the original link (with alias/header) as the section header
+                    contextContent += `---\nAttached: ${originalLink}\n\n`;
                     if (headerName) {
                         const headerContent = extractContentUnderHeader(noteContent, headerName);
                         contextContent += headerContent;
@@ -89,10 +93,10 @@ export async function processContextNotes(contextNotesText: string, app: App): P
                     }
                     contextContent += '\n\n';
                 } else {
-                    contextContent += `Note not found: ${fileName}\n\n`;
+                    contextContent += `Note not found: ${originalLink}\n\n`;
                 }
             } catch (error) {
-                contextContent += `Error processing note ${fileName}: ${error.message}\n\n`;
+                contextContent += `Error processing note ${originalLink}: ${error.message}\n\n`;
             }
         }
     }
