@@ -23,13 +23,13 @@ import { registerYamlAttributeCommands } from './YAMLHandler';
 
 /**
  * AI Assistant Plugin
- * 
+ *
  * This plugin adds AI capabilities to Obsidian, supporting multiple providers:
  * - OpenAI (ChatGPT)
  * - Anthropic (Claude)
  * - Google (Gemini)
  * - Ollama (Local AI)
- * 
+ *
  * Features:
  * - Chat with AI models
  * - Stream responses in real-time
@@ -38,32 +38,68 @@ import { registerYamlAttributeCommands } from './YAMLHandler';
  * - Use local AI models through Ollama
  */
 export default class MyPlugin extends Plugin {
+    /**
+     * Plugin settings object, loaded from disk or defaults.
+     */
     settings: MyPluginSettings;
+    /**
+     * Reference to the model settings view, if open.
+     */
     modelSettingsView: ModelSettingsView | null = null;
+    /**
+     * Reference to the current active streaming controller (for aborting AI responses).
+     */
     activeStream: AbortController | null = null;
+    /**
+     * List of registered YAML attribute command IDs for cleanup/re-registration.
+     */
     private _yamlAttributeCommandIds: string[] = [];
+    /**
+     * Listeners for settings changes (for reactive UI updates).
+     */
     private settingsListeners: Array<() => void> = [];
+    /**
+     * Backup manager instance for handling plugin data backups.
+     */
     public backupManager: BackupManager;
+    /**
+     * Agent mode manager instance for handling agent-related settings and logic.
+     */
     public agentModeManager: AgentModeManager;
 
+    /**
+     * Register a callback to be called when settings change.
+     * @param listener Callback function
+     */
     onSettingsChange(listener: () => void) {
         this.settingsListeners.push(listener);
     }
 
+    /**
+     * Remove a previously registered settings change callback.
+     * @param listener Callback function
+     */
     offSettingsChange(listener: () => void) {
         this.settingsListeners = this.settingsListeners.filter(l => l !== listener);
     }
 
+    /**
+     * Notify all registered listeners that settings have changed.
+     */
     private emitSettingsChange() {
         for (const listener of this.settingsListeners) {
             try { listener(); } catch (e) { console.error(e); }
         }
     }
 
+    /**
+     * Static set to track registered view types and avoid duplicate registration.
+     */
     private static registeredViewTypes = new Set<string>();
 
-    
-
+    /**
+     * Get the current agent mode settings, or defaults if not set.
+     */
     getAgentModeSettings(): AgentModeSettings {
         return this.settings.agentMode || {
             enabled: false,
@@ -73,11 +109,17 @@ export default class MyPlugin extends Plugin {
         };
     }
 
+    /**
+     * Returns true if agent mode is enabled in settings.
+     */
     isAgentModeEnabled(): boolean {
         return this.getAgentModeSettings().enabled;
     }
 
-    
+    /**
+     * Enable or disable agent mode and persist the change.
+     * @param enabled Whether agent mode should be enabled
+     */
     async setAgentModeEnabled(enabled: boolean) {
         this.debugLog('info', '[main.ts] setAgentModeEnabled called', { enabled });
         if (!this.settings.agentMode) {
@@ -111,20 +153,19 @@ export default class MyPlugin extends Plugin {
         const chatView = leaves[0].view as ChatView;
         chatView.clearMessages();
         
-        
+        // Dynamically import the message renderer to avoid circular dependencies
         const { MessageRenderer } = require('./components/chat/MessageRenderer');
         const messageRenderer = new MessageRenderer(this.app);
 
         for (const msg of messages) {
             if (msg.role === 'user' || msg.role === 'assistant') {
-                
+                // Parse tool data if present in the message content
                 const toolData = messageRenderer.parseToolDataFromContent(msg.content);
                 
                 if (toolData) {
-                    
+                    // Clean the content to remove tool data markup
                     const cleanContent = messageRenderer.cleanContentFromToolData(msg.content);
-                    
-                    
+                    // Add the message with tool data to the chat view
                     await chatView["addMessage"](msg.role, cleanContent, false, {
                         toolResults: toolData.toolResults,
                         reasoning: toolData.reasoning,
@@ -132,7 +173,7 @@ export default class MyPlugin extends Plugin {
                     });
                     this.debugLog('debug', '[main.ts] Added message with tool data', { role: msg.role, toolData });
                 } else {
-                    
+                    // Add a regular message
                     await chatView["addMessage"](msg.role, msg.content);
                     this.debugLog('debug', '[main.ts] Added regular message', { role: msg.role });
                 }
@@ -144,7 +185,7 @@ export default class MyPlugin extends Plugin {
     }
 
     /**
-     * Registers a view type with Obsidian.
+     * Registers a view type with Obsidian, ensuring no duplicate registration.
      * @param viewType The type of the view.
      * @param viewCreator The function that creates the view.
      */
@@ -155,17 +196,21 @@ export default class MyPlugin extends Plugin {
         }
     }
 
+    /**
+     * Called by Obsidian when the plugin is loaded.
+     * Handles initialization, settings, view registration, and command registration.
+     */
     async onload() {
         await this.loadSettings();
 
-        
+        // Compute the plugin data path for storing backups
         const pluginDataPath = this.app.vault.configDir + '/plugins/ai-assistant-for-obsidian';
         this.backupManager = new BackupManager(this.app, pluginDataPath);
         
-        
+        // Initialize backup manager (loads or creates backup files)
         await this.backupManager.initialize();
         
-        
+        // Initialize agent mode manager for handling agent mode logic
         this.agentModeManager = new AgentModeManager(
             this.settings,
             () => this.saveSettings(),
@@ -173,12 +218,14 @@ export default class MyPlugin extends Plugin {
             (level, ...args) => debugLog(this.settings.debugMode ?? false, level, ...args)
         );
         
+        // Add the plugin's settings tab to Obsidian's settings UI
         this.addSettingTab(new MyPluginSettingTab(this.app, this));
 
+        // Register custom views for model settings and chat
         this.registerPluginView(VIEW_TYPE_MODEL_SETTINGS, (leaf) => new ModelSettingsView(leaf, this));
         this.registerPluginView(VIEW_TYPE_CHAT, (leaf) => new ChatView(leaf, this));
 
-        
+        // Register all plugin commands (view, AI stream, note, context, etc.)
         registerViewCommands(this);
         
         registerAIStreamCommands(
@@ -201,16 +248,17 @@ export default class MyPlugin extends Plugin {
             (messages) => this.processMessages(messages)
         );
 
-        
+        // Register context-related commands
         registerContextCommands(this, this.settings);
 
+        // Optionally auto-open the model settings view on layout ready
         this.app.workspace.onLayoutReady(() => {
             if (this.settings.autoOpenModelSettings) {
                 activateView(this.app, VIEW_TYPE_MODEL_SETTINGS);
             }
         });
 
-        
+        // Register YAML attribute commands for note metadata editing
         this._yamlAttributeCommandIds = registerYamlAttributeCommands(
             this,
             this.settings,
@@ -219,12 +267,12 @@ export default class MyPlugin extends Plugin {
             (level, ...args) => debugLog(this.settings.debugMode ?? false, level, ...args)
         );
 
-        
+        // Register a markdown post-processor to handle tool execution blocks in preview/live mode
         this.registerMarkdownPostProcessor((element, context) => {
             this.processToolExecutionBlocks(element, context);
         });
 
-        
+        // Register a code block processor for 'ai-tool-execution' code blocks
         this.registerMarkdownCodeBlockProcessor('ai-tool-execution', (source, el, ctx) => {
             this.processToolExecutionCodeBlock(source, el, ctx);
         });
@@ -241,6 +289,7 @@ export default class MyPlugin extends Plugin {
 
     /**
      * Loads plugin settings from data.
+     * Merges loaded data with default settings.
      */
     public async loadSettings() {
         this.settings = Object.assign({}, DEFAULT_SETTINGS, await (this as Plugin).loadData());
@@ -252,7 +301,7 @@ export default class MyPlugin extends Plugin {
      */
     public async saveSettings() {
         await (this as Plugin).saveData(this.settings);
-        
+        // Re-register YAML attribute commands to reflect any changes
         this._yamlAttributeCommandIds = registerYamlAttributeCommands(
             this,
             this.settings,
@@ -283,12 +332,15 @@ export default class MyPlugin extends Plugin {
 
     /**
      * Process ai-tool-execution code blocks specifically for Live Preview mode
+     * @param source The code block source string (should be JSON)
+     * @param element The HTML element to render into
+     * @param context The Obsidian context object
      */
     private processToolExecutionCodeBlock(source: string, element: HTMLElement, context: any) {
         try {
-            
+            // Parse the code block as JSON
             const toolData = JSON.parse(source);
-            
+            // Render the tool execution block using the rich display component
             ToolRichDisplay.renderToolExecutionBlock(toolData, element, async (resultText: string) => {
                 try {
                     await navigator.clipboard.writeText(resultText);
@@ -299,10 +351,9 @@ export default class MyPlugin extends Plugin {
                 }
             });
         } catch (error) {
-            
+            // If parsing fails, show the raw code block
             console.error('Failed to parse ai-tool-execution code block:', error);
             this.debugLog('error', '[main.ts] Failed to parse ai-tool-execution code block', { error });
-            
             const pre = document.createElement('pre');
             const code = document.createElement('code');
             code.textContent = source;
@@ -314,26 +365,26 @@ export default class MyPlugin extends Plugin {
 
     /**
      * Process ai-tool-execution blocks in markdown and replace them with rich tool displays
+     * @param element The root HTML element containing markdown content
+     * @param context The Obsidian context object
      */
     private processToolExecutionBlocks(element: HTMLElement, context: any) {
         const codeBlocks = element.querySelectorAll('pre > code');
         for (const codeBlock of Array.from(codeBlocks)) {
             const codeElement = codeBlock as HTMLElement;
             const preElement = codeElement.parentElement as HTMLPreElement;
-            
-            
+            // Get the code block text and check if it looks like an ai-tool-execution block
             const text = codeElement.textContent?.trim() || '';
             const isAIToolExecution = codeElement.className.includes('language-ai-tool-execution') ||
-                text.startsWith('{"toolResults"') ||
-                text.startsWith('{\n  "toolResults"');
+                text.startsWith('{"toolResults"');
             if (isAIToolExecution) {
                 try {
-                    
+                    // Parse the code block as JSON
                     const toolData = JSON.parse(text);
-                    
+                    // Create a container for the rich display
                     const toolContainer = document.createElement('div');
                     toolContainer.className = 'ai-tool-execution-container';
-                    
+                    // Render the tool execution block
                     ToolRichDisplay.renderToolExecutionBlock(toolData, toolContainer, async (resultText: string) => {
                         try {
                             await navigator.clipboard.writeText(resultText);
@@ -343,10 +394,10 @@ export default class MyPlugin extends Plugin {
                             showNotice('Failed to copy to clipboard');
                         }
                     });
-                    
+                    // Replace the original code block with the rich display
                     preElement.replaceWith(toolContainer);
                 } catch (error) {
-                    
+                    // If parsing fails, log and skip
                     console.error('Failed to parse ai-tool-execution block:', error);
                     this.debugLog('error', '[main.ts] Failed to parse ai-tool-execution block', { error });
                 }
