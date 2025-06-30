@@ -17,7 +17,9 @@ export interface FileChangeSuggestion {
 }
 
 /**
- * Generates a formatted suggestion block string for insertion into a file.
+ * DEPRECATED: Generates a formatted suggestion block string for insertion into a file.
+ * This function was used to create suggestion blocks that pollute the file content.
+ * Use showFileChangeSuggestionsModal instead.
  * @param suggestionText The suggested change (diff or text).
  * @returns The suggestion block string.
  */
@@ -26,7 +28,9 @@ function createSuggestionBlock(suggestionText: string): string {
 }
 
 /**
- * Inserts a file change suggestion into a target file as a code block.
+ * DEPRECATED: Inserts a file change suggestion into a target file as a code block.
+ * This function directly modifies the file which pollutes it with suggestion blocks.
+ * Use showFileChangeSuggestionsModal instead.
  * @param vault The Obsidian Vault instance.
  * @param file The target TFile to insert the suggestion into.
  * @param suggestionText The suggested change (diff or text).
@@ -38,28 +42,34 @@ export async function insertFileChangeSuggestion(
   suggestionText: string,
   position?: number
 ): Promise<void> {
-  const content = await vault.read(file);
-  const lines = content.split('\n');
-  const suggestionBlock = createSuggestionBlock(suggestionText);
-
-  if (position !== undefined && position >= 0 && position <= lines.length) {
-    lines.splice(position, 0, suggestionBlock);
-  } else {
-    lines.push(suggestionBlock);
-  }
-  await vault.modify(file, lines.join('\n'));
+  console.warn('insertFileChangeSuggestion is deprecated. Use showFileChangeSuggestionsModal instead.');
+  // DEPRECATED: This directly modifies the file which is not desired
+  // const content = await vault.read(file);
+  // const lines = content.split('\n');
+  // const suggestionBlock = createSuggestionBlock(suggestionText);
+  //
+  // if (position !== undefined && position >= 0 && position <= lines.length) {
+  //   lines.splice(position, 0, suggestionBlock);
+  // } else {
+  //   lines.push(suggestionBlock);
+  // }
+  // await vault.modify(file, lines.join('\n'));
 }
 
 /**
- * Removes the first suggestion block (```suggestion ...```) from a file.
+ * DEPRECATED: Removes the first suggestion block (```suggestion ...```) from a file.
+ * This function was used to clean up suggestion blocks from files.
+ * No longer needed with the modal-based approach.
  * @param vault The Obsidian Vault instance.
  * @param file The TFile to clean up.
  */
 export async function removeSuggestionBlockFromFile(vault: Vault, file: TFile): Promise<void> {
-  const content = await vault.read(file);
-  // Regex to match a suggestion code block (greedy, multiline)
-  const newContent = content.replace(/```suggestion[\s\S]*?```\s*/m, '');
-  await vault.modify(file, newContent);
+  console.warn('removeSuggestionBlockFromFile is deprecated. No longer needed with modal-based suggestions.');
+  // DEPRECATED: No longer needed with modal approach
+  // const content = await vault.read(file);
+  // // Regex to match a suggestion code block (greedy, multiline)
+  // const newContent = content.replace(/```suggestion[\s\S]*?```\s*/m, '');
+  // await vault.modify(file, newContent);
 }
 
 /**
@@ -101,11 +111,54 @@ class FileChangeSuggestionsModal extends Modal {
     this.suggestions.forEach((s, idx) => {
       const container = contentEl.createDiv('suggestion-container');
       container.createEl('h4', { text: s.file?.path || '(No file path)' });
-      container.createEl('pre', { text: s.suggestionText || '(No suggestion text)' });
+      
+      // Format the diff text better for display
+      const diffEl = container.createEl('pre', { cls: 'suggestion-diff' });
+      diffEl.style.backgroundColor = '#f5f5f5';
+      diffEl.style.border = '1px solid #ddd';
+      diffEl.style.borderRadius = '4px';
+      diffEl.style.padding = '12px';
+      diffEl.style.maxHeight = '300px';
+      diffEl.style.overflowY = 'auto';
+      diffEl.style.fontSize = '12px';
+      diffEl.style.lineHeight = '1.4';
+      
+      // Apply syntax highlighting to diff lines
+      if (s.suggestionText) {
+        const lines = s.suggestionText.split('\n');
+        lines.forEach(line => {
+          const lineEl = diffEl.createEl('div');
+          if (line.startsWith('+')) {
+            lineEl.style.backgroundColor = '#d4edda';
+            lineEl.style.color = '#155724';
+          } else if (line.startsWith('-')) {
+            lineEl.style.backgroundColor = '#f8d7da';
+            lineEl.style.color = '#721c24';
+          }
+          lineEl.textContent = line;
+        });
+      } else {
+        diffEl.textContent = '(No suggestion text)';
+      }
 
       const btnRow = container.createDiv('suggestion-btn-row');
       const acceptBtn = btnRow.createEl('button', { text: 'Accept' });
       const rejectBtn = btnRow.createEl('button', { text: 'Reject' });
+      
+      acceptBtn.style.backgroundColor = '#28a745';
+      acceptBtn.style.color = 'white';
+      acceptBtn.style.border = 'none';
+      acceptBtn.style.padding = '8px 16px';
+      acceptBtn.style.marginRight = '8px';
+      acceptBtn.style.borderRadius = '4px';
+      acceptBtn.style.cursor = 'pointer';
+      
+      rejectBtn.style.backgroundColor = '#dc3545';
+      rejectBtn.style.color = 'white';
+      rejectBtn.style.border = 'none';
+      rejectBtn.style.padding = '8px 16px';
+      rejectBtn.style.borderRadius = '4px';
+      rejectBtn.style.cursor = 'pointer';
 
       acceptBtn.onclick = async () => {
         try {
@@ -117,18 +170,23 @@ class FileChangeSuggestionsModal extends Modal {
         // Remove this suggestion and re-render
         this.suggestions.splice(idx, 1);
         this.renderSuggestions();
+        if (this.suggestions.length === 0) {
+          this.close();
+        }
       };
       rejectBtn.onclick = async () => {
         try {
           if (s.onReject) await s.onReject();
-          await removeSuggestionBlockFromFile(this.app.vault, s.file);
-          new Notice('Suggestion rejected and cleaned up');
+          new Notice('Suggestion rejected');
         } catch (e) {
           new Notice('Failed to reject suggestion: ' + (e?.message || e));
         }
         // Remove this suggestion and re-render
         this.suggestions.splice(idx, 1);
         this.renderSuggestions();
+        if (this.suggestions.length === 0) {
+          this.close();
+        }
       };
     });
   }
@@ -184,7 +242,9 @@ export function formatSuggestionForDisplay(suggestionText: string): string {
 }
 
 /**
- * Inserts a suggestion block inline at a specific line in the editor.
+ * DEPRECATED: Inserts a suggestion block inline at a specific line in the editor.
+ * This function directly modifies the file content which is not the desired behavior.
+ * Use showFileChangeSuggestionsModal instead.
  * @param editor The Obsidian Editor instance.
  * @param suggestionText The suggestion or diff string.
  * @param line The line number to insert the suggestion at.
@@ -194,12 +254,15 @@ export function showInlineFileChangeSuggestion(
   suggestionText: string,
   line: number
 ) {
-  const suggestionBlock = createSuggestionBlock(suggestionText);
-  editor.replaceRange(suggestionBlock, { line, ch: 0 });
+  // DEPRECATED: This directly modifies the file which pollutes it with suggestion blocks
+  // const suggestionBlock = createSuggestionBlock(suggestionText);
+  // editor.replaceRange(suggestionBlock, { line, ch: 0 });
+  console.warn('showInlineFileChangeSuggestion is deprecated. Use showFileChangeSuggestionsModal instead.');
 }
 
 /**
- * Highlights a line in the editor to indicate a suggested change.
+ * DEPRECATED: Highlights a line in the editor to indicate a suggested change.
+ * This function uses CodeMirror methods that are not available on the Obsidian Editor interface.
  * @param editor The Obsidian Editor instance.
  * @param line The line number to highlight.
  * @param className Optional: CSS class for custom highlight styling.
@@ -211,13 +274,15 @@ export function highlightFileChangeSuggestion(
   className = 'ai-suggestion-highlight',
   duration = 2000
 ) {
+  // DEPRECATED: These CodeMirror methods are not available on Obsidian's Editor interface
   // @ts-ignore: CodeMirror's addLineClass is available in Obsidian's Editor but is not part of the TypeScript definitions.
-  const handle = editor.addLineClass(line, 'background', className);
-  setTimeout(() => {
-    // @ts-ignore: CodeMirror's removeLineClass is available in Obsidian's Editor.
-    // @ts-ignore: CodeMirror's removeLineClass is available in Obsidian's Editor but not in its type definitions.
-    editor.removeLineClass(line, 'background', className);
-  }, duration);
+  // const handle = editor.addLineClass(line, 'background', className);
+  // setTimeout(() => {
+  //   // @ts-ignore: CodeMirror's removeLineClass is available in Obsidian's Editor.
+  //   // @ts-ignore: CodeMirror's removeLineClass is available in Obsidian's Editor but not in its type definitions.
+  //   editor.removeLineClass(line, 'background', className);
+  // }, duration);
+  console.warn('highlightFileChangeSuggestion is deprecated due to unsupported CodeMirror methods.');
 }
 
 // Constants for button symbols
@@ -263,8 +328,9 @@ function createSuggestionWidget(
 }
 
 /**
- * Renders inline suggestions with highlights and strikethroughs, and adds accept/reject widgets.
- * This mimics the visuals and UX of obsidian-proofreader.
+ * DEPRECATED: Renders inline suggestions with highlights and strikethroughs, and adds accept/reject widgets.
+ * This function uses CodeMirror methods that are not available on the Obsidian Editor interface.
+ * Use showFileChangeSuggestionsModal instead.
  * @param editor The Obsidian Editor instance.
  * @param changes Array of change objects, each with `from`, `to`, `text`, and `type` ('add' | 'remove').
  * @param onAccept Callback for accepting a specific change.
@@ -281,21 +347,24 @@ export function renderInlineSuggestions(
   onAccept: (changeIdx: number) => void,
   onReject: (changeIdx: number) => void
 ) {
-  const batchSize = 50; // Process changes in batches of 50
-  for (let i = 0; i < changes.length; i += batchSize) {
-    const batch = changes.slice(i, i + batchSize);
-    batch.forEach((change, idx) => {
-      const className = change.type === 'add' ? 'ai-suggestion-add' : 'ai-suggestion-remove';
-      // @ts-ignore: CodeMirror's markText is available in Obsidian's Editor but is not part of the TypeScript definitions for the Editor interface.
-      editor.markText(change.from, change.to, {
-        className,
-        clearOnEnter: false,
-        title: change.type === 'add' ? 'Suggested addition' : 'Suggested removal',
-      });
-      // @ts-ignore: CodeMirror's addWidget is available in Obsidian's Editor but is not included in the TypeScript type definitions.
-      editor.addWidget(change.to, createSuggestionWidget(idx + i, onAccept, onReject), false);
-    });
-  }
+  // DEPRECATED: These CodeMirror methods are not available on Obsidian's Editor interface
+  console.warn('renderInlineSuggestions is deprecated due to unsupported CodeMirror methods. Use showFileChangeSuggestionsModal instead.');
+  
+  // const batchSize = 50; // Process changes in batches of 50
+  // for (let i = 0; i < changes.length; i += batchSize) {
+  //   const batch = changes.slice(i, i + batchSize);
+  //   batch.forEach((change, idx) => {
+  //     const className = change.type === 'add' ? 'ai-suggestion-add' : 'ai-suggestion-remove';
+  //     // @ts-ignore: CodeMirror's markText is available in Obsidian's Editor but is not part of the TypeScript definitions for the Editor interface.
+  //     editor.markText(change.from, change.to, {
+  //       className,
+  //       clearOnEnter: false,
+  //       title: change.type === 'add' ? 'Suggested addition' : 'Suggested removal',
+  //     });
+  //     // @ts-ignore: CodeMirror's addWidget is available in Obsidian's Editor but is not included in the TypeScript type definitions.
+  //     editor.addWidget(change.to, createSuggestionWidget(idx + i, onAccept, onReject), false);
+  //   });
+  // }
 }
 
 /**
@@ -434,16 +503,45 @@ export class FileDiffTool implements Tool {
             }
 
             const currentContent = originalContent || await this.app.vault.read(file);
-            debugLog(debugMode, 'debug', '[FileDiffTool] Current content loaded. Only suggest action supported.');
+            debugLog(debugMode, 'debug', '[FileDiffTool] Current content loaded.');
 
-            // Use inline suggestion if editor is provided
-            if (editor) {
-                return await this.showInlineSuggestion(editor, file, currentContent, suggestedContent, insertPosition, debugMode);
+            // Try to get or open an editor for the target file
+            let activeEditor = editor;
+            if (!activeEditor) {
+                activeEditor = await this.getOrOpenFileEditor(file, debugMode);
+            }
+
+            // Use inline suggestion if editor is available
+            if (activeEditor) {
+                return await this.showInlineSuggestion(activeEditor, file, currentContent, suggestedContent, insertPosition, debugMode);
             } else {
-                // Fallback: return error or message
+                // Fallback: generate diff and return it as suggestion without requiring editor
+                debugLog(debugMode, 'debug', '[FileDiffTool] No editor available, generating text-based diff suggestion');
+                const diff = this.generateDiff(currentContent, suggestedContent, debugMode);
+                
+                if (diff.length === 0) {
+                    debugLog(debugMode, 'debug', '[FileDiffTool] No changes detected');
+                    return {
+                        success: true,
+                        data: {
+                            action: 'suggest',
+                            filePath: file.path,
+                            message: 'No changes detected between current and suggested content'
+                        }
+                    };
+                }
+
+                // Return the diff as a suggestion that can be displayed in the chat
                 return {
-                    success: false,
-                    error: 'Editor instance required for inline suggestions.'
+                    success: true,
+                    data: {
+                        action: 'suggest',
+                        filePath: file.path,
+                        diff: diff,
+                        originalContent: currentContent,
+                        suggestedContent: suggestedContent,
+                        message: `Suggested changes for ${file.path}:\n\n${diff}`
+                    }
                 };
             }
         } catch (error: any) {
@@ -472,18 +570,34 @@ export class FileDiffTool implements Tool {
             };
         }
 
-        // Insert inline suggestion at the specified position or at the end
-        const line = insertPosition !== undefined ? insertPosition : editor.lastLine();
-        showInlineFileChangeSuggestion(editor, diff, line);
-        highlightFileChangeSuggestion(editor, line);
+        // Instead of inserting into the file or using unsupported editor methods,
+        // show a modal with the suggestion that allows accept/reject
+        debugLog(debugMode, 'debug', '[FileDiffTool] Showing file change suggestion modal');
+        
+        const suggestion: FileChangeSuggestion = {
+            file: file,
+            suggestionText: diff,
+            onAccept: async () => {
+                debugLog(debugMode, 'debug', '[FileDiffTool] User accepted suggestion');
+                await this.app.vault.modify(file, suggestedContent);
+                new Notice(`Applied changes to ${file.path}`);
+            },
+            onReject: async () => {
+                debugLog(debugMode, 'debug', '[FileDiffTool] User rejected suggestion');
+                // Nothing to do on reject since we didn't modify the file yet
+                new Notice(`Rejected changes to ${file.path}`);
+            }
+        };
+
+        showFileChangeSuggestionsModal(this.app, [suggestion]);
 
         return {
             success: true,
             data: {
-                action: 'inline-suggest',
+                action: 'modal-suggest',
                 filePath: file.path,
                 diff,
-                line
+                message: `Showing diff suggestion modal for ${file.path}`
             }
         };
     }
@@ -507,5 +621,92 @@ export class FileDiffTool implements Tool {
         }
         debugLog(debugMode, 'debug', '[FileDiffTool] Diff result:', diff);
         return diff.join('\n');
+    }
+
+    /**
+     * Gets an editor for the specified file, opening it if necessary
+     */
+    private async getOrOpenFileEditor(file: TFile, debugMode: boolean): Promise<Editor | undefined> {
+        debugLog(debugMode, 'debug', '[FileDiffTool] Attempting to get or open editor for file:', file.path);
+        
+        try {
+            // First, check if the file is already open in any leaf
+            const leaves = this.app.workspace.getLeavesOfType('markdown');
+            for (const leaf of leaves) {
+                if (leaf.view && 'file' in leaf.view && leaf.view.file === file) {
+                    debugLog(debugMode, 'debug', '[FileDiffTool] Found existing editor for file');
+                    if ('editor' in leaf.view && leaf.view.editor) {
+                        // Make this leaf active
+                        this.app.workspace.setActiveLeaf(leaf);
+                        return leaf.view.editor as Editor;
+                    }
+                }
+            }
+            
+            // File is not open, try to open it
+            debugLog(debugMode, 'debug', '[FileDiffTool] File not open, attempting to open it');
+            const leaf = this.app.workspace.getUnpinnedLeaf();
+            if (leaf) {
+                await leaf.openFile(file);
+                // Wait a bit for the view to initialize
+                await new Promise(resolve => setTimeout(resolve, 100));
+                
+                if (leaf.view && 'editor' in leaf.view && leaf.view.editor) {
+                    debugLog(debugMode, 'debug', '[FileDiffTool] Successfully opened file and got editor');
+                    return leaf.view.editor as Editor;
+                }
+            }
+            
+            debugLog(debugMode, 'warn', '[FileDiffTool] Could not get or create editor for file');
+            return undefined;
+        } catch (error) {
+            debugLog(debugMode, 'error', '[FileDiffTool] Error getting or opening editor:', error);
+            return undefined;
+        }
+    }
+
+    /**
+     * Utility function to clean up any remaining suggestion blocks from a file
+     * Can be called manually if needed to remove leftover suggestion blocks
+     */
+    async cleanupSuggestionBlocks(filePath: string): Promise<ToolResult> {
+        try {
+            const file = this.app.vault.getAbstractFileByPath(filePath);
+            if (!isTFile(file)) {
+                return {
+                    success: false,
+                    error: `File not found: ${filePath}`
+                };
+            }
+
+            const content = await this.app.vault.read(file);
+            const cleanedContent = content.replace(/```suggestion[\s\S]*?```\s*/gm, '');
+            
+            if (content !== cleanedContent) {
+                await this.app.vault.modify(file, cleanedContent);
+                return {
+                    success: true,
+                    data: {
+                        action: 'cleanup',
+                        filePath: file.path,
+                        message: 'Cleaned up suggestion blocks from file'
+                    }
+                };
+            } else {
+                return {
+                    success: true,
+                    data: {
+                        action: 'cleanup',
+                        filePath: file.path,
+                        message: 'No suggestion blocks found to clean up'
+                    }
+                };
+            }
+        } catch (error: any) {
+            return {
+                success: false,
+                error: `Failed to clean up suggestion blocks: ${error.message}`
+            };
+        }
     }
 }

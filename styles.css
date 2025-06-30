@@ -1167,143 +1167,110 @@
     padding: 1em;
 }
 
-/* === Backup Management UI === */
-.backup-file-section {
-    margin-bottom: 2rem;
+/* Suggestion containers in the modal */
+.suggestion-container {
+    margin-bottom: 1.5rem;
     padding: 1rem;
     border: 1px solid var(--background-modifier-border);
     border-radius: var(--border-radius);
     background: var(--background-secondary);
 }
 
-.backup-file-path {
-    margin: 0 0 1rem 0;
-    font-size: 1.1em;
+.suggestion-container h4 {
+    margin: 0 0 0.75rem 0;
     color: var(--text-accent);
-    word-break: break-all;
+    font-weight: 600;
+    font-size: 1.1em;
 }
 
-.backup-list {
-    margin-bottom: 1rem;
+/* Enhanced diff display styling */
+.suggestion-diff {
+    font-family: var(--font-monospace) !important;
+    background-color: var(--background-primary) !important;
+    border: 1px solid var(--background-modifier-border) !important;
+    border-radius: var(--border-radius) !important;
+    padding: 0.75rem !important;
+    margin: 0.75rem 0 !important;
+    max-height: 300px !important;
+    overflow-y: auto !important;
+    font-size: 0.85em !important;
+    line-height: 1.4 !important;
 }
 
-.backup-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 0.5rem;
-    margin-bottom: 0.5rem;
-    background: var(--background-primary);
-    border-radius: var(--border-radius);
-    border: 1px solid var(--background-modifier-border);
+.suggestion-diff div {
+    padding: 2px 4px;
+    margin: 1px 0;
+    border-radius: 2px;
 }
 
-.backup-info {
-    flex: 1;
-    margin-right: 1rem;
+/* Green background for added lines */
+.suggestion-diff div[style*="background-color: #d4edda"] {
+    background-color: var(--color-green-rgb, 40, 167, 69) !important;
+    background: rgba(var(--color-green-rgb, 40, 167, 69), 0.1) !important;
+    color: var(--color-green) !important;
+    border-left: 3px solid var(--color-green);
+    padding-left: 8px;
 }
 
-.backup-timestamp {
-    font-family: var(--font-monospace);
-    font-size: 0.9em;
-    color: var(--text-muted);
+/* Red background for removed lines */
+.suggestion-diff div[style*="background-color: #f8d7da"] {
+    background-color: var(--color-red-rgb, 220, 53, 69) !important;
+    background: rgba(var(--color-red-rgb, 220, 53, 69), 0.1) !important;
+    color: var(--color-red) !important;
+    border-left: 3px solid var(--color-red);
+    padding-left: 8px;
 }
 
-.backup-actions {
+/* Button row styling */
+.suggestion-btn-row {
     display: flex;
     gap: 0.5rem;
+    margin-top: 1rem;
+    justify-content: flex-end;
 }
 
-.backup-actions button {
-    padding: 0.3rem 0.8rem;
-    font-size: 0.8em;
-    border: none;
-    border-radius: var(--border-radius);
-    cursor: pointer;
-    transition: var(--transition);
+.suggestion-btn-row button {
+    border: none !important;
+    padding: 0.5rem 1rem !important;
+    border-radius: var(--border-radius) !important;
+    cursor: pointer !important;
+    font-weight: 500 !important;
+    transition: var(--transition) !important;
 }
 
-.backup-actions button.mod-cta {
-    background: var(--interactive-accent);
-    color: var(--text-on-accent);
+.suggestion-btn-row button:hover {
+    opacity: 0.9 !important;
+    transform: translateY(-1px);
 }
 
-.backup-actions button.mod-warning {
-    background: var(--color-red);
-    color: var(--text-on-accent);
+.suggestion-btn-row button:active {
+    transform: translateY(0);
 }
 
-.backup-actions button.mod-muted {
-    background: var(--background-modifier-border);
-    color: var(--text-normal);
+/* Accept button - green */
+.suggestion-btn-row button:first-child {
+    background-color: var(--color-green) !important;
+    color: white !important;
 }
 
-.backup-actions button:hover {
-    opacity: 0.8;
+.suggestion-btn-row button:first-child:hover {
+    background-color: #218838 !important;
 }
 
-/* Mobile responsive backup management */
-@media (max-width: 768px) {
-    .backup-item {
-        flex-direction: column;
-        align-items: stretch;
-    }
-    
-    .backup-info {
-        margin-right: 0;
-        margin-bottom: 0.5rem;
-    }
-    
-    .backup-actions {
-        justify-content: center;
-    }
+/* Reject button - red */
+.suggestion-btn-row button:last-child {
+    background-color: var(--color-red) !important;
+    color: white !important;
 }
 
-/* === EMBEDDED TOOL DISPLAYS ===
-   Styles for tool displays embedded within assistant messages.
-   -------------------------------------------------------------------------- */
-
-/* Style for embedded tool displays within messages */
-.embedded-tool-display {
-    margin: 12px 0;
-    border-left: 3px solid var(--interactive-accent);
-    padding-left: 12px;
-    background: var(--background-secondary);
-    border-radius: var(--border-radius);
-    padding: 8px 12px;
+.suggestion-btn-row button:last-child:hover {
+    background-color: #c82333 !important;
 }
 
-.embedded-tool-display .tool-rich-display {
-    background: transparent;
-    border: none;
-    margin: 0;
+/* No suggestions message */
+.no-suggestions {
+    text-align: center;
+    padding: 2rem;
+    color: var(--text-muted);
+    font-style: italic;
 }
-
-/* Separate text parts in messages with tool displays */
-.message-text-part {
-    margin-bottom: 8px;
-}
-
-.message-text-part:last-of-type {
-    margin-bottom: 0;
-}
-
-/* Hide legacy tool displays - use class-based approach for better compatibility */
-.ai-chat-message.has-rich-tools .message-content > pre code,
-.ai-chat-message.has-rich-tools .message-content > .tool-call-display,
-.ai-chat-message.has-rich-tools .message-content > .tool-result-display,
-.ai-chat-message.has-rich-tools .message-content > .legacy-tool-display {
-    display: none !important;
-}
-
-/* Hide legacy tool execution text when tool displays are present */
-.ai-chat-message.has-rich-tools .message-content .tool-execution-legacy {
-    display: none !important;
-}
-
-/* Hide any JSON code blocks in messages with rich tools */
-.ai-chat-message.has-rich-tools .message-content pre:not(.embedded-tool-display pre) {
-    display: none !important;
-}
-
-/* ...existing tool styles... */

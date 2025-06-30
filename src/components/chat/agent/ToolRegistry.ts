@@ -48,20 +48,57 @@ export class ToolRegistry {
             let parameters = { ...command.parameters };
             if (tool.name === 'file_diff' && !parameters.editor) {
                 const app = this.plugin?.app;
-                if (app?.workspace?.activeLeaf?.view?.editor) {
-                    parameters.editor = app.workspace.activeLeaf.view.editor;
-                } else {
-                    // Try getting the active editor from the workspace
+                
+                // Try multiple approaches to get an active editor
+                let editor = null;
+                
+                // Method 1: Try activeLeaf view editor
+                try {
+                    if (app?.workspace?.activeLeaf?.view?.editor) {
+                        editor = app.workspace.activeLeaf.view.editor;
+                    }
+                } catch (error) {
+                    // Ignore errors
+                }
+                
+                // Method 2: Try getting active markdown view
+                if (!editor) {
                     try {
-                        const markdownViewType = app?.workspace?.viewRegistry?.getTypeByID?.('markdown');
-                        if (markdownViewType) {
-                            const activeView = app?.workspace?.getActiveViewOfType?.(markdownViewType);
-                            if (activeView?.editor) {
-                                parameters.editor = activeView.editor;
+                        const activeView = app?.workspace?.getActiveViewOfType?.(app?.workspace?.viewRegistry?.getTypeByID?.('markdown'));
+                        if (activeView?.editor) {
+                            editor = activeView.editor;
+                        }
+                    } catch (error) {
+                        // Ignore errors
+                    }
+                }
+                
+                // Method 3: Try getting any markdown view with an editor
+                if (!editor) {
+                    try {
+                        const leaves = app?.workspace?.getLeavesOfType?.('markdown');
+                        if (leaves && leaves.length > 0) {
+                            for (const leaf of leaves) {
+                                if (leaf.view?.editor) {
+                                    editor = leaf.view.editor;
+                                    break;
+                                }
                             }
                         }
                     } catch (error) {
-                        // Silently ignore errors trying to get active markdown view
+                        // Ignore errors
+                    }
+                }
+                
+                // Only add editor if we found one - FileDiffTool will handle the case where no editor is available
+                if (editor) {
+                    parameters.editor = editor;
+                    if (this.plugin && this.plugin.settings && this.plugin.settings.debugMode) {
+                        this.plugin.debugLog('[ToolRegistry] Injected editor for file_diff tool');
+                    }
+                } else {
+                    if (this.plugin && this.plugin.settings && this.plugin.settings.debugMode) {
+                        this.plugin.debugLog('[ToolRegistry] No editor available for file_diff tool, will use fallback mode');
                     }
                 }
             }

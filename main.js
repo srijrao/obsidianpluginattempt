@@ -1344,22 +1344,10 @@ var init_logger = __esm({
 });
 
 // src/components/chat/agent/tools/FileDiffTool.ts
-function createSuggestionBlock(suggestionText) {
-  return `\`\`\`suggestion
-${suggestionText}
-\`\`\``;
+function showFileChangeSuggestionsModal(app, suggestions) {
+  new FileChangeSuggestionsModal(app, suggestions).open();
 }
-function showInlineFileChangeSuggestion(editor, suggestionText, line) {
-  const suggestionBlock = createSuggestionBlock(suggestionText);
-  editor.replaceRange(suggestionBlock, { line, ch: 0 });
-}
-function highlightFileChangeSuggestion(editor, line, className = "ai-suggestion-highlight", duration = 2e3) {
-  const handle = editor.addLineClass(line, "background", className);
-  setTimeout(() => {
-    editor.removeLineClass(line, "background", className);
-  }, duration);
-}
-var import_obsidian, FileDiffTool;
+var import_obsidian, FileChangeSuggestionsModal, FileDiffTool;
 var init_FileDiffTool = __esm({
   "src/components/chat/agent/tools/FileDiffTool.ts"() {
     import_obsidian = require("obsidian");
@@ -1367,6 +1355,108 @@ var init_FileDiffTool = __esm({
     init_pathValidation();
     init_logger();
     init_typeguards();
+    FileChangeSuggestionsModal = class extends import_obsidian.Modal {
+      constructor(app, suggestions) {
+        super(app);
+        __publicField(this, "suggestions");
+        this.suggestions = suggestions;
+      }
+      async onOpen() {
+        const { contentEl } = this;
+        contentEl.empty();
+        contentEl.addClass("ai-assistant-modal");
+        contentEl.style.minWidth = "600px";
+        contentEl.style.maxWidth = "80vw";
+        contentEl.style.minHeight = "400px";
+        contentEl.style.maxHeight = "80vh";
+        contentEl.style.overflowY = "auto";
+        contentEl.createEl("h2", { text: "File Change Suggestions" });
+        this.renderSuggestions();
+      }
+      renderSuggestions() {
+        const { contentEl } = this;
+        Array.from(contentEl.querySelectorAll(".suggestion-container, .no-suggestions")).forEach((el) => el.remove());
+        if (!this.suggestions.length) {
+          contentEl.createEl("div", { text: "No suggestions available.", cls: "no-suggestions" });
+          return;
+        }
+        this.suggestions.forEach((s, idx) => {
+          var _a2;
+          const container = contentEl.createDiv("suggestion-container");
+          container.createEl("h4", { text: ((_a2 = s.file) == null ? void 0 : _a2.path) || "(No file path)" });
+          const diffEl = container.createEl("pre", { cls: "suggestion-diff" });
+          diffEl.style.backgroundColor = "#f5f5f5";
+          diffEl.style.border = "1px solid #ddd";
+          diffEl.style.borderRadius = "4px";
+          diffEl.style.padding = "12px";
+          diffEl.style.maxHeight = "300px";
+          diffEl.style.overflowY = "auto";
+          diffEl.style.fontSize = "12px";
+          diffEl.style.lineHeight = "1.4";
+          if (s.suggestionText) {
+            const lines = s.suggestionText.split("\n");
+            lines.forEach((line) => {
+              const lineEl = diffEl.createEl("div");
+              if (line.startsWith("+")) {
+                lineEl.style.backgroundColor = "#d4edda";
+                lineEl.style.color = "#155724";
+              } else if (line.startsWith("-")) {
+                lineEl.style.backgroundColor = "#f8d7da";
+                lineEl.style.color = "#721c24";
+              }
+              lineEl.textContent = line;
+            });
+          } else {
+            diffEl.textContent = "(No suggestion text)";
+          }
+          const btnRow = container.createDiv("suggestion-btn-row");
+          const acceptBtn = btnRow.createEl("button", { text: "Accept" });
+          const rejectBtn = btnRow.createEl("button", { text: "Reject" });
+          acceptBtn.style.backgroundColor = "#28a745";
+          acceptBtn.style.color = "white";
+          acceptBtn.style.border = "none";
+          acceptBtn.style.padding = "8px 16px";
+          acceptBtn.style.marginRight = "8px";
+          acceptBtn.style.borderRadius = "4px";
+          acceptBtn.style.cursor = "pointer";
+          rejectBtn.style.backgroundColor = "#dc3545";
+          rejectBtn.style.color = "white";
+          rejectBtn.style.border = "none";
+          rejectBtn.style.padding = "8px 16px";
+          rejectBtn.style.borderRadius = "4px";
+          rejectBtn.style.cursor = "pointer";
+          acceptBtn.onclick = async () => {
+            try {
+              if (s.onAccept) await s.onAccept();
+              new import_obsidian.Notice("Suggestion accepted");
+            } catch (e) {
+              new import_obsidian.Notice("Failed to accept suggestion: " + ((e == null ? void 0 : e.message) || e));
+            }
+            this.suggestions.splice(idx, 1);
+            this.renderSuggestions();
+            if (this.suggestions.length === 0) {
+              this.close();
+            }
+          };
+          rejectBtn.onclick = async () => {
+            try {
+              if (s.onReject) await s.onReject();
+              new import_obsidian.Notice("Suggestion rejected");
+            } catch (e) {
+              new import_obsidian.Notice("Failed to reject suggestion: " + ((e == null ? void 0 : e.message) || e));
+            }
+            this.suggestions.splice(idx, 1);
+            this.renderSuggestions();
+            if (this.suggestions.length === 0) {
+              this.close();
+            }
+          };
+        });
+      }
+      onClose() {
+        this.contentEl.empty();
+      }
+    };
     FileDiffTool = class {
       constructor(app) {
         this.app = app;
@@ -1440,13 +1530,39 @@ var init_FileDiffTool = __esm({
             };
           }
           const currentContent = originalContent || await this.app.vault.read(file);
-          debugLog(debugMode, "debug", "[FileDiffTool] Current content loaded. Only suggest action supported.");
-          if (editor) {
-            return await this.showInlineSuggestion(editor, file, currentContent, suggestedContent, insertPosition, debugMode);
+          debugLog(debugMode, "debug", "[FileDiffTool] Current content loaded.");
+          let activeEditor = editor;
+          if (!activeEditor) {
+            activeEditor = await this.getOrOpenFileEditor(file, debugMode);
+          }
+          if (activeEditor) {
+            return await this.showInlineSuggestion(activeEditor, file, currentContent, suggestedContent, insertPosition, debugMode);
           } else {
+            debugLog(debugMode, "debug", "[FileDiffTool] No editor available, generating text-based diff suggestion");
+            const diff = this.generateDiff(currentContent, suggestedContent, debugMode);
+            if (diff.length === 0) {
+              debugLog(debugMode, "debug", "[FileDiffTool] No changes detected");
+              return {
+                success: true,
+                data: {
+                  action: "suggest",
+                  filePath: file.path,
+                  message: "No changes detected between current and suggested content"
+                }
+              };
+            }
             return {
-              success: false,
-              error: "Editor instance required for inline suggestions."
+              success: true,
+              data: {
+                action: "suggest",
+                filePath: file.path,
+                diff,
+                originalContent: currentContent,
+                suggestedContent,
+                message: `Suggested changes for ${file.path}:
+
+${diff}`
+              }
             };
           }
         } catch (error) {
@@ -1472,16 +1588,28 @@ var init_FileDiffTool = __esm({
             }
           };
         }
-        const line = insertPosition !== void 0 ? insertPosition : editor.lastLine();
-        showInlineFileChangeSuggestion(editor, diff, line);
-        highlightFileChangeSuggestion(editor, line);
+        debugLog(debugMode, "debug", "[FileDiffTool] Showing file change suggestion modal");
+        const suggestion = {
+          file,
+          suggestionText: diff,
+          onAccept: async () => {
+            debugLog(debugMode, "debug", "[FileDiffTool] User accepted suggestion");
+            await this.app.vault.modify(file, suggestedContent);
+            new import_obsidian.Notice(`Applied changes to ${file.path}`);
+          },
+          onReject: async () => {
+            debugLog(debugMode, "debug", "[FileDiffTool] User rejected suggestion");
+            new import_obsidian.Notice(`Rejected changes to ${file.path}`);
+          }
+        };
+        showFileChangeSuggestionsModal(this.app, [suggestion]);
         return {
           success: true,
           data: {
-            action: "inline-suggest",
+            action: "modal-suggest",
             filePath: file.path,
             diff,
-            line
+            message: `Showing diff suggestion modal for ${file.path}`
           }
         };
       }
@@ -1502,6 +1630,81 @@ var init_FileDiffTool = __esm({
         }
         debugLog(debugMode, "debug", "[FileDiffTool] Diff result:", diff);
         return diff.join("\n");
+      }
+      /**
+       * Gets an editor for the specified file, opening it if necessary
+       */
+      async getOrOpenFileEditor(file, debugMode) {
+        debugLog(debugMode, "debug", "[FileDiffTool] Attempting to get or open editor for file:", file.path);
+        try {
+          const leaves = this.app.workspace.getLeavesOfType("markdown");
+          for (const leaf2 of leaves) {
+            if (leaf2.view && "file" in leaf2.view && leaf2.view.file === file) {
+              debugLog(debugMode, "debug", "[FileDiffTool] Found existing editor for file");
+              if ("editor" in leaf2.view && leaf2.view.editor) {
+                this.app.workspace.setActiveLeaf(leaf2);
+                return leaf2.view.editor;
+              }
+            }
+          }
+          debugLog(debugMode, "debug", "[FileDiffTool] File not open, attempting to open it");
+          const leaf = this.app.workspace.getUnpinnedLeaf();
+          if (leaf) {
+            await leaf.openFile(file);
+            await new Promise((resolve) => setTimeout(resolve, 100));
+            if (leaf.view && "editor" in leaf.view && leaf.view.editor) {
+              debugLog(debugMode, "debug", "[FileDiffTool] Successfully opened file and got editor");
+              return leaf.view.editor;
+            }
+          }
+          debugLog(debugMode, "warn", "[FileDiffTool] Could not get or create editor for file");
+          return void 0;
+        } catch (error) {
+          debugLog(debugMode, "error", "[FileDiffTool] Error getting or opening editor:", error);
+          return void 0;
+        }
+      }
+      /**
+       * Utility function to clean up any remaining suggestion blocks from a file
+       * Can be called manually if needed to remove leftover suggestion blocks
+       */
+      async cleanupSuggestionBlocks(filePath) {
+        try {
+          const file = this.app.vault.getAbstractFileByPath(filePath);
+          if (!isTFile(file)) {
+            return {
+              success: false,
+              error: `File not found: ${filePath}`
+            };
+          }
+          const content = await this.app.vault.read(file);
+          const cleanedContent = content.replace(/```suggestion[\s\S]*?```\s*/gm, "");
+          if (content !== cleanedContent) {
+            await this.app.vault.modify(file, cleanedContent);
+            return {
+              success: true,
+              data: {
+                action: "cleanup",
+                filePath: file.path,
+                message: "Cleaned up suggestion blocks from file"
+              }
+            };
+          } else {
+            return {
+              success: true,
+              data: {
+                action: "cleanup",
+                filePath: file.path,
+                message: "No suggestion blocks found to clean up"
+              }
+            };
+          }
+        } catch (error) {
+          return {
+            success: false,
+            error: `Failed to clean up suggestion blocks: ${error.message}`
+          };
+        }
       }
     };
   }
@@ -12586,7 +12789,7 @@ var ToolRegistry = class {
     }
   }
   async execute(command) {
-    var _a2, _b, _c, _d, _e, _f, _g, _h, _i;
+    var _a2, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l;
     const tool = this.tools.get(command.action);
     if (!tool) {
       if (this.plugin && this.plugin.settings && this.plugin.settings.debugMode) {
@@ -12605,18 +12808,44 @@ var ToolRegistry = class {
       let parameters = { ...command.parameters };
       if (tool.name === "file_diff" && !parameters.editor) {
         const app = (_a2 = this.plugin) == null ? void 0 : _a2.app;
-        if ((_d = (_c = (_b = app == null ? void 0 : app.workspace) == null ? void 0 : _b.activeLeaf) == null ? void 0 : _c.view) == null ? void 0 : _d.editor) {
-          parameters.editor = app.workspace.activeLeaf.view.editor;
-        } else {
+        let editor = null;
+        try {
+          if ((_d = (_c = (_b = app == null ? void 0 : app.workspace) == null ? void 0 : _b.activeLeaf) == null ? void 0 : _c.view) == null ? void 0 : _d.editor) {
+            editor = app.workspace.activeLeaf.view.editor;
+          }
+        } catch (error) {
+        }
+        if (!editor) {
           try {
-            const markdownViewType = (_g = (_f = (_e = app == null ? void 0 : app.workspace) == null ? void 0 : _e.viewRegistry) == null ? void 0 : _f.getTypeByID) == null ? void 0 : _g.call(_f, "markdown");
-            if (markdownViewType) {
-              const activeView = (_i = (_h = app == null ? void 0 : app.workspace) == null ? void 0 : _h.getActiveViewOfType) == null ? void 0 : _i.call(_h, markdownViewType);
-              if (activeView == null ? void 0 : activeView.editor) {
-                parameters.editor = activeView.editor;
+            const activeView = (_i = (_e = app == null ? void 0 : app.workspace) == null ? void 0 : _e.getActiveViewOfType) == null ? void 0 : _i.call(_e, (_h = (_g = (_f = app == null ? void 0 : app.workspace) == null ? void 0 : _f.viewRegistry) == null ? void 0 : _g.getTypeByID) == null ? void 0 : _h.call(_g, "markdown"));
+            if (activeView == null ? void 0 : activeView.editor) {
+              editor = activeView.editor;
+            }
+          } catch (error) {
+          }
+        }
+        if (!editor) {
+          try {
+            const leaves = (_k = (_j = app == null ? void 0 : app.workspace) == null ? void 0 : _j.getLeavesOfType) == null ? void 0 : _k.call(_j, "markdown");
+            if (leaves && leaves.length > 0) {
+              for (const leaf of leaves) {
+                if ((_l = leaf.view) == null ? void 0 : _l.editor) {
+                  editor = leaf.view.editor;
+                  break;
+                }
               }
             }
           } catch (error) {
+          }
+        }
+        if (editor) {
+          parameters.editor = editor;
+          if (this.plugin && this.plugin.settings && this.plugin.settings.debugMode) {
+            this.plugin.debugLog("[ToolRegistry] Injected editor for file_diff tool");
+          }
+        } else {
+          if (this.plugin && this.plugin.settings && this.plugin.settings.debugMode) {
+            this.plugin.debugLog("[ToolRegistry] No editor available for file_diff tool, will use fallback mode");
           }
         }
       }
