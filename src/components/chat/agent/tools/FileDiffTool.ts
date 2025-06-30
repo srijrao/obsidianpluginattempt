@@ -7,6 +7,7 @@ import {
     formatSuggestionForDisplay 
 } from './../../../../components/chat/filediffhandler';
 import { PathValidator } from './pathValidation';
+import { debugLog } from '../../../../utils/logger';
 
 export interface FileDiffParams {
     path: string;
@@ -19,7 +20,8 @@ export interface FileDiffParams {
 
 export class FileDiffTool implements Tool {
     name = 'file_diff';
-    description = 'Manages file changes: compares content, applies modifications, or presents suggestions for user review. This tool is essential for precise file manipulation and collaborative editing workflows.';    parameters = {
+    description = 'Manages file changes: presents suggestions for user review. This tool is essential for precise file manipulation and collaborative editing workflows.';
+    parameters = {
         path: {
             type: 'string',
             description: 'Path to the file.',
@@ -35,12 +37,6 @@ export class FileDiffTool implements Tool {
             description: 'New content for the file.',
             required: true
         },
-        action: {
-            type: 'string',
-            enum: ['compare', 'apply', 'suggest'],
-            description: 'Action: compare, apply, or suggest changes.',
-            default: 'suggest'
-        },
         insertPosition: {
             type: 'number',
             description: 'Line number for suggestion insertion.',
@@ -52,14 +48,20 @@ export class FileDiffTool implements Tool {
 
     constructor(private app: App) {
         this.pathValidator = new PathValidator(app);
-    }    async execute(params: FileDiffParams, context: any): Promise<ToolResult> {
+    }
+
+    async execute(params: FileDiffParams, context: any): Promise<ToolResult> {
+        const debugMode = context?.plugin?.settings?.debugMode ?? true;
+        debugLog(debugMode, 'debug', '[FileDiffTool] execute called with params:', params);
+
         // Normalize parameter names for backward compatibility
         const inputPath = params.path || params.filePath;
         // Fallback: support legacy 'text' param as 'suggestedContent'
         const suggestedContent = params.suggestedContent || (params as any).text;
-        const { originalContent, action = 'suggest', insertPosition } = params;
+        const { originalContent, insertPosition } = params;
 
         if (inputPath === undefined || inputPath === null) {
+            debugLog(debugMode, 'warn', '[FileDiffTool] Missing path parameter');
             return {
                 success: false,
                 error: 'path parameter is required'
@@ -70,7 +72,9 @@ export class FileDiffTool implements Tool {
         let filePath: string;
         try {
             filePath = this.pathValidator.validateAndNormalizePath(inputPath);
+            debugLog(debugMode, 'debug', '[FileDiffTool] Normalized filePath:', filePath);
         } catch (error: any) {
+            debugLog(debugMode, 'error', '[FileDiffTool] Path validation failed:', error);
             return {
                 success: false,
                 error: `Path validation failed: ${error.message}`
@@ -78,6 +82,7 @@ export class FileDiffTool implements Tool {
         }
 
         if (!suggestedContent) {
+            debugLog(debugMode, 'warn', '[FileDiffTool] Missing suggestedContent parameter');
             return {
                 success: false,
                 error: 'suggestedContent parameter is required'
@@ -86,8 +91,10 @@ export class FileDiffTool implements Tool {
 
         try {
             const file = this.app.vault.getAbstractFileByPath(filePath);
-            
+            debugLog(debugMode, 'debug', '[FileDiffTool] Got file:', file);
+
             if (!file || !(file instanceof TFile)) {
+                debugLog(debugMode, 'warn', '[FileDiffTool] File not found or not a TFile:', filePath);
                 return {
                     success: false,
                     error: `File not found: ${filePath}`
@@ -95,19 +102,12 @@ export class FileDiffTool implements Tool {
             }
 
             const currentContent = originalContent || await this.app.vault.read(file);
+            debugLog(debugMode, 'debug', '[FileDiffTool] Current content loaded. Only suggest action supported.');
 
-            switch (action) {
-                case 'compare':
-                    return this.compareFiles(currentContent, suggestedContent, filePath);
-                
-                case 'apply':
-                    return this.applyChanges(file, suggestedContent);
-                
-                case 'suggest':
-                default:
-                    return this.showSuggestion(file, currentContent, suggestedContent, insertPosition);
-            }
+            // Always show suggestion
+            return await this.showSuggestion(file, currentContent, suggestedContent, insertPosition, debugMode);
         } catch (error: any) {
+            debugLog(debugMode, 'error', '[FileDiffTool] Failed to process file diff:', error);
             return {
                 success: false,
                 error: `Failed to process file diff: ${error.message}`
@@ -115,50 +115,13 @@ export class FileDiffTool implements Tool {
         }
     }
 
-    private compareFiles(originalContent: string, suggestedContent: string, filePath: string): ToolResult {
-        const diff = this.generateDiff(originalContent, suggestedContent);
-        
-        return {
-            success: true,
-            data: {
-                action: 'compare',
-                filePath,
-                diff,
-                formattedDiff: formatSuggestionForDisplay(diff),
-                hasChanges: diff.length > 0
-            }
-        };
-    }
+    async showSuggestion(file: TFile, currentContent: string, suggestedContent: string, insertPosition: number | undefined, debugMode: boolean): Promise<ToolResult> {
+        debugLog(debugMode, 'debug', '[FileDiffTool] showSuggestion called');
+        const diff = this.generateDiff(currentContent, suggestedContent, debugMode);
+        debugLog(debugMode, 'debug', '[FileDiffTool] Suggestion diff:', diff);
 
-    private async applyChanges(file: TFile, suggestedContent: string): Promise<ToolResult> {
-        try {
-            await this.app.vault.modify(file, suggestedContent);
-            
-            return {
-                success: true,
-                data: {
-                    action: 'apply',
-                    filePath: file.path,
-                    size: suggestedContent.length
-                }
-            };
-        } catch (error: any) {
-            return {
-                success: false,
-                error: `Failed to apply changes: ${error.message}`
-            };
-        }
-    }
-
-    private async showSuggestion(
-        file: TFile, 
-        originalContent: string, 
-        suggestedContent: string, 
-        insertPosition?: number
-    ): Promise<ToolResult> {
-        const diff = this.generateDiff(originalContent, suggestedContent);
-        
         if (diff.length === 0) {
+            debugLog(debugMode, 'debug', '[FileDiffTool] No changes detected');
             return {
                 success: true,
                 data: {
@@ -175,18 +138,22 @@ export class FileDiffTool implements Tool {
                 file,
                 suggestionText: diff,
                 onAccept: () => {
+                    debugLog(debugMode, 'debug', '[FileDiffTool] Suggestion accepted for file:', file.path);
                     this.app.vault.modify(file, suggestedContent);
                 },
                 onReject: () => {
+                    debugLog(debugMode, 'debug', '[FileDiffTool] Suggestion rejected for file:', file.path);
                     // Do nothing on reject
                 }
             };
 
             // Option 1: Show modal UI
+            debugLog(debugMode, 'debug', '[FileDiffTool] Showing file change suggestions modal');
             showFileChangeSuggestionsModal(this.app, [suggestion]);
 
             // Option 2: Insert suggestion block into file (if insertPosition provided)
             if (insertPosition !== undefined) {
+                debugLog(debugMode, 'debug', '[FileDiffTool] Inserting suggestion block at position:', insertPosition);
                 await insertFileChangeSuggestion(this.app.vault, file, diff, insertPosition);
             }
 
@@ -200,6 +167,7 @@ export class FileDiffTool implements Tool {
                 }
             };
         } catch (error: any) {
+            debugLog(debugMode, 'error', '[FileDiffTool] Failed to show suggestion:', error);
             return {
                 success: false,
                 error: `Failed to show suggestion: ${error.message}`
@@ -207,8 +175,9 @@ export class FileDiffTool implements Tool {
         }
     }
 
-    private generateDiff(original: string, suggested: string): string {
+    private generateDiff(original: string, suggested: string, debugMode: boolean): string {
         // TODO: For large files, consider using a more efficient diff algorithm/library (e.g. diff-match-patch)
+        debugLog(debugMode, 'debug', '[FileDiffTool] generateDiff called');
         const originalLines = original.split('\n');
         const suggestedLines = suggested.split('\n');
         const diff: string[] = [];
@@ -227,6 +196,7 @@ export class FileDiffTool implements Tool {
                 }
             }
         }
+        debugLog(debugMode, 'debug', '[FileDiffTool] Diff result:', diff);
         return diff.join('\n');
     }
 }

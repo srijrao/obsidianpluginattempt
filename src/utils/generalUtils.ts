@@ -1,3 +1,5 @@
+import { debugLog } from './logger';
+
 /**
  * Creates a debounced version of a function that delays invoking func until after wait milliseconds
  * have elapsed since the last time the debounced function was invoked.
@@ -36,7 +38,7 @@ export async function copyToClipboard(text: string, successMsg = 'Copied to clip
         showNotice(successMsg);
     } catch (error) {
         showNotice(failMsg);
-        console.error('Clipboard error:', error);
+        debugLog(true, 'error', 'Clipboard error:', error);
     }
 }
 

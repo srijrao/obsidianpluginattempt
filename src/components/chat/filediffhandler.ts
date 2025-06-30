@@ -45,6 +45,18 @@ export async function insertFileChangeSuggestion(
 }
 
 /**
+ * Removes the first suggestion block (```suggestion ...```) from a file.
+ * @param vault The Obsidian Vault instance.
+ * @param file The TFile to clean up.
+ */
+export async function removeSuggestionBlockFromFile(vault: Vault, file: TFile): Promise<void> {
+  const content = await vault.read(file);
+  // Regex to match a suggestion code block (greedy, multiline)
+  const newContent = content.replace(/```suggestion[\s\S]*?```\s*/m, '');
+  await vault.modify(file, newContent);
+}
+
+/**
  * Modal dialog to display multiple file change suggestions.
  */
 class FileChangeSuggestionsModal extends Modal {
@@ -75,9 +87,10 @@ class FileChangeSuggestionsModal extends Modal {
         new Notice('Suggestion accepted');
         this.close();
       };
-      rejectBtn.onclick = () => {
+      rejectBtn.onclick = async () => {
         s.onReject?.();
-        new Notice('Suggestion rejected');
+        await removeSuggestionBlockFromFile(this.app.vault, s.file);
+        new Notice('Suggestion rejected and cleaned up');
         this.close();
       };
     });

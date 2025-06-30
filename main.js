@@ -721,8 +721,8 @@ var init_BackupManager = __esm({
             }
           } catch (mkdirError) {
           }
-          const debug3 = (_a2 = window == null ? void 0 : window.aiAssistantPlugin) == null ? void 0 : _a2.debugMode;
-          const json2 = debug3 ? JSON.stringify(backupData, null, 2) : JSON.stringify(backupData);
+          const debug2 = (_a2 = window == null ? void 0 : window.aiAssistantPlugin) == null ? void 0 : _a2.debugMode;
+          const json2 = debug2 ? JSON.stringify(backupData, null, 2) : JSON.stringify(backupData);
           await adapter.write(this.backupFilePath, json2);
         } catch (error) {
           console.error("Failed to save backup data:", error);
@@ -1056,16 +1056,13 @@ async function insertFileChangeSuggestion(vault, file, suggestionText, position)
   }
   await vault.modify(file, lines.join("\n"));
 }
+async function removeSuggestionBlockFromFile(vault, file) {
+  const content = await vault.read(file);
+  const newContent = content.replace(/```suggestion[\s\S]*?```\s*/m, "");
+  await vault.modify(file, newContent);
+}
 function showFileChangeSuggestionsModal(app, suggestions) {
   new FileChangeSuggestionsModal(app, suggestions).open();
-}
-function formatSuggestionForDisplay(suggestionText) {
-  const html = suggestionText.split("\n").map((line) => {
-    if (line.startsWith("+")) return `<span class="suggestion-add">${line}</span>`;
-    if (line.startsWith("-")) return `<span class="suggestion-remove">${line}</span>`;
-    return line;
-  }).join("<br>");
-  return `<pre>${html}</pre>`;
 }
 var import_obsidian4, FileChangeSuggestionsModal;
 var init_filediffhandler = __esm({
@@ -1095,10 +1092,11 @@ var init_filediffhandler = __esm({
             new import_obsidian4.Notice("Suggestion accepted");
             this.close();
           };
-          rejectBtn.onclick = () => {
+          rejectBtn.onclick = async () => {
             var _a2;
             (_a2 = s.onReject) == null ? void 0 : _a2.call(s);
-            new import_obsidian4.Notice("Suggestion rejected");
+            await removeSuggestionBlockFromFile(this.app.vault, s.file);
+            new import_obsidian4.Notice("Suggestion rejected and cleaned up");
             this.close();
           };
         });
@@ -1110,6 +1108,30 @@ var init_filediffhandler = __esm({
   }
 });
 
+// src/utils/logger.ts
+function debugLog(debugMode, level = "debug", ...args) {
+  if (!debugMode) return;
+  const timestamp2 = (/* @__PURE__ */ new Date()).toISOString();
+  const prefix = `[AI Assistant ${level.toUpperCase()} ${timestamp2}]`;
+  switch (level) {
+    case "info":
+      console.info(prefix, ...args);
+      break;
+    case "warn":
+      console.warn(prefix, ...args);
+      break;
+    case "error":
+      console.error(prefix, ...args);
+      break;
+    default:
+      console.debug(prefix, ...args);
+  }
+}
+var init_logger = __esm({
+  "src/utils/logger.ts"() {
+  }
+});
+
 // src/components/chat/agent/tools/FileDiffTool.ts
 var import_obsidian5, FileDiffTool;
 var init_FileDiffTool = __esm({
@@ -1117,11 +1139,12 @@ var init_FileDiffTool = __esm({
     import_obsidian5 = require("obsidian");
     init_filediffhandler();
     init_pathValidation();
+    init_logger();
     FileDiffTool = class {
       constructor(app) {
         this.app = app;
         __publicField(this, "name", "file_diff");
-        __publicField(this, "description", "Manages file changes: compares content, applies modifications, or presents suggestions for user review. This tool is essential for precise file manipulation and collaborative editing workflows.");
+        __publicField(this, "description", "Manages file changes: presents suggestions for user review. This tool is essential for precise file manipulation and collaborative editing workflows.");
         __publicField(this, "parameters", {
           path: {
             type: "string",
@@ -1138,12 +1161,6 @@ var init_FileDiffTool = __esm({
             description: "New content for the file.",
             required: true
           },
-          action: {
-            type: "string",
-            enum: ["compare", "apply", "suggest"],
-            description: "Action: compare, apply, or suggest changes.",
-            default: "suggest"
-          },
           insertPosition: {
             type: "number",
             description: "Line number for suggestion insertion.",
@@ -1154,10 +1171,14 @@ var init_FileDiffTool = __esm({
         this.pathValidator = new PathValidator(app);
       }
       async execute(params, context) {
+        var _a2, _b, _c;
+        const debugMode = (_c = (_b = (_a2 = context == null ? void 0 : context.plugin) == null ? void 0 : _a2.settings) == null ? void 0 : _b.debugMode) != null ? _c : true;
+        debugLog(debugMode, "debug", "[FileDiffTool] execute called with params:", params);
         const inputPath = params.path || params.filePath;
         const suggestedContent = params.suggestedContent || params.text;
-        const { originalContent, action = "suggest", insertPosition } = params;
+        const { originalContent, insertPosition } = params;
         if (inputPath === void 0 || inputPath === null) {
+          debugLog(debugMode, "warn", "[FileDiffTool] Missing path parameter");
           return {
             success: false,
             error: "path parameter is required"
@@ -1166,13 +1187,16 @@ var init_FileDiffTool = __esm({
         let filePath;
         try {
           filePath = this.pathValidator.validateAndNormalizePath(inputPath);
+          debugLog(debugMode, "debug", "[FileDiffTool] Normalized filePath:", filePath);
         } catch (error) {
+          debugLog(debugMode, "error", "[FileDiffTool] Path validation failed:", error);
           return {
             success: false,
             error: `Path validation failed: ${error.message}`
           };
         }
         if (!suggestedContent) {
+          debugLog(debugMode, "warn", "[FileDiffTool] Missing suggestedContent parameter");
           return {
             success: false,
             error: "suggestedContent parameter is required"
@@ -1180,63 +1204,31 @@ var init_FileDiffTool = __esm({
         }
         try {
           const file = this.app.vault.getAbstractFileByPath(filePath);
+          debugLog(debugMode, "debug", "[FileDiffTool] Got file:", file);
           if (!file || !(file instanceof import_obsidian5.TFile)) {
+            debugLog(debugMode, "warn", "[FileDiffTool] File not found or not a TFile:", filePath);
             return {
               success: false,
               error: `File not found: ${filePath}`
             };
           }
           const currentContent = originalContent || await this.app.vault.read(file);
-          switch (action) {
-            case "compare":
-              return this.compareFiles(currentContent, suggestedContent, filePath);
-            case "apply":
-              return this.applyChanges(file, suggestedContent);
-            case "suggest":
-            default:
-              return this.showSuggestion(file, currentContent, suggestedContent, insertPosition);
-          }
+          debugLog(debugMode, "debug", "[FileDiffTool] Current content loaded. Only suggest action supported.");
+          return await this.showSuggestion(file, currentContent, suggestedContent, insertPosition, debugMode);
         } catch (error) {
+          debugLog(debugMode, "error", "[FileDiffTool] Failed to process file diff:", error);
           return {
             success: false,
             error: `Failed to process file diff: ${error.message}`
           };
         }
       }
-      compareFiles(originalContent, suggestedContent, filePath) {
-        const diff = this.generateDiff(originalContent, suggestedContent);
-        return {
-          success: true,
-          data: {
-            action: "compare",
-            filePath,
-            diff,
-            formattedDiff: formatSuggestionForDisplay(diff),
-            hasChanges: diff.length > 0
-          }
-        };
-      }
-      async applyChanges(file, suggestedContent) {
-        try {
-          await this.app.vault.modify(file, suggestedContent);
-          return {
-            success: true,
-            data: {
-              action: "apply",
-              filePath: file.path,
-              size: suggestedContent.length
-            }
-          };
-        } catch (error) {
-          return {
-            success: false,
-            error: `Failed to apply changes: ${error.message}`
-          };
-        }
-      }
-      async showSuggestion(file, originalContent, suggestedContent, insertPosition) {
-        const diff = this.generateDiff(originalContent, suggestedContent);
+      async showSuggestion(file, currentContent, suggestedContent, insertPosition, debugMode) {
+        debugLog(debugMode, "debug", "[FileDiffTool] showSuggestion called");
+        const diff = this.generateDiff(currentContent, suggestedContent, debugMode);
+        debugLog(debugMode, "debug", "[FileDiffTool] Suggestion diff:", diff);
         if (diff.length === 0) {
+          debugLog(debugMode, "debug", "[FileDiffTool] No changes detected");
           return {
             success: true,
             data: {
@@ -1251,13 +1243,17 @@ var init_FileDiffTool = __esm({
             file,
             suggestionText: diff,
             onAccept: () => {
+              debugLog(debugMode, "debug", "[FileDiffTool] Suggestion accepted for file:", file.path);
               this.app.vault.modify(file, suggestedContent);
             },
             onReject: () => {
+              debugLog(debugMode, "debug", "[FileDiffTool] Suggestion rejected for file:", file.path);
             }
           };
+          debugLog(debugMode, "debug", "[FileDiffTool] Showing file change suggestions modal");
           showFileChangeSuggestionsModal(this.app, [suggestion]);
           if (insertPosition !== void 0) {
+            debugLog(debugMode, "debug", "[FileDiffTool] Inserting suggestion block at position:", insertPosition);
             await insertFileChangeSuggestion(this.app.vault, file, diff, insertPosition);
           }
           return {
@@ -1270,13 +1266,15 @@ var init_FileDiffTool = __esm({
             }
           };
         } catch (error) {
+          debugLog(debugMode, "error", "[FileDiffTool] Failed to show suggestion:", error);
           return {
             success: false,
             error: `Failed to show suggestion: ${error.message}`
           };
         }
       }
-      generateDiff(original, suggested) {
+      generateDiff(original, suggested, debugMode) {
+        debugLog(debugMode, "debug", "[FileDiffTool] generateDiff called");
         const originalLines = original.split("\n");
         const suggestedLines = suggested.split("\n");
         const diff = [];
@@ -1295,6 +1293,7 @@ var init_FileDiffTool = __esm({
             }
           }
         }
+        debugLog(debugMode, "debug", "[FileDiffTool] Diff result:", diff);
         return diff.join("\n");
       }
     };
@@ -3077,6 +3076,7 @@ var init_MessageRenderer = __esm({
   "src/components/chat/MessageRenderer.ts"() {
     import_obsidian14 = require("obsidian");
     init_ToolRichDisplay();
+    init_logger();
     MessageRenderer = class {
       constructor(app) {
         this.app = app;
@@ -3085,9 +3085,7 @@ var init_MessageRenderer = __esm({
        * Update message container with enhanced reasoning and task status data
        */
       updateMessageWithEnhancedData(container, messageData, component) {
-        if (window.aiAssistantPlugin && typeof window.aiAssistantPlugin.debugLog === "function") {
-          window.aiAssistantPlugin.debugLog("debug", "[MessageRenderer] updateMessageWithEnhancedData called", { messageData });
-        }
+        debugLog(true, "debug", "[MessageRenderer] updateMessageWithEnhancedData called", { messageData });
         const existingReasoning = container.querySelector(".reasoning-container");
         const existingTaskStatus = container.querySelector(".task-status-container");
         if (existingReasoning) existingReasoning.remove();
@@ -3121,9 +3119,7 @@ var init_MessageRenderer = __esm({
        */
       createReasoningSection(reasoning) {
         var _a2;
-        if (window.aiAssistantPlugin && typeof window.aiAssistantPlugin.debugLog === "function") {
-          window.aiAssistantPlugin.debugLog("debug", "[MessageRenderer] createReasoningSection called", { reasoning });
-        }
+        debugLog(true, "debug", "[MessageRenderer] createReasoningSection called", { reasoning });
         const reasoningContainer = document.createElement("div");
         reasoningContainer.className = "reasoning-container";
         const header = document.createElement("div");
@@ -11529,14 +11525,9 @@ function generateTableOfContents(noteContent) {
     return `${"  ".repeat(level - 1)}- ${title}`;
   }).join("\n");
 }
-function debug2(...args) {
-  if (DEBUG) {
-    console.log("[DEBUG]", ...args);
-  }
-}
 async function generateNoteTitle(app, settings, processMessages2) {
   var _a2, _b;
-  debug2("Starting generateNoteTitle");
+  debugLog(DEBUG, "debug", "Starting generateNoteTitle");
   const activeFile = app.workspace.getActiveFile();
   if (!activeFile) {
     new import_obsidian28.Notice("No active note found.");
@@ -11548,26 +11539,26 @@ async function generateNoteTitle(app, settings, processMessages2) {
   const prompt = DEFAULT_TITLE_PROMPT;
   const userContent = (toc && toc.trim().length > 0 ? "Table of Contents:\n" + toc + "\n\n" : "") + noteContent;
   try {
-    debug2("Provider:", settings.provider);
+    debugLog(DEBUG, "debug", "Provider:", settings.provider);
     const provider = settings.selectedModel ? createProviderFromUnifiedModel(settings, settings.selectedModel) : createProvider(settings);
     const messages = [
       { role: "system", content: prompt },
       { role: "user", content: userContent }
     ];
-    debug2("Original messages:", JSON.stringify(messages));
+    debugLog(DEBUG, "debug", "Original messages:", JSON.stringify(messages));
     const originalEnableContextNotes = settings.enableContextNotes;
-    debug2("Original enableContextNotes:", originalEnableContextNotes);
+    debugLog(DEBUG, "debug", "Original enableContextNotes:", originalEnableContextNotes);
     settings.enableContextNotes = false;
     try {
       const processedMessages = await processMessages2(messages);
-      debug2("Processed messages:", JSON.stringify(processedMessages));
+      debugLog(DEBUG, "debug", "Processed messages:", JSON.stringify(processedMessages));
       settings.enableContextNotes = originalEnableContextNotes;
       if (!processedMessages || processedMessages.length === 0) {
-        debug2("No processed messages!");
+        debugLog(DEBUG, "debug", "No processed messages!");
         new import_obsidian28.Notice("No valid messages to send to the model. Please check your note content.");
         return;
       }
-      debug2("Calling provider.getCompletion");
+      debugLog(DEBUG, "debug", "Calling provider.getCompletion");
       let resultBuffer = "";
       await provider.getCompletion(processedMessages, {
         temperature: 0,
@@ -11575,14 +11566,14 @@ async function generateNoteTitle(app, settings, processMessages2) {
           resultBuffer += chunk;
         }
       });
-      debug2("Result from provider (buffered):", resultBuffer);
+      debugLog(DEBUG, "debug", "Result from provider (buffered):", resultBuffer);
       let title = resultBuffer.trim();
-      debug2("Extracted title before sanitization:", title);
+      debugLog(DEBUG, "debug", "Extracted title before sanitization:", title);
       title = title.replace(/[\\/:]/g, "").trim();
-      debug2("Sanitized title:", title);
+      debugLog(DEBUG, "debug", "Sanitized title:", title);
       if (title && typeof title === "string" && title.length > 0) {
         const outputMode = (_a2 = settings.titleOutputMode) != null ? _a2 : "clipboard";
-        debug2("Output mode:", outputMode);
+        debugLog(DEBUG, "debug", "Output mode:", outputMode);
         if (outputMode === "replace-filename") {
           const file = app.workspace.getActiveFile();
           if (file) {
@@ -11612,11 +11603,11 @@ async function generateNoteTitle(app, settings, processMessages2) {
           }
         }
       } else {
-        debug2("No title generated after sanitization.");
+        debugLog(DEBUG, "debug", "No title generated after sanitization.");
         new import_obsidian28.Notice("No title generated.");
       }
     } catch (processError) {
-      debug2("Error in processMessages or provider.getCompletion:", processError);
+      debugLog(DEBUG, "debug", "Error in processMessages or provider.getCompletion:", processError);
       settings.enableContextNotes = originalEnableContextNotes;
       throw processError;
     }
@@ -11625,7 +11616,7 @@ async function generateNoteTitle(app, settings, processMessages2) {
   }
 }
 async function generateYamlAttribute(app, settings, processMessages2, attributeName, prompt, outputMode = "metadata") {
-  debug2(`Starting generateYamlAttribute for ${attributeName}`);
+  debugLog(DEBUG, "debug", `Starting generateYamlAttribute for ${attributeName}`);
   const activeFile = app.workspace.getActiveFile();
   if (!activeFile) {
     new import_obsidian28.Notice("No active note found.");
@@ -11637,20 +11628,20 @@ async function generateYamlAttribute(app, settings, processMessages2, attributeN
     { role: "system", content: DEFAULT_YAML_SYSTEM_MESSAGE },
     { role: "user", content: prompt + "\n\n" + noteContent }
   ];
-  debug2("Original messages:", JSON.stringify(messages));
+  debugLog(DEBUG, "debug", "Original messages:", JSON.stringify(messages));
   const originalEnableContextNotes = settings.enableContextNotes;
-  debug2("Original enableContextNotes:", originalEnableContextNotes);
+  debugLog(DEBUG, "debug", "Original enableContextNotes:", originalEnableContextNotes);
   settings.enableContextNotes = false;
   try {
     const processedMessages = await processMessages2(messages);
-    debug2("Processed messages:", JSON.stringify(processedMessages));
+    debugLog(DEBUG, "debug", "Processed messages:", JSON.stringify(processedMessages));
     settings.enableContextNotes = originalEnableContextNotes;
     if (!processedMessages || processedMessages.length === 0) {
-      debug2("No processed messages!");
+      debugLog(DEBUG, "debug", "No processed messages!");
       new import_obsidian28.Notice("No valid messages to send to the model. Please check your note content.");
       return;
     }
-    debug2("Calling provider.getCompletion");
+    debugLog(DEBUG, "debug", "Calling provider.getCompletion");
     const provider = settings.selectedModel ? createProviderFromUnifiedModel(settings, settings.selectedModel) : createProvider(settings);
     let resultBuffer = "";
     await provider.getCompletion(processedMessages, {
@@ -11659,13 +11650,13 @@ async function generateYamlAttribute(app, settings, processMessages2, attributeN
         resultBuffer += chunk;
       }
     });
-    debug2("Result from provider (buffered):", resultBuffer);
+    debugLog(DEBUG, "debug", "Result from provider (buffered):", resultBuffer);
     let value = resultBuffer.trim();
-    debug2("Extracted value before sanitization:", value);
+    debugLog(DEBUG, "debug", "Extracted value before sanitization:", value);
     value = value.replace(/[\\/]/g, "").trim();
-    debug2("Sanitized value:", value);
+    debugLog(DEBUG, "debug", "Sanitized value:", value);
     if (value && typeof value === "string" && value.length > 0) {
-      debug2("Output mode:", outputMode);
+      debugLog(DEBUG, "debug", "Output mode:", outputMode);
       if (outputMode === "metadata") {
         await upsertYamlField(app, activeFile, attributeName, value);
         new import_obsidian28.Notice(`Inserted ${attributeName} into metadata: ${value}`);
@@ -11678,11 +11669,11 @@ async function generateYamlAttribute(app, settings, processMessages2, attributeN
         }
       }
     } else {
-      debug2(`No value generated for ${attributeName} after sanitization.`);
+      debugLog(DEBUG, "debug", `No value generated for ${attributeName} after sanitization.`);
       new import_obsidian28.Notice(`No value generated for ${attributeName}.`);
     }
   } catch (processError) {
-    debug2("Error in processMessages or provider.getCompletion:", processError);
+    debugLog(DEBUG, "debug", "Error in processMessages or provider.getCompletion:", processError);
     settings.enableContextNotes = originalEnableContextNotes;
     throw processError;
   }
@@ -11754,6 +11745,7 @@ var init_YAMLHandler = __esm({
     init_promptConstants();
     init_pluginUtils();
     init_js_yaml();
+    init_logger();
     DEBUG = true;
   }
 });
@@ -13180,6 +13172,7 @@ The current time is ${currentTime} ${timeZoneString}.`;
 var import_obsidian22 = require("obsidian");
 
 // src/utils/utils.ts
+init_logger();
 function findFile(app, filePath) {
   let file = app.vault.getAbstractFileByPath(filePath) || app.vault.getAbstractFileByPath(`${filePath}.md`);
   if (!file) {
@@ -14651,6 +14644,7 @@ function parseSelection(selection, chatSeparator, chatBoundaryString) {
 }
 
 // src/utils/generalUtils.ts
+init_logger();
 function showNotice(message) {
   const { Notice: Notice17 } = require("obsidian");
   new Notice17(message);
@@ -14661,7 +14655,7 @@ async function copyToClipboard3(text, successMsg = "Copied to clipboard", failMs
     showNotice(successMsg);
   } catch (error) {
     showNotice(failMsg);
-    console.error("Clipboard error:", error);
+    debugLog(true, "error", "Clipboard error:", error);
   }
 }
 function moveCursorAfterInsert(editor, startPos, insertText) {
@@ -16658,25 +16652,8 @@ var ModelSettingsView = class extends import_obsidian34.ItemView {
   }
 };
 
-// src/utils/logger.ts
-function debugLog(debugMode, level = "debug", ...args) {
-  if (!debugMode) return;
-  const timestamp2 = (/* @__PURE__ */ new Date()).toISOString();
-  const prefix = `[AI Assistant ${level.toUpperCase()} ${timestamp2}]`;
-  switch (level) {
-    case "info":
-      console.info(prefix, ...args);
-      break;
-    case "warn":
-      console.warn(prefix, ...args);
-      break;
-    case "error":
-      console.error(prefix, ...args);
-      break;
-    default:
-      console.debug(prefix, ...args);
-  }
-}
+// src/main.ts
+init_logger();
 
 // src/components/chat/agent/agentModeManager.ts
 var AgentModeManager = class {

@@ -4,6 +4,7 @@ import { Message, MyPluginSettings } from "./types";
 import { DEFAULT_TITLE_PROMPT, DEFAULT_SUMMARY_PROMPT, DEFAULT_YAML_SYSTEM_MESSAGE } from "./promptConstants";
 import { registerCommand } from "./utils/pluginUtils";
 import * as yaml from "js-yaml";
+import { debugLog } from "./utils/logger";
 
 /**
  * Generate a Table of Contents from all headers in the note.
@@ -26,18 +27,12 @@ function generateTableOfContents(noteContent: string): string {
 
 const DEBUG = true;
 
-function debug(...args: any[]) {
-    if (DEBUG) {
-        console.log("[DEBUG]", ...args);
-    }
-}
-
 export async function generateNoteTitle(
     app: App,
     settings: MyPluginSettings,
     processMessages: (messages: Message[]) => Promise<Message[]>
 ) {
-    debug("Starting generateNoteTitle");
+    debugLog(DEBUG, 'debug', "Starting generateNoteTitle");
     const activeFile = app.workspace.getActiveFile();
     if (!activeFile) {
         new Notice("No active note found.");
@@ -52,7 +47,7 @@ export async function generateNoteTitle(
     // Use the default title prompt from promptConstants.ts
     const prompt = DEFAULT_TITLE_PROMPT;
     const userContent = (toc && toc.trim().length > 0 ? "Table of Contents:\n" + toc + "\n\n" : "") + noteContent;    try {
-        debug("Provider:", settings.provider);
+        debugLog(DEBUG, 'debug', "Provider:", settings.provider);
         // Use unified model if available, fallback to legacy provider selection
         const provider = settings.selectedModel 
             ? createProviderFromUnifiedModel(settings, settings.selectedModel)
@@ -63,23 +58,23 @@ export async function generateNoteTitle(
             { role: "user", content: userContent }
         ];
 
-        debug("Original messages:", JSON.stringify(messages));
+        debugLog(DEBUG, 'debug', "Original messages:", JSON.stringify(messages));
         const originalEnableContextNotes = settings.enableContextNotes;
-        debug("Original enableContextNotes:", originalEnableContextNotes);
+        debugLog(DEBUG, 'debug', "Original enableContextNotes:", originalEnableContextNotes);
         (settings as any).enableContextNotes = false;
 
         try {
             const processedMessages = await processMessages(messages);
-            debug("Processed messages:", JSON.stringify(processedMessages));
+            debugLog(DEBUG, 'debug', "Processed messages:", JSON.stringify(processedMessages));
             (settings as any).enableContextNotes = originalEnableContextNotes;
 
             if (!processedMessages || processedMessages.length === 0) {
-                debug("No processed messages!");
+                debugLog(DEBUG, 'debug', "No processed messages!");
                 new Notice("No valid messages to send to the model. Please check your note content.");
                 return;
             }
 
-            debug("Calling provider.getCompletion");
+            debugLog(DEBUG, 'debug', "Calling provider.getCompletion");
             let resultBuffer = "";
             await provider.getCompletion(processedMessages, {
                 temperature: 0,
@@ -87,18 +82,18 @@ export async function generateNoteTitle(
                     resultBuffer += chunk;
                 }
             });
-            debug("Result from provider (buffered):", resultBuffer);
+            debugLog(DEBUG, 'debug', "Result from provider (buffered):", resultBuffer);
 
             let title = resultBuffer.trim();
-            debug("Extracted title before sanitization:", title);
+            debugLog(DEBUG, 'debug', "Extracted title before sanitization:", title);
 
             // Remove forbidden characters: backslashes, forward slashes, colons
             title = title.replace(/[\\/:]/g, "").trim();
-            debug("Sanitized title:", title);
+            debugLog(DEBUG, 'debug', "Sanitized title:", title);
 
             if (title && typeof title === "string" && title.length > 0) {
                 const outputMode = settings.titleOutputMode ?? "clipboard";
-                debug("Output mode:", outputMode);
+                debugLog(DEBUG, 'debug', "Output mode:", outputMode);
                 if (outputMode === "replace-filename") {
                     const file = app.workspace.getActiveFile();
                     if (file) {
@@ -128,11 +123,11 @@ export async function generateNoteTitle(
                     }
                 }
             } else {
-                debug("No title generated after sanitization.");
+                debugLog(DEBUG, 'debug', "No title generated after sanitization.");
                 new Notice("No title generated.");
             }
         } catch (processError) {
-            debug("Error in processMessages or provider.getCompletion:", processError);
+            debugLog(DEBUG, 'debug', "Error in processMessages or provider.getCompletion:", processError);
             (settings as any).enableContextNotes = originalEnableContextNotes;
             throw processError;
         }
@@ -153,7 +148,7 @@ export async function generateYamlAttribute(
     prompt: string,
     outputMode: string = "metadata"
 ) {
-    debug(`Starting generateYamlAttribute for ${attributeName}`);
+    debugLog(DEBUG, 'debug', `Starting generateYamlAttribute for ${attributeName}`);
     const activeFile = app.workspace.getActiveFile();
     if (!activeFile) {
         new Notice("No active note found.");
@@ -169,22 +164,22 @@ export async function generateYamlAttribute(
     ];
 
     // Use processMessages for Obsidian link expansion, but skip context notes
-    debug("Original messages:", JSON.stringify(messages));
+    debugLog(DEBUG, 'debug', "Original messages:", JSON.stringify(messages));
     const originalEnableContextNotes = settings.enableContextNotes;
-    debug("Original enableContextNotes:", originalEnableContextNotes);
+    debugLog(DEBUG, 'debug', "Original enableContextNotes:", originalEnableContextNotes);
     (settings as any).enableContextNotes = false;
 
     try {
         const processedMessages = await processMessages(messages);
-        debug("Processed messages:", JSON.stringify(processedMessages));
+        debugLog(DEBUG, 'debug', "Processed messages:", JSON.stringify(processedMessages));
         (settings as any).enableContextNotes = originalEnableContextNotes;
 
         if (!processedMessages || processedMessages.length === 0) {
-            debug("No processed messages!");
+            debugLog(DEBUG, 'debug', "No processed messages!");
             new Notice("No valid messages to send to the model. Please check your note content.");
             return;
         }        // Get completion (buffer streamed output)
-        debug("Calling provider.getCompletion");
+        debugLog(DEBUG, 'debug', "Calling provider.getCompletion");
         // Use unified model if available, fallback to legacy provider selection
         const provider = settings.selectedModel 
             ? createProviderFromUnifiedModel(settings, settings.selectedModel)
@@ -196,15 +191,15 @@ export async function generateYamlAttribute(
                 resultBuffer += chunk;
             }
         });
-        debug("Result from provider (buffered):", resultBuffer);
+        debugLog(DEBUG, 'debug', "Result from provider (buffered):", resultBuffer);
 
         let value = resultBuffer.trim();
-        debug("Extracted value before sanitization:", value);
+        debugLog(DEBUG, 'debug', "Extracted value before sanitization:", value);
         value = value.replace(/[\\/]/g, "").trim(); // Allow colons in YAML values
-        debug("Sanitized value:", value);
+        debugLog(DEBUG, 'debug', "Sanitized value:", value);
 
         if (value && typeof value === "string" && value.length > 0) {
-            debug("Output mode:", outputMode);
+            debugLog(DEBUG, 'debug', "Output mode:", outputMode);
             if (outputMode === "metadata") {
                 // Insert or update attribute in YAML frontmatter using helper
                 await upsertYamlField(app, activeFile, attributeName, value);
@@ -219,11 +214,11 @@ export async function generateYamlAttribute(
                 }
             }
         } else {
-            debug(`No value generated for ${attributeName} after sanitization.`);
+            debugLog(DEBUG, 'debug', `No value generated for ${attributeName} after sanitization.`);
             new Notice(`No value generated for ${attributeName}.`);
         }
     } catch (processError) {
-        debug("Error in processMessages or provider.getCompletion:", processError);
+        debugLog(DEBUG, 'debug', "Error in processMessages or provider.getCompletion:", processError);
         (settings as any).enableContextNotes = originalEnableContextNotes;
         throw processError;
     }
