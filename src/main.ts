@@ -16,6 +16,7 @@ import {
     registerAIStreamCommands,
     registerNoteCommands,
     registerGenerateNoteTitleCommand,
+    registerContextCommands,
     VIEW_TYPE_MODEL_SETTINGS
 } from './components/commands';
 import { registerYamlAttributeCommands } from './YAMLHandler';
@@ -199,6 +200,9 @@ export default class MyPlugin extends Plugin {
             this.settings,
             (messages) => this.processMessages(messages)
         );
+
+        // Register context commands
+        registerContextCommands(this, this.settings);
 
         this.app.workspace.onLayoutReady(() => {
             if (this.settings.autoOpenModelSettings) {
