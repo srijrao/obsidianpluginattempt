@@ -1,5 +1,3 @@
-import { App } from "obsidian";
-import MyPlugin from "../../../../main";
 import { ToolCommand, ToolResult, Message, ReasoningData, TaskStatus, ToolExecutionResult } from "../../../../types";
 import { CommandParser } from "../../CommandParser";
 import { ToolRegistry } from "../ToolRegistry";
@@ -8,12 +6,7 @@ import { createToolInstances } from "../tools/toolcollect";
 import { CONSTANTS } from "./constants";
 import {
     AgentContext,
-    ToolResultFormatStyle,
     NotificationType,
-    TaskStatusType,
-    CommandExecutionContext,
-    ToolExecutionStats,
-    ChatHistoryProcessingResult
 } from "./types";
 import { normalizePath, stringifyJson } from "./utils";
 import { TaskNotificationManager } from "./TaskNotificationManager";
@@ -282,24 +275,6 @@ ${resultData}
         } catch (error: any) {
             console.error(`${CONSTANTS.ERROR_MESSAGES.RERUN_FAILED} ${originalCommand.action}:`, error);
         }
-    }
-
-    private getRelativePath(filePath: string): string {
-        const adapter: any = this.context.app.vault.adapter;
-        const vaultRoot = adapter?.basePath ? normalizePath(adapter.basePath) : "";
-        let relPath = normalizePath(filePath);
-
-        if (vaultRoot && relPath.startsWith(vaultRoot)) {
-            relPath = relPath.slice(vaultRoot.length);
-            if (relPath.startsWith(CONSTANTS.PATH_SEPARATOR)) {
-                relPath = relPath.slice(1);
-            }
-        }
-
-        if (relPath.toLowerCase().endsWith(CONSTANTS.MD_EXTENSION)) {
-            relPath = relPath.slice(0, -CONSTANTS.MD_EXTENSION.length);
-        }
-        return relPath;
     }
 
     private getEffectiveToolLimit(): number {

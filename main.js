@@ -12893,9 +12893,6 @@ var CONSTANTS = {
 };
 
 // src/components/chat/agent/AgentResponseHandler/utils.ts
-function normalizePath2(path) {
-  return path.replace(/\\/g, CONSTANTS.PATH_SEPARATOR);
-}
 function stringifyJson(obj) {
   return JSON.stringify(obj, null, CONSTANTS.JSON_INDENT);
 }
@@ -13465,21 +13462,6 @@ ${resultData}
     } catch (error) {
       console.error(`${CONSTANTS.ERROR_MESSAGES.RERUN_FAILED} ${originalCommand.action}:`, error);
     }
-  }
-  getRelativePath(filePath) {
-    const adapter = this.context.app.vault.adapter;
-    const vaultRoot = (adapter == null ? void 0 : adapter.basePath) ? normalizePath2(adapter.basePath) : "";
-    let relPath = normalizePath2(filePath);
-    if (vaultRoot && relPath.startsWith(vaultRoot)) {
-      relPath = relPath.slice(vaultRoot.length);
-      if (relPath.startsWith(CONSTANTS.PATH_SEPARATOR)) {
-        relPath = relPath.slice(1);
-      }
-    }
-    if (relPath.toLowerCase().endsWith(CONSTANTS.MD_EXTENSION)) {
-      relPath = relPath.slice(0, -CONSTANTS.MD_EXTENSION.length);
-    }
-    return relPath;
   }
   getEffectiveToolLimit() {
     const agentSettings = this.context.plugin.getAgentModeSettings();
