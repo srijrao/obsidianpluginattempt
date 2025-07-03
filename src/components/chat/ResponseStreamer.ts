@@ -86,7 +86,7 @@ export class ResponseStreamer {
             });
 
             // If agent mode is enabled, process the full response for tools/reasoning
-            if (this.plugin.isAgentModeEnabled() && this.agentResponseHandler) {
+            if (this.plugin.agentModeManager.isAgentModeEnabled() && this.agentResponseHandler) {
                 responseContent = await this.processAgentResponse(responseContent, container, messages, "streamer-main", chatHistory);
             }
 
@@ -120,7 +120,7 @@ export class ResponseStreamer {
      */
     private async addAgentSystemPrompt(messages: Message[]) {
         this.plugin.debugLog('debug', '[ResponseStreamer] addAgentSystemPrompt called', { messages });
-        if (!this.plugin.isAgentModeEnabled()) return;
+        if (!this.plugin.agentModeManager.isAgentModeEnabled()) return;
 
         // Dynamically import the agent prompt builder
         const { buildAgentSystemPrompt } = await import('../../promptConstants');

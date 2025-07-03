@@ -4,7 +4,7 @@
  * clipboard operations, editor manipulations, file searching, and content extraction.
  */
 
-import { debugLog } from './logger';
+import { log } from './logger';
 
 /**
  * Creates a debounced version of a function that delays invoking func until after wait milliseconds
@@ -44,7 +44,7 @@ export async function copyToClipboard(text: string, successMsg = 'Copied to clip
         showNotice(successMsg);
     } catch (error) {
         showNotice(failMsg);
-        debugLog(true, 'error', 'Clipboard error:', error);
+        log(true, 'error', 'Clipboard error:', error);
     }
 }
 

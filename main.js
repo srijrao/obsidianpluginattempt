@@ -1407,6 +1407,9 @@ function debugLog(debugMode, level = "debug", ...args) {
       console.debug(prefix, ...args);
   }
 }
+function log(debugMode, level = "debug", ...args) {
+  debugLog(debugMode, level, ...args);
+}
 var init_logger = __esm({
   "src/utils/logger.ts"() {
   }
@@ -6839,69 +6842,43 @@ var init_base2 = __esm({
       /**
        * Handle common HTTP errors
        */
-      handleHttpError(error) {
+      async handleHttpError(error) {
+        let status;
+        let errorBody;
         if (error instanceof Response) {
-          const status2 = error.status;
-          switch (status2) {
-            case 401:
-              throw new ProviderError(
-                "invalid_api_key" /* InvalidApiKey */,
-                "Invalid API key",
-                status2
-              );
-            case 429:
-              throw new ProviderError(
-                "rate_limit" /* RateLimit */,
-                "Rate limit exceeded",
-                status2
-              );
-            case 400:
-              throw new ProviderError(
-                "invalid_request" /* InvalidRequest */,
-                "Invalid request",
-                status2
-              );
-            case 500:
-            case 502:
-            case 503:
-            case 504:
-              throw new ProviderError(
-                "server_error" /* ServerError */,
-                "Server error occurred",
-                status2
-              );
-            default:
-              throw new ProviderError(
-                "server_error" /* ServerError */,
-                `Unknown error occurred: ${status2}`,
-                status2
-              );
+          status = error.status;
+          try {
+            errorBody = await error.json();
+          } catch (e) {
+            errorBody = await error.text();
           }
-        }
-        if (!error.response) {
+        } else if (error.response) {
+          status = error.response.status;
+          errorBody = error.response.data || error.response.text;
+        } else {
           throw new ProviderError(
             "network_error" /* NetworkError */,
             "Network error occurred"
           );
         }
-        const status = error.response.status;
+        const errorMessage = typeof errorBody === "object" && errorBody !== null && "message" in errorBody ? errorBody.message : String(errorBody);
         switch (status) {
           case 401:
             throw new ProviderError(
               "invalid_api_key" /* InvalidApiKey */,
-              "Invalid API key",
+              `Invalid API key: ${errorMessage}`,
               status
             );
           case 429:
             throw new ProviderError(
               "rate_limit" /* RateLimit */,
-              "Rate limit exceeded",
+              `Rate limit exceeded: ${errorMessage}`,
               status
             );
           case 400:
             throw new ProviderError(
               "invalid_request" /* InvalidRequest */,
-              "Invalid request",
+              `Invalid request: ${errorMessage}`,
               status
             );
           case 500:
@@ -6910,13 +6887,13 @@ var init_base2 = __esm({
           case 504:
             throw new ProviderError(
               "server_error" /* ServerError */,
-              "Server error occurred",
+              `Server error occurred: ${errorMessage}`,
               status
             );
           default:
             throw new ProviderError(
               "server_error" /* ServerError */,
-              `Unknown error occurred: ${status}`,
+              `Unknown error occurred (Status: ${status}): ${errorMessage}`,
               status
             );
         }
@@ -10333,6 +10310,7 @@ var init_anthropic = __esm({
   "providers/anthropic.ts"() {
     init_base2();
     init_sdk();
+    init_logger();
     MODEL_CONTEXT_WINDOWS = {
       "claude-3-opus-20240229": 2e5,
       "claude-3-sonnet-20240229": 2e5,
@@ -10354,12 +10332,14 @@ var init_anthropic = __esm({
       // fallback for older haiku
     };
     AnthropicProvider = class extends BaseProvider {
-      constructor(apiKey, model = "claude-3-sonnet-20240229") {
+      // Add debugMode property
+      constructor(apiKey, model = "claude-3-sonnet-20240229", debugMode = false) {
         super();
         __publicField(this, "apiKey");
         __publicField(this, "baseUrl", "https://api.anthropic.com/v1");
         __publicField(this, "model");
         __publicField(this, "client");
+        __publicField(this, "debugMode");
         this.apiKey = apiKey;
         this.model = model;
         this.client = new sdk_default({
@@ -10367,6 +10347,7 @@ var init_anthropic = __esm({
           dangerouslyAllowBrowser: true
           // Required for browser environments
         });
+        this.debugMode = debugMode;
       }
       /**
        * Get a completion from Anthropic
@@ -10394,13 +10375,17 @@ var init_anthropic = __esm({
                 `Input is too long for ${this.model}'s context window. Estimated input tokens: ${inputTokens}, context window: ${contextWindow}`
               );
             }
-            console.log(
+            log(
+              this.debugMode,
+              "info",
               `Adjusting max_tokens from ${maxTokens} to ${adjustedMaxTokens} to fit within ${this.model}'s context window`
             );
             maxTokens = adjustedMaxTokens;
           }
           if (outputTokenLimit && maxTokens > outputTokenLimit) {
-            console.log(
+            log(
+              this.debugMode,
+              "info",
               `Capping max_tokens from ${maxTokens} to model output limit ${outputTokenLimit} for ${this.model}`
             );
             maxTokens = outputTokenLimit;
@@ -10444,7 +10429,7 @@ var init_anthropic = __esm({
               }
             }
           } catch (streamError) {
-            console.error("Error processing Anthropic stream:", streamError);
+            log(this.debugMode, "error", "Error processing Anthropic stream:", streamError);
             throw streamError;
           }
         } catch (error) {
@@ -10452,9 +10437,9 @@ var init_anthropic = __esm({
             throw error;
           }
           if (error.name === "AbortError") {
-            console.log("Anthropic stream was aborted");
+            log(this.debugMode, "info", "Anthropic stream was aborted");
           } else {
-            console.error("Error calling Anthropic:", error);
+            log(this.debugMode, "error", "Error calling Anthropic:", error);
             throw error;
           }
         }
@@ -10472,7 +10457,7 @@ var init_anthropic = __esm({
         try {
           return Object.keys(MODEL_CONTEXT_WINDOWS);
         } catch (error) {
-          console.error("Error getting Anthropic models:", error);
+          log(this.debugMode, "error", "Error getting Anthropic models:", error);
           throw error;
         }
       }
@@ -10528,15 +10513,19 @@ var OpenAIProvider;
 var init_openai = __esm({
   "providers/openai.ts"() {
     init_base2();
+    init_logger();
     OpenAIProvider = class extends BaseProvider {
-      constructor(apiKey, model = "gpt-4", baseUrl) {
+      // Add debugMode property
+      constructor(apiKey, model = "gpt-4", baseUrl, debugMode = false) {
         super();
         __publicField(this, "apiKey");
         __publicField(this, "baseUrl");
         __publicField(this, "model");
+        __publicField(this, "debugMode");
         this.apiKey = apiKey;
         this.model = model;
         this.baseUrl = baseUrl || "https://api.openai.com/v1";
+        this.debugMode = debugMode;
       }
       /**
        * Get a completion from OpenAI
@@ -10585,7 +10574,7 @@ var init_openai = __esm({
                     options.streamCallback(content);
                   }
                 } catch (e) {
-                  console.warn("Error parsing OpenAI response chunk:", e);
+                  log(this.debugMode, "warn", "Error parsing OpenAI response chunk:", e);
                 }
               }
             }
@@ -10595,9 +10584,9 @@ var init_openai = __esm({
             throw error;
           }
           if (error.name === "AbortError") {
-            console.log("OpenAI stream was aborted");
+            log(this.debugMode, "info", "OpenAI stream was aborted");
           } else {
-            console.error("Error calling OpenAI:", error);
+            log(this.debugMode, "error", "Error calling OpenAI:", error);
             throw error;
           }
         }
@@ -10625,7 +10614,7 @@ var init_openai = __esm({
           const data = await response.json();
           return data.data.map((model) => model.id).filter((id) => id.startsWith("gpt-"));
         } catch (error) {
-          console.error("Error fetching OpenAI models:", error);
+          log(this.debugMode, "error", "Error fetching OpenAI models:", error);
           throw error;
         }
       }
@@ -10657,17 +10646,21 @@ var GeminiProvider;
 var init_gemini = __esm({
   "providers/gemini.ts"() {
     init_base2();
+    init_logger();
     GeminiProvider = class extends BaseProvider {
-      constructor(apiKey, model = "gemini-2.0-flash", apiVersion = "v1") {
+      // Add debugMode property
+      constructor(apiKey, model = "gemini-2.0-flash", apiVersion = "v1", debugMode = false) {
         super();
         __publicField(this, "apiKey");
         __publicField(this, "apiVersion");
         __publicField(this, "baseUrl");
         __publicField(this, "model");
+        __publicField(this, "debugMode");
         this.apiKey = apiKey;
         this.model = model;
         this.apiVersion = apiVersion;
         this.baseUrl = `https://generativelanguage.googleapis.com/${this.apiVersion}`;
+        this.debugMode = debugMode;
       }
       /**
        * Determines the correct API version for a given model name.
@@ -10711,21 +10704,21 @@ var init_gemini = __esm({
             throw this.handleHttpError(response);
           }
           const data = await response.json();
-          console.log("Gemini response:", JSON.stringify(data));
+          log(this.debugMode, "debug", "Gemini response:", JSON.stringify(data));
           const text = (_h = (_g = (_f = (_e = (_d = data.candidates) == null ? void 0 : _d[0]) == null ? void 0 : _e.content) == null ? void 0 : _f.parts) == null ? void 0 : _g[0]) == null ? void 0 : _h.text;
           if (text && options.streamCallback) {
             options.streamCallback(text);
           } else {
-            console.warn("No text found in Gemini response:", JSON.stringify(data));
+            log(this.debugMode, "warn", "No text found in Gemini response:", JSON.stringify(data));
           }
         } catch (error) {
           if (error instanceof ProviderError) {
             throw error;
           }
           if (error.name === "AbortError") {
-            console.log("Gemini request was aborted");
+            log(this.debugMode, "info", "Gemini request was aborted");
           } else {
-            console.error("Error calling Gemini:", error);
+            log(this.debugMode, "error", "Error calling Gemini:", error);
             throw error;
           }
         }
@@ -10754,7 +10747,7 @@ var init_gemini = __esm({
           ]);
           return Array.from(/* @__PURE__ */ new Set([...v1Models, ...v1betaModels]));
         } catch (error) {
-          console.error("Error fetching Gemini models:", error);
+          log(this.debugMode, "error", "Error fetching Gemini models:", error);
           throw error;
         }
       }
@@ -10813,15 +10806,19 @@ var OllamaProvider;
 var init_ollama = __esm({
   "providers/ollama.ts"() {
     init_base2();
+    init_logger();
     OllamaProvider = class extends BaseProvider {
-      constructor(serverUrl = "http://localhost:11434", model = "llama2") {
+      // Add debugMode property
+      constructor(serverUrl = "http://localhost:11434", model = "llama2", debugMode = false) {
         super();
         __publicField(this, "apiKey", "");
         // Not used for Ollama
         __publicField(this, "baseUrl");
         __publicField(this, "model");
+        __publicField(this, "debugMode");
         this.baseUrl = serverUrl.replace(/\/$/, "");
         this.model = model;
+        this.debugMode = debugMode;
       }
       /**
        * Convert messages to Ollama format
@@ -10889,7 +10886,7 @@ var init_ollama = __esm({
                     options.streamCallback(data.response);
                   }
                 } catch (e) {
-                  console.warn("Error parsing Ollama response chunk:", e);
+                  log(this.debugMode, "warn", "Error parsing Ollama response chunk:", e);
                 }
               }
             }
@@ -10899,9 +10896,9 @@ var init_ollama = __esm({
             throw error;
           }
           if (error.name === "AbortError") {
-            console.log("Ollama stream was aborted");
+            log(this.debugMode, "info", "Ollama stream was aborted");
           } else {
-            console.error("Error calling Ollama:", error);
+            log(this.debugMode, "error", "Error calling Ollama:", error);
             throw error;
           }
         }
@@ -10923,7 +10920,7 @@ var init_ollama = __esm({
           const data = await response.json();
           return ((_a2 = data.models) == null ? void 0 : _a2.map((model) => model.name)) || [];
         } catch (error) {
-          console.error("Error fetching Ollama models:", error);
+          log(this.debugMode, "error", "Error fetching Ollama models:", error);
           throw error;
         }
       }
@@ -10975,43 +10972,59 @@ __export(providers_exports, {
   getProviderFromUnifiedModel: () => getProviderFromUnifiedModel
 });
 function createProvider(settings) {
+  var _a2, _b, _c, _d;
   switch (settings.provider) {
     case "openai":
       return new OpenAIProvider(
         settings.openaiSettings.apiKey,
         settings.openaiSettings.model,
-        settings.openaiSettings.baseUrl
+        settings.openaiSettings.baseUrl,
+        (_a2 = settings.debugMode) != null ? _a2 : false
+        // Pass debugMode
       );
     case "anthropic":
       return new AnthropicProvider(
         settings.anthropicSettings.apiKey,
-        settings.anthropicSettings.model
+        settings.anthropicSettings.model,
+        (_b = settings.debugMode) != null ? _b : false
+        // Pass debugMode
       );
     case "gemini":
       return new GeminiProvider(
         settings.geminiSettings.apiKey,
-        settings.geminiSettings.model
+        settings.geminiSettings.model,
+        void 0,
+        // apiVersion is optional, so pass undefined if not explicitly set
+        (_c = settings.debugMode) != null ? _c : false
+        // Pass debugMode
       );
     case "ollama":
       return new OllamaProvider(
         settings.ollamaSettings.serverUrl,
-        settings.ollamaSettings.model
+        settings.ollamaSettings.model,
+        (_d = settings.debugMode) != null ? _d : false
+        // Pass debugMode
       );
     default:
       throw new Error(`Invalid provider type: ${settings.provider}`);
   }
 }
 function createProviderFromUnifiedModel(settings, unifiedModelId) {
+  var _a2, _b, _c, _d;
   const [providerType, modelId] = unifiedModelId.split(":", 2);
   switch (providerType) {
     case "openai":
-      return new OpenAIProvider(settings.openaiSettings.apiKey, modelId, settings.openaiSettings.baseUrl);
+      return new OpenAIProvider(settings.openaiSettings.apiKey, modelId, settings.openaiSettings.baseUrl, (_a2 = settings.debugMode) != null ? _a2 : false);
+    // Pass debugMode
     case "anthropic":
-      return new AnthropicProvider(settings.anthropicSettings.apiKey, modelId);
+      return new AnthropicProvider(settings.anthropicSettings.apiKey, modelId, (_b = settings.debugMode) != null ? _b : false);
+    // Pass debugMode
     case "gemini":
-      return new GeminiProvider(settings.geminiSettings.apiKey, modelId);
+      return new GeminiProvider(settings.geminiSettings.apiKey, modelId, void 0, (_c = settings.debugMode) != null ? _c : false);
+    // Pass debugMode
     case "ollama":
-      return new OllamaProvider(settings.ollamaSettings.serverUrl, modelId);
+      return new OllamaProvider(settings.ollamaSettings.serverUrl, modelId, (_d = settings.debugMode) != null ? _d : false);
+    // Pass debugMode
     default:
       throw new Error(`Invalid provider type: ${providerType}`);
   }
@@ -11093,7 +11106,7 @@ var init_providers = __esm({
 });
 
 // src/components/chat/chatPersistence.ts
-function log(level, ...args) {
+function log2(level, ...args) {
   if (typeof window !== "undefined" && window.plugin && typeof window.plugin.debugLog === "function") {
     window.plugin.debugLog(level, "[chatPersistence]", ...args);
   } else if (typeof console !== "undefined") {
@@ -11101,7 +11114,7 @@ function log(level, ...args) {
   }
 }
 function buildChatYaml(settings, provider, model) {
-  log("info", "[buildChatYaml] Entered function", { settings, provider, model });
+  log2("info", "[buildChatYaml] Entered function", { settings, provider, model });
   if (settings.selectedModel) {
     const providerType = getProviderFromUnifiedModel(settings.selectedModel);
     const modelId = getModelIdFromUnifiedModel(settings.selectedModel);
@@ -11112,8 +11125,8 @@ function buildChatYaml(settings, provider, model) {
       system_message: settings.systemMessage,
       temperature: settings.temperature
     };
-    log("debug", "[buildChatYaml] Using unified model format", yamlObj);
-    log("info", "[buildChatYaml] Returning YAML for unified model", { yaml: `---
+    log2("debug", "[buildChatYaml] Using unified model format", yamlObj);
+    log2("info", "[buildChatYaml] Returning YAML for unified model", { yaml: `---
 ${dump(yamlObj)}---
 ` });
     return `---
@@ -11126,8 +11139,8 @@ ${dump(yamlObj)}---
       system_message: settings.systemMessage,
       temperature: settings.temperature
     };
-    log("debug", "[buildChatYaml] Using legacy model format", yamlObj);
-    log("info", "[buildChatYaml] Returning YAML for legacy model", { yaml: `---
+    log2("debug", "[buildChatYaml] Using legacy model format", yamlObj);
+    log2("info", "[buildChatYaml] Returning YAML for legacy model", { yaml: `---
 ${dump(yamlObj)}---
 ` });
     return `---
@@ -11136,7 +11149,7 @@ ${dump(yamlObj)}---
   }
 }
 function getCurrentModelForProvider(settings) {
-  log("debug", "[getCurrentModelForProvider] Called", { provider: settings.provider });
+  log2("debug", "[getCurrentModelForProvider] Called", { provider: settings.provider });
   switch (settings.provider) {
     case "openai":
       return settings.openaiSettings.model;
@@ -11161,19 +11174,19 @@ async function saveChatAsNote({
   chatNoteFolder,
   agentResponseHandler
 }) {
-  log("info", "[saveChatAsNote] Entered function", { hasMessages: !!messages, hasChatContent: typeof chatContent === "string" });
+  log2("info", "[saveChatAsNote] Entered function", { hasMessages: !!messages, hasChatContent: typeof chatContent === "string" });
   let content = "";
   if (typeof chatContent === "string") {
     content = chatContent;
-    log("info", "[saveChatAsNote] Using provided chatContent string directly.");
+    log2("info", "[saveChatAsNote] Using provided chatContent string directly.");
   } else if (messages) {
-    log("info", "[saveChatAsNote] Building chat content from message DOM nodes.");
+    log2("info", "[saveChatAsNote] Building chat content from message DOM nodes.");
     const messageRenderer = new MessageRenderer(app);
     messages.forEach((el, index) => {
       var _a2;
       const htmlElement = el;
       if (htmlElement.classList.contains("tool-display-message")) {
-        log("debug", `[saveChatAsNote] Skipping tool-display-message at index ${index}`);
+        log2("debug", `[saveChatAsNote] Skipping tool-display-message at index ${index}`);
         return;
       }
       const messageDataStr = htmlElement.dataset.messageData;
@@ -11181,31 +11194,31 @@ async function saveChatAsNote({
       if (messageDataStr) {
         try {
           messageData = JSON.parse(messageDataStr);
-          log("debug", `[saveChatAsNote] Parsed messageData at index ${index}`, messageData);
+          log2("debug", `[saveChatAsNote] Parsed messageData at index ${index}`, messageData);
         } catch (e) {
-          log("warn", `[saveChatAsNote] Failed to parse messageData at index ${index}`, e);
+          log2("warn", `[saveChatAsNote] Failed to parse messageData at index ${index}`, e);
         }
       }
       if (messageData && messageData.toolResults && messageData.toolResults.length > 0) {
-        log("info", `[saveChatAsNote] Formatting message with toolResults at index ${index}`);
+        log2("info", `[saveChatAsNote] Formatting message with toolResults at index ${index}`);
         content += messageRenderer.getMessageContentForCopy(messageData);
       } else {
         const rawContent = htmlElement.dataset.rawContent;
         const msg = rawContent !== void 0 ? rawContent : ((_a2 = el.querySelector(".message-content")) == null ? void 0 : _a2.textContent) || "";
-        log("debug", `[saveChatAsNote] Appending regular message at index ${index}`, { msg });
+        log2("debug", `[saveChatAsNote] Appending regular message at index ${index}`, { msg });
         content += msg;
       }
       if (index < messages.length - 1) {
         content += "\n\n" + chatSeparator + "\n\n";
       }
     });
-    log("debug", "[saveChatAsNote] messages NodeList length:", { length: messages.length });
+    log2("debug", "[saveChatAsNote] messages NodeList length:", { length: messages.length });
   } else {
-    log("error", "[saveChatAsNote] Neither messages nor chatContent provided. Aborting.");
+    log2("error", "[saveChatAsNote] Neither messages nor chatContent provided. Aborting.");
     throw new Error("Either messages or chatContent must be provided");
   }
   const yaml = buildChatYaml(settings, provider, model);
-  log("info", "[saveChatAsNote] YAML frontmatter built. Stripping any existing YAML from chat content.");
+  log2("info", "[saveChatAsNote] YAML frontmatter built. Stripping any existing YAML from chat content.");
   content = content.replace(/^---[\s\S]*?---\n?/, "");
   content = content.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
   content = content.replace(/\n{3,}/g, "\n\n");
@@ -11217,23 +11230,23 @@ async function saveChatAsNote({
   let filePath = fileName;
   const folder = chatNoteFolder == null ? void 0 : chatNoteFolder.trim();
   if (folder) {
-    log("info", `[saveChatAsNote] Ensuring chat note folder exists: ${folder}`);
+    log2("info", `[saveChatAsNote] Ensuring chat note folder exists: ${folder}`);
     const folderExists = app.vault.getAbstractFileByPath(folder);
     if (!folderExists) {
       try {
         await app.vault.createFolder(folder);
-        log("info", `[saveChatAsNote] Created chat note folder: ${folder}`);
+        log2("info", `[saveChatAsNote] Created chat note folder: ${folder}`);
       } catch (e) {
         if (!app.vault.getAbstractFileByPath(folder)) {
-          log("error", `[saveChatAsNote] Failed to create folder for chat note: ${folder}`, e);
+          log2("error", `[saveChatAsNote] Failed to create folder for chat note: ${folder}`, e);
           new import_obsidian11.Notice("Failed to create folder for chat note.");
           return;
         } else {
-          log("warn", `[saveChatAsNote] Folder already exists after race: ${folder}`);
+          log2("warn", `[saveChatAsNote] Folder already exists after race: ${folder}`);
         }
       }
     } else {
-      log("debug", `[saveChatAsNote] Folder already exists: ${folder}`);
+      log2("debug", `[saveChatAsNote] Folder already exists: ${folder}`);
     }
     filePath = folder.replace(/[/\\]+$/, "") + "/" + fileName;
   }
@@ -11244,18 +11257,18 @@ async function saveChatAsNote({
     const base = extIndex !== -1 ? fileName.substring(0, extIndex) : fileName;
     const ext = extIndex !== -1 ? fileName.substring(extIndex) : "";
     finalFilePath = (folder ? folder.replace(/[/\\]+$/, "") + "/" : "") + `${base} (${attempt})${ext}`;
-    log("warn", "[saveChatAsNote] File already exists, trying new filename", { finalFilePath });
+    log2("warn", "[saveChatAsNote] File already exists, trying new filename", { finalFilePath });
     attempt++;
   }
   try {
     await app.vault.create(finalFilePath, noteContent);
-    log("info", "[saveChatAsNote] Chat successfully saved as note", { finalFilePath });
+    log2("info", "[saveChatAsNote] Chat successfully saved as note", { finalFilePath });
     new import_obsidian11.Notice(`Chat saved as note: ${finalFilePath}`);
   } catch (e) {
-    log("error", "[saveChatAsNote] Failed to save chat as note", { finalFilePath, error: e });
+    log2("error", "[saveChatAsNote] Failed to save chat as note", { finalFilePath, error: e });
     new import_obsidian11.Notice("Failed to save chat as note.");
   }
-  log("info", "[saveChatAsNote] Exiting function. Save process complete.");
+  log2("info", "[saveChatAsNote] Exiting function. Save process complete.");
 }
 async function loadChatYamlAndApplySettings({
   app,
@@ -11263,31 +11276,31 @@ async function loadChatYamlAndApplySettings({
   settings,
   file
 }) {
-  log("info", "[loadChatYamlAndApplySettings] Entered function", { file: (file == null ? void 0 : file.path) || (file == null ? void 0 : file.name) || file });
-  log("debug", "[loadChatYamlAndApplySettings] File content loaded. Extracting YAML frontmatter.");
+  log2("info", "[loadChatYamlAndApplySettings] Entered function", { file: (file == null ? void 0 : file.path) || (file == null ? void 0 : file.name) || file });
+  log2("debug", "[loadChatYamlAndApplySettings] File content loaded. Extracting YAML frontmatter.");
   let content = await app.vault.read(file);
   const yamlMatch = content.match(/^---\n([\s\S]*?)\n---/);
   let yamlObj = {};
   if (yamlMatch) {
     try {
       yamlObj = load(yamlMatch[1]) || {};
-      log("info", "[loadChatYamlAndApplySettings] YAML frontmatter parsed", yamlObj);
+      log2("info", "[loadChatYamlAndApplySettings] YAML frontmatter parsed", yamlObj);
     } catch (e) {
-      log("warn", "[loadChatYamlAndApplySettings] Failed to parse YAML frontmatter", e);
+      log2("warn", "[loadChatYamlAndApplySettings] Failed to parse YAML frontmatter", e);
       yamlObj = {};
     }
   } else {
-    log("warn", "[loadChatYamlAndApplySettings] No YAML frontmatter found in file.");
+    log2("warn", "[loadChatYamlAndApplySettings] No YAML frontmatter found in file.");
   }
   if (yamlObj.unified_model) {
     settings.selectedModel = yamlObj.unified_model;
-    log("info", "[loadChatYamlAndApplySettings] Loaded unified_model from YAML", yamlObj.unified_model);
-    log("info", "[loadChatYamlAndApplySettings] Set selectedModel from unified_model", { selectedModel: settings.selectedModel });
+    log2("info", "[loadChatYamlAndApplySettings] Loaded unified_model from YAML", yamlObj.unified_model);
+    log2("info", "[loadChatYamlAndApplySettings] Set selectedModel from unified_model", { selectedModel: settings.selectedModel });
   } else if (yamlObj.provider && yamlObj.model) {
     const unifiedModelId = `${yamlObj.provider}:${yamlObj.model}`;
     settings.selectedModel = unifiedModelId;
-    log("info", "[loadChatYamlAndApplySettings] Loaded legacy provider/model from YAML", { provider: yamlObj.provider, model: yamlObj.model });
-    log("info", "[loadChatYamlAndApplySettings] Set selectedModel from provider/model", { selectedModel: settings.selectedModel });
+    log2("info", "[loadChatYamlAndApplySettings] Loaded legacy provider/model from YAML", { provider: yamlObj.provider, model: yamlObj.model });
+    log2("info", "[loadChatYamlAndApplySettings] Set selectedModel from provider/model", { selectedModel: settings.selectedModel });
     settings.provider = yamlObj.provider;
     switch (yamlObj.provider) {
       case "openai":
@@ -11304,7 +11317,7 @@ async function loadChatYamlAndApplySettings({
         break;
     }
   } else {
-    log("warn", "[loadChatYamlAndApplySettings] No model/provider found in YAML. Using existing settings.");
+    log2("warn", "[loadChatYamlAndApplySettings] No model/provider found in YAML. Using existing settings.");
   }
   let newSystemMessage = yamlObj.system_message || settings.systemMessage;
   let newTemperature = settings.temperature;
@@ -11312,19 +11325,19 @@ async function loadChatYamlAndApplySettings({
     const tempNum = parseFloat(yamlObj.temperature);
     if (!isNaN(tempNum)) {
       newTemperature = tempNum;
-      log("info", "[loadChatYamlAndApplySettings] Loaded temperature from YAML", newTemperature);
+      log2("info", "[loadChatYamlAndApplySettings] Loaded temperature from YAML", newTemperature);
     } else {
-      log("warn", "[loadChatYamlAndApplySettings] Invalid temperature in YAML, using existing value.", yamlObj.temperature);
+      log2("warn", "[loadChatYamlAndApplySettings] Invalid temperature in YAML, using existing value.", yamlObj.temperature);
     }
   }
   settings.systemMessage = newSystemMessage;
   settings.temperature = newTemperature;
-  log("info", "[loadChatYamlAndApplySettings] Applied settings from YAML", { selectedModel: settings.selectedModel, systemMessage: newSystemMessage, temperature: newTemperature });
+  log2("info", "[loadChatYamlAndApplySettings] Applied settings from YAML", { selectedModel: settings.selectedModel, systemMessage: newSystemMessage, temperature: newTemperature });
   if (plugin.onSettingsLoadedFromNote) {
-    log("debug", "[loadChatYamlAndApplySettings] Calling plugin.onSettingsLoadedFromNote");
+    log2("debug", "[loadChatYamlAndApplySettings] Calling plugin.onSettingsLoadedFromNote");
     plugin.onSettingsLoadedFromNote(settings);
   }
-  log("info", "[loadChatYamlAndApplySettings] Exiting function. YAML load/apply process complete.");
+  log2("info", "[loadChatYamlAndApplySettings] Exiting function. YAML load/apply process complete.");
   return {
     provider: yamlObj.provider,
     model: yamlObj.model,
@@ -12401,7 +12414,7 @@ async function generateNoteTitle(app, settings, processMessages2) {
   debugLog(DEBUG, "debug", "Starting generateNoteTitle");
   const activeFile = app.workspace.getActiveFile();
   if (!activeFile) {
-    new import_obsidian24.Notice("No active note found.");
+    new import_obsidian30.Notice("No active note found.");
     return;
   }
   let noteContent = await app.vault.cachedRead(activeFile);
@@ -12426,7 +12439,7 @@ async function generateNoteTitle(app, settings, processMessages2) {
       settings.enableContextNotes = originalEnableContextNotes;
       if (!processedMessages || processedMessages.length === 0) {
         debugLog(DEBUG, "debug", "No processed messages!");
-        new import_obsidian24.Notice("No valid messages to send to the model. Please check your note content.");
+        new import_obsidian30.Notice("No valid messages to send to the model. Please check your note content.");
         return;
       }
       debugLog(DEBUG, "debug", "Calling provider.getCompletion");
@@ -12454,28 +12467,28 @@ async function generateNoteTitle(app, settings, processMessages2) {
             const newPath = parentPath ? parentPath + "/" + sanitized + ext : sanitized + ext;
             if (file.path !== newPath) {
               await app.fileManager.renameFile(file, newPath);
-              new import_obsidian24.Notice(`Note renamed to: ${sanitized}${ext}`);
+              new import_obsidian30.Notice(`Note renamed to: ${sanitized}${ext}`);
             } else {
-              new import_obsidian24.Notice(`Note title is already: ${sanitized}${ext}`);
+              new import_obsidian30.Notice(`Note title is already: ${sanitized}${ext}`);
             }
           }
         } else if (outputMode === "metadata") {
           const file = app.workspace.getActiveFile();
           if (file) {
             await upsertYamlField(app, file, "title", title);
-            new import_obsidian24.Notice(`Inserted title into metadata: ${title}`);
+            new import_obsidian30.Notice(`Inserted title into metadata: ${title}`);
           }
         } else {
           try {
             await navigator.clipboard.writeText(title);
-            new import_obsidian24.Notice(`Generated title (copied): ${title}`);
+            new import_obsidian30.Notice(`Generated title (copied): ${title}`);
           } catch (e) {
-            new import_obsidian24.Notice(`Generated title: ${title}`);
+            new import_obsidian30.Notice(`Generated title: ${title}`);
           }
         }
       } else {
         debugLog(DEBUG, "debug", "No title generated after sanitization.");
-        new import_obsidian24.Notice("No title generated.");
+        new import_obsidian30.Notice("No title generated.");
       }
     } catch (processError) {
       debugLog(DEBUG, "debug", "Error in processMessages or provider.getCompletion:", processError);
@@ -12483,14 +12496,14 @@ async function generateNoteTitle(app, settings, processMessages2) {
       throw processError;
     }
   } catch (err) {
-    new import_obsidian24.Notice("Error generating title: " + ((_b = err == null ? void 0 : err.message) != null ? _b : err));
+    new import_obsidian30.Notice("Error generating title: " + ((_b = err == null ? void 0 : err.message) != null ? _b : err));
   }
 }
 async function generateYamlAttribute(app, settings, processMessages2, attributeName, prompt, outputMode = "metadata") {
   debugLog(DEBUG, "debug", `Starting generateYamlAttribute for ${attributeName}`);
   const activeFile = app.workspace.getActiveFile();
   if (!activeFile) {
-    new import_obsidian24.Notice("No active note found.");
+    new import_obsidian30.Notice("No active note found.");
     return;
   }
   let noteContent = await app.vault.cachedRead(activeFile);
@@ -12509,7 +12522,7 @@ async function generateYamlAttribute(app, settings, processMessages2, attributeN
     settings.enableContextNotes = originalEnableContextNotes;
     if (!processedMessages || processedMessages.length === 0) {
       debugLog(DEBUG, "debug", "No processed messages!");
-      new import_obsidian24.Notice("No valid messages to send to the model. Please check your note content.");
+      new import_obsidian30.Notice("No valid messages to send to the model. Please check your note content.");
       return;
     }
     debugLog(DEBUG, "debug", "Calling provider.getCompletion");
@@ -12531,18 +12544,18 @@ async function generateYamlAttribute(app, settings, processMessages2, attributeN
       debugLog(DEBUG, "debug", "Output mode:", outputMode);
       if (outputMode === "metadata") {
         await upsertYamlField(app, activeFile, attributeName, value);
-        new import_obsidian24.Notice(`Inserted ${attributeName} into metadata: ${value}`);
+        new import_obsidian30.Notice(`Inserted ${attributeName} into metadata: ${value}`);
       } else {
         try {
           await navigator.clipboard.writeText(value);
-          new import_obsidian24.Notice(`Generated ${attributeName} (copied): ${value}`);
+          new import_obsidian30.Notice(`Generated ${attributeName} (copied): ${value}`);
         } catch (e) {
-          new import_obsidian24.Notice(`Generated ${attributeName}: ${value}`);
+          new import_obsidian30.Notice(`Generated ${attributeName}: ${value}`);
         }
       }
     } else {
       debugLog(DEBUG, "debug", `No value generated for ${attributeName} after sanitization.`);
-      new import_obsidian24.Notice(`No value generated for ${attributeName}.`);
+      new import_obsidian30.Notice(`No value generated for ${attributeName}.`);
     }
   } catch (processError) {
     debugLog(DEBUG, "debug", "Error in processMessages or provider.getCompletion:", processError);
@@ -12609,10 +12622,10 @@ function registerYamlAttributeCommands(plugin, settings, processMessages2, yamlA
   }
   return newCommandIds;
 }
-var import_obsidian24, DEBUG;
+var import_obsidian30, DEBUG;
 var init_YAMLHandler = __esm({
   "src/YAMLHandler.ts"() {
-    import_obsidian24 = require("obsidian");
+    import_obsidian30 = require("obsidian");
     init_providers();
     init_promptConstants();
     init_pluginUtils();
@@ -12632,7 +12645,7 @@ var import_obsidian31 = require("obsidian");
 init_types();
 
 // src/settings/SettingTab.ts
-var import_obsidian29 = require("obsidian");
+var import_obsidian28 = require("obsidian");
 
 // src/components/commands/viewCommands.ts
 init_pluginUtils();
@@ -13278,6 +13291,7 @@ var CommandParser = class {
 };
 
 // src/components/chat/agent/ToolRegistry.ts
+init_logger();
 var ToolRegistry = class {
   /**
    * @param plugin The plugin instance (for settings, logging, and app access)
@@ -13292,9 +13306,10 @@ var ToolRegistry = class {
    * @param tool The tool instance to register
    */
   register(tool) {
+    var _a2;
     this.tools.set(tool.name, tool);
-    if (this.plugin && this.plugin.settings && this.plugin.settings.debugMode) {
-      this.plugin.debugLog("[ToolRegistry] Registering tool", { tool });
+    if (this.plugin && this.plugin.settings) {
+      log((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "debug", "[ToolRegistry] Registering tool", { tool });
     }
   }
   /**
@@ -13304,11 +13319,11 @@ var ToolRegistry = class {
    * @returns ToolResult with the result or error
    */
   async execute(command) {
-    var _a2, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l;
+    var _a2, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r;
     const tool = this.tools.get(command.action);
     if (!tool) {
-      if (this.plugin && this.plugin.settings && this.plugin.settings.debugMode) {
-        this.plugin.debugLog("[ToolRegistry] Tool not found", { action: command.action });
+      if (this.plugin && this.plugin.settings) {
+        log((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "debug", "[ToolRegistry] Tool not found", { action: command.action });
       }
       return {
         success: false,
@@ -13317,22 +13332,22 @@ var ToolRegistry = class {
       };
     }
     try {
-      if (this.plugin && this.plugin.settings && this.plugin.settings.debugMode) {
-        this.plugin.debugLog("[ToolRegistry] Executing tool", { command });
+      if (this.plugin && this.plugin.settings) {
+        log((_b = this.plugin.settings.debugMode) != null ? _b : false, "debug", "[ToolRegistry] Executing tool", { command });
       }
       let parameters = { ...command.parameters };
       if (tool.name === "file_diff" && !parameters.editor) {
-        const app = (_a2 = this.plugin) == null ? void 0 : _a2.app;
+        const app = (_c = this.plugin) == null ? void 0 : _c.app;
         let editor = null;
         try {
-          if ((_d = (_c = (_b = app == null ? void 0 : app.workspace) == null ? void 0 : _b.activeLeaf) == null ? void 0 : _c.view) == null ? void 0 : _d.editor) {
+          if ((_f = (_e = (_d = app == null ? void 0 : app.workspace) == null ? void 0 : _d.activeLeaf) == null ? void 0 : _e.view) == null ? void 0 : _f.editor) {
             editor = app.workspace.activeLeaf.view.editor;
           }
         } catch (error) {
         }
         if (!editor) {
           try {
-            const activeView = (_i = (_e = app == null ? void 0 : app.workspace) == null ? void 0 : _e.getActiveViewOfType) == null ? void 0 : _i.call(_e, (_h = (_g = (_f = app == null ? void 0 : app.workspace) == null ? void 0 : _f.viewRegistry) == null ? void 0 : _g.getTypeByID) == null ? void 0 : _h.call(_g, "markdown"));
+            const activeView = (_k = (_g = app == null ? void 0 : app.workspace) == null ? void 0 : _g.getActiveViewOfType) == null ? void 0 : _k.call(_g, (_j = (_i = (_h = app == null ? void 0 : app.workspace) == null ? void 0 : _h.viewRegistry) == null ? void 0 : _i.getTypeByID) == null ? void 0 : _j.call(_i, "markdown"));
             if (activeView == null ? void 0 : activeView.editor) {
               editor = activeView.editor;
             }
@@ -13341,10 +13356,10 @@ var ToolRegistry = class {
         }
         if (!editor) {
           try {
-            const leaves = (_k = (_j = app == null ? void 0 : app.workspace) == null ? void 0 : _j.getLeavesOfType) == null ? void 0 : _k.call(_j, "markdown");
+            const leaves = (_m = (_l = app == null ? void 0 : app.workspace) == null ? void 0 : _l.getLeavesOfType) == null ? void 0 : _m.call(_l, "markdown");
             if (leaves && leaves.length > 0) {
               for (const leaf of leaves) {
-                if ((_l = leaf.view) == null ? void 0 : _l.editor) {
+                if ((_n = leaf.view) == null ? void 0 : _n.editor) {
                   editor = leaf.view.editor;
                   break;
                 }
@@ -13355,26 +13370,26 @@ var ToolRegistry = class {
         }
         if (editor) {
           parameters.editor = editor;
-          if (this.plugin && this.plugin.settings && this.plugin.settings.debugMode) {
-            this.plugin.debugLog("[ToolRegistry] Injected editor for file_diff tool");
+          if (this.plugin && this.plugin.settings) {
+            log((_o = this.plugin.settings.debugMode) != null ? _o : false, "debug", "[ToolRegistry] Injected editor for file_diff tool");
           }
         } else {
-          if (this.plugin && this.plugin.settings && this.plugin.settings.debugMode) {
-            this.plugin.debugLog("[ToolRegistry] No editor available for file_diff tool, will use fallback mode");
+          if (this.plugin && this.plugin.settings) {
+            log((_p = this.plugin.settings.debugMode) != null ? _p : false, "debug", "[ToolRegistry] No editor available for file_diff tool, will use fallback mode");
           }
         }
       }
       const result = await tool.execute(parameters, {});
-      if (this.plugin && this.plugin.settings && this.plugin.settings.debugMode) {
-        this.plugin.debugLog("[ToolRegistry] Tool execution result", { command, result });
+      if (this.plugin && this.plugin.settings) {
+        log((_q = this.plugin.settings.debugMode) != null ? _q : false, "debug", "[ToolRegistry] Tool execution result", { command, result });
       }
       return {
         ...result,
         requestId: command.requestId
       };
     } catch (error) {
-      if (this.plugin && this.plugin.settings && this.plugin.settings.debugMode) {
-        this.plugin.debugLog("[ToolRegistry] Tool execution error", { command, error });
+      if (this.plugin && this.plugin.settings) {
+        log((_r = this.plugin.settings.debugMode) != null ? _r : false, "error", "[ToolRegistry] Tool execution error", { command, error });
       }
       return {
         success: false,
@@ -13865,7 +13880,7 @@ var ToolLimitWarningUI = class {
   createToolLimitWarning() {
     const warning = document.createElement("div");
     warning.className = "tool-limit-warning";
-    const agentSettings = this.context.plugin.getAgentModeSettings();
+    const agentSettings = this.context.plugin.agentModeManager.getAgentModeSettings();
     const effectiveLimit = this.getEffectiveToolLimit();
     const executionCount = this.context.getExecutionCount();
     warning.innerHTML = this.createToolLimitWarningHTML(executionCount, effectiveLimit, agentSettings.maxToolCalls);
@@ -13980,7 +13995,7 @@ var ToolLimitWarningUI = class {
    * @returns The effective tool limit.
    */
   getEffectiveToolLimit() {
-    const agentSettings = this.context.plugin.getAgentModeSettings();
+    const agentSettings = this.context.plugin.agentModeManager.getAgentModeSettings();
     return this.context.getTemporaryMaxToolCalls() || agentSettings.maxToolCalls;
   }
 };
@@ -14066,7 +14081,7 @@ var AgentResponseHandler = class {
    */
   async processResponse(response, contextLabel = "main", chatHistory) {
     this.debugLog("Processing response", { response }, contextLabel);
-    if (!this.context.plugin.isAgentModeEnabled()) {
+    if (!this.context.plugin.agentModeManager.isAgentModeEnabled()) {
       return this.createProcessResponseResult(response, [], false);
     }
     const { text, commands } = this.commandParser.parseResponse(response);
@@ -14112,7 +14127,7 @@ var AgentResponseHandler = class {
    */
   async executeToolCommands(commands, text, contextLabel) {
     const toolResults = [];
-    const agentSettings = this.context.plugin.getAgentModeSettings();
+    const agentSettings = this.context.plugin.agentModeManager.getAgentModeSettings();
     const effectiveLimit = this.getEffectiveToolLimit();
     for (const command of commands) {
       try {
@@ -14150,7 +14165,7 @@ var AgentResponseHandler = class {
    * @param count Number of additional executions allowed.
    */
   addToolExecutions(count) {
-    const agentSettings = this.context.plugin.getAgentModeSettings();
+    const agentSettings = this.context.plugin.agentModeManager.getAgentModeSettings();
     this.temporaryMaxToolCalls = (this.temporaryMaxToolCalls || agentSettings.maxToolCalls) + count;
   }
   /**
@@ -14280,7 +14295,7 @@ ${resultData}
    */
   async rerunTool(originalCommand) {
     try {
-      const agentSettings = this.context.plugin.getAgentModeSettings();
+      const agentSettings = this.context.plugin.agentModeManager.getAgentModeSettings();
       const result = await this.toolExecutor.executeToolWithLogging(originalCommand, agentSettings.timeoutMs, "rerun", this.debugLog.bind(this));
       this.createToolDisplay(originalCommand, result);
       this.context.onToolResult(result, originalCommand);
@@ -14292,7 +14307,7 @@ ${resultData}
    * Returns the effective tool execution limit (temporary or default).
    */
   getEffectiveToolLimit() {
-    const agentSettings = this.context.plugin.getAgentModeSettings();
+    const agentSettings = this.context.plugin.agentModeManager.getAgentModeSettings();
     return this.temporaryMaxToolCalls || agentSettings.maxToolCalls;
   }
   /**
@@ -14458,7 +14473,7 @@ ${resultData}
    * @param progress Optional progress value.
    */
   createTaskStatus(status, progress) {
-    const agentSettings = this.context.plugin.getAgentModeSettings();
+    const agentSettings = this.context.plugin.agentModeManager.getAgentModeSettings();
     return {
       status,
       progress,
@@ -14497,8 +14512,44 @@ The current time is ${currentTime} ${timeZoneString}.`;
 // src/utils/noteUtils.ts
 var import_obsidian18 = require("obsidian");
 
-// src/utils/utils.ts
+// src/utils/generalUtils.ts
 init_logger();
+function showNotice(message) {
+  const { Notice: Notice17 } = require("obsidian");
+  new Notice17(message);
+}
+async function copyToClipboard3(text, successMsg = "Copied to clipboard", failMsg = "Failed to copy to clipboard") {
+  try {
+    await navigator.clipboard.writeText(text);
+    showNotice(successMsg);
+  } catch (error) {
+    showNotice(failMsg);
+    log(true, "error", "Clipboard error:", error);
+  }
+}
+function moveCursorAfterInsert(editor, startPos, insertText) {
+  const lines = insertText.split("\n");
+  if (lines.length === 1) {
+    editor.setCursor({
+      line: startPos.line,
+      ch: startPos.ch + insertText.length
+    });
+  } else {
+    editor.setCursor({
+      line: startPos.line + lines.length - 1,
+      ch: lines[lines.length - 1].length
+    });
+  }
+}
+function insertSeparator(editor, position, separator) {
+  var _a2;
+  const lineContent = (_a2 = editor.getLine(position.line)) != null ? _a2 : "";
+  const prefix = lineContent.trim() !== "" ? "\n" : "";
+  editor.replaceRange(`${prefix}
+${separator}
+`, position);
+  return position.line + (prefix ? 1 : 0) + 2;
+}
 function findFile(app, filePath) {
   let file = app.vault.getAbstractFileByPath(filePath) || app.vault.getAbstractFileByPath(`${filePath}.md`);
   if (!file) {
@@ -15068,7 +15119,7 @@ var ResponseStreamer = class {
         abortController: this.activeStream || void 0
         // Pass the abort controller
       });
-      if (this.plugin.isAgentModeEnabled() && this.agentResponseHandler) {
+      if (this.plugin.agentModeManager.isAgentModeEnabled() && this.agentResponseHandler) {
         responseContent = await this.processAgentResponse(responseContent, container, messages, "streamer-main", chatHistory);
       }
       return responseContent;
@@ -15094,7 +15145,7 @@ var ResponseStreamer = class {
    */
   async addAgentSystemPrompt(messages) {
     this.plugin.debugLog("debug", "[ResponseStreamer] addAgentSystemPrompt called", { messages });
-    if (!this.plugin.isAgentModeEnabled()) return;
+    if (!this.plugin.agentModeManager.isAgentModeEnabled()) return;
     const { buildAgentSystemPrompt: buildAgentSystemPrompt2 } = await Promise.resolve().then(() => (init_promptConstants(), promptConstants_exports));
     const agentPrompt = buildAgentSystemPrompt2(
       this.plugin.settings.enabledTools,
@@ -15769,9 +15820,9 @@ var ChatView = class extends import_obsidian23.ItemView {
       this.activeStream
     );
     ui.agentModeButton.addEventListener("click", async () => {
-      const isCurrentlyEnabled = this.plugin.isAgentModeEnabled();
-      await this.plugin.setAgentModeEnabled(!isCurrentlyEnabled);
-      if (this.plugin.isAgentModeEnabled()) {
+      const isCurrentlyEnabled = this.plugin.agentModeManager.isAgentModeEnabled();
+      await this.plugin.agentModeManager.setAgentModeEnabled(!isCurrentlyEnabled);
+      if (this.plugin.agentModeManager.isAgentModeEnabled()) {
         ui.agentModeButton.classList.add("active");
         ui.agentModeButton.setAttribute("title", "Agent Mode: ON - AI can use tools");
         new import_obsidian23.Notice("Agent Mode enabled - AI can now use tools");
@@ -15784,7 +15835,7 @@ var ChatView = class extends import_obsidian23.ItemView {
         new import_obsidian23.Notice("Agent Mode disabled");
       }
     });
-    if (this.plugin.isAgentModeEnabled()) {
+    if (this.plugin.agentModeManager.isAgentModeEnabled()) {
       ui.agentModeButton.classList.add("active");
       ui.agentModeButton.setAttribute("title", "Agent Mode: ON - AI can use tools");
     } else {
@@ -16161,379 +16212,6 @@ function registerViewCommands(plugin) {
   );
 }
 
-// src/components/commands/aiStreamCommands.ts
-init_pluginUtils();
-
-// src/utils/aiCompletionHandler.ts
-init_providers();
-
-// src/utils/parseSelection.ts
-function parseSelection(selection, chatSeparator, chatBoundaryString) {
-  let insideChat = !chatBoundaryString;
-  const lines = selection.split("\n");
-  let messages = [];
-  let currentRole = "user";
-  let currentContent = "";
-  for (const line of lines) {
-    if (chatBoundaryString && line.trim() === chatBoundaryString) {
-      if (!insideChat && currentContent.trim()) {
-        messages.push({ role: currentRole, content: currentContent.trim() });
-        currentContent = "";
-      }
-      insideChat = !insideChat;
-      continue;
-    }
-    if (!insideChat) continue;
-    if (line.trim() === chatSeparator) {
-      if (currentContent.trim()) {
-        messages.push({ role: currentRole, content: currentContent.trim() });
-      }
-      currentRole = currentRole === "user" ? "assistant" : "user";
-      currentContent = "";
-    } else {
-      currentContent += line + "\n";
-    }
-  }
-  if (currentContent.trim()) {
-    messages.push({ role: currentRole, content: currentContent.trim() });
-  }
-  return messages;
-}
-
-// src/utils/generalUtils.ts
-init_logger();
-function showNotice(message) {
-  const { Notice: Notice17 } = require("obsidian");
-  new Notice17(message);
-}
-async function copyToClipboard3(text, successMsg = "Copied to clipboard", failMsg = "Failed to copy to clipboard") {
-  try {
-    await navigator.clipboard.writeText(text);
-    showNotice(successMsg);
-  } catch (error) {
-    showNotice(failMsg);
-    debugLog(true, "error", "Clipboard error:", error);
-  }
-}
-function moveCursorAfterInsert(editor, startPos, insertText) {
-  const lines = insertText.split("\n");
-  if (lines.length === 1) {
-    editor.setCursor({
-      line: startPos.line,
-      ch: startPos.ch + insertText.length
-    });
-  } else {
-    editor.setCursor({
-      line: startPos.line + lines.length - 1,
-      ch: lines[lines.length - 1].length
-    });
-  }
-}
-function insertSeparator(editor, position, separator) {
-  var _a2;
-  const lineContent = (_a2 = editor.getLine(position.line)) != null ? _a2 : "";
-  const prefix = lineContent.trim() !== "" ? "\n" : "";
-  editor.replaceRange(`${prefix}
-${separator}
-`, position);
-  return position.line + (prefix ? 1 : 0) + 2;
-}
-
-// src/utils/aiCompletionHandler.ts
-async function handleAICompletion(editor, settings, processMessages2, getSystemMessage2, activeStream, setActiveStream) {
-  var _a2, _b;
-  let text;
-  let insertPosition;
-  if (editor.somethingSelected()) {
-    text = editor.getSelection();
-    insertPosition = editor.getCursor("to");
-  } else {
-    const currentLineNumber = editor.getCursor().line;
-    let lines = [];
-    for (let i = 0; i <= currentLineNumber; i++) {
-      lines.push(editor.getLine(i));
-    }
-    const chatStartString = settings.chatStartString;
-    if (chatStartString) {
-      const startIdx = lines.findIndex((line) => line.trim() === chatStartString.trim());
-      if (startIdx !== -1) {
-        lines = lines.slice(startIdx + 1);
-      }
-    }
-    text = lines.join("\n");
-    insertPosition = { line: currentLineNumber + 1, ch: 0 };
-  }
-  const messages = parseSelection(text, settings.chatSeparator);
-  if (messages.length === 0) {
-    showNotice("No valid messages found in the selection.");
-    return;
-  }
-  const sepLine = insertSeparator(editor, insertPosition, settings.chatSeparator);
-  let currentPosition = { line: sepLine, ch: 0 };
-  activeStream.current = new AbortController();
-  setActiveStream(activeStream.current);
-  try {
-    const provider = settings.selectedModel ? createProviderFromUnifiedModel(settings, settings.selectedModel) : createProvider(settings);
-    const processedMessages = await processMessages2([
-      { role: "system", content: getSystemMessage2() },
-      ...messages
-    ]);
-    let bufferedChunk = "";
-    const flushBuffer = () => {
-      if (bufferedChunk) {
-        editor.replaceRange(bufferedChunk, currentPosition);
-        currentPosition = editor.offsetToPos(
-          editor.posToOffset(currentPosition) + bufferedChunk.length
-        );
-        bufferedChunk = "";
-      }
-    };
-    await provider.getCompletion(
-      processedMessages,
-      {
-        temperature: settings.temperature,
-        maxTokens: settings.maxTokens,
-        streamCallback: (chunk) => {
-          bufferedChunk += chunk;
-          setTimeout(flushBuffer, 100);
-        },
-        abortController: activeStream.current
-      }
-    );
-    flushBuffer();
-    const endLineContent = (_a2 = editor.getLine(currentPosition.line)) != null ? _a2 : "";
-    const endPrefix = endLineContent.trim() !== "" ? "\n" : "";
-    editor.replaceRange(`${endPrefix}
-${settings.chatSeparator}
-
-`, currentPosition);
-    const newCursorPos = editor.offsetToPos(
-      editor.posToOffset(currentPosition) + (endPrefix ? 1 : 0) + 1 + settings.chatSeparator.length + 1
-    );
-    editor.setCursor(newCursorPos);
-  } catch (error) {
-    showNotice(`Error: ${error.message}`);
-    const errLineContent = (_b = editor.getLine(currentPosition.line)) != null ? _b : "";
-    const errPrefix = errLineContent.trim() !== "" ? "\n" : "";
-    editor.replaceRange(`Error: ${error.message}
-${errPrefix}
-${settings.chatSeparator}
-
-`, currentPosition);
-  } finally {
-    activeStream.current = null;
-    setActiveStream(null);
-  }
-}
-
-// src/components/commands/aiStreamCommands.ts
-function registerAIStreamCommands(plugin, settings, processMessages2, activeStream, setActiveStream) {
-  registerCommand(
-    plugin,
-    {
-      id: "ai-completion",
-      name: "Get AI Completion",
-      editorCallback: (editor) => handleAICompletion(
-        editor,
-        settings,
-        processMessages2,
-        () => getSystemMessage(settings),
-        // Function to get the current system message
-        activeStream,
-        setActiveStream
-      )
-    }
-  );
-  registerCommand(
-    plugin,
-    {
-      id: "end-ai-stream",
-      name: "End AI Stream",
-      callback: () => {
-        if (activeStream.current) {
-          activeStream.current.abort();
-          activeStream.current = null;
-          setActiveStream(null);
-          showNotice("AI stream ended");
-        } else {
-          showNotice("No active AI stream to end");
-        }
-      }
-    }
-  );
-}
-
-// src/components/commands/noteCommands.ts
-init_pluginUtils();
-function registerNoteCommands(plugin, settings, activateChatViewAndLoadMessages) {
-  registerCommand(
-    plugin,
-    {
-      id: "copy-active-note-name",
-      name: "Copy Active Note Name",
-      callback: async () => {
-        const activeFile = plugin.app.workspace.getActiveFile();
-        if (activeFile) {
-          const noteName = `[[${activeFile.basename}]]`;
-          await copyToClipboard3(noteName, `Copied to clipboard: ${noteName}`, "Failed to copy to clipboard");
-        } else {
-          showNotice("No active note found");
-        }
-      }
-    }
-  );
-  registerCommand(
-    plugin,
-    {
-      id: "insert-chat-start-string",
-      name: "Insert Chat Start String",
-      editorCallback: (editor) => {
-        var _a2;
-        const chatStartString = (_a2 = settings.chatStartString) != null ? _a2 : "";
-        if (!chatStartString) {
-          showNotice("chatStartString is not set in settings.");
-          return;
-        }
-        const cursor = editor.getCursor();
-        editor.replaceRange(chatStartString, cursor);
-        moveCursorAfterInsert(editor, cursor, chatStartString);
-      }
-    }
-  );
-  registerCommand(
-    plugin,
-    {
-      id: "load-chat-note-into-chat",
-      name: "Load Chat Note into Chat",
-      callback: async () => {
-        let file = plugin.app.workspace.getActiveFile();
-        if (!file) {
-          showNotice("No active note found. Please open a note to load as chat.");
-          return;
-        }
-        let content = await plugin.app.vault.read(file);
-        const messages = parseSelection(content, settings.chatSeparator);
-        if (!messages.length) {
-          showNotice("No chat messages found in the selected note.");
-          return;
-        }
-        await activateChatViewAndLoadMessages(messages);
-      }
-    }
-  );
-}
-
-// src/components/commands/generateNoteTitleCommand.ts
-init_pluginUtils();
-function registerGenerateNoteTitleCommand(plugin, settings, processMessages2) {
-  registerCommand(
-    plugin,
-    {
-      id: "generate-note-title",
-      name: "Generate Note Title",
-      callback: async () => {
-        const { generateNoteTitle: generateNoteTitle2 } = await Promise.resolve().then(() => (init_YAMLHandler(), YAMLHandler_exports));
-        await generateNoteTitle2(
-          plugin.app,
-          settings,
-          processMessages2
-        );
-      }
-    }
-  );
-}
-
-// src/components/commands/contextCommands.ts
-init_pluginUtils();
-function registerContextCommands(plugin, settings) {
-  registerCommand(
-    plugin,
-    {
-      id: "toggle-enable-obsidian-links",
-      name: "Toggle Enable Obsidian Links",
-      callback: async () => {
-        settings.enableObsidianLinks = !settings.enableObsidianLinks;
-        await plugin.saveSettings();
-        const status = settings.enableObsidianLinks ? "enabled" : "disabled";
-        showNotice(`Obsidian Links ${status}`);
-      }
-    }
-  );
-  registerCommand(
-    plugin,
-    {
-      id: "toggle-enable-context-notes",
-      name: "Toggle Enable Context Notes",
-      callback: async () => {
-        settings.enableContextNotes = !settings.enableContextNotes;
-        await plugin.saveSettings();
-        const status = settings.enableContextNotes ? "enabled" : "disabled";
-        showNotice(`Context Notes ${status}`);
-      }
-    }
-  );
-  registerCommand(
-    plugin,
-    {
-      id: "clear-context-notes",
-      name: "Clear Context Notes",
-      callback: async () => {
-        settings.contextNotes = "";
-        await plugin.saveSettings();
-        showNotice("Context Notes cleared");
-      }
-    }
-  );
-  registerCommand(
-    plugin,
-    {
-      id: "copy-context-notes-to-clipboard",
-      name: "Copy Context Notes to Clipboard",
-      callback: async () => {
-        if (!settings.contextNotes || settings.contextNotes.trim().length === 0) {
-          showNotice("No context notes to copy");
-          return;
-        }
-        try {
-          await navigator.clipboard.writeText(settings.contextNotes);
-          showNotice("Context notes copied to clipboard");
-        } catch (error) {
-          console.error("Failed to copy context notes to clipboard:", error);
-          showNotice("Failed to copy context notes to clipboard");
-        }
-      }
-    }
-  );
-  registerCommand(
-    plugin,
-    {
-      id: "add-current-note-to-context",
-      name: "Add Current Note to Context Notes",
-      callback: async () => {
-        const activeFile = plugin.app.workspace.getActiveFile();
-        if (!activeFile) {
-          showNotice("No active note to add to context");
-          return;
-        }
-        const noteTitle = activeFile.basename;
-        const wikiLink = `[[${noteTitle}]]`;
-        if (settings.contextNotes && settings.contextNotes.includes(wikiLink)) {
-          showNotice(`"${noteTitle}" is already in context notes`);
-          return;
-        }
-        if (settings.contextNotes && settings.contextNotes.trim().length > 0) {
-          settings.contextNotes += `
-${wikiLink}`;
-        } else {
-          settings.contextNotes = wikiLink;
-        }
-        await plugin.saveSettings();
-        showNotice(`Added "${noteTitle}" to context notes`);
-      }
-    }
-  );
-}
-
 // src/components/chat/CollapsibleSection.ts
 var CollapsibleSectionRenderer = class {
   /**
@@ -16576,8 +16254,11 @@ var CollapsibleSectionRenderer = class {
   }
 };
 
+// src/settings/SettingTab.ts
+init_logger();
+
 // src/settings/components/SettingCreators.ts
-var import_obsidian25 = require("obsidian");
+var import_obsidian24 = require("obsidian");
 var SettingCreators = class {
   /**
    * @param plugin The plugin instance, used for saving settings.
@@ -16600,7 +16281,7 @@ var SettingCreators = class {
    * @param options Additional options for the text input (e.g., trim, undefinedIfEmpty, isTextArea).
    */
   createTextSetting(containerEl, name, desc, placeholder, getValue, setValue, options) {
-    new import_obsidian25.Setting(containerEl).setName(name).setDesc(desc).then((setting) => {
+    new import_obsidian24.Setting(containerEl).setName(name).setDesc(desc).then((setting) => {
       const textInputOptions = {
         trim: options == null ? void 0 : options.trim,
         undefinedIfEmpty: options == null ? void 0 : options.undefinedIfEmpty
@@ -16666,7 +16347,7 @@ var SettingCreators = class {
    * @param setValue A function to set the new value of the setting.
    */
   createDropdownSetting(containerEl, name, desc, options, getValue, setValue) {
-    new import_obsidian25.Setting(containerEl).setName(name).setDesc(desc).addDropdown((drop) => {
+    new import_obsidian24.Setting(containerEl).setName(name).setDesc(desc).addDropdown((drop) => {
       Object.entries(options).forEach(([key, display]) => drop.addOption(key, display));
       drop.setValue(getValue());
       drop.onChange(async (value) => {
@@ -16685,7 +16366,7 @@ var SettingCreators = class {
    * @param onChangeCallback An optional callback to run after the value changes and settings are saved.
    */
   createToggleSetting(containerEl, name, desc, getValue, setValue, onChangeCallback) {
-    new import_obsidian25.Setting(containerEl).setName(name).setDesc(desc).addToggle((toggle) => toggle.setValue(getValue()).onChange(async (value) => {
+    new import_obsidian24.Setting(containerEl).setName(name).setDesc(desc).addToggle((toggle) => toggle.setValue(getValue()).onChange(async (value) => {
       await setValue(value);
       if (onChangeCallback) {
         onChangeCallback();
@@ -16703,7 +16384,7 @@ var SettingCreators = class {
    * @param setValue A function to set the new numeric value.
    */
   createSliderSetting(containerEl, name, desc, limits, getValue, setValue) {
-    new import_obsidian25.Setting(containerEl).setName(name).setDesc(desc).addSlider((slider) => {
+    new import_obsidian24.Setting(containerEl).setName(name).setDesc(desc).addSlider((slider) => {
       slider.setLimits(limits.min, limits.max, limits.step).setValue(getValue()).setDynamicTooltip().onChange(async (value) => {
         await setValue(value);
         this.reRenderCallback();
@@ -16779,7 +16460,7 @@ var GeneralSettingsSection = class {
 };
 
 // src/settings/sections/AIModelConfigurationSection.ts
-var import_obsidian26 = require("obsidian");
+var import_obsidian25 = require("obsidian");
 init_providers();
 var AIModelConfigurationSection = class {
   /**
@@ -16916,7 +16597,7 @@ var AIModelConfigurationSection = class {
    */
   renderProviderTestSection(containerEl, provider, displayName) {
     const settings = this.plugin.settings[`${provider}Settings`];
-    new import_obsidian26.Setting(containerEl).setName("Test Connection").setDesc(`Verify your API key and fetch available models for ${displayName}`).addButton((button) => button.setButtonText("Test").onClick(async () => {
+    new import_obsidian25.Setting(containerEl).setName("Test Connection").setDesc(`Verify your API key and fetch available models for ${displayName}`).addButton((button) => button.setButtonText("Test").onClick(async () => {
       button.setButtonText("Testing...");
       button.setDisabled(true);
       try {
@@ -16935,17 +16616,17 @@ var AIModelConfigurationSection = class {
           await this.plugin.saveSettings();
           this.plugin.settings.availableModels = await getAllAvailableModels(this.plugin.settings);
           await this.plugin.saveSettings();
-          new import_obsidian26.Notice(result.message);
+          new import_obsidian25.Notice(result.message);
         } else {
           settings.lastTestResult = {
             timestamp: Date.now(),
             success: false,
             message: result.message
           };
-          new import_obsidian26.Notice(result.message);
+          new import_obsidian25.Notice(result.message);
         }
       } catch (error) {
-        new import_obsidian26.Notice(`Error: ${error.message}`);
+        new import_obsidian25.Notice(`Error: ${error.message}`);
       } finally {
         button.setButtonText("Test");
         button.setDisabled(false);
@@ -16985,11 +16666,11 @@ var AIModelConfigurationSection = class {
           if (preset.maxTokens !== void 0) this.plugin.settings.maxTokens = preset.maxTokens;
           if (preset.enableStreaming !== void 0) this.plugin.settings.enableStreaming = preset.enableStreaming;
           await this.plugin.saveSettings();
-          new import_obsidian26.Notice(`Applied preset: ${preset.name}`);
+          new import_obsidian25.Notice(`Applied preset: ${preset.name}`);
         };
       });
     }
-    new import_obsidian26.Setting(containerEl).setName("System Message").setDesc("Set the system message for the AI").addTextArea((text) => {
+    new import_obsidian25.Setting(containerEl).setName("System Message").setDesc("Set the system message for the AI").addTextArea((text) => {
       text.setPlaceholder("You are a helpful assistant.").setValue(this.plugin.settings.systemMessage).onChange((value) => {
         this.plugin.settings.systemMessage = value;
       });
@@ -16998,22 +16679,22 @@ var AIModelConfigurationSection = class {
       });
       return text;
     });
-    new import_obsidian26.Setting(containerEl).setName("Enable Streaming").setDesc("Enable or disable streaming for completions").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableStreaming).onChange(async (value) => {
+    new import_obsidian25.Setting(containerEl).setName("Enable Streaming").setDesc("Enable or disable streaming for completions").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableStreaming).onChange(async (value) => {
       this.plugin.settings.enableStreaming = value;
       await this.plugin.saveSettings();
     }));
-    new import_obsidian26.Setting(containerEl).setName("Temperature").setDesc("Set the randomness of the model's output (0-1)").addSlider((slider) => slider.setLimits(0, 1, 0.1).setValue(this.plugin.settings.temperature).setDynamicTooltip().onChange(async (value) => {
+    new import_obsidian25.Setting(containerEl).setName("Temperature").setDesc("Set the randomness of the model's output (0-1)").addSlider((slider) => slider.setLimits(0, 1, 0.1).setValue(this.plugin.settings.temperature).setDynamicTooltip().onChange(async (value) => {
       this.plugin.settings.temperature = value;
       await this.plugin.saveSettings();
     }));
-    new import_obsidian26.Setting(containerEl).setName("Refresh Available Models").setDesc("Test connections to all configured providers and refresh available models").addButton((button) => button.setButtonText("Refresh Models").onClick(async () => {
+    new import_obsidian25.Setting(containerEl).setName("Refresh Available Models").setDesc("Test connections to all configured providers and refresh available models").addButton((button) => button.setButtonText("Refresh Models").onClick(async () => {
       button.setButtonText("Refreshing...");
       button.setDisabled(true);
       try {
         await this.refreshAllAvailableModels();
-        new import_obsidian26.Notice("Successfully refreshed available models");
+        new import_obsidian25.Notice("Successfully refreshed available models");
       } catch (error) {
-        new import_obsidian26.Notice(`Error refreshing models: ${error.message}`);
+        new import_obsidian25.Notice(`Error refreshing models: ${error.message}`);
       } finally {
         button.setButtonText("Refresh Models");
         button.setDisabled(false);
@@ -17031,7 +16712,7 @@ var AIModelConfigurationSection = class {
       this.plugin.settings.availableModels = await getAllAvailableModels(this.plugin.settings);
       await this.plugin.saveSettings();
     }
-    new import_obsidian26.Setting(containerEl).setName("Selected Model").setDesc("Choose from all available models across all configured providers").addDropdown((dropdown) => {
+    new import_obsidian25.Setting(containerEl).setName("Selected Model").setDesc("Choose from all available models across all configured providers").addDropdown((dropdown) => {
       if (!this.plugin.settings.availableModels || this.plugin.settings.availableModels.length === 0) {
         dropdown.addOption("", "No models available - configure providers above");
       } else {
@@ -17134,7 +16815,7 @@ var AIModelConfigurationSection = class {
       const row = tbody.createEl("tr");
       row.createEl("td", { text: model.name });
       row.createEl("td", { text: model.provider });
-      const enabledToggle = new import_obsidian26.Setting(row.createEl("td")).setName("").setDesc("Enable or disable this model").addToggle((toggle) => {
+      const enabledToggle = new import_obsidian25.Setting(row.createEl("td")).setName("").setDesc("Enable or disable this model").addToggle((toggle) => {
         var _a2;
         return toggle.setValue(((_a2 = this.plugin.settings.enabledModels) == null ? void 0 : _a2[model.id]) !== false).onChange(async (value) => {
           const enabledModels = this.plugin.settings.enabledModels || {};
@@ -17144,27 +16825,27 @@ var AIModelConfigurationSection = class {
         });
       });
       const actionsCell = row.createEl("td");
-      new import_obsidian26.Setting(actionsCell).setName("").setDesc("Delete local copy of this model").addButton((button) => button.setButtonText("Delete").setWarning().onClick(async () => {
+      new import_obsidian25.Setting(actionsCell).setName("").setDesc("Delete local copy of this model").addButton((button) => button.setButtonText("Delete").setWarning().onClick(async () => {
         const confirmed = confirm(`Are you sure you want to delete the local copy of the model "${model.name}"?`);
         if (confirmed) {
           try {
             await this.plugin.app.vault.adapter.remove(`ai-models/${model.id}.json`);
             this.plugin.settings.availableModels = await getAllAvailableModels(this.plugin.settings);
             await this.plugin.saveSettings();
-            new import_obsidian26.Notice(`Deleted model "${model.name}"`);
+            new import_obsidian25.Notice(`Deleted model "${model.name}"`);
             containerEl.empty();
             await this.renderAvailableModelsSection(containerEl);
           } catch (error) {
-            new import_obsidian26.Notice(`Error deleting model: ${error.message}`);
+            new import_obsidian25.Notice(`Error deleting model: ${error.message}`);
           }
         }
       })).addButton((button) => button.setButtonText("Re-download").onClick(async () => {
         const confirmed = confirm(`Are you sure you want to re-download the model "${model.name}"?`);
         if (confirmed) {
           try {
-            new import_obsidian26.Notice(`Re-download feature is not yet implemented. Please pull the model again using the provider settings.`);
+            new import_obsidian25.Notice(`Re-download feature is not yet implemented. Please pull the model again using the provider settings.`);
           } catch (error) {
-            new import_obsidian26.Notice(`Error re-downloading model: ${error.message}`);
+            new import_obsidian25.Notice(`Error re-downloading model: ${error.message}`);
           }
         }
       }));
@@ -17183,7 +16864,7 @@ var AIModelConfigurationSection = class {
     });
     const presetList = this.plugin.settings.modelSettingPresets || [];
     presetList.forEach((preset, idx) => {
-      new import_obsidian26.Setting(containerEl).setName("Preset Name").setDesc("Edit the name of this preset").addText((text) => {
+      new import_obsidian25.Setting(containerEl).setName("Preset Name").setDesc("Edit the name of this preset").addText((text) => {
         text.setPlaceholder("Preset Name").setValue(preset.name).onChange((value) => {
           preset.name = value != null ? value : "";
         });
@@ -17191,7 +16872,7 @@ var AIModelConfigurationSection = class {
           await this.plugin.saveSettings();
         });
       });
-      new import_obsidian26.Setting(containerEl).setName("Model ID (provider:model)").setDesc("Edit the model for this preset").addText((text) => {
+      new import_obsidian25.Setting(containerEl).setName("Model ID (provider:model)").setDesc("Edit the model for this preset").addText((text) => {
         text.setPlaceholder("Model ID (provider:model)").setValue(preset.selectedModel || "").onChange((value) => {
           preset.selectedModel = value != null ? value : "";
         });
@@ -17199,7 +16880,7 @@ var AIModelConfigurationSection = class {
           await this.plugin.saveSettings();
         });
       });
-      new import_obsidian26.Setting(containerEl).setName("System Message").setDesc("Edit the system message for this preset").addTextArea((text) => {
+      new import_obsidian25.Setting(containerEl).setName("System Message").setDesc("Edit the system message for this preset").addTextArea((text) => {
         text.setPlaceholder("System message").setValue(preset.systemMessage || "").onChange((value) => {
           preset.systemMessage = value != null ? value : "";
         });
@@ -17214,7 +16895,7 @@ var AIModelConfigurationSection = class {
         preset.temperature = value;
         await this.plugin.saveSettings();
       });
-      new import_obsidian26.Setting(containerEl).setName("Max Tokens").setDesc("Edit the max tokens for this preset").addText((text) => {
+      new import_obsidian25.Setting(containerEl).setName("Max Tokens").setDesc("Edit the max tokens for this preset").addText((text) => {
         var _a2;
         text.setPlaceholder("Max tokens").setValue(((_a2 = preset.maxTokens) == null ? void 0 : _a2.toString()) || "").onChange((value) => {
           const num = parseInt(value != null ? value : "", 10);
@@ -17231,7 +16912,7 @@ var AIModelConfigurationSection = class {
         preset.enableStreaming = value;
         await this.plugin.saveSettings();
       });
-      new import_obsidian26.Setting(containerEl).addExtraButton(
+      new import_obsidian25.Setting(containerEl).addExtraButton(
         (btn) => btn.setIcon("cross").setTooltip("Delete").onClick(async () => {
           var _a2;
           (_a2 = this.plugin.settings.modelSettingPresets) == null ? void 0 : _a2.splice(idx, 1);
@@ -17239,7 +16920,7 @@ var AIModelConfigurationSection = class {
         })
       );
     });
-    new import_obsidian26.Setting(containerEl).addButton(
+    new import_obsidian25.Setting(containerEl).addButton(
       (btn) => btn.setButtonText("Add Preset").setCta().onClick(async () => {
         if (!this.plugin.settings.modelSettingPresets) this.plugin.settings.modelSettingPresets = [];
         this.plugin.settings.modelSettingPresets.push(JSON.parse(JSON.stringify({
@@ -17464,7 +17145,7 @@ var AgentSettingsSection = class {
 };
 
 // src/settings/sections/ContentNoteHandlingSection.ts
-var import_obsidian27 = require("obsidian");
+var import_obsidian26 = require("obsidian");
 var ContentNoteHandlingSection = class {
   /**
    * @param plugin The main plugin instance.
@@ -17588,7 +17269,7 @@ var ContentNoteHandlingSection = class {
     );
     const contextNotesContainer = containerEl.createDiv("context-notes-container");
     contextNotesContainer.style.marginBottom = "24px";
-    new import_obsidian27.Setting(contextNotesContainer).setName("Context Notes").setDesc("Notes to attach as context (supports [[filename]] and [[another note#header]] syntax)").addTextArea((text) => {
+    new import_obsidian26.Setting(contextNotesContainer).setName("Context Notes").setDesc("Notes to attach as context (supports [[filename]] and [[another note#header]] syntax)").addTextArea((text) => {
       text.setPlaceholder("[[Note Name]]\n[[Another Note#Header]]").setValue(this.plugin.settings.contextNotes || "").onChange((value) => {
         this.plugin.settings.contextNotes = value;
       });
@@ -17668,7 +17349,7 @@ var ContentNoteHandlingSection = class {
       genContainer.style.padding = "1em";
       genContainer.style.marginBottom = "1em";
       genContainer.createEl("h4", { text: autoCommandName });
-      new import_obsidian27.Setting(genContainer).setName("YAML Attribute Name").setDesc("The YAML field name to insert/update").addText((text) => {
+      new import_obsidian26.Setting(genContainer).setName("YAML Attribute Name").setDesc("The YAML field name to insert/update").addText((text) => {
         text.setPlaceholder("YAML Attribute Name").setValue(gen.attributeName).onChange((value) => {
           if (this.plugin.settings.yamlAttributeGenerators) {
             this.plugin.settings.yamlAttributeGenerators[idx].attributeName = value != null ? value : "";
@@ -17679,7 +17360,7 @@ var ContentNoteHandlingSection = class {
           await this.plugin.saveSettings();
         });
       });
-      new import_obsidian27.Setting(genContainer).setName("Prompt for LLM").setDesc("The prompt to send to the AI for generating the YAML value").addTextArea((text) => {
+      new import_obsidian26.Setting(genContainer).setName("Prompt for LLM").setDesc("The prompt to send to the AI for generating the YAML value").addTextArea((text) => {
         text.setPlaceholder("Prompt for LLM").setValue(gen.prompt).onChange((value) => {
           if (this.plugin.settings.yamlAttributeGenerators) {
             this.plugin.settings.yamlAttributeGenerators[idx].prompt = value != null ? value : "";
@@ -17691,7 +17372,7 @@ var ContentNoteHandlingSection = class {
         text.inputEl.rows = 3;
         text.inputEl.style.width = "100%";
       });
-      new import_obsidian27.Setting(genContainer).setName("Output Mode").setDesc("Where to put the generated YAML attribute").addDropdown((drop) => {
+      new import_obsidian26.Setting(genContainer).setName("Output Mode").setDesc("Where to put the generated YAML attribute").addDropdown((drop) => {
         drop.addOption("clipboard", "Copy to clipboard");
         drop.addOption("metadata", "Insert into metadata");
         drop.setValue(gen.outputMode);
@@ -17702,7 +17383,7 @@ var ContentNoteHandlingSection = class {
           }
         });
       });
-      new import_obsidian27.Setting(genContainer).addExtraButton((btn) => {
+      new import_obsidian26.Setting(genContainer).addExtraButton((btn) => {
         btn.setIcon("cross").setTooltip("Delete this YAML generator").onClick(async () => {
           if (this.plugin.settings.yamlAttributeGenerators) {
             this.plugin.settings.yamlAttributeGenerators.splice(idx, 1);
@@ -17711,7 +17392,7 @@ var ContentNoteHandlingSection = class {
         });
       });
     });
-    new import_obsidian27.Setting(containerEl).addButton((btn) => {
+    new import_obsidian26.Setting(containerEl).addButton((btn) => {
       btn.setButtonText("Add YAML Attribute Generator").setCta().onClick(async () => {
         if (!this.plugin.settings.yamlAttributeGenerators) this.plugin.settings.yamlAttributeGenerators = [];
         this.plugin.settings.yamlAttributeGenerators.push(JSON.parse(JSON.stringify({
@@ -17727,7 +17408,7 @@ var ContentNoteHandlingSection = class {
 };
 
 // src/settings/sections/BackupManagementSection.ts
-var import_obsidian28 = require("obsidian");
+var import_obsidian27 = require("obsidian");
 
 // src/settings/components/DialogHelpers.ts
 var DialogHelpers = class {
@@ -17861,10 +17542,10 @@ var BackupManagementSection = class {
         if (confirmed) {
           try {
             await backupManager.deleteAllBackups();
-            new import_obsidian28.Notice("Deleted all backups successfully");
+            new import_obsidian27.Notice("Deleted all backups successfully");
             this.renderBackupManagement(containerEl.parentElement);
           } catch (error) {
-            new import_obsidian28.Notice(`Error deleting all backups: ${error.message}`);
+            new import_obsidian27.Notice(`Error deleting all backups: ${error.message}`);
           }
         }
       };
@@ -17923,12 +17604,12 @@ var BackupManagementSection = class {
             try {
               const result = await backupManager.restoreBackup(backup);
               if (result.success) {
-                new import_obsidian28.Notice(`Successfully restored backup for ${filePath}`);
+                new import_obsidian27.Notice(`Successfully restored backup for ${filePath}`);
               } else {
-                new import_obsidian28.Notice(`Failed to restore backup: ${result.error}`);
+                new import_obsidian27.Notice(`Failed to restore backup: ${result.error}`);
               }
             } catch (error) {
-              new import_obsidian28.Notice(`Error restoring backup: ${error.message}`);
+              new import_obsidian27.Notice(`Error restoring backup: ${error.message}`);
             }
           }
         };
@@ -17944,11 +17625,11 @@ var BackupManagementSection = class {
           if (confirmed) {
             try {
               await backupManager.deleteSpecificBackup(filePath, backup.timestamp);
-              new import_obsidian28.Notice(`Deleted backup for ${filePath}`);
+              new import_obsidian27.Notice(`Deleted backup for ${filePath}`);
               containerEl.empty();
               await this.renderBackupFilesList(containerEl, backupFiles, backupManager);
             } catch (error) {
-              new import_obsidian28.Notice(`Error deleting backup: ${error.message}`);
+              new import_obsidian27.Notice(`Error deleting backup: ${error.message}`);
             }
           }
         };
@@ -17960,7 +17641,7 @@ var BackupManagementSection = class {
           previewBtn.onclick = () => {
             const preview = backup.content.substring(0, 200);
             const truncated = backup.content.length > 200 ? "..." : "";
-            new import_obsidian28.Notice(`Preview: ${preview}${truncated}`, 1e4);
+            new import_obsidian27.Notice(`Preview: ${preview}${truncated}`, 1e4);
           };
         } else if (backup.isBinary) {
           const infoBtn = backupActions.createEl("button", {
@@ -17969,7 +17650,7 @@ var BackupManagementSection = class {
           });
           infoBtn.onclick = () => {
             const sizeKB2 = backup.fileSize ? Math.round(backup.fileSize / 1024) : 0;
-            new import_obsidian28.Notice(`Binary file backup: ${sizeKB2} KB
+            new import_obsidian27.Notice(`Binary file backup: ${sizeKB2} KB
 Stored at: ${backup.backupFilePath || "Unknown location"}`, 5e3);
           };
         }
@@ -17986,11 +17667,11 @@ Stored at: ${backup.backupFilePath || "Unknown location"}`, 5e3);
         if (confirmed) {
           try {
             await backupManager.deleteBackupsForFile(filePath);
-            new import_obsidian28.Notice(`Deleted all backups for ${filePath}`);
+            new import_obsidian27.Notice(`Deleted all backups for ${filePath}`);
             containerEl.empty();
             await this.renderBackupFilesList(containerEl, backupFiles, backupManager);
           } catch (error) {
-            new import_obsidian28.Notice(`Error deleting backups: ${error.message}`);
+            new import_obsidian27.Notice(`Error deleting backups: ${error.message}`);
           }
         }
       };
@@ -18039,10 +17720,10 @@ Stored at: ${backup.backupFilePath || "Unknown location"}`, 5e3);
         });
         return;
       }
-    } else if (trashFolder instanceof import_obsidian28.TFolder) {
+    } else if (trashFolder instanceof import_obsidian27.TFolder) {
       trashItems = trashFolder.children.map((item) => ({
         name: item.name,
-        isFolder: item instanceof import_obsidian28.TFolder,
+        isFolder: item instanceof import_obsidian27.TFolder,
         size: isTFile(item) && item.stat ? item.stat.size : void 0
       }));
     } else {
@@ -18090,10 +17771,10 @@ Stored at: ${backup.backupFilePath || "Unknown location"}`, 5e3);
                 await adapter.remove(fullPath);
               }
             }
-            new import_obsidian28.Notice(`Emptied trash - permanently deleted ${trashItems.length} items`);
+            new import_obsidian27.Notice(`Emptied trash - permanently deleted ${trashItems.length} items`);
             this.renderTrashManagement(containerEl.parentElement);
           } catch (error) {
-            new import_obsidian28.Notice(`Error emptying trash: ${error.message}`);
+            new import_obsidian27.Notice(`Error emptying trash: ${error.message}`);
           }
         }
       };
@@ -18130,17 +17811,17 @@ Stored at: ${backup.backupFilePath || "Unknown location"}`, 5e3);
           if (confirmed) {
             try {
               const trashFolderObj = this.plugin.app.vault.getAbstractFileByPath(trashPath);
-              if (trashFolderObj instanceof import_obsidian28.TFolder) {
+              if (trashFolderObj instanceof import_obsidian27.TFolder) {
                 const fileObj = trashFolderObj.children.find((child) => child.name === item.name);
                 if (fileObj) {
                   const newPath = item.name;
                   await this.plugin.app.fileManager.renameFile(fileObj, newPath);
-                  new import_obsidian28.Notice(`Restored "${item.name}" to vault root`);
+                  new import_obsidian27.Notice(`Restored "${item.name}" to vault root`);
                   this.renderTrashManagement(containerEl.parentElement);
                 }
               }
             } catch (error) {
-              new import_obsidian28.Notice(`Error restoring item: ${error.message}`);
+              new import_obsidian27.Notice(`Error restoring item: ${error.message}`);
             }
           }
         };
@@ -18163,10 +17844,10 @@ Stored at: ${backup.backupFilePath || "Unknown location"}`, 5e3);
             } else {
               await adapter.remove(fullPath);
             }
-            new import_obsidian28.Notice(`Permanently deleted "${item.name}"`);
+            new import_obsidian27.Notice(`Permanently deleted "${item.name}"`);
             this.renderTrashManagement(containerEl.parentElement);
           } catch (error) {
-            new import_obsidian28.Notice(`Error deleting item: ${error.message}`);
+            new import_obsidian27.Notice(`Error deleting item: ${error.message}`);
           }
         }
       };
@@ -18273,7 +17954,8 @@ var ChatHistorySettingsSection = class {
 };
 
 // src/settings/SettingTab.ts
-var MyPluginSettingTab = class extends import_obsidian29.PluginSettingTab {
+init_promptConstants();
+var MyPluginSettingTab = class extends import_obsidian28.PluginSettingTab {
   /**
    * Constructs the settings tab and initializes all settings sections.
    *
@@ -18281,6 +17963,7 @@ var MyPluginSettingTab = class extends import_obsidian29.PluginSettingTab {
    * @param plugin - The plugin instance.
    */
   constructor(app, plugin) {
+    var _a2;
     super(app, plugin);
     /** Reference to the plugin instance. */
     __publicField(this, "plugin");
@@ -18304,7 +17987,7 @@ var MyPluginSettingTab = class extends import_obsidian29.PluginSettingTab {
     this.plugin = plugin;
     this.settingCreators = new SettingCreators(this.plugin, () => this.display());
     if (this.plugin && typeof this.plugin.debugLog === "function") {
-      this.plugin.debugLog("debug", "[MyPluginSettingTab] constructor called");
+      log((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "debug", "[MyPluginSettingTab] constructor called");
     }
     this.generalSettingsSection = new GeneralSettingsSection(this.plugin, this.settingCreators);
     this.aiModelConfigurationSection = new AIModelConfigurationSection(this.plugin, this.settingCreators);
@@ -18337,8 +18020,9 @@ var MyPluginSettingTab = class extends import_obsidian29.PluginSettingTab {
    * It is called automatically when the tab is shown, and can be called to refresh the UI after changes.
    */
   display() {
+    var _a2;
     if (this.plugin && typeof this.plugin.debugLog === "function") {
-      this.plugin.debugLog("info", "[MyPluginSettingTab] display called");
+      log((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", "[MyPluginSettingTab] display called");
     }
     const { containerEl } = this;
     containerEl.empty();
@@ -18385,9 +18069,8 @@ var MyPluginSettingTab = class extends import_obsidian29.PluginSettingTab {
       this.plugin,
       "backupManagementExpanded"
     );
-    new import_obsidian29.Setting(containerEl).setName("Reset All Settings to Default").setDesc("Reset all plugin settings (except API keys) to their original default values.").addButton((button) => button.setButtonText("Reset").onClick(async () => {
+    new import_obsidian28.Setting(containerEl).setName("Reset All Settings to Default").setDesc("Reset all plugin settings (except API keys) to their original default values.").addButton((button) => button.setButtonText("Reset").onClick(async () => {
       const { DEFAULT_SETTINGS: DEFAULT_SETTINGS2 } = await Promise.resolve().then(() => (init_types(), types_exports));
-      const { DEFAULT_TITLE_PROMPT: DEFAULT_TITLE_PROMPT2 } = await Promise.resolve().then(() => (init_promptConstants(), promptConstants_exports));
       const preservedApiKeys = {
         openai: this.plugin.settings.openaiSettings.apiKey,
         anthropic: this.plugin.settings.anthropicSettings.apiKey,
@@ -18397,21 +18080,21 @@ var MyPluginSettingTab = class extends import_obsidian29.PluginSettingTab {
       this.plugin.settings.openaiSettings.apiKey = preservedApiKeys.openai;
       this.plugin.settings.anthropicSettings.apiKey = preservedApiKeys.anthropic;
       this.plugin.settings.geminiSettings.apiKey = preservedApiKeys.gemini;
-      this.plugin.settings.titlePrompt = DEFAULT_TITLE_PROMPT2;
+      this.plugin.settings.titlePrompt = DEFAULT_TITLE_PROMPT;
       await this.plugin.saveSettings();
       this.display();
       setTimeout(() => {
         activateView(this.plugin.app, VIEW_TYPE_MODEL_SETTINGS);
       }, 100);
-      new import_obsidian29.Notice("All settings (except API keys) reset to default.");
+      new import_obsidian28.Notice("All settings (except API keys) reset to default.");
     }));
   }
 };
 
 // src/components/ModelSettingsView.ts
-var import_obsidian30 = require("obsidian");
+var import_obsidian29 = require("obsidian");
 var VIEW_TYPE_MODEL_SETTINGS2 = "model-settings-view";
-var ModelSettingsView = class extends import_obsidian30.ItemView {
+var ModelSettingsView = class extends import_obsidian29.ItemView {
   constructor(leaf, plugin) {
     super(leaf);
     __publicField(this, "plugin");
@@ -18447,6 +18130,7 @@ var ModelSettingsView = class extends import_obsidian30.ItemView {
 init_logger();
 
 // src/components/chat/agent/agentModeManager.ts
+init_logger();
 var AgentModeManager = class {
   /**
    * @param settings The plugin's settings object (mutable reference)
@@ -18485,7 +18169,8 @@ var AgentModeManager = class {
    * @param enabled True to enable agent mode, false to disable.
    */
   async setAgentModeEnabled(enabled) {
-    this.debugLog("info", "[agentModeManager.ts] setAgentModeEnabled called", { enabled });
+    var _a2, _b, _c;
+    log((_a2 = this.settings.debugMode) != null ? _a2 : false, "info", "[agentModeManager.ts] setAgentModeEnabled called", { enabled });
     if (!this.settings.agentMode) {
       this.settings.agentMode = {
         enabled: false,
@@ -18493,18 +18178,377 @@ var AgentModeManager = class {
         timeoutMs: 3e4,
         maxIterations: 10
       };
-      this.debugLog("debug", "[agentModeManager.ts] Initialized agentMode settings");
+      log((_b = this.settings.debugMode) != null ? _b : false, "debug", "[agentModeManager.ts] Initialized agentMode settings");
     }
     this.settings.agentMode.enabled = enabled;
     await this.saveSettings();
     this.emitSettingsChange();
-    this.debugLog("info", "[agentModeManager.ts] Agent mode enabled state set", { enabled });
+    log((_c = this.settings.debugMode) != null ? _c : false, "info", "[agentModeManager.ts] Agent mode enabled state set", { enabled });
   }
 };
 
 // src/main.ts
 init_BackupManager();
 init_ToolRichDisplay();
+
+// src/components/commands/aiStreamCommands.ts
+init_pluginUtils();
+
+// src/utils/aiCompletionHandler.ts
+init_providers();
+
+// src/utils/parseSelection.ts
+function parseSelection(selection, chatSeparator, chatBoundaryString) {
+  let insideChat = !chatBoundaryString;
+  const lines = selection.split("\n");
+  let messages = [];
+  let currentRole = "user";
+  let currentContent = "";
+  for (const line of lines) {
+    if (chatBoundaryString && line.trim() === chatBoundaryString) {
+      if (!insideChat && currentContent.trim()) {
+        messages.push({ role: currentRole, content: currentContent.trim() });
+        currentContent = "";
+      }
+      insideChat = !insideChat;
+      continue;
+    }
+    if (!insideChat) continue;
+    if (line.trim() === chatSeparator) {
+      if (currentContent.trim()) {
+        messages.push({ role: currentRole, content: currentContent.trim() });
+      }
+      currentRole = currentRole === "user" ? "assistant" : "user";
+      currentContent = "";
+    } else {
+      currentContent += line + "\n";
+    }
+  }
+  if (currentContent.trim()) {
+    messages.push({ role: currentRole, content: currentContent.trim() });
+  }
+  return messages;
+}
+
+// src/utils/aiCompletionHandler.ts
+init_logger();
+async function handleAICompletion(editor, settings, processMessages2, getSystemMessage2, activeStream, setActiveStream) {
+  var _a2, _b, _c;
+  let text;
+  let insertPosition;
+  if (editor.somethingSelected()) {
+    text = editor.getSelection();
+    insertPosition = editor.getCursor("to");
+  } else {
+    const currentLineNumber = editor.getCursor().line;
+    let lines = [];
+    for (let i = 0; i <= currentLineNumber; i++) {
+      lines.push(editor.getLine(i));
+    }
+    const chatStartString = settings.chatStartString;
+    if (chatStartString) {
+      const startIdx = lines.findIndex((line) => line.trim() === chatStartString.trim());
+      if (startIdx !== -1) {
+        lines = lines.slice(startIdx + 1);
+      }
+    }
+    text = lines.join("\n");
+    insertPosition = { line: currentLineNumber + 1, ch: 0 };
+  }
+  const messages = parseSelection(text, settings.chatSeparator);
+  if (messages.length === 0) {
+    showNotice("No valid messages found in the selection.");
+    return;
+  }
+  const sepLine = insertSeparator(editor, insertPosition, settings.chatSeparator);
+  let currentPosition = { line: sepLine, ch: 0 };
+  activeStream.current = new AbortController();
+  setActiveStream(activeStream.current);
+  try {
+    const provider = settings.selectedModel ? createProviderFromUnifiedModel(settings, settings.selectedModel) : createProvider(settings);
+    const processedMessages = await processMessages2([
+      { role: "system", content: getSystemMessage2() },
+      ...messages
+    ]);
+    let bufferedChunk = "";
+    const flushBuffer = () => {
+      if (bufferedChunk) {
+        editor.replaceRange(bufferedChunk, currentPosition);
+        currentPosition = editor.offsetToPos(
+          editor.posToOffset(currentPosition) + bufferedChunk.length
+        );
+        bufferedChunk = "";
+      }
+    };
+    await provider.getCompletion(
+      processedMessages,
+      {
+        temperature: settings.temperature,
+        maxTokens: settings.maxTokens,
+        streamCallback: (chunk) => {
+          bufferedChunk += chunk;
+          setTimeout(flushBuffer, 100);
+        },
+        abortController: activeStream.current
+      }
+    );
+    flushBuffer();
+    const endLineContent = (_a2 = editor.getLine(currentPosition.line)) != null ? _a2 : "";
+    const endPrefix = endLineContent.trim() !== "" ? "\n" : "";
+    editor.replaceRange(`${endPrefix}
+${settings.chatSeparator}
+
+`, currentPosition);
+    const newCursorPos = editor.offsetToPos(
+      editor.posToOffset(currentPosition) + (endPrefix ? 1 : 0) + 1 + settings.chatSeparator.length + 1
+    );
+    editor.setCursor(newCursorPos);
+  } catch (error) {
+    showNotice(`Error: ${error.message}`);
+    log((_b = settings.debugMode) != null ? _b : false, "error", "AI Completion Error:", error);
+    const errLineContent = (_c = editor.getLine(currentPosition.line)) != null ? _c : "";
+    const errPrefix = errLineContent.trim() !== "" ? "\n" : "";
+    editor.replaceRange(`Error: ${error.message}
+${errPrefix}
+${settings.chatSeparator}
+
+`, currentPosition);
+  } finally {
+    activeStream.current = null;
+    setActiveStream(null);
+  }
+}
+
+// src/components/commands/aiStreamCommands.ts
+function registerAIStreamCommands(plugin, settings, processMessages2, activeStream, setActiveStream) {
+  registerCommand(
+    plugin,
+    {
+      id: "ai-completion",
+      name: "Get AI Completion",
+      editorCallback: (editor) => handleAICompletion(
+        editor,
+        settings,
+        processMessages2,
+        () => getSystemMessage(settings),
+        // Function to get the current system message
+        activeStream,
+        setActiveStream
+      )
+    }
+  );
+  registerCommand(
+    plugin,
+    {
+      id: "end-ai-stream",
+      name: "End AI Stream",
+      callback: () => {
+        if (activeStream.current) {
+          activeStream.current.abort();
+          activeStream.current = null;
+          setActiveStream(null);
+          showNotice("AI stream ended");
+        } else {
+          showNotice("No active AI stream to end");
+        }
+      }
+    }
+  );
+}
+
+// src/components/commands/noteCommands.ts
+init_pluginUtils();
+function registerNoteCommands(plugin, settings, activateChatViewAndLoadMessages) {
+  registerCommand(
+    plugin,
+    {
+      id: "copy-active-note-name",
+      name: "Copy Active Note Name",
+      callback: async () => {
+        const activeFile = plugin.app.workspace.getActiveFile();
+        if (activeFile) {
+          const noteName = `[[${activeFile.basename}]]`;
+          await copyToClipboard3(noteName, `Copied to clipboard: ${noteName}`, "Failed to copy to clipboard");
+        } else {
+          showNotice("No active note found");
+        }
+      }
+    }
+  );
+  registerCommand(
+    plugin,
+    {
+      id: "insert-chat-start-string",
+      name: "Insert Chat Start String",
+      editorCallback: (editor) => {
+        var _a2;
+        const chatStartString = (_a2 = settings.chatStartString) != null ? _a2 : "";
+        if (!chatStartString) {
+          showNotice("chatStartString is not set in settings.");
+          return;
+        }
+        const cursor = editor.getCursor();
+        editor.replaceRange(chatStartString, cursor);
+        moveCursorAfterInsert(editor, cursor, chatStartString);
+      }
+    }
+  );
+  registerCommand(
+    plugin,
+    {
+      id: "load-chat-note-into-chat",
+      name: "Load Chat Note into Chat",
+      callback: async () => {
+        let file = plugin.app.workspace.getActiveFile();
+        if (!file) {
+          showNotice("No active note found. Please open a note to load as chat.");
+          return;
+        }
+        let content = await plugin.app.vault.read(file);
+        const messages = parseSelection(content, settings.chatSeparator);
+        if (!messages.length) {
+          showNotice("No chat messages found in the selected note.");
+          return;
+        }
+        await activateChatViewAndLoadMessages(messages);
+      }
+    }
+  );
+}
+
+// src/components/commands/generateNoteTitleCommand.ts
+init_pluginUtils();
+function registerGenerateNoteTitleCommand(plugin, settings, processMessages2) {
+  registerCommand(
+    plugin,
+    {
+      id: "generate-note-title",
+      name: "Generate Note Title",
+      callback: async () => {
+        const { generateNoteTitle: generateNoteTitle2 } = await Promise.resolve().then(() => (init_YAMLHandler(), YAMLHandler_exports));
+        await generateNoteTitle2(
+          plugin.app,
+          settings,
+          processMessages2
+        );
+      }
+    }
+  );
+}
+
+// src/components/commands/contextCommands.ts
+init_pluginUtils();
+function registerContextCommands(plugin, settings) {
+  registerCommand(
+    plugin,
+    {
+      id: "toggle-enable-obsidian-links",
+      name: "Toggle Enable Obsidian Links",
+      callback: async () => {
+        settings.enableObsidianLinks = !settings.enableObsidianLinks;
+        await plugin.saveSettings();
+        const status = settings.enableObsidianLinks ? "enabled" : "disabled";
+        showNotice(`Obsidian Links ${status}`);
+      }
+    }
+  );
+  registerCommand(
+    plugin,
+    {
+      id: "toggle-enable-context-notes",
+      name: "Toggle Enable Context Notes",
+      callback: async () => {
+        settings.enableContextNotes = !settings.enableContextNotes;
+        await plugin.saveSettings();
+        const status = settings.enableContextNotes ? "enabled" : "disabled";
+        showNotice(`Context Notes ${status}`);
+      }
+    }
+  );
+  registerCommand(
+    plugin,
+    {
+      id: "clear-context-notes",
+      name: "Clear Context Notes",
+      callback: async () => {
+        settings.contextNotes = "";
+        await plugin.saveSettings();
+        showNotice("Context Notes cleared");
+      }
+    }
+  );
+  registerCommand(
+    plugin,
+    {
+      id: "copy-context-notes-to-clipboard",
+      name: "Copy Context Notes to Clipboard",
+      callback: async () => {
+        if (!settings.contextNotes || settings.contextNotes.trim().length === 0) {
+          showNotice("No context notes to copy");
+          return;
+        }
+        try {
+          await navigator.clipboard.writeText(settings.contextNotes);
+          showNotice("Context notes copied to clipboard");
+        } catch (error) {
+          console.error("Failed to copy context notes to clipboard:", error);
+          showNotice("Failed to copy context notes to clipboard");
+        }
+      }
+    }
+  );
+  registerCommand(
+    plugin,
+    {
+      id: "add-current-note-to-context",
+      name: "Add Current Note to Context Notes",
+      callback: async () => {
+        const activeFile = plugin.app.workspace.getActiveFile();
+        if (!activeFile) {
+          showNotice("No active note to add to context");
+          return;
+        }
+        const noteTitle = activeFile.basename;
+        const wikiLink = `[[${noteTitle}]]`;
+        if (settings.contextNotes && settings.contextNotes.includes(wikiLink)) {
+          showNotice(`"${noteTitle}" is already in context notes`);
+          return;
+        }
+        if (settings.contextNotes && settings.contextNotes.trim().length > 0) {
+          settings.contextNotes += `
+${wikiLink}`;
+        } else {
+          settings.contextNotes = wikiLink;
+        }
+        await plugin.saveSettings();
+        showNotice(`Added "${noteTitle}" to context notes`);
+      }
+    }
+  );
+}
+
+// src/commands/commandRegistry.ts
+init_YAMLHandler();
+init_logger();
+function registerAllCommands(plugin, settings, processMessages2, activateChatViewAndLoadMessages, activeStream, setActiveStream, yamlAttributeCommandIds) {
+  registerViewCommands(plugin);
+  registerAIStreamCommands(plugin, settings, processMessages2, activeStream, setActiveStream);
+  registerNoteCommands(plugin, settings, activateChatViewAndLoadMessages);
+  registerGenerateNoteTitleCommand(plugin, settings, processMessages2);
+  registerContextCommands(plugin, settings);
+  return registerYamlAttributeCommands(
+    plugin,
+    settings,
+    processMessages2,
+    yamlAttributeCommandIds,
+    (level, ...args) => {
+      var _a2;
+      return log((_a2 = settings.debugMode) != null ? _a2 : false, level, ...args);
+    }
+  );
+}
+
+// src/main.ts
 init_YAMLHandler();
 var _MyPlugin = class _MyPlugin extends import_obsidian31.Plugin {
   constructor() {
@@ -18565,43 +18609,6 @@ var _MyPlugin = class _MyPlugin extends import_obsidian31.Plugin {
     }
   }
   /**
-   * Get the current agent mode settings, or defaults if not set.
-   */
-  getAgentModeSettings() {
-    return this.settings.agentMode || {
-      enabled: false,
-      maxToolCalls: 5,
-      timeoutMs: 3e4,
-      maxIterations: 10
-    };
-  }
-  /**
-   * Returns true if agent mode is enabled in settings.
-   */
-  isAgentModeEnabled() {
-    return this.getAgentModeSettings().enabled;
-  }
-  /**
-   * Enable or disable agent mode and persist the change.
-   * @param enabled Whether agent mode should be enabled
-   */
-  async setAgentModeEnabled(enabled) {
-    this.debugLog("info", "[main.ts] setAgentModeEnabled called", { enabled });
-    if (!this.settings.agentMode) {
-      this.settings.agentMode = {
-        enabled: false,
-        maxToolCalls: 5,
-        timeoutMs: 3e4,
-        maxIterations: 10
-      };
-      this.debugLog("debug", "[main.ts] Initialized agentMode settings");
-    }
-    this.settings.agentMode.enabled = enabled;
-    await this.saveSettings();
-    this.emitSettingsChange();
-    this.debugLog("info", "[main.ts] Agent mode enabled state set", { enabled });
-  }
-  /**
    * Helper to activate the chat view and load messages into it.
    * @param messages An array of messages to load.
    */
@@ -18655,6 +18662,7 @@ var _MyPlugin = class _MyPlugin extends import_obsidian31.Plugin {
    * Handles initialization, settings, view registration, and command registration.
    */
   async onload() {
+    var _a2;
     await this.loadSettings();
     const pluginDataPath = this.app.vault.configDir + "/plugins/ai-assistant-for-obsidian";
     this.backupManager = new BackupManager(this.app, pluginDataPath);
@@ -18664,55 +18672,37 @@ var _MyPlugin = class _MyPlugin extends import_obsidian31.Plugin {
       () => this.saveSettings(),
       () => this.emitSettingsChange(),
       (level, ...args) => {
-        var _a2;
-        return debugLog((_a2 = this.settings.debugMode) != null ? _a2 : false, level, ...args);
+        var _a3;
+        return log((_a3 = this.settings.debugMode) != null ? _a3 : false, level, ...args);
       }
+      // Changed from debugLog to log
     );
     this.addSettingTab(new MyPluginSettingTab(this.app, this));
-    this.registerPluginView(VIEW_TYPE_MODEL_SETTINGS, (leaf) => new ModelSettingsView(leaf, this));
     this.registerPluginView(VIEW_TYPE_CHAT, (leaf) => new ChatView(leaf, this));
-    registerViewCommands(this);
-    registerAIStreamCommands(
+    this.registerPluginView(VIEW_TYPE_MODEL_SETTINGS, (leaf) => new ModelSettingsView(leaf, this));
+    this._yamlAttributeCommandIds = registerAllCommands(
       this,
       this.settings,
       (messages) => this.processMessages(messages),
+      (messages) => this.activateChatViewAndLoadMessages(messages),
       { current: this.activeStream },
       (stream) => {
         this.activeStream = stream;
-      }
+      },
+      this._yamlAttributeCommandIds
     );
-    registerNoteCommands(
-      this,
-      this.settings,
-      (messages) => this.activateChatViewAndLoadMessages(messages)
-    );
-    registerGenerateNoteTitleCommand(
-      this,
-      this.settings,
-      (messages) => this.processMessages(messages)
-    );
-    registerContextCommands(this, this.settings);
     this.app.workspace.onLayoutReady(() => {
       if (this.settings.autoOpenModelSettings) {
         activateView(this.app, VIEW_TYPE_MODEL_SETTINGS);
       }
     });
-    this._yamlAttributeCommandIds = registerYamlAttributeCommands(
-      this,
-      this.settings,
-      (messages) => this.processMessages(messages),
-      this._yamlAttributeCommandIds,
-      (level, ...args) => {
-        var _a2;
-        return debugLog((_a2 = this.settings.debugMode) != null ? _a2 : false, level, ...args);
-      }
-    );
     this.registerMarkdownPostProcessor((element, context) => {
       this.processToolExecutionBlocks(element, context);
     });
     this.registerMarkdownCodeBlockProcessor("ai-tool-execution", (source, el, ctx) => {
       this.processToolExecutionCodeBlock(source, el, ctx);
     });
+    log((_a2 = this.settings.debugMode) != null ? _a2 : false, "info", "AI Assistant Plugin loaded.");
   }
   /**
    * Enhanced debug logger for the plugin.
@@ -18721,7 +18711,7 @@ var _MyPlugin = class _MyPlugin extends import_obsidian31.Plugin {
    */
   debugLog(level = "debug", ...args) {
     var _a2;
-    debugLog((_a2 = this.settings.debugMode) != null ? _a2 : false, level, ...args);
+    log((_a2 = this.settings.debugMode) != null ? _a2 : false, level, ...args);
   }
   /**
    * Loads plugin settings from data.
@@ -18743,8 +18733,9 @@ var _MyPlugin = class _MyPlugin extends import_obsidian31.Plugin {
       this._yamlAttributeCommandIds,
       (level, ...args) => {
         var _a2;
-        return debugLog((_a2 = this.settings.debugMode) != null ? _a2 : false, level, ...args);
+        return log((_a2 = this.settings.debugMode) != null ? _a2 : false, level, ...args);
       }
+      // Changed from debugLog to log
     );
     this.emitSettingsChange();
   }

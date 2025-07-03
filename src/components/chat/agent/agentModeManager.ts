@@ -1,4 +1,5 @@
 import { MyPluginSettings, AgentModeSettings } from '../../../types';
+import { log } from '../../../utils/logger'; // Import log
 
 /**
  * Manages the agent mode settings for the plugin.
@@ -45,7 +46,7 @@ export class AgentModeManager {
      * @param enabled True to enable agent mode, false to disable.
      */
     async setAgentModeEnabled(enabled: boolean) {
-        this.debugLog('info', '[agentModeManager.ts] setAgentModeEnabled called', { enabled });
+        log(this.settings.debugMode ?? false, 'info', '[agentModeManager.ts] setAgentModeEnabled called', { enabled }); // Use log
         if (!this.settings.agentMode) {
             this.settings.agentMode = {
                 enabled: false,
@@ -53,11 +54,11 @@ export class AgentModeManager {
                 timeoutMs: 30000,
                 maxIterations: 10
             };
-            this.debugLog('debug', '[agentModeManager.ts] Initialized agentMode settings');
+            log(this.settings.debugMode ?? false, 'debug', '[agentModeManager.ts] Initialized agentMode settings'); // Use log
         }
         this.settings.agentMode.enabled = enabled;
         await this.saveSettings();
         this.emitSettingsChange();
-        this.debugLog('info', '[agentModeManager.ts] Agent mode enabled state set', { enabled });
+        log(this.settings.debugMode ?? false, 'info', '[agentModeManager.ts] Agent mode enabled state set', { enabled }); // Use log
     }
 }

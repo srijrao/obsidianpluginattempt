@@ -59,73 +59,47 @@ export abstract class BaseProvider implements AIProvider {
     /**
      * Handle common HTTP errors
      */
-    protected handleHttpError(error: any): never {
-        // Handle Response objects from fetch API
-        if (error instanceof Response) {
-            const status = error.status;
-            switch (status) {
-                case 401:
-                    throw new ProviderError(
-                        ProviderErrorType.InvalidApiKey,
-                        'Invalid API key',
-                        status
-                    );
-                case 429:
-                    throw new ProviderError(
-                        ProviderErrorType.RateLimit,
-                        'Rate limit exceeded',
-                        status
-                    );
-                case 400:
-                    throw new ProviderError(
-                        ProviderErrorType.InvalidRequest,
-                        'Invalid request',
-                        status
-                    );
-                case 500:
-                case 502:
-                case 503:
-                case 504:
-                    throw new ProviderError(
-                        ProviderErrorType.ServerError,
-                        'Server error occurred',
-                        status
-                    );
-                default:
-                    throw new ProviderError(
-                        ProviderErrorType.ServerError,
-                        `Unknown error occurred: ${status}`,
-                        status
-                    );
-            }
-        }
+    protected async handleHttpError(error: any): Promise<never> {
+        let status: number | undefined;
+        let errorBody: any;
 
-        // Handle error objects with response property (like Axios errors)
-        if (!error.response) {
+        if (error instanceof Response) {
+            status = error.status;
+            try {
+                errorBody = await error.json();
+            } catch {
+                errorBody = await error.text();
+            }
+        } else if (error.response) {
+            // Handle error objects with response property (like Axios errors)
+            status = error.response.status;
+            errorBody = error.response.data || error.response.text;
+        } else {
             throw new ProviderError(
                 ProviderErrorType.NetworkError,
                 'Network error occurred'
             );
         }
 
-        const status = error.response.status;
+        const errorMessage = typeof errorBody === 'object' && errorBody !== null && 'message' in errorBody ? errorBody.message : String(errorBody);
+
         switch (status) {
             case 401:
                 throw new ProviderError(
                     ProviderErrorType.InvalidApiKey,
-                    'Invalid API key',
+                    `Invalid API key: ${errorMessage}`,
                     status
                 );
             case 429:
                 throw new ProviderError(
                     ProviderErrorType.RateLimit,
-                    'Rate limit exceeded',
+                    `Rate limit exceeded: ${errorMessage}`,
                     status
                 );
             case 400:
                 throw new ProviderError(
                     ProviderErrorType.InvalidRequest,
-                    'Invalid request',
+                    `Invalid request: ${errorMessage}`,
                     status
                 );
             case 500:
@@ -134,13 +108,13 @@ export abstract class BaseProvider implements AIProvider {
             case 504:
                 throw new ProviderError(
                     ProviderErrorType.ServerError,
-                    'Server error occurred',
+                    `Server error occurred: ${errorMessage}`,
                     status
                 );
             default:
                 throw new ProviderError(
                     ProviderErrorType.ServerError,
-                    `Unknown error occurred: ${status}`,
+                    `Unknown error occurred (Status: ${status}): ${errorMessage}`,
                     status
                 );
         }

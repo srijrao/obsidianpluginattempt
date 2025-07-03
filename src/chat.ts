@@ -203,9 +203,9 @@ export class ChatView extends ItemView {
 
         // Toggle agent mode (tool use)
         ui.agentModeButton.addEventListener('click', async () => {
-            const isCurrentlyEnabled = this.plugin.isAgentModeEnabled();
-            await this.plugin.setAgentModeEnabled(!isCurrentlyEnabled);
-            if (this.plugin.isAgentModeEnabled()) {
+            const isCurrentlyEnabled = this.plugin.agentModeManager.isAgentModeEnabled();
+            await this.plugin.agentModeManager.setAgentModeEnabled(!isCurrentlyEnabled);
+            if (this.plugin.agentModeManager.isAgentModeEnabled()) {
                 ui.agentModeButton.classList.add('active');
                 ui.agentModeButton.setAttribute('title', 'Agent Mode: ON - AI can use tools');
                 new Notice('Agent Mode enabled - AI can now use tools');
@@ -221,7 +221,7 @@ export class ChatView extends ItemView {
         });
 
         // Set initial agent mode button state
-        if (this.plugin.isAgentModeEnabled()) {
+        if (this.plugin.agentModeManager.isAgentModeEnabled()) {
             ui.agentModeButton.classList.add('active');
             ui.agentModeButton.setAttribute('title', 'Agent Mode: ON - AI can use tools');
         } else {

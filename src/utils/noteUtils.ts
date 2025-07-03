@@ -6,7 +6,7 @@
 
 import { Notice, TFile, App } from 'obsidian';
 import { Message, MyPluginSettings } from '../types';
-import { findFile, extractContentUnderHeader } from './utils';
+import { findFile, extractContentUnderHeader } from './generalUtils';
 
 /**
  * Type guard to check if an object is an instance of TFile.

@@ -25,7 +25,7 @@ export class ToolLimitWarningUI {
         warning.className = "tool-limit-warning";
 
         // Get agent settings and current execution state.
-        const agentSettings = this.context.plugin.getAgentModeSettings();
+        const agentSettings = this.context.plugin.agentModeManager.getAgentModeSettings();
         const effectiveLimit = this.getEffectiveToolLimit();
         const executionCount = this.context.getExecutionCount();
 
@@ -159,7 +159,7 @@ export class ToolLimitWarningUI {
      * @returns The effective tool limit.
      */
     private getEffectiveToolLimit(): number {
-        const agentSettings = this.context.plugin.getAgentModeSettings();
+        const agentSettings = this.context.plugin.agentModeManager.getAgentModeSettings();
         return this.context.getTemporaryMaxToolCalls() || agentSettings.maxToolCalls;
     }
 }

@@ -31,22 +31,27 @@ export function createProvider(settings: MyPluginSettings): BaseProvider {
             return new OpenAIProvider(
                 settings.openaiSettings.apiKey,
                 settings.openaiSettings.model,
-                settings.openaiSettings.baseUrl
+                settings.openaiSettings.baseUrl,
+                settings.debugMode ?? false // Pass debugMode
             );
         case 'anthropic':
             return new AnthropicProvider(
                 settings.anthropicSettings.apiKey,
-                settings.anthropicSettings.model
+                settings.anthropicSettings.model,
+                settings.debugMode ?? false // Pass debugMode
             );
         case 'gemini':
             return new GeminiProvider(
                 settings.geminiSettings.apiKey,
-                settings.geminiSettings.model
+                settings.geminiSettings.model,
+                undefined, // apiVersion is optional, so pass undefined if not explicitly set
+                settings.debugMode ?? false // Pass debugMode
             );
         case 'ollama':
             return new OllamaProvider(
                 settings.ollamaSettings.serverUrl,
-                settings.ollamaSettings.model
+                settings.ollamaSettings.model,
+                settings.debugMode ?? false // Pass debugMode
             );        default:
             throw new Error(`Invalid provider type: ${settings.provider}`);
     }
@@ -64,13 +69,13 @@ export function createProviderFromUnifiedModel(settings: MyPluginSettings, unifi
     
     switch (providerType) {
         case 'openai':
-            return new OpenAIProvider(settings.openaiSettings.apiKey, modelId, settings.openaiSettings.baseUrl);
+            return new OpenAIProvider(settings.openaiSettings.apiKey, modelId, settings.openaiSettings.baseUrl, settings.debugMode ?? false); // Pass debugMode
         case 'anthropic':
-            return new AnthropicProvider(settings.anthropicSettings.apiKey, modelId);
+            return new AnthropicProvider(settings.anthropicSettings.apiKey, modelId, settings.debugMode ?? false); // Pass debugMode
         case 'gemini':
-            return new GeminiProvider(settings.geminiSettings.apiKey, modelId);
+            return new GeminiProvider(settings.geminiSettings.apiKey, modelId, undefined, settings.debugMode ?? false); // Pass debugMode
         case 'ollama':
-            return new OllamaProvider(settings.ollamaSettings.serverUrl, modelId);
+            return new OllamaProvider(settings.ollamaSettings.serverUrl, modelId, settings.debugMode ?? false); // Pass debugMode
         default:
             throw new Error(`Invalid provider type: ${providerType}`);
     }

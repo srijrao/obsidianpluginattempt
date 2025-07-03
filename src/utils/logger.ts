@@ -16,19 +16,27 @@ export function debugLog(debugMode: boolean, level: 'debug' | 'info' | 'warn' | 
     const prefix = `[AI Assistant ${level.toUpperCase()} ${timestamp}]`;
     switch (level) {
         case 'info':
-            
             console.info(prefix, ...args);
             break;
         case 'warn':
-            
             console.warn(prefix, ...args);
             break;
         case 'error':
-            
             console.error(prefix, ...args);
             break;
         default:
-            
             console.debug(prefix, ...args);
     }
+}
+
+/**
+ * Centralized logging function for the plugin.
+ * This function should be used for all logging within the plugin.
+ * It automatically checks the debug mode setting from the plugin's settings.
+ * @param debugMode The debug mode setting from the plugin's settings.
+ * @param level Log level: 'debug' | 'info' | 'warn' | 'error'. Defaults to 'debug'.
+ * @param args Arguments to log.
+ */
+export function log(debugMode: boolean, level: 'debug' | 'info' | 'warn' | 'error' = 'debug', ...args: any[]) {
+    debugLog(debugMode, level, ...args);
 }

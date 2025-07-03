@@ -1,9 +1,9 @@
-
 import { App, PluginSettingTab, Setting, Notice } from 'obsidian';
 import MyPlugin from '../main';
-import { VIEW_TYPE_MODEL_SETTINGS } from '../components/commands';
+import { VIEW_TYPE_MODEL_SETTINGS } from '../components/commands/viewCommands'; // Corrected import path
 import { CollapsibleSectionRenderer } from '../components/chat/CollapsibleSection';
 import { activateView } from '../utils/viewManager';
+import { log } from '../utils/logger'; // Import log
 
 import { SettingCreators } from './components/SettingCreators';
 import { GeneralSettingsSection } from './sections/GeneralSettingsSection';
@@ -12,6 +12,7 @@ import { AgentSettingsSection } from './sections/AgentSettingsSection';
 import { ContentNoteHandlingSection } from './sections/ContentNoteHandlingSection';
 import { BackupManagementSection } from './sections/BackupManagementSection';
 import { ChatHistorySettingsSection } from './sections/ChatHistorySettingsSection';
+import { DEFAULT_TITLE_PROMPT } from '../promptConstants'; // Import DEFAULT_TITLE_PROMPT
 
 
 /**
@@ -60,7 +61,7 @@ export class MyPluginSettingTab extends PluginSettingTab {
 
         // Optional debug logging for plugin developers
         if (this.plugin && typeof this.plugin.debugLog === 'function') {
-            this.plugin.debugLog('debug', '[MyPluginSettingTab] constructor called');
+            log(this.plugin.settings.debugMode ?? false, 'debug', '[MyPluginSettingTab] constructor called'); // Use log
         }
 
         // Initialize each settings section
@@ -104,7 +105,7 @@ export class MyPluginSettingTab extends PluginSettingTab {
     display(): void {
         // Optional debug logging for plugin developers
         if (this.plugin && typeof this.plugin.debugLog === 'function') {
-            this.plugin.debugLog('info', '[MyPluginSettingTab] display called');
+            log(this.plugin.settings.debugMode ?? false, 'info', '[MyPluginSettingTab] display called'); // Use log
         }
         const { containerEl } = this;
         containerEl.empty();
@@ -170,7 +171,6 @@ export class MyPluginSettingTab extends PluginSettingTab {
                 .onClick(async () => {
                     // Dynamically import defaults to avoid circular dependencies
                     const { DEFAULT_SETTINGS } = await import('../types');
-                    const { DEFAULT_TITLE_PROMPT } = await import('../promptConstants');
 
                     // Preserve API keys so users don't lose them on reset
                     const preservedApiKeys = {
@@ -184,7 +184,7 @@ export class MyPluginSettingTab extends PluginSettingTab {
                     this.plugin.settings.openaiSettings.apiKey = preservedApiKeys.openai;
                     this.plugin.settings.anthropicSettings.apiKey = preservedApiKeys.anthropic;
                     this.plugin.settings.geminiSettings.apiKey = preservedApiKeys.gemini;
-                    this.plugin.settings.titlePrompt = DEFAULT_TITLE_PROMPT;
+                    this.plugin.settings.titlePrompt = DEFAULT_TITLE_PROMPT; // Use imported constant
 
                     await this.plugin.saveSettings();
                     this.display(); // Refresh UI

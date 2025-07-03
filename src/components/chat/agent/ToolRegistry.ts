@@ -1,4 +1,5 @@
 import { ToolCommand, ToolResult } from '../../../types';
+import { log } from '../../../utils/logger'; // Import log
 
 /**
  * Interface for a Tool.
@@ -42,8 +43,8 @@ export class ToolRegistry {
      */
     register(tool: Tool): void {
         this.tools.set(tool.name, tool);
-        if (this.plugin && this.plugin.settings && this.plugin.settings.debugMode) {
-            this.plugin.debugLog('[ToolRegistry] Registering tool', { tool });
+        if (this.plugin && this.plugin.settings) {
+            log(this.plugin.settings.debugMode ?? false, 'debug', '[ToolRegistry] Registering tool', { tool }); // Use log
         }
     }
 
@@ -56,8 +57,8 @@ export class ToolRegistry {
     async execute(command: ToolCommand): Promise<ToolResult> {
         const tool = this.tools.get(command.action);
         if (!tool) {
-            if (this.plugin && this.plugin.settings && this.plugin.settings.debugMode) {
-                this.plugin.debugLog('[ToolRegistry] Tool not found', { action: command.action });
+            if (this.plugin && this.plugin.settings) {
+                log(this.plugin.settings.debugMode ?? false, 'debug', '[ToolRegistry] Tool not found', { action: command.action }); // Use log
             }
             return {
                 success: false,
@@ -66,8 +67,8 @@ export class ToolRegistry {
             };
         }
         try {
-            if (this.plugin && this.plugin.settings && this.plugin.settings.debugMode) {
-                this.plugin.debugLog('[ToolRegistry] Executing tool', { command });
+            if (this.plugin && this.plugin.settings) {
+                log(this.plugin.settings.debugMode ?? false, 'debug', '[ToolRegistry] Executing tool', { command }); // Use log
             }
 
             // Clone parameters to avoid mutation
@@ -119,28 +120,27 @@ export class ToolRegistry {
                 // Inject editor if found
                 if (editor) {
                     parameters.editor = editor;
-                    if (this.plugin && this.plugin.settings && this.plugin.settings.debugMode) {
-                        this.plugin.debugLog('[ToolRegistry] Injected editor for file_diff tool');
+                    if (this.plugin && this.plugin.settings) {
+                        log(this.plugin.settings.debugMode ?? false, 'debug', '[ToolRegistry] Injected editor for file_diff tool'); // Use log
                     }
                 } else {
-                    if (this.plugin && this.plugin.settings && this.plugin.settings.debugMode) {
-                        this.plugin.debugLog('[ToolRegistry] No editor available for file_diff tool, will use fallback mode');
+                    if (this.plugin && this.plugin.settings) {
+                        log(this.plugin.settings.debugMode ?? false, 'debug', '[ToolRegistry] No editor available for file_diff tool, will use fallback mode'); // Use log
                     }
                 }
             }
 
-            // Execute the tool with parameters and empty context
             const result = await tool.execute(parameters, {});
-            if (this.plugin && this.plugin.settings && this.plugin.settings.debugMode) {
-                this.plugin.debugLog('[ToolRegistry] Tool execution result', { command, result });
+            if (this.plugin && this.plugin.settings) {
+                log(this.plugin.settings.debugMode ?? false, 'debug', '[ToolRegistry] Tool execution result', { command, result }); // Use log
             }
             return {
                 ...result,
                 requestId: command.requestId,
             };
         } catch (error: any) {
-            if (this.plugin && this.plugin.settings && this.plugin.settings.debugMode) {
-                this.plugin.debugLog('[ToolRegistry] Tool execution error', { command, error });
+            if (this.plugin && this.plugin.settings) {
+                log(this.plugin.settings.debugMode ?? false, 'error', '[ToolRegistry] Tool execution error', { command, error }); // Use log
             }
             return {
                 success: false,

@@ -6,19 +6,13 @@ import { ModelSettingsView } from './components/ModelSettingsView';
 import { processMessages, getContextNotesContent } from './utils/noteUtils';
 import { getSystemMessage } from './utils/systemMessage';
 import { showNotice } from './utils/generalUtils';
-import { debugLog } from './utils/logger';
+import { log } from './utils/logger'; // Changed from debugLog to log
 import { activateView } from './utils/viewManager';
 import { AgentModeManager } from './components/chat/agent/agentModeManager';
 import { BackupManager } from './components/BackupManager';
 import { ToolRichDisplay } from './components/chat/agent/ToolRichDisplay';
-import {
-    registerViewCommands,
-    registerAIStreamCommands,
-    registerNoteCommands,
-    registerGenerateNoteTitleCommand,
-    registerContextCommands,
-    VIEW_TYPE_MODEL_SETTINGS
-} from './components/commands';
+import { registerAllCommands } from './commands/commandRegistry';
+import { VIEW_TYPE_MODEL_SETTINGS } from './components/commands/viewCommands';
 import { registerYamlAttributeCommands } from './YAMLHandler';
 
 /**
@@ -98,46 +92,6 @@ export default class MyPlugin extends Plugin {
     private static registeredViewTypes = new Set<string>();
 
     /**
-     * Get the current agent mode settings, or defaults if not set.
-     */
-    getAgentModeSettings(): AgentModeSettings {
-        return this.settings.agentMode || {
-            enabled: false,
-            maxToolCalls: 5,
-            timeoutMs: 30000,
-            maxIterations: 10
-        };
-    }
-
-    /**
-     * Returns true if agent mode is enabled in settings.
-     */
-    isAgentModeEnabled(): boolean {
-        return this.getAgentModeSettings().enabled;
-    }
-
-    /**
-     * Enable or disable agent mode and persist the change.
-     * @param enabled Whether agent mode should be enabled
-     */
-    async setAgentModeEnabled(enabled: boolean) {
-        this.debugLog('info', '[main.ts] setAgentModeEnabled called', { enabled });
-        if (!this.settings.agentMode) {
-            this.settings.agentMode = {
-                enabled: false,
-                maxToolCalls: 5,
-                timeoutMs: 30000,
-                maxIterations: 10
-            };
-            this.debugLog('debug', '[main.ts] Initialized agentMode settings');
-        }
-        this.settings.agentMode.enabled = enabled;
-        await this.saveSettings();
-        this.emitSettingsChange();
-        this.debugLog('info', '[main.ts] Agent mode enabled state set', { enabled });
-    }
-
-    /**
      * Helper to activate the chat view and load messages into it.
      * @param messages An array of messages to load.
      */
@@ -215,41 +169,26 @@ export default class MyPlugin extends Plugin {
             this.settings,
             () => this.saveSettings(),
             () => this.emitSettingsChange(),
-            (level, ...args) => debugLog(this.settings.debugMode ?? false, level, ...args)
+            (level, ...args) => log(this.settings.debugMode ?? false, level, ...args) // Changed from debugLog to log
         );
         
         // Add the plugin's settings tab to Obsidian's settings UI
         this.addSettingTab(new MyPluginSettingTab(this.app, this));
 
         // Register custom views for model settings and chat
-        this.registerPluginView(VIEW_TYPE_MODEL_SETTINGS, (leaf) => new ModelSettingsView(leaf, this));
         this.registerPluginView(VIEW_TYPE_CHAT, (leaf) => new ChatView(leaf, this));
+        this.registerPluginView(VIEW_TYPE_MODEL_SETTINGS, (leaf) => new ModelSettingsView(leaf, this));
 
-        // Register all plugin commands (view, AI stream, note, context, etc.)
-        registerViewCommands(this);
-        
-        registerAIStreamCommands(
+        // Register all commands using the new centralized function
+        this._yamlAttributeCommandIds = registerAllCommands(
             this,
             this.settings,
-            (messages) => this.processMessages(messages),
+            (messages: Message[]) => this.processMessages(messages),
+            (messages: Message[]) => this.activateChatViewAndLoadMessages(messages),
             { current: this.activeStream },
-            (stream) => { this.activeStream = stream; }
+            (stream: AbortController | null) => { this.activeStream = stream; },
+            this._yamlAttributeCommandIds
         );
-        
-        registerNoteCommands(
-            this,
-            this.settings,
-            (messages) => this.activateChatViewAndLoadMessages(messages)
-        );
-        
-        registerGenerateNoteTitleCommand(
-            this,
-            this.settings,
-            (messages) => this.processMessages(messages)
-        );
-
-        // Register context-related commands
-        registerContextCommands(this, this.settings);
 
         // Optionally auto-open the model settings view on layout ready
         this.app.workspace.onLayoutReady(() => {
@@ -258,24 +197,17 @@ export default class MyPlugin extends Plugin {
             }
         });
 
-        // Register YAML attribute commands for note metadata editing
-        this._yamlAttributeCommandIds = registerYamlAttributeCommands(
-            this,
-            this.settings,
-            (messages) => this.processMessages(messages),
-            this._yamlAttributeCommandIds,
-            (level, ...args) => debugLog(this.settings.debugMode ?? false, level, ...args)
-        );
-
         // Register a markdown post-processor to handle tool execution blocks in preview/live mode
         this.registerMarkdownPostProcessor((element, context) => {
             this.processToolExecutionBlocks(element, context);
         });
 
         // Register a code block processor for 'ai-tool-execution' code blocks
-        this.registerMarkdownCodeBlockProcessor('ai-tool-execution', (source, el, ctx) => {
+        this.registerMarkdownCodeBlockProcessor("ai-tool-execution", (source, el, ctx) => {
             this.processToolExecutionCodeBlock(source, el, ctx);
         });
+
+        log(this.settings.debugMode ?? false, 'info', 'AI Assistant Plugin loaded.'); // Changed from debugLog to log
     }
 
     /**
@@ -284,7 +216,7 @@ export default class MyPlugin extends Plugin {
      * @param args Arguments to log.
      */
     debugLog(level: 'debug' | 'info' | 'warn' | 'error' = 'debug', ...args: any[]) {
-        debugLog(this.settings.debugMode ?? false, level, ...args);
+        log(this.settings.debugMode ?? false, level, ...args); // Changed from debugLog to log
     }
 
     /**
@@ -307,7 +239,7 @@ export default class MyPlugin extends Plugin {
             this.settings,
             (messages) => this.processMessages(messages),
             this._yamlAttributeCommandIds,
-            (level, ...args) => debugLog(this.settings.debugMode ?? false, level, ...args)
+            (level, ...args) => log(this.settings.debugMode ?? false, level, ...args) // Changed from debugLog to log
         );
         this.emitSettingsChange(); 
     }

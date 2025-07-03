@@ -7,6 +7,7 @@
 
 import { Message, CompletionOptions, ConnectionTestResult } from '../src/types';
 import { BaseProvider, ProviderError, ProviderErrorType } from './base';
+import { log } from '../src/utils/logger'; // Import log
 
 interface OpenAIResponse {
     id: string;
@@ -42,12 +43,14 @@ export class OpenAIProvider extends BaseProvider {
     protected apiKey: string;
     protected baseUrl: string;
     protected model: string;
+    private debugMode: boolean; // Add debugMode property
 
-    constructor(apiKey: string, model: string = 'gpt-4', baseUrl?: string) {
+    constructor(apiKey: string, model: string = 'gpt-4', baseUrl?: string, debugMode: boolean = false) {
         super();
         this.apiKey = apiKey;
         this.model = model;
         this.baseUrl = baseUrl || 'https://api.openai.com/v1';
+        this.debugMode = debugMode; // Initialize debugMode
     }
 
     /**
@@ -101,7 +104,7 @@ export class OpenAIProvider extends BaseProvider {
                                 options.streamCallback(content);
                             }
                         } catch (e) {
-                            console.warn('Error parsing OpenAI response chunk:', e);
+                            log(this.debugMode, 'warn', 'Error parsing OpenAI response chunk:', e); // Use log
                         }
                     }
                 }
@@ -111,9 +114,9 @@ export class OpenAIProvider extends BaseProvider {
                 throw error;
             }
             if (error.name === 'AbortError') {
-                console.log('OpenAI stream was aborted');
+                log(this.debugMode, 'info', 'OpenAI stream was aborted'); // Use log
             } else {
-                console.error('Error calling OpenAI:', error);
+                log(this.debugMode, 'error', 'Error calling OpenAI:', error); // Use log
                 throw error;
             }
         }
@@ -146,7 +149,7 @@ export class OpenAIProvider extends BaseProvider {
                 .map((model: any) => model.id)
                 .filter((id: string) => id.startsWith('gpt-'));
         } catch (error) {
-            console.error('Error fetching OpenAI models:', error);
+            log(this.debugMode, 'error', 'Error fetching OpenAI models:', error); // Use log
             throw error;
         }
     }
