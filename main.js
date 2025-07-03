@@ -18442,32 +18442,6 @@ function registerContextCommands(plugin, settings) {
   registerCommand(
     plugin,
     {
-      id: "toggle-enable-obsidian-links",
-      name: "Toggle Enable Obsidian Links",
-      callback: async () => {
-        settings.enableObsidianLinks = !settings.enableObsidianLinks;
-        await plugin.saveSettings();
-        const status = settings.enableObsidianLinks ? "enabled" : "disabled";
-        showNotice(`Obsidian Links ${status}`);
-      }
-    }
-  );
-  registerCommand(
-    plugin,
-    {
-      id: "toggle-enable-context-notes",
-      name: "Toggle Enable Context Notes",
-      callback: async () => {
-        settings.enableContextNotes = !settings.enableContextNotes;
-        await plugin.saveSettings();
-        const status = settings.enableContextNotes ? "enabled" : "disabled";
-        showNotice(`Context Notes ${status}`);
-      }
-    }
-  );
-  registerCommand(
-    plugin,
-    {
       id: "clear-context-notes",
       name: "Clear Context Notes",
       callback: async () => {
@@ -18527,6 +18501,37 @@ ${wikiLink}`;
   );
 }
 
+// src/components/commands/toggleCommands.ts
+init_pluginUtils();
+function registerToggleCommands(plugin, settings) {
+  registerCommand(
+    plugin,
+    {
+      id: "toggle-enable-obsidian-links",
+      name: "Toggle Enable Obsidian Links",
+      callback: async () => {
+        settings.enableObsidianLinks = !settings.enableObsidianLinks;
+        await plugin.saveSettings();
+        const status = settings.enableObsidianLinks ? "enabled" : "disabled";
+        showNotice(`Obsidian Links ${status}`);
+      }
+    }
+  );
+  registerCommand(
+    plugin,
+    {
+      id: "toggle-enable-context-notes",
+      name: "Toggle Enable Context Notes",
+      callback: async () => {
+        settings.enableContextNotes = !settings.enableContextNotes;
+        await plugin.saveSettings();
+        const status = settings.enableContextNotes ? "enabled" : "disabled";
+        showNotice(`Context Notes ${status}`);
+      }
+    }
+  );
+}
+
 // src/commands/commandRegistry.ts
 init_YAMLHandler();
 init_logger();
@@ -18536,6 +18541,7 @@ function registerAllCommands(plugin, settings, processMessages2, activateChatVie
   registerNoteCommands(plugin, settings, activateChatViewAndLoadMessages);
   registerGenerateNoteTitleCommand(plugin, settings, processMessages2);
   registerContextCommands(plugin, settings);
+  registerToggleCommands(plugin, settings);
   return registerYamlAttributeCommands(
     plugin,
     settings,

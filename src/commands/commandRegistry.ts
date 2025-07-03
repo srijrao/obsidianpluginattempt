@@ -6,6 +6,7 @@ import {
     registerNoteCommands,
     registerGenerateNoteTitleCommand,
     registerContextCommands,
+    registerToggleCommands,
 } from "../components/commands";
 import { registerYamlAttributeCommands } from "../YAMLHandler";
 import { log } from "../utils/logger"; // Changed from debugLog to log
@@ -24,6 +25,7 @@ export function registerAllCommands(
     registerNoteCommands(plugin, settings, activateChatViewAndLoadMessages);
     registerGenerateNoteTitleCommand(plugin, settings, processMessages);
     registerContextCommands(plugin, settings);
+    registerToggleCommands(plugin, settings);
     return registerYamlAttributeCommands(
         plugin,
         settings,

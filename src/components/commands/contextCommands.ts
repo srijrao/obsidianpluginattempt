@@ -14,43 +14,7 @@ export function registerContextCommands(
     plugin: Plugin,
     settings: MyPluginSettings
 ) {
-    /**
-     * Registers the 'Toggle Enable Obsidian Links' command.
-     * This command toggles the setting that controls whether Obsidian links are read in messages.
-     */
-    registerCommand(
-        plugin,
-        {
-            id: 'toggle-enable-obsidian-links',
-            name: 'Toggle Enable Obsidian Links',
-            callback: async () => {
-                settings.enableObsidianLinks = !settings.enableObsidianLinks;
-                await (plugin as any).saveSettings(); // Save updated settings
-                
-                const status = settings.enableObsidianLinks ? 'enabled' : 'disabled';
-                showNotice(`Obsidian Links ${status}`);
-            }
-        }
-    );
 
-    /**
-     * Registers the 'Toggle Enable Context Notes' command.
-     * This command toggles the setting that controls whether specified context notes are attached to chat messages.
-     */
-    registerCommand(
-        plugin,
-        {
-            id: 'toggle-enable-context-notes',
-            name: 'Toggle Enable Context Notes',
-            callback: async () => {
-                settings.enableContextNotes = !settings.enableContextNotes;
-                await (plugin as any).saveSettings(); // Save updated settings
-                
-                const status = settings.enableContextNotes ? 'enabled' : 'disabled';
-                showNotice(`Context Notes ${status}`);
-            }
-        }
-    );
 
     /**
      * Registers the 'Clear Context Notes' command.
