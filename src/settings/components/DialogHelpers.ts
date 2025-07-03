@@ -14,31 +14,11 @@ export class DialogHelpers {
         return new Promise((resolve) => {
             // Create the modal overlay element
             const modal = document.createElement('div');
-            modal.className = 'modal';
-            modal.style.cssText = `
-                position: fixed;
-                top: 0;
-                left: 0;
-                width: 100%;
-                height: 100%;
-                background-color: rgba(0, 0, 0, 0.5);
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                z-index: 1000;
-            `;
+            modal.className = 'ai-assistant-modal';
 
             // Create the modal content box
             const content = modal.createDiv();
-            content.className = 'modal-content';
-            content.style.cssText = `
-                background-color: var(--background-primary);
-                padding: 2rem;
-                border-radius: 8px;
-                max-width: 400px;
-                width: 90%;
-                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            `;
+            content.className = 'ai-assistant-modal-content';
 
             // Add title and message to the content
             content.createEl('h3', { text: title });
@@ -46,12 +26,7 @@ export class DialogHelpers {
 
             // Create button container
             const buttonContainer = content.createDiv();
-            buttonContainer.style.cssText = `
-                display: flex;
-                gap: 1rem;
-                justify-content: flex-end;
-                margin-top: 1rem;
-            `;
+            buttonContainer.className = 'ai-assistant-modal-buttons';
 
             // Create Cancel button
             const cancelBtn = buttonContainer.createEl('button', { text: 'Cancel' });
