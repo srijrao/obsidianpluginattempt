@@ -158,9 +158,9 @@ export class ChatView extends ItemView {
             onToolResult: (toolResult: ToolResult, command: ToolCommand) => {
                 // Log tool result for debugging
                 if (toolResult.success) {
-                    console.log(`Tool ${command.action} completed successfully`, toolResult.data);
+                    this.plugin.debugLog('info', '[chat.ts] Tool ${command.action} completed successfully', toolResult.data);
                 } else {
-                    console.error(`Tool ${command.action} failed:`, toolResult.error);
+                    this.plugin.debugLog('error', '[chat.ts] Tool ${command.action} failed:', toolResult.error);
                 }
             },
             onToolDisplay: (display: ToolRichDisplay) => {
@@ -287,62 +287,62 @@ export class ChatView extends ItemView {
                 tempContainer.addClass('ai-chat-message', 'assistant');
                 tempContainer.createDiv('message-content');
                 this.messagesContainer.appendChild(tempContainer);
-                this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;                
+                this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
                 const responseContent = await this.streamAssistantResponse(messages, tempContainer);
 
                 // Parse enhanced message data (tool results, reasoning, etc.)
                 let enhancedMessageData: any = undefined;
-                console.log('DEBUG: tempContainer.dataset.messageData exists:', !!tempContainer.dataset.messageData);
+                this.plugin.debugLog('debug', '[chat.ts] tempContainer.dataset.messageData exists:', !!tempContainer.dataset.messageData);
                 if (tempContainer.dataset.messageData) {
                     try {
                         enhancedMessageData = JSON.parse(tempContainer.dataset.messageData);
-                        console.log('DEBUG: enhancedMessageData parsed, toolResults count:', enhancedMessageData.toolResults?.length || 0);
+                        this.plugin.debugLog('debug', '[chat.ts] enhancedMessageData parsed, toolResults count:', enhancedMessageData.toolResults?.length || 0);
                     } catch (e) {
-                        console.warn("Failed to parse enhanced message data:", e);
+                        this.plugin.debugLog('warn', '[chat.ts] Failed to parse enhanced message data:', e);
                     }
                 }
 
-                console.log('DEBUG: responseContent length:', responseContent.length, 'trimmed length:', responseContent.trim().length);                
+                this.plugin.debugLog('debug', '[chat.ts] responseContent length:', responseContent.length, 'trimmed length:', responseContent.trim().length);
                 tempContainer.remove();
                 // Only save assistant message if there is content or tool results
                 if (responseContent.trim() !== "" || (enhancedMessageData && enhancedMessageData.toolResults && enhancedMessageData.toolResults.length > 0)) {
                     // Create and render assistant message element
                     const messageEl = await createMessageElement(
-                        this.app, 
-                        'assistant', 
-                        responseContent, 
-                        this.chatHistoryManager, 
-                        this.plugin, 
-                        (el) => this.regenerateResponse(el), 
+                        this.app,
+                        'assistant',
+                        responseContent,
+                        this.chatHistoryManager,
+                        this.plugin,
+                        (el) => this.regenerateResponse(el),
                         this,
-                        enhancedMessageData 
+                        enhancedMessageData
                     );
-                    
+
                     this.messagesContainer.appendChild(messageEl);
-                    
+
                     // Persist assistant message to history
-                    console.log('DEBUG: About to save message to history with toolResults:', !!enhancedMessageData?.toolResults);
+                    this.plugin.debugLog('debug', '[chat.ts] About to save message to history with toolResults:', !!enhancedMessageData?.toolResults);
                     await this.chatHistoryManager.addMessage({
                         timestamp: messageEl.dataset.timestamp || new Date().toISOString(),
                         sender: 'assistant',
                         content: responseContent,
-                        ...(enhancedMessageData && { 
+                        ...(enhancedMessageData && {
                             toolResults: enhancedMessageData.toolResults,
                             reasoning: enhancedMessageData.reasoning,
                             taskStatus: enhancedMessageData.taskStatus
                         })
                     });
-                    console.log('DEBUG: Message saved to history successfully');
+                    this.plugin.debugLog('debug', '[chat.ts] Message saved to history successfully');
                 } else {
                     // If no content or tool results, do not save
-                    console.log('DEBUG: responseContent is empty and no toolResults, not saving message');
+                    this.plugin.debugLog('debug', '[chat.ts] responseContent is empty and no toolResults, not saving message');
                 }
             } catch (error) {
                 // Handle errors except for user-initiated aborts
                 if (error.name !== 'AbortError') {
                     new Notice(`Error: ${error.message}`);
                     await createMessageElement(this.app, 'assistant', `Error: ${error.message}`, this.chatHistoryManager, this.plugin, (el: HTMLElement) => this.regenerateResponse(el), this);
-                }            
+                }
             } finally {
                 // Restore input state
                 textarea.disabled = false;
@@ -621,7 +621,7 @@ export class ChatView extends ItemView {
                 new Notice('Tool result copied to clipboard');
             } catch (error) {
                 new Notice('Failed to copy to clipboard');
-                console.error('Clipboard error:', error);
+                this.plugin.debugLog('error', '[chat.ts] Clipboard error:', error);
             }
         });
         actionsEl.appendChild(copyBtn);

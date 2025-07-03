@@ -15801,9 +15801,9 @@ var ChatView = class extends import_obsidian24.ItemView {
       toolContinuationContainer: ui.toolContinuationContainer,
       onToolResult: (toolResult, command) => {
         if (toolResult.success) {
-          console.log(`Tool ${command.action} completed successfully`, toolResult.data);
+          this.plugin.debugLog("info", "[chat.ts] Tool ${command.action} completed successfully", toolResult.data);
         } else {
-          console.error(`Tool ${command.action} failed:`, toolResult.error);
+          this.plugin.debugLog("error", "[chat.ts] Tool ${command.action} failed:", toolResult.error);
         }
       },
       onToolDisplay: (display) => {
@@ -15898,16 +15898,16 @@ var ChatView = class extends import_obsidian24.ItemView {
         this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
         const responseContent = await this.streamAssistantResponse(messages, tempContainer);
         let enhancedMessageData = void 0;
-        console.log("DEBUG: tempContainer.dataset.messageData exists:", !!tempContainer.dataset.messageData);
+        this.plugin.debugLog("debug", "[chat.ts] tempContainer.dataset.messageData exists:", !!tempContainer.dataset.messageData);
         if (tempContainer.dataset.messageData) {
           try {
             enhancedMessageData = JSON.parse(tempContainer.dataset.messageData);
-            console.log("DEBUG: enhancedMessageData parsed, toolResults count:", ((_a2 = enhancedMessageData.toolResults) == null ? void 0 : _a2.length) || 0);
+            this.plugin.debugLog("debug", "[chat.ts] enhancedMessageData parsed, toolResults count:", ((_a2 = enhancedMessageData.toolResults) == null ? void 0 : _a2.length) || 0);
           } catch (e) {
-            console.warn("Failed to parse enhanced message data:", e);
+            this.plugin.debugLog("warn", "[chat.ts] Failed to parse enhanced message data:", e);
           }
         }
-        console.log("DEBUG: responseContent length:", responseContent.length, "trimmed length:", responseContent.trim().length);
+        this.plugin.debugLog("debug", "[chat.ts] responseContent length:", responseContent.length, "trimmed length:", responseContent.trim().length);
         tempContainer.remove();
         if (responseContent.trim() !== "" || enhancedMessageData && enhancedMessageData.toolResults && enhancedMessageData.toolResults.length > 0) {
           const messageEl = await createMessageElement(
@@ -15921,7 +15921,7 @@ var ChatView = class extends import_obsidian24.ItemView {
             enhancedMessageData
           );
           this.messagesContainer.appendChild(messageEl);
-          console.log("DEBUG: About to save message to history with toolResults:", !!(enhancedMessageData == null ? void 0 : enhancedMessageData.toolResults));
+          this.plugin.debugLog("debug", "[chat.ts] About to save message to history with toolResults:", !!(enhancedMessageData == null ? void 0 : enhancedMessageData.toolResults));
           await this.chatHistoryManager.addMessage({
             timestamp: messageEl.dataset.timestamp || (/* @__PURE__ */ new Date()).toISOString(),
             sender: "assistant",
@@ -15932,9 +15932,9 @@ var ChatView = class extends import_obsidian24.ItemView {
               taskStatus: enhancedMessageData.taskStatus
             }
           });
-          console.log("DEBUG: Message saved to history successfully");
+          this.plugin.debugLog("debug", "[chat.ts] Message saved to history successfully");
         } else {
-          console.log("DEBUG: responseContent is empty and no toolResults, not saving message");
+          this.plugin.debugLog("debug", "[chat.ts] responseContent is empty and no toolResults, not saving message");
         }
       } catch (error) {
         if (error.name !== "AbortError") {
@@ -16183,7 +16183,7 @@ var ChatView = class extends import_obsidian24.ItemView {
         new import_obsidian24.Notice("Tool result copied to clipboard");
       } catch (error) {
         new import_obsidian24.Notice("Failed to copy to clipboard");
-        console.error("Clipboard error:", error);
+        this.plugin.debugLog("error", "[chat.ts] Clipboard error:", error);
       }
     });
     actionsEl.appendChild(copyBtn);
