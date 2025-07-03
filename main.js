@@ -18520,7 +18520,7 @@ function registerToggleCommands(plugin, settings) {
   );
 }
 
-// src/commands/commandRegistry.ts
+// src/components/commands/commandRegistry.ts
 init_YAMLHandler();
 init_logger();
 function registerAllCommands(plugin, settings, processMessages2, activateChatViewAndLoadMessages, activeStream, setActiveStream, yamlAttributeCommandIds) {
