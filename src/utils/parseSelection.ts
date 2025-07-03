@@ -1,3 +1,9 @@
+/**
+ * @file This file provides a utility function for parsing selected text from the editor
+ * into a structured array of chat messages. It identifies user and assistant messages
+ * based on a defined chat separator and optional chat boundary strings.
+ */
+
 import { Message } from '../types';
 
 /**

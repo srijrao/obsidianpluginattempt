@@ -1,3 +1,9 @@
+/**
+ * @file This file provides a utility function for constructing the system message
+ * that is sent to the AI model. It allows for dynamic inclusion of the current date
+ * and time based on plugin settings, enhancing the AI's contextual awareness.
+ */
+
 import { MyPluginSettings } from '../types';
 
 /**

@@ -40,7 +40,13 @@ export interface ToolExecutionStats {
     remaining: number;
 }
 
+/**
+ * Result of processing chat history for tool execution.
+ * - commandsToExecute: Tool commands that still need to be executed.
+ * - existingResults: Tool commands and their results already available.
+ */
 export interface ChatHistoryProcessingResult {
     commandsToExecute: ToolCommand[];
     existingResults: Array<{ command: ToolCommand; result: ToolResult }>;
+
 }

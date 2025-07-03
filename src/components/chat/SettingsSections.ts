@@ -3,24 +3,30 @@ import MyPlugin from '../../main';
 import { createProvider, getAllAvailableModels, getProviderFromUnifiedModel } from '../../../providers';
 
 /**
- * Shared settings sections that can be rendered in any modal or view
- * This ensures consistent UI across different interfaces
+ * SettingsSections provides methods to render different categories of plugin settings.
+ * This class is used by settings modals and potentially other views to ensure consistent UI.
  */
 export class SettingsSections {
     private plugin: MyPlugin;
 
+    /**
+     * @param plugin The plugin instance (for accessing/saving settings).
+     */
     constructor(plugin: MyPlugin) {
         this.plugin = plugin;
     }
 
     /**
-     * AI Model Settings Section
+     * Renders the AI Model Settings section.
+     * Includes system message, streaming, temperature, model selection, and model refresh.
+     * @param containerEl The HTML element to render the section into.
+     * @param onRefresh Optional callback to refresh the entire settings view after certain actions.
      */
     async renderAIModelSettings(containerEl: HTMLElement, onRefresh?: () => void): Promise<void> {
-        
+        // Clear the container before rendering
         while (containerEl.firstChild) containerEl.removeChild(containerEl.firstChild);
 
-        
+        // Render model preset buttons if available
         if (this.plugin.settings.modelSettingPresets && this.plugin.settings.modelSettingPresets.length > 0) {
             const presetContainer = containerEl.createDiv();
             presetContainer.addClass('model-preset-buttons');
@@ -29,14 +35,14 @@ export class SettingsSections {
                 const btn = presetContainer.createEl('button', { text: preset.name });
                 btn.style.marginRight = '0.5em';
                 btn.onclick = async () => {
-                    
+                    // Apply preset settings
                     if (preset.selectedModel !== undefined) this.plugin.settings.selectedModel = preset.selectedModel;
                     if (preset.systemMessage !== undefined) this.plugin.settings.systemMessage = preset.systemMessage;
                     if (preset.temperature !== undefined) this.plugin.settings.temperature = preset.temperature;
                     if (preset.maxTokens !== undefined) this.plugin.settings.maxTokens = preset.maxTokens;
                     if (preset.enableStreaming !== undefined) this.plugin.settings.enableStreaming = preset.enableStreaming;
                     await this.plugin.saveSettings();
-                    
+                    // Refresh the UI after applying preset (with a small delay to avoid race conditions)
                     if (onRefresh) {
                         if ((window as any)._aiModelSettingsRefreshTimeout) {
                             clearTimeout((window as any)._aiModelSettingsRefreshTimeout);
@@ -51,6 +57,7 @@ export class SettingsSections {
             });
         }
 
+        // System Message setting
         new Setting(containerEl)
             .setName('System Message')
             .setDesc('Set the system message for the AI')
@@ -58,18 +65,17 @@ export class SettingsSections {
                 text.setPlaceholder('You are a helpful assistant.')
                     .setValue(this.plugin.settings.systemMessage)
                     .onChange((value) => {
-                        
+                        // Update setting value immediately on change
                         this.plugin.settings.systemMessage = value;
                     });
-                
-                
+                // Save settings on blur (when textarea loses focus)
                 text.inputEl.addEventListener('blur', async () => {
                     await this.plugin.saveSettings();
                 });
-                
                 return text;
             });
 
+        // Enable Streaming setting
         new Setting(containerEl)
             .setName('Enable Streaming')
             .setDesc('Enable or disable streaming for completions')
@@ -80,6 +86,7 @@ export class SettingsSections {
                     await this.plugin.saveSettings();
                 }));
 
+        // Temperature setting
         new Setting(containerEl)
             .setName('Temperature')
             .setDesc('Set the randomness of the model\'s output (0-1)')
@@ -92,7 +99,7 @@ export class SettingsSections {
                     await this.plugin.saveSettings();
                 }));
 
-        
+        // Refresh Available Models button
         new Setting(containerEl)
             .setName('Refresh Available Models')
             .setDesc('Test connections to all configured providers and refresh available models')
@@ -101,10 +108,10 @@ export class SettingsSections {
                 .onClick(async () => {
                     button.setButtonText('Refreshing...');
                     button.setDisabled(true);
-                    
                     try {
                         await this.refreshAllAvailableModels();
                         new Notice('Successfully refreshed available models');
+                        // Refresh the UI after successful refresh
                         if (onRefresh) onRefresh();
                     } catch (error) {
                         new Notice(`Error refreshing models: ${error.message}`);
@@ -114,12 +121,14 @@ export class SettingsSections {
                     }
                 }));
 
-        
+        // Render the unified model selection dropdown
         await this.renderUnifiedModelDropdown(containerEl);
     }
 
     /**
-     * Date Settings Section
+     * Date Settings Section.
+     * Includes options for including date and time in the system message.
+     * @param containerEl The HTML element to render the section into.
      */
     renderDateSettings(containerEl: HTMLElement): void {
         new Setting(containerEl)
@@ -144,7 +153,9 @@ export class SettingsSections {
     }
 
     /**
-     * Note Reference Settings Section
+     * Note Reference Settings Section.
+     * Includes options for Obsidian links, context notes, and recursive link expansion.
+     * @param containerEl The HTML element to render the section into.
      */
     renderNoteReferenceSettings(containerEl: HTMLElement): void {
         new Setting(containerEl)
@@ -177,15 +188,14 @@ export class SettingsSections {
                 text.setPlaceholder('[[Note Name]]\n[[Another Note#Header]]')
                     .setValue(this.plugin.settings.contextNotes || '')
                     .onChange((value) => {
-                        
+                        // Update setting value immediately on change
                         this.plugin.settings.contextNotes = value;
                     });
-                
-                
+                // Save settings on blur
                 text.inputEl.addEventListener('blur', async () => {
                     await this.plugin.saveSettings();
                 });
-                
+                // Style textarea
                 text.inputEl.rows = 4;
                 text.inputEl.style.width = '100%';
                 return text;
@@ -203,15 +213,17 @@ export class SettingsSections {
     }
 
     /**
-     * Provider Configuration Section
+     * Provider Configuration Section.
+     * Renders collapsible sections for each provider's specific settings and test buttons.
+     * @param containerEl The HTML element to render the section into.
      */
     renderProviderConfiguration(containerEl: HTMLElement): void {
-        containerEl.createEl('p', { 
+        containerEl.createEl('p', {
             text: 'API keys are configured in the main plugin settings. Use the test buttons below to verify connections and refresh available models.',
             cls: 'setting-item-description'
         });
-        
-        
+
+        // Render collapsible sections for each provider
         this.renderOpenAIConfig(containerEl);
         this.renderAnthropicConfig(containerEl);
         this.renderGeminiConfig(containerEl);
@@ -219,10 +231,12 @@ export class SettingsSections {
     }
 
     /**
-     * Renders the unified model selection dropdown
+     * Renders the unified model selection dropdown.
+     * Populates the dropdown with available models fetched from providers.
+     * @param containerEl The HTML element to render the dropdown into.
      */
     private async renderUnifiedModelDropdown(containerEl: HTMLElement): Promise<void> {
-        
+        // Fetch available models if not already loaded
         if (!this.plugin.settings.availableModels || this.plugin.settings.availableModels.length === 0) {
             this.plugin.settings.availableModels = await getAllAvailableModels(this.plugin.settings);
             await this.plugin.saveSettings();
@@ -232,15 +246,16 @@ export class SettingsSections {
             .setName('Selected Model')
             .setDesc('Choose from all available models across all configured providers')
             .addDropdown(dropdown => {
-                
+                // Add options to the dropdown
                 if (!this.plugin.settings.availableModels || this.plugin.settings.availableModels.length === 0) {
                     dropdown.addOption('', 'No models available - configure providers below');
                 } else {
                     dropdown.addOption('', 'Select a model...');
-                    
+
+                    // Group models by provider for better organization in the dropdown
                     const modelsByProvider: Record<string, any[]> = {};
-                    
                     const enabledModels = this.plugin.settings.enabledModels || {};
+                    // Filter out disabled models
                     const filteredModels = this.plugin.settings.availableModels.filter(model => enabledModels[model.id] !== false);
                     filteredModels.forEach(model => {
                         if (!modelsByProvider[model.provider]) {
@@ -248,7 +263,8 @@ export class SettingsSections {
                         }
                         modelsByProvider[model.provider].push(model);
                     });
-                    
+
+                    // Add models to the dropdown, grouped by provider
                     Object.entries(modelsByProvider).forEach(([provider, models]) => {
                         models.forEach(model => {
                             dropdown.addOption(model.id, model.name);
@@ -259,7 +275,7 @@ export class SettingsSections {
                     .setValue(this.plugin.settings.selectedModel || '')
                     .onChange(async (value) => {
                         this.plugin.settings.selectedModel = value;
-                        
+                        // Update the main provider setting based on the selected unified model
                         if (value) {
                             const provider = getProviderFromUnifiedModel(value);
                             this.plugin.settings.provider = provider;
@@ -267,7 +283,8 @@ export class SettingsSections {
                         await this.plugin.saveSettings();
                     });
             });
-        
+
+        // Display info about the currently selected model
         if (this.plugin.settings.selectedModel && this.plugin.settings.availableModels) {
             const selectedModel = this.plugin.settings.availableModels.find(
                 model => model.id === this.plugin.settings.selectedModel
@@ -280,23 +297,29 @@ export class SettingsSections {
     }
 
     /**
-     * Refreshes available models from all configured providers
+     * Refreshes available models from all configured providers.
+     * Tests connection for each provider and updates the list of available models.
      */
     private async refreshAllAvailableModels(): Promise<void> {
         const providers = ['openai', 'anthropic', 'gemini', 'ollama'] as const;
 
         for (const providerType of providers) {
             try {
+                // Temporarily set the provider setting to the current provider type for testing
                 const originalProvider = this.plugin.settings.provider;
-                this.plugin.settings.provider = providerType; 
+                this.plugin.settings.provider = providerType;
 
+                // Create provider instance and test connection
                 const providerInstance = createProvider(this.plugin.settings);
                 const result = await providerInstance.testConnection();
 
-                this.plugin.settings.provider = originalProvider; 
+                // Restore the original provider setting
+                this.plugin.settings.provider = originalProvider;
 
+                // Get the specific settings object for this provider
                 const providerSettings = this.plugin.settings[`${providerType}Settings` as keyof typeof this.plugin.settings] as any;
 
+                // Update available models and last test result based on the test outcome
                 if (result.success && result.models) {
                     providerSettings.availableModels = result.models;
                     providerSettings.lastTestResult = {
@@ -313,19 +336,28 @@ export class SettingsSections {
                 }
             } catch (error) {
                 console.error(`Error testing ${providerType}:`, error);
+                // Update last test result with error message if test throws
+                const providerSettings = this.plugin.settings[`${providerType}Settings` as keyof typeof this.plugin.settings] as any;
+                 providerSettings.lastTestResult = {
+                    timestamp: Date.now(),
+                    success: false,
+                    message: `Test failed: ${error.message}`
+                };
             }
         }
 
+        // After testing all providers, regenerate the combined list of available models
         this.plugin.settings.availableModels = await getAllAvailableModels(this.plugin.settings);
         await this.plugin.saveSettings();
     }
 
     /**
      * Renders a collapsible section for provider configuration.
+     * This is a helper method used by specific provider rendering methods.
      * @param containerEl The HTML element to render the section into.
      * @param providerType The type of the provider (e.g., 'openai', 'anthropic').
      * @param displayName The display name of the provider (e.g., 'OpenAI', 'Anthropic').
-     * @param renderSpecificSettings A callback function to render provider-specific settings.
+     * @param renderSpecificSettings A callback function to render provider-specific settings within the collapsible section.
      */
     private _renderCollapsibleProviderConfig(
         containerEl: HTMLElement,
@@ -356,6 +388,7 @@ export class SettingsSections {
             headerEl.textContent = `${isExpanded ? '▼' : '▶'} ${displayName} Configuration`;
         });
 
+        // Display API key/Server URL status (configured in main settings)
         const settings = this.plugin.settings[`${providerType}Settings` as keyof typeof this.plugin.settings] as any;
         const apiKeyStatus = settings.apiKey ?
             `API Key: ${settings.apiKey.substring(0, 8)}...` :
@@ -369,10 +402,12 @@ export class SettingsSections {
             text: `${settings.apiKey ? apiKeyStatus : serverUrlStatus} (Configure in main plugin settings)`
         });
 
+        // Render provider-specific settings if callback is provided
         if (renderSpecificSettings) {
             renderSpecificSettings(contentEl);
         }
 
+        // Render the connection test section for this provider
         this.renderProviderTestSection(contentEl, providerType, displayName);
     }
 
@@ -389,15 +424,13 @@ export class SettingsSections {
                     text.setPlaceholder('https://api.openai.com/v1')
                         .setValue(this.plugin.settings.openaiSettings.baseUrl || '')
                         .onChange((value) => {
-                            
+                            // Update setting value immediately on change
                             this.plugin.settings.openaiSettings.baseUrl = value;
                         });
-                    
-                    
+                    // Save settings on blur
                     text.inputEl.addEventListener('blur', async () => {
                         await this.plugin.saveSettings();
                     });
-                    
                     return text;
                 });
         });
@@ -439,13 +472,14 @@ export class SettingsSections {
 
     /**
      * Renders the provider connection test section.
+     * Includes a test button and displays the last test result and available models.
      * @param containerEl The HTML element to render the section into.
      * @param provider The internal identifier for the provider (e.g., 'openai').
      * @param displayName The user-friendly name of the provider (e.g., 'OpenAI').
      */
     private renderProviderTestSection(containerEl: HTMLElement, provider: 'openai' | 'anthropic' | 'gemini' | 'ollama', displayName: string): void {
         const settings = this.plugin.settings[`${provider}Settings` as keyof typeof this.plugin.settings] as any;
-        
+
         new Setting(containerEl)
             .setName('Test Connection')
             .setDesc(`Verify your API key and fetch available models for ${displayName}`)
@@ -455,16 +489,18 @@ export class SettingsSections {
                     button.setButtonText('Testing...');
                     button.setDisabled(true);
                     try {
-                        
+                        // Temporarily set the provider setting for testing
                         const originalProvider = this.plugin.settings.provider;
                         this.plugin.settings.provider = provider;
-                        
+
+                        // Create provider instance and test connection
                         const providerInstance = createProvider(this.plugin.settings);
                         const result = await providerInstance.testConnection();
-                        
-                        
+
+                        // Restore the original provider setting
                         this.plugin.settings.provider = originalProvider;
-                        
+
+                        // Update available models and last test result
                         if (result.success && result.models) {
                             settings.availableModels = result.models;
                             settings.lastTestResult = {
@@ -473,11 +509,11 @@ export class SettingsSections {
                                 message: result.message
                             };
                             await this.plugin.saveSettings();
-                            
-                            
+
+                            // Refresh the combined list of available models after a successful test
                             this.plugin.settings.availableModels = await getAllAvailableModels(this.plugin.settings);
                             await this.plugin.saveSettings();
-                            
+
                             new Notice(result.message);
                         } else {
                             settings.lastTestResult = {
@@ -489,12 +525,19 @@ export class SettingsSections {
                         }
                     } catch (error) {
                         new Notice(`Error: ${error.message}`);
+                         // Update last test result with error message if test throws
+                         settings.lastTestResult = {
+                            timestamp: Date.now(),
+                            success: false,
+                            message: `Test failed: ${error.message}`
+                        };
                     } finally {
                         button.setButtonText('Test');
                         button.setDisabled(false);
                     }
                 }));
 
+        // Display last test result
         if (settings.lastTestResult) {
             const date = new Date(settings.lastTestResult.timestamp);
             containerEl.createEl('div', {
@@ -503,6 +546,7 @@ export class SettingsSections {
             });
         }
 
+        // Display available models fetched from this provider
         if (settings.availableModels && settings.availableModels.length > 0) {
             containerEl.createEl('div', {
                 text: `Available models: ${settings.availableModels.map((m: any) => m.name || m.id).join(', ')}`,
@@ -512,7 +556,9 @@ export class SettingsSections {
     }
 
     /**
-     * Debug Mode Section
+     * Debug Mode Section.
+     * Includes a toggle for enabling/disabling debug mode.
+     * @param containerEl The HTML element to render the section into.
      */
     renderDebugModeSettings(containerEl: HTMLElement): void {
         new Setting(containerEl)
@@ -528,6 +574,7 @@ export class SettingsSections {
 
     /**
      * Renders all settings sections in order for a modal or view.
+     * This method orchestrates the rendering of all distinct setting categories.
      * @param containerEl The HTML element to render the sections into.
      * @param options Optional settings, e.g., onRefresh callback.
      */

@@ -1,4 +1,8 @@
-
+/**
+ * @file This file contains TypeScript type guard functions for Obsidian's file system objects.
+ * These functions are crucial for safely narrowing down the type of an unknown object
+ * to a specific Obsidian file type (TFile, TFolder, TAbstractFile), enabling type-safe operations.
+ */
 
 import { TFile, TFolder, TAbstractFile } from 'obsidian';
 

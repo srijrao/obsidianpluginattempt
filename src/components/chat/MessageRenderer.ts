@@ -4,17 +4,23 @@ import { ToolRichDisplay } from './agent/ToolRichDisplay';
 import { debugLog } from '../../utils/logger';
 
 /**
- * Handles rendering of message content and enhanced message data (reasoning, task status)
+ * MessageRenderer handles rendering of chat message content,
+ * including enhanced reasoning, task status, and tool execution results.
  */
 export class MessageRenderer {
     constructor(private app: App) {}
 
     /**
-     * Update message container with enhanced reasoning and task status data
+     * Updates a message container with enhanced reasoning and task status data.
+     * Renders reasoning and task status sections above the message content.
+     * @param container The message DOM element
+     * @param messageData The message data (may include reasoning/taskStatus)
+     * @param component Optional parent component for Markdown rendering
      */
     updateMessageWithEnhancedData(container: HTMLElement, messageData: Message, component?: Component): void {
         debugLog(true, 'debug', '[MessageRenderer] updateMessageWithEnhancedData called', { messageData });
-        
+
+        // Remove existing reasoning/task status sections if present
         const existingReasoning = container.querySelector('.reasoning-container');
         const existingTaskStatus = container.querySelector('.task-status-container');
         if (existingReasoning) existingReasoning.remove();
@@ -23,22 +29,23 @@ export class MessageRenderer {
         const messageContainer = container.querySelector('.message-container');
         if (!messageContainer) return;
 
-        
+        // Render reasoning section if present
         if (messageData.reasoning) {
             const reasoningEl = this.createReasoningSection(messageData.reasoning);
             messageContainer.insertBefore(reasoningEl, messageContainer.firstChild);
         }
 
-        
+        // Render task status section if present
         if (messageData.taskStatus) {
             const taskStatusEl = this.createTaskStatusSection(messageData.taskStatus);
             messageContainer.insertBefore(taskStatusEl, messageContainer.firstChild);
         }
 
-        
+        // Render the main message content
         const contentEl = container.querySelector('.message-content') as HTMLElement;
         if (contentEl) {
-            contentEl.empty();            MarkdownRenderer.render(
+            contentEl.empty();
+            MarkdownRenderer.render(
                 this.app,
                 messageData.content,
                 contentEl,
@@ -51,16 +58,19 @@ export class MessageRenderer {
     }
 
     /**
-     * Create reasoning section element
+     * Creates a reasoning section element for display above the message.
+     * Supports structured and summary reasoning.
+     * @param reasoning The reasoning data object
+     * @returns HTMLElement for the reasoning section
      */
     createReasoningSection(reasoning: any): HTMLElement {
         debugLog(true, 'debug', '[MessageRenderer] createReasoningSection called', { reasoning });
         const reasoningContainer = document.createElement('div');
         reasoningContainer.className = 'reasoning-container';
-        
+
         const header = document.createElement('div');
         header.className = 'reasoning-summary';
-        
+
         const toggle = document.createElement('span');
         toggle.className = 'reasoning-toggle';
         toggle.textContent = reasoning.isCollapsed ? '▶' : '▼';
@@ -83,7 +93,7 @@ export class MessageRenderer {
             details.classList.add('expanded');
         }
 
-        
+        // Render structured steps or summary
         if (reasoning.type === 'structured' && reasoning.steps) {
             if (reasoning.problem) {
                 const problemDiv = document.createElement('div');
@@ -115,7 +125,7 @@ export class MessageRenderer {
             details.appendChild(summaryDiv);
         }
 
-        
+        // Toggle expand/collapse on header click
         header.addEventListener('click', () => {
             const isExpanded = details.classList.contains('expanded');
             if (isExpanded) {
@@ -131,12 +141,14 @@ export class MessageRenderer {
 
         reasoningContainer.appendChild(header);
         reasoningContainer.appendChild(details);
-        
+
         return reasoningContainer;
     }
 
     /**
-     * Create task status section element
+     * Creates a task status section element for display above the message.
+     * @param taskStatus The task status object
+     * @returns HTMLElement for the task status section
      */
     createTaskStatusSection(taskStatus: TaskStatus): HTMLElement {
         const statusContainer = document.createElement('div');
@@ -152,7 +164,6 @@ export class MessageRenderer {
             </div>
         `;
 
-        
         if (taskStatus.toolExecutionCount > 0) {
             const toolInfo = document.createElement('div');
             toolInfo.className = 'task-tool-info';
@@ -164,7 +175,7 @@ export class MessageRenderer {
     }
 
     /**
-     * Get emoji for reasoning step categories
+     * Returns an emoji for a reasoning step category.
      */
     private getStepEmoji(category: string): string {
         switch (category) {
@@ -185,7 +196,7 @@ export class MessageRenderer {
     }
 
     /**
-     * Get task status text
+     * Returns a user-friendly status text for a task status.
      */
     private getTaskStatusText(taskStatus: TaskStatus): string {
         switch (taskStatus.status) {
@@ -200,7 +211,7 @@ export class MessageRenderer {
     }
 
     /**
-     * Get task status icon
+     * Returns an emoji icon for a task status.
      */
     private getTaskStatusIcon(status: string): string {
         switch (status) {
@@ -212,19 +223,27 @@ export class MessageRenderer {
             case 'waiting_for_user': return '⏳';
             default: return '❓';
         }
-    }    /**
-     * Render a complete message with tool displays if present
+    }
+
+    /**
+     * Render a complete message with tool displays if present.
+     * @param message The message object (may include toolResults)
+     * @param container The message DOM element
+     * @param component Optional parent component for Markdown rendering
      */
     async renderMessage(message: Message, container: HTMLElement, component?: Component): Promise<void> {
-        
         if (message.toolResults && message.toolResults.length > 0) {
             await this.renderMessageWithToolDisplays(message, container, component);
         } else {
-            
             await this.renderRegularMessage(message, container, component);
         }
-    }    /**
-     * Render message with embedded tool displays
+    }
+
+    /**
+     * Render a message with embedded tool displays.
+     * @param message The message object (with toolResults)
+     * @param container The message DOM element
+     * @param component Optional parent component for Markdown rendering
      */
     private async renderMessageWithToolDisplays(message: Message, container: HTMLElement, component?: Component): Promise<void> {
         const messageContent = container.querySelector('.message-content') as HTMLElement;
@@ -233,21 +252,17 @@ export class MessageRenderer {
             return;
         }
 
-        
         messageContent.empty();
-        
-        
         container.classList.add('has-rich-tools');
 
-        
+        // Render each tool execution result as a rich display
         if (message.toolResults && message.toolResults.length > 0) {
             for (const toolExecutionResult of message.toolResults) {
-                
                 const richDisplay = new ToolRichDisplay({
                     command: toolExecutionResult.command,
                     result: toolExecutionResult.result,
                     onRerun: () => {
-                        
+                        // Optional: implement re-run logic
                     },
                     onCopy: async () => {
                         const displayText = this.formatToolForCopy(toolExecutionResult.command, toolExecutionResult.result);
@@ -259,7 +274,6 @@ export class MessageRenderer {
                     }
                 });
 
-                
                 const toolWrapper = document.createElement('div');
                 toolWrapper.className = 'embedded-tool-display';
                 toolWrapper.appendChild(richDisplay.getElement());
@@ -267,7 +281,7 @@ export class MessageRenderer {
             }
         }
 
-        
+        // Render the main message content (if any)
         if (message.content && message.content.trim()) {
             const textDiv = document.createElement('div');
             textDiv.className = 'message-text-part';
@@ -277,7 +291,10 @@ export class MessageRenderer {
     }
 
     /**
-     * Render regular message without tool displays
+     * Render a regular message without tool displays.
+     * @param message The message object
+     * @param container The message DOM element
+     * @param component Optional parent component for Markdown rendering
      */
     private async renderRegularMessage(message: Message, container: HTMLElement, component?: Component): Promise<void> {
         const messageContent = container.querySelector('.message-content') as HTMLElement;
@@ -288,19 +305,21 @@ export class MessageRenderer {
     }
 
     /**
-     * Parse message content to extract tool calls and text parts
+     * Parse message content to extract tool calls and text parts.
+     * Returns an array of text/tool parts for further processing.
+     * @param content The message content string
      */
     private parseMessageWithTools(content: string): Array<{type: 'text' | 'tool', content?: string, command?: ToolCommand}> {
         const parts: Array<{type: 'text' | 'tool', content?: string, command?: ToolCommand}> = [];
 
-        
+        // Regex to match tool call JSON code blocks
         const toolCallRegex = /```json\s*\{[^}]*"action":\s*"([^"]+)"[^}]*\}[^`]*```/g;
 
         let lastIndex = 0;
         let match;
 
         while ((match = toolCallRegex.exec(content)) !== null) {
-            
+            // Add preceding text part
             if (match.index > lastIndex) {
                 const textContent = content.slice(lastIndex, match.index).trim();
                 if (textContent) {
@@ -308,20 +327,20 @@ export class MessageRenderer {
                 }
             }
 
-            
+            // Try to parse the tool JSON
             try {
                 const toolJson = match[0].replace(/```json\s*/, '').replace(/\s*```[\s\S]*?$/, '');
                 const command = JSON.parse(toolJson) as ToolCommand;
                 parts.push({ type: 'tool', command });
             } catch (e) {
-                
+                // If parsing fails, treat as text
                 parts.push({ type: 'text', content: match[0] });
             }
 
             lastIndex = match.index + match[0].length;
         }
 
-        
+        // Add any remaining text after the last tool call
         if (lastIndex < content.length) {
             const remainingContent = content.slice(lastIndex).trim();
             if (remainingContent) {
@@ -329,7 +348,7 @@ export class MessageRenderer {
             }
         }
 
-        
+        // If no parts found, treat the whole content as text
         if (parts.length === 0) {
             parts.push({ type: 'text', content });
         }
@@ -338,7 +357,10 @@ export class MessageRenderer {
     }
 
     /**
-     * Compare tool parameters for matching
+     * Compare tool parameters for matching (deep equality).
+     * @param params1 First parameters object
+     * @param params2 Second parameters object
+     * @returns True if parameters are deeply equal
      */
     private compareToolParams(params1: any, params2: any): boolean {
         try {
@@ -346,35 +368,44 @@ export class MessageRenderer {
         } catch {
             return false;
         }
-    }    /**
-     * Format tool execution for clipboard copy
-     */    private formatToolForCopy(command: ToolCommand, result: ToolResult): string {
+    }
+
+    /**
+     * Format a tool execution result for clipboard copy.
+     * @param command The tool command
+     * @param result The tool result
+     * @returns Formatted string for copy
+     */
+    private formatToolForCopy(command: ToolCommand, result: ToolResult): string {
         const status = result.success ? '✅' : '❌';
         const statusText = result.success ? 'SUCCESS' : 'ERROR';
-        
+
         let output = `${status} **${command.action}** ${statusText}`;
-        
-        
+
+        // Parameters
         if (command.parameters && Object.keys(command.parameters).length > 0) {
             output += `\n\n**Parameters:**\n\`\`\`json\n${JSON.stringify(command.parameters, null, 2)}\n\`\`\``;
         }
-        
-        
+
+        // Result or error
         if (result.success) {
             output += `\n\n**Result:**\n\`\`\`json\n${JSON.stringify(result.data, null, 2)}\n\`\`\``;
         } else {
             output += `\n\n**Error:**\n${result.error}`;
         }
-        
+
         return output;
-    }    /**
-     * Get message content formatted for clipboard copy, including tool results
+    }
+
+    /**
+     * Get message content formatted for clipboard copy, including tool results.
+     * @param messageData The message data (may include toolResults)
+     * @returns Formatted string for copy
      */
     getMessageContentForCopy(messageData: Message): string {
         let content = messageData.content;
-        
+
         if (messageData.toolResults && messageData.toolResults.length > 0) {
-            
             content += '\n\n```ai-tool-execution\n';
             content += JSON.stringify({
                 toolResults: messageData.toolResults,
@@ -382,17 +413,20 @@ export class MessageRenderer {
                 taskStatus: messageData.taskStatus
             }, null, 2);
             content += '\n```\n';
-            
         }
 
         return content;
-    }    /**
-     * Parse tool data from saved content that contains ai-tool-execution blocks
+    }
+
+    /**
+     * Parse tool data from saved content that contains ai-tool-execution blocks.
+     * @param content The message content string
+     * @returns Parsed tool data object or null
      */
     parseToolDataFromContent(content: string): any {
         const toolDataRegex = /```ai-tool-execution\n([\s\S]*?)\n```/g;
         const match = toolDataRegex.exec(content);
-        
+
         if (match) {
             try {
                 return JSON.parse(match[1]);
@@ -400,20 +434,20 @@ export class MessageRenderer {
                 console.error('Failed to parse tool data:', e);
             }
         }
-        
+
         return null;
     }
 
     /**
-     * Remove tool data blocks from content to get clean content for display
+     * Remove tool data blocks from content to get clean content for display.
+     * @param content The message content string
+     * @returns Cleaned content string
      */
     cleanContentFromToolData(content: string): string {
-        
+        // Remove ai-tool-execution code blocks
         let cleanContent = content.replace(/```ai-tool-execution\n[\s\S]*?\n```\n?/g, '');
-        
-        
+        // Remove legacy "**Tool Execution:**" blocks
         cleanContent = cleanContent.replace(/\n\n\*\*Tool Execution:\*\*[\s\S]*?(?=\n\n\*\*Tool Execution:\*\*|\n\n[^*]|$)/g, '');
-        
         return cleanContent.trim();
     }
 }

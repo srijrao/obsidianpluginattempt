@@ -1,4 +1,10 @@
 /**
+ * @file This file provides a centralized logging utility for the plugin.
+ * It includes a `debugLog` function that allows for conditional logging based on a debug mode setting,
+ * and supports different log levels (debug, info, warn, error) with timestamps.
+ */
+
+/**
  * Enhanced debug logger for the plugin.
  * @param debugMode Whether debug mode is enabled
  * @param level Log level: 'debug' | 'info' | 'warn' | 'error'. Defaults to 'debug'.

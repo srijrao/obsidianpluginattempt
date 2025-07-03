@@ -1,17 +1,22 @@
-
-
 import { App, TFile, TFolder, Vault } from 'obsidian';
 import { Tool, ToolResult } from '../ToolRegistry';
 import { PathValidator } from './pathValidation';
 import { isTFile, isTFolder } from '../../../../utils/typeguards';
 
+/**
+ * Parameters for generating a vault tree.
+ */
 export interface VaultTreeParams {
-    path?: string; 
-    maxDepth?: number; 
-    maxItems?: number; 
-    showFolders?: boolean; 
+    path?: string;         // Starting path for the tree (optional, defaults to root)
+    maxDepth?: number;     // Maximum depth to traverse (optional)
+    maxItems?: number;     // Maximum total items to include (optional)
+    showFolders?: boolean; // Whether to include folders in the tree (optional)
 }
 
+/**
+ * Tool for generating a hierarchical tree view of the vault structure.
+ * Shows folders and their organization in a visual tree format.
+ */
 export class VaultTreeTool implements Tool {
     name = 'vault_tree';
     description = 'Generates a hierarchical tree view of the vault structure, showing only folders and their organization in a visual tree format. Perfect for understanding the overall vault organization.';
@@ -28,6 +33,13 @@ export class VaultTreeTool implements Tool {
         this.pathValidator = new PathValidator(app);
     }
 
+    /**
+     * Executes the vault tree generation.
+     * Traverses the vault folder structure and builds a tree representation.
+     * @param params VaultTreeParams
+     * @param context Execution context (unused)
+     * @returns ToolResult with the tree string and stats or error
+     */
     async execute(params: VaultTreeParams, context: any): Promise<ToolResult> {
         const {
             path = '',
@@ -36,7 +48,7 @@ export class VaultTreeTool implements Tool {
             showFolders = true
         } = params;
 
-        
+        // Validate and normalize the starting path
         let startPath: string;
         try {
             startPath = this.pathValidator.validateAndNormalizePath(path);
@@ -50,7 +62,7 @@ export class VaultTreeTool implements Tool {
         const vault: Vault = this.app.vault;
         let startFolder;
 
-        
+        // Resolve the starting folder
         if (startPath === '' || startPath === '/') {
             startFolder = vault.getRoot();
         } else {
@@ -68,12 +80,18 @@ export class VaultTreeTool implements Tool {
         let totalItems = 0;
         let truncated = false;
 
+        /**
+         * Recursively builds the tree structure.
+         * @param folder The current folder to process
+         * @param prefix Indentation prefix for visual tree
+         * @param depth Current depth in the tree
+         */
         const buildTree = (
             folder: TFolder,
             prefix: string = '',
             depth: number = 0
         ): void => {
-            
+            // Stop if max depth or max items reached
             if (depth > maxDepth || totalItems >= maxItems) {
                 if (totalItems >= maxItems) {
                     truncated = true;
@@ -81,7 +99,7 @@ export class VaultTreeTool implements Tool {
                 return;
             }
 
-            
+            // Add folder line (except for root if depth==0)
             if (depth > 0 && showFolders) {
                 const itemCount = folder.children.length;
                 treeLines.push(`${prefix}📁${folder.name}/(${itemCount} items)`);
@@ -92,37 +110,33 @@ export class VaultTreeTool implements Tool {
                 }
             }
 
-            
+            // Sort children: folders first, then files, then by name
             const children = [...folder.children];
             children.sort((a, b) => {
-                
                 if (isTFolder(a) && isTFile(b)) return -1;
                 if (isTFile(a) && isTFolder(b)) return 1;
                 if (isTFile(a) && isTFile(b)) return 1;
                 if (!isTFile(a) && isTFile(b)) return -1;
-                
                 return a.name.localeCompare(b.name);
             });
 
-            
+            // Only include folders in the tree (files are ignored)
             const filteredChildren = children.filter(child => {
                 if (isTFolder(child)) return showFolders;
                 return false;
             });
 
-            
+            // Recursively process subfolders
             filteredChildren.forEach((child, index) => {
                 if (totalItems >= maxItems) {
                     truncated = true;
                     return;
                 }
-
                 const newPrefix = depth > 0 
                     ? prefix + '  '
                     : '';
-
                 if (isTFile(child)) {
-                    
+                    // Files are not shown in this tree
                 } else if (isTFolder(child)) {
                     buildTree(child, newPrefix, depth + 1);
                 }
@@ -130,13 +144,13 @@ export class VaultTreeTool implements Tool {
         };
 
         try {
-            
+            // Add root folder line if starting at root
             if (startPath === '' || startPath === '/') {
                 const rootItemCount = startFolder.children.length;
                 treeLines.push(`📁Vault Root/(${rootItemCount} items)`);
                 totalItems++;
             }
-            
+            // Build the tree from the starting folder
             buildTree(startFolder, '', startPath === '' || startPath === '/' ? 0 : -1);
 
             const tree = treeLines.join(',\n');
@@ -154,7 +168,7 @@ export class VaultTreeTool implements Tool {
                 data: {
                     tree,
                     stats,
-                    
+                    // For compatibility with other tools
                     items: tree,
                     count: totalItems,
                     path: startPath || '/'
@@ -168,6 +182,12 @@ export class VaultTreeTool implements Tool {
         }
     }
 
+    /**
+     * Returns an emoji icon for a given file extension.
+     * Not used in the current tree output, but available for extension.
+     * @param extension File extension (without dot)
+     * @returns Emoji string
+     */
     private getFileIcon(extension: string): string {
         const iconMap: Record<string, string> = {
             'md': '📝',
@@ -199,7 +219,6 @@ export class VaultTreeTool implements Tool {
             'html': '🌐',
             'xml': '🌐'
         };
-        
         return iconMap[extension.toLowerCase()] || '📄';
     }
 }

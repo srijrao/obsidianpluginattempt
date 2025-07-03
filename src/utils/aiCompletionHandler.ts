@@ -6,13 +6,15 @@ import { showNotice, insertSeparator } from './generalUtils';
 
 /**
  * Handles the AI completion logic for the editor.
- * Extracts text, sends to AI, and streams response back to editor.
- * @param editor The editor instance.
- * @param settings The plugin settings.
- * @param processMessages Function to process messages with context.
- * @param getSystemMessage Function to get the system message.
- * @param activeStream The active stream controller.
- * @param setActiveStream Function to set the active stream controller.
+ * This function extracts text from the editor, sends it to an AI model,
+ * and streams the AI's response back into the editor.
+ *
+ * @param editor The current Obsidian editor instance.
+ * @param settings The plugin settings, containing configurations for AI models and behavior.
+ * @param processMessages An asynchronous function to process and potentially modify messages before sending to the AI.
+ * @param getSystemMessage A function that returns the system message to be included in the AI prompt.
+ * @param activeStream An object holding the current AbortController for managing the AI stream, allowing it to be cancelled.
+ * @param setActiveStream A function to update the active stream controller.
  */
 export async function handleAICompletion(
     editor: Editor,

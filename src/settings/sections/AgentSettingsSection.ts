@@ -4,11 +4,20 @@ import { SettingCreators } from '../components/SettingCreators';
 import { createToolInstances } from '../../components/chat/agent/tools/toolcollect';
 import { AGENT_SYSTEM_PROMPT_TEMPLATE } from '../../promptConstants';
 
+/**
+ * AgentSettingsSection is responsible for rendering the settings related to Agent Mode.
+ * This includes toggling agent mode, setting tool limits, and enabling/disabling individual tools.
+ */
 export class AgentSettingsSection {
     private app: App;
     private plugin: MyPlugin;
     private settingCreators: SettingCreators;
 
+    /**
+     * @param app The Obsidian App instance.
+     * @param plugin The main plugin instance.
+     * @param settingCreators An instance of SettingCreators for consistent UI element creation.
+     */
     constructor(app: App, plugin: MyPlugin, settingCreators: SettingCreators) {
         this.app = app;
         this.plugin = plugin;
@@ -18,6 +27,10 @@ export class AgentSettingsSection {
         }
     }
 
+    /**
+     * Renders the Agent Mode settings section into the provided container element.
+     * @param containerEl The HTML element to render the section into.
+     */
     async render(containerEl: HTMLElement): Promise<void> {
         if (this.plugin && typeof this.plugin.debugLog === 'function') {
             this.plugin.debugLog('info', '[AgentSettingsSection] render called');
@@ -32,6 +45,7 @@ export class AgentSettingsSection {
             attr: { style: 'margin-bottom: 1em;' }
         });
 
+        // Toggle for enabling Agent Mode by default
         this.settingCreators.createToggleSetting(
             containerEl, 
             'Enable Agent Mode by Default', 
@@ -46,6 +60,7 @@ export class AgentSettingsSection {
             }
         );
 
+        // Slider for Max Tool Calls per Conversation
         this.settingCreators.createSliderSetting(
             containerEl, 
             'Max Tool Calls per Conversation', 
@@ -61,6 +76,7 @@ export class AgentSettingsSection {
             }
         );
 
+        // Slider for Tool Execution Timeout
         this.settingCreators.createSliderSetting(
             containerEl, 
             'Tool Execution Timeout (seconds)', 
@@ -76,6 +92,7 @@ export class AgentSettingsSection {
             }
         );
 
+        // Slider for Max Iterations per Task Continuation
         this.settingCreators.createSliderSetting(
             containerEl, 
             'Max Iterations per Task Continuation',
@@ -91,7 +108,7 @@ export class AgentSettingsSection {
             }
         );
 
-        
+        // Agent System Message section header
         containerEl.createEl('h3', { text: 'Agent System Message' });
         
         containerEl.createEl('div', {
@@ -123,6 +140,7 @@ export class AgentSettingsSection {
         buttonContainer.style.flexDirection = 'column';
         buttonContainer.style.gap = '0.25em';
 
+        // Reset to Default button for agent system message
         const resetButton = buttonContainer.createEl('button', { text: 'Reset to Default' });
         resetButton.style.padding = '0.25em 0.5em';
         resetButton.style.fontSize = '0.8em';
@@ -132,6 +150,7 @@ export class AgentSettingsSection {
             await this.plugin.saveSettings();
         });
 
+        // Use Default (clear custom message) button
         const clearButton = buttonContainer.createEl('button', { text: 'Use Default' });
         clearButton.style.padding = '0.25em 0.5em';
         clearButton.style.fontSize = '0.8em';
@@ -141,13 +160,14 @@ export class AgentSettingsSection {
             await this.plugin.saveSettings();
         });
 
+        // Save custom agent system message on input
         textarea.addEventListener('input', async () => {
             const value = textarea.value.trim();
             this.plugin.settings.customAgentSystemMessage = value || undefined;
             await this.plugin.saveSettings();
         });
 
-        
+        // Agent Tools section header
         containerEl.createEl('h3', { text: 'Agent Tools' });
         
         this.renderToolToggles(containerEl);
@@ -155,6 +175,8 @@ export class AgentSettingsSection {
 
     /**
      * Renders the Tool Enable/Disable section.
+     * Allows users to enable or disable individual tools available to the agent.
+     * @param containerEl The HTML element to append the section to.
      */
     private renderToolToggles(containerEl: HTMLElement): void {
         containerEl.createEl('div', {
@@ -162,10 +184,13 @@ export class AgentSettingsSection {
             cls: 'setting-item-description',
             attr: { style: 'margin-bottom: 0.5em;' }
         });
+        // Get all available tool instances
         const tools = createToolInstances(this.app, this.plugin);
+        // Initialize enabledTools setting if it doesn't exist
         if (!this.plugin.settings.enabledTools) {
             this.plugin.settings.enabledTools = {};
         }
+        // Render a toggle for each tool
         tools.forEach(tool => {
             if (!tool) {
                 console.error('[AI Assistant] Settings: Encountered an undefined tool object in tools array!');
@@ -175,11 +200,12 @@ export class AgentSettingsSection {
                 console.error('[AI Assistant] Settings: CRITICAL - Tool object has undefined name:', tool);
             }
             
+            // Special handling for 'thought' tool: always enabled and not configurable by user
             if (tool.name === 'thought') {
                 if (!this.plugin.settings.enabledTools) {
                     this.plugin.settings.enabledTools = {};
                 }
-                this.plugin.settings.enabledTools['thought'] = true;
+                this.plugin.settings.enabledTools['thought'] = true; // Ensure thought tool is always enabled
                 return;
             }
             this.settingCreators.createToggleSetting(
@@ -191,6 +217,7 @@ export class AgentSettingsSection {
                         console.error('[AI Assistant] Settings: CRITICAL - Trying to get toggle state for tool with undefined name!');
                         return false;
                     }
+                    // Default to true if not explicitly set to false
                     return !!this.plugin.settings.enabledTools && this.plugin.settings.enabledTools[tool.name] !== false;
                 },
                 async (value) => {

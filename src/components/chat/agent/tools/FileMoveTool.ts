@@ -3,13 +3,20 @@ import { Tool, ToolResult } from '../ToolRegistry';
 import { PathValidator } from './pathValidation';
 import { isTFile } from '../../../../utils/typeguards';
 
+/**
+ * Parameters for moving or renaming a file.
+ */
 export interface FileMoveParams {
-    sourcePath: string;
-    destinationPath: string;
-    createFolders?: boolean;
-    overwrite?: boolean;
+    sourcePath: string;         // Path of the source file
+    destinationPath: string;    // New path for the file
+    createFolders?: boolean;    // Whether to create parent folders if they don't exist
+    overwrite?: boolean;        // Whether to overwrite destination if it exists
 }
 
+/**
+ * Tool for moving or renaming files within the vault.
+ * Supports folder creation and overwrite options.
+ */
 export class FileMoveTool implements Tool {
     name = 'file_move';
     description = 'Relocates or renames files within the vault, providing options to create necessary directories and handle existing files. This tool is vital for organizing and restructuring content.';
@@ -42,16 +49,22 @@ export class FileMoveTool implements Tool {
         this.pathValidator = new PathValidator(app);
     }
 
+    /**
+     * Executes the file move/rename operation.
+     * @param params FileMoveParams (with possible legacy/alias keys)
+     * @param context Execution context (unused)
+     * @returns ToolResult indicating success or failure
+     */
     async execute(params: FileMoveParams & Record<string, any>, context: any): Promise<ToolResult> {
-        
+        // Support legacy/alias keys for source and destination
         let inputSourcePath = params.sourcePath;
         let inputDestinationPath = params.destinationPath;
-        
         if (!inputSourcePath && params.path) inputSourcePath = params.path;
         if (!inputDestinationPath && (params.new_path || params.newPath)) inputDestinationPath = params.new_path || params.newPath;
 
         const { createFolders = true, overwrite = false } = params;
 
+        // Validate required parameters
         if (inputSourcePath === undefined || inputSourcePath === null || 
             inputDestinationPath === undefined || inputDestinationPath === null) {
             return {
@@ -60,7 +73,7 @@ export class FileMoveTool implements Tool {
             };
         }
 
-        
+        // Validate and normalize paths
         let sourcePath: string;
         let destinationPath: string;
         try {
@@ -74,9 +87,8 @@ export class FileMoveTool implements Tool {
         }
 
         try {
-            
+            // Get the source file object
             const sourceFile = this.app.vault.getAbstractFileByPath(sourcePath);
-            
             if (!sourceFile) {
                 return {
                     success: false,
@@ -84,6 +96,7 @@ export class FileMoveTool implements Tool {
                 };
             }
 
+            // Ensure the source is a file (not a folder)
             if (!isTFile(sourceFile)) {
                 return {
                     success: false,
@@ -91,9 +104,8 @@ export class FileMoveTool implements Tool {
                 };
             }
 
-            
+            // Check if destination exists and handle overwrite option
             const destinationExists = this.app.vault.getAbstractFileByPath(destinationPath);
-            
             if (destinationExists && !overwrite) {
                 return {
                     success: false,
@@ -101,16 +113,15 @@ export class FileMoveTool implements Tool {
                 };
             }
 
-            
+            // Determine the parent folder of the destination
             const lastSlashIndex = destinationPath.lastIndexOf('/');
             const destinationFolder = lastSlashIndex !== -1 
                 ? destinationPath.substring(0, lastSlashIndex) 
                 : '';
 
-            
+            // Create parent folders if needed
             if (destinationFolder && createFolders) {
                 const folderExists = this.app.vault.getAbstractFileByPath(destinationFolder);
-                
                 if (!folderExists) {
                     await this.app.vault.createFolder(destinationFolder);
                 } else if (!(folderExists instanceof TFolder)) {
@@ -121,7 +132,7 @@ export class FileMoveTool implements Tool {
                 }
             }
 
-            
+            // Move (rename) the file
             await this.app.fileManager.renameFile(sourceFile, destinationPath);
 
             return {

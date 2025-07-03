@@ -1,3 +1,9 @@
+/**
+ * @file This file contains utility functions for handling Obsidian notes and their content.
+ * It provides functionalities for processing Obsidian links within messages, extracting content
+ * from context notes, and preparing messages with relevant note content for AI processing.
+ */
+
 import { Notice, TFile, App } from 'obsidian';
 import { Message, MyPluginSettings } from '../types';
 import { findFile, extractContentUnderHeader } from './utils';

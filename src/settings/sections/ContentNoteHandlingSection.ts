@@ -2,19 +2,33 @@ import { App, Setting } from 'obsidian';
 import MyPlugin from '../../main';
 import { SettingCreators } from '../components/SettingCreators';
 
+/**
+ * ContentNoteHandlingSection is responsible for rendering settings related to how the plugin handles note content
+ * for chat context, and for managing YAML attribute generators.
+ */
 export class ContentNoteHandlingSection {
     private plugin: MyPlugin;
     private settingCreators: SettingCreators;
 
+    /**
+     * @param plugin The main plugin instance.
+     * @param settingCreators An instance of SettingCreators for consistent UI element creation.
+     */
     constructor(plugin: MyPlugin, settingCreators: SettingCreators) {
         this.plugin = plugin;
         this.settingCreators = settingCreators;
     }
 
+    /**
+     * Renders the Content & Note Handling settings sections into the provided container element.
+     * This includes chat customization, note reference settings, data handling, and YAML attribute generators.
+     * @param containerEl The HTML element to render the sections into.
+     */
     async render(containerEl: HTMLElement): Promise<void> {
-        
+        // Chat Customization Section Header
         containerEl.createEl('h3', { text: 'Chat Customization' });
         
+        // Chat Separator Setting
         this.settingCreators.createTextSetting(
             containerEl, 
             'Chat Separator', 
@@ -27,6 +41,7 @@ export class ContentNoteHandlingSection {
             }
         );
         
+        // Chat Start String Setting
         this.settingCreators.createTextSetting(
             containerEl, 
             'Chat Start String', 
@@ -39,6 +54,7 @@ export class ContentNoteHandlingSection {
             }
         );
         
+        // Chat End String Setting
         this.settingCreators.createTextSetting(
             containerEl, 
             'Chat End String', 
@@ -51,6 +67,7 @@ export class ContentNoteHandlingSection {
             }
         );
         
+        // Title Prompt Setting
         this.settingCreators.createTextSetting(
             containerEl, 
             'Title Prompt', 
@@ -64,6 +81,7 @@ export class ContentNoteHandlingSection {
             { isTextArea: true }
         );
         
+        // Title Output Mode Dropdown
         this.settingCreators.createDropdownSetting(
             containerEl, 
             'Title Output Mode', 
@@ -76,6 +94,7 @@ export class ContentNoteHandlingSection {
             }
         );
         
+        // Summary Output Mode Dropdown
         this.settingCreators.createDropdownSetting(
             containerEl, 
             'Summary Output Mode', 
@@ -88,9 +107,10 @@ export class ContentNoteHandlingSection {
             }
         );
 
-        
+        // Note Reference Settings Section Header
         containerEl.createEl('h3', { text: 'Note Reference Settings' });
         
+        // Enable Obsidian Links Toggle
         this.settingCreators.createToggleSetting(
             containerEl,
             'Enable Obsidian Links',
@@ -102,6 +122,7 @@ export class ContentNoteHandlingSection {
             }
         );
 
+        // Enable Context Notes Toggle
         this.settingCreators.createToggleSetting(
             containerEl,
             'Enable Context Notes',
@@ -113,21 +134,22 @@ export class ContentNoteHandlingSection {
             }
         );
 
+        // Context Notes Text Area
         const contextNotesContainer = containerEl.createDiv('context-notes-container');
         contextNotesContainer.style.marginBottom = '24px';
 
         new Setting(contextNotesContainer)
             .setName('Context Notes')
-            .setDesc('Notes to attach as context (supports [[filename]] and [[filename#header]] syntax)')
+            .setDesc('Notes to attach as context (supports [[filename]] and [[another note#header]] syntax)')
             .addTextArea(text => {
                 text.setPlaceholder('[[Note Name]]\n[[Another Note#Header]]')
                     .setValue(this.plugin.settings.contextNotes || '')
                     .onChange((value) => {
-                        
+                        // Update setting immediately on change
                         this.plugin.settings.contextNotes = value;
                     });
                 
-                
+                // Save settings on blur
                 text.inputEl.addEventListener('blur', async () => {
                     await this.plugin.saveSettings();
                 });
@@ -136,9 +158,10 @@ export class ContentNoteHandlingSection {
                 text.inputEl.style.width = '100%';
             });
 
-        
+        // Data Handling Section Header
         containerEl.createEl('h3', { text: 'Data Handling' });
         
+        // Expand Linked Notes Recursively Toggle
         this.settingCreators.createToggleSetting(
             containerEl, 
             'Expand Linked Notes Recursively', 
@@ -150,6 +173,7 @@ export class ContentNoteHandlingSection {
             }
         );
 
+        // Max Link Expansion Depth Slider (only visible if recursive expansion is enabled)
         if (this.plugin.settings.expandLinkedNotesRecursively) {
             this.settingCreators.createSliderSetting(
                 containerEl, 
@@ -164,6 +188,7 @@ export class ContentNoteHandlingSection {
             );
         }
 
+        // Chat Note Folder Text Setting
         this.settingCreators.createTextSetting(
             containerEl, 
             'Chat Note Folder', 
@@ -177,13 +202,16 @@ export class ContentNoteHandlingSection {
             { trim: true }
         );
 
-        
+        // YAML Attribute Generators Section Header
         containerEl.createEl('h3', { text: 'YAML Attribute Generators' });
         this.renderYamlAttributeGenerators(containerEl);
     }
 
     /**
      * Renders the YAML Attribute Generators section.
+     * This section allows users to define custom YAML attributes that can be generated by the AI
+     * and inserted into notes.
+     * @param containerEl The HTML element to append the section to.
      */
     private renderYamlAttributeGenerators(containerEl: HTMLElement): void {
         containerEl.createEl('div', { 
@@ -196,7 +224,7 @@ export class ContentNoteHandlingSection {
         yamlGens.forEach((gen, idx) => {
             const autoCommandName = gen.attributeName ? `Generate YAML: ${gen.attributeName}` : `YAML Generator #${idx + 1}`;
             
-            
+            // Container for each YAML generator setting block
             const genContainer = containerEl.createDiv({ cls: 'yaml-generator-container' });
             genContainer.style.border = '1px solid var(--background-modifier-border)';
             genContainer.style.borderRadius = '6px';
@@ -205,6 +233,7 @@ export class ContentNoteHandlingSection {
             
             genContainer.createEl('h4', { text: autoCommandName });
 
+            // YAML Attribute Name Setting
             new Setting(genContainer)
                 .setName('YAML Attribute Name')
                 .setDesc('The YAML field name to insert/update')
@@ -212,19 +241,20 @@ export class ContentNoteHandlingSection {
                     text.setPlaceholder('YAML Attribute Name')
                         .setValue(gen.attributeName)
                         .onChange((value) => {
-                            
+                            // Update attribute name and command name immediately on change
                             if (this.plugin.settings.yamlAttributeGenerators) {
                                 this.plugin.settings.yamlAttributeGenerators[idx].attributeName = value ?? '';
                                 this.plugin.settings.yamlAttributeGenerators[idx].commandName = value ? `Generate YAML: ${value}` : '';
                             }
                         });
                     
-                    
+                    // Save settings on blur
                     text.inputEl.addEventListener('blur', async () => {
                         await this.plugin.saveSettings();
                     });
                 });
 
+            // Prompt for LLM Setting
             new Setting(genContainer)
                 .setName('Prompt for LLM')
                 .setDesc('The prompt to send to the AI for generating the YAML value')
@@ -232,13 +262,13 @@ export class ContentNoteHandlingSection {
                     text.setPlaceholder('Prompt for LLM')
                         .setValue(gen.prompt)
                         .onChange((value) => {
-                            
+                            // Update prompt immediately on change
                             if (this.plugin.settings.yamlAttributeGenerators) {
                                 this.plugin.settings.yamlAttributeGenerators[idx].prompt = value ?? '';
                             }
                         });
                     
-                    
+                    // Save settings on blur
                     text.inputEl.addEventListener('blur', async () => {
                         await this.plugin.saveSettings();
                     });
@@ -247,6 +277,7 @@ export class ContentNoteHandlingSection {
                     text.inputEl.style.width = '100%';
                 });
 
+            // Output Mode Dropdown
             new Setting(genContainer)
                 .setName('Output Mode')
                 .setDesc('Where to put the generated YAML attribute')
@@ -262,6 +293,7 @@ export class ContentNoteHandlingSection {
                     });
                 });
 
+            // Delete YAML Generator Button
             new Setting(genContainer)
                 .addExtraButton(btn => {
                     btn.setIcon('cross')
@@ -275,18 +307,19 @@ export class ContentNoteHandlingSection {
                 });
         });
 
+        // Add YAML Attribute Generator Button
         new Setting(containerEl)
             .addButton(btn => {
                 btn.setButtonText('Add YAML Attribute Generator')
                     .setCta()
                     .onClick(async () => {
                         if (!this.plugin.settings.yamlAttributeGenerators) this.plugin.settings.yamlAttributeGenerators = [];
-                        this.plugin.settings.yamlAttributeGenerators.push({
+                        this.plugin.settings.yamlAttributeGenerators.push(JSON.parse(JSON.stringify({
                             attributeName: '',
                             prompt: '',
                             outputMode: 'metadata',
                             commandName: 'New YAML Generator'
-                        });
+                        })));
                         await this.plugin.saveSettings();
                     });
             });

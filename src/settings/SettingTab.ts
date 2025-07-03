@@ -1,3 +1,4 @@
+
 import { App, PluginSettingTab, Setting, Notice } from 'obsidian';
 import MyPlugin from '../main';
 import { VIEW_TYPE_MODEL_SETTINGS } from '../components/commands';
@@ -12,34 +13,57 @@ import { ContentNoteHandlingSection } from './sections/ContentNoteHandlingSectio
 import { BackupManagementSection } from './sections/BackupManagementSection';
 import { ChatHistorySettingsSection } from './sections/ChatHistorySettingsSection';
 
+
 /**
- * Plugin Settings Tab
+ * Main settings tab for the AI Assistant for Obsidian plugin.
  *
- * This tab provides a user interface for configuring the plugin settings.
+ * This class is responsible for rendering and managing the plugin's settings UI in Obsidian's settings panel.
+ * It organizes all settings into collapsible sections, handles settings changes, and provides a reset-to-defaults option.
+ *
+ * @extends PluginSettingTab
  */
 export class MyPluginSettingTab extends PluginSettingTab {
+    /** Reference to the plugin instance. */
     plugin: MyPlugin;
+    /** Helper for creating settings UI elements. */
     private settingCreators: SettingCreators;
 
-    
+    // Section managers for each logical group of settings
+    /** General plugin settings section. */
     private generalSettingsSection: GeneralSettingsSection;
+    /** AI model configuration section. */
     private aiModelConfigurationSection: AIModelConfigurationSection;
+    /** Agent settings section. */
     private agentSettingsSection: AgentSettingsSection;
+    /** Content and note handling section. */
     private contentNoteHandlingSection: ContentNoteHandlingSection;
+    /** Backup and trash management section. */
     private backupManagementSection: BackupManagementSection;
+    /** Chat history and UI section. */
     private chatHistorySettingsSection: ChatHistorySettingsSection;
 
+    /** Listener for settings changes, used to refresh the UI when settings are updated elsewhere. */
     private settingsChangeListener: (() => void) | null = null;
 
+
+    /**
+     * Constructs the settings tab and initializes all settings sections.
+     *
+     * @param app - The Obsidian app instance.
+     * @param plugin - The plugin instance.
+     */
     constructor(app: App, plugin: MyPlugin) {
         super(app, plugin);
         this.plugin = plugin;
+        // Helper for creating settings UI elements, with a callback to refresh the display
         this.settingCreators = new SettingCreators(this.plugin, () => this.display()); 
+
+        // Optional debug logging for plugin developers
         if (this.plugin && typeof this.plugin.debugLog === 'function') {
             this.plugin.debugLog('debug', '[MyPluginSettingTab] constructor called');
         }
 
-        
+        // Initialize each settings section
         this.generalSettingsSection = new GeneralSettingsSection(this.plugin, this.settingCreators);
         this.aiModelConfigurationSection = new AIModelConfigurationSection(this.plugin, this.settingCreators);
         this.agentSettingsSection = new AgentSettingsSection(this.app, this.plugin, this.settingCreators);
@@ -47,9 +71,9 @@ export class MyPluginSettingTab extends PluginSettingTab {
         this.backupManagementSection = new BackupManagementSection(this.plugin, this.settingCreators);
         this.chatHistorySettingsSection = new ChatHistorySettingsSection(this.plugin, this.settingCreators);
 
-        
+        // Listener to refresh the settings UI when settings are changed elsewhere
         this.settingsChangeListener = () => {
-            
+            // Only refresh if the settings tab is still attached to the DOM
             if (this.containerEl.isConnected) {
                 this.display();
             }
@@ -57,8 +81,12 @@ export class MyPluginSettingTab extends PluginSettingTab {
         this.plugin.onSettingsChange(this.settingsChangeListener);
     }
 
+
+    /**
+     * Called when the settings tab is hidden.
+     * Cleans up the settings change listener to avoid memory leaks.
+     */
     hide(): void {
-        
         if (this.settingsChangeListener) {
             this.plugin.offSettingsChange(this.settingsChangeListener);
             this.settingsChangeListener = null;
@@ -66,20 +94,25 @@ export class MyPluginSettingTab extends PluginSettingTab {
         super.hide();
     }
 
+
     /**
-     * Display the settings tab.
-     * This method orchestrates the rendering of all setting sections.
+     * Renders the settings tab UI.
+     *
+     * This method orchestrates the rendering of all collapsible settings sections and the reset-to-defaults button.
+     * It is called automatically when the tab is shown, and can be called to refresh the UI after changes.
      */
     display(): void {
+        // Optional debug logging for plugin developers
         if (this.plugin && typeof this.plugin.debugLog === 'function') {
             this.plugin.debugLog('info', '[MyPluginSettingTab] display called');
         }
         const { containerEl } = this;
         containerEl.empty();
 
+        // Main heading for the settings tab
         containerEl.createEl('h2', { text: 'AI Assistant Settings' });
 
-        
+        // Render each settings section as a collapsible section
         CollapsibleSectionRenderer.createCollapsibleSection(
             containerEl,
             'General Settings',
@@ -128,24 +161,25 @@ export class MyPluginSettingTab extends PluginSettingTab {
             'backupManagementExpanded'
         );
 
-        
+        // Add a button to reset all settings to their default values (except API keys)
         new Setting(containerEl)
             .setName('Reset All Settings to Default')
             .setDesc('Reset all plugin settings (except API keys) to their original default values.')
             .addButton(button => button
                 .setButtonText('Reset')
                 .onClick(async () => {
+                    // Dynamically import defaults to avoid circular dependencies
                     const { DEFAULT_SETTINGS } = await import('../types');
                     const { DEFAULT_TITLE_PROMPT } = await import('../promptConstants');
 
-                    
+                    // Preserve API keys so users don't lose them on reset
                     const preservedApiKeys = {
                         openai: this.plugin.settings.openaiSettings.apiKey,
                         anthropic: this.plugin.settings.anthropicSettings.apiKey,
                         gemini: this.plugin.settings.geminiSettings.apiKey,
                     };
 
-                    
+                    // Reset all settings to defaults, except API keys and title prompt
                     this.plugin.settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
                     this.plugin.settings.openaiSettings.apiKey = preservedApiKeys.openai;
                     this.plugin.settings.anthropicSettings.apiKey = preservedApiKeys.anthropic;
@@ -153,9 +187,9 @@ export class MyPluginSettingTab extends PluginSettingTab {
                     this.plugin.settings.titlePrompt = DEFAULT_TITLE_PROMPT;
 
                     await this.plugin.saveSettings();
-                    this.display(); 
+                    this.display(); // Refresh UI
 
-                    
+                    // Optionally re-activate the settings view for user feedback
                     setTimeout(() => {
                         activateView(this.plugin.app, VIEW_TYPE_MODEL_SETTINGS);
                     }, 100);

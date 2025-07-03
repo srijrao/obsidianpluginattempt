@@ -1,6 +1,16 @@
 import { MyPluginSettings, AgentModeSettings } from '../../../types';
 
+/**
+ * Manages the agent mode settings for the plugin.
+ * Provides methods to get, check, and update agent mode configuration.
+ */
 export class AgentModeManager {
+    /**
+     * @param settings The plugin's settings object (mutable reference)
+     * @param saveSettings Function to persist settings to disk
+     * @param emitSettingsChange Function to notify listeners of settings changes
+     * @param debugLog Logging function for debug/info/warn/error
+     */
     constructor(
         private settings: MyPluginSettings,
         private saveSettings: () => Promise<void>,
@@ -8,6 +18,10 @@ export class AgentModeManager {
         private debugLog: (level: 'debug' | 'info' | 'warn' | 'error', ...args: any[]) => void
     ) {}
 
+    /**
+     * Returns the current agent mode settings, or defaults if not set.
+     * @returns AgentModeSettings object
+     */
     getAgentModeSettings(): AgentModeSettings {
         return this.settings.agentMode || {
             enabled: false,
@@ -17,11 +31,19 @@ export class AgentModeManager {
         };
     }
 
+    /**
+     * Checks if agent mode is enabled.
+     * @returns True if agent mode is enabled, false otherwise.
+     */
     isAgentModeEnabled(): boolean {
         return this.getAgentModeSettings().enabled;
     }
 
-    
+    /**
+     * Enables or disables agent mode, persists the change, and emits a settings change event.
+     * Initializes agentMode settings if not present.
+     * @param enabled True to enable agent mode, false to disable.
+     */
     async setAgentModeEnabled(enabled: boolean) {
         this.debugLog('info', '[agentModeManager.ts] setAgentModeEnabled called', { enabled });
         if (!this.settings.agentMode) {

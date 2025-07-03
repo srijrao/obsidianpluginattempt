@@ -1,3 +1,20 @@
+/**
+ * @file chat.ts
+ *
+ * This file implements the main chat interface for the AI Assistant plugin in Obsidian.
+ * It defines the ChatView class, which manages the chat UI, message flow, streaming responses,
+ * tool/agent integration, and persistent chat history. The view supports advanced features such as
+ * agent mode (tool use), reference note context, message regeneration, and real-time tool result display.
+ *
+ * Key responsibilities:
+ * - Rendering and updating the chat UI
+ * - Handling user input and assistant responses (including streaming)
+ * - Integrating with tools/agents for advanced AI actions
+ * - Persisting and restoring chat history
+ * - Managing context (system prompt, reference note, etc.)
+ * - Supporting message regeneration and error handling
+ */
+
 import { ItemView, WorkspaceLeaf, Notice, MarkdownRenderer, App } from 'obsidian';
 import MyPlugin from './main';
 import { Message, TaskStatus, ToolCommand, ToolResult } from './types';
@@ -21,6 +38,15 @@ export const VIEW_TYPE_CHAT = 'chat-view';
 /**
  * ChatView is the main Obsidian ItemView for the AI chat interface.
  * Handles UI, message flow, streaming, tool integration, and chat history.
+ *
+ * Major features:
+ * - User/assistant message rendering and persistence
+ * - Streaming assistant responses with real-time UI updates
+ * - Agent/tool execution and result display
+ * - Reference note and model indicator management
+ * - Message regeneration (retry/modify)
+ * - Slash command support in input
+ * - Error handling and abortable streaming
  */
 export class ChatView extends ItemView {
     // Plugin instance
@@ -51,8 +77,11 @@ export class ChatView extends ItemView {
     constructor(leaf: WorkspaceLeaf, plugin: MyPlugin) {
         super(leaf);
         this.plugin = plugin;
+        // Initializes chat history manager for persistent storage
         this.chatHistoryManager = new ChatHistoryManager(this.app.vault, this.plugin.manifest.id, "chat-history.json");
+        // Builds context for each chat session (system prompt, reference note, etc.)
         this.contextBuilder = new ContextBuilder(this.app, this.plugin);
+        // Renders markdown and message content
         this.messageRenderer = new MessageRenderer(this.app);
     }
 
@@ -70,6 +99,12 @@ export class ChatView extends ItemView {
 
     /**
      * Called when the view is opened. Sets up UI, loads history, and wires up events.
+     *
+     * - Loads chat history from disk
+     * - Builds and wires up all UI elements
+     * - Sets up event handlers for chat controls, agent mode, and input
+     * - Handles streaming, message regeneration, and tool result display
+     * - Applies YAML settings from the current note if available
      */
     async onOpen() {
         const { contentEl } = this;
@@ -197,6 +232,13 @@ export class ChatView extends ItemView {
         /**
          * Sends a user message and handles assistant response.
          * Handles UI state, message persistence, streaming, and error handling.
+         *
+         * Steps:
+         * 1. Renders user message and saves to history
+         * 2. Builds context and streams assistant response
+         * 3. Handles tool/agent results and enhanced message data
+         * 4. Persists assistant message if content or tool results exist
+         * 5. Handles errors and restores UI state
          */
         const sendMessage = async () => {
             const content = textarea.value.trim();
@@ -228,7 +270,6 @@ export class ChatView extends ItemView {
             } catch (e) {
                 new Notice('Failed to save user message: ' + e.message);
             }
-
             try {
                 // Build context for assistant (system prompt, reference note, etc.)
                 const messages = await this.buildContextMessages();
@@ -265,6 +306,7 @@ export class ChatView extends ItemView {
                 tempContainer.remove();
                 // Only save assistant message if there is content or tool results
                 if (responseContent.trim() !== "" || (enhancedMessageData && enhancedMessageData.toolResults && enhancedMessageData.toolResults.length > 0)) {
+                    // Create and render assistant message element
                     const messageEl = await createMessageElement(
                         this.app, 
                         'assistant', 
@@ -292,6 +334,7 @@ export class ChatView extends ItemView {
                     });
                     console.log('DEBUG: Message saved to history successfully');
                 } else {
+                    // If no content or tool results, do not save
                     console.log('DEBUG: responseContent is empty and no toolResults, not saving message');
                 }
             } catch (error) {
@@ -399,6 +442,11 @@ export class ChatView extends ItemView {
     /**
      * Adds a message to the UI and persists it to history.
      * Optionally includes enhanced data (tool results, reasoning, etc.).
+     *
+     * @param role 'user' or 'assistant'
+     * @param content Message content
+     * @param isError Whether this is an error message
+     * @param enhancedData Optional enhanced data (toolResults, reasoning, taskStatus)
      */
     private async addMessage(role: 'user' | 'assistant', content: string, isError: boolean = false, enhancedData?: Partial<Pick<Message, 'reasoning' | 'taskStatus' | 'toolResults'>>): Promise<void> {
         const messageEl = await createMessageElement(this.app, role, content, this.chatHistoryManager, this.plugin, (el: HTMLElement) => this.regenerateResponse(el), this, enhancedData ? { role, content, ...enhancedData } : undefined);
@@ -429,6 +477,8 @@ export class ChatView extends ItemView {
 
     /**
      * Regenerates an assistant response for a given message element.
+     * Used for retrying or modifying previous responses.
+     * @param messageEl The message element to regenerate
      */
     private async regenerateResponse(messageEl: HTMLElement) {
         if (this.messageRegenerator) {
@@ -437,14 +487,14 @@ export class ChatView extends ItemView {
     }
 
     /**
-     * Updates the reference note indicator UI.
+     * Updates the reference note indicator UI to reflect current state.
      */
     private updateReferenceNoteIndicator() {
         this.contextBuilder.updateReferenceNoteIndicator(this.referenceNoteIndicator);
     }
 
     /**
-     * Updates the model name display UI.
+     * Updates the model name display UI to show the current model.
      */
     private updateModelNameDisplay() {
         if (!this.modelNameDisplay) return;
@@ -462,6 +512,7 @@ export class ChatView extends ItemView {
 
     /**
      * Builds the context messages for the assistant (system prompt, reference note, etc.).
+     * @returns Array of context messages
      */
     private async buildContextMessages(): Promise<Message[]> {
         return await this.contextBuilder.buildContextMessages();
@@ -470,6 +521,12 @@ export class ChatView extends ItemView {
     /**
      * Streams the assistant response and updates the UI in real time.
      * Optionally updates an existing message in history.
+     *
+     * @param messages Array of context and chat messages
+     * @param container The DOM element to stream response into
+     * @param originalTimestamp (Optional) Timestamp if updating an existing message
+     * @param originalContent (Optional) Original content if updating
+     * @returns The streamed assistant response content
      */
     private async streamAssistantResponse(
         messages: Message[],
@@ -524,11 +581,11 @@ export class ChatView extends ItemView {
      */
     public scrollMessagesToBottom() {
         this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
-    }    
-
+    }
     /**
      * Insert a rich tool display into the messages container.
      * Used for displaying tool results outside of normal chat flow.
+     * @param display The ToolRichDisplay instance to insert
      */
     private insertToolDisplay(display: ToolRichDisplay): void {
         // Create wrapper for tool display

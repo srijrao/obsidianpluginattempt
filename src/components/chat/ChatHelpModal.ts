@@ -1,52 +1,73 @@
 import { Modal, App } from 'obsidian';
 
+/**
+ * ChatHelpModal displays a help dialog for the AI chat interface.
+ * It provides collapsible sections for slash commands, keyboard shortcuts,
+ * usage tips, and information about referencing the current note.
+ */
 export class ChatHelpModal extends Modal {
     constructor(app: App) {
         super(app);
-    }    createCollapsibleSection(title: string, contentCallback: () => void, expanded = true): HTMLElement {
+    }
+
+    /**
+     * Creates a collapsible section with a title and content.
+     * @param title The section title
+     * @param contentCallback Function to populate the section content
+     * @param expanded Whether the section is expanded by default
+     * @returns The section container element
+     */
+    createCollapsibleSection(title: string, contentCallback: () => void, expanded = true): HTMLElement {
         const sectionContainer = createDiv();
         sectionContainer.addClass('ai-collapsible-section');
-        
+
+        // Header with arrow and title
         const header = createDiv();
         header.addClass('ai-collapsible-header');
-        
+
         const arrow = createSpan();
         arrow.addClass('ai-collapsible-arrow');
         arrow.textContent = expanded ? '▼' : '▶';
-        
+
         const titleSpan = createSpan();
         titleSpan.textContent = title;
-        
+
         header.appendChild(arrow);
         header.appendChild(titleSpan);
-        
+
+        // Content area (collapsible)
         const content = createDiv();
         content.addClass('ai-collapsible-content');
         content.style.display = expanded ? 'block' : 'none';
-        
+
+        // Toggle expand/collapse on header click
         header.addEventListener('click', () => {
             const isExpanded = content.style.display !== 'none';
             content.style.display = isExpanded ? 'none' : 'block';
             arrow.textContent = isExpanded ? '▶' : '▼';
         });
-        
+
         sectionContainer.appendChild(header);
         sectionContainer.appendChild(content);
-        
-        
+
+        // Temporarily redirect this.contentEl for contentCallback
         const originalContent = this.contentEl;
         this.contentEl = content;
         contentCallback();
         this.contentEl = originalContent;
-        
+
         return sectionContainer;
     }
 
+    /**
+     * Called when the modal is opened.
+     * Populates the modal with collapsible help sections.
+     */
     onOpen() {
         this.titleEl.setText('AI Chat Help');
         this.contentEl.empty();
-        
-        
+
+        // Slash Commands section
         this.contentEl.appendChild(this.createCollapsibleSection('Slash Commands', () => {
             this.contentEl.innerHTML = `
                 <code>/clear</code> – Clear the chat<br>
@@ -57,8 +78,8 @@ export class ChatHelpModal extends Modal {
                 <br>
             `;
         }));
-        
-        
+
+        // Keyboard Shortcuts section
         this.contentEl.appendChild(this.createCollapsibleSection('Keyboard Shortcuts (when chat window or input is focused)', () => {
             this.contentEl.innerHTML = `
                 <code>Ctrl+Shift+X</code> – Clear chat<br>
@@ -70,7 +91,8 @@ export class ChatHelpModal extends Modal {
                 <br>
             `;
         }));
-          
+
+        // Other section (Enter/Shift+Enter)
         this.contentEl.appendChild(this.createCollapsibleSection('Other', () => {
             this.contentEl.innerHTML = `
                 <code>Enter</code> – Send message<br>
@@ -80,7 +102,7 @@ export class ChatHelpModal extends Modal {
             `;
         }));
 
-        
+        // Reference Current Note section
         this.contentEl.appendChild(this.createCollapsibleSection('Reference Current Note', () => {
             this.contentEl.innerHTML = `
                 <strong>What is it?</strong><br>

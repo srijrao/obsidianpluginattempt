@@ -8,6 +8,9 @@ import { MessageRenderer } from './MessageRenderer';
 import { getSystemMessage } from '../../utils/systemMessage';
 import { getContextNotesContent } from '../../utils/noteUtils';
 
+/**
+ * Interface for chat command handlers.
+ */
 export interface IChatCommands {
     sendMessage(content: string): Promise<void>;
     stopGeneration(): void;
@@ -17,7 +20,8 @@ export interface IChatCommands {
 }
 
 /**
- * Commands component for handling chat operations
+ * Commands component for handling chat operations.
+ * Manages sending messages, stopping generation, clearing chat, copying, and regenerating responses.
  */
 export class Commands extends Component implements IChatCommands {
     private plugin: MyPlugin;
@@ -26,6 +30,12 @@ export class Commands extends Component implements IChatCommands {
     private activeStream: AbortController | null = null;
     private onMessageSent?: () => void;
 
+    /**
+     * @param app Obsidian App instance
+     * @param plugin Plugin instance
+     * @param messagesContainer The container element for chat messages
+     * @param onMessageSent Optional callback after a message is sent
+     */
     constructor(
         app: App,
         plugin: MyPlugin,
@@ -40,34 +50,37 @@ export class Commands extends Component implements IChatCommands {
     }
 
     /**
-     * Send a new message and get AI response
+     * Send a new message and get AI response.
+     * Renders user and assistant messages, streams response, and handles errors.
+     * @param content The user message content
      */
     async sendMessage(content: string): Promise<void> {
         if (!content.trim()) return;
 
-        
+        // Render user message
         const userMessage = new UserMessage(this.app, this.plugin, content);
         this.messagesContainer.appendChild(userMessage.getElement());
         this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
 
-        
-        this.activeStream = new AbortController();        try {
-            
+        // Prepare for streaming AI response
+        this.activeStream = new AbortController();
+        try {
+            // Select provider based on settings
             const provider = this.plugin.settings.selectedModel 
                 ? createProviderFromUnifiedModel(this.plugin.settings, this.plugin.settings.selectedModel)
                 : createProvider(this.plugin.settings);
-            let systemMessage = getSystemMessage(this.plugin.settings);
 
-            
+            // Build system message (with context notes if enabled)
+            let systemMessage = getSystemMessage(this.plugin.settings);
             if (this.plugin.settings.enableContextNotes && this.plugin.settings.contextNotes) {
                 const contextContent = await getContextNotesContent(this.plugin.settings.contextNotes, this.plugin.app);
                 systemMessage += `\n\nContext Notes:\n${contextContent}`;
             }
 
-            
+            // Build message history for the provider
             const messages: Message[] = [{ role: 'system', content: systemMessage }];
 
-            
+            // Optionally add current note content as context
             if (this.plugin.settings.referenceCurrentNote) {
                 const currentFile = this.app.workspace.getActiveFile();
                 if (currentFile) {
@@ -79,15 +92,15 @@ export class Commands extends Component implements IChatCommands {
                 }
             }
 
-            
+            // Add the user message
             messages.push({ role: 'user', content });
 
-            
+            // Render assistant message (empty, to be filled by streaming)
             const botMessage = new BotMessage(this.app, this.plugin, '');
             this.messagesContainer.appendChild(botMessage.getElement());
             this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
 
-            
+            // Stream the AI response and update the bot message
             await provider.getCompletion(
                 messages,
                 {
@@ -101,7 +114,7 @@ export class Commands extends Component implements IChatCommands {
                 }
             );
 
-            
+            // Call the optional callback after sending
             if (this.onMessageSent) {
                 this.onMessageSent();
             }
@@ -117,7 +130,7 @@ export class Commands extends Component implements IChatCommands {
     }
 
     /**
-     * Stop the current message generation
+     * Stop the current message generation (abort streaming).
      */
     stopGeneration(): void {
         if (this.activeStream) {
@@ -127,47 +140,46 @@ export class Commands extends Component implements IChatCommands {
     }
 
     /**
-     * Clear all messages from the chat
+     * Clear all messages from the chat.
      */
     clearChat(): void {
         this.messagesContainer.empty();
-    }    /**
-     * Copy all messages to clipboard
+    }
+
+    /**
+     * Copy all messages to clipboard.
+     * Handles both plain and tool-rich messages.
      */
     async copyAllMessages(): Promise<void> {
         const messages = this.messagesContainer.querySelectorAll('.ai-chat-message');
         let chatContent = '';
-          messages.forEach((el, index) => {
+        messages.forEach((el, index) => {
             const htmlElement = el as HTMLElement;
-            
-            
+            // Skip tool display messages
             if (htmlElement.classList.contains('tool-display-message')) {
                 return;
             }
-            
-            
+            // Try to parse enhanced message data if present
             let messageData = null;
             const messageDataStr = htmlElement.dataset.messageData;
             if (messageDataStr) {
                 try {
                     messageData = JSON.parse(messageDataStr);
                 } catch (e) {
-                    
+                    // Ignore parse errors
                 }
             }
-              
-            
+            // If toolResults are present, use formatted content
             if (messageData && messageData.toolResults && messageData.toolResults.length > 0) {
-                
                 const renderer = new MessageRenderer(this.plugin.app);
                 chatContent += renderer.getMessageContentForCopy(messageData);
             } else {
-                
+                // Otherwise, use raw content or fallback to text content
                 const rawContent = htmlElement.dataset.rawContent;
                 const content = rawContent !== undefined ? rawContent : el.querySelector('.message-content')?.textContent || '';
                 chatContent += content;
             }
-            
+            // Add separator between messages
             if (index < messages.length - 1) {
                 chatContent += '\n\n' + this.plugin.settings.chatSeparator + '\n\n';
             }
@@ -183,24 +195,25 @@ export class Commands extends Component implements IChatCommands {
     }
 
     /**
-     * Regenerate an AI response
+     * Regenerate an AI response for a given message element.
+     * Rebuilds the message history up to the selected message and replaces the assistant response.
+     * @param messageEl The message element to regenerate
      */
     async regenerateResponse(messageEl: HTMLElement): Promise<void> {
-        
+        // Build system message (with context notes if enabled)
         const messages: Message[] = [
             { role: 'system', content: getSystemMessage(this.plugin.settings) }
         ];
 
-        
         if (this.plugin.settings.enableContextNotes && this.plugin.settings.contextNotes) {
             const contextContent = await getContextNotesContent(this.plugin.settings.contextNotes, this.plugin.app);
             messages[0].content += `\n\nContext Notes:\n${contextContent}`;
         }
 
+        // Build message history up to the selected message
         const allMessages = Array.from(this.messagesContainer.querySelectorAll('.ai-chat-message'));
         const currentIndex = allMessages.indexOf(messageEl);
 
-        
         for (let i = 0; i <= currentIndex; i++) {
             const el = allMessages[i];
             const role = el.classList.contains('user') ? 'user' : 'assistant';
@@ -208,7 +221,7 @@ export class Commands extends Component implements IChatCommands {
             messages.push({ role, content });
         }
 
-        
+        // Determine which message to replace (assistant message after user message)
         let messageToReplace: HTMLElement;
         if (messageEl.classList.contains('assistant')) {
             messageToReplace = messageEl;
@@ -219,10 +232,10 @@ export class Commands extends Component implements IChatCommands {
             }
         }
 
-        
+        // Remove the old assistant message
         messageToReplace.remove();
 
-        
+        // Insert a new bot message for the regenerated response
         const botMessage = new BotMessage(this.app, this.plugin, '');
         this.messagesContainer.insertBefore(
             botMessage.getElement(),
@@ -231,9 +244,9 @@ export class Commands extends Component implements IChatCommands {
 
         this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
 
-        
-        this.activeStream = new AbortController();        try {
-            
+        // Stream the regenerated response
+        this.activeStream = new AbortController();
+        try {
             const provider = this.plugin.settings.selectedModel 
                 ? createProviderFromUnifiedModel(this.plugin.settings, this.plugin.settings.selectedModel)
                 : createProvider(this.plugin.settings);

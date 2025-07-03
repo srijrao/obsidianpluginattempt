@@ -11,7 +11,8 @@ import {
 } from './eventHandlers';
 
 /**
- * Base Message interface for chat messages
+ * Interface for a chat message.
+ * Provides methods for rendering, editing, copying, deleting, and regenerating.
  */
 export interface IMessage {
     role: MessageType['role'];
@@ -26,7 +27,8 @@ export interface IMessage {
 }
 
 /**
- * Base Message class implementing shared functionality
+ * Abstract base class for chat messages.
+ * Implements shared UI and logic for user/assistant messages.
  */
 export abstract class Message extends Component implements IMessage {
     protected element: HTMLElement;
@@ -37,6 +39,11 @@ export abstract class Message extends Component implements IMessage {
     public role: MessageType['role'];
     public content: string;
 
+    /**
+     * @param app Obsidian App instance
+     * @param role Message role ('user' or 'assistant')
+     * @param content Message content (markdown or plain)
+     */
     constructor(
         app: App,
         role: MessageType['role'],
@@ -47,24 +54,20 @@ export abstract class Message extends Component implements IMessage {
         this.role = role;
         this.content = content;
         this.rawContent = content;
+        // Debug logging if available
         if ((window as any).aiAssistantPlugin && typeof (window as any).aiAssistantPlugin.debugLog === 'function') {
             (window as any).aiAssistantPlugin.debugLog('debug', '[Message] constructor called', { role, content });
         }
-        
-        
+        // Create main message element
         this.element = document.createElement('div');
         this.element.addClass('ai-chat-message', role);
-        
-        
+
+        // Create container for content and actions
         const container = this.element.createDiv('message-container');
-        
-        
         this.contentElement = container.createDiv('message-content');
-        
-        
         this.actionsElement = container.createDiv('message-actions');
-        
-        
+
+        // Show/hide actions on hover
         this.element.addEventListener('mouseenter', () => {
             this.actionsElement.removeClass('hidden');
             this.actionsElement.addClass('visible');
@@ -75,24 +78,25 @@ export abstract class Message extends Component implements IMessage {
         });
     }
 
+    // Abstract method for regenerating a message (to be implemented by subclasses)
     abstract regenerate(): Promise<void>;
 
     /**
-     * Get the DOM element for this message
+     * Get the DOM element for this message.
      */
     getElement(): HTMLElement {
         return this.element;
     }
 
     /**
-     * Get the raw content of the message
+     * Get the raw content of the message.
      */
     getContent(): string {
         return this.rawContent;
     }
 
     /**
-     * Update the message content
+     * Update the message content and re-render.
      */
     setContent(content: string): void {
         this.rawContent = content;
@@ -100,7 +104,7 @@ export abstract class Message extends Component implements IMessage {
     }
 
     /**
-     * Render the message content with Markdown
+     * Render the message content with Markdown.
      */
     async render(): Promise<void> {
         this.contentElement.empty();
@@ -117,25 +121,26 @@ export abstract class Message extends Component implements IMessage {
     }
 
     /**
-     * Delete this message
+     * Delete this message from the DOM.
      */
     delete(): void {
         this.element.remove();
     }
 
     /**
-     * Enable editing of the message
+     * Enable editing of the message.
+     * Toggles between edit mode (textarea) and display mode.
      */
     edit(): void {
         if (this.contentElement.hasClass('editing')) {
-            
+            // Save edit: update content from textarea
             const textarea = this.contentElement.querySelector('textarea');
             if (textarea) {
                 this.setContent(textarea.value);
                 this.contentElement.removeClass('editing');
             }
         } else {
-            
+            // Enter edit mode: replace content with textarea
             const textarea = document.createElement('textarea');
             textarea.value = this.rawContent;
             this.contentElement.empty();
@@ -146,7 +151,7 @@ export abstract class Message extends Component implements IMessage {
     }
 
     /**
-     * Copy message content to clipboard
+     * Copy message content to clipboard.
      */
     async copy(): Promise<void> {
         if (this.rawContent.trim() === '') {
@@ -164,11 +169,19 @@ export abstract class Message extends Component implements IMessage {
 }
 
 /**
- * Create a message element for the chat with enhanced reasoning and status support
- */
-/**
  * Create a message element for the chat with enhanced reasoning and status support.
  * Uses MessageRenderer for all reasoning/task status rendering.
+ * Adds action buttons for copy, edit, delete, and regenerate (assistant only).
+ * 
+ * @param app Obsidian App instance
+ * @param role 'user' or 'assistant'
+ * @param content Message content
+ * @param chatHistoryManager Chat history manager instance
+ * @param plugin Plugin instance
+ * @param regenerateCallback Callback for regenerating a message
+ * @param parentComponent Parent component for Markdown rendering context
+ * @param messageData Optional enhanced message data (reasoning, toolResults, etc.)
+ * @returns Promise resolving to the message HTMLElement
  */
 export async function createMessageElement(
     app: App,
@@ -182,14 +195,16 @@ export async function createMessageElement(
 ): Promise<HTMLElement> {
     const messageEl = document.createElement('div');
     messageEl.addClass('ai-chat-message', role);
-    const messageContainer = messageEl.createDiv('message-container');    
+    const messageContainer = messageEl.createDiv('message-container');
     messageEl.dataset.rawContent = content;
-    messageEl.dataset.timestamp = new Date().toISOString();    if (messageData) {
+    messageEl.dataset.timestamp = new Date().toISOString();
+    if (messageData) {
         messageEl.dataset.messageData = JSON.stringify(messageData);
     }
     const messageRenderer = new MessageRenderer(app);
     let contentEl: HTMLElement | null = null;
-    
+
+    // Render assistant messages with enhanced data if present
     if (role === 'assistant') {
         if (messageData && (messageData.reasoning || messageData.taskStatus)) {
             messageRenderer.updateMessageWithEnhancedData(messageEl, {
@@ -197,21 +212,18 @@ export async function createMessageElement(
                 role: 'assistant',
                 content
             }, parentComponent);
-        }        
+        }
         if (messageData && messageData.toolResults && messageData.toolResults.length > 0) {
-            
             contentEl = messageEl.querySelector('.message-content') as HTMLElement;
             if (!contentEl) {
                 contentEl = messageContainer.createDiv('message-content');
             }
-            
             await messageRenderer.renderMessage({
                 ...messageData,
                 role: 'assistant',
                 content
             }, messageEl, parentComponent);
         } else if (!messageData?.reasoning && !messageData?.taskStatus) {
-            
             contentEl = messageEl.querySelector('.message-content') as HTMLElement;
             if (!contentEl) {
                 contentEl = messageContainer.createDiv('message-content');
@@ -219,7 +231,7 @@ export async function createMessageElement(
             await MarkdownRenderer.render(app, content, contentEl, '', parentComponent);
         }
     } else {
-        
+        // Render user messages
         contentEl = messageEl.querySelector('.message-content') as HTMLElement;
         if (!contentEl) {
             contentEl = messageContainer.createDiv('message-content');
@@ -227,7 +239,7 @@ export async function createMessageElement(
         await MarkdownRenderer.render(app, content, contentEl, '', parentComponent);
     }
 
-    
+    // Ensure contentEl is set
     if (!contentEl) {
         contentEl = messageEl.querySelector('.message-content') as HTMLElement;
         if (!contentEl) {
@@ -235,11 +247,11 @@ export async function createMessageElement(
         }
     }
 
-    
+    // Create actions container and add action buttons
     const actionsEl = messageContainer.createDiv('message-actions');
     actionsEl.classList.add('hidden');
 
-    
+    // Show/hide actions on hover
     messageEl.addEventListener('mouseenter', () => {
         actionsEl.classList.remove('hidden');
         actionsEl.classList.add('visible');
@@ -247,16 +259,15 @@ export async function createMessageElement(
     messageEl.addEventListener('mouseleave', () => {
         actionsEl.classList.remove('visible');
         actionsEl.classList.add('hidden');
-    });    
+    });
+
+    // Copy button
     actionsEl.appendChild(createActionButton('Copy', 'Copy message (including tool results)', handleCopyMessage(messageEl, plugin)));
-
-    
+    // Edit button
     actionsEl.appendChild(createActionButton('Edit', 'Edit message', handleEditMessage(messageEl, chatHistoryManager, plugin)));
-
-    
+    // Delete button
     actionsEl.appendChild(createActionButton('Delete', 'Delete message', handleDeleteMessage(messageEl, chatHistoryManager, app)));
-
-    
+    // Regenerate button (assistant only)
     if (role === 'assistant') {
         actionsEl.appendChild(createActionButton('Regenerate', 'Regenerate this response', handleRegenerateMessage(messageEl, regenerateCallback)));
     }

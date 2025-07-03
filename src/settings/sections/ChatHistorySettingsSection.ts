@@ -2,19 +2,32 @@ import { App, Setting } from 'obsidian';
 import MyPlugin from '../../main';
 import { SettingCreators } from '../components/SettingCreators';
 
+/**
+ * ChatHistorySettingsSection is responsible for rendering settings related to chat history and UI behavior.
+ * This includes managing the maximum number of chat sessions, auto-saving, and various UI display options.
+ */
 export class ChatHistorySettingsSection {
     private plugin: MyPlugin;
     private settingCreators: SettingCreators;
 
+    /**
+     * @param plugin The main plugin instance.
+     * @param settingCreators An instance of SettingCreators for consistent UI element creation.
+     */
     constructor(plugin: MyPlugin, settingCreators: SettingCreators) {
         this.plugin = plugin;
         this.settingCreators = settingCreators;
     }
 
+    /**
+     * Renders the Chat History & Sessions and UI Behavior settings sections into the provided container element.
+     * @param containerEl The HTML element to render the sections into.
+     */
     async render(containerEl: HTMLElement): Promise<void> {
-        
+        // Chat History & Sessions Section Header
         containerEl.createEl('h3', { text: 'Chat History & Sessions' });
         
+        // Max Chat Sessions Slider
         this.settingCreators.createSliderSetting(
             containerEl, 
             'Max Chat Sessions', 
@@ -27,6 +40,7 @@ export class ChatHistorySettingsSection {
             }
         );
 
+        // Auto-Save Sessions Toggle
         this.settingCreators.createToggleSetting(
             containerEl, 
             'Auto-Save Sessions', 
@@ -38,9 +52,10 @@ export class ChatHistorySettingsSection {
             }
         );
 
-        
+        // UI Behavior Section Header
         containerEl.createEl('h3', { text: 'UI Behavior' });
         
+        // Collapse Old Reasoning Toggle
         this.settingCreators.createToggleSetting(
             containerEl,
             'Collapse Old Reasoning',
@@ -55,6 +70,7 @@ export class ChatHistorySettingsSection {
             }
         );
 
+        // Show Completion Notifications Toggle
         this.settingCreators.createToggleSetting(
             containerEl,
             'Show Completion Notifications',
@@ -69,6 +85,7 @@ export class ChatHistorySettingsSection {
             }
         );
 
+        // Include Reasoning in Exports Toggle
         this.settingCreators.createToggleSetting(
             containerEl,
             'Include Reasoning in Exports',

@@ -5,14 +5,23 @@ import { parseSelection } from '../../utils/parseSelection';
 import { MyPluginSettings, Message } from '../../types';
 
 /**
- * Registers note-related commands.
- * @param plugin The plugin instance.
+ * Registers note-related commands for the plugin.
+ * These commands provide utilities for interacting with notes, such as copying names,
+ * inserting predefined strings, and loading chat history from notes.
+ *
+ * @param plugin The Obsidian plugin instance.
+ * @param settings The plugin's current settings.
+ * @param activateChatViewAndLoadMessages A function to activate the chat view and load messages into it.
  */
 export function registerNoteCommands(
     plugin: Plugin,
     settings: MyPluginSettings,
     activateChatViewAndLoadMessages: (messages: Message[]) => Promise<void>
 ) {
+    /**
+     * Registers the 'Copy Active Note Name' command.
+     * This command copies the wiki link of the currently active note to the clipboard.
+     */
     registerCommand(
         plugin,
         {
@@ -30,6 +39,10 @@ export function registerNoteCommands(
         }
     );
 
+    /**
+     * Registers the 'Insert Chat Start String' command.
+     * This command inserts a predefined string (from plugin settings) at the current cursor position in the editor.
+     */
     registerCommand(
         plugin,
         {
@@ -48,6 +61,11 @@ export function registerNoteCommands(
         }
     );
 
+    /**
+     * Registers the 'Load Chat Note into Chat' command.
+     * This command reads the content of the active note, parses it as chat messages,
+     * and loads them into the chat view.
+     */
     registerCommand(
         plugin,
         {
@@ -60,11 +78,13 @@ export function registerNoteCommands(
                     return;
                 }
                 let content = await plugin.app.vault.read(file);
+                // Parse the note content into chat messages using the chat separator
                 const messages = parseSelection(content, settings.chatSeparator);
                 if (!messages.length) {
                     showNotice('No chat messages found in the selected note.');
                     return;
                 }
+                // Activate the chat view and load the parsed messages
                 await activateChatViewAndLoadMessages(messages);
             }
         }

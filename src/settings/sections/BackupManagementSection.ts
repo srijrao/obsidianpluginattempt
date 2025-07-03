@@ -6,15 +6,27 @@ import { DialogHelpers } from '../components/DialogHelpers';
 import { FileBackup } from '../../types/backup';
 import { isTFile } from '../../utils/typeguards';
 
+/**
+ * BackupManagementSection is responsible for rendering settings related to file backups and trash management.
+ * It allows users to view, restore, and delete file backups created by AI tools, and manage items in the .trash folder.
+ */
 export class BackupManagementSection {
     private plugin: MyPlugin;
     private settingCreators: SettingCreators;
 
+    /**
+     * @param plugin The main plugin instance.
+     * @param settingCreators An instance of SettingCreators for consistent UI element creation.
+     */
     constructor(plugin: MyPlugin, settingCreators: SettingCreators) {
         this.plugin = plugin;
         this.settingCreators = settingCreators;
     }
 
+    /**
+     * Renders both the Backup Management and Trash Management sections.
+     * @param containerEl The HTML element to render the sections into.
+     */
     async render(containerEl: HTMLElement): Promise<void> {
         await this.renderBackupManagement(containerEl);
         await this.renderTrashManagement(containerEl);
@@ -22,6 +34,8 @@ export class BackupManagementSection {
 
     /**
      * Renders the Backup Management section.
+     * This section provides an overview of backups, allows refreshing the list, and deleting all backups.
+     * It also includes a collapsible list of individual backup files.
      * @param containerEl The HTML element to append the section to.
      */
     private async renderBackupManagement(containerEl: HTMLElement): Promise<void> {
@@ -34,7 +48,7 @@ export class BackupManagementSection {
 
         const backupManager = this.plugin.backupManager;
 
-        
+        // Display total backup count and size
         const totalBackups = await backupManager.getTotalBackupCount();
         const totalSize = await backupManager.getTotalBackupSize();
         const sizeInKB = Math.round(totalSize / 1024);
@@ -44,24 +58,24 @@ export class BackupManagementSection {
             attr: { style: 'margin-bottom: 1em; font-weight: bold;' }
         });
 
-        
+        // Action buttons container
         const actionsContainer = containerEl.createDiv({ attr: { style: 'margin-bottom: 1em;' } });
 
-        
+        // Refresh Backup List button
         const refreshButton = actionsContainer.createEl('button', {
             text: 'Refresh Backup List',
             cls: 'mod-cta'
         });
         refreshButton.style.marginRight = '0.5em';
         refreshButton.onclick = () => {
-            
+            // Re-render the parent container to refresh the backup list
             this.renderBackupManagement(containerEl.parentElement!);
         };
 
-        
+        // Get all backup files
         const backupFiles = await backupManager.getAllBackupFiles();
 
-        
+        // Delete All Backups button (only if backups exist)
         if (backupFiles.length > 0) {
             const deleteAllBtn = actionsContainer.createEl('button', {
                 text: 'Delete All Backups',
@@ -78,7 +92,7 @@ export class BackupManagementSection {
                     try {
                         await backupManager.deleteAllBackups();
                         new Notice('Deleted all backups successfully');
-                        
+                        // Re-render the parent container to reflect changes
                         this.renderBackupManagement(containerEl.parentElement!);
                     } catch (error) {
                         new Notice(`Error deleting all backups: ${error.message}`);
@@ -87,6 +101,7 @@ export class BackupManagementSection {
             };
         }
 
+        // Message if no backups are found
         if (backupFiles.length === 0) {
             containerEl.createEl('div', {
                 text: 'No backups found.',
@@ -95,7 +110,7 @@ export class BackupManagementSection {
             return;
         }
 
-        
+        // Collapsible section for listing individual backup files
         CollapsibleSectionRenderer.createCollapsibleSection(
             containerEl,
             'Backup Files List',
@@ -107,24 +122,31 @@ export class BackupManagementSection {
         );
     }
 
+    /**
+     * Renders the list of individual backup files within a container.
+     * For each file, it displays its backups and provides options to restore, delete, or preview them.
+     * @param containerEl The HTML element to append the backup list to.
+     * @param backupFiles An array of file paths that have backups.
+     * @param backupManager The backup manager instance to interact with backups.
+     */
     private async renderBackupFilesList(containerEl: HTMLElement, backupFiles: string[], backupManager: any): Promise<void> {
-        
+        // Iterate through each file that has backups
         for (const filePath of backupFiles) {
             const backups = await backupManager.getBackupsForFile(filePath);
 
             if (backups.length === 0) continue;
 
-            
+            // Section for each file's backups
             const fileSection = containerEl.createDiv({ cls: 'backup-file-section' });
             fileSection.createEl('h4', { text: filePath, cls: 'backup-file-path' });
 
-            
+            // Container for individual backups of the file
             const backupList = fileSection.createDiv({ cls: 'backup-list' });
 
             backups.forEach((backup: FileBackup) => {
                 const backupItem = backupList.createDiv({ cls: 'backup-item' });
 
-                
+                // Backup information (timestamp, size, type)
                 const backupInfo = backupItem.createDiv({ cls: 'backup-info' });
                 const sizeKB = backup.fileSize ? Math.round(backup.fileSize / 1024) : 0;
                 const fileType = backup.isBinary ? 'Binary' : 'Text';
@@ -133,10 +155,10 @@ export class BackupManagementSection {
                     cls: 'backup-timestamp'
                 });
 
-                
+                // Backup actions container
                 const backupActions = backupItem.createDiv({ cls: 'backup-actions' });
 
-                
+                // Restore button
                 const restoreBtn = backupActions.createEl('button', {
                     text: 'Restore',
                     cls: 'mod-cta'
@@ -161,7 +183,7 @@ export class BackupManagementSection {
                     }
                 };
 
-                
+                // Delete individual backup button
                 const deleteBtn = backupActions.createEl('button', {
                     text: 'Delete',
                     cls: 'mod-warning'
@@ -176,14 +198,16 @@ export class BackupManagementSection {
                         try {
                             await backupManager.deleteSpecificBackup(filePath, backup.timestamp);
                             new Notice(`Deleted backup for ${filePath}`);
-                            
+                            // Re-render the list to reflect the deletion
+                            containerEl.empty();
+                            await this.renderBackupFilesList(containerEl, backupFiles, backupManager);
                         } catch (error) {
                             new Notice(`Error deleting backup: ${error.message}`);
                         }
                     }
                 };
 
-                
+                // Preview button for text files, File Info for binary files
                 if (!backup.isBinary && backup.content) {
                     const previewBtn = backupActions.createEl('button', {
                         text: 'Preview',
@@ -206,7 +230,7 @@ export class BackupManagementSection {
                 }
             });
 
-            
+            // Delete All Backups for this file button
             const deleteAllBtn = fileSection.createEl('button', {
                 text: `Delete All Backups for ${filePath}`,
                 cls: 'mod-warning'
@@ -221,7 +245,9 @@ export class BackupManagementSection {
                     try {
                         await backupManager.deleteBackupsForFile(filePath);
                         new Notice(`Deleted all backups for ${filePath}`);
-                        
+                        // Re-render the list to reflect the deletion
+                        containerEl.empty();
+                        await this.renderBackupFilesList(containerEl, backupFiles, backupManager);
                     } catch (error) {
                         new Notice(`Error deleting backups: ${error.message}`);
                     }
@@ -232,10 +258,11 @@ export class BackupManagementSection {
 
     /**
      * Renders the Trash Management section.
+     * This section provides an overview of items in the .trash folder and allows refreshing, emptying, restoring, and permanently deleting individual items.
      * @param containerEl The HTML element to append the section to.
      */
     private async renderTrashManagement(containerEl: HTMLElement): Promise<void> {
-        
+        // Separator and header for the section
         containerEl.createEl('div', { attr: { style: 'margin-top: 2em; border-top: 1px solid var(--background-modifier-border); padding-top: 1em;' } });
         
         containerEl.createEl('h3', { text: 'Trash Management' });
@@ -248,15 +275,15 @@ export class BackupManagementSection {
         const trashPath = '.trash';
         let trashFolder = this.plugin.app.vault.getAbstractFileByPath(trashPath);
 
-        
-        
+        // Debugging log
         console.log('[AI Assistant Debug] .trash lookup:', trashFolder, 'Type:', trashFolder?.constructor?.name);
 
         let trashItems: { name: string, isFolder: boolean, size?: number }[] = [];
         let fallbackUsed = false;
 
+        // Attempt to read trash folder contents
         if (!trashFolder) {
-            
+            // Fallback to adapter.exists and adapter.list if getAbstractFileByPath fails
             fallbackUsed = true;
             try {
                 const adapter = this.plugin.app.vault.adapter;
@@ -282,12 +309,14 @@ export class BackupManagementSection {
                 return;
             }
         } else if (trashFolder instanceof TFolder) {
+            // If trash folder is found as TFolder, map its children
             trashItems = (trashFolder as TFolder).children.map(item => ({
                 name: item.name,
                 isFolder: item instanceof TFolder,
                 size: (isTFile(item) && item.stat) ? item.stat.size : undefined
             }));
         } else {
+            // Handle case where .trash exists but is not a folder
             containerEl.createEl('div', {
                 text: 'Error: .trash exists but is not a folder.',
                 cls: 'setting-item-description'
@@ -295,7 +324,7 @@ export class BackupManagementSection {
             return;
         }
 
-        
+        // Display trash summary
         const fileCount = trashItems.filter((item) => !item.isFolder).length;
         const folderCount = trashItems.filter((item) => item.isFolder).length;
 
@@ -305,10 +334,10 @@ export class BackupManagementSection {
             attr: { style: 'margin-bottom: 1em; font-weight: bold;' }
         });
 
-        
+        // Action buttons for trash management
         const actionsContainer = containerEl.createDiv({ attr: { style: 'margin-bottom: 1em;' } });
 
-        
+        // Refresh Trash button
         const refreshBtn = actionsContainer.createEl('button', {
             text: 'Refresh Trash',
             cls: 'mod-cta'
@@ -318,7 +347,7 @@ export class BackupManagementSection {
             this.renderTrashManagement(containerEl.parentElement!);
         };
 
-        
+        // Empty Trash button (only if trash is not empty)
         if (trashItems.length > 0) {
             const emptyTrashBtn = actionsContainer.createEl('button', {
                 text: 'Empty Trash',
@@ -351,7 +380,7 @@ export class BackupManagementSection {
             };
         }
 
-        
+        // Message if trash is empty
         if (trashItems.length === 0) {
             containerEl.createEl('div', {
                 text: 'Trash is empty.',
@@ -360,13 +389,14 @@ export class BackupManagementSection {
             return;
         }
 
-        
+        // List of trash items
         const trashList = containerEl.createDiv({ cls: 'trash-list' });
 
+        // Display up to 20 trash items
         for (const item of trashItems.slice(0, 20)) { 
             const trashItem = trashList.createDiv({ cls: 'trash-item', attr: { style: 'margin-bottom: 0.5em; padding: 0.5em; border: 1px solid var(--background-modifier-border); border-radius: 4px;' } });
 
-            
+            // Item information (icon, name, size)
             const itemInfo = trashItem.createDiv({ cls: 'trash-item-info' });
             const icon = item.isFolder ? '📁' : '📄';
             const size = !item.isFolder && item.size ? ` (${Math.round(item.size / 1024)} KB)` : '';
@@ -375,10 +405,10 @@ export class BackupManagementSection {
                 cls: 'trash-item-name'
             });
 
-            
+            // Item actions container
             const itemActions = trashItem.createDiv({ cls: 'trash-item-actions', attr: { style: 'margin-top: 0.5em;' } });
 
-            
+            // Restore button (only if not using filesystem fallback)
             if (!fallbackUsed) {
                 const restoreBtn = itemActions.createEl('button', {
                     text: 'Restore',
@@ -393,7 +423,7 @@ export class BackupManagementSection {
 
                     if (confirmed) {
                         try {
-                            
+                            // Find the file object and rename it to restore
                             const trashFolderObj = this.plugin.app.vault.getAbstractFileByPath(trashPath);
                             if (trashFolderObj instanceof TFolder) {
                                 const fileObj = (trashFolderObj as TFolder).children.find((child: any) => child.name === item.name);
@@ -411,7 +441,7 @@ export class BackupManagementSection {
                 };
             }
 
-            
+            // Delete Permanently button
             const deleteBtn = itemActions.createEl('button', {
                 text: 'Delete Permanently',
                 cls: 'mod-warning'
@@ -440,6 +470,7 @@ export class BackupManagementSection {
             };
         }
 
+        // Message if more than 20 items are in trash
         if (trashItems.length > 20) {
             containerEl.createEl('div', {
                 text: `... and ${trashItems.length - 20} more items. Empty trash to remove all items.`,

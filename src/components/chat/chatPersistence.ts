@@ -1,22 +1,34 @@
-
 import { MyPluginSettings } from '../../types';
 import { Notice } from 'obsidian';
 import * as yaml from 'js-yaml';
 import { getProviderFromUnifiedModel, getModelIdFromUnifiedModel } from '../../../providers';
 import { MessageRenderer } from './MessageRenderer';
 
+/**
+ * Utility logging function for chat persistence operations.
+ * Uses plugin debugLog if available, otherwise falls back to console.
+ */
 function log(level: 'debug' | 'info' | 'warn' | 'error', ...args: any[]) {
     if (typeof window !== 'undefined' && (window as any).plugin && typeof (window as any).plugin.debugLog === 'function') {
         (window as any).plugin.debugLog(level, '[chatPersistence]', ...args);
     } else if (typeof console !== 'undefined') {
-        
+        // Only log non-debug to console by default
         if (level !== 'debug') console[level]('[chatPersistence]', ...args);
     }
 }
 
+/**
+ * Builds YAML frontmatter for a chat note based on plugin settings and model info.
+ * Supports both unified and legacy model formats.
+ * @param settings The plugin settings object
+ * @param provider Optional provider override
+ * @param model Optional model override
+ * @returns YAML frontmatter string
+ */
 export function buildChatYaml(settings: MyPluginSettings, provider?: string, model?: string): string {
     log('info', '[buildChatYaml] Entered function', { settings, provider, model });
     if (settings.selectedModel) {
+        // Unified model format
         const providerType = getProviderFromUnifiedModel(settings.selectedModel);
         const modelId = getModelIdFromUnifiedModel(settings.selectedModel);
         const yamlObj = {
@@ -30,6 +42,7 @@ export function buildChatYaml(settings: MyPluginSettings, provider?: string, mod
         log('info', '[buildChatYaml] Returning YAML for unified model', { yaml: `---\n${yaml.dump(yamlObj)}---\n` });
         return `---\n${yaml.dump(yamlObj)}---\n`;
     } else {
+        // Legacy model format
         const yamlObj = {
             provider: provider || settings.provider,
             model: model || getCurrentModelForProvider(settings),
@@ -42,6 +55,11 @@ export function buildChatYaml(settings: MyPluginSettings, provider?: string, mod
     }
 }
 
+/**
+ * Helper to get the current model for a given provider from settings.
+ * @param settings The plugin settings object
+ * @returns The model string for the current provider
+ */
 function getCurrentModelForProvider(settings: MyPluginSettings): string {
     log('debug', '[getCurrentModelForProvider] Called', { provider: settings.provider });
     switch (settings.provider) {
@@ -61,6 +79,15 @@ function getCurrentModelForProvider(settings: MyPluginSettings): string {
 /**
  * Save chat as note, accepting either a NodeList of message elements or a pre-formatted chatContent string.
  * Logs every major step for traceability.
+ * @param app The Obsidian app instance
+ * @param messages Optional NodeList of message elements
+ * @param chatContent Optional pre-formatted chat content string
+ * @param settings The plugin settings object
+ * @param provider Optional provider override
+ * @param model Optional model override
+ * @param chatSeparator Separator string between messages
+ * @param chatNoteFolder Optional folder to save the note in
+ * @param agentResponseHandler Optional agent response handler for formatting
  */
 export async function saveChatAsNote({
     app,
@@ -86,9 +113,11 @@ export async function saveChatAsNote({
     log('info', '[saveChatAsNote] Entered function', { hasMessages: !!messages, hasChatContent: typeof chatContent === 'string' });
     let content = '';
     if (typeof chatContent === 'string') {
+        // Use provided chatContent string directly
         content = chatContent;
         log('info', '[saveChatAsNote] Using provided chatContent string directly.');
     } else if (messages) {
+        // Build chat content from message DOM nodes
         log('info', '[saveChatAsNote] Building chat content from message DOM nodes.');
         const messageRenderer = new MessageRenderer(app);
         messages.forEach((el: Element, index: number) => {
@@ -125,15 +154,17 @@ export async function saveChatAsNote({
         log('error', '[saveChatAsNote] Neither messages nor chatContent provided. Aborting.');
         throw new Error('Either messages or chatContent must be provided');
     }
+    // Build YAML frontmatter and strip any existing YAML from chat content
     const yaml = buildChatYaml(settings, provider, model);
     log('info', '[saveChatAsNote] YAML frontmatter built. Stripping any existing YAML from chat content.');
     content = content.replace(/^---[\s\S]*?---\n?/, '');
-    
+    // Normalize line endings and whitespace
     content = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
     content = content.replace(/\n{3,}/g, '\n\n');
     content = content.replace(/\n+$/, ''); 
     const noteContent = yaml + '\n' + content + '\n';
-    
+
+    // Generate file name and path
     const now = new Date();
     const pad = (n: number) => n.toString().padStart(2, '0');
     const fileName = `Chat Export ${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())} ${pad(now.getHours())}-${pad(now.getMinutes())}.md`;
@@ -160,7 +191,8 @@ export async function saveChatAsNote({
         }
         filePath = folder.replace(/[/\\]+$/, '') + '/' + fileName;
     }
-    
+
+    // Ensure unique file name if file already exists
     let finalFilePath = filePath;
     let attempt = 1;
     while (app.vault.getAbstractFileByPath(finalFilePath)) {
@@ -184,7 +216,12 @@ export async function saveChatAsNote({
 
 /**
  * Loads YAML frontmatter from a chat note and applies settings to the plugin.
- * Logs every major step for traceability.
+ * Updates selected model, system message, and temperature as needed.
+ * @param app The Obsidian app instance
+ * @param plugin The plugin instance
+ * @param settings The plugin settings object
+ * @param file The file to load YAML from
+ * @returns Object with loaded provider, model, unifiedModel, systemMessage, and temperature
  */
 export async function loadChatYamlAndApplySettings({
     app,
@@ -213,7 +250,8 @@ export async function loadChatYamlAndApplySettings({
     } else {
         log('warn', '[loadChatYamlAndApplySettings] No YAML frontmatter found in file.');
     }
-    
+
+    // Apply model and provider settings from YAML
     if (yamlObj.unified_model) {
         settings.selectedModel = yamlObj.unified_model;
         log('info', '[loadChatYamlAndApplySettings] Loaded unified_model from YAML', yamlObj.unified_model);
@@ -241,6 +279,7 @@ export async function loadChatYamlAndApplySettings({
     } else {
         log('warn', '[loadChatYamlAndApplySettings] No model/provider found in YAML. Using existing settings.');
     }
+    // Apply system message and temperature from YAML
     let newSystemMessage = yamlObj.system_message || settings.systemMessage;
     let newTemperature = settings.temperature;
     if (yamlObj.temperature !== undefined) {

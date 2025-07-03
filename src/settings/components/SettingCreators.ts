@@ -3,18 +3,23 @@ import MyPlugin from '../../main';
 
 /**
  * Utility class for creating common setting types in Obsidian plugin settings tabs.
+ * Provides methods to create text inputs, dropdowns, toggles, and sliders with consistent behavior.
  */
 export class SettingCreators {
     private plugin: MyPlugin;
     private reRenderCallback: () => void;
 
+    /**
+     * @param plugin The plugin instance, used for saving settings.
+     * @param reRenderCallback A callback function to re-render the settings tab/modal.
+     */
     constructor(plugin: MyPlugin, reRenderCallback: () => void) {
         this.plugin = plugin;
         this.reRenderCallback = reRenderCallback;
     }
 
     /**
-     * Creates a text input setting.
+     * Creates a text input setting (either single-line or multi-line).
      * @param containerEl The HTML element to append the setting to.
      * @param name The name of the setting.
      * @param desc The description of the setting.
@@ -50,6 +55,7 @@ export class SettingCreators {
 
     /**
      * Configures a text input (either single-line or multi-line).
+     * Handles value processing (trimming, setting to undefined if empty) and saving on blur.
      * @param textComponent The TextComponent or TextAreaComponent to configure.
      * @param placeholder The placeholder text.
      * @param getValue A function to get the current value.
@@ -67,7 +73,7 @@ export class SettingCreators {
             .setPlaceholder(placeholder)
             .setValue(getValue() ?? '')
             .onChange((value: string) => {
-                
+                // Process the input value based on options
                 let processedValue: string | undefined = value;
                 if (options?.trim && processedValue) {
                     processedValue = processedValue.trim();
@@ -75,12 +81,11 @@ export class SettingCreators {
                 if (options?.undefinedIfEmpty && processedValue === '') {
                     processedValue = undefined;
                 }
-                
-                
+                // Update the setting value without immediately saving to disk
                 this.updateSettingValueOnly(setValue, processedValue);
             });
         
-        
+        // Save settings and re-render on blur (when the input loses focus)
         textComponent.inputEl.addEventListener('blur', async () => {
             await this.plugin.saveSettings();
             this.reRenderCallback(); 
@@ -88,13 +93,16 @@ export class SettingCreators {
     }
 
     /**
-     * Helper method to update setting value without saving
+     * Helper method to update setting value without triggering a full save to disk immediately.
+     * This is useful for inputs where changes are frequent (e.g., textareas) and saving should be debounced or on blur.
+     * @param setValue The function to call to update the setting's value.
+     * @param value The new value for the setting.
      */
     private updateSettingValueOnly(setValue: (value: string | undefined) => Promise<void>, value: string | undefined): void {
-        
+        // Temporarily override saveSettings to prevent immediate disk write
         const originalSaveSettings = this.plugin.saveSettings;
         this.plugin.saveSettings = async () => {
-            
+            // Do nothing
         };
         
         try {
@@ -102,7 +110,7 @@ export class SettingCreators {
         } catch (e) {
             console.warn('Error updating setting value:', e);
         } finally {
-            
+            // Restore original saveSettings function
             this.plugin.saveSettings = originalSaveSettings;
         }
     }

@@ -54,6 +54,13 @@ var init_FileSearchTool = __esm({
           }
         });
       }
+      /**
+       * Executes the file search operation.
+       * Filters files by type, applies the search query, and returns results.
+       * @param params FileSearchParams
+       * @param context Execution context (unused)
+       * @returns ToolResult with matching files or error
+       */
       async execute(params, context) {
         const { query = "", filterType = "markdown", maxResults = 10 } = params;
         try {
@@ -113,6 +120,12 @@ var init_FileSearchTool = __esm({
           };
         }
       }
+      /**
+       * Returns a filter function for files based on filterType.
+       * Not used in main logic, but available for extension.
+       * @param filterType The type of files to filter
+       * @returns A function that returns true if the file matches the filter
+       */
       getFileFilter(filterType) {
         switch (filterType) {
           case "markdown":
@@ -137,15 +150,20 @@ var init_pathValidation = __esm({
   "src/components/chat/agent/tools/pathValidation.ts"() {
     import_path = require("path");
     PathValidator = class {
+      /**
+       * Constructs a PathValidator for the given Obsidian app.
+       * @param app The Obsidian App instance.
+       */
       constructor(app) {
         this.app = app;
         __publicField(this, "vaultPath");
         this.vaultPath = this.app.vault.adapter.basePath || "";
       }
       /**
-       * Validates and normalizes a path to ensure it's within the vault
-       * @param inputPath The input path (can be relative to vault or absolute)
-       * @returns The normalized vault-relative path or throws an error if invalid
+       * Validates and normalizes a path to ensure it's within the vault.
+       * Converts absolute paths to vault-relative, and prevents directory traversal.
+       * @param inputPath The input path (can be relative to vault or absolute).
+       * @returns The normalized vault-relative path, or throws an error if invalid.
        */
       validateAndNormalizePath(inputPath) {
         if (inputPath === void 0 || inputPath === null || typeof inputPath !== "string") {
@@ -179,9 +197,10 @@ var init_pathValidation = __esm({
         return normalizedPath;
       }
       /**
-       * Validates that a path is safe for use within the vault
-       * @param inputPath The path to validate
-       * @returns True if the path is valid, throws an error otherwise
+       * Validates that a path is safe for use within the vault.
+       * Throws if invalid, returns true if valid.
+       * @param inputPath The path to validate.
+       * @returns True if the path is valid, throws an error otherwise.
        */
       validatePath(inputPath) {
         try {
@@ -192,26 +211,26 @@ var init_pathValidation = __esm({
         }
       }
       /**
-       * Gets the vault's base path
-       * @returns The absolute path to the vault root
+       * Gets the vault's base path (absolute path on disk).
+       * @returns The absolute path to the vault root.
        */
       getVaultPath() {
         return this.vaultPath;
       }
       /**
-       * Converts a vault-relative path to an absolute path
-       * @param vaultRelativePath The vault-relative path
-       * @returns The absolute path
+       * Converts a vault-relative path to an absolute path.
+       * @param vaultRelativePath The vault-relative path.
+       * @returns The absolute path on disk.
        */
       toAbsolutePath(vaultRelativePath) {
         const normalizedVaultPath = this.validateAndNormalizePath(vaultRelativePath);
         return (0, import_path.join)(this.vaultPath, normalizedVaultPath);
       }
       /**
-       * Checks if two paths refer to the same file within the vault
-       * @param path1 First path
-       * @param path2 Second path
-       * @returns True if the paths refer to the same file
+       * Checks if two paths refer to the same file within the vault.
+       * @param path1 First path.
+       * @param path2 Second path.
+       * @returns True if the normalized paths are equal.
        */
       pathsEqual(path1, path2) {
         try {
@@ -275,6 +294,13 @@ var init_FileReadTool = __esm({
         __publicField(this, "pathValidator");
         this.pathValidator = new PathValidator(app);
       }
+      /**
+       * Executes the file read operation.
+       * Validates the path, checks file size, reads content, and returns cleaned content.
+       * @param params FileReadParams
+       * @param context Execution context (unused)
+       * @returns ToolResult with file content or error
+       */
       async execute(params, context) {
         var _a2, _b, _c;
         const inputPath = params.path || params.filePath;
@@ -337,6 +363,11 @@ var init_BackupManager = __esm({
   "src/components/BackupManager.ts"() {
     init_typeguards();
     BackupManager = class {
+      // Maximum number of backups to keep per file
+      /**
+       * @param app The Obsidian App instance.
+       * @param pluginDataPath The absolute path to the plugin's data folder.
+       */
       constructor(app, pluginDataPath) {
         __publicField(this, "app");
         __publicField(this, "backupFilePath");
@@ -347,15 +378,19 @@ var init_BackupManager = __esm({
         this.binaryBackupFolder = `${pluginDataPath}/binary-backups`;
       }
       /**
-       * Determines if a file is binary based on its extension
-       * Uses a whitelist of known text extensions - everything else is treated as binary
+       * Determines if a file is binary based on its extension.
+       * Uses a whitelist of known text extensions - everything else is treated as binary.
+       * @param filePath The path of the file.
+       * @returns True if the file is considered binary, false otherwise.
        */
       isBinaryFile(filePath) {
         const textExtensions = [
+          // Markdown and text files
           ".md",
           ".txt",
           ".text",
           ".rtf",
+          // Code files
           ".js",
           ".ts",
           ".jsx",
@@ -402,6 +437,7 @@ var init_BackupManager = __esm({
           ".ps1",
           ".bat",
           ".cmd",
+          // Other common text formats
           ".svg",
           ".csv",
           ".tsv",
@@ -409,6 +445,7 @@ var init_BackupManager = __esm({
           ".sql",
           ".graphql",
           ".gql",
+          // Documentation/markup
           ".tex",
           ".latex",
           ".bib",
@@ -416,18 +453,24 @@ var init_BackupManager = __esm({
           ".rst",
           ".asciidoc",
           ".adoc",
+          // Config/dotfiles
           ".gitignore",
           ".gitattributes",
           ".editorconfig",
           ".env",
           ".properties",
+          // No extension
           ""
         ];
         const extension = filePath.toLowerCase().substring(filePath.lastIndexOf("."));
         return !textExtensions.includes(extension);
       }
       /**
-       * Generates a unique backup file name for binary files
+       * Generates a unique backup file path for binary files.
+       * Replaces slashes in the original file path to create a flat name.
+       * @param filePath The original file path.
+       * @param timestamp The timestamp for the backup.
+       * @returns The generated backup file path.
        */
       generateBinaryBackupPath(filePath, timestamp2) {
         const fileName = filePath.replace(/[\/\\]/g, "_");
@@ -436,7 +479,10 @@ var init_BackupManager = __esm({
         return `${this.binaryBackupFolder}/${nameWithoutExt}_${timestamp2}${extension}`;
       }
       /**
-       * Creates a backup of a file's current content before modification
+       * Creates a backup of a file's current content.
+       * For text files, content is stored directly in JSON. For binary files, content is saved to a separate file.
+       * @param filePath The path of the file to backup.
+       * @param currentContent Optional: The content of the file if already read (for text files).
        */
       async createBackup(filePath, currentContent) {
         try {
@@ -512,7 +558,9 @@ var init_BackupManager = __esm({
         }
       }
       /**
-       * Gets all backups for a specific file
+       * Gets all backups for a specific file.
+       * @param filePath The path of the file.
+       * @returns An array of FileBackup objects for the specified file.
        */
       async getBackupsForFile(filePath) {
         try {
@@ -524,7 +572,8 @@ var init_BackupManager = __esm({
         }
       }
       /**
-       * Gets all files that have backups
+       * Gets all file paths that currently have backups.
+       * @returns An array of file paths.
        */
       async getAllBackupFiles() {
         try {
@@ -538,7 +587,10 @@ var init_BackupManager = __esm({
         }
       }
       /**
-       * Restores a backup to the vault, overwriting the current file
+       * Restores a specific backup to the vault, overwriting the current file.
+       * Creates the file if it doesn't exist.
+       * @param backup The FileBackup object to restore.
+       * @returns An object indicating success or failure with an error message.
        */
       async restoreBackup(backup) {
         try {
@@ -580,7 +632,9 @@ var init_BackupManager = __esm({
         }
       }
       /**
-       * Deletes all backups for a specific file
+       * Deletes all backups associated with a specific file.
+       * Also removes physical binary backup files.
+       * @param filePath The path of the file whose backups are to be deleted.
        */
       async deleteBackupsForFile(filePath) {
         try {
@@ -607,7 +661,10 @@ var init_BackupManager = __esm({
         }
       }
       /**
-       * Deletes a specific backup entry
+       * Deletes a specific backup entry by file path and timestamp.
+       * Also removes the physical binary backup file if applicable.
+       * @param filePath The path of the file.
+       * @param timestamp The timestamp of the specific backup to delete.
        */
       async deleteSpecificBackup(filePath, timestamp2) {
         try {
@@ -637,7 +694,8 @@ var init_BackupManager = __esm({
         }
       }
       /**
-       * Deletes all backups for all files
+       * Deletes all backups for all files.
+       * Removes all metadata and all physical binary backup files.
        */
       async deleteAllBackups() {
         try {
@@ -666,7 +724,12 @@ var init_BackupManager = __esm({
         }
       }
       /**
-       * Checks if content is different from the most recent backup
+       * Checks if a new backup should be created for a file.
+       * A backup is created if there are no existing backups, or if the new content differs from the most recent backup.
+       * For binary files, it always returns true as content comparison is complex.
+       * @param filePath The path of the file.
+       * @param newContent Optional: The new content of the file (for text files).
+       * @returns True if a backup should be created, false otherwise.
        */
       async shouldCreateBackup(filePath, newContent) {
         try {
@@ -694,7 +757,8 @@ var init_BackupManager = __esm({
         }
       }
       /**
-       * Loads backup data from the JSON file
+       * Loads backup data from the JSON file.
+       * @returns A Promise resolving to the BackupData object.
        */
       async loadBackupData() {
         try {
@@ -712,7 +776,9 @@ var init_BackupManager = __esm({
         return { backups: {} };
       }
       /**
-       * Saves backup data to the JSON file
+       * Saves backup data to the JSON file.
+       * Ensures the backup directory exists before writing.
+       * @param backupData The BackupData object to save.
        */
       async saveBackupData(backupData) {
         var _a2;
@@ -734,7 +800,8 @@ var init_BackupManager = __esm({
         }
       }
       /**
-       * Gets the total number of backups across all files
+       * Gets the total number of backups across all files.
+       * @returns A Promise resolving to the total count.
        */
       async getTotalBackupCount() {
         try {
@@ -746,7 +813,9 @@ var init_BackupManager = __esm({
         }
       }
       /**
-       * Gets the total size of all backups in bytes (approximate)
+       * Gets the total size of all backups in bytes (approximate).
+       * For text files, it's content length. For binary, it's file size.
+       * @returns A Promise resolving to the total size in bytes.
        */
       async getTotalBackupSize() {
         try {
@@ -768,7 +837,7 @@ var init_BackupManager = __esm({
         }
       }
       /**
-       * Initializes the backup system by ensuring the directory exists
+       * Initializes the backup system by ensuring necessary directories and files exist.
        */
       async initialize() {
         try {
@@ -788,8 +857,9 @@ var init_BackupManager = __esm({
         }
       }
       /**
-       * Cleans up old backups to prevent unlimited growth
-       * Removes backups older than specified days (default: 30 days)
+       * Cleans up old backups to prevent unlimited growth.
+       * Removes backups older than a specified number of days.
+       * @param maxDays The maximum number of days to keep backups (default: 30 days).
        */
       async cleanupOldBackups(maxDays = 30) {
         try {
@@ -922,6 +992,13 @@ var init_FileWriteTool = __esm({
         this.backupManager = backupManager || new BackupManager(app, defaultPath);
         this.pathValidator = new PathValidator(app);
       }
+      /**
+       * Executes the file write operation.
+       * Handles file creation, backup, and content writing.
+       * @param params FileWriteParams (with legacy/alternate keys supported)
+       * @param context Execution context (unused)
+       * @returns ToolResult indicating success or failure
+       */
       async execute(params, context) {
         const inputPath = params.path || params.filePath || params.filename;
         const { content, createIfNotExists = true, backup = true, createParentFolders } = params;
@@ -1353,6 +1430,10 @@ var init_FileDiffTool = __esm({
         __publicField(this, "suggestions");
         this.suggestions = suggestions;
       }
+      /**
+       * Called when the modal is opened.
+       * Sets up the modal UI and renders suggestions.
+       */
       async onOpen() {
         const { contentEl } = this;
         contentEl.empty();
@@ -1365,6 +1446,10 @@ var init_FileDiffTool = __esm({
         contentEl.createEl("h2", { text: "File Change Suggestions" });
         this.renderSuggestions();
       }
+      /**
+       * Renders all suggestions in the modal.
+       * Each suggestion shows the file path, diff, and accept/reject buttons.
+       */
       renderSuggestions() {
         const { contentEl } = this;
         Array.from(contentEl.querySelectorAll(".suggestion-container, .no-suggestions")).forEach((el) => el.remove());
@@ -1445,6 +1530,10 @@ var init_FileDiffTool = __esm({
           };
         });
       }
+      /**
+       * Called when the modal is closed.
+       * Cleans up the modal content.
+       */
       onClose() {
         this.contentEl.empty();
       }
@@ -1479,6 +1568,13 @@ var init_FileDiffTool = __esm({
         __publicField(this, "pathValidator");
         this.pathValidator = new PathValidator(app);
       }
+      /**
+       * Executes the file diff tool.
+       * Loads the file, generates a diff, and presents a modal for user review.
+       * @param params FileDiffParams
+       * @param context Execution context (may include debugMode)
+       * @returns ToolResult indicating success or failure
+       */
       async execute(params, context) {
         var _a2, _b, _c;
         const debugMode = (_c = (_b = (_a2 = context == null ? void 0 : context.plugin) == null ? void 0 : _a2.settings) == null ? void 0 : _b.debugMode) != null ? _c : true;
@@ -1565,6 +1661,16 @@ ${diff}`
           };
         }
       }
+      /**
+       * Shows a modal with the diff suggestion and handles user acceptance/rejection.
+       * @param editor The active editor for the file.
+       * @param file The TFile being edited.
+       * @param currentContent The current file content.
+       * @param suggestedContent The new content to suggest.
+       * @param insertPosition Optional line number for insertion.
+       * @param debugMode Whether to log debug output.
+       * @returns ToolResult indicating modal was shown.
+       */
       async showInlineSuggestion(editor, file, currentContent, suggestedContent, insertPosition, debugMode) {
         debugLog(debugMode, "debug", "[FileDiffTool] showInlineSuggestion called");
         const diff = this.generateDiff(currentContent, suggestedContent, debugMode);
@@ -1605,6 +1711,15 @@ ${diff}`
           }
         };
       }
+      /**
+       * Generates a unified diff string between the original and suggested content.
+       * Uses the diffLines function to compute line-by-line differences.
+       * Lines added are prefixed with '+', removed with '-', unchanged lines are omitted.
+       * @param original The original file content.
+       * @param suggested The new (suggested) file content.
+       * @param debugMode Whether to log debug output.
+       * @returns A unified diff string.
+       */
       generateDiff(original, suggested, debugMode) {
         debugLog(debugMode, "debug", "[FileDiffTool] generateDiff called");
         const diffParts = diffLines(original, suggested);
@@ -1624,7 +1739,12 @@ ${diff}`
         return diff.join("\n");
       }
       /**
-       * Gets an editor for the specified file, opening it if necessary
+       * Gets an editor for the specified file, opening it if necessary.
+       * If the file is already open in a markdown view, returns its editor.
+       * Otherwise, opens the file in a new leaf and returns the editor after a short delay.
+       * @param file The TFile to get or open.
+       * @param debugMode Whether to log debug output.
+       * @returns The Editor instance, or undefined if not available.
        */
       async getOrOpenFileEditor(file, debugMode) {
         debugLog(debugMode, "debug", "[FileDiffTool] Attempting to get or open editor for file:", file.path);
@@ -1657,8 +1777,10 @@ ${diff}`
         }
       }
       /**
-       * Utility function to clean up any remaining suggestion blocks from a file
-       * Can be called manually if needed to remove leftover suggestion blocks
+       * Utility function to clean up any remaining suggestion blocks from a file.
+       * Can be called manually if needed to remove leftover suggestion blocks.
+       * @param filePath The path of the file to clean up.
+       * @returns ToolResult indicating cleanup status.
        */
       async cleanupSuggestionBlocks(filePath) {
         try {
@@ -1739,6 +1861,12 @@ var init_FileMoveTool = __esm({
         __publicField(this, "pathValidator");
         this.pathValidator = new PathValidator(app);
       }
+      /**
+       * Executes the file move/rename operation.
+       * @param params FileMoveParams (with possible legacy/alias keys)
+       * @param context Execution context (unused)
+       * @returns ToolResult indicating success or failure
+       */
       async execute(params, context) {
         let inputSourcePath = params.sourcePath;
         let inputDestinationPath = params.destinationPath;
@@ -1843,6 +1971,13 @@ var init_ThoughtTool = __esm({
           }
         });
       }
+      /**
+       * Executes the ThoughtTool.
+       * Validates parameters, formats the thought, and returns a structured result.
+       * @param params ThoughtParams or object with a `parameters` property.
+       * @param context Execution context (may include debugLog).
+       * @returns ToolResult with formatted thought and metadata.
+       */
       async execute(params, context) {
         var _a2;
         if (context && context.plugin && typeof context.plugin.debugLog === "function") {
@@ -1937,6 +2072,12 @@ var init_FileListTool = __esm({
         __publicField(this, "pathValidator");
         this.pathValidator = new PathValidator(app);
       }
+      /**
+       * Executes the file listing operation.
+       * @param params FileListParams
+       * @param context Execution context (unused)
+       * @returns ToolResult with the list of files/folders or error
+       */
       async execute(params, context) {
         const inputPath = params.path || params.folderPath || params.folder || "";
         const { recursive = false, maxResults = 100 } = params;
@@ -2068,6 +2209,13 @@ var init_FileRenameTool = __esm({
         __publicField(this, "pathValidator");
         this.pathValidator = new PathValidator(app);
       }
+      /**
+       * Executes the file rename operation.
+       * Validates the path, checks for conflicts, and renames the file.
+       * @param params FileRenameParams (with optional newPath alias)
+       * @param context Execution context (unused)
+       * @returns ToolResult with old and new file paths or error
+       */
       async execute(params, context) {
         const { path: inputPath, newName, newPath, overwrite = false } = params;
         const finalNewName = newName || newPath;
@@ -2146,6 +2294,13 @@ var init_VaultTreeTool = __esm({
         __publicField(this, "pathValidator");
         this.pathValidator = new PathValidator(app);
       }
+      /**
+       * Executes the vault tree generation.
+       * Traverses the vault folder structure and builds a tree representation.
+       * @param params VaultTreeParams
+       * @param context Execution context (unused)
+       * @returns ToolResult with the tree string and stats or error
+       */
       async execute(params, context) {
         const {
           path = "",
@@ -2239,6 +2394,7 @@ var init_VaultTreeTool = __esm({
             data: {
               tree,
               stats,
+              // For compatibility with other tools
               items: tree,
               count: totalItems,
               path: startPath || "/"
@@ -2251,6 +2407,12 @@ var init_VaultTreeTool = __esm({
           };
         }
       }
+      /**
+       * Returns an emoji icon for a given file extension.
+       * Not used in the current tree output, but available for extension.
+       * @param extension File extension (without dot)
+       * @returns Emoji string
+       */
       getFileIcon(extension) {
         const iconMap = {
           "md": "\u{1F4DD}",
@@ -2297,6 +2459,11 @@ var init_FileDeleteTool = __esm({
     init_pathValidation();
     init_typeguards();
     FileDeleteTool = class {
+      /**
+       * Constructor for FileDeleteTool.
+       * @param app Obsidian App instance
+       * @param backupManager Optional custom BackupManager
+       */
       constructor(app, backupManager) {
         this.app = app;
         __publicField(this, "name", "file_delete");
@@ -2329,6 +2496,12 @@ var init_FileDeleteTool = __esm({
         this.backupManager = backupManager || new BackupManager(app, defaultPath);
         this.pathValidator = new PathValidator(app);
       }
+      /**
+       * Executes the file/folder deletion operation.
+       * @param params FileDeleteParams
+       * @param context Execution context (unused)
+       * @returns ToolResult indicating success or failure
+       */
       async execute(params, context) {
         const inputPath = params.path || params.filePath;
         const { backup = true, confirmDeletion = true, useTrash = true } = params;
@@ -2509,7 +2682,10 @@ var init_FileDeleteTool = __esm({
         }
       }
       /**
-       * Recursively creates backups for all files in a folder
+       * Recursively creates backups for all files in a folder.
+       * @param folder TFolder to backup
+       * @param basePath Relative path for backup naming
+       * @returns Object with backupCreated, backupCount, and totalSize
        */
       async createFolderBackups(folder, basePath) {
         let backupCount = 0;
@@ -2543,8 +2719,9 @@ var init_FileDeleteTool = __esm({
         };
       }
       /**
-       * Recursively deletes a folder by deleting all its contents first
-       * This is a fallback method for Windows permission issues
+       * Recursively deletes a folder by deleting all its contents first.
+       * This is a fallback method for Windows permission issues.
+       * @param folder TFolder to delete
        */
       async recursivelyDeleteFolder(folder) {
         for (const child of [...folder.children]) {
@@ -2565,7 +2742,8 @@ var init_FileDeleteTool = __esm({
         }
       }
       /**
-       * Ensures the .trash folder exists in the vault root
+       * Ensures the .trash folder exists in the vault root.
+       * @returns Path to the .trash folder
        */
       async ensureTrashFolderExists() {
         const trashPath = ".trash";
@@ -2578,7 +2756,9 @@ var init_FileDeleteTool = __esm({
         return trashPath;
       }
       /**
-       * Generates a unique name for the trash item to avoid conflicts
+       * Generates a unique name for the trash item to avoid conflicts.
+       * @param originalPath Original file/folder path
+       * @returns Unique trash name
        */
       generateTrashName(originalPath) {
         const timestamp2 = (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-");
@@ -2589,7 +2769,10 @@ var init_FileDeleteTool = __esm({
         return `${nameWithoutExt}_deleted_${timestamp2}${ext}`;
       }
       /**
-       * Moves a file or folder to the trash folder instead of permanently deleting it
+       * Moves a file or folder to the trash folder instead of permanently deleting it.
+       * @param target TFile or TFolder to move
+       * @param originalPath Original path for naming
+       * @returns New path in the .trash folder
        */
       async moveToTrash(target, originalPath) {
         const trashPath = await this.ensureTrashFolderExists();
@@ -2798,54 +2981,87 @@ var init_settings = __esm({
   "src/types/settings.ts"() {
     init_promptConstants();
     DEFAULT_SETTINGS = {
+      /** @inheritdoc */
       referenceCurrentNote: false,
+      /** @inheritdoc */
       provider: "openai",
+      /** @inheritdoc */
       selectedModel: void 0,
+      /** @inheritdoc */
       availableModels: [],
+      /** @inheritdoc */
       openaiSettings: {
         apiKey: "",
         model: "gpt-4.1",
         availableModels: []
       },
+      /** @inheritdoc */
       anthropicSettings: {
         apiKey: "",
         model: "claude-3-5-sonnet-latest",
         availableModels: []
       },
+      /** @inheritdoc */
       geminiSettings: {
         apiKey: "",
         model: "gemini-2.5-flash-preview-05-20",
         availableModels: []
       },
+      /** @inheritdoc */
       ollamaSettings: {
         serverUrl: "http://localhost:11434",
         model: "llama2",
         availableModels: []
       },
+      /** @inheritdoc */
       systemMessage: DEFAULT_GENERAL_SYSTEM_PROMPT,
+      /** @inheritdoc */
       temperature: 0.7,
+      /** @inheritdoc */
       maxTokens: 1e3,
+      /** @inheritdoc */
       includeDateWithSystemMessage: false,
+      /** @inheritdoc */
       includeTimeWithSystemMessage: false,
+      /** @inheritdoc */
       enableStreaming: true,
+      /** @inheritdoc */
       autoOpenModelSettings: false,
+      /** @inheritdoc */
       enableObsidianLinks: true,
+      /** @inheritdoc */
       titleOutputMode: "clipboard",
+      /** @inheritdoc */
       summaryOutputMode: "clipboard",
+      /** @inheritdoc */
       chatSeparator: "----",
+      /** @inheritdoc */
       chatStartString: void 0,
+      /** @inheritdoc */
       chatEndString: void 0,
+      /** @inheritdoc */
       enableContextNotes: false,
+      /** @inheritdoc */
       contextNotes: "",
+      /** @inheritdoc */
       titlePrompt: DEFAULT_TITLE_PROMPT,
+      /** @inheritdoc */
       summaryPrompt: DEFAULT_SUMMARY_PROMPT,
+      /** @inheritdoc */
       maxSessions: 10,
+      /** @inheritdoc */
       autoSaveSessions: true,
+      /** @inheritdoc */
       sessions: [],
+      /** @inheritdoc */
       activeSessionId: void 0,
+      /** @inheritdoc */
       expandLinkedNotesRecursively: false,
+      /** @inheritdoc */
       maxLinkExpansionDepth: 2,
+      /** @inheritdoc */
       chatNoteFolder: "",
+      /** @inheritdoc */
       yamlAttributeGenerators: [
         {
           attributeName: "summary",
@@ -2854,12 +3070,14 @@ var init_settings = __esm({
           commandName: "Generate YAML: summary"
         }
       ],
+      /** @inheritdoc */
       providerConfigExpanded: {
         openai: false,
         anthropic: false,
         gemini: false,
         ollama: false
       },
+      /** @inheritdoc */
       generalSectionsExpanded: {
         "AI Model Settings": true,
         "Date Settings": true,
@@ -2867,13 +3085,21 @@ var init_settings = __esm({
         "Provider Configuration": true,
         "AI Model Configuration": true
       },
+      /** @inheritdoc */
       apiKeysExpanded: {},
+      /** @inheritdoc */
       modelManagementExpanded: {},
+      /** @inheritdoc */
       agentConfigExpanded: {},
+      /** @inheritdoc */
       contentChatExpanded: {},
+      /** @inheritdoc */
       dataHandlingExpanded: {},
+      /** @inheritdoc */
       pluginBehaviorExpanded: {},
+      /** @inheritdoc */
       backupManagementExpanded: {},
+      /** @inheritdoc */
       modelSettingPresets: [
         {
           name: "Default",
@@ -2884,15 +3110,21 @@ var init_settings = __esm({
           enableStreaming: true
         }
       ],
+      /** @inheritdoc */
       customAgentSystemMessage: void 0,
+      /** @inheritdoc */
       uiBehavior: {
         collapseOldReasoning: true,
         showCompletionNotifications: true,
         includeReasoningInExports: true
       },
+      /** @inheritdoc */
       enabledTools: {},
+      /** @inheritdoc */
       enabledModels: {},
+      /** @inheritdoc */
       debugMode: false,
+      /** @inheritdoc */
       agentMode: {
         enabled: false,
         maxToolCalls: 10,
@@ -2949,6 +3181,9 @@ var init_Buttons = __esm({
   "src/components/chat/Buttons.ts"() {
     import_obsidian8 = require("obsidian");
     Buttons = class extends import_obsidian8.Component {
+      /**
+       * Constructs the Buttons component and initializes all main chat buttons.
+       */
       constructor() {
         super();
         __publicField(this, "container");
@@ -2968,49 +3203,87 @@ var init_Buttons = __esm({
         this.settingsButton.buttonEl.addClass("hidden-button");
       }
       /**
-       * Get the button container element
+       * Get the button container element.
        */
       getContainer() {
         return this.container;
       }
+      /**
+       * Get the main Send button.
+       */
       getSendButton() {
         return this.sendButton;
       }
+      /**
+       * Get the main Stop button.
+       */
       getStopButton() {
         return this.stopButton;
       }
+      /**
+       * Get the main Clear button.
+       */
       getClearButton() {
         return this.clearButton;
       }
+      /**
+       * Get the main Settings button.
+       */
       getSettingsButton() {
         return this.settingsButton;
       }
+      /**
+       * Show the Send button.
+       */
       showSendButton() {
         this.sendButton.buttonEl.removeClass("hidden-button");
       }
+      /**
+       * Hide the Send button.
+       */
       hideSendButton() {
         this.sendButton.buttonEl.addClass("hidden-button");
       }
+      /**
+       * Show the Stop button.
+       */
       showStopButton() {
         this.stopButton.buttonEl.removeClass("hidden-button");
       }
+      /**
+       * Hide the Stop button.
+       */
       hideStopButton() {
         this.stopButton.buttonEl.addClass("hidden-button");
       }
+      /**
+       * Show the Clear button.
+       */
       showClearButton() {
         this.clearButton.buttonEl.removeClass("hidden-button");
       }
+      /**
+       * Hide the Clear button.
+       */
       hideClearButton() {
         this.clearButton.buttonEl.addClass("hidden-button");
       }
+      /**
+       * Show the Settings button.
+       */
       showSettingsButton() {
         this.settingsButton.buttonEl.removeClass("hidden-button");
       }
+      /**
+       * Hide the Settings button.
+       */
       hideSettingsButton() {
         this.settingsButton.buttonEl.addClass("hidden-button");
       }
       /**
-       * Create action buttons for messages (copy, edit, delete, regenerate)
+       * Create action buttons for messages (e.g., copy, edit, delete, regenerate).
+       * @param buttons Array of button configs
+       * @returns HTMLElement containing all action buttons
        */
       createMessageActions(buttons) {
         const actionsContainer = document.createElement("div");
@@ -3022,7 +3295,9 @@ var init_Buttons = __esm({
         return actionsContainer;
       }
       /**
-       * Create the main chat control buttons (send, stop, copy all, clear, settings)
+       * Create the main chat control buttons (send, stop, clear, settings).
+       * @param buttons Array of button configs
+       * @returns HTMLElement containing all control buttons
        */
       createChatControls(buttons) {
         const controlsContainer = document.createElement("div");
@@ -3037,7 +3312,9 @@ var init_Buttons = __esm({
         return controlsContainer;
       }
       /**
-       * Create a single button with the given configuration
+       * Create a single button with the given configuration.
+       * @param config Button configuration
+       * @returns The created button element
        */
       createButton(config) {
         const button = document.createElement("button");
@@ -3053,7 +3330,10 @@ var init_Buttons = __esm({
         return button;
       }
       /**
-       * Show or hide a specific button in a container
+       * Show or hide a specific button in a container by label.
+       * @param container The container element
+       * @param label The aria-label of the button
+       * @param show Whether to show or hide the button
        */
       toggleButton(container, label, show) {
         const button = container.querySelector(`[aria-label="${label}"]`);
@@ -3071,6 +3351,10 @@ var init_ToolRichDisplay = __esm({
   "src/components/chat/agent/ToolRichDisplay.ts"() {
     import_obsidian9 = require("obsidian");
     ToolRichDisplay = class _ToolRichDisplay extends import_obsidian9.Component {
+      /**
+       * Constructs a ToolRichDisplay instance.
+       * @param options ToolDisplayOptions for rendering and actions
+       */
       constructor(options) {
         super();
         __publicField(this, "element");
@@ -3081,9 +3365,16 @@ var init_ToolRichDisplay = __esm({
         }
         this.element = this.createToolDisplay();
       }
+      /**
+       * Returns the root element for this display.
+       */
       getElement() {
         return this.element;
       }
+      /**
+       * Creates the main display element for the tool result.
+       * @returns HTMLElement representing the tool result
+       */
       createToolDisplay() {
         if (window.aiAssistantPlugin && typeof window.aiAssistantPlugin.debugLog === "function") {
           window.aiAssistantPlugin.debugLog("debug", "[ToolRichDisplay] createToolDisplay called", { command: this.options.command, result: this.options.result });
@@ -3093,6 +3384,9 @@ var init_ToolRichDisplay = __esm({
           onCopy: this.options.onCopy
         });
       }
+      /**
+       * Returns an emoji icon for the tool action.
+       */
       getToolIcon() {
         const iconMap = {
           "file_search": "\u{1F50D}",
@@ -3106,6 +3400,9 @@ var init_ToolRichDisplay = __esm({
         };
         return iconMap[this.options.command.action] || "\u{1F527}";
       }
+      /**
+       * Returns a human-readable display name for the tool action.
+       */
       getToolDisplayName() {
         const nameMap = {
           "file_search": "File Search",
@@ -3119,11 +3416,17 @@ var init_ToolRichDisplay = __esm({
         };
         return nameMap[this.options.command.action] || this.options.command.action;
       }
+      /**
+       * Formats the tool parameters for display.
+       */
       formatParameters() {
         const params = this.options.command.parameters;
         const formatted = Object.entries(params).map(([key, value]) => `${key}: ${typeof value === "string" && value.length > 50 ? value.substring(0, 50) + "..." : JSON.stringify(value)}`).join(", ");
         return `<code>${formatted}</code>`;
       }
+      /**
+       * Returns a summary string for the tool result.
+       */
       getResultSummary() {
         if (!this.options.result.success) {
           return `<span class="tool-error">${this.options.result.error || "Unknown error"}</span>`;
@@ -3179,6 +3482,9 @@ var init_ToolRichDisplay = __esm({
         }
         return "Success";
       }
+      /**
+       * Returns a detailed string (JSON or plain) for the tool result.
+       */
       getDetailedResult() {
         if (!this.options.result.success) {
           return this.options.result.error || "Unknown error occurred";
@@ -3189,7 +3495,8 @@ var init_ToolRichDisplay = __esm({
         return null;
       }
       /**
-       * Update the display with new tool result
+       * Updates the display with a new tool result.
+       * @param result The new ToolResult to display
        */
       updateResult(result) {
         this.options.result = result;
@@ -3201,8 +3508,9 @@ var init_ToolRichDisplay = __esm({
         this.element = newElement;
       }
       /**
-      * Convert the tool display to markdown format for saving to notes
-      */
+       * Converts the tool display to markdown format for saving to notes.
+       * @returns Markdown string representing the tool result
+       */
       toMarkdown() {
         const { command, result } = this.options;
         const status = result.success ? "\u2705" : "\u274C";
@@ -3253,7 +3561,7 @@ ${details}
         return markdown;
       }
       /**
-       * Static method to create a tool display element for notes (without re-run functionality)
+       * Static method to create a tool display element for notes (without re-run functionality).
        */
       static createNoteDisplay(command, result, options) {
         return _ToolRichDisplay.createDisplayElement(command, result, {
@@ -3262,7 +3570,11 @@ ${details}
         });
       }
       /**
-       * Static method to create a tool display element with customizable options
+       * Static method to create a tool display element with customizable options.
+       * @param command The tool command
+       * @param result The tool result
+       * @param options Optional callbacks and flags
+       * @returns HTMLElement representing the tool result
        */
       static createDisplayElement(command, result, options) {
         const container = document.createElement("div");
@@ -3349,6 +3661,9 @@ ${details}
         container.appendChild(infoDiv);
         return container;
       }
+      /**
+       * Returns a static emoji icon for a tool action.
+       */
       static getStaticToolIcon(action) {
         const iconMap = {
           "file_search": "\u{1F50D}",
@@ -3362,6 +3677,9 @@ ${details}
         };
         return iconMap[action] || "\u{1F527}";
       }
+      /**
+       * Returns a static display name for a tool action.
+       */
       static getStaticToolDisplayName(action) {
         const nameMap = {
           "file_search": "File Search",
@@ -3375,10 +3693,16 @@ ${details}
         };
         return nameMap[action] || action;
       }
+      /**
+       * Formats parameters for static display.
+       */
       static formatStaticParameters(params) {
         const formatted = Object.entries(params).map(([key, value]) => `${key}: ${typeof value === "string" && value.length > 50 ? value.substring(0, 50) + "..." : JSON.stringify(value)}`).join(", ");
         return `<code>${formatted}</code>`;
       }
+      /**
+       * Returns a static summary string for a tool result.
+       */
       static getStaticResultSummary(command, result) {
         if (!result.success) {
           return `<span class="tool-error">${result.error || "Unknown error"}</span>`;
@@ -3434,6 +3758,9 @@ ${details}
         }
         return "Success";
       }
+      /**
+       * Returns a static detailed string (JSON or plain) for a tool result.
+       */
       static getStaticDetailedResult(result) {
         if (!result.success) {
           return result.error || "Unknown error occurred";
@@ -3446,6 +3773,9 @@ ${details}
       /**
        * Render a tool execution block (array of toolResults) into a container element.
        * Used by both markdown and code block processors.
+       * @param toolData Object containing toolResults array
+       * @param container The container element to render into
+       * @param onCopy Optional callback for copying a result
        */
       static renderToolExecutionBlock(toolData, container, onCopy) {
         container.innerHTML = "";
@@ -3485,7 +3815,11 @@ var init_MessageRenderer = __esm({
         this.app = app;
       }
       /**
-       * Update message container with enhanced reasoning and task status data
+       * Updates a message container with enhanced reasoning and task status data.
+       * Renders reasoning and task status sections above the message content.
+       * @param container The message DOM element
+       * @param messageData The message data (may include reasoning/taskStatus)
+       * @param component Optional parent component for Markdown rendering
        */
       updateMessageWithEnhancedData(container, messageData, component) {
         debugLog(true, "debug", "[MessageRenderer] updateMessageWithEnhancedData called", { messageData });
@@ -3518,7 +3852,10 @@ var init_MessageRenderer = __esm({
         }
       }
       /**
-       * Create reasoning section element
+       * Creates a reasoning section element for display above the message.
+       * Supports structured and summary reasoning.
+       * @param reasoning The reasoning data object
+       * @returns HTMLElement for the reasoning section
        */
       createReasoningSection(reasoning) {
         var _a2;
@@ -3591,7 +3928,9 @@ var init_MessageRenderer = __esm({
         return reasoningContainer;
       }
       /**
-       * Create task status section element
+       * Creates a task status section element for display above the message.
+       * @param taskStatus The task status object
+       * @returns HTMLElement for the task status section
        */
       createTaskStatusSection(taskStatus) {
         const statusContainer = document.createElement("div");
@@ -3613,7 +3952,7 @@ var init_MessageRenderer = __esm({
         return statusContainer;
       }
       /**
-       * Get emoji for reasoning step categories
+       * Returns an emoji for a reasoning step category.
        */
       getStepEmoji(category) {
         switch (category) {
@@ -3646,7 +3985,7 @@ var init_MessageRenderer = __esm({
         }
       }
       /**
-       * Get task status text
+       * Returns a user-friendly status text for a task status.
        */
       getTaskStatusText(taskStatus) {
         switch (taskStatus.status) {
@@ -3667,7 +4006,7 @@ var init_MessageRenderer = __esm({
         }
       }
       /**
-       * Get task status icon
+       * Returns an emoji icon for a task status.
        */
       getTaskStatusIcon(status) {
         switch (status) {
@@ -3688,8 +4027,11 @@ var init_MessageRenderer = __esm({
         }
       }
       /**
-      * Render a complete message with tool displays if present
-      */
+       * Render a complete message with tool displays if present.
+       * @param message The message object (may include toolResults)
+       * @param container The message DOM element
+       * @param component Optional parent component for Markdown rendering
+       */
       async renderMessage(message, container, component) {
         if (message.toolResults && message.toolResults.length > 0) {
           await this.renderMessageWithToolDisplays(message, container, component);
@@ -3698,8 +4040,11 @@ var init_MessageRenderer = __esm({
         }
       }
       /**
-      * Render message with embedded tool displays
-      */
+       * Render a message with embedded tool displays.
+       * @param message The message object (with toolResults)
+       * @param container The message DOM element
+       * @param component Optional parent component for Markdown rendering
+       */
       async renderMessageWithToolDisplays(message, container, component) {
         const messageContent = container.querySelector(".message-content");
         if (!messageContent) {
@@ -3738,7 +4083,10 @@ var init_MessageRenderer = __esm({
         }
       }
       /**
-       * Render regular message without tool displays
+       * Render a regular message without tool displays.
+       * @param message The message object
+       * @param container The message DOM element
+       * @param component Optional parent component for Markdown rendering
        */
       async renderRegularMessage(message, container, component) {
         const messageContent = container.querySelector(".message-content");
@@ -3747,7 +4095,9 @@ var init_MessageRenderer = __esm({
         await import_obsidian10.MarkdownRenderer.render(this.app, message.content, messageContent, "", component || new import_obsidian10.Component());
       }
       /**
-       * Parse message content to extract tool calls and text parts
+       * Parse message content to extract tool calls and text parts.
+       * Returns an array of text/tool parts for further processing.
+       * @param content The message content string
        */
       parseMessageWithTools(content) {
         const parts = [];
@@ -3782,7 +4132,10 @@ var init_MessageRenderer = __esm({
         return parts;
       }
       /**
-       * Compare tool parameters for matching
+       * Compare tool parameters for matching (deep equality).
+       * @param params1 First parameters object
+       * @param params2 Second parameters object
+       * @returns True if parameters are deeply equal
        */
       compareToolParams(params1, params2) {
         try {
@@ -3792,8 +4145,11 @@ var init_MessageRenderer = __esm({
         }
       }
       /**
-      * Format tool execution for clipboard copy
-      */
+       * Format a tool execution result for clipboard copy.
+       * @param command The tool command
+       * @param result The tool result
+       * @returns Formatted string for copy
+       */
       formatToolForCopy(command, result) {
         const status = result.success ? "\u2705" : "\u274C";
         const statusText = result.success ? "SUCCESS" : "ERROR";
@@ -3822,8 +4178,10 @@ ${result.error}`;
         return output;
       }
       /**
-      * Get message content formatted for clipboard copy, including tool results
-      */
+       * Get message content formatted for clipboard copy, including tool results.
+       * @param messageData The message data (may include toolResults)
+       * @returns Formatted string for copy
+       */
       getMessageContentForCopy(messageData) {
         let content = messageData.content;
         if (messageData.toolResults && messageData.toolResults.length > 0) {
@@ -3838,8 +4196,10 @@ ${result.error}`;
         return content;
       }
       /**
-      * Parse tool data from saved content that contains ai-tool-execution blocks
-      */
+       * Parse tool data from saved content that contains ai-tool-execution blocks.
+       * @param content The message content string
+       * @returns Parsed tool data object or null
+       */
       parseToolDataFromContent(content) {
         const toolDataRegex = /```ai-tool-execution\n([\s\S]*?)\n```/g;
         const match = toolDataRegex.exec(content);
@@ -3853,7 +4213,9 @@ ${result.error}`;
         return null;
       }
       /**
-       * Remove tool data blocks from content to get clean content for display
+       * Remove tool data blocks from content to get clean content for display.
+       * @param content The message content string
+       * @returns Cleaned content string
        */
       cleanContentFromToolData(content) {
         let cleanContent = content.replace(/```ai-tool-execution\n[\s\S]*?\n```\n?/g, "");
@@ -10990,6 +11352,13 @@ var init_ChatHelpModal = __esm({
       constructor(app) {
         super(app);
       }
+      /**
+       * Creates a collapsible section with a title and content.
+       * @param title The section title
+       * @param contentCallback Function to populate the section content
+       * @param expanded Whether the section is expanded by default
+       * @returns The section container element
+       */
       createCollapsibleSection(title, contentCallback, expanded = true) {
         const sectionContainer = createDiv();
         sectionContainer.addClass("ai-collapsible-section");
@@ -11018,6 +11387,10 @@ var init_ChatHelpModal = __esm({
         this.contentEl = originalContent;
         return sectionContainer;
       }
+      /**
+       * Called when the modal is opened.
+       * Populates the modal with collapsible help sections.
+       */
       onOpen() {
         this.titleEl.setText("AI Chat Help");
         this.contentEl.empty();
@@ -11087,6 +11460,13 @@ var init_ConfirmationModal = __esm({
   "src/components/chat/ConfirmationModal.ts"() {
     import_obsidian13 = require("obsidian");
     ConfirmationModal = class extends import_obsidian13.Modal {
+      /**
+       * Constructs a ConfirmationModal.
+       * @param app Obsidian App instance
+       * @param title Modal title text
+       * @param message Message to display in the modal
+       * @param onConfirm Callback invoked with true (confirmed) or false (cancelled)
+       */
       constructor(app, title, message, onConfirm) {
         super(app);
         __publicField(this, "onConfirm");
@@ -11095,6 +11475,10 @@ var init_ConfirmationModal = __esm({
         this.message = message;
         this.onConfirm = onConfirm;
       }
+      /**
+       * Called when the modal is opened.
+       * Renders the message and Cancel/Delete buttons.
+       */
       onOpen() {
         const { contentEl } = this;
         contentEl.addClass("ai-assistant-modal");
@@ -11113,6 +11497,10 @@ var init_ConfirmationModal = __esm({
           this.close();
         });
       }
+      /**
+       * Called when the modal is closed.
+       * Cleans up the modal content.
+       */
       onClose() {
         this.contentEl.empty();
       }
@@ -11131,12 +11519,18 @@ var init_SettingsSections = __esm({
     import_obsidian14 = require("obsidian");
     init_providers();
     SettingsSections = class {
+      /**
+       * @param plugin The plugin instance (for accessing/saving settings).
+       */
       constructor(plugin) {
         __publicField(this, "plugin");
         this.plugin = plugin;
       }
       /**
-       * AI Model Settings Section
+       * Renders the AI Model Settings section.
+       * Includes system message, streaming, temperature, model selection, and model refresh.
+       * @param containerEl The HTML element to render the section into.
+       * @param onRefresh Optional callback to refresh the entire settings view after certain actions.
        */
       async renderAIModelSettings(containerEl, onRefresh) {
         while (containerEl.firstChild) containerEl.removeChild(containerEl.firstChild);
@@ -11201,7 +11595,9 @@ var init_SettingsSections = __esm({
         await this.renderUnifiedModelDropdown(containerEl);
       }
       /**
-       * Date Settings Section
+       * Date Settings Section.
+       * Includes options for including date and time in the system message.
+       * @param containerEl The HTML element to render the section into.
        */
       renderDateSettings(containerEl) {
         new import_obsidian14.Setting(containerEl).setName("Include Date with System Message").setDesc("Add the current date to the system message").addToggle((toggle) => toggle.setValue(this.plugin.settings.includeDateWithSystemMessage).onChange(async (value) => {
@@ -11214,7 +11610,9 @@ var init_SettingsSections = __esm({
         }));
       }
       /**
-       * Note Reference Settings Section
+       * Note Reference Settings Section.
+       * Includes options for Obsidian links, context notes, and recursive link expansion.
+       * @param containerEl The HTML element to render the section into.
        */
       renderNoteReferenceSettings(containerEl) {
         new import_obsidian14.Setting(containerEl).setName("Enable Obsidian Links").setDesc("Read Obsidian links in messages using [[filename]] syntax").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableObsidianLinks).onChange(async (value) => {
@@ -11247,7 +11645,9 @@ var init_SettingsSections = __esm({
         });
       }
       /**
-       * Provider Configuration Section
+       * Provider Configuration Section.
+       * Renders collapsible sections for each provider's specific settings and test buttons.
+       * @param containerEl The HTML element to render the section into.
        */
       renderProviderConfiguration(containerEl) {
         containerEl.createEl("p", {
@@ -11260,7 +11660,9 @@ var init_SettingsSections = __esm({
         this.renderOllamaConfig(containerEl);
       }
       /**
-       * Renders the unified model selection dropdown
+       * Renders the unified model selection dropdown.
+       * Populates the dropdown with available models fetched from providers.
+       * @param containerEl The HTML element to render the dropdown into.
        */
       async renderUnifiedModelDropdown(containerEl) {
         if (!this.plugin.settings.availableModels || this.plugin.settings.availableModels.length === 0) {
@@ -11307,7 +11709,8 @@ var init_SettingsSections = __esm({
         }
       }
       /**
-       * Refreshes available models from all configured providers
+       * Refreshes available models from all configured providers.
+       * Tests connection for each provider and updates the list of available models.
        */
       async refreshAllAvailableModels() {
         const providers = ["openai", "anthropic", "gemini", "ollama"];
@@ -11335,6 +11738,12 @@ var init_SettingsSections = __esm({
             }
           } catch (error) {
             console.error(`Error testing ${providerType}:`, error);
+            const providerSettings = this.plugin.settings[`${providerType}Settings`];
+            providerSettings.lastTestResult = {
+              timestamp: Date.now(),
+              success: false,
+              message: `Test failed: ${error.message}`
+            };
           }
         }
         this.plugin.settings.availableModels = await getAllAvailableModels(this.plugin.settings);
@@ -11342,10 +11751,11 @@ var init_SettingsSections = __esm({
       }
       /**
        * Renders a collapsible section for provider configuration.
+       * This is a helper method used by specific provider rendering methods.
        * @param containerEl The HTML element to render the section into.
        * @param providerType The type of the provider (e.g., 'openai', 'anthropic').
        * @param displayName The display name of the provider (e.g., 'OpenAI', 'Anthropic').
-       * @param renderSpecificSettings A callback function to render provider-specific settings.
+       * @param renderSpecificSettings A callback function to render provider-specific settings within the collapsible section.
        */
       _renderCollapsibleProviderConfig(containerEl, providerType, displayName, renderSpecificSettings) {
         const collapsibleContainer = containerEl.createDiv({ cls: "provider-collapsible" });
@@ -11430,6 +11840,7 @@ var init_SettingsSections = __esm({
       }
       /**
        * Renders the provider connection test section.
+       * Includes a test button and displays the last test result and available models.
        * @param containerEl The HTML element to render the section into.
        * @param provider The internal identifier for the provider (e.g., 'openai').
        * @param displayName The user-friendly name of the provider (e.g., 'OpenAI').
@@ -11466,6 +11877,11 @@ var init_SettingsSections = __esm({
             }
           } catch (error) {
             new import_obsidian14.Notice(`Error: ${error.message}`);
+            settings.lastTestResult = {
+              timestamp: Date.now(),
+              success: false,
+              message: `Test failed: ${error.message}`
+            };
           } finally {
             button.setButtonText("Test");
             button.setDisabled(false);
@@ -11486,7 +11902,9 @@ var init_SettingsSections = __esm({
         }
       }
       /**
-       * Debug Mode Section
+       * Debug Mode Section.
+       * Includes a toggle for enabling/disabling debug mode.
+       * @param containerEl The HTML element to render the section into.
        */
       renderDebugModeSettings(containerEl) {
         new import_obsidian14.Setting(containerEl).setName("Debug Mode").setDesc("Enable verbose logging and debug UI features").addToggle((toggle) => {
@@ -11499,6 +11917,7 @@ var init_SettingsSections = __esm({
       }
       /**
        * Renders all settings sections in order for a modal or view.
+       * This method orchestrates the rendering of all distinct setting categories.
        * @param containerEl The HTML element to render the sections into.
        * @param options Optional settings, e.g., onRefresh callback.
        */
@@ -11524,10 +11943,18 @@ var init_SettingsModal = __esm({
     import_obsidian15 = require("obsidian");
     init_SettingsSections();
     SettingsModal = class extends import_obsidian15.Modal {
+      /**
+       * Constructs a SettingsModal instance.
+       * @param app The Obsidian App instance.
+       * @param plugin The plugin instance (for accessing/saving settings and event handling).
+       */
       constructor(app, plugin) {
         super(app);
         __publicField(this, "plugin");
         __publicField(this, "settingsSections");
+        /**
+         * Handler for settings change events. Refreshes the modal content.
+         */
         __publicField(this, "_onSettingsChange", () => {
           this.onOpen();
         });
@@ -11536,12 +11963,20 @@ var init_SettingsModal = __esm({
         this.titleEl.setText("AI Model Settings");
         this.plugin.onSettingsChange(this._onSettingsChange);
       }
+      /**
+       * Called when the modal is opened.
+       * Clears existing content and renders all settings sections.
+       */
       async onOpen() {
         const { contentEl } = this;
         contentEl.empty();
         contentEl.addClass("ai-settings-modal");
         await this.settingsSections.renderAllSettings(contentEl, { onRefresh: () => this.onOpen() });
       }
+      /**
+       * Called when the modal is closed.
+       * Cleans up the modal content and unsubscribes from settings changes.
+       */
       onClose() {
         this.plugin.offSettingsChange(this._onSettingsChange);
         this.contentEl.empty();
@@ -11753,6 +12188,12 @@ var init_BotMessage = __esm({
     import_obsidian20 = require("obsidian");
     init_Buttons();
     BotMessage = class extends import_obsidian20.Component {
+      /**
+       * Constructs a BotMessage instance.
+       * @param app Obsidian App instance
+       * @param plugin Plugin instance (for settings, logging, etc.)
+       * @param content The message content (markdown)
+       */
       constructor(app, plugin, content) {
         super();
         __publicField(this, "app");
@@ -11765,12 +12206,22 @@ var init_BotMessage = __esm({
         this.content = content;
         this.element = this.createMessageElement();
       }
+      /**
+       * Returns the root element for this message.
+       */
       getElement() {
         return this.element;
       }
+      /**
+       * Returns the current message content.
+       */
       getContent() {
         return this.content;
       }
+      /**
+       * Updates the message content and re-renders the markdown.
+       * @param content The new message content
+       */
       async setContent(content) {
         this.content = content;
         this.element.dataset.rawContent = content;
@@ -11783,6 +12234,10 @@ var init_BotMessage = __esm({
           this
         );
       }
+      /**
+       * Creates the message DOM element, including content and action buttons.
+       * @returns The root message element
+       */
       createMessageElement() {
         const messageEl = document.createElement("div");
         messageEl.addClass("ai-chat-message", "assistant");
@@ -12201,6 +12656,11 @@ var import_obsidian23 = require("obsidian");
 // src/components/chat/ChatHistoryManager.ts
 var import_obsidian7 = require("obsidian");
 var ChatHistoryManager = class {
+  /**
+   * @param vault The Obsidian Vault instance
+   * @param pluginId The plugin ID (used for folder path)
+   * @param historyFilePath Optional custom file path for history storage
+   */
   constructor(vault, pluginId, historyFilePath) {
     __publicField(this, "vault");
     __publicField(this, "historyFilePath");
@@ -12217,6 +12677,9 @@ var ChatHistoryManager = class {
     if (typeof window !== "undefined" && window.Notice) {
     }
   }
+  /**
+   * Ensures the directory for the history file exists, creating it if needed.
+   */
   async ensureDirectoryExists() {
     const dirPath = this.historyFilePath.substring(0, this.historyFilePath.lastIndexOf("/"));
     if (!dirPath) return;
@@ -12236,6 +12699,11 @@ var ChatHistoryManager = class {
       throw e;
     }
   }
+  /**
+   * Loads chat history from the history file.
+   * If the file does not exist or is invalid, returns an empty array.
+   * @returns Promise resolving to the chat history array
+   */
   async loadHistory() {
     try {
       const exists = await this.vault.adapter.exists(this.historyFilePath);
@@ -12256,19 +12724,36 @@ var ChatHistoryManager = class {
     }
     return this.history;
   }
+  /**
+   * Adds a new message to the chat history and saves it.
+   * @param message The ChatMessage to add
+   */
   async addMessage(message) {
     const currentHistory = await this.loadHistory();
     currentHistory.push(message);
     this.history = currentHistory;
     await this.saveHistory();
   }
+  /**
+   * Returns the current chat history (loads from disk if needed).
+   * @returns Promise resolving to the chat history array
+   */
   async getHistory() {
     return await this.loadHistory();
   }
+  /**
+   * Clears the chat history and saves the empty history.
+   */
   async clearHistory() {
     this.history = [];
     await this.saveHistory();
   }
+  /**
+   * Deletes a specific message from the chat history by timestamp, sender, and content.
+   * @param timestamp The timestamp of the message to delete
+   * @param sender The sender of the message to delete
+   * @param content The content of the message to delete
+   */
   async deleteMessage(timestamp2, sender, content) {
     await this.loadHistory();
     const index = this.history.findIndex(
@@ -12279,6 +12764,15 @@ var ChatHistoryManager = class {
       await this.saveHistory();
     }
   }
+  /**
+   * Updates a specific message in the chat history.
+   * Optionally updates reasoning, taskStatus, and toolResults.
+   * @param timestamp The timestamp of the message to update
+   * @param sender The sender of the message to update
+   * @param oldContent The old content to match
+   * @param newContent The new content to set
+   * @param enhancedData Optional additional fields to update
+   */
   async updateMessage(timestamp2, sender, oldContent, newContent, enhancedData) {
     await this.loadHistory();
     const message = this.history.find(
@@ -12295,6 +12789,10 @@ var ChatHistoryManager = class {
     } else {
     }
   }
+  /**
+   * Saves the current chat history to the history file.
+   * Ensures the directory exists before writing.
+   */
   async saveHistory() {
     try {
       await this.ensureDirectoryExists();
@@ -12561,7 +13059,9 @@ async function renderChatHistory({
         plugin,
         regenerateResponse,
         plugin,
+        // Pass plugin again for legacy compatibility
         messageData
+        // Pass the full message data for enhanced rendering
       );
       messageEl.dataset.timestamp = msg.timestamp;
       messagesContainer.appendChild(messageEl);
@@ -12575,6 +13075,9 @@ async function renderChatHistory({
 // src/components/chat/CommandParser.ts
 init_toolcollect();
 var CommandParser = class {
+  /**
+   * @param plugin Optional plugin instance for debug logging.
+   */
   constructor(plugin) {
     this.plugin = plugin;
     __publicField(this, "validActions");
@@ -12584,9 +13087,9 @@ var CommandParser = class {
     }
   }
   /**
-   * Parse AI response to extract tool commands and regular text
-   * @param response The AI response string
-   * @returns Object containing separated text and commands
+   * Parse AI response to extract tool commands and regular text.
+   * @param response The AI response string.
+   * @returns Object containing separated text and commands.
    */
   parseResponse(response) {
     const commands = [];
@@ -12624,9 +13127,9 @@ var CommandParser = class {
     };
   }
   /**
-   * Validate that a command has the required structure
-   * @param command The command to validate
-   * @returns True if command is valid
+   * Validate that a command has the required structure and is a known action.
+   * @param command The command to validate.
+   * @returns True if command is valid.
    */
   validateCommand(command) {
     if (this.plugin) {
@@ -12662,9 +13165,10 @@ var CommandParser = class {
     return true;
   }
   /**
-   * Extract JSON commands from text
-   * @param text The text to extract commands from
-   * @returns Array of extracted commands with their original text
+   * Extract JSON commands from text using several patterns.
+   * Handles both inline and code block JSON, as well as "thought" objects.
+   * @param text The text to extract commands from.
+   * @returns Array of extracted commands with their original text.
    */
   extractCommands(text) {
     var _a2, _b;
@@ -12710,8 +13214,11 @@ var CommandParser = class {
     }
     const patterns = [
       /```json\s*(\{[\s\S]*?\})\s*```/g,
+      // ```json ... ```
       /```\s*(\{[\s\S]*?\})\s*```/g,
+      // ``` ... ```
       /(\{[\s\S]*?\})/g
+      // Inline {...}
     ];
     for (const pattern of patterns) {
       let match;
@@ -12762,8 +13269,8 @@ var CommandParser = class {
     return commands;
   }
   /**
-   * Generate a unique request ID
-   * @returns A unique request ID string
+   * Generate a unique request ID for tool commands.
+   * @returns A unique request ID string.
    */
   generateRequestId() {
     return `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -12772,17 +13279,30 @@ var CommandParser = class {
 
 // src/components/chat/agent/ToolRegistry.ts
 var ToolRegistry = class {
+  /**
+   * @param plugin The plugin instance (for settings, logging, and app access)
+   */
   constructor(plugin) {
     __publicField(this, "tools", /* @__PURE__ */ new Map());
     __publicField(this, "plugin");
     this.plugin = plugin;
   }
+  /**
+   * Registers a tool instance by its name.
+   * @param tool The tool instance to register
+   */
   register(tool) {
     this.tools.set(tool.name, tool);
     if (this.plugin && this.plugin.settings && this.plugin.settings.debugMode) {
       this.plugin.debugLog("[ToolRegistry] Registering tool", { tool });
     }
   }
+  /**
+   * Executes a tool command by looking up the tool and calling its execute method.
+   * Handles special context injection for certain tools (e.g., file_diff/editor).
+   * @param command The ToolCommand to execute
+   * @returns ToolResult with the result or error
+   */
   async execute(command) {
     var _a2, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l;
     const tool = this.tools.get(command.action);
@@ -12863,6 +13383,10 @@ var ToolRegistry = class {
       };
     }
   }
+  /**
+   * Returns an array of all registered tool instances.
+   * @returns Array of Tool objects
+   */
   getAvailableTools() {
     return Array.from(this.tools.values());
   }
@@ -12899,10 +13423,21 @@ function stringifyJson(obj) {
 
 // src/components/chat/agent/AgentResponseHandler/TaskNotificationManager.ts
 var TaskNotificationManager = class {
+  /**
+   * Constructs a TaskNotificationManager with the given context.
+   * @param context The plugin context, including settings.
+   */
   constructor(context) {
+    // Context containing plugin instance and settings.
     __publicField(this, "context");
     this.context = context;
   }
+  /**
+   * Creates a DOM element representing a task completion notification.
+   * @param message The message to display.
+   * @param type The notification type ("success", "error", "warning").
+   * @returns The notification HTMLElement.
+   */
   createTaskCompletionNotification(message, type2 = "success") {
     const notification = document.createElement("div");
     notification.className = `task-completion-notification ${type2}`;
@@ -12916,6 +13451,11 @@ var TaskNotificationManager = class {
     this.setupNotificationAutoRemoval(notification);
     return notification;
   }
+  /**
+   * Shows a task completion notification if enabled in settings.
+   * @param message The message to display.
+   * @param type The notification type.
+   */
   showTaskCompletionNotification(message, type2 = "success") {
     var _a2;
     if (!((_a2 = this.context.plugin.settings.uiBehavior) == null ? void 0 : _a2.showCompletionNotifications)) {
@@ -12924,10 +13464,24 @@ var TaskNotificationManager = class {
     const notification = this.createTaskCompletionNotification(message, type2);
     document.body.appendChild(notification);
   }
+  /**
+   * Updates the task progress indicator (not implemented).
+   * @param current The current progress value.
+   * @param total The total value for completion (optional).
+   * @param description Optional description of the progress.
+   */
   updateTaskProgress(current, total, description) {
   }
+  /**
+   * Hides the task progress indicator (not implemented).
+   */
   hideTaskProgress() {
   }
+  /**
+   * Returns an icon string for the given notification type.
+   * @param type The notification type.
+   * @returns The icon as a string.
+   */
   getNotificationIcon(type2) {
     const icons = {
       success: "\u2705",
@@ -12936,6 +13490,11 @@ var TaskNotificationManager = class {
     };
     return icons[type2];
   }
+  /**
+   * Sets up automatic removal of the notification element after a delay,
+   * including a fade-out effect.
+   * @param notification The notification HTMLElement.
+   */
   setupNotificationAutoRemoval(notification) {
     setTimeout(() => {
       notification.classList.add("show");
@@ -12949,6 +13508,11 @@ var TaskNotificationManager = class {
 
 // src/components/chat/agent/AgentResponseHandler/ToolResultFormatter.ts
 var ToolResultFormatter = class {
+  /**
+   * Returns a status icon or label based on success and style.
+   * @param success Whether the tool execution was successful.
+   * @param style The formatting style ("markdown", "copy", or "plain").
+   */
   getStatusIcon(success, style) {
     if (success) {
       return style === "markdown" ? "\u2705" : style === "copy" ? "SUCCESS" : "\u2713";
@@ -12956,6 +13520,12 @@ var ToolResultFormatter = class {
       return style === "markdown" ? "\u274C" : style === "copy" ? "ERROR" : "\u2717";
     }
   }
+  /**
+   * Formats a single tool result for display in the specified style.
+   * @param command The tool command.
+   * @param result The tool result.
+   * @param opts Optional formatting options.
+   */
   formatToolResult(command, result, opts) {
     const style = (opts == null ? void 0 : opts.style) || "plain";
     const status = this.getStatusIcon(result.success, style);
@@ -12970,6 +13540,11 @@ var ToolResultFormatter = class {
         return this.formatToolResultPlain(command, result, status);
     }
   }
+  /**
+   * Returns additional context for a tool result, such as file path or summary.
+   * @param command The tool command.
+   * @param result The tool result.
+   */
   getResultContext(command, result) {
     var _a2;
     if (!result.success || !result.data) return "";
@@ -12994,6 +13569,12 @@ var ToolResultFormatter = class {
     }
     return "";
   }
+  /**
+   * Formats a tool result for copying (machine-readable).
+   * @param command The tool command.
+   * @param result The tool result.
+   * @param status The status label.
+   */
   formatToolResultForCopy(command, result, status) {
     const params = stringifyJson(command.parameters);
     const resultData = result.success ? stringifyJson(result.data) : result.error;
@@ -13004,12 +13585,23 @@ ${params}
 RESULT:
 ${resultData}`;
   }
+  /**
+   * Formats a tool result as plain text.
+   * @param command The tool command.
+   * @param result The tool result.
+   * @param status The status icon or label.
+   */
   formatToolResultPlain(command, result, status) {
     const data = result.success ? stringifyJson(result.data) : result.error;
     return `${status} Tool: ${command.action}
 Parameters: ${stringifyJson(command.parameters)}
 Result: ${data}`;
   }
+  /**
+   * Formats an array of tool results for display in markdown.
+   * @param toolResults Array of tool command/result pairs.
+   * @returns Markdown string for display.
+   */
   formatToolResultsForDisplay(toolResults) {
     if (toolResults.length === 0) {
       return "";
@@ -13022,6 +13614,11 @@ Result: ${data}`;
 **Tool Execution:**
 ${resultText}`;
   }
+  /**
+   * Creates a system message summarizing tool execution results.
+   * @param toolResults Array of tool command/result pairs.
+   * @returns A Message object or null if no results.
+   */
   createToolResultMessage(toolResults) {
     if (toolResults.length === 0) {
       return null;
@@ -13040,15 +13637,33 @@ ${resultText}`
 
 // src/components/chat/agent/AgentResponseHandler/ToolExecutor.ts
 var ToolExecutor = class {
+  /**
+   * Constructs a ToolExecutor.
+   * @param toolRegistry The registry of available tools.
+   * @param onToolResult Callback for handling tool results.
+   * @param createToolDisplay Callback for displaying tool results.
+   */
   constructor(toolRegistry, onToolResult, createToolDisplay) {
+    // Registry of available tools.
     __publicField(this, "toolRegistry");
+    // Counter for the number of tool executions.
     __publicField(this, "executionCount", 0);
+    // Callback to handle tool results.
     __publicField(this, "onToolResult");
+    // Callback to create a display for tool results.
     __publicField(this, "createToolDisplay");
     this.toolRegistry = toolRegistry;
     this.onToolResult = onToolResult;
     this.createToolDisplay = createToolDisplay;
   }
+  /**
+   * Executes a tool with logging and timing.
+   * @param command The tool command to execute.
+   * @param timeoutMs Timeout in milliseconds.
+   * @param contextLabel Context label for logging.
+   * @param debugLog Optional debug logging function.
+   * @returns The result of the tool execution.
+   */
   async executeToolWithLogging(command, timeoutMs, contextLabel, debugLog2) {
     const startTime = Date.now();
     if (debugLog2) debugLog2("Executing tool", { command }, contextLabel);
@@ -13057,6 +13672,12 @@ var ToolExecutor = class {
     if (debugLog2) debugLog2("Tool execution result", { command, result, executionTime }, contextLabel);
     return result;
   }
+  /**
+   * Executes a tool with a timeout.
+   * @param command The tool command to execute.
+   * @param timeoutMs Timeout in milliseconds.
+   * @returns A promise resolving to the tool result.
+   */
   async executeToolWithTimeout(command, timeoutMs) {
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
@@ -13071,18 +13692,40 @@ var ToolExecutor = class {
       });
     });
   }
+  /**
+   * Handles successful tool execution.
+   * Adds result to toolResults, updates count, displays result, and triggers callback.
+   * @param command The executed tool command.
+   * @param result The result of execution.
+   * @param toolResults Array to store results.
+   */
   handleToolExecutionSuccess(command, result, toolResults) {
     toolResults.push({ command, result });
     this.executionCount++;
     this.createToolDisplay(command, result);
     this.onToolResult(result, command);
   }
+  /**
+   * Handles tool execution errors.
+   * Logs error, creates error result, and processes as a success.
+   * @param command The tool command.
+   * @param error The error thrown.
+   * @param toolResults Array to store results.
+   * @param contextLabel Context label for logging.
+   * @param debugLog Optional debug logging function.
+   */
   handleToolExecutionError(command, error, toolResults, contextLabel, debugLog2) {
     if (debugLog2) debugLog2("Tool execution error", { command, error }, contextLabel);
     console.error(`ToolExecutor: Tool '${command.action}' failed with error:`, error);
     const errorResult = this.createErrorResult(command, error);
     this.handleToolExecutionSuccess(command, errorResult, toolResults);
   }
+  /**
+   * Creates a ToolResult object representing an error.
+   * @param command The tool command.
+   * @param error The error thrown.
+   * @returns A ToolResult indicating failure.
+   */
   createErrorResult(command, error) {
     return {
       success: false,
@@ -13090,6 +13733,11 @@ var ToolExecutor = class {
       requestId: command.requestId
     };
   }
+  /**
+   * Reruns a tool command and displays the result.
+   * @param originalCommand The original tool command.
+   * @param timeoutMs Timeout in milliseconds.
+   */
   async rerunTool(originalCommand, timeoutMs) {
     try {
       const result = await this.executeToolWithTimeout(originalCommand, timeoutMs);
@@ -13099,9 +13747,16 @@ var ToolExecutor = class {
       console.error(`${CONSTANTS.ERROR_MESSAGES.RERUN_FAILED} ${originalCommand.action}:`, error);
     }
   }
+  /**
+   * Gets the number of tool executions performed.
+   * @returns The execution count.
+   */
   getExecutionCount() {
     return this.executionCount;
   }
+  /**
+   * Resets the execution count to zero.
+   */
   resetExecutionCount() {
     this.executionCount = 0;
   }
@@ -13109,10 +13764,23 @@ var ToolExecutor = class {
 
 // src/components/chat/agent/AgentResponseHandler/ReasoningProcessor.ts
 var ReasoningProcessor = class {
+  /**
+   * Constructs a ReasoningProcessor with the given agent context.
+   * @param context The agent context, including plugin settings.
+   */
   constructor(context) {
+    // Context containing plugin settings and environment.
     __publicField(this, "context");
     this.context = context;
   }
+  /**
+   * Processes an array of tool results for a chat message.
+   * Extracts reasoning data if a "thought" tool result is present,
+   * and collects all tool execution results with timestamps.
+   *
+   * @param toolResults Array of objects containing a ToolCommand and its ToolResult.
+   * @returns An object containing optional reasoning data and an array of tool execution results.
+   */
   processToolResultsForMessage(toolResults) {
     const toolExecutionResults = toolResults.map(({ command, result }) => ({
       command,
@@ -13131,6 +13799,13 @@ var ReasoningProcessor = class {
       toolExecutionResults
     };
   }
+  /**
+   * Converts the data from a "thought" tool result into ReasoningData.
+   * Handles both structured and simple reasoning formats.
+   *
+   * @param thoughtData The data from the thought tool result.
+   * @returns A ReasoningData object.
+   */
   convertThoughtToolResultToReasoning(thoughtData) {
     var _a2;
     const reasoningId = this.generateReasoningId();
@@ -13159,6 +13834,12 @@ var ReasoningProcessor = class {
       };
     }
   }
+  /**
+   * Generates a unique identifier for a reasoning instance.
+   * Combines the current timestamp and a random string.
+   *
+   * @returns A unique reasoning ID string.
+   */
   generateReasoningId() {
     const timestamp2 = Date.now();
     const random = Math.random().toString(36).substr(2, 9);
@@ -13168,10 +13849,19 @@ var ReasoningProcessor = class {
 
 // src/components/chat/agent/AgentResponseHandler/ToolLimitWarningUI.ts
 var ToolLimitWarningUI = class {
+  /**
+   * Constructs the ToolLimitWarningUI with the given context.
+   * @param context The agent context with tool limit and UI references.
+   */
   constructor(context) {
+    // Context containing plugin, execution state, and UI containers.
     __publicField(this, "context");
     this.context = context;
   }
+  /**
+   * Creates the warning UI element for when the tool execution limit is reached.
+   * @returns The warning HTMLElement.
+   */
   createToolLimitWarning() {
     const warning = document.createElement("div");
     warning.className = "tool-limit-warning";
@@ -13182,6 +13872,13 @@ var ToolLimitWarningUI = class {
     this.attachToolLimitWarningHandlers(warning, agentSettings);
     return warning;
   }
+  /**
+   * Generates the HTML for the tool limit warning UI.
+   * @param executionCount Number of tool executions used.
+   * @param effectiveLimit The current effective tool limit.
+   * @param maxToolCalls The default max tool calls from settings.
+   * @returns HTML string for the warning.
+   */
   createToolLimitWarningHTML(executionCount, effectiveLimit, maxToolCalls) {
     return `
             <div class="tool-limit-warning-text">
@@ -13202,11 +13899,20 @@ var ToolLimitWarningUI = class {
             </div>
         `;
   }
+  /**
+   * Attaches event handlers for all warning UI actions.
+   * @param warning The warning HTMLElement.
+   * @param agentSettings The agent's settings object.
+   */
   attachToolLimitWarningHandlers(warning, agentSettings) {
     this.attachSettingsHandler(warning);
     this.attachAddToolsHandler(warning, agentSettings);
     this.attachContinueHandler(warning);
   }
+  /**
+   * Attaches the handler for the "Open Settings" link.
+   * @param warning The warning HTMLElement.
+   */
   attachSettingsHandler(warning) {
     const settingsLink = warning.querySelector(".tool-limit-settings-link");
     if (settingsLink) {
@@ -13216,6 +13922,11 @@ var ToolLimitWarningUI = class {
       };
     }
   }
+  /**
+   * Attaches the handler for the "Add & Continue" button.
+   * @param warning The warning HTMLElement.
+   * @param agentSettings The agent's settings object.
+   */
   attachAddToolsHandler(warning, agentSettings) {
     const addToolsButton = warning.querySelector(".ai-chat-add-tools-button");
     if (addToolsButton) {
@@ -13229,6 +13940,10 @@ var ToolLimitWarningUI = class {
       };
     }
   }
+  /**
+   * Attaches the handler for the "Reset & Continue" button.
+   * @param warning The warning HTMLElement.
+   */
   attachContinueHandler(warning) {
     const continueButton = warning.querySelector(".ai-chat-continue-button");
     if (continueButton) {
@@ -13238,12 +13953,21 @@ var ToolLimitWarningUI = class {
       };
     }
   }
+  /**
+   * Removes the warning UI and triggers a continuation event.
+   * @param warning The warning HTMLElement.
+   * @param eventType The event type to dispatch.
+   * @param detail Optional event detail.
+   */
   removeWarningAndTriggerContinuation(warning, eventType, detail) {
     warning.remove();
     this.hideToolContinuationContainerIfEmpty();
     const event = detail ? new CustomEvent(eventType, { detail }) : new CustomEvent(eventType);
     this.context.messagesContainer.dispatchEvent(event);
   }
+  /**
+   * Hides the tool continuation container if it is empty.
+   */
   hideToolContinuationContainerIfEmpty() {
     if (this.context.toolContinuationContainer) {
       if (this.context.toolContinuationContainer.children.length === 0) {
@@ -13251,6 +13975,10 @@ var ToolLimitWarningUI = class {
       }
     }
   }
+  /**
+   * Gets the current effective tool execution limit, considering temporary overrides.
+   * @returns The effective tool limit.
+   */
   getEffectiveToolLimit() {
     const agentSettings = this.context.plugin.getAgentModeSettings();
     return this.context.getTemporaryMaxToolCalls() || agentSettings.maxToolCalls;
@@ -13259,18 +13987,33 @@ var ToolLimitWarningUI = class {
 
 // src/components/chat/agent/AgentResponseHandler/AgentResponseHandler.ts
 var AgentResponseHandler = class {
+  /**
+   * Constructs a new AgentResponseHandler.
+   * @param context AgentContext containing plugin, app, and callback references.
+   */
   constructor(context) {
     this.context = context;
+    // Command parser for extracting tool commands from responses
     __publicField(this, "commandParser");
+    // Registry of available tools
     __publicField(this, "toolRegistry");
+    // Number of tool executions in the current session
     __publicField(this, "executionCount", 0);
+    // Temporary override for max tool calls (optional)
     __publicField(this, "temporaryMaxToolCalls");
+    // Map of tool display IDs to ToolRichDisplay instances
     __publicField(this, "toolDisplays", /* @__PURE__ */ new Map());
+    // Cache of tool markdown outputs by display ID
     __publicField(this, "toolMarkdownCache", /* @__PURE__ */ new Map());
+    // Notification manager for task progress and completion
     __publicField(this, "notificationManager");
+    // Formatter for tool results
     __publicField(this, "toolResultFormatter");
+    // Executor for running tools
     __publicField(this, "toolExecutor");
+    // Processor for reasoning data
     __publicField(this, "reasoningProcessor");
+    // UI for tool limit warnings
     __publicField(this, "toolLimitWarningUI");
     this.debugLog("constructor called");
     this.commandParser = new CommandParser(this.context.plugin);
@@ -13286,15 +14029,27 @@ var AgentResponseHandler = class {
     this.toolLimitWarningUI = new ToolLimitWarningUI(this);
     this.initializeTools();
   }
+  /**
+   * Returns the agent context.
+   */
   getContext() {
     return this.context;
   }
+  /**
+   * Logs debug messages if debug mode is enabled.
+   * @param message The message to log.
+   * @param data Optional data to log.
+   * @param contextLabel Optional label for the log context.
+   */
   debugLog(message, data, contextLabel = "AgentResponseHandler") {
     var _a2, _b;
     if (((_b = (_a2 = this.context.plugin) == null ? void 0 : _a2.settings) == null ? void 0 : _b.debugMode) && typeof this.context.plugin.debugLog === "function") {
       this.context.plugin.debugLog("debug", `[${contextLabel}] ${message}`, data);
     }
   }
+  /**
+   * Initializes and registers all available tools.
+   */
   initializeTools() {
     this.debugLog("initializeTools called");
     const tools = createToolInstances(this.context.app, this.context.plugin);
@@ -13302,6 +14057,13 @@ var AgentResponseHandler = class {
       this.toolRegistry.register(tool);
     }
   }
+  /**
+   * Processes a response string, parses tool commands, executes them if needed,
+   * and returns processed text and tool results.
+   * @param response The response string from the agent.
+   * @param contextLabel Optional label for logging context.
+   * @param chatHistory Optional chat history for deduplication.
+   */
   async processResponse(response, contextLabel = "main", chatHistory) {
     this.debugLog("Processing response", { response }, contextLabel);
     if (!this.context.plugin.isAgentModeEnabled()) {
@@ -13332,6 +14094,9 @@ var AgentResponseHandler = class {
     }
     return await this.executeToolCommands(commandsToExecute, text, contextLabel);
   }
+  /**
+   * Helper to create the result object for processResponse.
+   */
   createProcessResponseResult(text, toolResults, hasTools) {
     return {
       processedText: text,
@@ -13339,6 +14104,12 @@ var AgentResponseHandler = class {
       hasTools
     };
   }
+  /**
+   * Executes a list of tool commands, respecting the tool execution limit.
+   * @param commands Array of ToolCommand objects to execute.
+   * @param text The processed text to return.
+   * @param contextLabel Logging context label.
+   */
   async executeToolCommands(commands, text, contextLabel) {
     const toolResults = [];
     const agentSettings = this.context.plugin.getAgentModeSettings();
@@ -13368,38 +14139,69 @@ var AgentResponseHandler = class {
     }
     return this.createProcessResponseResult(text, toolResults, true);
   }
+  /**
+   * Returns the current execution count.
+   */
   getExecutionCount() {
     return this.executionCount;
   }
+  /**
+   * Temporarily increases the max tool call limit by a given count.
+   * @param count Number of additional executions allowed.
+   */
   addToolExecutions(count) {
     const agentSettings = this.context.plugin.getAgentModeSettings();
     this.temporaryMaxToolCalls = (this.temporaryMaxToolCalls || agentSettings.maxToolCalls) + count;
   }
+  /**
+   * Resets the execution count and clears temporary limits and caches.
+   */
   resetExecutionCount() {
     this.executionCount = 0;
     this.temporaryMaxToolCalls = void 0;
     this.toolDisplays.clear();
     this.toolMarkdownCache.clear();
   }
+  /**
+   * Returns the temporary max tool calls value, if set.
+   */
   getTemporaryMaxToolCalls() {
     return this.temporaryMaxToolCalls;
   }
+  /**
+   * Returns the list of available tools.
+   */
   getAvailableTools() {
     return this.toolRegistry.getAvailableTools();
   }
+  /**
+   * Returns a copy of the current tool displays map.
+   */
   getToolDisplays() {
     return new Map(this.toolDisplays);
   }
+  /**
+   * Clears all tool displays and markdown caches.
+   */
   clearToolDisplays() {
     this.toolDisplays.clear();
     this.toolMarkdownCache.clear();
   }
+  /**
+   * Returns an array of all tool markdown outputs.
+   */
   getToolMarkdown() {
     return Array.from(this.toolMarkdownCache.values());
   }
+  /**
+   * Returns a single string combining all tool markdown outputs.
+   */
   getCombinedToolMarkdown() {
     return this.getToolMarkdown().join("\n");
   }
+  /**
+   * Returns stats about tool executions and limits.
+   */
   getExecutionStats() {
     const effectiveLimit = this.getEffectiveToolLimit();
     return {
@@ -13408,6 +14210,11 @@ var AgentResponseHandler = class {
       remaining: Math.max(0, effectiveLimit - this.executionCount)
     };
   }
+  /**
+   * Creates and stores a ToolRichDisplay for a tool command/result.
+   * @param command The tool command.
+   * @param result The tool result.
+   */
   createToolDisplay(command, result) {
     const displayId = this.generateDisplayId(command);
     const toolDisplay = new ToolRichDisplay({
@@ -13423,9 +14230,18 @@ var AgentResponseHandler = class {
     }
     this.cacheToolMarkdown(command, result);
   }
+  /**
+   * Generates a unique display ID for a tool command.
+   * @param command The tool command.
+   */
   generateDisplayId(command) {
     return `${command.action}${CONSTANTS.TOOL_DISPLAY_ID_SEPARATOR}${command.requestId || Date.now()}`;
   }
+  /**
+   * Copies the formatted tool result to the clipboard.
+   * @param command The tool command.
+   * @param result The tool result.
+   */
   async copyToolResult(command, result) {
     const displayText = this.toolResultFormatter.formatToolResult(command, result, { style: "copy" });
     try {
@@ -13434,6 +14250,11 @@ var AgentResponseHandler = class {
       console.error(CONSTANTS.ERROR_MESSAGES.COPY_FAILED, error);
     }
   }
+  /**
+   * Caches the markdown representation of a tool command/result.
+   * @param command The tool command.
+   * @param result The tool result.
+   */
   cacheToolMarkdown(command, result) {
     const cacheKey = `${command.action}-${command.requestId}`;
     const statusText = result.success ? "SUCCESS" : "ERROR";
@@ -13453,6 +14274,10 @@ ${resultData}
 `;
     this.toolMarkdownCache.set(cacheKey, markdown);
   }
+  /**
+   * Reruns a tool command and updates the display/result.
+   * @param originalCommand The original tool command to rerun.
+   */
   async rerunTool(originalCommand) {
     try {
       const agentSettings = this.context.plugin.getAgentModeSettings();
@@ -13463,10 +14288,22 @@ ${resultData}
       console.error(`${CONSTANTS.ERROR_MESSAGES.RERUN_FAILED} ${originalCommand.action}:`, error);
     }
   }
+  /**
+   * Returns the effective tool execution limit (temporary or default).
+   */
   getEffectiveToolLimit() {
     const agentSettings = this.context.plugin.getAgentModeSettings();
     return this.temporaryMaxToolCalls || agentSettings.maxToolCalls;
   }
+  /**
+   * Filters out tool commands that have already been executed, based on the chat history.
+   * Only commands that have not been executed yet are returned.
+   * 
+   * @param commands - Array of ToolCommand objects to check.
+   * @param chatHistory - The chat history array, containing previous messages and tool results.
+   * @param contextLabel - A label for debugging/logging context.
+   * @returns Array of ToolCommand objects that have not been executed yet.
+   */
   filterAlreadyExecutedCommands(commands, chatHistory, contextLabel) {
     const filteredCommands = [];
     for (const command of commands) {
@@ -13474,7 +14311,11 @@ ${resultData}
       const alreadyExecuted = this.isCommandInChatHistory(commandKey, chatHistory);
       if (alreadyExecuted) {
         if (this.context.plugin.settings.debugMode) {
-          this.context.plugin.debugLog("debug", `[AgentResponseHandler][${contextLabel}] Skipping already executed command`, { command, commandKey });
+          this.context.plugin.debugLog(
+            "debug",
+            `[AgentResponseHandler][${contextLabel}] Skipping already executed command`,
+            { command, commandKey }
+          );
         }
       } else {
         filteredCommands.push(command);
@@ -13482,6 +14323,14 @@ ${resultData}
     }
     return filteredCommands;
   }
+  /**
+   * Retrieves the existing tool results for the given commands from the chat history.
+   * This is used to avoid re-executing commands and to provide their previous results.
+   * 
+   * @param commands - Array of ToolCommand objects to look up.
+   * @param chatHistory - The chat history array, containing previous messages and tool results.
+   * @returns Array of objects containing the command and its corresponding ToolResult.
+   */
   getExistingToolResults(commands, chatHistory) {
     const existingResults = [];
     for (const command of commands) {
@@ -13493,6 +14342,10 @@ ${resultData}
     }
     return existingResults;
   }
+  /**
+   * Generates a unique key for a tool command based on action, parameters, and requestId.
+   * @param command The tool command.
+   */
   generateCommandKey(command) {
     const params = stringifyJson(command.parameters || {});
     return [
@@ -13501,6 +14354,11 @@ ${resultData}
       command.requestId || "no-id"
     ].join(CONSTANTS.COMMAND_KEY_SEPARATOR);
   }
+  /**
+   * Checks if a command (by key) is present in the chat history.
+   * @param commandKey The unique command key.
+   * @param chatHistory The chat history array.
+   */
   isCommandInChatHistory(commandKey, chatHistory) {
     for (const message of chatHistory) {
       if (message.sender === "assistant" && message.toolResults) {
@@ -13514,6 +14372,11 @@ ${resultData}
     }
     return false;
   }
+  /**
+   * Finds the tool result for a command key in the chat history.
+   * @param commandKey The unique command key.
+   * @param chatHistory The chat history array.
+   */
   findToolResultInChatHistory(commandKey, chatHistory) {
     for (const message of chatHistory) {
       if (message.sender === "assistant" && message.toolResults) {
@@ -13527,16 +14390,32 @@ ${resultData}
     }
     return null;
   }
+  /**
+   * Returns true if the tool execution limit has been reached.
+   */
   isToolLimitReached() {
     const effectiveLimit = this.getEffectiveToolLimit();
     return this.executionCount >= effectiveLimit;
   }
+  /**
+   * Creates a Message object for tool results, or null if none.
+   * @param toolResults Array of tool command/result pairs.
+   */
   createToolResultMessage(toolResults) {
     return this.toolResultFormatter.createToolResultMessage(toolResults);
   }
+  /**
+   * Hides any task progress notifications.
+   */
   hideTaskProgress() {
     this.notificationManager.hideTaskProgress();
   }
+  /**
+   * Processes a response and returns UI-related data, including reasoning and task status.
+   * @param response The response string.
+   * @param contextLabel Optional context label.
+   * @param chatHistory Optional chat history.
+   */
   processResponseWithUI(response, contextLabel = "ui", chatHistory) {
     return (async () => {
       const result = await this.processResponse(response, contextLabel, chatHistory);
@@ -13559,12 +14438,25 @@ ${resultData}
       };
     })();
   }
+  /**
+   * Shows a task completion notification.
+   * @param message The message to display.
+   * @param type Notification type ("success", "warning", etc).
+   */
   showTaskCompletionNotification(message, type2 = "success") {
     this.notificationManager.showTaskCompletionNotification(message, type2);
   }
+  /**
+   * Creates and returns a tool limit warning UI element.
+   */
   createToolLimitWarning() {
     return this.toolLimitWarningUI.createToolLimitWarning();
   }
+  /**
+   * Creates a TaskStatus object for UI updates.
+   * @param status The current status ("completed", "running", etc).
+   * @param progress Optional progress value.
+   */
   createTaskStatus(status, progress) {
     const agentSettings = this.context.plugin.getAgentModeSettings();
     return {
@@ -13778,10 +14670,19 @@ async function getContextNotesContent(contextNotesText, app) {
 
 // src/components/chat/agent/ContextBuilder.ts
 var ContextBuilder = class {
+  /**
+   * @param app The Obsidian App instance.
+   * @param plugin The plugin instance (for settings and logging).
+   */
   constructor(app, plugin) {
     this.app = app;
     this.plugin = plugin;
   }
+  /**
+   * Builds an array of context messages for the AI conversation.
+   * Includes the system message, context notes (if enabled), and the current note (if referenced).
+   * @returns Promise resolving to an array of Message objects.
+   */
   async buildContextMessages() {
     const messages = [
       { role: "system", content: getSystemMessage(this.plugin.settings) }
@@ -13815,7 +14716,9 @@ ${currentNoteContent}`
     return messages;
   }
   /**
-   * Update reference note indicator
+   * Updates the UI indicator for referencing the current note.
+   * Shows or hides the indicator and updates the button state.
+   * @param referenceNoteIndicator The HTMLElement to update.
    */
   updateReferenceNoteIndicator(referenceNoteIndicator) {
     if (!referenceNoteIndicator) return;
@@ -13850,6 +14753,12 @@ init_MessageRenderer();
 // src/components/chat/agent/TaskContinuation.ts
 var import_obsidian19 = require("obsidian");
 var TaskContinuation = class {
+  /**
+   * @param plugin The main plugin instance (for settings and logging)
+   * @param agentResponseHandler Handler for agent responses and tool execution
+   * @param messagesContainer The container element for chat messages
+   * @param component Optional Obsidian component for Markdown rendering context
+   */
   constructor(plugin, agentResponseHandler, messagesContainer, component) {
     this.plugin = plugin;
     this.agentResponseHandler = agentResponseHandler;
@@ -13857,8 +14766,16 @@ var TaskContinuation = class {
     this.component = component;
   }
   /**
-  * Continue task execution until finished parameter is true
-  */
+   * Continues task execution until the task is finished or a limit is reached.
+   * Iteratively processes tool results and agent responses.
+   * @param messages The conversation history/messages
+   * @param container The chat message container element
+   * @param initialResponseContent The initial assistant response content
+   * @param currentContent The current content to display
+   * @param initialToolResults Initial tool results to process
+   * @param chatHistory Optional chat history for context
+   * @returns An object with the final content and a flag if the tool limit was reached
+   */
   async continueTaskUntilFinished(messages, container, initialResponseContent, currentContent, initialToolResults, chatHistory) {
     var _a2, _b, _c, _d, _e;
     let responseContent = currentContent;
@@ -13938,8 +14855,16 @@ var TaskContinuation = class {
     return { content: responseContent, limitReachedDuringContinuation };
   }
   /**
-  * Process continuation response and update UI
-  */
+   * Processes the agent's continuation response and updates the UI.
+   * Handles both tool-based and plain responses.
+   * @param continuationContent The agent's response content
+   * @param responseContent The current response content
+   * @param container The chat message container element
+   * @param initialToolResults Tool results so far
+   * @param chatHistory Optional chat history
+   * @param processingResult Optional pre-processed agent result
+   * @returns Object with updated response content and finished flag
+   */
   async processContinuation(continuationContent, responseContent, container, initialToolResults, chatHistory, processingResult) {
     let continuationResult;
     if (processingResult) {
@@ -13981,7 +14906,9 @@ var TaskContinuation = class {
     }
   }
   /**
-   * Update container content with new text
+   * Updates the chat container with new Markdown-rendered content.
+   * @param container The chat message container element
+   * @param content The new content to render
    */
   async updateContainerContent(container, content) {
     container.dataset.rawContent = content;
@@ -13999,7 +14926,10 @@ var TaskContinuation = class {
     }
   }
   /**
-   * Check if any tool results indicate the task is finished
+   * Checks if any tool results indicate the task is finished.
+   * Looks for a 'finished' flag or a 'thought' tool with nextTool 'finished'.
+   * @param toolResults Array of tool command/result pairs
+   * @returns True if the task is finished, false otherwise
    */
   checkIfTaskFinished(toolResults) {
     return toolResults.some(({ command, result }) => {
@@ -14013,8 +14943,12 @@ var TaskContinuation = class {
     });
   }
   /**
-  * Get continuation response after tool execution
-  */
+   * Gets the agent's continuation response after tool execution.
+   * Calls the provider's getCompletion method and streams the result.
+   * @param messages The conversation history/messages
+   * @param container The chat message container element
+   * @returns The agent's response content as a string
+   */
   async getContinuationResponse(messages, container) {
     var _a2;
     try {
@@ -14053,7 +14987,12 @@ var TaskContinuation = class {
     }
   }
   /**
-   * Creates enhanced message data structure
+   * Creates an enhanced message data structure for UI or logging.
+   * Includes reasoning, task status, and tool results.
+   * @param content The message content
+   * @param agentResult The agent's result object
+   * @param toolResults Optional array of tool results
+   * @returns Message object with additional metadata
    */
   createEnhancedMessageData(content, agentResult, toolResults) {
     const messageData = {
@@ -14072,7 +15011,10 @@ var TaskContinuation = class {
     return messageData;
   }
   /**
-   * Updates container with enhanced message data
+   * Updates the chat container with enhanced message data and raw content.
+   * @param container The chat message container element
+   * @param messageData The message data object to store
+   * @param rawContent The raw content string
    */
   updateContainerWithMessageData(container, messageData, rawContent) {
     container.dataset.messageData = JSON.stringify(messageData);
@@ -14082,6 +15024,13 @@ var TaskContinuation = class {
 
 // src/components/chat/ResponseStreamer.ts
 var ResponseStreamer = class {
+  /**
+   * @param plugin The main plugin instance (for settings, logging, etc.)
+   * @param agentResponseHandler Handler for agent responses and tool execution (null if agent mode is off)
+   * @param messagesContainer The container element for chat messages
+   * @param activeStream The current AbortController for streaming (shared reference)
+   * @param component Optional parent component for Markdown rendering context
+   */
   constructor(plugin, agentResponseHandler, messagesContainer, activeStream, component) {
     this.plugin = plugin;
     this.agentResponseHandler = agentResponseHandler;
@@ -14092,9 +15041,15 @@ var ResponseStreamer = class {
     this.messageRenderer = new MessageRenderer(plugin.app);
   }
   /**
-  * Streams AI assistant response with optional agent processing.
-  * Handles agent mode integration, tool execution, and task continuation.
-  */
+   * Streams AI assistant response with optional agent processing.
+   * Handles agent mode integration, tool execution, and task continuation.
+   * @param messages The conversation history/messages to send to the provider
+   * @param container The message container element to update with the streamed response
+   * @param originalTimestamp Optional timestamp for history update
+   * @param originalContent Optional original content for history update
+   * @param chatHistory Optional chat history for context
+   * @returns Promise resolving to the final response content string
+   */
   async streamAssistantResponse(messages, container, originalTimestamp, originalContent, chatHistory) {
     var _a2;
     this.plugin.debugLog("info", "[ResponseStreamer] streamAssistantResponse called", { messages, originalTimestamp });
@@ -14111,6 +15066,7 @@ var ResponseStreamer = class {
           await this.updateMessageContent(container, responseContent);
         },
         abortController: this.activeStream || void 0
+        // Pass the abort controller
       });
       if (this.plugin.isAgentModeEnabled() && this.agentResponseHandler) {
         responseContent = await this.processAgentResponse(responseContent, container, messages, "streamer-main", chatHistory);
@@ -14126,14 +15082,16 @@ var ResponseStreamer = class {
     }
   }
   /**
-   * Creates AI provider instance based on current settings
+   * Creates AI provider instance based on current settings.
    */
   createProvider() {
     return this.plugin.settings.selectedModel ? createProviderFromUnifiedModel(this.plugin.settings, this.plugin.settings.selectedModel) : createProvider(this.plugin.settings);
   }
   /**
-  * Adds agent system prompt to messages if agent mode is enabled
-  */
+   * Adds agent system prompt to messages if agent mode is enabled.
+   * Prepends the agent prompt to the existing system message or adds a new one.
+   * @param messages The message array to modify
+   */
   async addAgentSystemPrompt(messages) {
     this.plugin.debugLog("debug", "[ResponseStreamer] addAgentSystemPrompt called", { messages });
     if (!this.plugin.isAgentModeEnabled()) return;
@@ -14154,7 +15112,9 @@ var ResponseStreamer = class {
     }
   }
   /**
-   * Updates message content in the UI with markdown rendering
+   * Updates message content in the UI with markdown rendering.
+   * @param container The message DOM element
+   * @param content The new content string
    */
   async updateMessageContent(container, content) {
     const contentEl = container.querySelector(".message-content");
@@ -14171,8 +15131,15 @@ var ResponseStreamer = class {
     this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
   }
   /**
-  * Processes agent response and handles tool execution or reasoning
-  */
+   * Processes agent response and handles tool execution or reasoning.
+   * Calls the AgentResponseHandler to parse and execute tools.
+   * @param responseContent The raw response content from the AI
+   * @param container The message DOM element
+   * @param messages The message history
+   * @param contextLabel Label for the processing context
+   * @param chatHistory Optional chat history
+   * @returns Promise resolving to the final content after processing
+   */
   async processAgentResponse(responseContent, container, messages, contextLabel = "streamer", chatHistory) {
     if (!this.agentResponseHandler) {
       return responseContent;
@@ -14186,8 +15153,15 @@ var ResponseStreamer = class {
     }
   }
   /**
-  * Handles responses that include tool execution
-  */
+   * Handles responses that include tool execution.
+   * Updates the message with rich tool displays and handles task completion/continuation.
+   * @param agentResult The result from AgentResponseHandler
+   * @param container The message DOM element
+   * @param responseContent The raw response content
+   * @param messages The message history
+   * @param chatHistory Optional chat history
+   * @returns Promise resolving to the final content after handling
+   */
   async handleToolExecution(agentResult, container, responseContent, messages, chatHistory) {
     const finalContent = agentResult.processedText;
     const enhancedMessageData = this.createEnhancedMessageData(
@@ -14199,7 +15173,14 @@ var ResponseStreamer = class {
     return this.handleTaskCompletion(agentResult, finalContent, responseContent, messages, container, chatHistory);
   }
   /**
-   * Handles responses without tool execution but potentially with reasoning
+   * Handles responses without tool execution but potentially with reasoning.
+   * Updates the message with reasoning display and checks for reasoning continuation.
+   * @param agentResult The result from AgentResponseHandler
+   * @param container The message DOM element
+   * @param responseContent The raw response content
+   * @param messages The message history
+   * @param chatHistory Optional chat history
+   * @returns Promise resolving to the final content after handling
    */
   async handleNonToolResponse(agentResult, container, responseContent, messages, chatHistory) {
     if (agentResult.reasoning) {
@@ -14212,7 +15193,11 @@ var ResponseStreamer = class {
     return responseContent;
   }
   /**
-   * Creates enhanced message data structure
+   * Creates enhanced message data structure including reasoning, task status, and tool results.
+   * @param content The main message content
+   * @param agentResult The agent's processing result
+   * @param toolResults Optional array of tool execution results
+   * @returns Message object with additional metadata
    */
   createEnhancedMessageData(content, agentResult, toolResults) {
     const messageData = {
@@ -14231,7 +15216,10 @@ var ResponseStreamer = class {
     return messageData;
   }
   /**
-   * Updates container with enhanced message data
+   * Updates container with enhanced message data and re-renders using MessageRenderer.
+   * @param container The message DOM element
+   * @param messageData The enhanced message data
+   * @param rawContent The raw content string
    */
   updateContainerWithMessageData(container, messageData, rawContent) {
     container.dataset.messageData = JSON.stringify(messageData);
@@ -14239,7 +15227,10 @@ var ResponseStreamer = class {
     this.messageRenderer.updateMessageWithEnhancedData(container, messageData);
   }
   /**
-   * DRY helper: Updates container dataset values for rawContent and messageData
+   * DRY helper: Updates container dataset values for rawContent and messageData.
+   * @param container The message DOM element
+   * @param rawContent The raw content string
+   * @param messageData Optional enhanced message data
    */
   updateContainerDataset(container, rawContent, messageData) {
     container.dataset.rawContent = rawContent;
@@ -14248,14 +15239,24 @@ var ResponseStreamer = class {
     }
   }
   /**
-   * Checks if response content indicates a reasoning step
+   * Checks if response content indicates a reasoning step (heuristic based on thought tool JSON).
+   * @param responseContent The response content string
+   * @returns True if it seems like a reasoning step, false otherwise
    */
   isReasoningStep(responseContent) {
     return responseContent.includes('"action"') && responseContent.includes('"thought"');
   }
   /**
-  * Handles task completion, continuation, and tool limit management
-  */
+   * Handles task completion, continuation, and tool limit management.
+   * Determines if the task is finished, if continuation is needed, or if limits are reached.
+   * @param agentResult The result from AgentResponseHandler
+   * @param finalContent The processed content (without tool JSON)
+   * @param responseContent The raw response content
+   * @param messages The message history
+   * @param container The message DOM element
+   * @param chatHistory Optional chat history
+   * @returns Promise resolving to the final content after handling
+   */
   async handleTaskCompletion(agentResult, finalContent, responseContent, messages, container, chatHistory) {
     if (agentResult.shouldShowLimitWarning) {
       return this.handleToolLimitReached(messages, container, responseContent, finalContent, agentResult.toolResults, chatHistory);
@@ -14277,7 +15278,15 @@ var ResponseStreamer = class {
     );
   }
   /**
-   * Handles tool limit reached scenario
+   * Handles tool limit reached scenario.
+   * Displays a warning and sets up event listeners for user-driven continuation.
+   * @param messages The message history
+   * @param container The message DOM element
+   * @param responseContent The raw response content
+   * @param finalContent The processed content
+   * @param toolResults Tool results from the last step
+   * @param chatHistory Optional chat history
+   * @returns The final content with the warning appended
    */
   handleToolLimitReached(messages, container, responseContent, finalContent, toolResults, chatHistory) {
     const warning = this.agentResponseHandler.createToolLimitWarning();
@@ -14294,7 +15303,13 @@ var ResponseStreamer = class {
     return finalContent;
   }
   /**
-   * Sets up event listeners for task continuation
+   * Sets up event listeners on the messages container for task continuation actions.
+   * @param messages The message history
+   * @param container The message DOM element
+   * @param responseContent The raw response content
+   * @param finalContent The processed content
+   * @param toolResults Tool results from the last step
+   * @param chatHistory Optional chat history
    */
   setupContinuationEventListeners(messages, container, responseContent, finalContent, toolResults, chatHistory) {
     const continuationParams = {
@@ -14316,7 +15331,15 @@ var ResponseStreamer = class {
     });
   }
   /**
-   * Continues task if no limits are reached
+   * Continues task if no limits are reached and the task is not completed.
+   * Creates a TaskContinuation instance and runs the continuation loop.
+   * @param agentResult The result from AgentResponseHandler
+   * @param messages The message history
+   * @param container The message DOM element
+   * @param responseContent The raw response content
+   * @param finalContent The processed content
+   * @param chatHistory Optional chat history
+   * @returns Promise resolving to the final content after continuation
    */
   async continueTaskIfPossible(agentResult, messages, container, responseContent, finalContent, chatHistory) {
     var _a2;
@@ -14345,7 +15368,7 @@ var ResponseStreamer = class {
     return continuationResult.content;
   }
   /**
-   * Creates TaskContinuation instance
+   * Creates a TaskContinuation instance.
    */
   createTaskContinuation() {
     return new TaskContinuation(
@@ -14356,7 +15379,13 @@ var ResponseStreamer = class {
     );
   }
   /**
-   * Handles reasoning continuation when AI response contains reasoning steps
+   * Handles reasoning continuation when AI response contains reasoning steps.
+   * Adds a system message to prompt the agent to continue with execution.
+   * @param responseContent The raw response content (containing reasoning)
+   * @param messages The message history
+   * @param container The message DOM element
+   * @param chatHistory Optional chat history
+   * @returns Promise resolving to the updated content after continuation
    */
   async handleReasoningContinuation(responseContent, messages, container, chatHistory) {
     var _a2;
@@ -14376,7 +15405,11 @@ var ResponseStreamer = class {
     return responseContent;
   }
   /**
-   * Gets continuation response after tool execution with error handling
+   * Gets continuation response after tool execution with error handling.
+   * Used internally for task continuation loops.
+   * @param messages The message history for the continuation request
+   * @param container The message DOM element
+   * @returns Promise resolving to the continuation response content string
    */
   async getContinuationResponse(messages, container) {
     var _a2;
@@ -14401,7 +15434,9 @@ var ResponseStreamer = class {
     }
   }
   /**
-   * Executes task continuation with proper setup and error handling
+   * Executes task continuation with proper setup and error handling.
+   * Called when the user triggers continuation from the UI after a limit is reached.
+   * @param params ContinuationParams
    */
   async executeContinuation(params) {
     if (!this.agentResponseHandler) return;
@@ -14434,14 +15469,17 @@ var ResponseStreamer = class {
     newBotMessage.setContent(continuationResult.content);
   }
   /**
-   * Creates continuation message based on type
+   * Creates continuation message based on type (reset limit vs add tools).
+   * @param additionalTools Optional number of additional tools
+   * @returns Message object for the continuation notice
    */
   createContinuationMessage(additionalTools) {
     const content = additionalTools ? `Added ${additionalTools} additional tool executions. Continuing with the task...` : "Tool execution limit was reset. Continuing with the task...";
     return { role: "system", content };
   }
   /**
-   * Adds continuation notice to chat
+   * Adds continuation notice to chat UI.
+   * @param continueMessage The message object for the notice
    */
   async addContinuationNotice(continueMessage) {
     const { BotMessage: BotMessage2 } = await Promise.resolve().then(() => (init_BotMessage(), BotMessage_exports));
@@ -14453,7 +15491,8 @@ var ResponseStreamer = class {
     this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
   }
   /**
-   * Creates new bot message for continuation response
+   * Creates new bot message for continuation response.
+   * @returns Promise resolving to the new BotMessage instance
    */
   async createNewBotMessage() {
     const { BotMessage: BotMessage2 } = await Promise.resolve().then(() => (init_BotMessage(), BotMessage_exports));
@@ -14463,7 +15502,13 @@ var ResponseStreamer = class {
     return newBotMessage;
   }
   /**
-   * Executes task continuation logic
+   * Executes task continuation logic using TaskContinuation.
+   * @param messages The message history
+   * @param container The message DOM element
+   * @param responseContent The raw response content
+   * @param toolResults Tool results from the last step
+   * @param chatHistory Optional chat history
+   * @returns Promise resolving to the result from TaskContinuation
    */
   async executeTaskContinuation(messages, container, responseContent, toolResults, chatHistory) {
     const taskContinuation = this.createTaskContinuation();
@@ -14480,6 +15525,15 @@ var ResponseStreamer = class {
 
 // src/components/chat/MessageRegenerator.ts
 var MessageRegenerator = class {
+  /**
+   * @param plugin The plugin instance
+   * @param messagesContainer The chat messages container element
+   * @param inputContainer The chat input container element (for disabling input during regeneration)
+   * @param chatHistoryManager The chat history manager instance
+   * @param agentResponseHandler The agent response handler (for agent mode)
+   * @param activeStream The current AbortController for streaming (shared reference)
+   * @param component Optional parent component for Markdown rendering context
+   */
   constructor(plugin, messagesContainer, inputContainer, chatHistoryManager, agentResponseHandler, activeStream, component) {
     this.plugin = plugin;
     this.messagesContainer = messagesContainer;
@@ -14497,6 +15551,12 @@ var MessageRegenerator = class {
       component
     );
   }
+  /**
+   * Regenerates an assistant response for a given message element.
+   * Finds the correct user/assistant message pair, builds the context, and streams a new response.
+   * @param messageEl The message element to regenerate (user or assistant)
+   * @param buildContextMessages Function to build the initial context messages (system/context notes/etc.)
+   */
   async regenerateResponse(messageEl, buildContextMessages) {
     const textarea = this.inputContainer.querySelector("textarea");
     if (textarea) textarea.disabled = true;
@@ -14629,6 +15689,12 @@ var ChatView = class extends import_obsidian23.ItemView {
   }
   /**
    * Called when the view is opened. Sets up UI, loads history, and wires up events.
+   *
+   * - Loads chat history from disk
+   * - Builds and wires up all UI elements
+   * - Sets up event handlers for chat controls, agent mode, and input
+   * - Handles streaming, message regeneration, and tool result display
+   * - Applies YAML settings from the current note if available
    */
   async onOpen() {
     const { contentEl } = this;
@@ -14891,6 +15957,11 @@ var ChatView = class extends import_obsidian23.ItemView {
   /**
    * Adds a message to the UI and persists it to history.
    * Optionally includes enhanced data (tool results, reasoning, etc.).
+   *
+   * @param role 'user' or 'assistant'
+   * @param content Message content
+   * @param isError Whether this is an error message
+   * @param enhancedData Optional enhanced data (toolResults, reasoning, taskStatus)
    */
   async addMessage(role, content, isError = false, enhancedData) {
     const messageEl = await createMessageElement(this.app, role, content, this.chatHistoryManager, this.plugin, (el) => this.regenerateResponse(el), this, enhancedData ? { role, content, ...enhancedData } : void 0);
@@ -14919,6 +15990,8 @@ var ChatView = class extends import_obsidian23.ItemView {
   }
   /**
    * Regenerates an assistant response for a given message element.
+   * Used for retrying or modifying previous responses.
+   * @param messageEl The message element to regenerate
    */
   async regenerateResponse(messageEl) {
     if (this.messageRegenerator) {
@@ -14926,13 +15999,13 @@ var ChatView = class extends import_obsidian23.ItemView {
     }
   }
   /**
-   * Updates the reference note indicator UI.
+   * Updates the reference note indicator UI to reflect current state.
    */
   updateReferenceNoteIndicator() {
     this.contextBuilder.updateReferenceNoteIndicator(this.referenceNoteIndicator);
   }
   /**
-   * Updates the model name display UI.
+   * Updates the model name display UI to show the current model.
    */
   updateModelNameDisplay() {
     if (!this.modelNameDisplay) return;
@@ -14949,6 +16022,7 @@ var ChatView = class extends import_obsidian23.ItemView {
   }
   /**
    * Builds the context messages for the assistant (system prompt, reference note, etc.).
+   * @returns Array of context messages
    */
   async buildContextMessages() {
     return await this.contextBuilder.buildContextMessages();
@@ -14956,6 +16030,12 @@ var ChatView = class extends import_obsidian23.ItemView {
   /**
    * Streams the assistant response and updates the UI in real time.
    * Optionally updates an existing message in history.
+   *
+   * @param messages Array of context and chat messages
+   * @param container The DOM element to stream response into
+   * @param originalTimestamp (Optional) Timestamp if updating an existing message
+   * @param originalContent (Optional) Original content if updating
+   * @returns The streamed assistant response content
    */
   async streamAssistantResponse(messages, container, originalTimestamp, originalContent) {
     if (!this.responseStreamer) {
@@ -15005,6 +16085,7 @@ var ChatView = class extends import_obsidian23.ItemView {
   /**
    * Insert a rich tool display into the messages container.
    * Used for displaying tool results outside of normal chat flow.
+   * @param display The ToolRichDisplay instance to insert
    */
   insertToolDisplay(display) {
     const toolDisplayWrapper = document.createElement("div");
@@ -15062,7 +16143,9 @@ function registerViewCommands(plugin) {
       callback: () => activateView(plugin.app, VIEW_TYPE_MODEL_SETTINGS)
     },
     "file-sliders",
+    // Icon ID for the command palette
     "Open AI Settings"
+    // Display name in the command palette
   );
   registerCommand(
     plugin,
@@ -15072,7 +16155,9 @@ function registerViewCommands(plugin) {
       callback: () => activateView(plugin.app, VIEW_TYPE_CHAT)
     },
     "message-square",
+    // Icon ID for the command palette
     "Open AI Chat"
+    // Display name in the command palette
   );
 }
 
@@ -15253,6 +16338,7 @@ function registerAIStreamCommands(plugin, settings, processMessages2, activeStre
         settings,
         processMessages2,
         () => getSystemMessage(settings),
+        // Function to get the current system message
         activeStream,
         setActiveStream
       )
@@ -15451,7 +16537,14 @@ ${wikiLink}`;
 // src/components/chat/CollapsibleSection.ts
 var CollapsibleSectionRenderer = class {
   /**
-   * Creates a collapsible section with a header that can be toggled
+   * Creates a collapsible section with a header that can be toggled.
+   * The expanded/collapsed state is persisted in plugin settings.
+   * 
+   * @param containerEl The parent container element to append the section to.
+   * @param title The title of the collapsible section.
+   * @param contentCallback Callback to populate the section content (receives the content element).
+   * @param plugin The plugin instance (for settings and saving state).
+   * @param settingsType The key in MyPluginSettings where expand/collapse state is stored.
    */
   static createCollapsibleSection(containerEl, title, contentCallback, plugin, settingsType) {
     var _a2;
@@ -15486,6 +16579,10 @@ var CollapsibleSectionRenderer = class {
 // src/settings/components/SettingCreators.ts
 var import_obsidian25 = require("obsidian");
 var SettingCreators = class {
+  /**
+   * @param plugin The plugin instance, used for saving settings.
+   * @param reRenderCallback A callback function to re-render the settings tab/modal.
+   */
   constructor(plugin, reRenderCallback) {
     __publicField(this, "plugin");
     __publicField(this, "reRenderCallback");
@@ -15493,7 +16590,7 @@ var SettingCreators = class {
     this.reRenderCallback = reRenderCallback;
   }
   /**
-   * Creates a text input setting.
+   * Creates a text input setting (either single-line or multi-line).
    * @param containerEl The HTML element to append the setting to.
    * @param name The name of the setting.
    * @param desc The description of the setting.
@@ -15517,6 +16614,7 @@ var SettingCreators = class {
   }
   /**
    * Configures a text input (either single-line or multi-line).
+   * Handles value processing (trimming, setting to undefined if empty) and saving on blur.
    * @param textComponent The TextComponent or TextAreaComponent to configure.
    * @param placeholder The placeholder text.
    * @param getValue A function to get the current value.
@@ -15541,7 +16639,10 @@ var SettingCreators = class {
     });
   }
   /**
-   * Helper method to update setting value without saving
+   * Helper method to update setting value without triggering a full save to disk immediately.
+   * This is useful for inputs where changes are frequent (e.g., textareas) and saving should be debounced or on blur.
+   * @param setValue The function to call to update the setting's value.
+   * @param value The new value for the setting.
    */
   updateSettingValueOnly(setValue, value) {
     const originalSaveSettings = this.plugin.saveSettings;
@@ -15613,12 +16714,20 @@ var SettingCreators = class {
 
 // src/settings/sections/GeneralSettingsSection.ts
 var GeneralSettingsSection = class {
+  /**
+   * @param plugin The main plugin instance.
+   * @param settingCreators An instance of SettingCreators for consistent UI element creation.
+   */
   constructor(plugin, settingCreators) {
     __publicField(this, "plugin");
     __publicField(this, "settingCreators");
     this.plugin = plugin;
     this.settingCreators = settingCreators;
   }
+  /**
+   * Renders the General Settings sections (Plugin Behavior, Date & Time, Debug) into the provided container element.
+   * @param containerEl The HTML element to render the sections into.
+   */
   async render(containerEl) {
     containerEl.createEl("h3", { text: "Plugin Behavior" });
     this.settingCreators.createToggleSetting(
@@ -15673,12 +16782,20 @@ var GeneralSettingsSection = class {
 var import_obsidian26 = require("obsidian");
 init_providers();
 var AIModelConfigurationSection = class {
+  /**
+   * @param plugin The main plugin instance.
+   * @param settingCreators An instance of SettingCreators for consistent UI element creation.
+   */
   constructor(plugin, settingCreators) {
     __publicField(this, "plugin");
     __publicField(this, "settingCreators");
     this.plugin = plugin;
     this.settingCreators = settingCreators;
   }
+  /**
+   * Renders the AI Model Configuration section into the provided container element.
+   * @param containerEl The HTML element to render the section into.
+   */
   async render(containerEl) {
     containerEl.createEl("h3", { text: "API Keys & Providers" });
     CollapsibleSectionRenderer.createCollapsibleSection(
@@ -15792,6 +16909,10 @@ var AIModelConfigurationSection = class {
   }
   /**
    * Renders the provider connection test section.
+   * Allows users to test their API key and fetch available models for a given provider.
+   * @param containerEl The HTML element to append the section to.
+   * @param provider The ID of the provider (e.g., 'openai', 'anthropic').
+   * @param displayName The display name of the provider (e.g., 'OpenAI', 'Anthropic').
    */
   renderProviderTestSection(containerEl, provider, displayName) {
     const settings = this.plugin.settings[`${provider}Settings`];
@@ -15845,7 +16966,9 @@ var AIModelConfigurationSection = class {
     }
   }
   /**
-   * AI Model Settings Section
+   * Renders the AI Model Settings section.
+   * This includes system message, streaming, temperature, and model selection.
+   * @param containerEl The HTML element to append the section to.
    */
   async renderAIModelSettings(containerEl) {
     if (this.plugin.settings.modelSettingPresets && this.plugin.settings.modelSettingPresets.length > 0) {
@@ -15899,7 +17022,9 @@ var AIModelConfigurationSection = class {
     await this.renderUnifiedModelDropdown(containerEl);
   }
   /**
-   * Renders the unified model selection dropdown
+   * Renders the unified model selection dropdown.
+   * This dropdown allows users to select from all available models across all configured providers.
+   * @param containerEl The HTML element to append the dropdown to.
    */
   async renderUnifiedModelDropdown(containerEl) {
     if (!this.plugin.settings.availableModels || this.plugin.settings.availableModels.length === 0) {
@@ -15946,17 +17071,19 @@ var AIModelConfigurationSection = class {
     }
   }
   /**
-   * Refreshes available models from all configured providers
+   * Refreshes available models from all configured providers.
+   * This function iterates through all known providers, tests their connection,
+   * and updates the list of available models in the plugin settings.
    */
   async refreshAllAvailableModels() {
     const providers = ["openai", "anthropic", "gemini", "ollama"];
+    let originalProvider;
     for (const providerType of providers) {
       try {
-        const originalProvider = this.plugin.settings.provider;
+        originalProvider = this.plugin.settings.provider;
         this.plugin.settings.provider = providerType;
         const providerInstance = createProvider(this.plugin.settings);
         const result = await providerInstance.testConnection();
-        this.plugin.settings.provider = originalProvider;
         const providerSettings = this.plugin.settings[`${providerType}Settings`];
         if (result.success && result.models) {
           providerSettings.availableModels = result.models;
@@ -15974,91 +17101,79 @@ var AIModelConfigurationSection = class {
         }
       } catch (error) {
         console.error(`Error testing ${providerType}:`, error);
+      } finally {
+        if (originalProvider !== void 0) {
+          this.plugin.settings.provider = originalProvider;
+        }
       }
     }
     this.plugin.settings.availableModels = await getAllAvailableModels(this.plugin.settings);
     await this.plugin.saveSettings();
   }
   /**
-   * Renders the Available Models section with checkboxes for each model.
+   * Renders the Available Models section in the Model Management settings.
+   * This section displays all models available from configured providers and allows
+   * enabling/disabling models and deleting local copies of models.
+   * @param containerEl The HTML element to append the section to.
    */
   async renderAvailableModelsSection(containerEl) {
-    containerEl.createEl("div", {
-      text: "Choose which models are available in model selection menus throughout the plugin.",
-      cls: "setting-item-description",
-      attr: { style: "margin-bottom: 1em;" }
-    });
-    const buttonRow = containerEl.createDiv({ cls: "ai-models-button-row" });
-    new import_obsidian26.Setting(buttonRow).addButton((btn) => {
-      btn.setButtonText("Refresh Models").setCta().onClick(async () => {
-        btn.setButtonText("Refreshing...");
-        btn.setDisabled(true);
-        try {
-          this.plugin.settings.availableModels = await getAllAvailableModels(this.plugin.settings);
-          await this.plugin.saveSettings();
-          new import_obsidian26.Notice("Available models refreshed.");
-        } catch (e) {
-          new import_obsidian26.Notice("Error refreshing models: " + ((e == null ? void 0 : e.message) || e));
-        } finally {
-          btn.setButtonText("Refresh Models");
-          btn.setDisabled(false);
-        }
-      });
-    }).addButton((btn) => {
-      btn.setButtonText("All On").onClick(async () => {
-        let allModels2 = this.plugin.settings.availableModels || [];
-        if (allModels2.length === 0) {
-          allModels2 = await getAllAvailableModels(this.plugin.settings);
-        }
-        if (!this.plugin.settings.enabledModels) this.plugin.settings.enabledModels = {};
-        allModels2.forEach((model) => {
-          this.plugin.settings.enabledModels[model.id] = true;
-        });
-        await this.plugin.saveSettings();
-      });
-    }).addButton((btn) => {
-      btn.setButtonText("All Off").onClick(async () => {
-        let allModels2 = this.plugin.settings.availableModels || [];
-        if (allModels2.length === 0) {
-          allModels2 = await getAllAvailableModels(this.plugin.settings);
-        }
-        if (!this.plugin.settings.enabledModels) this.plugin.settings.enabledModels = {};
-        allModels2.forEach((model) => {
-          this.plugin.settings.enabledModels[model.id] = false;
-        });
-        await this.plugin.saveSettings();
-      });
-    });
-    let allModels = this.plugin.settings.availableModels || [];
-    if (allModels.length === 0) {
-      allModels = await getAllAvailableModels(this.plugin.settings);
+    const availableModels = this.plugin.settings.availableModels || [];
+    if (availableModels.length === 0) {
+      containerEl.createEl("div", { text: "No models available. Configure providers and refresh to load models.", cls: "setting-item-description" });
+      return;
     }
-    if (!this.plugin.settings.enabledModels) this.plugin.settings.enabledModels = {};
-    if (allModels.length === 0) {
-      containerEl.createEl("div", { text: "No models found. Please configure your providers and refresh available models.", cls: "setting-item-description" });
-    } else {
-      allModels = allModels.slice().sort((a, b) => {
-        if (a.provider !== b.provider) {
-          return a.provider.localeCompare(b.provider);
-        }
-        return (a.name || a.id).localeCompare(b.name || b.id);
+    const table = containerEl.createEl("table");
+    const thead = table.createEl("thead");
+    const tbody = table.createEl("tbody");
+    const headerRow = thead.createEl("tr");
+    headerRow.createEl("th", { text: "Model" });
+    headerRow.createEl("th", { text: "Provider" });
+    headerRow.createEl("th", { text: "Enabled" });
+    headerRow.createEl("th", { text: "Actions" });
+    for (const model of availableModels) {
+      const row = tbody.createEl("tr");
+      row.createEl("td", { text: model.name });
+      row.createEl("td", { text: model.provider });
+      const enabledToggle = new import_obsidian26.Setting(row.createEl("td")).setName("").setDesc("Enable or disable this model").addToggle((toggle) => {
+        var _a2;
+        return toggle.setValue(((_a2 = this.plugin.settings.enabledModels) == null ? void 0 : _a2[model.id]) !== false).onChange(async (value) => {
+          const enabledModels = this.plugin.settings.enabledModels || {};
+          enabledModels[model.id] = value ? true : false;
+          this.plugin.settings.enabledModels = enabledModels;
+          await this.plugin.saveSettings();
+        });
       });
-      allModels.forEach((model) => {
-        this.settingCreators.createToggleSetting(
-          containerEl,
-          model.name || model.id,
-          `Enable or disable "${model.name || model.id}" (${model.id}) in model selection menus.`,
-          () => this.plugin.settings.enabledModels[model.id] !== false,
-          async (value) => {
-            this.plugin.settings.enabledModels[model.id] = value;
+      const actionsCell = row.createEl("td");
+      new import_obsidian26.Setting(actionsCell).setName("").setDesc("Delete local copy of this model").addButton((button) => button.setButtonText("Delete").setWarning().onClick(async () => {
+        const confirmed = confirm(`Are you sure you want to delete the local copy of the model "${model.name}"?`);
+        if (confirmed) {
+          try {
+            await this.plugin.app.vault.adapter.remove(`ai-models/${model.id}.json`);
+            this.plugin.settings.availableModels = await getAllAvailableModels(this.plugin.settings);
             await this.plugin.saveSettings();
+            new import_obsidian26.Notice(`Deleted model "${model.name}"`);
+            containerEl.empty();
+            await this.renderAvailableModelsSection(containerEl);
+          } catch (error) {
+            new import_obsidian26.Notice(`Error deleting model: ${error.message}`);
           }
-        );
-      });
+        }
+      })).addButton((button) => button.setButtonText("Re-download").onClick(async () => {
+        const confirmed = confirm(`Are you sure you want to re-download the model "${model.name}"?`);
+        if (confirmed) {
+          try {
+            new import_obsidian26.Notice(`Re-download feature is not yet implemented. Please pull the model again using the provider settings.`);
+          } catch (error) {
+            new import_obsidian26.Notice(`Error re-downloading model: ${error.message}`);
+          }
+        }
+      }));
     }
   }
   /**
    * Renders the Model Setting Presets section.
+   * This section allows users to create, edit, and delete model setting presets.
+   * @param containerEl The HTML element to append the section to.
    */
   renderModelSettingPresets(containerEl) {
     containerEl.createEl("div", {
@@ -16145,6 +17260,11 @@ var AIModelConfigurationSection = class {
 init_toolcollect();
 init_promptConstants();
 var AgentSettingsSection = class {
+  /**
+   * @param app The Obsidian App instance.
+   * @param plugin The main plugin instance.
+   * @param settingCreators An instance of SettingCreators for consistent UI element creation.
+   */
   constructor(app, plugin, settingCreators) {
     __publicField(this, "app");
     __publicField(this, "plugin");
@@ -16156,6 +17276,10 @@ var AgentSettingsSection = class {
       this.plugin.debugLog("debug", "[AgentSettingsSection] constructor called");
     }
   }
+  /**
+   * Renders the Agent Mode settings section into the provided container element.
+   * @param containerEl The HTML element to render the section into.
+   */
   async render(containerEl) {
     if (this.plugin && typeof this.plugin.debugLog === "function") {
       this.plugin.debugLog("info", "[AgentSettingsSection] render called");
@@ -16284,6 +17408,8 @@ var AgentSettingsSection = class {
   }
   /**
    * Renders the Tool Enable/Disable section.
+   * Allows users to enable or disable individual tools available to the agent.
+   * @param containerEl The HTML element to append the section to.
    */
   renderToolToggles(containerEl) {
     containerEl.createEl("div", {
@@ -16340,12 +17466,21 @@ var AgentSettingsSection = class {
 // src/settings/sections/ContentNoteHandlingSection.ts
 var import_obsidian27 = require("obsidian");
 var ContentNoteHandlingSection = class {
+  /**
+   * @param plugin The main plugin instance.
+   * @param settingCreators An instance of SettingCreators for consistent UI element creation.
+   */
   constructor(plugin, settingCreators) {
     __publicField(this, "plugin");
     __publicField(this, "settingCreators");
     this.plugin = plugin;
     this.settingCreators = settingCreators;
   }
+  /**
+   * Renders the Content & Note Handling settings sections into the provided container element.
+   * This includes chat customization, note reference settings, data handling, and YAML attribute generators.
+   * @param containerEl The HTML element to render the sections into.
+   */
   async render(containerEl) {
     containerEl.createEl("h3", { text: "Chat Customization" });
     this.settingCreators.createTextSetting(
@@ -16453,7 +17588,7 @@ var ContentNoteHandlingSection = class {
     );
     const contextNotesContainer = containerEl.createDiv("context-notes-container");
     contextNotesContainer.style.marginBottom = "24px";
-    new import_obsidian27.Setting(contextNotesContainer).setName("Context Notes").setDesc("Notes to attach as context (supports [[filename]] and [[filename#header]] syntax)").addTextArea((text) => {
+    new import_obsidian27.Setting(contextNotesContainer).setName("Context Notes").setDesc("Notes to attach as context (supports [[filename]] and [[another note#header]] syntax)").addTextArea((text) => {
       text.setPlaceholder("[[Note Name]]\n[[Another Note#Header]]").setValue(this.plugin.settings.contextNotes || "").onChange((value) => {
         this.plugin.settings.contextNotes = value;
       });
@@ -16513,6 +17648,9 @@ var ContentNoteHandlingSection = class {
   }
   /**
    * Renders the YAML Attribute Generators section.
+   * This section allows users to define custom YAML attributes that can be generated by the AI
+   * and inserted into notes.
+   * @param containerEl The HTML element to append the section to.
    */
   renderYamlAttributeGenerators(containerEl) {
     var _a2;
@@ -16576,12 +17714,12 @@ var ContentNoteHandlingSection = class {
     new import_obsidian27.Setting(containerEl).addButton((btn) => {
       btn.setButtonText("Add YAML Attribute Generator").setCta().onClick(async () => {
         if (!this.plugin.settings.yamlAttributeGenerators) this.plugin.settings.yamlAttributeGenerators = [];
-        this.plugin.settings.yamlAttributeGenerators.push({
+        this.plugin.settings.yamlAttributeGenerators.push(JSON.parse(JSON.stringify({
           attributeName: "",
           prompt: "",
           outputMode: "metadata",
           commandName: "New YAML Generator"
-        });
+        })));
         await this.plugin.saveSettings();
       });
     });
@@ -16594,7 +17732,11 @@ var import_obsidian28 = require("obsidian");
 // src/settings/components/DialogHelpers.ts
 var DialogHelpers = class {
   /**
-   * Shows a confirmation dialog
+   * Shows a confirmation dialog to the user.
+   * This is a custom modal implementation, not using Obsidian's built-in Modal class directly.
+   * @param title The title of the confirmation dialog.
+   * @param message The message to display in the dialog.
+   * @returns A Promise that resolves to true if the user confirms, false otherwise.
    */
   static showConfirmationDialog(title, message) {
     return new Promise((resolve) => {
@@ -16655,18 +17797,28 @@ var DialogHelpers = class {
 // src/settings/sections/BackupManagementSection.ts
 init_typeguards();
 var BackupManagementSection = class {
+  /**
+   * @param plugin The main plugin instance.
+   * @param settingCreators An instance of SettingCreators for consistent UI element creation.
+   */
   constructor(plugin, settingCreators) {
     __publicField(this, "plugin");
     __publicField(this, "settingCreators");
     this.plugin = plugin;
     this.settingCreators = settingCreators;
   }
+  /**
+   * Renders both the Backup Management and Trash Management sections.
+   * @param containerEl The HTML element to render the sections into.
+   */
   async render(containerEl) {
     await this.renderBackupManagement(containerEl);
     await this.renderTrashManagement(containerEl);
   }
   /**
    * Renders the Backup Management section.
+   * This section provides an overview of backups, allows refreshing the list, and deleting all backups.
+   * It also includes a collapsible list of individual backup files.
    * @param containerEl The HTML element to append the section to.
    */
   async renderBackupManagement(containerEl) {
@@ -16734,6 +17886,13 @@ var BackupManagementSection = class {
       "backupManagementExpanded"
     );
   }
+  /**
+   * Renders the list of individual backup files within a container.
+   * For each file, it displays its backups and provides options to restore, delete, or preview them.
+   * @param containerEl The HTML element to append the backup list to.
+   * @param backupFiles An array of file paths that have backups.
+   * @param backupManager The backup manager instance to interact with backups.
+   */
   async renderBackupFilesList(containerEl, backupFiles, backupManager) {
     for (const filePath of backupFiles) {
       const backups = await backupManager.getBackupsForFile(filePath);
@@ -16786,6 +17945,8 @@ var BackupManagementSection = class {
             try {
               await backupManager.deleteSpecificBackup(filePath, backup.timestamp);
               new import_obsidian28.Notice(`Deleted backup for ${filePath}`);
+              containerEl.empty();
+              await this.renderBackupFilesList(containerEl, backupFiles, backupManager);
             } catch (error) {
               new import_obsidian28.Notice(`Error deleting backup: ${error.message}`);
             }
@@ -16826,6 +17987,8 @@ Stored at: ${backup.backupFilePath || "Unknown location"}`, 5e3);
           try {
             await backupManager.deleteBackupsForFile(filePath);
             new import_obsidian28.Notice(`Deleted all backups for ${filePath}`);
+            containerEl.empty();
+            await this.renderBackupFilesList(containerEl, backupFiles, backupManager);
           } catch (error) {
             new import_obsidian28.Notice(`Error deleting backups: ${error.message}`);
           }
@@ -16835,6 +17998,7 @@ Stored at: ${backup.backupFilePath || "Unknown location"}`, 5e3);
   }
   /**
    * Renders the Trash Management section.
+   * This section provides an overview of items in the .trash folder and allows refreshing, emptying, restoring, and permanently deleting individual items.
    * @param containerEl The HTML element to append the section to.
    */
   async renderTrashManagement(containerEl) {
@@ -17019,12 +18183,20 @@ Stored at: ${backup.backupFilePath || "Unknown location"}`, 5e3);
 
 // src/settings/sections/ChatHistorySettingsSection.ts
 var ChatHistorySettingsSection = class {
+  /**
+   * @param plugin The main plugin instance.
+   * @param settingCreators An instance of SettingCreators for consistent UI element creation.
+   */
   constructor(plugin, settingCreators) {
     __publicField(this, "plugin");
     __publicField(this, "settingCreators");
     this.plugin = plugin;
     this.settingCreators = settingCreators;
   }
+  /**
+   * Renders the Chat History & Sessions and UI Behavior settings sections into the provided container element.
+   * @param containerEl The HTML element to render the sections into.
+   */
   async render(containerEl) {
     containerEl.createEl("h3", { text: "Chat History & Sessions" });
     this.settingCreators.createSliderSetting(
@@ -17102,16 +18274,32 @@ var ChatHistorySettingsSection = class {
 
 // src/settings/SettingTab.ts
 var MyPluginSettingTab = class extends import_obsidian29.PluginSettingTab {
+  /**
+   * Constructs the settings tab and initializes all settings sections.
+   *
+   * @param app - The Obsidian app instance.
+   * @param plugin - The plugin instance.
+   */
   constructor(app, plugin) {
     super(app, plugin);
+    /** Reference to the plugin instance. */
     __publicField(this, "plugin");
+    /** Helper for creating settings UI elements. */
     __publicField(this, "settingCreators");
+    // Section managers for each logical group of settings
+    /** General plugin settings section. */
     __publicField(this, "generalSettingsSection");
+    /** AI model configuration section. */
     __publicField(this, "aiModelConfigurationSection");
+    /** Agent settings section. */
     __publicField(this, "agentSettingsSection");
+    /** Content and note handling section. */
     __publicField(this, "contentNoteHandlingSection");
+    /** Backup and trash management section. */
     __publicField(this, "backupManagementSection");
+    /** Chat history and UI section. */
     __publicField(this, "chatHistorySettingsSection");
+    /** Listener for settings changes, used to refresh the UI when settings are updated elsewhere. */
     __publicField(this, "settingsChangeListener", null);
     this.plugin = plugin;
     this.settingCreators = new SettingCreators(this.plugin, () => this.display());
@@ -17131,6 +18319,10 @@ var MyPluginSettingTab = class extends import_obsidian29.PluginSettingTab {
     };
     this.plugin.onSettingsChange(this.settingsChangeListener);
   }
+  /**
+   * Called when the settings tab is hidden.
+   * Cleans up the settings change listener to avoid memory leaks.
+   */
   hide() {
     if (this.settingsChangeListener) {
       this.plugin.offSettingsChange(this.settingsChangeListener);
@@ -17139,8 +18331,10 @@ var MyPluginSettingTab = class extends import_obsidian29.PluginSettingTab {
     super.hide();
   }
   /**
-   * Display the settings tab.
-   * This method orchestrates the rendering of all setting sections.
+   * Renders the settings tab UI.
+   *
+   * This method orchestrates the rendering of all collapsible settings sections and the reset-to-defaults button.
+   * It is called automatically when the tab is shown, and can be called to refresh the UI after changes.
    */
   display() {
     if (this.plugin && typeof this.plugin.debugLog === "function") {
@@ -17245,6 +18439,7 @@ var ModelSettingsView = class extends import_obsidian30.ItemView {
   }
   async onClose() {
     this.plugin.offSettingsChange(this._onSettingsChange);
+    this.contentEl.empty();
   }
 };
 
@@ -17253,12 +18448,22 @@ init_logger();
 
 // src/components/chat/agent/agentModeManager.ts
 var AgentModeManager = class {
+  /**
+   * @param settings The plugin's settings object (mutable reference)
+   * @param saveSettings Function to persist settings to disk
+   * @param emitSettingsChange Function to notify listeners of settings changes
+   * @param debugLog Logging function for debug/info/warn/error
+   */
   constructor(settings, saveSettings, emitSettingsChange, debugLog2) {
     this.settings = settings;
     this.saveSettings = saveSettings;
     this.emitSettingsChange = emitSettingsChange;
     this.debugLog = debugLog2;
   }
+  /**
+   * Returns the current agent mode settings, or defaults if not set.
+   * @returns AgentModeSettings object
+   */
   getAgentModeSettings() {
     return this.settings.agentMode || {
       enabled: false,
@@ -17267,9 +18472,18 @@ var AgentModeManager = class {
       maxIterations: 10
     };
   }
+  /**
+   * Checks if agent mode is enabled.
+   * @returns True if agent mode is enabled, false otherwise.
+   */
   isAgentModeEnabled() {
     return this.getAgentModeSettings().enabled;
   }
+  /**
+   * Enables or disables agent mode, persists the change, and emits a settings change event.
+   * Initializes agentMode settings if not present.
+   * @param enabled True to enable agent mode, false to disable.
+   */
   async setAgentModeEnabled(enabled) {
     this.debugLog("info", "[agentModeManager.ts] setAgentModeEnabled called", { enabled });
     if (!this.settings.agentMode) {

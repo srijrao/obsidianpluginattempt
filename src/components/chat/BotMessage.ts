@@ -2,6 +2,10 @@ import { App, Component, MarkdownRenderer } from 'obsidian';
 import MyPlugin from '../../main';
 import { Buttons } from './Buttons';
 
+/**
+ * BotMessage represents a single assistant message in the chat UI.
+ * Handles rendering, editing, copying, deleting, and regenerating the message.
+ */
 export class BotMessage extends Component {
     private app: App;
     private plugin: MyPlugin;
@@ -9,6 +13,12 @@ export class BotMessage extends Component {
     private element: HTMLElement;
     private contentEl: HTMLElement;
 
+    /**
+     * Constructs a BotMessage instance.
+     * @param app Obsidian App instance
+     * @param plugin Plugin instance (for settings, logging, etc.)
+     * @param content The message content (markdown)
+     */
     constructor(app: App, plugin: MyPlugin, content: string) {
         super();
         this.app = app;
@@ -17,19 +27,28 @@ export class BotMessage extends Component {
         this.element = this.createMessageElement();
     }
 
+    /**
+     * Returns the root element for this message.
+     */
     getElement(): HTMLElement {
         return this.element;
     }
 
+    /**
+     * Returns the current message content.
+     */
     getContent(): string {
         return this.content;
     }
 
+    /**
+     * Updates the message content and re-renders the markdown.
+     * @param content The new message content
+     */
     async setContent(content: string): Promise<void> {
         this.content = content;
         this.element.dataset.rawContent = content;
-        
-        
+        // Clear and re-render markdown
         this.contentEl.empty();
         await MarkdownRenderer.render(
             this.app,
@@ -40,18 +59,20 @@ export class BotMessage extends Component {
         );
     }
 
+    /**
+     * Creates the message DOM element, including content and action buttons.
+     * @returns The root message element
+     */
     private createMessageElement(): HTMLElement {
         const messageEl = document.createElement('div');
         messageEl.addClass('ai-chat-message', 'assistant');
         messageEl.dataset.rawContent = this.content;
 
-        
+        // Message container for content and actions
         const messageContainer = messageEl.createDiv('message-container');
 
-        
+        // Content element for markdown rendering
         this.contentEl = messageContainer.createDiv('message-content');
-        
-        
         MarkdownRenderer.render(
             this.app,
             this.content,
@@ -60,7 +81,7 @@ export class BotMessage extends Component {
             this
         );
 
-        
+        // Action buttons (Copy, Edit, Delete, Regenerate)
         const buttons = new Buttons();
         const actions = buttons.createMessageActions([
             {
@@ -77,9 +98,8 @@ export class BotMessage extends Component {
                 tooltip: 'Edit message',
                 onClick: () => {
                     const wasEditing = this.contentEl.hasClass('editing');
-                    
                     if (!wasEditing) {
-                        
+                        // Enter edit mode: replace content with textarea
                         const textarea = document.createElement('textarea');
                         textarea.value = messageEl.dataset.rawContent || '';
                         this.contentEl.empty();
@@ -87,7 +107,7 @@ export class BotMessage extends Component {
                         textarea.focus();
                         this.contentEl.addClass('editing');
                     } else {
-                        
+                        // Exit edit mode: save textarea value as new content
                         const textarea = this.contentEl.querySelector('textarea');
                         if (textarea) {
                             this.setContent(textarea.value);
@@ -107,6 +127,7 @@ export class BotMessage extends Component {
                 label: 'Regenerate',
                 tooltip: 'Regenerate this response',
                 onClick: () => {
+                    // Trigger a custom event for regeneration
                     const event = new CustomEvent('ai-assistant:regenerate-response', {
                         detail: { messageEl }
                     });
@@ -115,16 +136,16 @@ export class BotMessage extends Component {
             }
         ]);
 
-        
+        // Optionally, add hover effects or other UI logic here
         messageEl.addEventListener('mouseenter', () => {
-            
+            // ...existing code...
         });
         messageEl.addEventListener('mouseleave', () => {
-            
+            // ...existing code...
         });
 
         messageContainer.appendChild(actions);
-        
+
         return messageEl;
     }
 }

@@ -1,3 +1,9 @@
+/**
+ * @file This file contains general utility functions used throughout the plugin.
+ * These functions provide common functionalities such as debouncing, displaying notices,
+ * clipboard operations, editor manipulations, file searching, and content extraction.
+ */
+
 import { debugLog } from './logger';
 
 /**

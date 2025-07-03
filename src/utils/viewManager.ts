@@ -1,3 +1,9 @@
+/**
+ * @file This file provides utility functions for managing views within the Obsidian workspace.
+ * It includes a function to activate and reveal specific view types, ensuring that
+ * the desired view is brought into focus for the user.
+ */
+
 import { App, Plugin } from 'obsidian';
 
 /**

@@ -1,3 +1,9 @@
+/**
+ * @file This file contains utility functions specifically designed for Obsidian plugin development.
+ * It provides helper functions for common plugin tasks, such as registering commands
+ * and optionally associating them with ribbon icons in the Obsidian UI.
+ */
+
 import { Editor, Plugin } from 'obsidian';
 
 /**

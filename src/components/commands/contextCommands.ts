@@ -5,14 +5,19 @@ import { MyPluginSettings } from '../../types';
 
 /**
  * Registers context-related commands for various settings and operations.
- * @param plugin The plugin instance.
- * @param settings The plugin settings.
+ * These commands allow users to control how context notes and Obsidian links are handled.
+ * 
+ * @param plugin The Obsidian plugin instance.
+ * @param settings The plugin's current settings.
  */
 export function registerContextCommands(
     plugin: Plugin,
     settings: MyPluginSettings
 ) {
-    
+    /**
+     * Registers the 'Toggle Enable Obsidian Links' command.
+     * This command toggles the setting that controls whether Obsidian links are read in messages.
+     */
     registerCommand(
         plugin,
         {
@@ -20,7 +25,7 @@ export function registerContextCommands(
             name: 'Toggle Enable Obsidian Links',
             callback: async () => {
                 settings.enableObsidianLinks = !settings.enableObsidianLinks;
-                await (plugin as any).saveSettings();
+                await (plugin as any).saveSettings(); // Save updated settings
                 
                 const status = settings.enableObsidianLinks ? 'enabled' : 'disabled';
                 showNotice(`Obsidian Links ${status}`);
@@ -28,7 +33,10 @@ export function registerContextCommands(
         }
     );
 
-    
+    /**
+     * Registers the 'Toggle Enable Context Notes' command.
+     * This command toggles the setting that controls whether specified context notes are attached to chat messages.
+     */
     registerCommand(
         plugin,
         {
@@ -36,7 +44,7 @@ export function registerContextCommands(
             name: 'Toggle Enable Context Notes',
             callback: async () => {
                 settings.enableContextNotes = !settings.enableContextNotes;
-                await (plugin as any).saveSettings();
+                await (plugin as any).saveSettings(); // Save updated settings
                 
                 const status = settings.enableContextNotes ? 'enabled' : 'disabled';
                 showNotice(`Context Notes ${status}`);
@@ -44,34 +52,41 @@ export function registerContextCommands(
         }
     );
 
-    
+    /**
+     * Registers the 'Clear Context Notes' command.
+     * This command clears all content from the context notes setting.
+     */
     registerCommand(
         plugin,
         {
             id: 'clear-context-notes',
             name: 'Clear Context Notes',
             callback: async () => {
-                settings.contextNotes = '';
-                await (plugin as any).saveSettings();
+                settings.contextNotes = ''; // Clear context notes
+                await (plugin as any).saveSettings(); // Save updated settings
                 showNotice('Context Notes cleared');
             }
         }
     );
 
-    
+    /**
+     * Registers the 'Copy Context Notes to Clipboard' command.
+     * This command copies the content of the context notes setting to the user's clipboard.
+     */
     registerCommand(
         plugin,
         {
             id: 'copy-context-notes-to-clipboard',
             name: 'Copy Context Notes to Clipboard',
             callback: async () => {
+                // Check if there are any context notes to copy
                 if (!settings.contextNotes || settings.contextNotes.trim().length === 0) {
                     showNotice('No context notes to copy');
                     return;
                 }
 
                 try {
-                    await navigator.clipboard.writeText(settings.contextNotes);
+                    await navigator.clipboard.writeText(settings.contextNotes); // Copy to clipboard
                     showNotice('Context notes copied to clipboard');
                 } catch (error) {
                     console.error('Failed to copy context notes to clipboard:', error);
@@ -81,7 +96,10 @@ export function registerContextCommands(
         }
     );
 
-    
+    /**
+     * Registers the 'Add Current Note to Context Notes' command.
+     * This command adds a wiki link to the currently active note to the context notes setting.
+     */
     registerCommand(
         plugin,
         {
@@ -97,20 +115,20 @@ export function registerContextCommands(
                 const noteTitle = activeFile.basename;
                 const wikiLink = `[[${noteTitle}]]`;
 
-                
+                // Check if the note is already in context notes to avoid duplicates
                 if (settings.contextNotes && settings.contextNotes.includes(wikiLink)) {
                     showNotice(`"${noteTitle}" is already in context notes`);
                     return;
                 }
 
-                
+                // Append the wiki link to existing context notes or set it if empty
                 if (settings.contextNotes && settings.contextNotes.trim().length > 0) {
                     settings.contextNotes += `\n${wikiLink}`;
                 } else {
                     settings.contextNotes = wikiLink;
                 }
 
-                await (plugin as any).saveSettings();
+                await (plugin as any).saveSettings(); // Save updated settings
                 showNotice(`Added "${noteTitle}" to context notes`);
             }
         }
