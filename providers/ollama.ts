@@ -8,7 +8,7 @@
 
 import { Message, CompletionOptions, ConnectionTestResult } from '../src/types';
 import { BaseProvider, ProviderError, ProviderErrorType } from './base';
-import { log } from '../src/utils/logger'; // Import log
+import { debugLog } from '../src/utils/logger'; // Import debugLog
 
 interface OllamaResponse {
     model: string;
@@ -61,6 +61,8 @@ export class OllamaProvider extends BaseProvider {
         this.baseUrl = serverUrl.replace(/\/$/, ''); // Remove trailing slash if present
         this.model = model;
         this.debugMode = debugMode; // Initialize debugMode
+
+        debugLog(true, 'debug', '[Ollama Provider] Initializing Ollama API', { config: { serverUrl, model, debugMode } }); // Debug log initialization
     }
 
     /**
@@ -130,7 +132,7 @@ export class OllamaProvider extends BaseProvider {
                                 options.streamCallback(data.response);
                             }
                         } catch (e) {
-                            log(this.debugMode, 'warn', 'Error parsing Ollama response chunk:', e); // Use log
+                            debugLog(this.debugMode, 'warn', 'Error parsing Ollama response chunk:', e); // Use debugLog
                         }
                     }
                 }
@@ -140,9 +142,9 @@ export class OllamaProvider extends BaseProvider {
                 throw error;
             }
             if (error.name === 'AbortError') {
-                log(this.debugMode, 'info', 'Ollama stream was aborted'); // Use log
+                debugLog(this.debugMode, 'info', 'Ollama stream was aborted'); // Use debugLog
             } else {
-                log(this.debugMode, 'error', 'Error calling Ollama:', error); // Use log
+                debugLog(this.debugMode, 'error', 'Error calling Ollama:', error); // Use debugLog
                 throw error;
             }
         }
@@ -166,7 +168,7 @@ export class OllamaProvider extends BaseProvider {
             const data = await response.json();
             return (data.models as OllamaModel[])?.map(model => model.name) || [];
         } catch (error) {
-            log(this.debugMode, 'error', 'Error fetching Ollama models:', error); // Use log
+            debugLog(this.debugMode, 'error', 'Error fetching Ollama models:', error); // Use debugLog
             throw error;
         }
     }

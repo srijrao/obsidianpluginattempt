@@ -6,7 +6,7 @@ import { BotMessage } from './BotMessage';
 import { UserMessage } from './UserMessage';
 import { MessageRenderer } from './MessageRenderer';
 import { getSystemMessage } from '../../utils/systemMessage';
-import { getContextNotesContent } from '../../utils/noteUtils';
+import { processContextNotes } from '../../utils/noteUtils';
 
 /**
  * Interface for chat command handlers.
@@ -73,7 +73,7 @@ export class Commands extends Component implements IChatCommands {
             // Build system message (with context notes if enabled)
             let systemMessage = getSystemMessage(this.plugin.settings);
             if (this.plugin.settings.enableContextNotes && this.plugin.settings.contextNotes) {
-                const contextContent = await getContextNotesContent(this.plugin.settings.contextNotes, this.plugin.app);
+                const contextContent = await processContextNotes(this.plugin.settings.contextNotes, this.plugin.app);
                 systemMessage += `\n\nContext Notes:\n${contextContent}`;
             }
 
@@ -206,7 +206,7 @@ export class Commands extends Component implements IChatCommands {
         ];
 
         if (this.plugin.settings.enableContextNotes && this.plugin.settings.contextNotes) {
-            const contextContent = await getContextNotesContent(this.plugin.settings.contextNotes, this.plugin.app);
+            const contextContent = await processContextNotes(this.plugin.settings.contextNotes, this.plugin.app);
             messages[0].content += `\n\nContext Notes:\n${contextContent}`;
         }
 

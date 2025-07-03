@@ -4,16 +4,10 @@
  * from context notes, and preparing messages with relevant note content for AI processing.
  */
 
-import { Notice, TFile, App } from 'obsidian';
+import { Notice, App } from 'obsidian';
 import { Message, MyPluginSettings } from '../types';
 import { findFile, extractContentUnderHeader } from './generalUtils';
-
-/**
- * Type guard to check if an object is an instance of TFile.
- */
-function isTFile(f: any): f is TFile {
-    return f && typeof f === 'object' && typeof f.path === 'string' && typeof f.basename === 'string' && typeof f.extension === 'string' && f.stat;
-}
+import { isTFile } from './typeguards';
 
 /**
  * Process a single message content to include Obsidian note contents, recursively if enabled.
@@ -139,11 +133,4 @@ export async function processMessages(messages: Message[], app: App, settings: M
         });
     }
     return processedMessages;
-}
-
-/**
- * Retrieves content from context notes.
- */
-export async function getContextNotesContent(contextNotesText: string, app: App): Promise<string> {
-    return processContextNotes(contextNotesText, app);
 }

@@ -4,6 +4,8 @@ import { Tool, ToolResult } from '../ToolRegistry';
 import { PathValidator } from './pathValidation';
 import { debugLog } from '../../../../utils/logger';
 import { isTFile } from '../../../../utils/typeguards';
+import { getOrOpenFileEditor } from '../../../../utils/editorUtils';
+import { getTFileByPath } from '../../../../utils/fileUtils'; // Import the new utility
 
 /**
  * Interface for a file change suggestion, including file details and callbacks.
@@ -13,50 +15,6 @@ export interface FileChangeSuggestion {
   suggestionText: string;
   onAccept?: () => void;
   onReject?: () => void;
-}
-
-/**
- * DEPRECATED: Generates a formatted suggestion block string for insertion into a file.
- * This function was used to create suggestion blocks that pollute the file content.
- * Use showFileChangeSuggestionsModal instead.
- * @param suggestionText The suggested change (diff or text).
- * @returns The suggestion block string.
- */
-function createSuggestionBlock(suggestionText: string): string {
-  return `\`\`\`suggestion\n${suggestionText}\n\`\`\``;
-}
-
-/**
- * DEPRECATED: Inserts a file change suggestion into a target file as a code block.
- * This function directly modifies the file which pollutes it with suggestion blocks.
- * Use showFileChangeSuggestionsModal instead.
- * @param vault The Obsidian Vault instance.
- * @param file The target TFile to insert the suggestion into.
- * @param suggestionText The suggested change (diff or text).
- * @param position Optional: line number to insert at (default: end of file).
- */
-export async function insertFileChangeSuggestion(
-  vault: Vault,
-  file: TFile,
-  suggestionText: string,
-  position?: number
-): Promise<void> {
-  // Deprecated: No-op, use modal-based suggestions instead.
-  console.warn('insertFileChangeSuggestion is deprecated. Use showFileChangeSuggestionsModal instead.');
-  // ...existing code...
-}
-
-/**
- * DEPRECATED: Removes the first suggestion block (```suggestion ...```) from a file.
- * This function was used to clean up suggestion blocks from files.
- * No longer needed with the modal-based approach.
- * @param vault The Obsidian Vault instance.
- * @param file The TFile to clean up.
- */
-export async function removeSuggestionBlockFromFile(vault: Vault, file: TFile): Promise<void> {
-  // Deprecated: No-op, use modal-based suggestions instead.
-  console.warn('removeSuggestionBlockFromFile is deprecated. No longer needed with modal-based suggestions.');
-  // ...existing code...
 }
 
 /**
@@ -231,110 +189,6 @@ export function formatSuggestionForDisplay(suggestionText: string): string {
 }
 
 /**
- * DEPRECATED: Inserts a suggestion block inline at a specific line in the editor.
- * This function directly modifies the file content which is not the desired behavior.
- * Use showFileChangeSuggestionsModal instead.
- * @param editor The Obsidian Editor instance.
- * @param suggestionText The suggestion or diff string.
- * @param line The line number to insert the suggestion at.
- */
-export function showInlineFileChangeSuggestion(
-  editor: Editor,
-  suggestionText: string,
-  line: number
-) {
-  // Deprecated: No-op, use modal-based suggestions instead.
-  console.warn('showInlineFileChangeSuggestion is deprecated. Use showFileChangeSuggestionsModal instead.');
-  // ...existing code...
-}
-
-/**
- * DEPRECATED: Highlights a line in the editor to indicate a suggested change.
- * This function uses CodeMirror methods that are not available on the Obsidian Editor interface.
- * @param editor The Obsidian Editor instance.
- * @param line The line number to highlight.
- * @param className Optional: CSS class for custom highlight styling.
- * @param duration Optional: How long to keep the highlight (ms).
- */
-export function highlightFileChangeSuggestion(
-  editor: Editor,
-  line: number,
-  className = 'ai-suggestion-highlight',
-  duration = 2000
-) {
-  // Deprecated: No-op, use modal-based suggestions instead.
-  // @ts-ignore: CodeMirror's addLineClass is available in Obsidian's Editor but is not part of the TypeScript definitions.
-  console.warn('highlightFileChangeSuggestion is deprecated due to unsupported CodeMirror methods.');
-  // ...existing code...
-}
-
-const BUTTON_SYMBOLS = {
-  accept: '✓',
-  reject: '✗',
-};
-
-/**
- * Creates an HTML widget for accepting or rejecting an inline suggestion.
- * @param idx The index of the change in the changes array.
- * @param onAccept Callback function for accepting the suggestion.
- * @param onReject Callback function for rejecting the suggestion.
- * @returns The created HTMLElement widget.
- */
-function createSuggestionWidget(
-  idx: number,
-  onAccept: (i: number) => void,
-  onReject: (i: number) => void
-): HTMLElement {
-  const widget = document.createElement('span');
-  widget.className = 'ai-suggestion-widget';
-
-  const acceptBtn = document.createElement('button');
-  acceptBtn.textContent = BUTTON_SYMBOLS.accept;
-  acceptBtn.title = 'Accept suggestion';
-  acceptBtn.onclick = (e) => {
-    e.preventDefault();
-    onAccept(idx);
-  };
-
-  const rejectBtn = document.createElement('button');
-  rejectBtn.textContent = BUTTON_SYMBOLS.reject;
-  rejectBtn.title = 'Reject suggestion';
-  rejectBtn.onclick = (e) => {
-    e.preventDefault();
-    onReject(idx);
-  };
-
-  widget.appendChild(acceptBtn);
-  widget.appendChild(rejectBtn);
-  return widget;
-}
-
-/**
- * DEPRECATED: Renders inline suggestions with highlights and strikethroughs, and adds accept/reject widgets.
- * This function uses CodeMirror methods that are not available on the Obsidian Editor interface.
- * Use showFileChangeSuggestionsModal instead.
- * @param editor The Obsidian Editor instance.
- * @param changes Array of change objects, each with `from`, `to`, `text`, and `type` ('add' | 'remove').
- * @param onAccept Callback for accepting a specific change.
- * @param onReject Callback for rejecting a specific change.
- */
-export function renderInlineSuggestions(
-  editor: Editor,
-  changes: Array<{
-    from: { line: number; ch: number };
-    to: { line: number; ch: number };
-    text: string;
-    type: 'add' | 'remove';
-  }>,
-  onAccept: (changeIdx: number) => void,
-  onReject: (changeIdx: number) => void
-) {
-  // Deprecated: No-op, use modal-based suggestions instead.
-  console.warn('renderInlineSuggestions is deprecated due to unsupported CodeMirror methods. Use showFileChangeSuggestionsModal instead.');
-  // ...existing code...
-}
-
-/**
  * Interface representing a change in a line of text.
  */
 export interface LineChange {
@@ -470,11 +324,11 @@ export class FileDiffTool implements Tool {
         }
 
         try {
-            const file = this.app.vault.getAbstractFileByPath(filePath);
+            const file = getTFileByPath(this.app, filePath, debugMode); // Use the utility function
             debugLog(debugMode, 'debug', '[FileDiffTool] Got file:', file);
 
             // Ensure file exists and is a TFile
-            if (!isTFile(file)) {
+            if (!file) {
                 debugLog(debugMode, 'warn', '[FileDiffTool] File not found or not a TFile:', filePath);
                 return {
                     success: false,
@@ -489,7 +343,7 @@ export class FileDiffTool implements Tool {
             // Try to get an active editor for the file
             let activeEditor = editor;
             if (!activeEditor) {
-                activeEditor = await this.getOrOpenFileEditor(file, debugMode);
+                activeEditor = await getOrOpenFileEditor(this.app, file, debugMode); // Use the utility function
             }
 
             // If editor is available, show modal suggestion
@@ -620,57 +474,16 @@ export class FileDiffTool implements Tool {
     }
 
     /**
-     * Gets an editor for the specified file, opening it if necessary.
-     * If the file is already open in a markdown view, returns its editor.
-     * Otherwise, opens the file in a new leaf and returns the editor after a short delay.
-     * @param file The TFile to get or open.
-     * @param debugMode Whether to log debug output.
-     * @returns The Editor instance, or undefined if not available.
-     */
-    private async getOrOpenFileEditor(file: TFile, debugMode: boolean): Promise<Editor | undefined> {
-        debugLog(debugMode, 'debug', '[FileDiffTool] Attempting to get or open editor for file:', file.path);
-        try {
-            // Search for an existing markdown leaf with the file open
-            const leaves = this.app.workspace.getLeavesOfType('markdown');
-            for (const leaf of leaves) {
-                if (leaf.view && 'file' in leaf.view && leaf.view.file === file) {
-                    debugLog(debugMode, 'debug', '[FileDiffTool] Found existing editor for file');
-                    if ('editor' in leaf.view && leaf.view.editor) {
-                        this.app.workspace.setActiveLeaf(leaf);
-                        return leaf.view.editor as Editor;
-                      }
-                }
-            }
-            // If not open, open the file in a new leaf and get the editor
-            debugLog(debugMode, 'debug', '[FileDiffTool] File not open, attempting to open it');
-            const leaf = this.app.workspace.getUnpinnedLeaf();
-            if (leaf) {
-                await leaf.openFile(file);
-                // Wait for the editor to be ready
-                await new Promise(resolve => setTimeout(resolve, 100));
-                if (leaf.view && 'editor' in leaf.view && leaf.view.editor) {
-                    debugLog(debugMode, 'debug', '[FileDiffTool] Successfully opened file and got editor');
-                    return leaf.view.editor as Editor;
-                }
-            }
-            debugLog(debugMode, 'warn', '[FileDiffTool] Could not get or create editor for file');
-            return undefined;
-        } catch (error) {
-            debugLog(debugMode, 'error', '[FileDiffTool] Error getting or opening editor:', error);
-            return undefined;
-        }
-    }
-
-    /**
      * Utility function to clean up any remaining suggestion blocks from a file.
      * Can be called manually if needed to remove leftover suggestion blocks.
      * @param filePath The path of the file to clean up.
      * @returns ToolResult indicating cleanup status.
      */
     async cleanupSuggestionBlocks(filePath: string): Promise<ToolResult> {
+        const debugMode = true; // Assuming debugMode is always true for cleanup, or pass it as a parameter
         try {
-            const file = this.app.vault.getAbstractFileByPath(filePath);
-            if (!isTFile(file)) {
+            const file = getTFileByPath(this.app, filePath, debugMode); // Use the utility function
+            if (!file) {
                 return {
                     success: false,
                     error: `File not found: ${filePath}`

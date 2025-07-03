@@ -2,13 +2,17 @@ import { App, TFile, TFolder } from 'obsidian';
 import { Tool, ToolResult } from '../ToolRegistry';
 import { PathValidator } from './pathValidation';
 import { isTFile } from '../../../../utils/typeguards';
+import { getTFileByPath, getTFolderByPath } from '../../../../utils/fileUtils'; // Import the new utilities
+import { debugLog } from '../../../../utils/logger';
 
 /**
  * Parameters for moving or renaming a file.
  */
 export interface FileMoveParams {
-    sourcePath: string;         // Path of the source file
-    destinationPath: string;    // New path for the file
+    sourcePath?: string;         // Path of the source file
+    path?: string;               // Alias for sourcePath
+    destinationPath?: string;    // New path for the file
+    newName?: string;            // New name for the file (if renaming within same folder)
     createFolders?: boolean;    // Whether to create parent folders if they don't exist
     overwrite?: boolean;        // Whether to overwrite destination if it exists
 }
@@ -24,12 +28,22 @@ export class FileMoveTool implements Tool {
         sourcePath: {
             type: 'string',
             description: 'Path of the source file.',
-            required: true
+            required: false
+        },
+        path: {
+            type: 'string',
+            description: 'Alias for sourcePath.',
+            required: false
         },
         destinationPath: {
             type: 'string',
             description: 'New path for the file.',
-            required: true
+            required: false
+        },
+        newName: {
+            type: 'string',
+            description: 'New name for the file (if renaming within same folder). If provided, destinationPath is ignored.',
+            required: false
         },
         createFolders: {
             type: 'boolean',
@@ -38,7 +52,7 @@ export class FileMoveTool implements Tool {
         },
         overwrite: {
             type: 'boolean',
-            description: 'Overwrite destination if it exists.',
+            description: 'Whether to overwrite destination if it exists.',
             default: false
         }
     };
@@ -56,39 +70,67 @@ export class FileMoveTool implements Tool {
      * @returns ToolResult indicating success or failure
      */
     async execute(params: FileMoveParams & Record<string, any>, context: any): Promise<ToolResult> {
-        // Support legacy/alias keys for source and destination
-        let inputSourcePath = params.sourcePath;
+        const debugMode = context?.plugin?.settings?.debugMode ?? true;
+
+        let inputSourcePath = params.sourcePath || params.path;
         let inputDestinationPath = params.destinationPath;
-        if (!inputSourcePath && params.path) inputSourcePath = params.path;
-        if (!inputDestinationPath && (params.new_path || params.newPath)) inputDestinationPath = params.new_path || params.newPath;
+        const newName = params.newName;
 
         const { createFolders = true, overwrite = false } = params;
 
-        // Validate required parameters
-        if (inputSourcePath === undefined || inputSourcePath === null || 
-            inputDestinationPath === undefined || inputDestinationPath === null) {
+        if (!inputSourcePath) {
             return {
                 success: false,
-                error: 'Both sourcePath and destinationPath parameters are required (aliases: path, new_path, newPath)'
+                error: 'sourcePath or path parameter is required.'
             };
         }
 
-        // Validate and normalize paths
         let sourcePath: string;
-        let destinationPath: string;
         try {
             sourcePath = this.pathValidator.validateAndNormalizePath(inputSourcePath);
-            destinationPath = this.pathValidator.validateAndNormalizePath(inputDestinationPath);
         } catch (error: any) {
             return {
                 success: false,
-                error: `Path validation failed: ${error.message}`
+                error: `Path validation failed for sourcePath: ${error.message}`
+            };
+        }
+
+        let finalDestinationPath: string;
+
+        if (newName) {
+            const sourceFile = getTFileByPath(this.app, sourcePath, debugMode); // Use utility
+            if (!sourceFile) {
+                return {
+                    success: false,
+                    error: `Source file not found or is not a file: ${sourcePath}`
+                };
+            }
+            const parent = sourceFile.parent;
+            if (!parent) {
+                return {
+                    success: false,
+                    error: `Parent folder not found for file: ${sourcePath}`
+                };
+            }
+            finalDestinationPath = parent.path ? `${parent.path}/${newName}` : newName;
+        } else if (inputDestinationPath) {
+            try {
+                finalDestinationPath = this.pathValidator.validateAndNormalizePath(inputDestinationPath);
+            } catch (error: any) {
+                return {
+                    success: false,
+                    error: `Path validation failed for destinationPath: ${error.message}`
+                };
+            }
+        } else {
+            return {
+                success: false,
+                error: 'destinationPath or newName parameter is required.'
             };
         }
 
         try {
-            // Get the source file object
-            const sourceFile = this.app.vault.getAbstractFileByPath(sourcePath);
+            const sourceFile = getTFileByPath(this.app, sourcePath, debugMode); // Use utility
             if (!sourceFile) {
                 return {
                     success: false,
@@ -96,32 +138,21 @@ export class FileMoveTool implements Tool {
                 };
             }
 
-            // Ensure the source is a file (not a folder)
-            if (!isTFile(sourceFile)) {
-                return {
-                    success: false,
-                    error: `Source path is not a file: ${sourcePath}`
-                };
-            }
-
-            // Check if destination exists and handle overwrite option
-            const destinationExists = this.app.vault.getAbstractFileByPath(destinationPath);
+            const destinationExists = this.app.vault.getAbstractFileByPath(finalDestinationPath);
             if (destinationExists && !overwrite) {
                 return {
                     success: false,
-                    error: `Destination already exists and overwrite is not enabled: ${destinationPath}`
+                    error: `Destination already exists and overwrite is not enabled: ${finalDestinationPath}`
                 };
             }
 
-            // Determine the parent folder of the destination
-            const lastSlashIndex = destinationPath.lastIndexOf('/');
+            const lastSlashIndex = finalDestinationPath.lastIndexOf('/');
             const destinationFolder = lastSlashIndex !== -1 
-                ? destinationPath.substring(0, lastSlashIndex) 
+                ? finalDestinationPath.substring(0, lastSlashIndex) 
                 : '';
 
-            // Create parent folders if needed
             if (destinationFolder && createFolders) {
-                const folderExists = this.app.vault.getAbstractFileByPath(destinationFolder);
+                const folderExists = getTFolderByPath(this.app, destinationFolder, debugMode); // Use utility
                 if (!folderExists) {
                     await this.app.vault.createFolder(destinationFolder);
                 } else if (!(folderExists instanceof TFolder)) {
@@ -132,21 +163,20 @@ export class FileMoveTool implements Tool {
                 }
             }
 
-            // Move (rename) the file
-            await this.app.fileManager.renameFile(sourceFile, destinationPath);
+            await this.app.fileManager.renameFile(sourceFile, finalDestinationPath);
 
             return {
                 success: true,
                 data: {
                     action: 'moved',
                     sourcePath,
-                    destinationPath
+                    destinationPath: finalDestinationPath
                 }
             };
         } catch (error) {
             return {
                 success: false,
-                error: `Failed to move file: ${error instanceof Error ? error.message : String(error)}`
+                error: `Failed to move/rename file: ${error instanceof Error ? error.message : String(error)}`
             };
         }
     }

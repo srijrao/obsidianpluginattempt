@@ -3,6 +3,8 @@ import { Tool, ToolResult } from '../ToolRegistry';
 import { BackupManager } from '../../../BackupManager';
 import { PathValidator } from './pathValidation';
 import { isTFile, isTFolder } from '../../../../utils/typeguards';
+import { getTFileByPath, getTFolderByPath, ensureFolderExists } from '../../../../utils/fileUtils';
+import { debugLog } from '../../../../utils/logger';
 
 /**
  * Parameters for file/folder deletion.
@@ -67,11 +69,14 @@ export class FileDeleteTool implements Tool {
      * @returns ToolResult indicating success or failure
      */
     async execute(params: FileDeleteParams, context: any): Promise<ToolResult> {
+        const debugMode = context?.plugin?.settings?.debugMode ?? true;
+
         // Use either 'path' or legacy 'filePath'
         const inputPath = params.path || params.filePath;
         const { backup = true, confirmDeletion = true, useTrash = true } = params;
 
         if (inputPath === undefined || inputPath === null) {
+            debugLog(debugMode, 'warn', '[FileDeleteTool] Missing path parameter');
             return {
                 success: false,
                 error: 'path parameter is required'
@@ -82,7 +87,9 @@ export class FileDeleteTool implements Tool {
         let filePath: string;
         try {
             filePath = this.pathValidator.validateAndNormalizePath(inputPath);
+            debugLog(debugMode, 'debug', '[FileDeleteTool] Normalized filePath:', filePath);
         } catch (error: any) {
+            debugLog(debugMode, 'error', '[FileDeleteTool] Path validation failed:', error);
             return {
                 success: false,
                 error: `Path validation failed: ${error.message}`
@@ -91,6 +98,7 @@ export class FileDeleteTool implements Tool {
 
         // Safety check: require explicit confirmation
         if (confirmDeletion !== true) {
+            debugLog(debugMode, 'warn', '[FileDeleteTool] Deletion not confirmed');
             return {
                 success: false,
                 error: 'confirmDeletion must be set to true to proceed with deletion. This is a safety measure.'
@@ -99,9 +107,18 @@ export class FileDeleteTool implements Tool {
 
         try {
             // Get the file or folder object from the vault
-            const target = this.app.vault.getAbstractFileByPath(filePath);
+            const targetFile = getTFileByPath(this.app, filePath, debugMode);
+            const targetFolder = getTFolderByPath(this.app, filePath, debugMode);
+            let target: TFile | TFolder | undefined;
+
+            if (targetFile) {
+                target = targetFile;
+            } else if (targetFolder) {
+                target = targetFolder;
+            }
             
             if (!target) {
+                debugLog(debugMode, 'warn', '[FileDeleteTool] File or folder not found:', filePath);
                 return {
                     success: false,
                     error: `File or folder not found: ${filePath}`
@@ -114,6 +131,7 @@ export class FileDeleteTool implements Tool {
 
             // --- Handle file deletion ---
             if (isTFile(target)) {
+                debugLog(debugMode, 'info', '[FileDeleteTool] Deleting file:', filePath);
                 let originalContent = '';
 
                 // Optionally create a backup before deletion
@@ -123,7 +141,9 @@ export class FileDeleteTool implements Tool {
                         await this.backupManager.createBackup(filePath, originalContent);
                         backupCreated = true;
                         backupCount = 1;
+                        debugLog(debugMode, 'info', '[FileDeleteTool] File backup created', { filePath });
                     } catch (backupError: any) {
+                        debugLog(debugMode, 'error', '[FileDeleteTool] Failed to create backup before deletion:', backupError);
                         return {
                             success: false,
                             error: `Failed to create backup before deletion: ${backupError.message}`
@@ -137,9 +157,11 @@ export class FileDeleteTool implements Tool {
                 if (useTrash) {
                     // Move file to .trash folder
                     try {
-                        trashPath = await this.moveToTrash(target as TFile, filePath);
+                        trashPath = await this.moveToTrash(target as TFile, filePath, debugMode);
                         actionTaken = 'moved to trash';
+                        debugLog(debugMode, 'info', '[FileDeleteTool] File moved to trash', { filePath, trashPath });
                     } catch (trashError: any) {
+                        debugLog(debugMode, 'error', '[FileDeleteTool] Failed to move file to trash:', trashError);
                         return {
                             success: false,
                             error: `Failed to move file to trash: ${trashError.message}`
@@ -150,13 +172,17 @@ export class FileDeleteTool implements Tool {
                     try {
                         await this.app.vault.delete(target as TFile);
                         actionTaken = 'permanently deleted';
+                        debugLog(debugMode, 'info', '[FileDeleteTool] File permanently deleted', { filePath });
                     } catch (deleteError: any) {
+                        debugLog(debugMode, 'error', '[FileDeleteTool] Failed to delete file:', deleteError);
                         // Fallback for Windows permission issues
                         if (deleteError.message && deleteError.message.includes('EPERM')) {
                             try {
                                 await this.app.vault.adapter.remove(filePath);
                                 actionTaken = 'permanently deleted';
+                                debugLog(debugMode, 'info', '[FileDeleteTool] File deleted using adapter.remove', { filePath });
                             } catch (adapterError: any) {
+                                debugLog(debugMode, 'error', '[FileDeleteTool] Failed to delete file (tried multiple methods):', adapterError);
                                 return {
                                     success: false,
                                     error: `Failed to delete file (tried multiple methods): ${deleteError.message}. Adapter error: ${adapterError.message}`
@@ -190,14 +216,17 @@ export class FileDeleteTool implements Tool {
 
             // --- Handle folder deletion ---
             } else if (isTFolder(target)) {
+                debugLog(debugMode, 'info', '[FileDeleteTool] Deleting folder:', filePath);
                 // Optionally create backups for all files in the folder
                 if (backup) {
                     try {
-                        const result = await this.createFolderBackups(target as TFolder, '');
+                        const result = await this.createFolderBackups(target as TFolder, '', debugMode);
                         backupCreated = result.backupCreated;
                         backupCount = result.backupCount;
                         totalSize = result.totalSize;
+                        debugLog(debugMode, 'info', '[FileDeleteTool] Folder backups created', { filePath, backupCount, totalSize });
                     } catch (backupError: any) {
+                        debugLog(debugMode, 'error', '[FileDeleteTool] Failed to create backups before folder deletion:', backupError);
                         return {
                             success: false,
                             error: `Failed to create backups before folder deletion: ${backupError.message}`
@@ -211,9 +240,11 @@ export class FileDeleteTool implements Tool {
                 if (useTrash) {
                     // Move folder to .trash folder
                     try {
-                        trashPath = await this.moveToTrash(target as TFolder, filePath);
+                        trashPath = await this.moveToTrash(target as TFolder, filePath, debugMode);
                         actionTaken = 'moved to trash';
+                        debugLog(debugMode, 'info', '[FileDeleteTool] Folder moved to trash', { filePath, trashPath });
                     } catch (trashError: any) {
+                        debugLog(debugMode, 'error', '[FileDeleteTool] Failed to move folder to trash:', trashError);
                         return {
                             success: false,
                             error: `Failed to move folder to trash: ${trashError.message}`
@@ -224,19 +255,25 @@ export class FileDeleteTool implements Tool {
                     try {
                         await this.app.vault.delete(target as TFolder);
                         actionTaken = 'permanently deleted';
+                        debugLog(debugMode, 'info', '[FileDeleteTool] Folder permanently deleted', { filePath });
                     } catch (deleteError: any) {
+                        debugLog(debugMode, 'error', '[FileDeleteTool] Failed to delete folder:', deleteError);
                         // Fallback for Windows permission issues
                         if (deleteError.message && deleteError.message.includes('EPERM')) {
                             try {
                                 // Try using adapter's rmdir
                                 await this.app.vault.adapter.rmdir(filePath, true);
                                 actionTaken = 'permanently deleted';
+                                debugLog(debugMode, 'info', '[FileDeleteTool] Folder deleted using adapter.rmdir', { filePath });
                             } catch (adapterError: any) {
+                                debugLog(debugMode, 'error', '[FileDeleteTool] Failed to delete folder (tried adapter.rmdir):', adapterError);
                                 // As a last resort, recursively delete all contents
                                 try {
-                                    await this.recursivelyDeleteFolder(target as TFolder);
+                                    await this.recursivelyDeleteFolder(target as TFolder, debugMode);
                                     actionTaken = 'permanently deleted';
+                                    debugLog(debugMode, 'info', '[FileDeleteTool] Folder deleted using recursive fallback', { filePath });
                                 } catch (recursiveError: any) {
+                                    debugLog(debugMode, 'error', '[FileDeleteTool] Failed to delete folder (tried recursive fallback):', recursiveError);
                                     return {
                                         success: false,
                                         error: `Failed to delete folder (tried multiple methods): ${deleteError.message}. Last attempt: ${recursiveError.message}`
@@ -269,6 +306,7 @@ export class FileDeleteTool implements Tool {
 
             } else {
                 // Unsupported file type (should not occur)
+                debugLog(debugMode, 'error', '[FileDeleteTool] Unsupported file type:', filePath);
                 return {
                     success: false,
                     error: `Unsupported file type: ${filePath}`
@@ -277,6 +315,7 @@ export class FileDeleteTool implements Tool {
 
         } catch (error: any) {
             // Catch-all for unexpected errors
+            debugLog(debugMode, 'error', '[FileDeleteTool] Unexpected error during file deletion:', error);
             return {
                 success: false,
                 error: `Failed to delete: ${error.message}`
@@ -290,7 +329,8 @@ export class FileDeleteTool implements Tool {
      * @param basePath Relative path for backup naming
      * @returns Object with backupCreated, backupCount, and totalSize
      */
-    private async createFolderBackups(folder: TFolder, basePath: string): Promise<{backupCreated: boolean, backupCount: number, totalSize: number}> {
+    private async createFolderBackups(folder: TFolder, basePath: string, debugMode: boolean): Promise<{backupCreated: boolean, backupCount: number, totalSize: number}> {
+        debugLog(debugMode, 'debug', '[FileDeleteTool] createFolderBackups called for:', folder.path);
         let backupCount = 0;
         let totalSize = 0;
         let anyBackupCreated = false;
@@ -304,13 +344,14 @@ export class FileDeleteTool implements Tool {
                     backupCount++;
                     totalSize += content.length;
                     anyBackupCreated = true;
+                    debugLog(debugMode, 'debug', '[FileDeleteTool] Backed up file:', child.path);
                 } catch (error) {
                     // Log backup errors but continue with other files
-                    console.error(`Failed to backup file ${child.path}:`, error);
+                    debugLog(debugMode, 'error', `[FileDeleteTool] Failed to backup file ${child.path}:`, error);
                 }
             } else if (isTFolder(child)) {
                 // Recursively backup subfolders
-                const subResult = await this.createFolderBackups(child as TFolder, basePath ? `${basePath}/${child.name}` : child.path);
+                const subResult = await this.createFolderBackups(child as TFolder, basePath ? `${basePath}/${child.name}` : child.path, debugMode);
                 backupCount += subResult.backupCount;
                 totalSize += subResult.totalSize;
                 if (subResult.backupCreated) {
@@ -331,24 +372,29 @@ export class FileDeleteTool implements Tool {
      * This is a fallback method for Windows permission issues.
      * @param folder TFolder to delete
      */
-    private async recursivelyDeleteFolder(folder: TFolder): Promise<void> {
+    private async recursivelyDeleteFolder(folder: TFolder, debugMode: boolean): Promise<void> {
+        debugLog(debugMode, 'debug', '[FileDeleteTool] recursivelyDeleteFolder called for:', folder.path);
         // Delete all children first
         for (const child of [...folder.children]) { 
             if (isTFile(child)) {
                 try {
                     await this.app.vault.delete(child as TFile);
+                    debugLog(debugMode, 'debug', '[FileDeleteTool] Deleted file in recursive delete:', child.path);
                 } catch (error) {
+                    debugLog(debugMode, 'error', '[FileDeleteTool] Failed to delete file in recursive delete (trying adapter.remove):', child.path, error);
                     // Fallback to adapter remove if vault.delete fails
                     await this.app.vault.adapter.remove(child.path);
                 }
             } else if (isTFolder(child)) {
-                await this.recursivelyDeleteFolder(child as TFolder);
+                await this.recursivelyDeleteFolder(child as TFolder, debugMode);
             }
         }
         // Delete the folder itself
         try {
             await this.app.vault.delete(folder);
+            debugLog(debugMode, 'debug', '[FileDeleteTool] Deleted folder in recursive delete:', folder.path);
         } catch (error) {
+            debugLog(debugMode, 'error', '[FileDeleteTool] Failed to delete folder in recursive delete (trying adapter.rmdir):', folder.path, error);
             // Fallback to adapter rmdir if vault.delete fails
             await this.app.vault.adapter.rmdir(folder.path, false);
         }
@@ -358,16 +404,13 @@ export class FileDeleteTool implements Tool {
      * Ensures the .trash folder exists in the vault root.
      * @returns Path to the .trash folder
      */
-    private async ensureTrashFolderExists(): Promise<string> {
+    private async ensureTrashFolderExists(debugMode: boolean): Promise<string> {
+        debugLog(debugMode, 'debug', '[FileDeleteTool] ensureTrashFolderExists called');
         const trashPath = '.trash';
-        const existingTrash = this.app.vault.getAbstractFileByPath(trashPath);
-        
-        if (!existingTrash) {
-            await this.app.vault.createFolder(trashPath);
-        } else if (!(existingTrash instanceof TFolder)) {
-            throw new Error('A file named ".trash" already exists - cannot create trash folder');
+        const success = await ensureFolderExists(this.app, trashPath, debugMode);
+        if (!success) {
+            throw new Error('Failed to ensure .trash folder exists');
         }
-        
         return trashPath;
     }
 
@@ -392,13 +435,15 @@ export class FileDeleteTool implements Tool {
      * @param originalPath Original path for naming
      * @returns New path in the .trash folder
      */
-    private async moveToTrash(target: TFile | TFolder, originalPath: string): Promise<string> {
-        const trashPath = await this.ensureTrashFolderExists();
+    private async moveToTrash(target: TFile | TFolder, originalPath: string, debugMode: boolean): Promise<string> {
+        debugLog(debugMode, 'debug', '[FileDeleteTool] moveToTrash called for:', originalPath);
+        const trashPath = await this.ensureTrashFolderExists(debugMode);
         const trashName = this.generateTrashName(originalPath);
         const destinationPath = `${trashPath}/${trashName}`;
         
         // Use fileManager.renameFile to move to trash
         await this.app.fileManager.renameFile(target, destinationPath);
+        debugLog(debugMode, 'info', '[FileDeleteTool] Moved to trash:', destinationPath);
         
         return destinationPath;
     }

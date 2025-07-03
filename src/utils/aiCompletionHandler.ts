@@ -3,7 +3,7 @@ import { MyPluginSettings, Message } from '../types';
 import { createProvider, createProviderFromUnifiedModel } from '../../providers';
 import { parseSelection } from './parseSelection';
 import { showNotice, insertSeparator } from './generalUtils';
-import { log } from './logger';
+import { debugLog } from '../utils/logger';
 
 /**
  * Handles the AI completion logic for the editor.
@@ -104,7 +104,7 @@ export async function handleAICompletion(
         editor.setCursor(newCursorPos);
     } catch (error: any) {
         showNotice(`Error: ${error.message}`);
-        log(settings.debugMode ?? false, 'error', 'AI Completion Error:', error);
+        debugLog(settings.debugMode ?? false, 'error', 'AI Completion Error:', error);
         const errLineContent = editor.getLine(currentPosition.line) ?? '';
         const errPrefix = errLineContent.trim() !== '' ? '\n' : '';
         editor.replaceRange(`Error: ${error.message}\n${errPrefix}\n${settings.chatSeparator}\n\n`, currentPosition);

@@ -7,7 +7,7 @@
 
 import { Message, CompletionOptions, ConnectionTestResult } from '../src/types';
 import { BaseProvider, ProviderError, ProviderErrorType } from './base';
-import { log } from '../src/utils/logger'; // Import log
+import { debugLog } from '../src/utils/logger'; // Import debugLog
 
 interface OpenAIResponse {
     id: string;
@@ -51,6 +51,8 @@ export class OpenAIProvider extends BaseProvider {
         this.model = model;
         this.baseUrl = baseUrl || 'https://api.openai.com/v1';
         this.debugMode = debugMode; // Initialize debugMode
+
+        debugLog(true, 'debug', '[OpenAI Provider] Initializing OpenAI API', { config: { apiKey, model, baseUrl, debugMode } }); // Log initialization
     }
 
     /**
@@ -104,7 +106,7 @@ export class OpenAIProvider extends BaseProvider {
                                 options.streamCallback(content);
                             }
                         } catch (e) {
-                            log(this.debugMode, 'warn', 'Error parsing OpenAI response chunk:', e); // Use log
+                            debugLog(this.debugMode, 'warn', 'Error parsing OpenAI response chunk:', e); // Use debugLog
                         }
                     }
                 }
@@ -114,9 +116,9 @@ export class OpenAIProvider extends BaseProvider {
                 throw error;
             }
             if (error.name === 'AbortError') {
-                log(this.debugMode, 'info', 'OpenAI stream was aborted'); // Use log
+                debugLog(this.debugMode, 'info', 'OpenAI stream was aborted'); // Use debugLog
             } else {
-                log(this.debugMode, 'error', 'Error calling OpenAI:', error); // Use log
+                debugLog(this.debugMode, 'error', 'Error calling OpenAI:', error); // Use debugLog
                 throw error;
             }
         }
@@ -149,7 +151,7 @@ export class OpenAIProvider extends BaseProvider {
                 .map((model: any) => model.id)
                 .filter((id: string) => id.startsWith('gpt-'));
         } catch (error) {
-            log(this.debugMode, 'error', 'Error fetching OpenAI models:', error); // Use log
+            debugLog(this.debugMode, 'error', 'Error fetching OpenAI models:', error); // Use debugLog
             throw error;
         }
     }

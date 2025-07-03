@@ -7,7 +7,7 @@
 
 import { Message, CompletionOptions, ConnectionTestResult } from '../src/types';
 import { BaseProvider, ProviderError, ProviderErrorType } from './base';
-import { log } from '../src/utils/logger'; // Import log
+import { debugLog } from '../src/utils/logger'; // Import debugLog
 
 interface GeminiResponse {
     candidates: Array<{
@@ -49,6 +49,8 @@ export class GeminiProvider extends BaseProvider {
         this.apiVersion = apiVersion;
         this.baseUrl = `https://generativelanguage.googleapis.com/${this.apiVersion}`;
         this.debugMode = debugMode; // Initialize debugMode
+
+        debugLog(true, 'debug', '[Gemini Provider] Initializing Gemini API', { config: { apiKey, model, apiVersion, debugMode } }); // Log initialization
     }
 
     /**
@@ -102,7 +104,7 @@ export class GeminiProvider extends BaseProvider {
 
             // For non-streaming response, parse the JSON directly
             const data = await response.json();
-            log(this.debugMode, 'debug', 'Gemini response:', JSON.stringify(data)); // Use log
+            debugLog(this.debugMode, 'debug', 'Gemini response:', JSON.stringify(data)); // Use debugLog
             
             // Extract the text from the response
             const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
@@ -112,16 +114,16 @@ export class GeminiProvider extends BaseProvider {
                 // to maintain compatibility with the existing interface
                 options.streamCallback(text);
             } else {
-                log(this.debugMode, 'warn', 'No text found in Gemini response:', JSON.stringify(data)); // Use log
+                debugLog(this.debugMode, 'warn', 'No text found in Gemini response:', JSON.stringify(data)); // Use debugLog
             }
         } catch (error) {
             if (error instanceof ProviderError) {
                 throw error;
             }
             if (error.name === 'AbortError') {
-                log(this.debugMode, 'info', 'Gemini request was aborted'); // Use log
+                debugLog(this.debugMode, 'info', 'Gemini request was aborted'); // Use debugLog
             } else {
-                log(this.debugMode, 'error', 'Error calling Gemini:', error); // Use log
+                debugLog(this.debugMode, 'error', 'Error calling Gemini:', error); // Use debugLog
                 throw error;
             }
         }
@@ -153,7 +155,7 @@ export class GeminiProvider extends BaseProvider {
             // Merge and deduplicate
             return Array.from(new Set([...v1Models, ...v1betaModels]));
         } catch (error) {
-            log(this.debugMode, 'error', 'Error fetching Gemini models:', error); // Use log
+            debugLog(this.debugMode, 'error', 'Error fetching Gemini models:', error); // Use debugLog
             throw error;
         }
     }

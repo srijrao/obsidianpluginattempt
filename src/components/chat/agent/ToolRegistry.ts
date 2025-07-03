@@ -1,5 +1,5 @@
 import { ToolCommand, ToolResult } from '../../../types';
-import { log } from '../../../utils/logger'; // Import log
+import { debugLog } from '../../../utils/logger'; // Import debugLog
 
 /**
  * Interface for a Tool.
@@ -44,7 +44,7 @@ export class ToolRegistry {
     register(tool: Tool): void {
         this.tools.set(tool.name, tool);
         if (this.plugin && this.plugin.settings) {
-            log(this.plugin.settings.debugMode ?? false, 'debug', '[ToolRegistry] Registering tool', { tool }); // Use log
+            debugLog(this.plugin.settings.debugMode ?? false, 'debug', '[ToolRegistry] Registering tool:', tool.name); // Use debugLog
         }
     }
 
@@ -58,7 +58,7 @@ export class ToolRegistry {
         const tool = this.tools.get(command.action);
         if (!tool) {
             if (this.plugin && this.plugin.settings) {
-                log(this.plugin.settings.debugMode ?? false, 'debug', '[ToolRegistry] Tool not found', { action: command.action }); // Use log
+                debugLog(this.plugin.settings.debugMode ?? false, 'debug', '[ToolRegistry] Tool not found', { action: command.action }); // Use debugLog
             }
             return {
                 success: false,
@@ -68,7 +68,7 @@ export class ToolRegistry {
         }
         try {
             if (this.plugin && this.plugin.settings) {
-                log(this.plugin.settings.debugMode ?? false, 'debug', '[ToolRegistry] Executing tool', { command }); // Use log
+                debugLog(this.plugin.settings.debugMode ?? false, 'debug', '[ToolRegistry] Executing tool', { command }); // Use debugLog
             }
 
             // Clone parameters to avoid mutation
@@ -121,18 +121,18 @@ export class ToolRegistry {
                 if (editor) {
                     parameters.editor = editor;
                     if (this.plugin && this.plugin.settings) {
-                        log(this.plugin.settings.debugMode ?? false, 'debug', '[ToolRegistry] Injected editor for file_diff tool'); // Use log
+                        debugLog(this.plugin.settings.debugMode ?? false, 'debug', '[ToolRegistry] Injected editor for file_diff tool'); // Use debugLog
                     }
                 } else {
                     if (this.plugin && this.plugin.settings) {
-                        log(this.plugin.settings.debugMode ?? false, 'debug', '[ToolRegistry] No editor available for file_diff tool, will use fallback mode'); // Use log
+                        debugLog(this.plugin.settings.debugMode ?? false, 'debug', '[ToolRegistry] No editor available for file_diff tool, will use fallback mode'); // Use debugLog
                     }
                 }
             }
 
             const result = await tool.execute(parameters, {});
             if (this.plugin && this.plugin.settings) {
-                log(this.plugin.settings.debugMode ?? false, 'debug', '[ToolRegistry] Tool execution result', { command, result }); // Use log
+                debugLog(this.plugin.settings.debugMode ?? false, 'debug', '[ToolRegistry] Tool execution result', { command, result }); // Use debugLog
             }
             return {
                 ...result,
@@ -140,7 +140,7 @@ export class ToolRegistry {
             };
         } catch (error: any) {
             if (this.plugin && this.plugin.settings) {
-                log(this.plugin.settings.debugMode ?? false, 'error', '[ToolRegistry] Tool execution error', { command, error }); // Use log
+                debugLog(this.plugin.settings.debugMode ?? false, 'error', '[ToolRegistry] Tool execution error', { command, error }); // Use debugLog
             }
             return {
                 success: false,

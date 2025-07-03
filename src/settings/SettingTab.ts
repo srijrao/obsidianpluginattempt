@@ -3,7 +3,7 @@ import MyPlugin from '../main';
 import { VIEW_TYPE_MODEL_SETTINGS } from '../components/commands/viewCommands'; // Corrected import path
 import { CollapsibleSectionRenderer } from '../components/chat/CollapsibleSection';
 import { activateView } from '../utils/viewManager';
-import { log } from '../utils/logger'; // Import log
+import { debugLog } from '../utils/logger'; // Import debugLog
 
 import { SettingCreators } from './components/SettingCreators';
 import { GeneralSettingsSection } from './sections/GeneralSettingsSection';
@@ -56,13 +56,10 @@ export class MyPluginSettingTab extends PluginSettingTab {
     constructor(app: App, plugin: MyPlugin) {
         super(app, plugin);
         this.plugin = plugin;
+        debugLog(this.plugin.settings.debugMode ?? false, 'debug', '[MyPluginSettingTab] constructor called'); // Use debugLog
+
         // Helper for creating settings UI elements, with a callback to refresh the display
         this.settingCreators = new SettingCreators(this.plugin, () => this.display()); 
-
-        // Optional debug logging for plugin developers
-        if (this.plugin && typeof this.plugin.debugLog === 'function') {
-            log(this.plugin.settings.debugMode ?? false, 'debug', '[MyPluginSettingTab] constructor called'); // Use log
-        }
 
         // Initialize each settings section
         this.generalSettingsSection = new GeneralSettingsSection(this.plugin, this.settingCreators);
@@ -103,12 +100,9 @@ export class MyPluginSettingTab extends PluginSettingTab {
      * It is called automatically when the tab is shown, and can be called to refresh the UI after changes.
      */
     display(): void {
-        // Optional debug logging for plugin developers
-        if (this.plugin && typeof this.plugin.debugLog === 'function') {
-            log(this.plugin.settings.debugMode ?? false, 'info', '[MyPluginSettingTab] display called'); // Use log
-        }
         const { containerEl } = this;
         containerEl.empty();
+        debugLog(this.plugin.settings.debugMode ?? false, 'info', '[MyPluginSettingTab] display called'); // Use debugLog
 
         // Main heading for the settings tab
         containerEl.createEl('h2', { text: 'AI Assistant Settings' });

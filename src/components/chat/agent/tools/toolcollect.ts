@@ -5,7 +5,6 @@ import { FileDiffTool } from './FileDiffTool';
 import { FileMoveTool } from './FileMoveTool';
 import { ThoughtTool } from './ThoughtTool';
 import { FileListTool } from './FileListTool';
-import { FileRenameTool } from './FileRenameTool';
 import { VaultTreeTool } from './VaultTreeTool';
 import { FileDeleteTool } from './FileDeleteTool';
 
@@ -23,7 +22,6 @@ export function getAllToolClasses(): any[] {
         FileMoveTool,
         ThoughtTool,
         FileListTool,
-        FileRenameTool,
         VaultTreeTool,
         FileDeleteTool
     ];

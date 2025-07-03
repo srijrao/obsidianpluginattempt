@@ -9,7 +9,7 @@ import {
     registerToggleCommands,
 } from "../components/commands";
 import { registerYamlAttributeCommands } from "../YAMLHandler";
-import { log } from "../utils/logger"; // Changed from debugLog to log
+import { debugLog } from "../utils/logger"; // Changed from log to debugLog
 
 export function registerAllCommands(
     plugin: MyPlugin,
@@ -32,7 +32,7 @@ export function registerAllCommands(
         processMessages,
         yamlAttributeCommandIds,
         (level, ...args) => {
-            return log(settings.debugMode ?? false, level, ...args); // Changed from debugLog to log
+            return debugLog(settings.debugMode ?? false, level, ...args); // Changed from log to debugLog
         }
     );
 }

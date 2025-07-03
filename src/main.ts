@@ -3,10 +3,10 @@ import { MyPluginSettings, Message, DEFAULT_SETTINGS, AgentModeSettings } from '
 import { MyPluginSettingTab } from './settings';
 import { ChatView, VIEW_TYPE_CHAT } from './chat';
 import { ModelSettingsView } from './components/ModelSettingsView';
-import { processMessages, getContextNotesContent } from './utils/noteUtils';
+import { processMessages } from './utils/noteUtils'; // Removed getContextNotesContent
 import { getSystemMessage } from './utils/systemMessage';
 import { showNotice } from './utils/generalUtils';
-import { log } from './utils/logger'; // Changed from debugLog to log
+import { debugLog } from './utils/logger'; // Changed from log to debugLog
 import { activateView } from './utils/viewManager';
 import { AgentModeManager } from './components/chat/agent/agentModeManager';
 import { BackupManager } from './components/BackupManager';
@@ -169,7 +169,7 @@ export default class MyPlugin extends Plugin {
             this.settings,
             () => this.saveSettings(),
             () => this.emitSettingsChange(),
-            (level, ...args) => log(this.settings.debugMode ?? false, level, ...args) // Changed from debugLog to log
+            (level, ...args) => debugLog(this.settings.debugMode ?? false, level, ...args) // Changed from log to debugLog
         );
         
         // Add the plugin's settings tab to Obsidian's settings UI
@@ -207,7 +207,7 @@ export default class MyPlugin extends Plugin {
             this.processToolExecutionCodeBlock(source, el, ctx);
         });
 
-        log(this.settings.debugMode ?? false, 'info', 'AI Assistant Plugin loaded.'); // Changed from debugLog to log
+        debugLog(this.settings.debugMode ?? false, 'info', 'AI Assistant Plugin loaded.'); // Changed from log to debugLog
     }
 
     /**
@@ -216,7 +216,7 @@ export default class MyPlugin extends Plugin {
      * @param args Arguments to log.
      */
     debugLog(level: 'debug' | 'info' | 'warn' | 'error' = 'debug', ...args: any[]) {
-        log(this.settings.debugMode ?? false, level, ...args); // Changed from debugLog to log
+        debugLog(this.settings.debugMode ?? false, level, ...args); // Changed from log to debugLog
     }
 
     /**
@@ -239,7 +239,7 @@ export default class MyPlugin extends Plugin {
             this.settings,
             (messages) => this.processMessages(messages),
             this._yamlAttributeCommandIds,
-            (level, ...args) => log(this.settings.debugMode ?? false, level, ...args) // Changed from debugLog to log
+            (level, ...args) => debugLog(this.settings.debugMode ?? false, level, ...args) // Changed from log to debugLog
         );
         this.emitSettingsChange(); 
     }

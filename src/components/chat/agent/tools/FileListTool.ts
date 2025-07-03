@@ -1,6 +1,7 @@
 import { App, TFile, TFolder, Vault } from 'obsidian';
 import { Tool, ToolResult } from '../ToolRegistry';
 import { PathValidator } from './pathValidation';
+import { getTFolderByPath } from '../../../../utils/fileUtils'; // Import the new utility
 
 /**
  * Parameters for listing files/folders.
@@ -38,6 +39,8 @@ export class FileListTool implements Tool {
      * @returns ToolResult with the list of files/folders or error
      */
     async execute(params: FileListParams, context: any): Promise<ToolResult> {
+        const debugMode = context?.plugin?.settings?.debugMode ?? true;
+
         // Determine the input path (supporting legacy/alternate keys)
         const inputPath = params.path || params.folderPath || (params as any).folder || '';
         const { recursive = false, maxResults = 100 } = params;
@@ -54,23 +57,13 @@ export class FileListTool implements Tool {
         }
 
         const vault: Vault = this.app.vault;
-        let folder;
+        let folder: TFolder | undefined;
 
-        // Resolve the folder object from the path
-        if (folderPath === '' || folderPath === '/') {
-            folder = vault.getRoot();
-        } else {
-            folder = vault.getAbstractFileByPath(folderPath);
-            // Try case-insensitive match if not found
-            if (!folder) {
-                const allFolders = vault.getAllLoadedFiles().filter(f => f instanceof TFolder);
-                const match = allFolders.find(f => f.path.toLowerCase() === folderPath.toLowerCase());
-                if (match) folder = match;
-            }
-        }
+        // Use the new utility function to get the folder
+        folder = getTFolderByPath(this.app, folderPath, debugMode);
 
         // If folder not found or not a TFolder, return error
-        if (!folder || !(folder instanceof TFolder)) {
+        if (!folder) {
             return {
                 success: false,
                 error: 'Folder not found: ' + (folderPath || '(root)')

@@ -1,21 +1,11 @@
-import { MyPluginSettings } from '../../types';
-import { Notice } from 'obsidian';
 import * as yaml from 'js-yaml';
+import { ChatSession } from '../../types/chat';
+import { Message } from '../../types'; // Import Message
+import { MyPluginSettings } from '../../types/settings'; // Corrected import path
+import { debugLog } from '../../utils/logger';
 import { getProviderFromUnifiedModel, getModelIdFromUnifiedModel } from '../../../providers';
-import { MessageRenderer } from './MessageRenderer';
-
-/**
- * Utility logging function for chat persistence operations.
- * Uses plugin debugLog if available, otherwise falls back to console.
- */
-function log(level: 'debug' | 'info' | 'warn' | 'error', ...args: any[]) {
-    if (typeof window !== 'undefined' && (window as any).plugin && typeof (window as any).plugin.debugLog === 'function') {
-        (window as any).plugin.debugLog(level, '[chatPersistence]', ...args);
-    } else if (typeof console !== 'undefined') {
-        // Only log non-debug to console by default
-        if (level !== 'debug') console[level]('[chatPersistence]', ...args);
-    }
-}
+import { MessageRenderer } from '../chat/MessageRenderer';
+import { Notice } from 'obsidian'; // Import Notice
 
 /**
  * Builds YAML frontmatter for a chat note based on plugin settings and model info.
@@ -25,8 +15,8 @@ function log(level: 'debug' | 'info' | 'warn' | 'error', ...args: any[]) {
  * @param model Optional model override
  * @returns YAML frontmatter string
  */
-export function buildChatYaml(settings: MyPluginSettings, provider?: string, model?: string): string {
-    log('info', '[buildChatYaml] Entered function', { settings, provider, model });
+export function buildChatYaml(settings: MyPluginSettings, provider: string, model: string) {
+    debugLog(settings.debugMode ?? false, 'info', '[buildChatYaml] Entered function', { settings, provider, model });
     if (settings.selectedModel) {
         // Unified model format
         const providerType = getProviderFromUnifiedModel(settings.selectedModel);
@@ -38,8 +28,8 @@ export function buildChatYaml(settings: MyPluginSettings, provider?: string, mod
             system_message: settings.systemMessage,
             temperature: settings.temperature
         };
-        log('debug', '[buildChatYaml] Using unified model format', yamlObj);
-        log('info', '[buildChatYaml] Returning YAML for unified model', { yaml: `---\n${yaml.dump(yamlObj)}---\n` });
+        debugLog(settings.debugMode ?? false, 'debug', '[buildChatYaml] Using unified model format', yamlObj);
+        debugLog(settings.debugMode ?? false, 'info', '[buildChatYaml] Returning YAML for unified model', { yaml: `---\n${yaml.dump(yamlObj)}---\n` });
         return `---\n${yaml.dump(yamlObj)}---\n`;
     } else {
         // Legacy model format
@@ -49,8 +39,8 @@ export function buildChatYaml(settings: MyPluginSettings, provider?: string, mod
             system_message: settings.systemMessage,
             temperature: settings.temperature
         };
-        log('debug', '[buildChatYaml] Using legacy model format', yamlObj);
-        log('info', '[buildChatYaml] Returning YAML for legacy model', { yaml: `---\n${yaml.dump(yamlObj)}---\n` });
+        debugLog(settings.debugMode ?? false, 'debug', '[buildChatYaml] Using legacy model format', yamlObj);
+        debugLog(settings.debugMode ?? false, 'info', '[buildChatYaml] Returning YAML for legacy model', { yaml: `---\n${yaml.dump(yamlObj)}---\n` });
         return `---\n${yaml.dump(yamlObj)}---\n`;
     }
 }
@@ -61,7 +51,7 @@ export function buildChatYaml(settings: MyPluginSettings, provider?: string, mod
  * @returns The model string for the current provider
  */
 function getCurrentModelForProvider(settings: MyPluginSettings): string {
-    log('debug', '[getCurrentModelForProvider] Called', { provider: settings.provider });
+    debugLog(settings.debugMode ?? false, 'debug', '[getCurrentModelForProvider] Called', { provider: settings.provider });
     switch (settings.provider) {
         case 'openai':
             return settings.openaiSettings.model;
@@ -110,20 +100,20 @@ export async function saveChatAsNote({
     chatNoteFolder?: string,
     agentResponseHandler?: any
 }) {
-    log('info', '[saveChatAsNote] Entered function', { hasMessages: !!messages, hasChatContent: typeof chatContent === 'string' });
+    debugLog(settings.debugMode ?? false, 'info', '[saveChatAsNote] Entered function', { hasMessages: !!messages, hasChatContent: typeof chatContent === 'string' });
     let content = '';
     if (typeof chatContent === 'string') {
         // Use provided chatContent string directly
+        debugLog(settings.debugMode ?? false, 'info', '[saveChatAsNote] Using provided chatContent string directly.');
         content = chatContent;
-        log('info', '[saveChatAsNote] Using provided chatContent string directly.');
     } else if (messages) {
         // Build chat content from message DOM nodes
-        log('info', '[saveChatAsNote] Building chat content from message DOM nodes.');
+        debugLog(settings.debugMode ?? false, 'info', '[saveChatAsNote] Building chat content from message DOM nodes.');
         const messageRenderer = new MessageRenderer(app);
         messages.forEach((el: Element, index: number) => {
             const htmlElement = el as HTMLElement;
             if (htmlElement.classList.contains('tool-display-message')) {
-                log('debug', `[saveChatAsNote] Skipping tool-display-message at index ${index}`);
+                debugLog(settings.debugMode ?? false, 'debug', `[saveChatAsNote] Skipping tool-display-message at index ${index}`);
                 return;
             }
             const messageDataStr = htmlElement.dataset.messageData;
@@ -131,33 +121,33 @@ export async function saveChatAsNote({
             if (messageDataStr) {
                 try {
                     messageData = JSON.parse(messageDataStr);
-                    log('debug', `[saveChatAsNote] Parsed messageData at index ${index}`, messageData);
+                    debugLog(settings.debugMode ?? false, 'debug', `[saveChatAsNote] Parsed messageData at index ${index}`, messageData);
                 } catch (e) {
-                    log('warn', `[saveChatAsNote] Failed to parse messageData at index ${index}`, e);
+                    debugLog(settings.debugMode ?? false, 'warn', `[saveChatAsNote] Failed to parse messageData at index ${index}`, e);
                 }
             }
             if (messageData && messageData.toolResults && messageData.toolResults.length > 0) {
-                log('info', `[saveChatAsNote] Formatting message with toolResults at index ${index}`);
+                debugLog(settings.debugMode ?? false, 'info', `[saveChatAsNote] Formatting message with toolResults at index ${index}`);
                 content += messageRenderer.getMessageContentForCopy(messageData);
             } else {
                 const rawContent = htmlElement.dataset.rawContent;
                 const msg = rawContent !== undefined ? rawContent : el.querySelector('.message-content')?.textContent || '';
-                log('debug', `[saveChatAsNote] Appending regular message at index ${index}`, { msg });
+                debugLog(settings.debugMode ?? false, 'debug', `[saveChatAsNote] Appending regular message at index ${index}`, { msg });
                 content += msg;
             }
             if (index < messages.length - 1) {
                 content += '\n\n' + chatSeparator + '\n\n';
             }
         });
-        log('debug', '[saveChatAsNote] messages NodeList length:', { length: messages.length });
+        debugLog(settings.debugMode ?? false, 'debug', '[saveChatAsNote] messages NodeList length:', { length: messages.length });
     } else {
-        log('error', '[saveChatAsNote] Neither messages nor chatContent provided. Aborting.');
+        debugLog(settings.debugMode ?? false, 'error', '[saveChatAsNote] Neither messages nor chatContent provided. Aborting.');
         throw new Error('Either messages or chatContent must be provided');
     }
     // Build YAML frontmatter and strip any existing YAML from chat content
-    const yaml = buildChatYaml(settings, provider, model);
-    log('info', '[saveChatAsNote] YAML frontmatter built. Stripping any existing YAML from chat content.');
-    content = content.replace(/^---[\s\S]*?---\n?/, '');
+    const yaml = buildChatYaml(settings, provider || '', model || ''); // Pass only required arguments, ensure strings
+    debugLog(settings.debugMode ?? false, 'info', '[saveChatAsNote] YAML frontmatter built. Stripping any existing YAML from chat content.');
+    content = content.replace(/^---\s*[\s\S]*?---\n?/, '');
     // Normalize line endings and whitespace
     content = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
     content = content.replace(/\n{3,}/g, '\n\n');
@@ -171,25 +161,25 @@ export async function saveChatAsNote({
     let filePath = fileName;
     const folder = chatNoteFolder?.trim();
     if (folder) {
-        log('info', `[saveChatAsNote] Ensuring chat note folder exists: ${folder}`);
+        debugLog(settings.debugMode ?? false, 'info', `[saveChatAsNote] Ensuring chat note folder exists: ${folder}`);
         const folderExists = app.vault.getAbstractFileByPath(folder);
         if (!folderExists) {
             try {
                 await app.vault.createFolder(folder);
-                log('info', `[saveChatAsNote] Created chat note folder: ${folder}`);
+                debugLog(settings.debugMode ?? false, 'info', `[saveChatAsNote] Created chat note folder: ${folder}`);
             } catch (e) {
                 if (!app.vault.getAbstractFileByPath(folder)) {
-                    log('error', `[saveChatAsNote] Failed to create folder for chat note: ${folder}`, e);
+                    debugLog(settings.debugMode ?? false, 'error', `[saveChatAsNote] Failed to create folder for chat note: ${folder}`, e);
                     new Notice('Failed to create folder for chat note.');
                     return;
                 } else {
-                    log('warn', `[saveChatAsNote] Folder already exists after race: ${folder}`);
+                    debugLog(settings.debugMode ?? false, 'warn', `[saveChatAsNote] Folder already exists after race: ${folder}`);
                 }
             }
         } else {
-            log('debug', `[saveChatAsNote] Folder already exists: ${folder}`);
+            debugLog(settings.debugMode ?? false, 'debug', `[saveChatAsNote] Folder already exists: ${folder}`);
         }
-        filePath = folder.replace(/[/\\]+$/, '') + '/' + fileName;
+        filePath = folder.replace(/[\/\\]+$/, '') + '/' + fileName;
     }
 
     // Ensure unique file name if file already exists
@@ -199,19 +189,20 @@ export async function saveChatAsNote({
         const extIndex = fileName.lastIndexOf('.');
         const base = extIndex !== -1 ? fileName.substring(0, extIndex) : fileName;
         const ext = extIndex !== -1 ? fileName.substring(extIndex) : '';
-        finalFilePath = (folder ? folder.replace(/[/\\]+$/, '') + '/' : '') + `${base} (${attempt})${ext}`;
-        log('warn', '[saveChatAsNote] File already exists, trying new filename', { finalFilePath });
+        finalFilePath = (folder ? folder.replace(/[\/\\]+$/, '') + '/' : '') + `${base} (${attempt})${ext}`;
+        debugLog(settings.debugMode ?? false, 'warn', '[saveChatAsNote] File already exists, trying new filename', { finalFilePath });
         attempt++;
     }
     try {
         await app.vault.create(finalFilePath, noteContent);
-        log('info', '[saveChatAsNote] Chat successfully saved as note', { finalFilePath });
+        debugLog(settings.debugMode ?? false, 'info', '[saveChatAsNote] Chat successfully saved as note', { finalFilePath });
         new Notice(`Chat saved as note: ${finalFilePath}`);
     } catch (e) {
-        log('error', '[saveChatAsNote] Failed to save chat as note', { finalFilePath, error: e });
+        debugLog(settings.debugMode ?? false, 'error', '[saveChatAsNote] Failed to save chat as note', { finalFilePath, error: e });
         new Notice('Failed to save chat as note.');
     }
-    log('info', '[saveChatAsNote] Exiting function. Save process complete.');
+    debugLog(settings.debugMode ?? false, 'info', '[saveChatAsNote] Exiting function. Save process complete.');
+    return;
 }
 
 /**
@@ -234,33 +225,33 @@ export async function loadChatYamlAndApplySettings({
     settings: MyPluginSettings,
     file: any
 }) {
-    log('info', '[loadChatYamlAndApplySettings] Entered function', { file: file?.path || file?.name || file });
-    log('debug', '[loadChatYamlAndApplySettings] File content loaded. Extracting YAML frontmatter.');
+    debugLog(settings.debugMode ?? false, 'info', '[loadChatYamlAndApplySettings] Entered function', { file: file?.path || file?.name || file });
+    debugLog(settings.debugMode ?? false, 'debug', '[loadChatYamlAndApplySettings] File content loaded. Extracting YAML frontmatter.');
     let content = await app.vault.read(file);
     const yamlMatch = content.match(/^---\n([\s\S]*?)\n---/);
     let yamlObj: any = {};
     if (yamlMatch) {
         try {
             yamlObj = yaml.load(yamlMatch[1]) || {};
-            log('info', '[loadChatYamlAndApplySettings] YAML frontmatter parsed', yamlObj);
+            debugLog(settings.debugMode ?? false, 'info', '[loadChatYamlAndApplySettings] YAML frontmatter parsed', yamlObj);
         } catch (e) {
-            log('warn', '[loadChatYamlAndApplySettings] Failed to parse YAML frontmatter', e);
+            debugLog(settings.debugMode ?? false, 'warn', '[loadChatYamlAndApplySettings] Failed to parse YAML frontmatter', e);
             yamlObj = {};
         }
     } else {
-        log('warn', '[loadChatYamlAndApplySettings] No YAML frontmatter found in file.');
+        debugLog(settings.debugMode ?? false, 'warn', '[loadChatYamlAndApplySettings] No YAML frontmatter found in file.');
     }
 
     // Apply model and provider settings from YAML
     if (yamlObj.unified_model) {
         settings.selectedModel = yamlObj.unified_model;
-        log('info', '[loadChatYamlAndApplySettings] Loaded unified_model from YAML', yamlObj.unified_model);
-        log('info', '[loadChatYamlAndApplySettings] Set selectedModel from unified_model', { selectedModel: settings.selectedModel });
+        debugLog(settings.debugMode ?? false, 'info', '[loadChatYamlAndApplySettings] Loaded unified_model from YAML', yamlObj.unified_model);
+        debugLog(settings.debugMode ?? false, 'info', '[loadChatYamlAndApplySettings] Set selectedModel from unified_model', { selectedModel: settings.selectedModel });
     } else if (yamlObj.provider && yamlObj.model) {
         const unifiedModelId = `${yamlObj.provider}:${yamlObj.model}`;
         settings.selectedModel = unifiedModelId;
-        log('info', '[loadChatYamlAndApplySettings] Loaded legacy provider/model from YAML', { provider: yamlObj.provider, model: yamlObj.model });
-        log('info', '[loadChatYamlAndApplySettings] Set selectedModel from provider/model', { selectedModel: settings.selectedModel });
+        debugLog(settings.debugMode ?? false, 'info', '[loadChatYamlAndApplySettings] Loaded legacy provider/model from YAML', { provider: yamlObj.provider, model: yamlObj.model });
+        debugLog(settings.debugMode ?? false, 'info', '[loadChatYamlAndApplySettings] Set selectedModel from provider/model', { selectedModel: settings.selectedModel });
         settings.provider = yamlObj.provider;
         switch (yamlObj.provider) {
             case 'openai':
@@ -277,7 +268,7 @@ export async function loadChatYamlAndApplySettings({
                 break;
         }
     } else {
-        log('warn', '[loadChatYamlAndApplySettings] No model/provider found in YAML. Using existing settings.');
+        debugLog(settings.debugMode ?? false, 'warn', '[loadChatYamlAndApplySettings] No model/provider found in YAML. Using existing settings.');
     }
     // Apply system message and temperature from YAML
     let newSystemMessage = yamlObj.system_message || settings.systemMessage;
@@ -286,19 +277,19 @@ export async function loadChatYamlAndApplySettings({
         const tempNum = parseFloat(yamlObj.temperature);
         if (!isNaN(tempNum)) {
             newTemperature = tempNum;
-            log('info', '[loadChatYamlAndApplySettings] Loaded temperature from YAML', newTemperature);
+            debugLog(settings.debugMode ?? false, 'info', '[loadChatYamlAndApplySettings] Loaded temperature from YAML', newTemperature);
         } else {
-            log('warn', '[loadChatYamlAndApplySettings] Invalid temperature in YAML, using existing value.', yamlObj.temperature);
+            debugLog(settings.debugMode ?? false, 'warn', '[loadChatYamlAndApplySettings] Invalid temperature in YAML, using existing value.', yamlObj.temperature);
         }
     }
     settings.systemMessage = newSystemMessage;
     settings.temperature = newTemperature;
-    log('info', '[loadChatYamlAndApplySettings] Applied settings from YAML', { selectedModel: settings.selectedModel, systemMessage: newSystemMessage, temperature: newTemperature });
+    debugLog(settings.debugMode ?? false, 'info', '[loadChatYamlAndApplySettings] Applied settings from YAML', { selectedModel: settings.selectedModel, systemMessage: newSystemMessage, temperature: newTemperature });
     if (plugin.onSettingsLoadedFromNote) {
-        log('debug', '[loadChatYamlAndApplySettings] Calling plugin.onSettingsLoadedFromNote');
+        debugLog(settings.debugMode ?? false, 'debug', '[loadChatYamlAndApplySettings] Calling plugin.onSettingsLoadedFromNote');
         plugin.onSettingsLoadedFromNote(settings);
     }
-    log('info', '[loadChatYamlAndApplySettings] Exiting function. YAML load/apply process complete.');
+    debugLog(settings.debugMode ?? false, 'info', '[loadChatYamlAndApplySettings] Exiting function. YAML load/apply process complete.');
     return {
         provider: yamlObj.provider,
         model: yamlObj.model,

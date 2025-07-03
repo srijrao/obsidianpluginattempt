@@ -2,7 +2,7 @@ import { App } from 'obsidian';
 import { Message } from '../../../types';
 import MyPlugin from '../../../main';
 import { getSystemMessage } from '../../../utils/systemMessage';
-import { getContextNotesContent } from '../../../utils/noteUtils';
+import { processContextNotes } from '../../../../src/utils/noteUtils';
 
 /**
  * ContextBuilder is responsible for constructing the initial context messages
@@ -32,7 +32,7 @@ export class ContextBuilder {
 
         // Optionally append context notes to the system message.
         if (this.plugin.settings.enableContextNotes && this.plugin.settings.contextNotes) {
-            const contextContent = await getContextNotesContent(this.plugin.settings.contextNotes, this.plugin.app);
+            const contextContent = await processContextNotes(this.plugin.settings.contextNotes, this.plugin.app);
             messages[0].content += `\n\nContext Notes:\n${contextContent}`;
         }
 

@@ -12,7 +12,7 @@
 import { Message, CompletionOptions, ConnectionTestResult } from '../src/types';
 import { BaseProvider, ProviderError, ProviderErrorType } from './base';
 import Anthropic from '@anthropic-ai/sdk';
-import { log } from '../src/utils/logger'; // Import log
+import { debugLog } from '../src/utils/logger'; // Import debugLog
 
 /**
  * Anthropic API response types
@@ -105,6 +105,7 @@ export class AnthropicProvider extends BaseProvider {
             dangerouslyAllowBrowser: true // Required for browser environments
         });
         this.debugMode = debugMode; // Initialize debugMode
+        debugLog(true, 'debug', '[Anthropic Provider] Initializing Anthropic API', { config: { apiKey, model, debugMode } }); // Log initialization
     }
 
     /**
@@ -143,19 +144,19 @@ export class AnthropicProvider extends BaseProvider {
                     );
                 }
 
-                log(this.debugMode, 'info',
+                debugLog(this.debugMode, 'info',
                     `Adjusting max_tokens from ${maxTokens} to ${adjustedMaxTokens} ` +
                     `to fit within ${this.model}'s context window`
-                ); // Use log
+                ); // Use debugLog
 
                 maxTokens = adjustedMaxTokens;
             }
 
             // Enforce model output token limit
             if (outputTokenLimit && maxTokens > outputTokenLimit) {
-                log(this.debugMode, 'info',
+                debugLog(this.debugMode, 'info',
                     `Capping max_tokens from ${maxTokens} to model output limit ${outputTokenLimit} for ${this.model}`
-                ); // Use log
+                ); // Use debugLog
                 maxTokens = outputTokenLimit;
             }
             
@@ -214,7 +215,7 @@ export class AnthropicProvider extends BaseProvider {
                     }
                 }
             } catch (streamError) {
-                log(this.debugMode, 'error', 'Error processing Anthropic stream:', streamError); // Use log
+                debugLog(this.debugMode, 'error', 'Error processing Anthropic stream:', streamError); // Use debugLog
                 throw streamError;
             }
         } catch (error) {
@@ -222,9 +223,9 @@ export class AnthropicProvider extends BaseProvider {
                 throw error;
             }
             if (error.name === 'AbortError') {
-                log(this.debugMode, 'info', 'Anthropic stream was aborted'); // Use log
+                debugLog(this.debugMode, 'info', 'Anthropic stream was aborted'); // Use debugLog
             } else {
-                log(this.debugMode, 'error', 'Error calling Anthropic:', error); // Use log
+                debugLog(this.debugMode, 'error', 'Error calling Anthropic:', error); // Use debugLog
                 throw error;
             }
         }
@@ -245,7 +246,7 @@ export class AnthropicProvider extends BaseProvider {
             // This ensures the model list is synchronized with our context window definitions
             return Object.keys(MODEL_CONTEXT_WINDOWS);
         } catch (error) {
-            log(this.debugMode, 'error', 'Error getting Anthropic models:', error); // Use log
+            debugLog(this.debugMode, 'error', 'Error getting Anthropic models:', error); // Use debugLog
             throw error;
         }
     }

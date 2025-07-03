@@ -245,6 +245,30 @@ var init_pathValidation = __esm({
   }
 });
 
+// src/utils/logger.ts
+function debugLog(debugMode, level = "debug", ...args) {
+  if (!debugMode) return;
+  const timestamp2 = (/* @__PURE__ */ new Date()).toISOString();
+  const prefix = `[AI Assistant ${level.toUpperCase()} ${timestamp2}]`;
+  switch (level) {
+    case "info":
+      console.info(prefix, ...args);
+      break;
+    case "warn":
+      console.warn(prefix, ...args);
+      break;
+    case "error":
+      console.error(prefix, ...args);
+      break;
+    default:
+      console.debug(prefix, ...args);
+  }
+}
+var init_logger = __esm({
+  "src/utils/logger.ts"() {
+  }
+});
+
 // src/utils/typeguards.ts
 function isTFile(file) {
   return !!file && typeof file === "object" && "path" in file && "basename" in file && "extension" in file && "stat" in file && typeof file.path === "string" && typeof file.basename === "string" && typeof file.extension === "string";
@@ -257,23 +281,85 @@ var init_typeguards = __esm({
   }
 });
 
-// src/components/chat/agent/tools/FileReadTool.ts
-async function readFileDirect(app, filePath) {
-  const file = app.vault.getAbstractFileByPath(filePath);
-  if (!file || !isTFile(file)) {
-    return `File not found or is not a file: "${filePath}"`;
+// src/utils/fileUtils.ts
+function getFileOrFolderByPath(app, path, debugMode) {
+  debugLog(debugMode, "debug", "[fileUtils] Attempting to get file or folder by path:", path);
+  let fileOrFolder = null;
+  if (path === "" || path === "/") {
+    fileOrFolder = app.vault.getRoot();
+  } else {
+    fileOrFolder = app.vault.getAbstractFileByPath(path);
+    if (!fileOrFolder && path.endsWith("/")) {
+      const allFolders = app.vault.getAllLoadedFiles().filter((f) => f instanceof import_obsidian.TFolder);
+      const match = allFolders.find((f) => f.path.toLowerCase() === path.toLowerCase());
+      if (match) fileOrFolder = match;
+    }
+  }
+  if (fileOrFolder) {
+    debugLog(debugMode, "debug", "[fileUtils] Found file or folder:", fileOrFolder.path);
+    return fileOrFolder;
+  }
+  debugLog(debugMode, "warn", "[fileUtils] File or folder not found:", path);
+  return void 0;
+}
+function getTFileByPath(app, path, debugMode) {
+  const fileOrFolder = getFileOrFolderByPath(app, path, debugMode);
+  if (fileOrFolder && isTFile(fileOrFolder)) {
+    return fileOrFolder;
+  }
+  debugLog(debugMode, "warn", "[fileUtils] Path does not point to a valid TFile:", path);
+  return void 0;
+}
+function getTFolderByPath(app, path, debugMode) {
+  const fileOrFolder = getFileOrFolderByPath(app, path, debugMode);
+  if (fileOrFolder && isTFolder(fileOrFolder)) {
+    return fileOrFolder;
+  }
+  debugLog(debugMode, "warn", "[fileUtils] Path does not point to a valid TFolder:", path);
+  return void 0;
+}
+async function ensureFolderExists(app, folderPath, debugMode) {
+  debugLog(debugMode, "debug", "[fileUtils] Ensuring folder exists:", folderPath);
+  if (!folderPath) return true;
+  const folder = app.vault.getAbstractFileByPath(folderPath);
+  if (folder) {
+    if (isTFolder(folder)) {
+      debugLog(debugMode, "debug", "[fileUtils] Folder already exists:", folderPath);
+      return true;
+    } else {
+      debugLog(debugMode, "warn", "[fileUtils] Path exists but is not a folder:", folderPath);
+      return false;
+    }
   }
   try {
-    return await app.vault.read(file);
-  } catch (err) {
-    return `Failed to read file: ${(err == null ? void 0 : err.message) || err}`;
+    await app.vault.createFolder(folderPath);
+    debugLog(debugMode, "info", "[fileUtils] Created folder:", folderPath);
+    return true;
+  } catch (error) {
+    if (error.message && /already exists/i.test(error.message)) {
+      debugLog(debugMode, "warn", "[fileUtils] Folder already exists (race condition):", folderPath);
+      return true;
+    }
+    debugLog(debugMode, "error", "[fileUtils] Failed to create folder:", folderPath, error);
+    return false;
   }
 }
+var import_obsidian;
+var init_fileUtils = __esm({
+  "src/utils/fileUtils.ts"() {
+    import_obsidian = require("obsidian");
+    init_logger();
+    init_typeguards();
+  }
+});
+
+// src/components/chat/agent/tools/FileReadTool.ts
 var FileReadTool;
 var init_FileReadTool = __esm({
   "src/components/chat/agent/tools/FileReadTool.ts"() {
     init_pathValidation();
-    init_typeguards();
+    init_fileUtils();
+    init_logger();
     FileReadTool = class {
       constructor(app) {
         this.app = app;
@@ -302,10 +388,12 @@ var init_FileReadTool = __esm({
        * @returns ToolResult with file content or error
        */
       async execute(params, context) {
-        var _a2, _b, _c;
+        var _a2, _b, _c, _d, _e, _f;
+        const debugMode = (_c = (_b = (_a2 = context == null ? void 0 : context.plugin) == null ? void 0 : _a2.settings) == null ? void 0 : _b.debugMode) != null ? _c : true;
         const inputPath = params.path || params.filePath;
         const { maxSize = 1024 * 1024 } = params;
         if (inputPath === void 0 || inputPath === null) {
+          debugLog(debugMode, "warn", "[FileReadTool] Missing path parameter");
           return {
             success: false,
             error: "path parameter is required"
@@ -314,39 +402,45 @@ var init_FileReadTool = __esm({
         let filePath;
         try {
           filePath = this.pathValidator.validateAndNormalizePath(inputPath);
+          debugLog(debugMode, "debug", "[FileReadTool] Normalized filePath:", filePath);
         } catch (error) {
+          debugLog(debugMode, "error", "[FileReadTool] Path validation failed:", error);
           return {
             success: false,
             error: `Path validation failed: ${error.message}`
           };
         }
         try {
-          const file = this.app.vault.getAbstractFileByPath(filePath);
-          if (file && isTFile(file) && ((_a2 = file.stat) == null ? void 0 : _a2.size) && file.stat.size > maxSize) {
+          const file = getTFileByPath(this.app, filePath, debugMode);
+          if (!file) {
+            debugLog(debugMode, "warn", "[FileReadTool] File not found:", filePath);
+            return {
+              success: false,
+              error: `File not found: ${filePath}`
+            };
+          }
+          if (((_d = file.stat) == null ? void 0 : _d.size) && file.stat.size > maxSize) {
+            debugLog(debugMode, "warn", "[FileReadTool] File too large:", { filePath, size: file.stat.size, maxSize });
             return {
               success: false,
               error: `File too large (${file.stat.size} bytes, max ${maxSize} bytes): ${filePath}`
             };
           }
-          let content = await readFileDirect(this.app, filePath);
-          if (content.startsWith("File not found") || content.startsWith("Failed to read")) {
-            return {
-              success: false,
-              error: content
-            };
-          }
+          let content = await this.app.vault.read(file);
+          debugLog(debugMode, "info", "[FileReadTool] File content read", { filePath, size: content.length });
           content = content.split("\n").map((line) => line.replace(/\s+$/g, "")).join("\n").replace(/\n{3,}/g, "\n\n").replace(/ {3,}/g, "  ").replace(/-{6,}/g, "-----").trim();
           return {
             success: true,
             data: {
               content,
               filePath,
-              size: isTFile(file) ? ((_b = file.stat) == null ? void 0 : _b.size) || 0 : 0,
-              modified: isTFile(file) ? ((_c = file.stat) == null ? void 0 : _c.mtime) || 0 : 0,
-              extension: isTFile(file) ? file.extension : void 0
+              size: ((_e = file.stat) == null ? void 0 : _e.size) || 0,
+              modified: ((_f = file.stat) == null ? void 0 : _f.mtime) || 0,
+              extension: file.extension
             }
           };
         } catch (error) {
+          debugLog(debugMode, "error", "[FileReadTool] Failed to read file:", error);
           return {
             success: false,
             error: `Failed to read file: ${error.message}`
@@ -905,55 +999,14 @@ var init_BackupManager = __esm({
 });
 
 // src/components/chat/agent/tools/FileWriteTool.ts
-async function createFileWithParents(app, filePath, content = "") {
-  const parts = filePath.split("/");
-  parts.pop();
-  let current = "";
-  for (const part of parts) {
-    current = current ? `${current}/${part}` : part;
-    if (current && !app.vault.getAbstractFileByPath(current)) {
-      try {
-        await app.vault.createFolder(current);
-      } catch (err) {
-        if (!/already exists/i.test((err == null ? void 0 : err.message) || "")) {
-          return `Failed to create parent folder: ${(err == null ? void 0 : err.message) || err}`;
-        }
-      }
-    }
-  }
-  try {
-    await app.vault.create(filePath, content);
-    return `Created file '${filePath}'.`;
-  } catch (err) {
-    return `Failed to create file: ${(err == null ? void 0 : err.message) || err}`;
-  }
-}
-async function createFileDirect(app, filePath, content = "") {
-  try {
-    await app.vault.create(filePath, content);
-    return `Created file '${filePath}'.`;
-  } catch (err) {
-    return `Failed to create file: ${(err == null ? void 0 : err.message) || err}`;
-  }
-}
-async function writeFileDirect(app, filePath, content) {
-  const file = app.vault.getAbstractFileByPath(filePath);
-  if (!file || !isTFile(file)) {
-    return `File not found or is not a file: "${filePath}"`;
-  }
-  try {
-    await app.vault.modify(file, content);
-    return `Wrote to file '${filePath}'.`;
-  } catch (err) {
-    return `Failed to write file: ${(err == null ? void 0 : err.message) || err}`;
-  }
-}
-var FileWriteTool;
+var import_obsidian2, FileWriteTool;
 var init_FileWriteTool = __esm({
   "src/components/chat/agent/tools/FileWriteTool.ts"() {
+    import_obsidian2 = require("obsidian");
     init_BackupManager();
     init_pathValidation();
-    init_typeguards();
+    init_fileUtils();
+    init_logger();
     FileWriteTool = class {
       constructor(app, backupManager) {
         this.app = app;
@@ -983,7 +1036,8 @@ var init_FileWriteTool = __esm({
           createParentFolders: {
             type: "boolean",
             description: "Create parent folders if they don't exist.",
-            required: true
+            default: true
+            // Changed default to true
           }
         });
         __publicField(this, "backupManager");
@@ -1000,89 +1054,99 @@ var init_FileWriteTool = __esm({
        * @returns ToolResult indicating success or failure
        */
       async execute(params, context) {
+        var _a2, _b, _c;
+        const debugMode = (_c = (_b = (_a2 = context == null ? void 0 : context.plugin) == null ? void 0 : _a2.settings) == null ? void 0 : _b.debugMode) != null ? _c : true;
         const inputPath = params.path || params.filePath || params.filename;
-        const { content, createIfNotExists = true, backup = true, createParentFolders } = params;
+        const { content, createIfNotExists = true, backup = true, createParentFolders = true } = params;
         if (inputPath === void 0 || inputPath === null) {
+          debugLog(debugMode, "warn", "[FileWriteTool] Missing path parameter");
           return {
             success: false,
             error: "path parameter is required"
           };
         }
-        if (typeof createParentFolders !== "boolean") {
-          return {
-            success: false,
-            error: "createParentFolders parameter is required and must be boolean"
-          };
-        }
         let filePath;
         try {
           filePath = this.pathValidator.validateAndNormalizePath(inputPath);
+          debugLog(debugMode, "debug", "[FileWriteTool] Normalized filePath:", filePath);
         } catch (error) {
+          debugLog(debugMode, "error", "[FileWriteTool] Path validation failed:", error);
           return {
             success: false,
             error: `Path validation failed: ${error.message}`
           };
         }
         if (content === void 0 || content === null) {
+          debugLog(debugMode, "warn", "[FileWriteTool] Missing content parameter");
           return {
             success: false,
             error: "content parameter is required"
           };
         }
         try {
-          const file = this.app.vault.getAbstractFileByPath(filePath);
+          let file = getTFileByPath(this.app, filePath, debugMode);
           if (!file) {
             if (!createIfNotExists) {
+              debugLog(debugMode, "warn", "[FileWriteTool] File not found and createIfNotExists is false", { filePath });
               return {
                 success: false,
                 error: `File not found and createIfNotExists is false: ${filePath}`
               };
             }
-            let result2;
             if (createParentFolders) {
-              result2 = await createFileWithParents(this.app, filePath, content);
-            } else {
-              const parentPath = filePath.split("/").slice(0, -1).join("/");
-              if (parentPath && !this.app.vault.getAbstractFileByPath(parentPath)) {
+              const parentPath = filePath.substring(0, filePath.lastIndexOf("/"));
+              if (parentPath && !await ensureFolderExists(this.app, parentPath, debugMode)) {
                 return {
                   success: false,
-                  error: `Parent folder does not exist: ${parentPath}`
+                  error: `Failed to create parent folder(s) for ${filePath}`
                 };
               }
-              result2 = await createFileDirect(this.app, filePath, content);
+            } else {
+              const parentPath = filePath.substring(0, filePath.lastIndexOf("/"));
+              if (parentPath && !getTFileByPath(this.app, parentPath, debugMode)) {
+                return {
+                  success: false,
+                  error: `Parent folder does not exist for ${filePath} and createParentFolders is false`
+                };
+              }
             }
-            if (result2.startsWith("Failed to create")) {
+            try {
+              file = await this.app.vault.create(filePath, content);
+              debugLog(debugMode, "info", "[FileWriteTool] Created file", { filePath });
+              return {
+                success: true,
+                data: {
+                  action: "created",
+                  filePath,
+                  size: content.length
+                }
+              };
+            } catch (createError) {
+              debugLog(debugMode, "error", "[FileWriteTool] Failed to create file", { filePath, createError });
               return {
                 success: false,
-                error: result2
+                error: `Failed to create file: ${createError.message}`
               };
             }
-            return {
-              success: true,
-              data: {
-                action: "created",
-                filePath,
-                size: content.length
-              }
-            };
           }
-          if (!isTFile(file)) {
+          if (!(file instanceof import_obsidian2.TFile)) {
+            debugLog(debugMode, "warn", "[FileWriteTool] Path is not a file", { filePath });
             return {
               success: false,
               error: `Path is not a file: ${filePath}`
             };
           }
           let originalContent = void 0;
-          if (backup || true) {
-            originalContent = await this.app.vault.read(file);
-          }
           if (backup) {
+            originalContent = await this.app.vault.read(file);
             const shouldBackup = await this.backupManager.shouldCreateBackup(filePath, content);
             if (shouldBackup) {
               await this.backupManager.createBackup(filePath, originalContent);
+              debugLog(debugMode, "info", "[FileWriteTool] Created backup", { filePath });
             }
           }
           if (originalContent === content) {
+            debugLog(debugMode, "info", "[FileWriteTool] Content unchanged, skipping write", { filePath });
             return {
               success: true,
               data: {
@@ -1093,23 +1157,27 @@ var init_FileWriteTool = __esm({
               }
             };
           }
-          const result = await writeFileDirect(this.app, filePath, content);
-          if (result.startsWith("Failed to write")) {
+          try {
+            await this.app.vault.modify(file, content);
+            debugLog(debugMode, "info", "[FileWriteTool] Modified file", { filePath });
+            return {
+              success: true,
+              data: {
+                action: "modified",
+                filePath,
+                size: content.length,
+                backupCreated: backup
+              }
+            };
+          } catch (modifyError) {
+            debugLog(debugMode, "error", "[FileWriteTool] Failed to modify file", { filePath, modifyError });
             return {
               success: false,
-              error: result
+              error: `Failed to write file: ${modifyError.message}`
             };
           }
-          return {
-            success: true,
-            data: {
-              action: "modified",
-              filePath,
-              size: content.length,
-              backupCreated: backup
-            }
-          };
         } catch (error) {
+          debugLog(debugMode, "error", "[FileWriteTool] Unexpected error during file write", { filePath, error });
           return {
             success: false,
             error: `Failed to write file: ${error.message}`
@@ -1388,30 +1456,40 @@ var init_libesm = __esm({
   }
 });
 
-// src/utils/logger.ts
-function debugLog(debugMode, level = "debug", ...args) {
-  if (!debugMode) return;
-  const timestamp2 = (/* @__PURE__ */ new Date()).toISOString();
-  const prefix = `[AI Assistant ${level.toUpperCase()} ${timestamp2}]`;
-  switch (level) {
-    case "info":
-      console.info(prefix, ...args);
-      break;
-    case "warn":
-      console.warn(prefix, ...args);
-      break;
-    case "error":
-      console.error(prefix, ...args);
-      break;
-    default:
-      console.debug(prefix, ...args);
+// src/utils/editorUtils.ts
+async function getOrOpenFileEditor(app, file, debugMode) {
+  debugLog(debugMode, "debug", "[editorUtils] Attempting to get or open editor for file:", file.path);
+  try {
+    const leaves = app.workspace.getLeavesOfType("markdown");
+    for (const leaf2 of leaves) {
+      if (leaf2.view && "file" in leaf2.view && leaf2.view.file === file) {
+        debugLog(debugMode, "debug", "[editorUtils] Found existing editor for file");
+        if ("editor" in leaf2.view && leaf2.view.editor) {
+          app.workspace.setActiveLeaf(leaf2);
+          return leaf2.view.editor;
+        }
+      }
+    }
+    debugLog(debugMode, "debug", "[editorUtils] File not open, attempting to open it");
+    const leaf = app.workspace.getUnpinnedLeaf();
+    if (leaf) {
+      await leaf.openFile(file);
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      if (leaf.view && "editor" in leaf.view && leaf.view.editor) {
+        debugLog(debugMode, "debug", "[editorUtils] Successfully opened file and got editor");
+        return leaf.view.editor;
+      }
+    }
+    debugLog(debugMode, "warn", "[editorUtils] Could not get or create editor for file");
+    return void 0;
+  } catch (error) {
+    debugLog(debugMode, "error", "[editorUtils] Error getting or opening editor:", error);
+    return void 0;
   }
 }
-function log(debugMode, level = "debug", ...args) {
-  debugLog(debugMode, level, ...args);
-}
-var init_logger = __esm({
-  "src/utils/logger.ts"() {
+var init_editorUtils = __esm({
+  "src/utils/editorUtils.ts"() {
+    init_logger();
   }
 });
 
@@ -1419,15 +1497,16 @@ var init_logger = __esm({
 function showFileChangeSuggestionsModal(app, suggestions) {
   new FileChangeSuggestionsModal(app, suggestions).open();
 }
-var import_obsidian, FileChangeSuggestionsModal, FileDiffTool;
+var import_obsidian3, FileChangeSuggestionsModal, FileDiffTool;
 var init_FileDiffTool = __esm({
   "src/components/chat/agent/tools/FileDiffTool.ts"() {
-    import_obsidian = require("obsidian");
+    import_obsidian3 = require("obsidian");
     init_libesm();
     init_pathValidation();
     init_logger();
-    init_typeguards();
-    FileChangeSuggestionsModal = class extends import_obsidian.Modal {
+    init_editorUtils();
+    init_fileUtils();
+    FileChangeSuggestionsModal = class extends import_obsidian3.Modal {
       constructor(app, suggestions) {
         super(app);
         __publicField(this, "suggestions");
@@ -1508,9 +1587,9 @@ var init_FileDiffTool = __esm({
           acceptBtn.onclick = async () => {
             try {
               if (s.onAccept) await s.onAccept();
-              new import_obsidian.Notice("Suggestion accepted");
+              new import_obsidian3.Notice("Suggestion accepted");
             } catch (e) {
-              new import_obsidian.Notice("Failed to accept suggestion: " + ((e == null ? void 0 : e.message) || e));
+              new import_obsidian3.Notice("Failed to accept suggestion: " + ((e == null ? void 0 : e.message) || e));
             }
             this.suggestions.splice(idx, 1);
             this.renderSuggestions();
@@ -1521,9 +1600,9 @@ var init_FileDiffTool = __esm({
           rejectBtn.onclick = async () => {
             try {
               if (s.onReject) await s.onReject();
-              new import_obsidian.Notice("Suggestion rejected");
+              new import_obsidian3.Notice("Suggestion rejected");
             } catch (e) {
-              new import_obsidian.Notice("Failed to reject suggestion: " + ((e == null ? void 0 : e.message) || e));
+              new import_obsidian3.Notice("Failed to reject suggestion: " + ((e == null ? void 0 : e.message) || e));
             }
             this.suggestions.splice(idx, 1);
             this.renderSuggestions();
@@ -1611,9 +1690,9 @@ var init_FileDiffTool = __esm({
           };
         }
         try {
-          const file = this.app.vault.getAbstractFileByPath(filePath);
+          const file = getTFileByPath(this.app, filePath, debugMode);
           debugLog(debugMode, "debug", "[FileDiffTool] Got file:", file);
-          if (!isTFile(file)) {
+          if (!file) {
             debugLog(debugMode, "warn", "[FileDiffTool] File not found or not a TFile:", filePath);
             return {
               success: false,
@@ -1624,7 +1703,7 @@ var init_FileDiffTool = __esm({
           debugLog(debugMode, "debug", "[FileDiffTool] Current content loaded.");
           let activeEditor = editor;
           if (!activeEditor) {
-            activeEditor = await this.getOrOpenFileEditor(file, debugMode);
+            activeEditor = await getOrOpenFileEditor(this.app, file, debugMode);
           }
           if (activeEditor) {
             return await this.showInlineSuggestion(activeEditor, file, currentContent, suggestedContent, insertPosition, debugMode);
@@ -1696,11 +1775,11 @@ ${diff}`
           onAccept: async () => {
             debugLog(debugMode, "debug", "[FileDiffTool] User accepted suggestion");
             await this.app.vault.modify(file, suggestedContent);
-            new import_obsidian.Notice(`Applied changes to ${file.path}`);
+            new import_obsidian3.Notice(`Applied changes to ${file.path}`);
           },
           onReject: async () => {
             debugLog(debugMode, "debug", "[FileDiffTool] User rejected suggestion");
-            new import_obsidian.Notice(`Rejected changes to ${file.path}`);
+            new import_obsidian3.Notice(`Rejected changes to ${file.path}`);
           }
         };
         showFileChangeSuggestionsModal(this.app, [suggestion]);
@@ -1742,53 +1821,16 @@ ${diff}`
         return diff.join("\n");
       }
       /**
-       * Gets an editor for the specified file, opening it if necessary.
-       * If the file is already open in a markdown view, returns its editor.
-       * Otherwise, opens the file in a new leaf and returns the editor after a short delay.
-       * @param file The TFile to get or open.
-       * @param debugMode Whether to log debug output.
-       * @returns The Editor instance, or undefined if not available.
-       */
-      async getOrOpenFileEditor(file, debugMode) {
-        debugLog(debugMode, "debug", "[FileDiffTool] Attempting to get or open editor for file:", file.path);
-        try {
-          const leaves = this.app.workspace.getLeavesOfType("markdown");
-          for (const leaf2 of leaves) {
-            if (leaf2.view && "file" in leaf2.view && leaf2.view.file === file) {
-              debugLog(debugMode, "debug", "[FileDiffTool] Found existing editor for file");
-              if ("editor" in leaf2.view && leaf2.view.editor) {
-                this.app.workspace.setActiveLeaf(leaf2);
-                return leaf2.view.editor;
-              }
-            }
-          }
-          debugLog(debugMode, "debug", "[FileDiffTool] File not open, attempting to open it");
-          const leaf = this.app.workspace.getUnpinnedLeaf();
-          if (leaf) {
-            await leaf.openFile(file);
-            await new Promise((resolve) => setTimeout(resolve, 100));
-            if (leaf.view && "editor" in leaf.view && leaf.view.editor) {
-              debugLog(debugMode, "debug", "[FileDiffTool] Successfully opened file and got editor");
-              return leaf.view.editor;
-            }
-          }
-          debugLog(debugMode, "warn", "[FileDiffTool] Could not get or create editor for file");
-          return void 0;
-        } catch (error) {
-          debugLog(debugMode, "error", "[FileDiffTool] Error getting or opening editor:", error);
-          return void 0;
-        }
-      }
-      /**
        * Utility function to clean up any remaining suggestion blocks from a file.
        * Can be called manually if needed to remove leftover suggestion blocks.
        * @param filePath The path of the file to clean up.
        * @returns ToolResult indicating cleanup status.
        */
       async cleanupSuggestionBlocks(filePath) {
+        const debugMode = true;
         try {
-          const file = this.app.vault.getAbstractFileByPath(filePath);
-          if (!isTFile(file)) {
+          const file = getTFileByPath(this.app, filePath, debugMode);
+          if (!file) {
             return {
               success: false,
               error: `File not found: ${filePath}`
@@ -1828,12 +1870,12 @@ ${diff}`
 });
 
 // src/components/chat/agent/tools/FileMoveTool.ts
-var import_obsidian2, FileMoveTool;
+var import_obsidian4, FileMoveTool;
 var init_FileMoveTool = __esm({
   "src/components/chat/agent/tools/FileMoveTool.ts"() {
-    import_obsidian2 = require("obsidian");
+    import_obsidian4 = require("obsidian");
     init_pathValidation();
-    init_typeguards();
+    init_fileUtils();
     FileMoveTool = class {
       constructor(app) {
         this.app = app;
@@ -1843,12 +1885,22 @@ var init_FileMoveTool = __esm({
           sourcePath: {
             type: "string",
             description: "Path of the source file.",
-            required: true
+            required: false
+          },
+          path: {
+            type: "string",
+            description: "Alias for sourcePath.",
+            required: false
           },
           destinationPath: {
             type: "string",
             description: "New path for the file.",
-            required: true
+            required: false
+          },
+          newName: {
+            type: "string",
+            description: "New name for the file (if renaming within same folder). If provided, destinationPath is ignored.",
+            required: false
           },
           createFolders: {
             type: "boolean",
@@ -1857,7 +1909,7 @@ var init_FileMoveTool = __esm({
           },
           overwrite: {
             type: "boolean",
-            description: "Overwrite destination if it exists.",
+            description: "Whether to overwrite destination if it exists.",
             default: false
           }
         });
@@ -1871,75 +1923,100 @@ var init_FileMoveTool = __esm({
        * @returns ToolResult indicating success or failure
        */
       async execute(params, context) {
-        let inputSourcePath = params.sourcePath;
+        var _a2, _b, _c;
+        const debugMode = (_c = (_b = (_a2 = context == null ? void 0 : context.plugin) == null ? void 0 : _a2.settings) == null ? void 0 : _b.debugMode) != null ? _c : true;
+        let inputSourcePath = params.sourcePath || params.path;
         let inputDestinationPath = params.destinationPath;
-        if (!inputSourcePath && params.path) inputSourcePath = params.path;
-        if (!inputDestinationPath && (params.new_path || params.newPath)) inputDestinationPath = params.new_path || params.newPath;
+        const newName = params.newName;
         const { createFolders = true, overwrite = false } = params;
-        if (inputSourcePath === void 0 || inputSourcePath === null || inputDestinationPath === void 0 || inputDestinationPath === null) {
+        if (!inputSourcePath) {
           return {
             success: false,
-            error: "Both sourcePath and destinationPath parameters are required (aliases: path, new_path, newPath)"
+            error: "sourcePath or path parameter is required."
           };
         }
         let sourcePath;
-        let destinationPath;
         try {
           sourcePath = this.pathValidator.validateAndNormalizePath(inputSourcePath);
-          destinationPath = this.pathValidator.validateAndNormalizePath(inputDestinationPath);
         } catch (error) {
           return {
             success: false,
-            error: `Path validation failed: ${error.message}`
+            error: `Path validation failed for sourcePath: ${error.message}`
+          };
+        }
+        let finalDestinationPath;
+        if (newName) {
+          const sourceFile = getTFileByPath(this.app, sourcePath, debugMode);
+          if (!sourceFile) {
+            return {
+              success: false,
+              error: `Source file not found or is not a file: ${sourcePath}`
+            };
+          }
+          const parent = sourceFile.parent;
+          if (!parent) {
+            return {
+              success: false,
+              error: `Parent folder not found for file: ${sourcePath}`
+            };
+          }
+          finalDestinationPath = parent.path ? `${parent.path}/${newName}` : newName;
+        } else if (inputDestinationPath) {
+          try {
+            finalDestinationPath = this.pathValidator.validateAndNormalizePath(inputDestinationPath);
+          } catch (error) {
+            return {
+              success: false,
+              error: `Path validation failed for destinationPath: ${error.message}`
+            };
+          }
+        } else {
+          return {
+            success: false,
+            error: "destinationPath or newName parameter is required."
           };
         }
         try {
-          const sourceFile = this.app.vault.getAbstractFileByPath(sourcePath);
+          const sourceFile = getTFileByPath(this.app, sourcePath, debugMode);
           if (!sourceFile) {
             return {
               success: false,
               error: `Source file not found: ${sourcePath}`
             };
           }
-          if (!isTFile(sourceFile)) {
-            return {
-              success: false,
-              error: `Source path is not a file: ${sourcePath}`
-            };
-          }
-          const destinationExists = this.app.vault.getAbstractFileByPath(destinationPath);
+          const destinationExists = this.app.vault.getAbstractFileByPath(finalDestinationPath);
           if (destinationExists && !overwrite) {
             return {
               success: false,
-              error: `Destination already exists and overwrite is not enabled: ${destinationPath}`
+              error: `Destination already exists and overwrite is not enabled: ${finalDestinationPath}`
             };
           }
-          const lastSlashIndex = destinationPath.lastIndexOf("/");
-          const destinationFolder = lastSlashIndex !== -1 ? destinationPath.substring(0, lastSlashIndex) : "";
+          const lastSlashIndex = finalDestinationPath.lastIndexOf("/");
+          const destinationFolder = lastSlashIndex !== -1 ? finalDestinationPath.substring(0, lastSlashIndex) : "";
           if (destinationFolder && createFolders) {
-            const folderExists = this.app.vault.getAbstractFileByPath(destinationFolder);
+            const folderExists = getTFolderByPath(this.app, destinationFolder, debugMode);
             if (!folderExists) {
               await this.app.vault.createFolder(destinationFolder);
-            } else if (!(folderExists instanceof import_obsidian2.TFolder)) {
+            } else if (!(folderExists instanceof import_obsidian4.TFolder)) {
               return {
                 success: false,
                 error: `Destination parent path is not a folder: ${destinationFolder}`
               };
             }
           }
-          await this.app.fileManager.renameFile(sourceFile, destinationPath);
+          await this.app.fileManager.renameFile(sourceFile, finalDestinationPath);
           return {
             success: true,
             data: {
               action: "moved",
               sourcePath,
-              destinationPath
+              destinationPath: finalDestinationPath
             }
           };
         } catch (error) {
           return {
             success: false,
-            error: `Failed to move file: ${error instanceof Error ? error.message : String(error)}`
+            error: `Failed to move/rename file: ${error instanceof Error ? error.message : String(error)}`
           };
         }
       }
@@ -2057,11 +2134,12 @@ var init_ThoughtTool = __esm({
 });
 
 // src/components/chat/agent/tools/FileListTool.ts
-var import_obsidian3, FileListTool;
+var import_obsidian5, FileListTool;
 var init_FileListTool = __esm({
   "src/components/chat/agent/tools/FileListTool.ts"() {
-    import_obsidian3 = require("obsidian");
+    import_obsidian5 = require("obsidian");
     init_pathValidation();
+    init_fileUtils();
     FileListTool = class {
       constructor(app) {
         this.app = app;
@@ -2082,6 +2160,8 @@ var init_FileListTool = __esm({
        * @returns ToolResult with the list of files/folders or error
        */
       async execute(params, context) {
+        var _a2, _b, _c;
+        const debugMode = (_c = (_b = (_a2 = context == null ? void 0 : context.plugin) == null ? void 0 : _a2.settings) == null ? void 0 : _b.debugMode) != null ? _c : true;
         const inputPath = params.path || params.folderPath || params.folder || "";
         const { recursive = false, maxResults = 100 } = params;
         let folderPath;
@@ -2095,17 +2175,8 @@ var init_FileListTool = __esm({
         }
         const vault = this.app.vault;
         let folder;
-        if (folderPath === "" || folderPath === "/") {
-          folder = vault.getRoot();
-        } else {
-          folder = vault.getAbstractFileByPath(folderPath);
-          if (!folder) {
-            const allFolders = vault.getAllLoadedFiles().filter((f) => f instanceof import_obsidian3.TFolder);
-            const match = allFolders.find((f) => f.path.toLowerCase() === folderPath.toLowerCase());
-            if (match) folder = match;
-          }
-        }
-        if (!folder || !(folder instanceof import_obsidian3.TFolder)) {
+        folder = getTFolderByPath(this.app, folderPath, debugMode);
+        if (!folder) {
           return {
             success: false,
             error: "Folder not found: " + (folderPath || "(root)")
@@ -2117,8 +2188,8 @@ var init_FileListTool = __esm({
           if (totalItems >= maxResults || remainingLimit <= 0) {
             return;
           }
-          const files = currentFolder.children.filter((child) => child instanceof import_obsidian3.TFile);
-          const folders = currentFolder.children.filter((child) => child instanceof import_obsidian3.TFolder);
+          const files = currentFolder.children.filter((child) => child instanceof import_obsidian5.TFile);
+          const folders = currentFolder.children.filter((child) => child instanceof import_obsidian5.TFolder);
           const folderCount = recursive ? folders.length : 0;
           const fileSlots = Math.max(1, Math.floor(remainingLimit / Math.max(1, folderCount + 1)));
           let filesAdded = 0;
@@ -2181,106 +2252,11 @@ var init_FileListTool = __esm({
   }
 });
 
-// src/components/chat/agent/tools/FileRenameTool.ts
-var import_obsidian4, FileRenameTool;
-var init_FileRenameTool = __esm({
-  "src/components/chat/agent/tools/FileRenameTool.ts"() {
-    import_obsidian4 = require("obsidian");
-    init_pathValidation();
-    FileRenameTool = class {
-      constructor(app) {
-        this.app = app;
-        __publicField(this, "name", "file_rename");
-        __publicField(this, "description", "Renames a file within the vault, allowing for simple name changes without altering its directory. This tool is useful for maintaining consistent naming conventions and improving file organization.");
-        __publicField(this, "parameters", {
-          path: {
-            type: "string",
-            description: "Path to the file.",
-            required: true
-          },
-          newName: {
-            type: "string",
-            description: "New name for the file.",
-            required: true
-          },
-          overwrite: {
-            type: "boolean",
-            description: "Overwrite if a file with the new name exists.",
-            default: false
-          }
-        });
-        __publicField(this, "pathValidator");
-        this.pathValidator = new PathValidator(app);
-      }
-      /**
-       * Executes the file rename operation.
-       * Validates the path, checks for conflicts, and renames the file.
-       * @param params FileRenameParams (with optional newPath alias)
-       * @param context Execution context (unused)
-       * @returns ToolResult with old and new file paths or error
-       */
-      async execute(params, context) {
-        const { path: inputPath, newName, newPath, overwrite = false } = params;
-        const finalNewName = newName || newPath;
-        if (inputPath === void 0 || inputPath === null || finalNewName === void 0 || finalNewName === null) {
-          return {
-            success: false,
-            error: "Both path and newName (or newPath) parameters are required"
-          };
-        }
-        let path;
-        try {
-          path = this.pathValidator.validateAndNormalizePath(inputPath);
-        } catch (error) {
-          return {
-            success: false,
-            error: `Path validation failed: ${error.message}`
-          };
-        }
-        try {
-          const vault = this.app.vault;
-          const file = vault.getAbstractFileByPath(path);
-          if (!file || !(file instanceof import_obsidian4.TFile)) {
-            return {
-              success: false,
-              error: "File not found: " + path
-            };
-          }
-          const parent = file.parent;
-          if (!parent) {
-            return {
-              success: false,
-              error: "Parent folder not found for file: " + path
-            };
-          }
-          const newPathFull = parent.path ? `${parent.path}/${finalNewName}` : finalNewName;
-          if (!overwrite && vault.getAbstractFileByPath(newPathFull)) {
-            return {
-              success: false,
-              error: "A file with the new name already exists: " + newPathFull
-            };
-          }
-          await vault.rename(file, newPathFull);
-          return {
-            success: true,
-            data: { oldPath: path, newPath: newPathFull }
-          };
-        } catch (error) {
-          return {
-            success: false,
-            error: error instanceof Error ? error.message : String(error)
-          };
-        }
-      }
-    };
-  }
-});
-
 // src/components/chat/agent/tools/VaultTreeTool.ts
-var import_obsidian5, VaultTreeTool;
+var import_obsidian6, VaultTreeTool;
 var init_VaultTreeTool = __esm({
   "src/components/chat/agent/tools/VaultTreeTool.ts"() {
-    import_obsidian5 = require("obsidian");
+    import_obsidian6 = require("obsidian");
     init_pathValidation();
     init_typeguards();
     VaultTreeTool = class {
@@ -2327,7 +2303,7 @@ var init_VaultTreeTool = __esm({
         } else {
           startFolder = vault.getAbstractFileByPath(startPath);
         }
-        if (!startFolder || !(startFolder instanceof import_obsidian5.TFolder)) {
+        if (!startFolder || !(startFolder instanceof import_obsidian6.TFolder)) {
           return {
             success: false,
             error: "Folder not found: " + (startPath || "(root)")
@@ -2454,13 +2430,14 @@ var init_VaultTreeTool = __esm({
 });
 
 // src/components/chat/agent/tools/FileDeleteTool.ts
-var import_obsidian6, FileDeleteTool;
+var FileDeleteTool;
 var init_FileDeleteTool = __esm({
   "src/components/chat/agent/tools/FileDeleteTool.ts"() {
-    import_obsidian6 = require("obsidian");
     init_BackupManager();
     init_pathValidation();
     init_typeguards();
+    init_fileUtils();
+    init_logger();
     FileDeleteTool = class {
       /**
        * Constructor for FileDeleteTool.
@@ -2506,9 +2483,12 @@ var init_FileDeleteTool = __esm({
        * @returns ToolResult indicating success or failure
        */
       async execute(params, context) {
+        var _a2, _b, _c;
+        const debugMode = (_c = (_b = (_a2 = context == null ? void 0 : context.plugin) == null ? void 0 : _a2.settings) == null ? void 0 : _b.debugMode) != null ? _c : true;
         const inputPath = params.path || params.filePath;
         const { backup = true, confirmDeletion = true, useTrash = true } = params;
         if (inputPath === void 0 || inputPath === null) {
+          debugLog(debugMode, "warn", "[FileDeleteTool] Missing path parameter");
           return {
             success: false,
             error: "path parameter is required"
@@ -2517,21 +2497,32 @@ var init_FileDeleteTool = __esm({
         let filePath;
         try {
           filePath = this.pathValidator.validateAndNormalizePath(inputPath);
+          debugLog(debugMode, "debug", "[FileDeleteTool] Normalized filePath:", filePath);
         } catch (error) {
+          debugLog(debugMode, "error", "[FileDeleteTool] Path validation failed:", error);
           return {
             success: false,
             error: `Path validation failed: ${error.message}`
           };
         }
         if (confirmDeletion !== true) {
+          debugLog(debugMode, "warn", "[FileDeleteTool] Deletion not confirmed");
           return {
             success: false,
             error: "confirmDeletion must be set to true to proceed with deletion. This is a safety measure."
           };
         }
         try {
-          const target = this.app.vault.getAbstractFileByPath(filePath);
+          const targetFile = getTFileByPath(this.app, filePath, debugMode);
+          const targetFolder = getTFolderByPath(this.app, filePath, debugMode);
+          let target;
+          if (targetFile) {
+            target = targetFile;
+          } else if (targetFolder) {
+            target = targetFolder;
+          }
           if (!target) {
+            debugLog(debugMode, "warn", "[FileDeleteTool] File or folder not found:", filePath);
             return {
               success: false,
               error: `File or folder not found: ${filePath}`
@@ -2541,6 +2532,7 @@ var init_FileDeleteTool = __esm({
           let totalSize = 0;
           let backupCount = 0;
           if (isTFile(target)) {
+            debugLog(debugMode, "info", "[FileDeleteTool] Deleting file:", filePath);
             let originalContent = "";
             if (backup) {
               try {
@@ -2548,7 +2540,9 @@ var init_FileDeleteTool = __esm({
                 await this.backupManager.createBackup(filePath, originalContent);
                 backupCreated = true;
                 backupCount = 1;
+                debugLog(debugMode, "info", "[FileDeleteTool] File backup created", { filePath });
               } catch (backupError) {
+                debugLog(debugMode, "error", "[FileDeleteTool] Failed to create backup before deletion:", backupError);
                 return {
                   success: false,
                   error: `Failed to create backup before deletion: ${backupError.message}`
@@ -2559,9 +2553,11 @@ var init_FileDeleteTool = __esm({
             let trashPath = "";
             if (useTrash) {
               try {
-                trashPath = await this.moveToTrash(target, filePath);
+                trashPath = await this.moveToTrash(target, filePath, debugMode);
                 actionTaken = "moved to trash";
+                debugLog(debugMode, "info", "[FileDeleteTool] File moved to trash", { filePath, trashPath });
               } catch (trashError) {
+                debugLog(debugMode, "error", "[FileDeleteTool] Failed to move file to trash:", trashError);
                 return {
                   success: false,
                   error: `Failed to move file to trash: ${trashError.message}`
@@ -2571,12 +2567,16 @@ var init_FileDeleteTool = __esm({
               try {
                 await this.app.vault.delete(target);
                 actionTaken = "permanently deleted";
+                debugLog(debugMode, "info", "[FileDeleteTool] File permanently deleted", { filePath });
               } catch (deleteError) {
+                debugLog(debugMode, "error", "[FileDeleteTool] Failed to delete file:", deleteError);
                 if (deleteError.message && deleteError.message.includes("EPERM")) {
                   try {
                     await this.app.vault.adapter.remove(filePath);
                     actionTaken = "permanently deleted";
+                    debugLog(debugMode, "info", "[FileDeleteTool] File deleted using adapter.remove", { filePath });
                   } catch (adapterError) {
+                    debugLog(debugMode, "error", "[FileDeleteTool] Failed to delete file (tried multiple methods):", adapterError);
                     return {
                       success: false,
                       error: `Failed to delete file (tried multiple methods): ${deleteError.message}. Adapter error: ${adapterError.message}`
@@ -2605,13 +2605,16 @@ var init_FileDeleteTool = __esm({
               }
             };
           } else if (isTFolder(target)) {
+            debugLog(debugMode, "info", "[FileDeleteTool] Deleting folder:", filePath);
             if (backup) {
               try {
-                const result = await this.createFolderBackups(target, "");
+                const result = await this.createFolderBackups(target, "", debugMode);
                 backupCreated = result.backupCreated;
                 backupCount = result.backupCount;
                 totalSize = result.totalSize;
+                debugLog(debugMode, "info", "[FileDeleteTool] Folder backups created", { filePath, backupCount, totalSize });
               } catch (backupError) {
+                debugLog(debugMode, "error", "[FileDeleteTool] Failed to create backups before folder deletion:", backupError);
                 return {
                   success: false,
                   error: `Failed to create backups before folder deletion: ${backupError.message}`
@@ -2622,9 +2625,11 @@ var init_FileDeleteTool = __esm({
             let trashPath = "";
             if (useTrash) {
               try {
-                trashPath = await this.moveToTrash(target, filePath);
+                trashPath = await this.moveToTrash(target, filePath, debugMode);
                 actionTaken = "moved to trash";
+                debugLog(debugMode, "info", "[FileDeleteTool] Folder moved to trash", { filePath, trashPath });
               } catch (trashError) {
+                debugLog(debugMode, "error", "[FileDeleteTool] Failed to move folder to trash:", trashError);
                 return {
                   success: false,
                   error: `Failed to move folder to trash: ${trashError.message}`
@@ -2634,16 +2639,22 @@ var init_FileDeleteTool = __esm({
               try {
                 await this.app.vault.delete(target);
                 actionTaken = "permanently deleted";
+                debugLog(debugMode, "info", "[FileDeleteTool] Folder permanently deleted", { filePath });
               } catch (deleteError) {
+                debugLog(debugMode, "error", "[FileDeleteTool] Failed to delete folder:", deleteError);
                 if (deleteError.message && deleteError.message.includes("EPERM")) {
                   try {
                     await this.app.vault.adapter.rmdir(filePath, true);
                     actionTaken = "permanently deleted";
+                    debugLog(debugMode, "info", "[FileDeleteTool] Folder deleted using adapter.rmdir", { filePath });
                   } catch (adapterError) {
+                    debugLog(debugMode, "error", "[FileDeleteTool] Failed to delete folder (tried adapter.rmdir):", adapterError);
                     try {
-                      await this.recursivelyDeleteFolder(target);
+                      await this.recursivelyDeleteFolder(target, debugMode);
                       actionTaken = "permanently deleted";
+                      debugLog(debugMode, "info", "[FileDeleteTool] Folder deleted using recursive fallback", { filePath });
                     } catch (recursiveError) {
+                      debugLog(debugMode, "error", "[FileDeleteTool] Failed to delete folder (tried recursive fallback):", recursiveError);
                       return {
                         success: false,
                         error: `Failed to delete folder (tried multiple methods): ${deleteError.message}. Last attempt: ${recursiveError.message}`
@@ -2672,12 +2683,14 @@ var init_FileDeleteTool = __esm({
               }
             };
           } else {
+            debugLog(debugMode, "error", "[FileDeleteTool] Unsupported file type:", filePath);
             return {
               success: false,
               error: `Unsupported file type: ${filePath}`
             };
           }
         } catch (error) {
+          debugLog(debugMode, "error", "[FileDeleteTool] Unexpected error during file deletion:", error);
           return {
             success: false,
             error: `Failed to delete: ${error.message}`
@@ -2690,7 +2703,8 @@ var init_FileDeleteTool = __esm({
        * @param basePath Relative path for backup naming
        * @returns Object with backupCreated, backupCount, and totalSize
        */
-      async createFolderBackups(folder, basePath) {
+      async createFolderBackups(folder, basePath, debugMode) {
+        debugLog(debugMode, "debug", "[FileDeleteTool] createFolderBackups called for:", folder.path);
         let backupCount = 0;
         let totalSize = 0;
         let anyBackupCreated = false;
@@ -2703,11 +2717,12 @@ var init_FileDeleteTool = __esm({
               backupCount++;
               totalSize += content.length;
               anyBackupCreated = true;
+              debugLog(debugMode, "debug", "[FileDeleteTool] Backed up file:", child.path);
             } catch (error) {
-              console.error(`Failed to backup file ${child.path}:`, error);
+              debugLog(debugMode, "error", `[FileDeleteTool] Failed to backup file ${child.path}:`, error);
             }
           } else if (isTFolder(child)) {
-            const subResult = await this.createFolderBackups(child, basePath ? `${basePath}/${child.name}` : child.path);
+            const subResult = await this.createFolderBackups(child, basePath ? `${basePath}/${child.name}` : child.path, debugMode);
             backupCount += subResult.backupCount;
             totalSize += subResult.totalSize;
             if (subResult.backupCreated) {
@@ -2726,21 +2741,26 @@ var init_FileDeleteTool = __esm({
        * This is a fallback method for Windows permission issues.
        * @param folder TFolder to delete
        */
-      async recursivelyDeleteFolder(folder) {
+      async recursivelyDeleteFolder(folder, debugMode) {
+        debugLog(debugMode, "debug", "[FileDeleteTool] recursivelyDeleteFolder called for:", folder.path);
         for (const child of [...folder.children]) {
           if (isTFile(child)) {
             try {
               await this.app.vault.delete(child);
+              debugLog(debugMode, "debug", "[FileDeleteTool] Deleted file in recursive delete:", child.path);
             } catch (error) {
+              debugLog(debugMode, "error", "[FileDeleteTool] Failed to delete file in recursive delete (trying adapter.remove):", child.path, error);
               await this.app.vault.adapter.remove(child.path);
             }
           } else if (isTFolder(child)) {
-            await this.recursivelyDeleteFolder(child);
+            await this.recursivelyDeleteFolder(child, debugMode);
           }
         }
         try {
           await this.app.vault.delete(folder);
+          debugLog(debugMode, "debug", "[FileDeleteTool] Deleted folder in recursive delete:", folder.path);
         } catch (error) {
+          debugLog(debugMode, "error", "[FileDeleteTool] Failed to delete folder in recursive delete (trying adapter.rmdir):", folder.path, error);
           await this.app.vault.adapter.rmdir(folder.path, false);
         }
       }
@@ -2748,13 +2768,12 @@ var init_FileDeleteTool = __esm({
        * Ensures the .trash folder exists in the vault root.
        * @returns Path to the .trash folder
        */
-      async ensureTrashFolderExists() {
+      async ensureTrashFolderExists(debugMode) {
+        debugLog(debugMode, "debug", "[FileDeleteTool] ensureTrashFolderExists called");
         const trashPath = ".trash";
-        const existingTrash = this.app.vault.getAbstractFileByPath(trashPath);
-        if (!existingTrash) {
-          await this.app.vault.createFolder(trashPath);
-        } else if (!(existingTrash instanceof import_obsidian6.TFolder)) {
-          throw new Error('A file named ".trash" already exists - cannot create trash folder');
+        const success = await ensureFolderExists(this.app, trashPath, debugMode);
+        if (!success) {
+          throw new Error("Failed to ensure .trash folder exists");
         }
         return trashPath;
       }
@@ -2777,11 +2796,13 @@ var init_FileDeleteTool = __esm({
        * @param originalPath Original path for naming
        * @returns New path in the .trash folder
        */
-      async moveToTrash(target, originalPath) {
-        const trashPath = await this.ensureTrashFolderExists();
+      async moveToTrash(target, originalPath, debugMode) {
+        debugLog(debugMode, "debug", "[FileDeleteTool] moveToTrash called for:", originalPath);
+        const trashPath = await this.ensureTrashFolderExists(debugMode);
         const trashName = this.generateTrashName(originalPath);
         const destinationPath = `${trashPath}/${trashName}`;
         await this.app.fileManager.renameFile(target, destinationPath);
+        debugLog(debugMode, "info", "[FileDeleteTool] Moved to trash:", destinationPath);
         return destinationPath;
       }
     };
@@ -2798,7 +2819,6 @@ function getAllToolClasses() {
     FileMoveTool,
     ThoughtTool,
     FileListTool,
-    FileRenameTool,
     VaultTreeTool,
     FileDeleteTool
   ];
@@ -2896,7 +2916,6 @@ var init_toolcollect = __esm({
     init_FileMoveTool();
     init_ThoughtTool();
     init_FileListTool();
-    init_FileRenameTool();
     init_VaultTreeTool();
     init_FileDeleteTool();
   }
@@ -10348,6 +10367,7 @@ var init_anthropic = __esm({
           // Required for browser environments
         });
         this.debugMode = debugMode;
+        debugLog(true, "debug", "[Anthropic Provider] Initializing Anthropic API", { config: { apiKey, model, debugMode } });
       }
       /**
        * Get a completion from Anthropic
@@ -10375,7 +10395,7 @@ var init_anthropic = __esm({
                 `Input is too long for ${this.model}'s context window. Estimated input tokens: ${inputTokens}, context window: ${contextWindow}`
               );
             }
-            log(
+            debugLog(
               this.debugMode,
               "info",
               `Adjusting max_tokens from ${maxTokens} to ${adjustedMaxTokens} to fit within ${this.model}'s context window`
@@ -10383,7 +10403,7 @@ var init_anthropic = __esm({
             maxTokens = adjustedMaxTokens;
           }
           if (outputTokenLimit && maxTokens > outputTokenLimit) {
-            log(
+            debugLog(
               this.debugMode,
               "info",
               `Capping max_tokens from ${maxTokens} to model output limit ${outputTokenLimit} for ${this.model}`
@@ -10429,7 +10449,7 @@ var init_anthropic = __esm({
               }
             }
           } catch (streamError) {
-            log(this.debugMode, "error", "Error processing Anthropic stream:", streamError);
+            debugLog(this.debugMode, "error", "Error processing Anthropic stream:", streamError);
             throw streamError;
           }
         } catch (error) {
@@ -10437,9 +10457,9 @@ var init_anthropic = __esm({
             throw error;
           }
           if (error.name === "AbortError") {
-            log(this.debugMode, "info", "Anthropic stream was aborted");
+            debugLog(this.debugMode, "info", "Anthropic stream was aborted");
           } else {
-            log(this.debugMode, "error", "Error calling Anthropic:", error);
+            debugLog(this.debugMode, "error", "Error calling Anthropic:", error);
             throw error;
           }
         }
@@ -10457,7 +10477,7 @@ var init_anthropic = __esm({
         try {
           return Object.keys(MODEL_CONTEXT_WINDOWS);
         } catch (error) {
-          log(this.debugMode, "error", "Error getting Anthropic models:", error);
+          debugLog(this.debugMode, "error", "Error getting Anthropic models:", error);
           throw error;
         }
       }
@@ -10526,6 +10546,7 @@ var init_openai = __esm({
         this.model = model;
         this.baseUrl = baseUrl || "https://api.openai.com/v1";
         this.debugMode = debugMode;
+        debugLog(true, "debug", "[OpenAI Provider] Initializing OpenAI API", { config: { apiKey, model, baseUrl, debugMode } });
       }
       /**
        * Get a completion from OpenAI
@@ -10574,7 +10595,7 @@ var init_openai = __esm({
                     options.streamCallback(content);
                   }
                 } catch (e) {
-                  log(this.debugMode, "warn", "Error parsing OpenAI response chunk:", e);
+                  debugLog(this.debugMode, "warn", "Error parsing OpenAI response chunk:", e);
                 }
               }
             }
@@ -10584,9 +10605,9 @@ var init_openai = __esm({
             throw error;
           }
           if (error.name === "AbortError") {
-            log(this.debugMode, "info", "OpenAI stream was aborted");
+            debugLog(this.debugMode, "info", "OpenAI stream was aborted");
           } else {
-            log(this.debugMode, "error", "Error calling OpenAI:", error);
+            debugLog(this.debugMode, "error", "Error calling OpenAI:", error);
             throw error;
           }
         }
@@ -10614,7 +10635,7 @@ var init_openai = __esm({
           const data = await response.json();
           return data.data.map((model) => model.id).filter((id) => id.startsWith("gpt-"));
         } catch (error) {
-          log(this.debugMode, "error", "Error fetching OpenAI models:", error);
+          debugLog(this.debugMode, "error", "Error fetching OpenAI models:", error);
           throw error;
         }
       }
@@ -10661,6 +10682,7 @@ var init_gemini = __esm({
         this.apiVersion = apiVersion;
         this.baseUrl = `https://generativelanguage.googleapis.com/${this.apiVersion}`;
         this.debugMode = debugMode;
+        debugLog(true, "debug", "[Gemini Provider] Initializing Gemini API", { config: { apiKey, model, apiVersion, debugMode } });
       }
       /**
        * Determines the correct API version for a given model name.
@@ -10704,21 +10726,21 @@ var init_gemini = __esm({
             throw this.handleHttpError(response);
           }
           const data = await response.json();
-          log(this.debugMode, "debug", "Gemini response:", JSON.stringify(data));
+          debugLog(this.debugMode, "debug", "Gemini response:", JSON.stringify(data));
           const text = (_h = (_g = (_f = (_e = (_d = data.candidates) == null ? void 0 : _d[0]) == null ? void 0 : _e.content) == null ? void 0 : _f.parts) == null ? void 0 : _g[0]) == null ? void 0 : _h.text;
           if (text && options.streamCallback) {
             options.streamCallback(text);
           } else {
-            log(this.debugMode, "warn", "No text found in Gemini response:", JSON.stringify(data));
+            debugLog(this.debugMode, "warn", "No text found in Gemini response:", JSON.stringify(data));
           }
         } catch (error) {
           if (error instanceof ProviderError) {
             throw error;
           }
           if (error.name === "AbortError") {
-            log(this.debugMode, "info", "Gemini request was aborted");
+            debugLog(this.debugMode, "info", "Gemini request was aborted");
           } else {
-            log(this.debugMode, "error", "Error calling Gemini:", error);
+            debugLog(this.debugMode, "error", "Error calling Gemini:", error);
             throw error;
           }
         }
@@ -10747,7 +10769,7 @@ var init_gemini = __esm({
           ]);
           return Array.from(/* @__PURE__ */ new Set([...v1Models, ...v1betaModels]));
         } catch (error) {
-          log(this.debugMode, "error", "Error fetching Gemini models:", error);
+          debugLog(this.debugMode, "error", "Error fetching Gemini models:", error);
           throw error;
         }
       }
@@ -10819,6 +10841,7 @@ var init_ollama = __esm({
         this.baseUrl = serverUrl.replace(/\/$/, "");
         this.model = model;
         this.debugMode = debugMode;
+        debugLog(true, "debug", "[Ollama Provider] Initializing Ollama API", { config: { serverUrl, model, debugMode } });
       }
       /**
        * Convert messages to Ollama format
@@ -10886,7 +10909,7 @@ var init_ollama = __esm({
                     options.streamCallback(data.response);
                   }
                 } catch (e) {
-                  log(this.debugMode, "warn", "Error parsing Ollama response chunk:", e);
+                  debugLog(this.debugMode, "warn", "Error parsing Ollama response chunk:", e);
                 }
               }
             }
@@ -10896,9 +10919,9 @@ var init_ollama = __esm({
             throw error;
           }
           if (error.name === "AbortError") {
-            log(this.debugMode, "info", "Ollama stream was aborted");
+            debugLog(this.debugMode, "info", "Ollama stream was aborted");
           } else {
-            log(this.debugMode, "error", "Error calling Ollama:", error);
+            debugLog(this.debugMode, "error", "Error calling Ollama:", error);
             throw error;
           }
         }
@@ -10920,7 +10943,7 @@ var init_ollama = __esm({
           const data = await response.json();
           return ((_a2 = data.models) == null ? void 0 : _a2.map((model) => model.name)) || [];
         } catch (error) {
-          log(this.debugMode, "error", "Error fetching Ollama models:", error);
+          debugLog(this.debugMode, "error", "Error fetching Ollama models:", error);
           throw error;
         }
       }
@@ -11106,15 +11129,9 @@ var init_providers = __esm({
 });
 
 // src/components/chat/chatPersistence.ts
-function log2(level, ...args) {
-  if (typeof window !== "undefined" && window.plugin && typeof window.plugin.debugLog === "function") {
-    window.plugin.debugLog(level, "[chatPersistence]", ...args);
-  } else if (typeof console !== "undefined") {
-    if (level !== "debug") console[level]("[chatPersistence]", ...args);
-  }
-}
 function buildChatYaml(settings, provider, model) {
-  log2("info", "[buildChatYaml] Entered function", { settings, provider, model });
+  var _a2, _b, _c, _d, _e;
+  debugLog((_a2 = settings.debugMode) != null ? _a2 : false, "info", "[buildChatYaml] Entered function", { settings, provider, model });
   if (settings.selectedModel) {
     const providerType = getProviderFromUnifiedModel(settings.selectedModel);
     const modelId = getModelIdFromUnifiedModel(settings.selectedModel);
@@ -11125,8 +11142,8 @@ function buildChatYaml(settings, provider, model) {
       system_message: settings.systemMessage,
       temperature: settings.temperature
     };
-    log2("debug", "[buildChatYaml] Using unified model format", yamlObj);
-    log2("info", "[buildChatYaml] Returning YAML for unified model", { yaml: `---
+    debugLog((_b = settings.debugMode) != null ? _b : false, "debug", "[buildChatYaml] Using unified model format", yamlObj);
+    debugLog((_c = settings.debugMode) != null ? _c : false, "info", "[buildChatYaml] Returning YAML for unified model", { yaml: `---
 ${dump(yamlObj)}---
 ` });
     return `---
@@ -11139,8 +11156,8 @@ ${dump(yamlObj)}---
       system_message: settings.systemMessage,
       temperature: settings.temperature
     };
-    log2("debug", "[buildChatYaml] Using legacy model format", yamlObj);
-    log2("info", "[buildChatYaml] Returning YAML for legacy model", { yaml: `---
+    debugLog((_d = settings.debugMode) != null ? _d : false, "debug", "[buildChatYaml] Using legacy model format", yamlObj);
+    debugLog((_e = settings.debugMode) != null ? _e : false, "info", "[buildChatYaml] Returning YAML for legacy model", { yaml: `---
 ${dump(yamlObj)}---
 ` });
     return `---
@@ -11149,7 +11166,8 @@ ${dump(yamlObj)}---
   }
 }
 function getCurrentModelForProvider(settings) {
-  log2("debug", "[getCurrentModelForProvider] Called", { provider: settings.provider });
+  var _a2;
+  debugLog((_a2 = settings.debugMode) != null ? _a2 : false, "debug", "[getCurrentModelForProvider] Called", { provider: settings.provider });
   switch (settings.provider) {
     case "openai":
       return settings.openaiSettings.model;
@@ -11174,19 +11192,20 @@ async function saveChatAsNote({
   chatNoteFolder,
   agentResponseHandler
 }) {
-  log2("info", "[saveChatAsNote] Entered function", { hasMessages: !!messages, hasChatContent: typeof chatContent === "string" });
+  var _a2, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o;
+  debugLog((_a2 = settings.debugMode) != null ? _a2 : false, "info", "[saveChatAsNote] Entered function", { hasMessages: !!messages, hasChatContent: typeof chatContent === "string" });
   let content = "";
   if (typeof chatContent === "string") {
+    debugLog((_b = settings.debugMode) != null ? _b : false, "info", "[saveChatAsNote] Using provided chatContent string directly.");
     content = chatContent;
-    log2("info", "[saveChatAsNote] Using provided chatContent string directly.");
   } else if (messages) {
-    log2("info", "[saveChatAsNote] Building chat content from message DOM nodes.");
+    debugLog((_c = settings.debugMode) != null ? _c : false, "info", "[saveChatAsNote] Building chat content from message DOM nodes.");
     const messageRenderer = new MessageRenderer(app);
     messages.forEach((el, index) => {
-      var _a2;
+      var _a3, _b2, _c2, _d2, _e2, _f2;
       const htmlElement = el;
       if (htmlElement.classList.contains("tool-display-message")) {
-        log2("debug", `[saveChatAsNote] Skipping tool-display-message at index ${index}`);
+        debugLog((_a3 = settings.debugMode) != null ? _a3 : false, "debug", `[saveChatAsNote] Skipping tool-display-message at index ${index}`);
         return;
       }
       const messageDataStr = htmlElement.dataset.messageData;
@@ -11194,32 +11213,32 @@ async function saveChatAsNote({
       if (messageDataStr) {
         try {
           messageData = JSON.parse(messageDataStr);
-          log2("debug", `[saveChatAsNote] Parsed messageData at index ${index}`, messageData);
+          debugLog((_b2 = settings.debugMode) != null ? _b2 : false, "debug", `[saveChatAsNote] Parsed messageData at index ${index}`, messageData);
         } catch (e) {
-          log2("warn", `[saveChatAsNote] Failed to parse messageData at index ${index}`, e);
+          debugLog((_c2 = settings.debugMode) != null ? _c2 : false, "warn", `[saveChatAsNote] Failed to parse messageData at index ${index}`, e);
         }
       }
       if (messageData && messageData.toolResults && messageData.toolResults.length > 0) {
-        log2("info", `[saveChatAsNote] Formatting message with toolResults at index ${index}`);
+        debugLog((_d2 = settings.debugMode) != null ? _d2 : false, "info", `[saveChatAsNote] Formatting message with toolResults at index ${index}`);
         content += messageRenderer.getMessageContentForCopy(messageData);
       } else {
         const rawContent = htmlElement.dataset.rawContent;
-        const msg = rawContent !== void 0 ? rawContent : ((_a2 = el.querySelector(".message-content")) == null ? void 0 : _a2.textContent) || "";
-        log2("debug", `[saveChatAsNote] Appending regular message at index ${index}`, { msg });
+        const msg = rawContent !== void 0 ? rawContent : ((_e2 = el.querySelector(".message-content")) == null ? void 0 : _e2.textContent) || "";
+        debugLog((_f2 = settings.debugMode) != null ? _f2 : false, "debug", `[saveChatAsNote] Appending regular message at index ${index}`, { msg });
         content += msg;
       }
       if (index < messages.length - 1) {
         content += "\n\n" + chatSeparator + "\n\n";
       }
     });
-    log2("debug", "[saveChatAsNote] messages NodeList length:", { length: messages.length });
+    debugLog((_d = settings.debugMode) != null ? _d : false, "debug", "[saveChatAsNote] messages NodeList length:", { length: messages.length });
   } else {
-    log2("error", "[saveChatAsNote] Neither messages nor chatContent provided. Aborting.");
+    debugLog((_e = settings.debugMode) != null ? _e : false, "error", "[saveChatAsNote] Neither messages nor chatContent provided. Aborting.");
     throw new Error("Either messages or chatContent must be provided");
   }
-  const yaml = buildChatYaml(settings, provider, model);
-  log2("info", "[saveChatAsNote] YAML frontmatter built. Stripping any existing YAML from chat content.");
-  content = content.replace(/^---[\s\S]*?---\n?/, "");
+  const yaml = buildChatYaml(settings, provider || "", model || "");
+  debugLog((_f = settings.debugMode) != null ? _f : false, "info", "[saveChatAsNote] YAML frontmatter built. Stripping any existing YAML from chat content.");
+  content = content.replace(/^---\s*[\s\S]*?---\n?/, "");
   content = content.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
   content = content.replace(/\n{3,}/g, "\n\n");
   content = content.replace(/\n+$/, "");
@@ -11230,25 +11249,25 @@ async function saveChatAsNote({
   let filePath = fileName;
   const folder = chatNoteFolder == null ? void 0 : chatNoteFolder.trim();
   if (folder) {
-    log2("info", `[saveChatAsNote] Ensuring chat note folder exists: ${folder}`);
+    debugLog((_g = settings.debugMode) != null ? _g : false, "info", `[saveChatAsNote] Ensuring chat note folder exists: ${folder}`);
     const folderExists = app.vault.getAbstractFileByPath(folder);
     if (!folderExists) {
       try {
         await app.vault.createFolder(folder);
-        log2("info", `[saveChatAsNote] Created chat note folder: ${folder}`);
+        debugLog((_h = settings.debugMode) != null ? _h : false, "info", `[saveChatAsNote] Created chat note folder: ${folder}`);
       } catch (e) {
         if (!app.vault.getAbstractFileByPath(folder)) {
-          log2("error", `[saveChatAsNote] Failed to create folder for chat note: ${folder}`, e);
+          debugLog((_i = settings.debugMode) != null ? _i : false, "error", `[saveChatAsNote] Failed to create folder for chat note: ${folder}`, e);
           new import_obsidian11.Notice("Failed to create folder for chat note.");
           return;
         } else {
-          log2("warn", `[saveChatAsNote] Folder already exists after race: ${folder}`);
+          debugLog((_j = settings.debugMode) != null ? _j : false, "warn", `[saveChatAsNote] Folder already exists after race: ${folder}`);
         }
       }
     } else {
-      log2("debug", `[saveChatAsNote] Folder already exists: ${folder}`);
+      debugLog((_k = settings.debugMode) != null ? _k : false, "debug", `[saveChatAsNote] Folder already exists: ${folder}`);
     }
-    filePath = folder.replace(/[/\\]+$/, "") + "/" + fileName;
+    filePath = folder.replace(/[\/\\]+$/, "") + "/" + fileName;
   }
   let finalFilePath = filePath;
   let attempt = 1;
@@ -11256,19 +11275,20 @@ async function saveChatAsNote({
     const extIndex = fileName.lastIndexOf(".");
     const base = extIndex !== -1 ? fileName.substring(0, extIndex) : fileName;
     const ext = extIndex !== -1 ? fileName.substring(extIndex) : "";
-    finalFilePath = (folder ? folder.replace(/[/\\]+$/, "") + "/" : "") + `${base} (${attempt})${ext}`;
-    log2("warn", "[saveChatAsNote] File already exists, trying new filename", { finalFilePath });
+    finalFilePath = (folder ? folder.replace(/[\/\\]+$/, "") + "/" : "") + `${base} (${attempt})${ext}`;
+    debugLog((_l = settings.debugMode) != null ? _l : false, "warn", "[saveChatAsNote] File already exists, trying new filename", { finalFilePath });
     attempt++;
   }
   try {
     await app.vault.create(finalFilePath, noteContent);
-    log2("info", "[saveChatAsNote] Chat successfully saved as note", { finalFilePath });
+    debugLog((_m = settings.debugMode) != null ? _m : false, "info", "[saveChatAsNote] Chat successfully saved as note", { finalFilePath });
     new import_obsidian11.Notice(`Chat saved as note: ${finalFilePath}`);
   } catch (e) {
-    log2("error", "[saveChatAsNote] Failed to save chat as note", { finalFilePath, error: e });
+    debugLog((_n = settings.debugMode) != null ? _n : false, "error", "[saveChatAsNote] Failed to save chat as note", { finalFilePath, error: e });
     new import_obsidian11.Notice("Failed to save chat as note.");
   }
-  log2("info", "[saveChatAsNote] Exiting function. Save process complete.");
+  debugLog((_o = settings.debugMode) != null ? _o : false, "info", "[saveChatAsNote] Exiting function. Save process complete.");
+  return;
 }
 async function loadChatYamlAndApplySettings({
   app,
@@ -11276,31 +11296,32 @@ async function loadChatYamlAndApplySettings({
   settings,
   file
 }) {
-  log2("info", "[loadChatYamlAndApplySettings] Entered function", { file: (file == null ? void 0 : file.path) || (file == null ? void 0 : file.name) || file });
-  log2("debug", "[loadChatYamlAndApplySettings] File content loaded. Extracting YAML frontmatter.");
+  var _a2, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o;
+  debugLog((_a2 = settings.debugMode) != null ? _a2 : false, "info", "[loadChatYamlAndApplySettings] Entered function", { file: (file == null ? void 0 : file.path) || (file == null ? void 0 : file.name) || file });
+  debugLog((_b = settings.debugMode) != null ? _b : false, "debug", "[loadChatYamlAndApplySettings] File content loaded. Extracting YAML frontmatter.");
   let content = await app.vault.read(file);
   const yamlMatch = content.match(/^---\n([\s\S]*?)\n---/);
   let yamlObj = {};
   if (yamlMatch) {
     try {
       yamlObj = load(yamlMatch[1]) || {};
-      log2("info", "[loadChatYamlAndApplySettings] YAML frontmatter parsed", yamlObj);
+      debugLog((_c = settings.debugMode) != null ? _c : false, "info", "[loadChatYamlAndApplySettings] YAML frontmatter parsed", yamlObj);
     } catch (e) {
-      log2("warn", "[loadChatYamlAndApplySettings] Failed to parse YAML frontmatter", e);
+      debugLog((_d = settings.debugMode) != null ? _d : false, "warn", "[loadChatYamlAndApplySettings] Failed to parse YAML frontmatter", e);
       yamlObj = {};
     }
   } else {
-    log2("warn", "[loadChatYamlAndApplySettings] No YAML frontmatter found in file.");
+    debugLog((_e = settings.debugMode) != null ? _e : false, "warn", "[loadChatYamlAndApplySettings] No YAML frontmatter found in file.");
   }
   if (yamlObj.unified_model) {
     settings.selectedModel = yamlObj.unified_model;
-    log2("info", "[loadChatYamlAndApplySettings] Loaded unified_model from YAML", yamlObj.unified_model);
-    log2("info", "[loadChatYamlAndApplySettings] Set selectedModel from unified_model", { selectedModel: settings.selectedModel });
+    debugLog((_f = settings.debugMode) != null ? _f : false, "info", "[loadChatYamlAndApplySettings] Loaded unified_model from YAML", yamlObj.unified_model);
+    debugLog((_g = settings.debugMode) != null ? _g : false, "info", "[loadChatYamlAndApplySettings] Set selectedModel from unified_model", { selectedModel: settings.selectedModel });
   } else if (yamlObj.provider && yamlObj.model) {
     const unifiedModelId = `${yamlObj.provider}:${yamlObj.model}`;
     settings.selectedModel = unifiedModelId;
-    log2("info", "[loadChatYamlAndApplySettings] Loaded legacy provider/model from YAML", { provider: yamlObj.provider, model: yamlObj.model });
-    log2("info", "[loadChatYamlAndApplySettings] Set selectedModel from provider/model", { selectedModel: settings.selectedModel });
+    debugLog((_h = settings.debugMode) != null ? _h : false, "info", "[loadChatYamlAndApplySettings] Loaded legacy provider/model from YAML", { provider: yamlObj.provider, model: yamlObj.model });
+    debugLog((_i = settings.debugMode) != null ? _i : false, "info", "[loadChatYamlAndApplySettings] Set selectedModel from provider/model", { selectedModel: settings.selectedModel });
     settings.provider = yamlObj.provider;
     switch (yamlObj.provider) {
       case "openai":
@@ -11317,7 +11338,7 @@ async function loadChatYamlAndApplySettings({
         break;
     }
   } else {
-    log2("warn", "[loadChatYamlAndApplySettings] No model/provider found in YAML. Using existing settings.");
+    debugLog((_j = settings.debugMode) != null ? _j : false, "warn", "[loadChatYamlAndApplySettings] No model/provider found in YAML. Using existing settings.");
   }
   let newSystemMessage = yamlObj.system_message || settings.systemMessage;
   let newTemperature = settings.temperature;
@@ -11325,19 +11346,19 @@ async function loadChatYamlAndApplySettings({
     const tempNum = parseFloat(yamlObj.temperature);
     if (!isNaN(tempNum)) {
       newTemperature = tempNum;
-      log2("info", "[loadChatYamlAndApplySettings] Loaded temperature from YAML", newTemperature);
+      debugLog((_k = settings.debugMode) != null ? _k : false, "info", "[loadChatYamlAndApplySettings] Loaded temperature from YAML", newTemperature);
     } else {
-      log2("warn", "[loadChatYamlAndApplySettings] Invalid temperature in YAML, using existing value.", yamlObj.temperature);
+      debugLog((_l = settings.debugMode) != null ? _l : false, "warn", "[loadChatYamlAndApplySettings] Invalid temperature in YAML, using existing value.", yamlObj.temperature);
     }
   }
   settings.systemMessage = newSystemMessage;
   settings.temperature = newTemperature;
-  log2("info", "[loadChatYamlAndApplySettings] Applied settings from YAML", { selectedModel: settings.selectedModel, systemMessage: newSystemMessage, temperature: newTemperature });
+  debugLog((_m = settings.debugMode) != null ? _m : false, "info", "[loadChatYamlAndApplySettings] Applied settings from YAML", { selectedModel: settings.selectedModel, systemMessage: newSystemMessage, temperature: newTemperature });
   if (plugin.onSettingsLoadedFromNote) {
-    log2("debug", "[loadChatYamlAndApplySettings] Calling plugin.onSettingsLoadedFromNote");
+    debugLog((_n = settings.debugMode) != null ? _n : false, "debug", "[loadChatYamlAndApplySettings] Calling plugin.onSettingsLoadedFromNote");
     plugin.onSettingsLoadedFromNote(settings);
   }
-  log2("info", "[loadChatYamlAndApplySettings] Exiting function. YAML load/apply process complete.");
+  debugLog((_o = settings.debugMode) != null ? _o : false, "info", "[loadChatYamlAndApplySettings] Exiting function. YAML load/apply process complete.");
   return {
     provider: yamlObj.provider,
     model: yamlObj.model,
@@ -11349,10 +11370,11 @@ async function loadChatYamlAndApplySettings({
 var import_obsidian11;
 var init_chatPersistence = __esm({
   "src/components/chat/chatPersistence.ts"() {
-    import_obsidian11 = require("obsidian");
     init_js_yaml();
+    init_logger();
     init_providers();
     init_MessageRenderer();
+    import_obsidian11 = require("obsidian");
   }
 });
 
@@ -12195,12 +12217,12 @@ var BotMessage_exports = {};
 __export(BotMessage_exports, {
   BotMessage: () => BotMessage
 });
-var import_obsidian20, BotMessage;
+var import_obsidian21, BotMessage;
 var init_BotMessage = __esm({
   "src/components/chat/BotMessage.ts"() {
-    import_obsidian20 = require("obsidian");
+    import_obsidian21 = require("obsidian");
     init_Buttons();
-    BotMessage = class extends import_obsidian20.Component {
+    BotMessage = class extends import_obsidian21.Component {
       /**
        * Constructs a BotMessage instance.
        * @param app Obsidian App instance
@@ -12239,7 +12261,7 @@ var init_BotMessage = __esm({
         this.content = content;
         this.element.dataset.rawContent = content;
         this.contentEl.empty();
-        await import_obsidian20.MarkdownRenderer.render(
+        await import_obsidian21.MarkdownRenderer.render(
           this.app,
           content,
           this.contentEl,
@@ -12257,7 +12279,7 @@ var init_BotMessage = __esm({
         messageEl.dataset.rawContent = this.content;
         const messageContainer = messageEl.createDiv("message-container");
         this.contentEl = messageContainer.createDiv("message-content");
-        import_obsidian20.MarkdownRenderer.render(
+        import_obsidian21.MarkdownRenderer.render(
           this.app,
           this.content,
           this.contentEl,
@@ -12414,7 +12436,7 @@ async function generateNoteTitle(app, settings, processMessages2) {
   debugLog(DEBUG, "debug", "Starting generateNoteTitle");
   const activeFile = app.workspace.getActiveFile();
   if (!activeFile) {
-    new import_obsidian30.Notice("No active note found.");
+    new import_obsidian31.Notice("No active note found.");
     return;
   }
   let noteContent = await app.vault.cachedRead(activeFile);
@@ -12439,7 +12461,7 @@ async function generateNoteTitle(app, settings, processMessages2) {
       settings.enableContextNotes = originalEnableContextNotes;
       if (!processedMessages || processedMessages.length === 0) {
         debugLog(DEBUG, "debug", "No processed messages!");
-        new import_obsidian30.Notice("No valid messages to send to the model. Please check your note content.");
+        new import_obsidian31.Notice("No valid messages to send to the model. Please check your note content.");
         return;
       }
       debugLog(DEBUG, "debug", "Calling provider.getCompletion");
@@ -12467,28 +12489,28 @@ async function generateNoteTitle(app, settings, processMessages2) {
             const newPath = parentPath ? parentPath + "/" + sanitized + ext : sanitized + ext;
             if (file.path !== newPath) {
               await app.fileManager.renameFile(file, newPath);
-              new import_obsidian30.Notice(`Note renamed to: ${sanitized}${ext}`);
+              new import_obsidian31.Notice(`Note renamed to: ${sanitized}${ext}`);
             } else {
-              new import_obsidian30.Notice(`Note title is already: ${sanitized}${ext}`);
+              new import_obsidian31.Notice(`Note title is already: ${sanitized}${ext}`);
             }
           }
         } else if (outputMode === "metadata") {
           const file = app.workspace.getActiveFile();
           if (file) {
             await upsertYamlField(app, file, "title", title);
-            new import_obsidian30.Notice(`Inserted title into metadata: ${title}`);
+            new import_obsidian31.Notice(`Inserted title into metadata: ${title}`);
           }
         } else {
           try {
             await navigator.clipboard.writeText(title);
-            new import_obsidian30.Notice(`Generated title (copied): ${title}`);
+            new import_obsidian31.Notice(`Generated title (copied): ${title}`);
           } catch (e) {
-            new import_obsidian30.Notice(`Generated title: ${title}`);
+            new import_obsidian31.Notice(`Generated title: ${title}`);
           }
         }
       } else {
         debugLog(DEBUG, "debug", "No title generated after sanitization.");
-        new import_obsidian30.Notice("No title generated.");
+        new import_obsidian31.Notice("No title generated.");
       }
     } catch (processError) {
       debugLog(DEBUG, "debug", "Error in processMessages or provider.getCompletion:", processError);
@@ -12496,14 +12518,14 @@ async function generateNoteTitle(app, settings, processMessages2) {
       throw processError;
     }
   } catch (err) {
-    new import_obsidian30.Notice("Error generating title: " + ((_b = err == null ? void 0 : err.message) != null ? _b : err));
+    new import_obsidian31.Notice("Error generating title: " + ((_b = err == null ? void 0 : err.message) != null ? _b : err));
   }
 }
 async function generateYamlAttribute(app, settings, processMessages2, attributeName, prompt, outputMode = "metadata") {
   debugLog(DEBUG, "debug", `Starting generateYamlAttribute for ${attributeName}`);
   const activeFile = app.workspace.getActiveFile();
   if (!activeFile) {
-    new import_obsidian30.Notice("No active note found.");
+    new import_obsidian31.Notice("No active note found.");
     return;
   }
   let noteContent = await app.vault.cachedRead(activeFile);
@@ -12522,7 +12544,7 @@ async function generateYamlAttribute(app, settings, processMessages2, attributeN
     settings.enableContextNotes = originalEnableContextNotes;
     if (!processedMessages || processedMessages.length === 0) {
       debugLog(DEBUG, "debug", "No processed messages!");
-      new import_obsidian30.Notice("No valid messages to send to the model. Please check your note content.");
+      new import_obsidian31.Notice("No valid messages to send to the model. Please check your note content.");
       return;
     }
     debugLog(DEBUG, "debug", "Calling provider.getCompletion");
@@ -12544,18 +12566,18 @@ async function generateYamlAttribute(app, settings, processMessages2, attributeN
       debugLog(DEBUG, "debug", "Output mode:", outputMode);
       if (outputMode === "metadata") {
         await upsertYamlField(app, activeFile, attributeName, value);
-        new import_obsidian30.Notice(`Inserted ${attributeName} into metadata: ${value}`);
+        new import_obsidian31.Notice(`Inserted ${attributeName} into metadata: ${value}`);
       } else {
         try {
           await navigator.clipboard.writeText(value);
-          new import_obsidian30.Notice(`Generated ${attributeName} (copied): ${value}`);
+          new import_obsidian31.Notice(`Generated ${attributeName} (copied): ${value}`);
         } catch (e) {
-          new import_obsidian30.Notice(`Generated ${attributeName}: ${value}`);
+          new import_obsidian31.Notice(`Generated ${attributeName}: ${value}`);
         }
       }
     } else {
       debugLog(DEBUG, "debug", `No value generated for ${attributeName} after sanitization.`);
-      new import_obsidian30.Notice(`No value generated for ${attributeName}.`);
+      new import_obsidian31.Notice(`No value generated for ${attributeName}.`);
     }
   } catch (processError) {
     debugLog(DEBUG, "debug", "Error in processMessages or provider.getCompletion:", processError);
@@ -12622,10 +12644,10 @@ function registerYamlAttributeCommands(plugin, settings, processMessages2, yamlA
   }
   return newCommandIds;
 }
-var import_obsidian30, DEBUG;
+var import_obsidian31, DEBUG;
 var init_YAMLHandler = __esm({
   "src/YAMLHandler.ts"() {
-    import_obsidian30 = require("obsidian");
+    import_obsidian31 = require("obsidian");
     init_providers();
     init_promptConstants();
     init_pluginUtils();
@@ -12641,11 +12663,11 @@ __export(main_exports, {
   default: () => MyPlugin
 });
 module.exports = __toCommonJS(main_exports);
-var import_obsidian31 = require("obsidian");
+var import_obsidian32 = require("obsidian");
 init_types();
 
 // src/settings/SettingTab.ts
-var import_obsidian28 = require("obsidian");
+var import_obsidian29 = require("obsidian");
 
 // src/components/commands/viewCommands.ts
 init_pluginUtils();
@@ -12664,7 +12686,7 @@ async function activateView(app, viewType, reveal = true) {
 }
 
 // src/chat.ts
-var import_obsidian23 = require("obsidian");
+var import_obsidian24 = require("obsidian");
 
 // src/components/chat/ChatHistoryManager.ts
 var import_obsidian7 = require("obsidian");
@@ -13309,7 +13331,7 @@ var ToolRegistry = class {
     var _a2;
     this.tools.set(tool.name, tool);
     if (this.plugin && this.plugin.settings) {
-      log((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "debug", "[ToolRegistry] Registering tool", { tool });
+      debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "debug", "[ToolRegistry] Registering tool:", tool.name);
     }
   }
   /**
@@ -13323,7 +13345,7 @@ var ToolRegistry = class {
     const tool = this.tools.get(command.action);
     if (!tool) {
       if (this.plugin && this.plugin.settings) {
-        log((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "debug", "[ToolRegistry] Tool not found", { action: command.action });
+        debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "debug", "[ToolRegistry] Tool not found", { action: command.action });
       }
       return {
         success: false,
@@ -13333,7 +13355,7 @@ var ToolRegistry = class {
     }
     try {
       if (this.plugin && this.plugin.settings) {
-        log((_b = this.plugin.settings.debugMode) != null ? _b : false, "debug", "[ToolRegistry] Executing tool", { command });
+        debugLog((_b = this.plugin.settings.debugMode) != null ? _b : false, "debug", "[ToolRegistry] Executing tool", { command });
       }
       let parameters = { ...command.parameters };
       if (tool.name === "file_diff" && !parameters.editor) {
@@ -13371,17 +13393,17 @@ var ToolRegistry = class {
         if (editor) {
           parameters.editor = editor;
           if (this.plugin && this.plugin.settings) {
-            log((_o = this.plugin.settings.debugMode) != null ? _o : false, "debug", "[ToolRegistry] Injected editor for file_diff tool");
+            debugLog((_o = this.plugin.settings.debugMode) != null ? _o : false, "debug", "[ToolRegistry] Injected editor for file_diff tool");
           }
         } else {
           if (this.plugin && this.plugin.settings) {
-            log((_p = this.plugin.settings.debugMode) != null ? _p : false, "debug", "[ToolRegistry] No editor available for file_diff tool, will use fallback mode");
+            debugLog((_p = this.plugin.settings.debugMode) != null ? _p : false, "debug", "[ToolRegistry] No editor available for file_diff tool, will use fallback mode");
           }
         }
       }
       const result = await tool.execute(parameters, {});
       if (this.plugin && this.plugin.settings) {
-        log((_q = this.plugin.settings.debugMode) != null ? _q : false, "debug", "[ToolRegistry] Tool execution result", { command, result });
+        debugLog((_q = this.plugin.settings.debugMode) != null ? _q : false, "debug", "[ToolRegistry] Tool execution result", { command, result });
       }
       return {
         ...result,
@@ -13389,7 +13411,7 @@ var ToolRegistry = class {
       };
     } catch (error) {
       if (this.plugin && this.plugin.settings) {
-        log((_r = this.plugin.settings.debugMode) != null ? _r : false, "error", "[ToolRegistry] Tool execution error", { command, error });
+        debugLog((_r = this.plugin.settings.debugMode) != null ? _r : false, "error", "[ToolRegistry] Tool execution error", { command, error });
       }
       return {
         success: false,
@@ -14510,13 +14532,13 @@ The current time is ${currentTime} ${timeZoneString}.`;
 }
 
 // src/utils/noteUtils.ts
-var import_obsidian18 = require("obsidian");
+var import_obsidian19 = require("obsidian");
 
 // src/utils/generalUtils.ts
+var import_obsidian18 = require("obsidian");
 init_logger();
 function showNotice(message) {
-  const { Notice: Notice17 } = require("obsidian");
-  new Notice17(message);
+  new import_obsidian18.Notice(message);
 }
 async function copyToClipboard3(text, successMsg = "Copied to clipboard", failMsg = "Failed to copy to clipboard") {
   try {
@@ -14524,7 +14546,7 @@ async function copyToClipboard3(text, successMsg = "Copied to clipboard", failMs
     showNotice(successMsg);
   } catch (error) {
     showNotice(failMsg);
-    log(true, "error", "Clipboard error:", error);
+    debugLog(true, "error", "Clipboard error:", error);
   }
 }
 function moveCursorAfterInsert(editor, startPos, insertText) {
@@ -14590,9 +14612,7 @@ function extractContentUnderHeader(content, headerText) {
 }
 
 // src/utils/noteUtils.ts
-function isTFile2(f) {
-  return f && typeof f === "object" && typeof f.path === "string" && typeof f.basename === "string" && typeof f.extension === "string" && f.stat;
-}
+init_typeguards();
 async function processObsidianLinks(content, app, settings, visitedNotes = /* @__PURE__ */ new Set(), currentDepth = 0) {
   var _a2;
   if (!settings.enableObsidianLinks) return content;
@@ -14607,7 +14627,7 @@ async function processObsidianLinks(content, app, settings, visitedNotes = /* @_
         let file = findFile(app, filePath);
         const headerMatch = filePath.match(/(.*?)#(.*)/);
         let extractedContent = "";
-        if (file && isTFile2(file)) {
+        if (file && isTFile(file)) {
           if (visitedNotes.has(file.path)) {
             extractedContent = "[Recursive link omitted: already included]";
           } else {
@@ -14634,10 +14654,10 @@ ${extractedContent}
 `
           );
         } else {
-          new import_obsidian18.Notice(`File not found: ${filePath}. Ensure the file name and path are correct.`);
+          new import_obsidian19.Notice(`File not found: ${filePath}. Ensure the file name and path are correct.`);
         }
       } catch (error) {
-        new import_obsidian18.Notice(`Error processing link for ${filePath}: ${error.message}`);
+        new import_obsidian19.Notice(`Error processing link for ${filePath}: ${error.message}`);
       }
     }
   }
@@ -14656,7 +14676,7 @@ async function processContextNotes(contextNotesText, app) {
       const headerName = headerMatch ? headerMatch[2].trim() : null;
       try {
         let file = findFile(app, baseFileName);
-        if (file && isTFile2(file)) {
+        if (file && isTFile(file)) {
           const noteContent = await app.vault.cachedRead(file);
           contextContent += `---
 Attached: ${originalLink}
@@ -14715,9 +14735,6 @@ ${contextContent}`
   }
   return processedMessages;
 }
-async function getContextNotesContent(contextNotesText, app) {
-  return processContextNotes(contextNotesText, app);
-}
 
 // src/components/chat/agent/ContextBuilder.ts
 var ContextBuilder = class {
@@ -14739,7 +14756,7 @@ var ContextBuilder = class {
       { role: "system", content: getSystemMessage(this.plugin.settings) }
     ];
     if (this.plugin.settings.enableContextNotes && this.plugin.settings.contextNotes) {
-      const contextContent = await getContextNotesContent(this.plugin.settings.contextNotes, this.plugin.app);
+      const contextContent = await processContextNotes(this.plugin.settings.contextNotes, this.plugin.app);
       messages[0].content += `
 
 Context Notes:
@@ -14794,15 +14811,15 @@ ${currentNoteContent}`
 };
 
 // src/components/chat/MessageRegenerator.ts
-var import_obsidian22 = require("obsidian");
+var import_obsidian23 = require("obsidian");
 
 // src/components/chat/ResponseStreamer.ts
-var import_obsidian21 = require("obsidian");
+var import_obsidian22 = require("obsidian");
 init_providers();
 init_MessageRenderer();
 
 // src/components/chat/agent/TaskContinuation.ts
-var import_obsidian19 = require("obsidian");
+var import_obsidian20 = require("obsidian");
 var TaskContinuation = class {
   /**
    * @param plugin The main plugin instance (for settings and logging)
@@ -14966,7 +14983,7 @@ var TaskContinuation = class {
     const contentEl = container.querySelector(".message-content");
     if (contentEl) {
       contentEl.empty();
-      await import_obsidian19.MarkdownRenderer.render(
+      await import_obsidian20.MarkdownRenderer.render(
         this.plugin.app,
         content,
         contentEl,
@@ -15172,7 +15189,7 @@ var ResponseStreamer = class {
     if (!contentEl) return;
     this.updateContainerDataset(container, content);
     contentEl.empty();
-    await import_obsidian21.MarkdownRenderer.render(
+    await import_obsidian22.MarkdownRenderer.render(
       this.plugin.app,
       content,
       contentEl,
@@ -15681,7 +15698,7 @@ var MessageRegenerator = class {
       );
     } catch (error) {
       if (error.name !== "AbortError") {
-        new import_obsidian22.Notice(`Error: ${error.message}`);
+        new import_obsidian23.Notice(`Error: ${error.message}`);
         assistantContainer.remove();
       }
     } finally {
@@ -15697,7 +15714,7 @@ var MessageRegenerator = class {
 // src/chat.ts
 init_MessageRenderer();
 var VIEW_TYPE_CHAT = "chat-view";
-var ChatView = class extends import_obsidian23.ItemView {
+var ChatView = class extends import_obsidian24.ItemView {
   constructor(leaf, plugin) {
     super(leaf);
     // Plugin instance
@@ -15755,7 +15772,7 @@ var ChatView = class extends import_obsidian23.ItemView {
     try {
       loadedHistory = await this.chatHistoryManager.getHistory();
     } catch (e) {
-      new import_obsidian23.Notice("Failed to load chat history.");
+      new import_obsidian24.Notice("Failed to load chat history.");
       loadedHistory = [];
     }
     const ui = createChatUI(this.app, contentEl);
@@ -15825,14 +15842,14 @@ var ChatView = class extends import_obsidian23.ItemView {
       if (this.plugin.agentModeManager.isAgentModeEnabled()) {
         ui.agentModeButton.classList.add("active");
         ui.agentModeButton.setAttribute("title", "Agent Mode: ON - AI can use tools");
-        new import_obsidian23.Notice("Agent Mode enabled - AI can now use tools");
+        new import_obsidian24.Notice("Agent Mode enabled - AI can now use tools");
         if (this.agentResponseHandler) {
           this.agentResponseHandler.resetExecutionCount();
         }
       } else {
         ui.agentModeButton.classList.remove("active");
         ui.agentModeButton.setAttribute("title", "Agent Mode: OFF - Regular chat");
-        new import_obsidian23.Notice("Agent Mode disabled");
+        new import_obsidian24.Notice("Agent Mode disabled");
       }
     });
     if (this.plugin.agentModeManager.isAgentModeEnabled()) {
@@ -15863,7 +15880,7 @@ var ChatView = class extends import_obsidian23.ItemView {
           content
         });
       } catch (e) {
-        new import_obsidian23.Notice("Failed to save user message: " + e.message);
+        new import_obsidian24.Notice("Failed to save user message: " + e.message);
       }
       try {
         const messages = await this.buildContextMessages();
@@ -15921,7 +15938,7 @@ var ChatView = class extends import_obsidian23.ItemView {
         }
       } catch (error) {
         if (error.name !== "AbortError") {
-          new import_obsidian23.Notice(`Error: ${error.message}`);
+          new import_obsidian24.Notice(`Error: ${error.message}`);
           await createMessageElement(this.app, "assistant", `Error: ${error.message}`, this.chatHistoryManager, this.plugin, (el) => this.regenerateResponse(el), this);
         }
       } finally {
@@ -16027,7 +16044,7 @@ var ChatView = class extends import_obsidian23.ItemView {
         ...enhancedData || {}
       });
     } catch (e) {
-      new import_obsidian23.Notice("Failed to save chat message: " + e.message);
+      new import_obsidian24.Notice("Failed to save chat message: " + e.message);
     }
   }
   /**
@@ -16163,9 +16180,9 @@ var ChatView = class extends import_obsidian23.ItemView {
       const content = display.toMarkdown();
       try {
         await navigator.clipboard.writeText(content);
-        new import_obsidian23.Notice("Tool result copied to clipboard");
+        new import_obsidian24.Notice("Tool result copied to clipboard");
       } catch (error) {
-        new import_obsidian23.Notice("Failed to copy to clipboard");
+        new import_obsidian24.Notice("Failed to copy to clipboard");
         console.error("Clipboard error:", error);
       }
     });
@@ -16258,7 +16275,7 @@ var CollapsibleSectionRenderer = class {
 init_logger();
 
 // src/settings/components/SettingCreators.ts
-var import_obsidian24 = require("obsidian");
+var import_obsidian25 = require("obsidian");
 var SettingCreators = class {
   /**
    * @param plugin The plugin instance, used for saving settings.
@@ -16281,7 +16298,7 @@ var SettingCreators = class {
    * @param options Additional options for the text input (e.g., trim, undefinedIfEmpty, isTextArea).
    */
   createTextSetting(containerEl, name, desc, placeholder, getValue, setValue, options) {
-    new import_obsidian24.Setting(containerEl).setName(name).setDesc(desc).then((setting) => {
+    new import_obsidian25.Setting(containerEl).setName(name).setDesc(desc).then((setting) => {
       const textInputOptions = {
         trim: options == null ? void 0 : options.trim,
         undefinedIfEmpty: options == null ? void 0 : options.undefinedIfEmpty
@@ -16347,7 +16364,7 @@ var SettingCreators = class {
    * @param setValue A function to set the new value of the setting.
    */
   createDropdownSetting(containerEl, name, desc, options, getValue, setValue) {
-    new import_obsidian24.Setting(containerEl).setName(name).setDesc(desc).addDropdown((drop) => {
+    new import_obsidian25.Setting(containerEl).setName(name).setDesc(desc).addDropdown((drop) => {
       Object.entries(options).forEach(([key, display]) => drop.addOption(key, display));
       drop.setValue(getValue());
       drop.onChange(async (value) => {
@@ -16366,7 +16383,7 @@ var SettingCreators = class {
    * @param onChangeCallback An optional callback to run after the value changes and settings are saved.
    */
   createToggleSetting(containerEl, name, desc, getValue, setValue, onChangeCallback) {
-    new import_obsidian24.Setting(containerEl).setName(name).setDesc(desc).addToggle((toggle) => toggle.setValue(getValue()).onChange(async (value) => {
+    new import_obsidian25.Setting(containerEl).setName(name).setDesc(desc).addToggle((toggle) => toggle.setValue(getValue()).onChange(async (value) => {
       await setValue(value);
       if (onChangeCallback) {
         onChangeCallback();
@@ -16384,7 +16401,7 @@ var SettingCreators = class {
    * @param setValue A function to set the new numeric value.
    */
   createSliderSetting(containerEl, name, desc, limits, getValue, setValue) {
-    new import_obsidian24.Setting(containerEl).setName(name).setDesc(desc).addSlider((slider) => {
+    new import_obsidian25.Setting(containerEl).setName(name).setDesc(desc).addSlider((slider) => {
       slider.setLimits(limits.min, limits.max, limits.step).setValue(getValue()).setDynamicTooltip().onChange(async (value) => {
         await setValue(value);
         this.reRenderCallback();
@@ -16460,7 +16477,7 @@ var GeneralSettingsSection = class {
 };
 
 // src/settings/sections/AIModelConfigurationSection.ts
-var import_obsidian25 = require("obsidian");
+var import_obsidian26 = require("obsidian");
 init_providers();
 var AIModelConfigurationSection = class {
   /**
@@ -16597,7 +16614,7 @@ var AIModelConfigurationSection = class {
    */
   renderProviderTestSection(containerEl, provider, displayName) {
     const settings = this.plugin.settings[`${provider}Settings`];
-    new import_obsidian25.Setting(containerEl).setName("Test Connection").setDesc(`Verify your API key and fetch available models for ${displayName}`).addButton((button) => button.setButtonText("Test").onClick(async () => {
+    new import_obsidian26.Setting(containerEl).setName("Test Connection").setDesc(`Verify your API key and fetch available models for ${displayName}`).addButton((button) => button.setButtonText("Test").onClick(async () => {
       button.setButtonText("Testing...");
       button.setDisabled(true);
       try {
@@ -16616,17 +16633,17 @@ var AIModelConfigurationSection = class {
           await this.plugin.saveSettings();
           this.plugin.settings.availableModels = await getAllAvailableModels(this.plugin.settings);
           await this.plugin.saveSettings();
-          new import_obsidian25.Notice(result.message);
+          new import_obsidian26.Notice(result.message);
         } else {
           settings.lastTestResult = {
             timestamp: Date.now(),
             success: false,
             message: result.message
           };
-          new import_obsidian25.Notice(result.message);
+          new import_obsidian26.Notice(result.message);
         }
       } catch (error) {
-        new import_obsidian25.Notice(`Error: ${error.message}`);
+        new import_obsidian26.Notice(`Error: ${error.message}`);
       } finally {
         button.setButtonText("Test");
         button.setDisabled(false);
@@ -16666,11 +16683,11 @@ var AIModelConfigurationSection = class {
           if (preset.maxTokens !== void 0) this.plugin.settings.maxTokens = preset.maxTokens;
           if (preset.enableStreaming !== void 0) this.plugin.settings.enableStreaming = preset.enableStreaming;
           await this.plugin.saveSettings();
-          new import_obsidian25.Notice(`Applied preset: ${preset.name}`);
+          new import_obsidian26.Notice(`Applied preset: ${preset.name}`);
         };
       });
     }
-    new import_obsidian25.Setting(containerEl).setName("System Message").setDesc("Set the system message for the AI").addTextArea((text) => {
+    new import_obsidian26.Setting(containerEl).setName("System Message").setDesc("Set the system message for the AI").addTextArea((text) => {
       text.setPlaceholder("You are a helpful assistant.").setValue(this.plugin.settings.systemMessage).onChange((value) => {
         this.plugin.settings.systemMessage = value;
       });
@@ -16679,22 +16696,22 @@ var AIModelConfigurationSection = class {
       });
       return text;
     });
-    new import_obsidian25.Setting(containerEl).setName("Enable Streaming").setDesc("Enable or disable streaming for completions").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableStreaming).onChange(async (value) => {
+    new import_obsidian26.Setting(containerEl).setName("Enable Streaming").setDesc("Enable or disable streaming for completions").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableStreaming).onChange(async (value) => {
       this.plugin.settings.enableStreaming = value;
       await this.plugin.saveSettings();
     }));
-    new import_obsidian25.Setting(containerEl).setName("Temperature").setDesc("Set the randomness of the model's output (0-1)").addSlider((slider) => slider.setLimits(0, 1, 0.1).setValue(this.plugin.settings.temperature).setDynamicTooltip().onChange(async (value) => {
+    new import_obsidian26.Setting(containerEl).setName("Temperature").setDesc("Set the randomness of the model's output (0-1)").addSlider((slider) => slider.setLimits(0, 1, 0.1).setValue(this.plugin.settings.temperature).setDynamicTooltip().onChange(async (value) => {
       this.plugin.settings.temperature = value;
       await this.plugin.saveSettings();
     }));
-    new import_obsidian25.Setting(containerEl).setName("Refresh Available Models").setDesc("Test connections to all configured providers and refresh available models").addButton((button) => button.setButtonText("Refresh Models").onClick(async () => {
+    new import_obsidian26.Setting(containerEl).setName("Refresh Available Models").setDesc("Test connections to all configured providers and refresh available models").addButton((button) => button.setButtonText("Refresh Models").onClick(async () => {
       button.setButtonText("Refreshing...");
       button.setDisabled(true);
       try {
         await this.refreshAllAvailableModels();
-        new import_obsidian25.Notice("Successfully refreshed available models");
+        new import_obsidian26.Notice("Successfully refreshed available models");
       } catch (error) {
-        new import_obsidian25.Notice(`Error refreshing models: ${error.message}`);
+        new import_obsidian26.Notice(`Error refreshing models: ${error.message}`);
       } finally {
         button.setButtonText("Refresh Models");
         button.setDisabled(false);
@@ -16712,7 +16729,7 @@ var AIModelConfigurationSection = class {
       this.plugin.settings.availableModels = await getAllAvailableModels(this.plugin.settings);
       await this.plugin.saveSettings();
     }
-    new import_obsidian25.Setting(containerEl).setName("Selected Model").setDesc("Choose from all available models across all configured providers").addDropdown((dropdown) => {
+    new import_obsidian26.Setting(containerEl).setName("Selected Model").setDesc("Choose from all available models across all configured providers").addDropdown((dropdown) => {
       if (!this.plugin.settings.availableModels || this.plugin.settings.availableModels.length === 0) {
         dropdown.addOption("", "No models available - configure providers above");
       } else {
@@ -16815,7 +16832,7 @@ var AIModelConfigurationSection = class {
       const row = tbody.createEl("tr");
       row.createEl("td", { text: model.name });
       row.createEl("td", { text: model.provider });
-      const enabledToggle = new import_obsidian25.Setting(row.createEl("td")).setName("").setDesc("Enable or disable this model").addToggle((toggle) => {
+      const enabledToggle = new import_obsidian26.Setting(row.createEl("td")).setName("").setDesc("Enable or disable this model").addToggle((toggle) => {
         var _a2;
         return toggle.setValue(((_a2 = this.plugin.settings.enabledModels) == null ? void 0 : _a2[model.id]) !== false).onChange(async (value) => {
           const enabledModels = this.plugin.settings.enabledModels || {};
@@ -16825,27 +16842,27 @@ var AIModelConfigurationSection = class {
         });
       });
       const actionsCell = row.createEl("td");
-      new import_obsidian25.Setting(actionsCell).setName("").setDesc("Delete local copy of this model").addButton((button) => button.setButtonText("Delete").setWarning().onClick(async () => {
+      new import_obsidian26.Setting(actionsCell).setName("").setDesc("Delete local copy of this model").addButton((button) => button.setButtonText("Delete").setWarning().onClick(async () => {
         const confirmed = confirm(`Are you sure you want to delete the local copy of the model "${model.name}"?`);
         if (confirmed) {
           try {
             await this.plugin.app.vault.adapter.remove(`ai-models/${model.id}.json`);
             this.plugin.settings.availableModels = await getAllAvailableModels(this.plugin.settings);
             await this.plugin.saveSettings();
-            new import_obsidian25.Notice(`Deleted model "${model.name}"`);
+            new import_obsidian26.Notice(`Deleted model "${model.name}"`);
             containerEl.empty();
             await this.renderAvailableModelsSection(containerEl);
           } catch (error) {
-            new import_obsidian25.Notice(`Error deleting model: ${error.message}`);
+            new import_obsidian26.Notice(`Error deleting model: ${error.message}`);
           }
         }
       })).addButton((button) => button.setButtonText("Re-download").onClick(async () => {
         const confirmed = confirm(`Are you sure you want to re-download the model "${model.name}"?`);
         if (confirmed) {
           try {
-            new import_obsidian25.Notice(`Re-download feature is not yet implemented. Please pull the model again using the provider settings.`);
+            new import_obsidian26.Notice(`Re-download feature is not yet implemented. Please pull the model again using the provider settings.`);
           } catch (error) {
-            new import_obsidian25.Notice(`Error re-downloading model: ${error.message}`);
+            new import_obsidian26.Notice(`Error re-downloading model: ${error.message}`);
           }
         }
       }));
@@ -16864,7 +16881,7 @@ var AIModelConfigurationSection = class {
     });
     const presetList = this.plugin.settings.modelSettingPresets || [];
     presetList.forEach((preset, idx) => {
-      new import_obsidian25.Setting(containerEl).setName("Preset Name").setDesc("Edit the name of this preset").addText((text) => {
+      new import_obsidian26.Setting(containerEl).setName("Preset Name").setDesc("Edit the name of this preset").addText((text) => {
         text.setPlaceholder("Preset Name").setValue(preset.name).onChange((value) => {
           preset.name = value != null ? value : "";
         });
@@ -16872,7 +16889,7 @@ var AIModelConfigurationSection = class {
           await this.plugin.saveSettings();
         });
       });
-      new import_obsidian25.Setting(containerEl).setName("Model ID (provider:model)").setDesc("Edit the model for this preset").addText((text) => {
+      new import_obsidian26.Setting(containerEl).setName("Model ID (provider:model)").setDesc("Edit the model for this preset").addText((text) => {
         text.setPlaceholder("Model ID (provider:model)").setValue(preset.selectedModel || "").onChange((value) => {
           preset.selectedModel = value != null ? value : "";
         });
@@ -16880,7 +16897,7 @@ var AIModelConfigurationSection = class {
           await this.plugin.saveSettings();
         });
       });
-      new import_obsidian25.Setting(containerEl).setName("System Message").setDesc("Edit the system message for this preset").addTextArea((text) => {
+      new import_obsidian26.Setting(containerEl).setName("System Message").setDesc("Edit the system message for this preset").addTextArea((text) => {
         text.setPlaceholder("System message").setValue(preset.systemMessage || "").onChange((value) => {
           preset.systemMessage = value != null ? value : "";
         });
@@ -16895,7 +16912,7 @@ var AIModelConfigurationSection = class {
         preset.temperature = value;
         await this.plugin.saveSettings();
       });
-      new import_obsidian25.Setting(containerEl).setName("Max Tokens").setDesc("Edit the max tokens for this preset").addText((text) => {
+      new import_obsidian26.Setting(containerEl).setName("Max Tokens").setDesc("Edit the max tokens for this preset").addText((text) => {
         var _a2;
         text.setPlaceholder("Max tokens").setValue(((_a2 = preset.maxTokens) == null ? void 0 : _a2.toString()) || "").onChange((value) => {
           const num = parseInt(value != null ? value : "", 10);
@@ -16912,7 +16929,7 @@ var AIModelConfigurationSection = class {
         preset.enableStreaming = value;
         await this.plugin.saveSettings();
       });
-      new import_obsidian25.Setting(containerEl).addExtraButton(
+      new import_obsidian26.Setting(containerEl).addExtraButton(
         (btn) => btn.setIcon("cross").setTooltip("Delete").onClick(async () => {
           var _a2;
           (_a2 = this.plugin.settings.modelSettingPresets) == null ? void 0 : _a2.splice(idx, 1);
@@ -16920,7 +16937,7 @@ var AIModelConfigurationSection = class {
         })
       );
     });
-    new import_obsidian25.Setting(containerEl).addButton(
+    new import_obsidian26.Setting(containerEl).addButton(
       (btn) => btn.setButtonText("Add Preset").setCta().onClick(async () => {
         if (!this.plugin.settings.modelSettingPresets) this.plugin.settings.modelSettingPresets = [];
         this.plugin.settings.modelSettingPresets.push(JSON.parse(JSON.stringify({
@@ -17145,7 +17162,7 @@ var AgentSettingsSection = class {
 };
 
 // src/settings/sections/ContentNoteHandlingSection.ts
-var import_obsidian26 = require("obsidian");
+var import_obsidian27 = require("obsidian");
 var ContentNoteHandlingSection = class {
   /**
    * @param plugin The main plugin instance.
@@ -17269,7 +17286,7 @@ var ContentNoteHandlingSection = class {
     );
     const contextNotesContainer = containerEl.createDiv("context-notes-container");
     contextNotesContainer.style.marginBottom = "24px";
-    new import_obsidian26.Setting(contextNotesContainer).setName("Context Notes").setDesc("Notes to attach as context (supports [[filename]] and [[another note#header]] syntax)").addTextArea((text) => {
+    new import_obsidian27.Setting(contextNotesContainer).setName("Context Notes").setDesc("Notes to attach as context (supports [[filename]] and [[another note#header]] syntax)").addTextArea((text) => {
       text.setPlaceholder("[[Note Name]]\n[[Another Note#Header]]").setValue(this.plugin.settings.contextNotes || "").onChange((value) => {
         this.plugin.settings.contextNotes = value;
       });
@@ -17349,7 +17366,7 @@ var ContentNoteHandlingSection = class {
       genContainer.style.padding = "1em";
       genContainer.style.marginBottom = "1em";
       genContainer.createEl("h4", { text: autoCommandName });
-      new import_obsidian26.Setting(genContainer).setName("YAML Attribute Name").setDesc("The YAML field name to insert/update").addText((text) => {
+      new import_obsidian27.Setting(genContainer).setName("YAML Attribute Name").setDesc("The YAML field name to insert/update").addText((text) => {
         text.setPlaceholder("YAML Attribute Name").setValue(gen.attributeName).onChange((value) => {
           if (this.plugin.settings.yamlAttributeGenerators) {
             this.plugin.settings.yamlAttributeGenerators[idx].attributeName = value != null ? value : "";
@@ -17360,7 +17377,7 @@ var ContentNoteHandlingSection = class {
           await this.plugin.saveSettings();
         });
       });
-      new import_obsidian26.Setting(genContainer).setName("Prompt for LLM").setDesc("The prompt to send to the AI for generating the YAML value").addTextArea((text) => {
+      new import_obsidian27.Setting(genContainer).setName("Prompt for LLM").setDesc("The prompt to send to the AI for generating the YAML value").addTextArea((text) => {
         text.setPlaceholder("Prompt for LLM").setValue(gen.prompt).onChange((value) => {
           if (this.plugin.settings.yamlAttributeGenerators) {
             this.plugin.settings.yamlAttributeGenerators[idx].prompt = value != null ? value : "";
@@ -17372,7 +17389,7 @@ var ContentNoteHandlingSection = class {
         text.inputEl.rows = 3;
         text.inputEl.style.width = "100%";
       });
-      new import_obsidian26.Setting(genContainer).setName("Output Mode").setDesc("Where to put the generated YAML attribute").addDropdown((drop) => {
+      new import_obsidian27.Setting(genContainer).setName("Output Mode").setDesc("Where to put the generated YAML attribute").addDropdown((drop) => {
         drop.addOption("clipboard", "Copy to clipboard");
         drop.addOption("metadata", "Insert into metadata");
         drop.setValue(gen.outputMode);
@@ -17383,7 +17400,7 @@ var ContentNoteHandlingSection = class {
           }
         });
       });
-      new import_obsidian26.Setting(genContainer).addExtraButton((btn) => {
+      new import_obsidian27.Setting(genContainer).addExtraButton((btn) => {
         btn.setIcon("cross").setTooltip("Delete this YAML generator").onClick(async () => {
           if (this.plugin.settings.yamlAttributeGenerators) {
             this.plugin.settings.yamlAttributeGenerators.splice(idx, 1);
@@ -17392,7 +17409,7 @@ var ContentNoteHandlingSection = class {
         });
       });
     });
-    new import_obsidian26.Setting(containerEl).addButton((btn) => {
+    new import_obsidian27.Setting(containerEl).addButton((btn) => {
       btn.setButtonText("Add YAML Attribute Generator").setCta().onClick(async () => {
         if (!this.plugin.settings.yamlAttributeGenerators) this.plugin.settings.yamlAttributeGenerators = [];
         this.plugin.settings.yamlAttributeGenerators.push(JSON.parse(JSON.stringify({
@@ -17408,7 +17425,7 @@ var ContentNoteHandlingSection = class {
 };
 
 // src/settings/sections/BackupManagementSection.ts
-var import_obsidian27 = require("obsidian");
+var import_obsidian28 = require("obsidian");
 
 // src/settings/components/DialogHelpers.ts
 var DialogHelpers = class {
@@ -17542,10 +17559,10 @@ var BackupManagementSection = class {
         if (confirmed) {
           try {
             await backupManager.deleteAllBackups();
-            new import_obsidian27.Notice("Deleted all backups successfully");
+            new import_obsidian28.Notice("Deleted all backups successfully");
             this.renderBackupManagement(containerEl.parentElement);
           } catch (error) {
-            new import_obsidian27.Notice(`Error deleting all backups: ${error.message}`);
+            new import_obsidian28.Notice(`Error deleting all backups: ${error.message}`);
           }
         }
       };
@@ -17604,12 +17621,12 @@ var BackupManagementSection = class {
             try {
               const result = await backupManager.restoreBackup(backup);
               if (result.success) {
-                new import_obsidian27.Notice(`Successfully restored backup for ${filePath}`);
+                new import_obsidian28.Notice(`Successfully restored backup for ${filePath}`);
               } else {
-                new import_obsidian27.Notice(`Failed to restore backup: ${result.error}`);
+                new import_obsidian28.Notice(`Failed to restore backup: ${result.error}`);
               }
             } catch (error) {
-              new import_obsidian27.Notice(`Error restoring backup: ${error.message}`);
+              new import_obsidian28.Notice(`Error restoring backup: ${error.message}`);
             }
           }
         };
@@ -17625,11 +17642,11 @@ var BackupManagementSection = class {
           if (confirmed) {
             try {
               await backupManager.deleteSpecificBackup(filePath, backup.timestamp);
-              new import_obsidian27.Notice(`Deleted backup for ${filePath}`);
+              new import_obsidian28.Notice(`Deleted backup for ${filePath}`);
               containerEl.empty();
               await this.renderBackupFilesList(containerEl, backupFiles, backupManager);
             } catch (error) {
-              new import_obsidian27.Notice(`Error deleting backup: ${error.message}`);
+              new import_obsidian28.Notice(`Error deleting backup: ${error.message}`);
             }
           }
         };
@@ -17641,7 +17658,7 @@ var BackupManagementSection = class {
           previewBtn.onclick = () => {
             const preview = backup.content.substring(0, 200);
             const truncated = backup.content.length > 200 ? "..." : "";
-            new import_obsidian27.Notice(`Preview: ${preview}${truncated}`, 1e4);
+            new import_obsidian28.Notice(`Preview: ${preview}${truncated}`, 1e4);
           };
         } else if (backup.isBinary) {
           const infoBtn = backupActions.createEl("button", {
@@ -17650,7 +17667,7 @@ var BackupManagementSection = class {
           });
           infoBtn.onclick = () => {
             const sizeKB2 = backup.fileSize ? Math.round(backup.fileSize / 1024) : 0;
-            new import_obsidian27.Notice(`Binary file backup: ${sizeKB2} KB
+            new import_obsidian28.Notice(`Binary file backup: ${sizeKB2} KB
 Stored at: ${backup.backupFilePath || "Unknown location"}`, 5e3);
           };
         }
@@ -17667,11 +17684,11 @@ Stored at: ${backup.backupFilePath || "Unknown location"}`, 5e3);
         if (confirmed) {
           try {
             await backupManager.deleteBackupsForFile(filePath);
-            new import_obsidian27.Notice(`Deleted all backups for ${filePath}`);
+            new import_obsidian28.Notice(`Deleted all backups for ${filePath}`);
             containerEl.empty();
             await this.renderBackupFilesList(containerEl, backupFiles, backupManager);
           } catch (error) {
-            new import_obsidian27.Notice(`Error deleting backups: ${error.message}`);
+            new import_obsidian28.Notice(`Error deleting backups: ${error.message}`);
           }
         }
       };
@@ -17720,10 +17737,10 @@ Stored at: ${backup.backupFilePath || "Unknown location"}`, 5e3);
         });
         return;
       }
-    } else if (trashFolder instanceof import_obsidian27.TFolder) {
+    } else if (trashFolder instanceof import_obsidian28.TFolder) {
       trashItems = trashFolder.children.map((item) => ({
         name: item.name,
-        isFolder: item instanceof import_obsidian27.TFolder,
+        isFolder: item instanceof import_obsidian28.TFolder,
         size: isTFile(item) && item.stat ? item.stat.size : void 0
       }));
     } else {
@@ -17771,10 +17788,10 @@ Stored at: ${backup.backupFilePath || "Unknown location"}`, 5e3);
                 await adapter.remove(fullPath);
               }
             }
-            new import_obsidian27.Notice(`Emptied trash - permanently deleted ${trashItems.length} items`);
+            new import_obsidian28.Notice(`Emptied trash - permanently deleted ${trashItems.length} items`);
             this.renderTrashManagement(containerEl.parentElement);
           } catch (error) {
-            new import_obsidian27.Notice(`Error emptying trash: ${error.message}`);
+            new import_obsidian28.Notice(`Error emptying trash: ${error.message}`);
           }
         }
       };
@@ -17811,17 +17828,17 @@ Stored at: ${backup.backupFilePath || "Unknown location"}`, 5e3);
           if (confirmed) {
             try {
               const trashFolderObj = this.plugin.app.vault.getAbstractFileByPath(trashPath);
-              if (trashFolderObj instanceof import_obsidian27.TFolder) {
+              if (trashFolderObj instanceof import_obsidian28.TFolder) {
                 const fileObj = trashFolderObj.children.find((child) => child.name === item.name);
                 if (fileObj) {
                   const newPath = item.name;
                   await this.plugin.app.fileManager.renameFile(fileObj, newPath);
-                  new import_obsidian27.Notice(`Restored "${item.name}" to vault root`);
+                  new import_obsidian28.Notice(`Restored "${item.name}" to vault root`);
                   this.renderTrashManagement(containerEl.parentElement);
                 }
               }
             } catch (error) {
-              new import_obsidian27.Notice(`Error restoring item: ${error.message}`);
+              new import_obsidian28.Notice(`Error restoring item: ${error.message}`);
             }
           }
         };
@@ -17844,10 +17861,10 @@ Stored at: ${backup.backupFilePath || "Unknown location"}`, 5e3);
             } else {
               await adapter.remove(fullPath);
             }
-            new import_obsidian27.Notice(`Permanently deleted "${item.name}"`);
+            new import_obsidian28.Notice(`Permanently deleted "${item.name}"`);
             this.renderTrashManagement(containerEl.parentElement);
           } catch (error) {
-            new import_obsidian27.Notice(`Error deleting item: ${error.message}`);
+            new import_obsidian28.Notice(`Error deleting item: ${error.message}`);
           }
         }
       };
@@ -17955,7 +17972,7 @@ var ChatHistorySettingsSection = class {
 
 // src/settings/SettingTab.ts
 init_promptConstants();
-var MyPluginSettingTab = class extends import_obsidian28.PluginSettingTab {
+var MyPluginSettingTab = class extends import_obsidian29.PluginSettingTab {
   /**
    * Constructs the settings tab and initializes all settings sections.
    *
@@ -17985,10 +18002,8 @@ var MyPluginSettingTab = class extends import_obsidian28.PluginSettingTab {
     /** Listener for settings changes, used to refresh the UI when settings are updated elsewhere. */
     __publicField(this, "settingsChangeListener", null);
     this.plugin = plugin;
+    debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "debug", "[MyPluginSettingTab] constructor called");
     this.settingCreators = new SettingCreators(this.plugin, () => this.display());
-    if (this.plugin && typeof this.plugin.debugLog === "function") {
-      log((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "debug", "[MyPluginSettingTab] constructor called");
-    }
     this.generalSettingsSection = new GeneralSettingsSection(this.plugin, this.settingCreators);
     this.aiModelConfigurationSection = new AIModelConfigurationSection(this.plugin, this.settingCreators);
     this.agentSettingsSection = new AgentSettingsSection(this.app, this.plugin, this.settingCreators);
@@ -18021,11 +18036,9 @@ var MyPluginSettingTab = class extends import_obsidian28.PluginSettingTab {
    */
   display() {
     var _a2;
-    if (this.plugin && typeof this.plugin.debugLog === "function") {
-      log((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", "[MyPluginSettingTab] display called");
-    }
     const { containerEl } = this;
     containerEl.empty();
+    debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", "[MyPluginSettingTab] display called");
     containerEl.createEl("h2", { text: "AI Assistant Settings" });
     CollapsibleSectionRenderer.createCollapsibleSection(
       containerEl,
@@ -18069,7 +18082,7 @@ var MyPluginSettingTab = class extends import_obsidian28.PluginSettingTab {
       this.plugin,
       "backupManagementExpanded"
     );
-    new import_obsidian28.Setting(containerEl).setName("Reset All Settings to Default").setDesc("Reset all plugin settings (except API keys) to their original default values.").addButton((button) => button.setButtonText("Reset").onClick(async () => {
+    new import_obsidian29.Setting(containerEl).setName("Reset All Settings to Default").setDesc("Reset all plugin settings (except API keys) to their original default values.").addButton((button) => button.setButtonText("Reset").onClick(async () => {
       const { DEFAULT_SETTINGS: DEFAULT_SETTINGS2 } = await Promise.resolve().then(() => (init_types(), types_exports));
       const preservedApiKeys = {
         openai: this.plugin.settings.openaiSettings.apiKey,
@@ -18086,15 +18099,15 @@ var MyPluginSettingTab = class extends import_obsidian28.PluginSettingTab {
       setTimeout(() => {
         activateView(this.plugin.app, VIEW_TYPE_MODEL_SETTINGS);
       }, 100);
-      new import_obsidian28.Notice("All settings (except API keys) reset to default.");
+      new import_obsidian29.Notice("All settings (except API keys) reset to default.");
     }));
   }
 };
 
 // src/components/ModelSettingsView.ts
-var import_obsidian29 = require("obsidian");
+var import_obsidian30 = require("obsidian");
 var VIEW_TYPE_MODEL_SETTINGS2 = "model-settings-view";
-var ModelSettingsView = class extends import_obsidian29.ItemView {
+var ModelSettingsView = class extends import_obsidian30.ItemView {
   constructor(leaf, plugin) {
     super(leaf);
     __publicField(this, "plugin");
@@ -18170,7 +18183,7 @@ var AgentModeManager = class {
    */
   async setAgentModeEnabled(enabled) {
     var _a2, _b, _c;
-    log((_a2 = this.settings.debugMode) != null ? _a2 : false, "info", "[agentModeManager.ts] setAgentModeEnabled called", { enabled });
+    debugLog((_a2 = this.settings.debugMode) != null ? _a2 : false, "info", "[AgentModeManager] Initializing");
     if (!this.settings.agentMode) {
       this.settings.agentMode = {
         enabled: false,
@@ -18178,12 +18191,12 @@ var AgentModeManager = class {
         timeoutMs: 3e4,
         maxIterations: 10
       };
-      log((_b = this.settings.debugMode) != null ? _b : false, "debug", "[agentModeManager.ts] Initialized agentMode settings");
+      debugLog((_b = this.settings.debugMode) != null ? _b : false, "debug", "[AgentModeManager] Initialized agentMode settings");
     }
     this.settings.agentMode.enabled = enabled;
     await this.saveSettings();
     this.emitSettingsChange();
-    log((_c = this.settings.debugMode) != null ? _c : false, "info", "[agentModeManager.ts] Agent mode enabled state set", { enabled });
+    debugLog((_c = this.settings.debugMode) != null ? _c : false, "info", "[AgentModeManager] Agent mode enabled state set", { enabled });
   }
 };
 
@@ -18305,7 +18318,7 @@ ${settings.chatSeparator}
     editor.setCursor(newCursorPos);
   } catch (error) {
     showNotice(`Error: ${error.message}`);
-    log((_b = settings.debugMode) != null ? _b : false, "error", "AI Completion Error:", error);
+    debugLog((_b = settings.debugMode) != null ? _b : false, "error", "AI Completion Error:", error);
     const errLineContent = (_c = editor.getLine(currentPosition.line)) != null ? _c : "";
     const errPrefix = errLineContent.trim() !== "" ? "\n" : "";
     editor.replaceRange(`Error: ${error.message}
@@ -18549,14 +18562,14 @@ function registerAllCommands(plugin, settings, processMessages2, activateChatVie
     yamlAttributeCommandIds,
     (level, ...args) => {
       var _a2;
-      return log((_a2 = settings.debugMode) != null ? _a2 : false, level, ...args);
+      return debugLog((_a2 = settings.debugMode) != null ? _a2 : false, level, ...args);
     }
   );
 }
 
 // src/main.ts
 init_YAMLHandler();
-var _MyPlugin = class _MyPlugin extends import_obsidian31.Plugin {
+var _MyPlugin = class _MyPlugin extends import_obsidian32.Plugin {
   constructor() {
     super(...arguments);
     /**
@@ -18679,9 +18692,9 @@ var _MyPlugin = class _MyPlugin extends import_obsidian31.Plugin {
       () => this.emitSettingsChange(),
       (level, ...args) => {
         var _a3;
-        return log((_a3 = this.settings.debugMode) != null ? _a3 : false, level, ...args);
+        return debugLog((_a3 = this.settings.debugMode) != null ? _a3 : false, level, ...args);
       }
-      // Changed from debugLog to log
+      // Changed from log to debugLog
     );
     this.addSettingTab(new MyPluginSettingTab(this.app, this));
     this.registerPluginView(VIEW_TYPE_CHAT, (leaf) => new ChatView(leaf, this));
@@ -18708,7 +18721,7 @@ var _MyPlugin = class _MyPlugin extends import_obsidian31.Plugin {
     this.registerMarkdownCodeBlockProcessor("ai-tool-execution", (source, el, ctx) => {
       this.processToolExecutionCodeBlock(source, el, ctx);
     });
-    log((_a2 = this.settings.debugMode) != null ? _a2 : false, "info", "AI Assistant Plugin loaded.");
+    debugLog((_a2 = this.settings.debugMode) != null ? _a2 : false, "info", "AI Assistant Plugin loaded.");
   }
   /**
    * Enhanced debug logger for the plugin.
@@ -18717,7 +18730,7 @@ var _MyPlugin = class _MyPlugin extends import_obsidian31.Plugin {
    */
   debugLog(level = "debug", ...args) {
     var _a2;
-    log((_a2 = this.settings.debugMode) != null ? _a2 : false, level, ...args);
+    debugLog((_a2 = this.settings.debugMode) != null ? _a2 : false, level, ...args);
   }
   /**
    * Loads plugin settings from data.
@@ -18739,9 +18752,9 @@ var _MyPlugin = class _MyPlugin extends import_obsidian31.Plugin {
       this._yamlAttributeCommandIds,
       (level, ...args) => {
         var _a2;
-        return log((_a2 = this.settings.debugMode) != null ? _a2 : false, level, ...args);
+        return debugLog((_a2 = this.settings.debugMode) != null ? _a2 : false, level, ...args);
       }
-      // Changed from debugLog to log
+      // Changed from log to debugLog
     );
     this.emitSettingsChange();
   }
