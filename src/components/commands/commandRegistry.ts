@@ -1,5 +1,5 @@
-import MyPlugin from "../main";
-import { MyPluginSettings, Message } from "../types";
+import MyPlugin from "../../main";
+import { MyPluginSettings, Message } from "../../types";
 import {
     registerViewCommands,
     registerAIStreamCommands,
@@ -7,9 +7,9 @@ import {
     registerGenerateNoteTitleCommand,
     registerContextCommands,
     registerToggleCommands,
-} from "../components/commands";
-import { registerYamlAttributeCommands } from "../YAMLHandler";
-import { debugLog } from "../utils/logger"; // Changed from log to debugLog
+} from ".";
+import { registerYamlAttributeCommands } from "../../YAMLHandler";
+import { debugLog } from "../../utils/logger"; // Changed from log to debugLog
 
 export function registerAllCommands(
     plugin: MyPlugin,

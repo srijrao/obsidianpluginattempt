@@ -11,7 +11,7 @@ import { activateView } from './utils/viewManager';
 import { AgentModeManager } from './components/chat/agent/agentModeManager';
 import { BackupManager } from './components/BackupManager';
 import { ToolRichDisplay } from './components/chat/agent/ToolRichDisplay';
-import { registerAllCommands } from './commands/commandRegistry';
+import { registerAllCommands } from './components/commands/commandRegistry';
 import { VIEW_TYPE_MODEL_SETTINGS } from './components/commands/viewCommands';
 import { registerYamlAttributeCommands } from './YAMLHandler';
 
