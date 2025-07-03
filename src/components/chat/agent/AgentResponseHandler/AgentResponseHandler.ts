@@ -43,7 +43,7 @@ export class AgentResponseHandler {
             (command, result) => this.createToolDisplay(command, result)
         );
         this.reasoningProcessor = new ReasoningProcessor(context);
-        this.toolLimitWarningUI = new ToolLimitWarningUI(this as any); 
+        this.toolLimitWarningUI = new ToolLimitWarningUI(this as any);
         this.initializeTools();
     }
 
@@ -100,7 +100,7 @@ export class AgentResponseHandler {
         const effectiveLimit = this.getEffectiveToolLimit();
         if (this.executionCount >= effectiveLimit) {
             this.debugLog("Tool execution limit reached", { executionCount: this.executionCount, effectiveLimit }, contextLabel);
-            
+
             this.notificationManager.showTaskCompletionNotification(`Agent mode: Maximum tool calls (${effectiveLimit}) reached`, "warning");
             return this.createProcessResponseResult(
                 text + `\n\n*${effectiveLimit} [Tool execution limit reached]*`,
@@ -135,7 +135,7 @@ export class AgentResponseHandler {
 
         for (const command of commands) {
             try {
-                
+
                 const result = await this.toolExecutor.executeToolWithLogging(command, agentSettings.timeoutMs, contextLabel, this.debugLog.bind(this));
                 toolResults.push({ command, result });
                 this.executionCount++;
@@ -163,7 +163,7 @@ export class AgentResponseHandler {
         return this.createProcessResponseResult(text, toolResults, true);
     }
 
-    
+
     getExecutionCount(): number {
         return this.executionCount;
     }
@@ -268,7 +268,7 @@ ${resultData}
     private async rerunTool(originalCommand: ToolCommand): Promise<void> {
         try {
             const agentSettings = this.context.plugin.getAgentModeSettings();
-            
+
             const result = await this.toolExecutor.executeToolWithLogging(originalCommand, agentSettings.timeoutMs, "rerun", this.debugLog.bind(this));
             this.createToolDisplay(originalCommand, result);
             this.context.onToolResult(result, originalCommand);
@@ -353,7 +353,7 @@ ${resultData}
         return null;
     }
 
-    
+
     isToolLimitReached(): boolean {
         const effectiveLimit = this.getEffectiveToolLimit();
         return this.executionCount >= effectiveLimit;
