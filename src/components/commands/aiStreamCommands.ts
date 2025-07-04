@@ -54,19 +54,62 @@ export function registerAIStreamCommands(
             id: 'end-ai-stream',
             name: 'End AI Stream',
             callback: () => {
-                // Check if there's an active stream
-                if (activeStream.current) {
-                    // Abort the current stream to stop generation
-                    activeStream.current.abort();
-                    // Clear the active stream reference
-                    activeStream.current = null;
-                    setActiveStream(null); // Update the state via the setter
-                    showNotice('AI stream ended');
+                // Use the plugin's centralized stream stopping method
+                const myPlugin = plugin as any;
+                if (myPlugin.hasActiveAIStreams && myPlugin.hasActiveAIStreams()) {
+                    myPlugin.stopAllAIStreams();
+                    showNotice('All AI streams stopped');
                 } else {
-                    // Notify the user if no stream is active
-                    showNotice('No active AI stream to end');
+                    // Fallback to legacy behavior if methods don't exist
+                    if (activeStream.current) {
+                        activeStream.current.abort();
+                        activeStream.current = null;
+                        setActiveStream(null);
+                        showNotice('AI stream ended');
+                    } else {
+                        showNotice('No active AI stream to end');
+                    }
                 }
             }
         }
     );
+
+    /**
+     * Registers a debug command to test AI stream management.
+     */
+    registerCommand(
+        plugin,
+        {
+            id: 'debug-ai-streams',
+            name: 'Debug AI Streams',
+            callback: () => {
+                const myPlugin = plugin as any;
+                let message = 'AI Stream Debug Info:\n';
+                
+                // Check legacy activeStream
+                message += `Legacy activeStream: ${activeStream.current ? 'Active' : 'None'}\n`;
+                
+                // Check AI dispatcher streams
+                if (myPlugin.aiDispatcher) {
+                    const streamCount = myPlugin.aiDispatcher.getActiveStreamCount();
+                    message += `AI Dispatcher streams: ${streamCount}\n`;
+                    message += `Has active streams method: ${typeof myPlugin.aiDispatcher.hasActiveStreams}\n`;
+                } else {
+                    message += 'AI Dispatcher: Not initialized\n';
+                }
+                
+                // Check plugin-level methods
+                message += `Plugin hasActiveAIStreams method: ${typeof myPlugin.hasActiveAIStreams}\n`;
+                message += `Plugin stopAllAIStreams method: ${typeof myPlugin.stopAllAIStreams}\n`;
+                
+                if (myPlugin.hasActiveAIStreams) {
+                    message += `Has active AI streams: ${myPlugin.hasActiveAIStreams()}\n`;
+                }
+                
+                showNotice(message);
+                console.log('[AI Assistant Debug]', message);
+            }
+        }
+    );
+
 }

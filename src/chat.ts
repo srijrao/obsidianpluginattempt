@@ -356,14 +356,23 @@ export class ChatView extends ItemView {
         sendButton.addEventListener('click', sendMessage);
         // Stop button aborts streaming response
         stopButton.addEventListener('click', () => {
+            // Use the plugin's centralized stop method
+            const myPlugin = this.plugin as any;
+            if (myPlugin.stopAllAIStreams && typeof myPlugin.stopAllAIStreams === 'function') {
+                myPlugin.stopAllAIStreams();
+            }
+            
+            // Stop local stream as fallback/backup
             if (this.activeStream) {
                 this.activeStream.abort();
                 this.activeStream = null;
-                textarea.disabled = false;
-                textarea.focus();
-                stopButton.classList.add('hidden');
-                sendButton.classList.remove('hidden');
             }
+            
+            // Reset UI state
+            textarea.disabled = false;
+            textarea.focus();
+            stopButton.classList.add('hidden');
+            sendButton.classList.remove('hidden');
         });
 
         // Set up input handler for textarea (handles Enter, slash commands, etc.)
@@ -639,5 +648,38 @@ export class ChatView extends ItemView {
         this.scrollMessagesToBottom();
     }
     
+    /**
+     * Stop the active AI stream in this chat view.
+     */
+    stopActiveStream(): void {
+        if (this.activeStream) {
+            this.activeStream.abort();
+            this.activeStream = null;
+        }
+        
+        // Also stop all plugin streams if available
+        const myPlugin = this.plugin as any;
+        if (myPlugin.aiDispatcher && typeof myPlugin.aiDispatcher.abortAllStreams === 'function') {
+            myPlugin.aiDispatcher.abortAllStreams();
+        }
+    }
+
+    /**
+     * Check if this chat view has an active AI stream.
+     */
+    hasActiveStream(): boolean {
+        // Check local stream
+        if (this.activeStream !== null) {
+            return true;
+        }
+        
+        // Check dispatcher streams if available
+        const myPlugin = this.plugin as any;
+        if (myPlugin.aiDispatcher && typeof myPlugin.aiDispatcher.hasActiveStreams === 'function') {
+            return myPlugin.aiDispatcher.hasActiveStreams();
+        }
+        
+        return false;
+    }
 }
 

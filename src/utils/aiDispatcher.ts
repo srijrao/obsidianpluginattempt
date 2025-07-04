@@ -655,6 +655,20 @@ export class AIDispatcher {
     }
 
     /**
+     * Check if there are any active streams.
+     */
+    hasActiveStreams(): boolean {
+        return this.activeStreams.size > 0;
+    }
+
+    /**
+     * Get the current number of active streams.
+     */
+    getActiveStreamCount(): number {
+        return this.activeStreams.size;
+    }
+
+    /**
      * Test connection to a specific provider.
      * 
      * @param providerType - The type of provider to test

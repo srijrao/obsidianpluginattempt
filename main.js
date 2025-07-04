@@ -3603,6 +3603,28 @@ var init_Buttons = __esm({
           show ? button.removeClass("hidden-button") : button.addClass("hidden-button");
         }
       }
+      /**
+       * Set the send button state (enabled/disabled and visible/hidden).
+       */
+      setSendButtonState(enabled, visible = true) {
+        this.sendButton.setDisabled(!enabled);
+        if (visible) {
+          this.sendButton.buttonEl.removeClass("hidden-button");
+        } else {
+          this.sendButton.buttonEl.addClass("hidden-button");
+        }
+      }
+      /**
+       * Set the stop button state (enabled/disabled and visible/hidden).
+       */
+      setStopButtonState(enabled, visible = true) {
+        this.stopButton.setDisabled(!enabled);
+        if (visible) {
+          this.stopButton.buttonEl.removeClass("hidden-button");
+        } else {
+          this.stopButton.buttonEl.addClass("hidden-button");
+        }
+      }
     };
   }
 });
@@ -12462,6 +12484,18 @@ var init_aiDispatcher = __esm({
         }
       }
       /**
+       * Check if there are any active streams.
+       */
+      hasActiveStreams() {
+        return this.activeStreams.size > 0;
+      }
+      /**
+       * Get the current number of active streams.
+       */
+      getActiveStreamCount() {
+        return this.activeStreams.size;
+      }
+      /**
        * Test connection to a specific provider.
        * 
        * @param providerType - The type of provider to test
@@ -14091,6 +14125,12 @@ function createChatUI(app, contentEl) {
     text: "Stop"
   });
   stopButton.classList.add("hidden");
+  stopButton.disabled = false;
+  stopButton.style.pointerEvents = "";
+  stopButton.tabIndex = 0;
+  stopButton.onclick = null;
+  stopButton.style.zIndex = "10";
+  stopButton.title = "Stop AI response";
   const helpButton = inputContainer.createEl("button", {
     text: "?"
   });
@@ -17102,14 +17142,18 @@ var ChatView = class extends import_obsidian24.ItemView {
     };
     sendButton.addEventListener("click", sendMessage);
     stopButton.addEventListener("click", () => {
+      const myPlugin = this.plugin;
+      if (myPlugin.stopAllAIStreams && typeof myPlugin.stopAllAIStreams === "function") {
+        myPlugin.stopAllAIStreams();
+      }
       if (this.activeStream) {
         this.activeStream.abort();
         this.activeStream = null;
-        textarea.disabled = false;
-        textarea.focus();
-        stopButton.classList.add("hidden");
-        sendButton.classList.remove("hidden");
       }
+      textarea.disabled = false;
+      textarea.focus();
+      stopButton.classList.add("hidden");
+      sendButton.classList.remove("hidden");
     });
     Promise.resolve().then(() => (init_inputHandler(), inputHandler_exports)).then(({ setupInputHandler: setupInputHandler2 }) => {
       setupInputHandler2(
@@ -17348,6 +17392,32 @@ var ChatView = class extends import_obsidian24.ItemView {
     actionsEl.appendChild(deleteBtn);
     this.messagesContainer.appendChild(toolDisplayWrapper);
     this.scrollMessagesToBottom();
+  }
+  /**
+   * Stop the active AI stream in this chat view.
+   */
+  stopActiveStream() {
+    if (this.activeStream) {
+      this.activeStream.abort();
+      this.activeStream = null;
+    }
+    const myPlugin = this.plugin;
+    if (myPlugin.aiDispatcher && typeof myPlugin.aiDispatcher.abortAllStreams === "function") {
+      myPlugin.aiDispatcher.abortAllStreams();
+    }
+  }
+  /**
+   * Check if this chat view has an active AI stream.
+   */
+  hasActiveStream() {
+    if (this.activeStream !== null) {
+      return true;
+    }
+    const myPlugin = this.plugin;
+    if (myPlugin.aiDispatcher && typeof myPlugin.aiDispatcher.hasActiveStreams === "function") {
+      return myPlugin.aiDispatcher.hasActiveStreams();
+    }
+    return false;
   }
 };
 
@@ -19383,7 +19453,8 @@ async function handleAICompletion(editor, settings, processMessages2, getSystemM
   const sepLine = insertSeparator(editor, insertPosition, settings.chatSeparator);
   let currentPosition = { line: sepLine, ch: 0 };
   try {
-    const dispatcher = new AIDispatcher(vault, plugin);
+    const myPlugin = plugin;
+    const dispatcher = myPlugin.aiDispatcher || new AIDispatcher(vault, plugin);
     const processedMessages = await processMessages2([
       { role: "system", content: getSystemMessage2() },
       ...messages
@@ -19463,14 +19534,52 @@ function registerAIStreamCommands(plugin, settings, processMessages2, activeStre
       id: "end-ai-stream",
       name: "End AI Stream",
       callback: () => {
-        if (activeStream.current) {
-          activeStream.current.abort();
-          activeStream.current = null;
-          setActiveStream(null);
-          showNotice("AI stream ended");
+        const myPlugin = plugin;
+        if (myPlugin.hasActiveAIStreams && myPlugin.hasActiveAIStreams()) {
+          myPlugin.stopAllAIStreams();
+          showNotice("All AI streams stopped");
         } else {
-          showNotice("No active AI stream to end");
+          if (activeStream.current) {
+            activeStream.current.abort();
+            activeStream.current = null;
+            setActiveStream(null);
+            showNotice("AI stream ended");
+          } else {
+            showNotice("No active AI stream to end");
+          }
         }
+      }
+    }
+  );
+  registerCommand(
+    plugin,
+    {
+      id: "debug-ai-streams",
+      name: "Debug AI Streams",
+      callback: () => {
+        const myPlugin = plugin;
+        let message = "AI Stream Debug Info:\n";
+        message += `Legacy activeStream: ${activeStream.current ? "Active" : "None"}
+`;
+        if (myPlugin.aiDispatcher) {
+          const streamCount = myPlugin.aiDispatcher.getActiveStreamCount();
+          message += `AI Dispatcher streams: ${streamCount}
+`;
+          message += `Has active streams method: ${typeof myPlugin.aiDispatcher.hasActiveStreams}
+`;
+        } else {
+          message += "AI Dispatcher: Not initialized\n";
+        }
+        message += `Plugin hasActiveAIStreams method: ${typeof myPlugin.hasActiveAIStreams}
+`;
+        message += `Plugin stopAllAIStreams method: ${typeof myPlugin.stopAllAIStreams}
+`;
+        if (myPlugin.hasActiveAIStreams) {
+          message += `Has active AI streams: ${myPlugin.hasActiveAIStreams()}
+`;
+        }
+        showNotice(message);
+        console.log("[AI Assistant Debug]", message);
       }
     }
   );
@@ -19676,6 +19785,7 @@ function registerAllCommands(plugin, settings, processMessages2, activateChatVie
 
 // src/main.ts
 init_YAMLHandler();
+init_aiDispatcher();
 var _MyPlugin = class _MyPlugin extends import_obsidian33.Plugin {
   constructor() {
     super(...arguments);
@@ -19691,6 +19801,10 @@ var _MyPlugin = class _MyPlugin extends import_obsidian33.Plugin {
      * Reference to the current active streaming controller (for aborting AI responses).
      */
     __publicField(this, "activeStream", null);
+    /**
+     * Central AI dispatcher for managing all AI requests and streams.
+     */
+    __publicField(this, "aiDispatcher", null);
     /**
      * List of registered YAML attribute command IDs for cleanup/re-registration.
      */
@@ -19803,6 +19917,7 @@ var _MyPlugin = class _MyPlugin extends import_obsidian33.Plugin {
       }
       // Changed from log to debugLog
     );
+    this.aiDispatcher = new AIDispatcher(this.app.vault, this);
     this.addSettingTab(new MyPluginSettingTab(this.app, this));
     this.registerPluginView(VIEW_TYPE_CHAT, (leaf) => new ChatView(leaf, this));
     this.registerPluginView(VIEW_TYPE_MODEL_SETTINGS, (leaf) => new ModelSettingsView(leaf, this));
@@ -19944,6 +20059,61 @@ var _MyPlugin = class _MyPlugin extends import_obsidian33.Plugin {
         }
       }
     }
+  }
+  /**
+   * Check if there are any active AI streams.
+   * @returns True if there are active streams, false otherwise.
+   */
+  hasActiveAIStreams() {
+    if (this.activeStream) {
+      return true;
+    }
+    if (this.aiDispatcher && this.aiDispatcher.hasActiveStreams()) {
+      return true;
+    }
+    return false;
+  }
+  /**
+   * Stop all active AI streams across the plugin.
+   * This includes streams from chat, editor completions, and agent mode.
+   */
+  stopAllAIStreams() {
+    var _a2;
+    if (this.activeStream) {
+      this.activeStream.abort();
+      this.activeStream = null;
+    }
+    if (this.aiDispatcher) {
+      this.aiDispatcher.abortAllStreams();
+    }
+    debugLog((_a2 = this.settings.debugMode) != null ? _a2 : false, "info", "[MyPlugin] All AI streams stopped");
+  }
+  /**
+   * Debug method to get information about active streams.
+   */
+  getStreamDebugInfo() {
+    const info = [];
+    if (this.activeStream) {
+      info.push("Main plugin activeStream: active");
+    } else {
+      info.push("Main plugin activeStream: null");
+    }
+    if (this.aiDispatcher) {
+      const count = this.aiDispatcher.getActiveStreamCount();
+      info.push(`AIDispatcher streams: ${count}`);
+    } else {
+      info.push("AIDispatcher: not initialized");
+    }
+    const chatLeaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_CHAT);
+    info.push(`Chat views: ${chatLeaves.length}`);
+    chatLeaves.forEach((leaf, index) => {
+      const chatView = leaf.view;
+      if (chatView && typeof chatView.hasActiveStream === "function") {
+        const hasStream = chatView.hasActiveStream();
+        info.push(`  Chat view ${index}: ${hasStream ? "has stream" : "no stream"}`);
+      }
+    });
+    return info.join("\n");
   }
 };
 /**

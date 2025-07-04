@@ -77,8 +77,9 @@ export async function handleAICompletion(
     let currentPosition = { line: sepLine, ch: 0 };
 
     try {
-        // Create the AI dispatcher
-        const dispatcher = new AIDispatcher(vault, plugin);
+        // Use the plugin's central AI dispatcher if available, otherwise create one
+        const myPlugin = plugin as any;
+        const dispatcher = myPlugin.aiDispatcher || new AIDispatcher(vault, plugin);
 
         // Preprocess messages, adding the system message at the start.
         const processedMessages = await processMessages([

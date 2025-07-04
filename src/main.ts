@@ -14,6 +14,7 @@ import { ToolRichDisplay } from './components/chat/agent/ToolRichDisplay';
 import { registerAllCommands } from './components/commands/commandRegistry';
 import { VIEW_TYPE_MODEL_SETTINGS } from './components/commands/viewCommands';
 import { registerYamlAttributeCommands } from './YAMLHandler';
+import { AIDispatcher } from './utils/aiDispatcher';
 
 /**
  * AI Assistant Plugin
@@ -44,6 +45,10 @@ export default class MyPlugin extends Plugin {
      * Reference to the current active streaming controller (for aborting AI responses).
      */
     activeStream: AbortController | null = null;
+    /**
+     * Central AI dispatcher for managing all AI requests and streams.
+     */
+    aiDispatcher: AIDispatcher | null = null;
     /**
      * List of registered YAML attribute command IDs for cleanup/re-registration.
      */
@@ -171,6 +176,9 @@ export default class MyPlugin extends Plugin {
             () => this.emitSettingsChange(),
             (level, ...args) => debugLog(this.settings.debugMode ?? false, level, ...args) // Changed from log to debugLog
         );
+        
+        // Initialize central AI dispatcher for managing all AI requests and streams
+        this.aiDispatcher = new AIDispatcher(this.app.vault, this);
         
         // Add the plugin's settings tab to Obsidian's settings UI
         this.addSettingTab(new MyPluginSettingTab(this.app, this));
@@ -335,5 +343,75 @@ export default class MyPlugin extends Plugin {
                 }
             }
         }
+    }
+
+    /**
+     * Check if there are any active AI streams.
+     * @returns True if there are active streams, false otherwise.
+     */
+    hasActiveAIStreams(): boolean {
+        // Check the legacy activeStream property
+        if (this.activeStream) {
+            return true;
+        }
+        
+        // Check the central AI dispatcher
+        if (this.aiDispatcher && this.aiDispatcher.hasActiveStreams()) {
+            return true;
+        }
+        
+        return false;
+    }
+
+    /**
+     * Stop all active AI streams across the plugin.
+     * This includes streams from chat, editor completions, and agent mode.
+     */
+    stopAllAIStreams(): void {
+        // Stop legacy active stream
+        if (this.activeStream) {
+            this.activeStream.abort();
+            this.activeStream = null;
+        }
+        
+        // Stop all streams managed by the central AI dispatcher
+        if (this.aiDispatcher) {
+            this.aiDispatcher.abortAllStreams();
+        }
+        
+        debugLog(this.settings.debugMode ?? false, 'info', '[MyPlugin] All AI streams stopped');
+    }
+
+    /**
+     * Debug method to get information about active streams.
+     */
+    getStreamDebugInfo(): string {
+        const info = [];
+        
+        if (this.activeStream) {
+            info.push('Main plugin activeStream: active');
+        } else {
+            info.push('Main plugin activeStream: null');
+        }
+        
+        if (this.aiDispatcher) {
+            const count = this.aiDispatcher.getActiveStreamCount();
+            info.push(`AIDispatcher streams: ${count}`);
+        } else {
+            info.push('AIDispatcher: not initialized');
+        }
+        
+        const chatLeaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_CHAT);
+        info.push(`Chat views: ${chatLeaves.length}`);
+        
+        chatLeaves.forEach((leaf, index) => {
+            const chatView = leaf.view as ChatView;
+            if (chatView && typeof chatView.hasActiveStream === 'function') {
+                const hasStream = chatView.hasActiveStream();
+                info.push(`  Chat view ${index}: ${hasStream ? 'has stream' : 'no stream'}`);
+            }
+        });
+        
+        return info.join('\n');
     }
 }

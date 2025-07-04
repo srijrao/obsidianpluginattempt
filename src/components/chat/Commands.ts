@@ -65,8 +65,9 @@ export class Commands extends Component implements IChatCommands {
         // Prepare for streaming AI response
         this.activeStream = new AbortController();
         try {
-            // Use dispatcher for AI completion
-            const aiDispatcher = new AIDispatcher(this.app.vault, this.plugin);
+            // Use the plugin's central AI dispatcher if available, otherwise create one
+            const myPlugin = this.plugin as any;
+            const aiDispatcher = myPlugin.aiDispatcher || new AIDispatcher(this.app.vault, this.plugin);
 
             // Build system message (with context notes if enabled)
             let systemMessage = getSystemMessage(this.plugin.settings);
@@ -131,9 +132,16 @@ export class Commands extends Component implements IChatCommands {
      * Stop the current message generation (abort streaming).
      */
     stopGeneration(): void {
+        // Stop local stream
         if (this.activeStream) {
             this.activeStream.abort();
             this.activeStream = null;
+        }
+        
+        // Also stop all plugin streams if available
+        const myPlugin = this.plugin as any;
+        if (myPlugin.aiDispatcher && typeof myPlugin.aiDispatcher.abortAllStreams === 'function') {
+            myPlugin.aiDispatcher.abortAllStreams();
         }
     }
 
@@ -245,8 +253,9 @@ export class Commands extends Component implements IChatCommands {
         // Stream the regenerated response
         this.activeStream = new AbortController();
         try {
-            // Use dispatcher for AI completion
-            const aiDispatcher = new AIDispatcher(this.app.vault, this.plugin);
+            // Use the plugin's central AI dispatcher if available, otherwise create one
+            const myPlugin = this.plugin as any;
+            const aiDispatcher = myPlugin.aiDispatcher || new AIDispatcher(this.app.vault, this.plugin);
             
             await aiDispatcher.getCompletion(
                 messages,

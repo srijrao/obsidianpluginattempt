@@ -204,6 +204,30 @@ export class Buttons extends Component {
             show ? button.removeClass('hidden-button') : button.addClass('hidden-button');
         }
     }
+
+    /**
+     * Set the send button state (enabled/disabled and visible/hidden).
+     */
+    setSendButtonState(enabled: boolean, visible: boolean = true): void {
+        this.sendButton.setDisabled(!enabled);
+        if (visible) {
+            this.sendButton.buttonEl.removeClass('hidden-button');
+        } else {
+            this.sendButton.buttonEl.addClass('hidden-button');
+        }
+    }
+
+    /**
+     * Set the stop button state (enabled/disabled and visible/hidden).
+     */
+    setStopButtonState(enabled: boolean, visible: boolean = true): void {
+        this.stopButton.setDisabled(!enabled);
+        if (visible) {
+            this.stopButton.buttonEl.removeClass('hidden-button');
+        } else {
+            this.stopButton.buttonEl.addClass('hidden-button');
+        }
+    }
 }
 
 /**
