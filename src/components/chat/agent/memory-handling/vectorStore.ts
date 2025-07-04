@@ -66,19 +66,8 @@ export class VectorStore {
       );
     `;
 
-    // SQL statement to create the 'recent_files' table if it doesn't exist
-    // - path: file path (unique)
-    // - last_opened: timestamp (ms since epoch) of last access
-    const createRecentFilesTable = `
-      CREATE TABLE IF NOT EXISTS recent_files (
-        path TEXT PRIMARY KEY,
-        last_opened INTEGER NOT NULL
-      );
-    `;
-
-    // Execute table creation statements
+    // Execute table creation statement
     this.db.exec(createVectorsTable);
-    this.db.exec(createRecentFilesTable);
   }
 
   /**
@@ -108,32 +97,7 @@ export class VectorStore {
     stmt.run(id, text, embeddingBuffer, metadata ? JSON.stringify(metadata) : null);
   }
 
-  /**
-   * Adds or updates a recent file entry with the current timestamp.
-   * @param filePath - The file path to record as recently opened.
-   */
-  addRecentFile(filePath: string): void {
-    // Prepare SQL statement for inserting or replacing a recent file entry
-    const stmt = this.db.prepare(
-      'INSERT OR REPLACE INTO recent_files (path, last_opened) VALUES (?, ?);'
-    );
-    // Store the current time as the last opened timestamp
-    stmt.run(filePath, Date.now());
-  }
 
-  /**
-   * Retrieves a list of recently opened files, ordered by most recent.
-   * @param limit - Maximum number of files to return (default: 20).
-   * @returns Array of objects: { path, last_opened }
-   */
-  getRecentFiles(limit: number = 20): { path: string; last_opened: number }[] {
-    // Prepare SQL statement to select recent files, ordered by last_opened descending
-    const stmt = this.db.prepare(
-      'SELECT path, last_opened FROM recent_files ORDER BY last_opened DESC LIMIT ?;'
-    );
-    // Return the result as an array of objects
-    return stmt.all(limit) as Array<{ path: string; last_opened: number }>;
-  }
 
   /**
    * Retrieves all vectors stored in the database.
