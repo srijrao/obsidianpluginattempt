@@ -8,6 +8,7 @@ export interface FileSearchParams {
     query?: string; // Search query string (optional)
     filterType?: 'markdown' | 'image' | 'all'; // Type of files to filter (optional)
     maxResults?: number; // Maximum number of results to return (optional)
+    searchContent?: boolean; // Whether to search within file contents (optional)
 }
 
 /**
@@ -33,6 +34,11 @@ export class FileSearchTool implements Tool {
             type: 'number',
             description: 'Maximum number of results.',
             default: 10
+        },
+        searchContent: {
+            type: 'boolean',
+            description: 'Whether to search within file contents. Defaults to false.',
+            required: false
         }
     };
 
@@ -46,7 +52,7 @@ export class FileSearchTool implements Tool {
      * @returns ToolResult with matching files or error
      */
     async execute(params: FileSearchParams, context: any): Promise<ToolResult> {
-        const { query = '', filterType = 'markdown', maxResults = 10 } = params;
+        const { query = '', filterType = 'markdown', maxResults = 10, searchContent = false } = params;
 
         try {
             // Get all files based on filterType
@@ -56,7 +62,7 @@ export class FileSearchTool implements Tool {
                     this.app.vault.getFiles().filter(f => ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp'].includes(f.extension?.toLowerCase())) :
                     this.app.vault.getFiles();
 
-            let matchingFiles: any[] = [];
+            let matchingFiles: TFile[] = [];
 
             // If a query is provided, filter files by query
             if (query.trim()) {
@@ -64,10 +70,16 @@ export class FileSearchTool implements Tool {
                 const queryWords = normalizedQuery.split(/\s+/).filter(word => word.length > 0);
 
                 for (const file of allFiles) {
+                    let contentMatch = true;
+                    if (searchContent && file.extension === 'md') { // Only search content for markdown files
+                        const fileContent = await this.app.vault.read(file);
+                        contentMatch = queryWords.every(word => fileContent.toLowerCase().includes(word));
+                    }
+
                     const searchText = `${file.path} ${file.basename}`.toLowerCase();
                     const searchTextNormalized = searchText.replace(/_/g, ' ');
                     // Match if all query words are present in path or basename
-                    if (queryWords.every(word => searchText.includes(word) || searchTextNormalized.includes(word))) {
+                    if ((queryWords.every(word => searchText.includes(word) || searchTextNormalized.includes(word))) || contentMatch) {
                         matchingFiles.push(file);
                         if (matchingFiles.length >= maxResults) break;
                     }

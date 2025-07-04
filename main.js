@@ -61,6 +61,11 @@ var init_FileSearchTool = __esm({
             type: "number",
             description: "Maximum number of results.",
             default: 10
+          },
+          searchContent: {
+            type: "boolean",
+            description: "Whether to search within file contents. Defaults to false.",
+            required: false
           }
         });
       }
@@ -72,7 +77,7 @@ var init_FileSearchTool = __esm({
        * @returns ToolResult with matching files or error
        */
       async execute(params, context) {
-        const { query = "", filterType = "markdown", maxResults = 10 } = params;
+        const { query = "", filterType = "markdown", maxResults = 10, searchContent = false } = params;
         try {
           const allFiles = filterType === "markdown" ? this.app.vault.getMarkdownFiles() : filterType === "image" ? this.app.vault.getFiles().filter((f) => {
             var _a2;
@@ -83,9 +88,14 @@ var init_FileSearchTool = __esm({
             const normalizedQuery = query.toLowerCase();
             const queryWords = normalizedQuery.split(/\s+/).filter((word) => word.length > 0);
             for (const file of allFiles) {
+              let contentMatch = true;
+              if (searchContent && file.extension === "md") {
+                const fileContent = await this.app.vault.read(file);
+                contentMatch = queryWords.every((word) => fileContent.toLowerCase().includes(word));
+              }
               const searchText = `${file.path} ${file.basename}`.toLowerCase();
               const searchTextNormalized = searchText.replace(/_/g, " ");
-              if (queryWords.every((word) => searchText.includes(word) || searchTextNormalized.includes(word))) {
+              if (queryWords.every((word) => searchText.includes(word) || searchTextNormalized.includes(word)) || contentMatch) {
                 matchingFiles.push(file);
                 if (matchingFiles.length >= maxResults) break;
               }
