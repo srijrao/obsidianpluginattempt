@@ -1,6 +1,6 @@
 import { Setting, Notice } from 'obsidian';
 import MyPlugin from '../../main';
-import { createProvider, getAllAvailableModels, getProviderFromUnifiedModel } from '../../../providers';
+import { AIDispatcher } from '../../utils/aiDispatcher';
 
 /**
  * SettingsSections provides methods to render different categories of plugin settings.
@@ -238,7 +238,8 @@ export class SettingsSections {
     private async renderUnifiedModelDropdown(containerEl: HTMLElement): Promise<void> {
         // Fetch available models if not already loaded
         if (!this.plugin.settings.availableModels || this.plugin.settings.availableModels.length === 0) {
-            this.plugin.settings.availableModels = await getAllAvailableModels(this.plugin.settings);
+            const aiDispatcher = new AIDispatcher(this.plugin.app.vault, this.plugin);
+            this.plugin.settings.availableModels = await aiDispatcher.getAllUnifiedModels();
             await this.plugin.saveSettings();
         }
 
@@ -277,8 +278,9 @@ export class SettingsSections {
                         this.plugin.settings.selectedModel = value;
                         // Update the main provider setting based on the selected unified model
                         if (value) {
-                            const provider = getProviderFromUnifiedModel(value);
-                            this.plugin.settings.provider = provider;
+                            // Extract provider from unified model ID
+                            const [provider] = value.split(':', 2);
+                            this.plugin.settings.provider = provider as any;
                         }
                         await this.plugin.saveSettings();
                     });
@@ -297,58 +299,20 @@ export class SettingsSections {
     }
 
     /**
-     * Refreshes available models from all configured providers.
-     * Tests connection for each provider and updates the list of available models.
+     * Refreshes available models from all configured providers using the dispatcher.
+     * Uses the AIDispatcher to test connections and update available models.
      */
     private async refreshAllAvailableModels(): Promise<void> {
-        const providers = ['openai', 'anthropic', 'gemini', 'ollama'] as const;
-
-        for (const providerType of providers) {
-            try {
-                // Temporarily set the provider setting to the current provider type for testing
-                const originalProvider = this.plugin.settings.provider;
-                this.plugin.settings.provider = providerType;
-
-                // Create provider instance and test connection
-                const providerInstance = createProvider(this.plugin.settings);
-                const result = await providerInstance.testConnection();
-
-                // Restore the original provider setting
-                this.plugin.settings.provider = originalProvider;
-
-                // Get the specific settings object for this provider
-                const providerSettings = this.plugin.settings[`${providerType}Settings` as keyof typeof this.plugin.settings] as any;
-
-                // Update available models and last test result based on the test outcome
-                if (result.success && result.models) {
-                    providerSettings.availableModels = result.models;
-                    providerSettings.lastTestResult = {
-                        timestamp: Date.now(),
-                        success: true,
-                        message: result.message
-                    };
-                } else {
-                    providerSettings.lastTestResult = {
-                        timestamp: Date.now(),
-                        success: false,
-                        message: result.message
-                    };
-                }
-            } catch (error) {
-                console.error(`Error testing ${providerType}:`, error);
-                // Update last test result with error message if test throws
-                const providerSettings = this.plugin.settings[`${providerType}Settings` as keyof typeof this.plugin.settings] as any;
-                 providerSettings.lastTestResult = {
-                    timestamp: Date.now(),
-                    success: false,
-                    message: `Test failed: ${error.message}`
-                };
-            }
+        const aiDispatcher = new AIDispatcher(this.plugin.app.vault, this.plugin);
+        
+        try {
+            // Use dispatcher to refresh all provider models
+            await aiDispatcher.refreshAllProviderModels();
+            this.plugin.settings.availableModels = await aiDispatcher.getAllUnifiedModels();
+            await this.plugin.saveSettings();
+        } catch (error) {
+            console.error('Error refreshing all available models:', error);
         }
-
-        // After testing all providers, regenerate the combined list of available models
-        this.plugin.settings.availableModels = await getAllAvailableModels(this.plugin.settings);
-        await this.plugin.saveSettings();
     }
 
     /**
@@ -489,16 +453,9 @@ export class SettingsSections {
                     button.setButtonText('Testing...');
                     button.setDisabled(true);
                     try {
-                        // Temporarily set the provider setting for testing
-                        const originalProvider = this.plugin.settings.provider;
-                        this.plugin.settings.provider = provider;
-
-                        // Create provider instance and test connection
-                        const providerInstance = createProvider(this.plugin.settings);
-                        const result = await providerInstance.testConnection();
-
-                        // Restore the original provider setting
-                        this.plugin.settings.provider = originalProvider;
+                        // Use dispatcher for connection testing
+                        const aiDispatcher = new AIDispatcher(this.plugin.app.vault, this.plugin);
+                        const result = await aiDispatcher.testConnection(provider);
 
                         // Update available models and last test result
                         if (result.success && result.models) {
@@ -511,7 +468,7 @@ export class SettingsSections {
                             await this.plugin.saveSettings();
 
                             // Refresh the combined list of available models after a successful test
-                            this.plugin.settings.availableModels = await getAllAvailableModels(this.plugin.settings);
+                            this.plugin.settings.availableModels = await aiDispatcher.getAllUnifiedModels();
                             await this.plugin.saveSettings();
 
                             new Notice(result.message);

@@ -18,7 +18,6 @@
 import { ItemView, WorkspaceLeaf, Notice, MarkdownRenderer, App } from 'obsidian';
 import MyPlugin from './main';
 import { Message, TaskStatus, ToolCommand, ToolResult } from './types';
-import { createProvider, createProviderFromUnifiedModel } from '../providers';
 import { ChatHistoryManager, ChatMessage } from './components/chat/ChatHistoryManager';
 import { createMessageElement } from './components/chat/Message';
 import { createChatUI, ChatUIElements } from './components/chat/ui';

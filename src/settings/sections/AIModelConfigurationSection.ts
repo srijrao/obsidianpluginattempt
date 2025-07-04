@@ -2,7 +2,7 @@ import { App, Setting, Notice } from 'obsidian';
 import MyPlugin from '../../main';
 import { SettingCreators } from '../components/SettingCreators';
 import { CollapsibleSectionRenderer } from '../../components/chat/CollapsibleSection';
-import { getAllAvailableModels, createProvider, getProviderFromUnifiedModel } from '../../../providers';
+import { AIDispatcher } from '../../utils/aiDispatcher';
 
 /**
  * AIModelConfigurationSection is responsible for rendering the settings related to AI model configuration.
@@ -180,15 +180,9 @@ export class AIModelConfigurationSection {
                     button.setButtonText('Testing...');
                     button.setDisabled(true);
                     try {
-                        // Temporarily set the plugin's provider to the one being tested
-                        const originalProvider = this.plugin.settings.provider;
-                        this.plugin.settings.provider = provider;
-                        
-                        const providerInstance = createProvider(this.plugin.settings);
-                        const result = await providerInstance.testConnection();
-                        
-                        // Restore the original provider setting
-                        this.plugin.settings.provider = originalProvider;
+                        // Use dispatcher for connection testing
+                        const aiDispatcher = new AIDispatcher(this.plugin.app.vault, this.plugin);
+                        const result = await aiDispatcher.testConnection(provider);
                         
                         if (result.success && result.models) {
                             settings.availableModels = result.models;
@@ -200,7 +194,7 @@ export class AIModelConfigurationSection {
                             await this.plugin.saveSettings();
                             
                             // Refresh all available models after a successful test
-                            this.plugin.settings.availableModels = await getAllAvailableModels(this.plugin.settings);
+                            this.plugin.settings.availableModels = await aiDispatcher.getAllUnifiedModels();
                             await this.plugin.saveSettings();
                             
                             new Notice(result.message);
@@ -340,7 +334,8 @@ export class AIModelConfigurationSection {
     private async renderUnifiedModelDropdown(containerEl: HTMLElement): Promise<void> {
         // Ensure available models are loaded
         if (!this.plugin.settings.availableModels || this.plugin.settings.availableModels.length === 0) {
-            this.plugin.settings.availableModels = await getAllAvailableModels(this.plugin.settings);
+            const aiDispatcher = new AIDispatcher(this.plugin.app.vault, this.plugin);
+            this.plugin.settings.availableModels = await aiDispatcher.getAllUnifiedModels();
             await this.plugin.saveSettings();
         }
 
@@ -380,8 +375,9 @@ export class AIModelConfigurationSection {
                         
                         // Update the active provider based on the selected model
                         if (value) {
-                            const provider = getProviderFromUnifiedModel(value);
-                            this.plugin.settings.provider = provider;
+                            // Extract provider from unified model ID
+                            const [provider] = value.split(':', 2);
+                            this.plugin.settings.provider = provider as any;
                         }
                         await this.plugin.saveSettings();
                     });
@@ -400,49 +396,20 @@ export class AIModelConfigurationSection {
     }
 
     /**
-     * Refreshes available models from all configured providers.
-     * This function iterates through all known providers, tests their connection,
-     * and updates the list of available models in the plugin settings.
+     * Refreshes available models from all configured providers using the dispatcher.
+     * This function uses the dispatcher to refresh models from all providers.
      */
     private async refreshAllAvailableModels(): Promise<void> {
-        const providers = ['openai', 'anthropic', 'gemini', 'ollama'] as const;
-        let originalProvider: "openai" | "anthropic" | "gemini" | "ollama" | undefined; // Declare outside try-catch
-
-        for (const providerType of providers) {
-            try {
-                originalProvider = this.plugin.settings.provider;
-                this.plugin.settings.provider = providerType; 
-
-                const providerInstance = createProvider(this.plugin.settings);
-                const result = await providerInstance.testConnection();
-
-                const providerSettings = this.plugin.settings[`${providerType}Settings` as keyof typeof this.plugin.settings] as any;
-
-                if (result.success && result.models) {
-                    providerSettings.availableModels = result.models;
-                    providerSettings.lastTestResult = {
-                        timestamp: Date.now(),
-                        success: true,
-                        message: result.message
-                    };
-                } else {
-                    providerSettings.lastTestResult = {
-                        timestamp: Date.now(),
-                        success: false,
-                        message: result.message
-                    };
-                }
-            } catch (error) {
-                console.error(`Error testing ${providerType}:`, error);
-            } finally {
-                if (originalProvider !== undefined) {
-                    this.plugin.settings.provider = originalProvider; 
-                }
-            }
+        const aiDispatcher = new AIDispatcher(this.plugin.app.vault, this.plugin);
+        
+        try {
+            // Use dispatcher to refresh all provider models
+            await aiDispatcher.refreshAllProviderModels();
+            this.plugin.settings.availableModels = await aiDispatcher.getAllUnifiedModels();
+            await this.plugin.saveSettings();
+        } catch (error) {
+            console.error('Error refreshing all available models:', error);
         }
-
-        this.plugin.settings.availableModels = await getAllAvailableModels(this.plugin.settings);
-        await this.plugin.saveSettings();
     }
 
     /**
@@ -509,7 +476,8 @@ export class AIModelConfigurationSection {
                                 await this.plugin.app.vault.adapter.remove(`ai-models/${model.id}.json`);
                                 
                                 // Refresh available models after deletion
-                                this.plugin.settings.availableModels = await getAllAvailableModels(this.plugin.settings);
+                                const aiDispatcher = new AIDispatcher(this.plugin.app.vault, this.plugin);
+                                this.plugin.settings.availableModels = await aiDispatcher.getAllUnifiedModels();
                                 await this.plugin.saveSettings();
                                 
                                 new Notice(`Deleted model "${model.name}"`);

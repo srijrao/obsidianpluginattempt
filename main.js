@@ -6836,17 +6836,9 @@ var init_js_yaml = __esm({
 });
 
 // providers/base.ts
-var ProviderErrorType, ProviderError, BaseProvider;
+var ProviderError, BaseProvider;
 var init_base2 = __esm({
   "providers/base.ts"() {
-    ProviderErrorType = /* @__PURE__ */ ((ProviderErrorType5) => {
-      ProviderErrorType5["InvalidApiKey"] = "invalid_api_key";
-      ProviderErrorType5["RateLimit"] = "rate_limit";
-      ProviderErrorType5["InvalidRequest"] = "invalid_request";
-      ProviderErrorType5["ServerError"] = "server_error";
-      ProviderErrorType5["NetworkError"] = "network_error";
-      return ProviderErrorType5;
-    })(ProviderErrorType || {});
     ProviderError = class extends Error {
       constructor(type2, message, statusCode) {
         super(message);
@@ -10979,21 +10971,6 @@ var init_ollama = __esm({
 });
 
 // providers/index.ts
-var providers_exports = {};
-__export(providers_exports, {
-  AnthropicProvider: () => AnthropicProvider,
-  BaseProvider: () => BaseProvider,
-  GeminiProvider: () => GeminiProvider,
-  OllamaProvider: () => OllamaProvider,
-  OpenAIProvider: () => OpenAIProvider,
-  ProviderError: () => ProviderError,
-  ProviderErrorType: () => ProviderErrorType,
-  createProvider: () => createProvider,
-  createProviderFromUnifiedModel: () => createProviderFromUnifiedModel,
-  getAllAvailableModels: () => getAllAvailableModels,
-  getModelIdFromUnifiedModel: () => getModelIdFromUnifiedModel,
-  getProviderFromUnifiedModel: () => getProviderFromUnifiedModel
-});
 function createProvider(settings) {
   var _a2, _b, _c, _d;
   switch (settings.provider) {
@@ -11543,16 +11520,745 @@ var init_ConfirmationModal = __esm({
   }
 });
 
+// src/utils/saveAICalls.ts
+async function saveAICallToFolder(request, response, vault, plugin, folder = "ai-calls") {
+  var _a2;
+  const debugMode = (_a2 = plugin.settings.debugMode) != null ? _a2 : false;
+  const timestamp2 = (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-");
+  const fileName = `${folder}/ai-call-${timestamp2}.md`;
+  const fileContent = `# AI Call
+
+## Request
+\`\`\`json
+${JSON.stringify(request, null, 2)}
+\`\`\`
+
+## Response
+\`\`\`json
+${JSON.stringify(response, null, 2)}
+\`\`\``;
+  const folderPath = (0, import_obsidian14.normalizePath)(folder);
+  try {
+    if (!vault.getAbstractFileByPath(folderPath)) {
+      debugLog(debugMode, "info", "[saveAICalls.ts] Folder does not exist, creating:", folderPath);
+      await vault.createFolder(folderPath);
+      debugLog(debugMode, "info", "[saveAICalls.ts] Folder created:", folderPath);
+    } else {
+      debugLog(debugMode, "debug", "[saveAICalls.ts] Folder already exists:", folderPath);
+    }
+  } catch (e) {
+    debugLog(debugMode, "warn", "[saveAICalls.ts] Error creating folder (may already exist):", e);
+  }
+  let finalFileName = fileName;
+  let attempts = 0;
+  while (vault.getAbstractFileByPath((0, import_obsidian14.normalizePath)(finalFileName))) {
+    attempts++;
+    finalFileName = `${folder}/ai-call-${timestamp2}-${Math.floor(Math.random() * 1e4)}.md`;
+    debugLog(debugMode, "warn", `[saveAICalls.ts] File already exists, trying new filename (attempt ${attempts}):`, finalFileName);
+    if (attempts > 5) {
+      debugLog(debugMode, "error", "[saveAICalls.ts] Too many attempts to find unique filename, aborting.");
+      throw new Error("Could not create a unique filename for AI call log.");
+    }
+  }
+  try {
+    await vault.create(finalFileName, fileContent);
+    debugLog(debugMode, "info", "[saveAICalls.ts] AI call saved successfully:", finalFileName);
+  } catch (e) {
+    debugLog(debugMode, "error", "[saveAICalls.ts] Failed to save AI call:", e);
+    throw e;
+  }
+}
+var import_obsidian14;
+var init_saveAICalls = __esm({
+  "src/utils/saveAICalls.ts"() {
+    import_obsidian14 = require("obsidian");
+    init_logger();
+  }
+});
+
+// src/utils/aiDispatcher.ts
+var aiDispatcher_exports = {};
+__export(aiDispatcher_exports, {
+  AIDispatcher: () => AIDispatcher
+});
+var AIDispatcher;
+var init_aiDispatcher = __esm({
+  "src/utils/aiDispatcher.ts"() {
+    init_providers();
+    init_saveAICalls();
+    init_logger();
+    AIDispatcher = class {
+      constructor(vault, plugin) {
+        this.vault = vault;
+        this.plugin = plugin;
+        __publicField(this, "cache", /* @__PURE__ */ new Map());
+        __publicField(this, "metrics", {
+          totalRequests: 0,
+          successfulRequests: 0,
+          failedRequests: 0,
+          totalTokens: 0,
+          totalCost: 0,
+          averageResponseTime: 0,
+          requestsByProvider: {},
+          errorsByProvider: {}
+        });
+        __publicField(this, "circuitBreakers", /* @__PURE__ */ new Map());
+        __publicField(this, "requestQueue", []);
+        __publicField(this, "activeStreams", /* @__PURE__ */ new Map());
+        __publicField(this, "rateLimits", /* @__PURE__ */ new Map());
+        __publicField(this, "isProcessingQueue", false);
+        // Configuration
+        __publicField(this, "CACHE_TTL", 5 * 60 * 1e3);
+        // 5 minutes
+        __publicField(this, "CIRCUIT_BREAKER_THRESHOLD", 5);
+        __publicField(this, "CIRCUIT_BREAKER_TIMEOUT", 30 * 1e3);
+        // 30 seconds
+        __publicField(this, "RATE_LIMIT_WINDOW", 60 * 1e3);
+        // 1 minute
+        __publicField(this, "MAX_QUEUE_SIZE", 100);
+        ["openai", "anthropic", "gemini", "ollama"].forEach((provider) => {
+          this.circuitBreakers.set(provider, {
+            isOpen: false,
+            failureCount: 0,
+            lastFailureTime: 0,
+            nextRetryTime: 0
+          });
+        });
+        this.startQueueProcessor();
+      }
+      /**
+       * Makes an AI completion request through the appropriate provider.
+       * Automatically saves the request and response to the vault.
+       * Includes caching, rate limiting, retry logic, and validation.
+       * 
+       * @param messages - The conversation messages to send
+       * @param options - Completion options (temperature, maxTokens, etc.)
+       * @param providerOverride - Optional specific provider to use instead of default
+       * @param priority - Request priority (higher = processed first)
+       * @returns Promise that resolves when the completion is finished
+       */
+      async getCompletion(messages, options, providerOverride, priority = 0) {
+        this.validateRequest(messages, options);
+        const cacheKey = this.generateCacheKey(messages, options, providerOverride);
+        const cachedResponse = this.getFromCache(cacheKey);
+        if (cachedResponse && options.streamCallback) {
+          options.streamCallback(cachedResponse);
+          return;
+        }
+        const providerName = this.determineProvider(providerOverride);
+        if (this.isCircuitBreakerOpen(providerName)) {
+          throw new Error(`Provider ${providerName} is temporarily unavailable (circuit breaker open)`);
+        }
+        if (this.isRateLimited(providerName)) {
+          return this.queueRequest(messages, options, providerOverride, priority);
+        }
+        return this.executeWithRetry(messages, options, providerName, cacheKey);
+      }
+      /**
+       * Validates request format and content.
+       */
+      validateRequest(messages, options) {
+        if (!messages || messages.length === 0) {
+          throw new Error("Messages array cannot be empty");
+        }
+        for (const message of messages) {
+          if (!message.role || !message.content) {
+            throw new Error("Each message must have role and content");
+          }
+          if (!["system", "user", "assistant"].includes(message.role)) {
+            throw new Error(`Invalid message role: ${message.role}`);
+          }
+        }
+        if (options.temperature !== void 0 && (options.temperature < 0 || options.temperature > 2)) {
+          throw new Error("Temperature must be between 0 and 2");
+        }
+        if (options.maxTokens !== void 0 && options.maxTokens <= 0) {
+          throw new Error("Max tokens must be positive");
+        }
+        this.sanitizeMessages(messages);
+      }
+      /**
+       * Sanitizes message content for safety.
+       */
+      sanitizeMessages(messages) {
+        for (const message of messages) {
+          message.content = message.content.trim();
+        }
+      }
+      /**
+       * Generates cache key for request.
+       */
+      generateCacheKey(messages, options, providerOverride) {
+        const key = JSON.stringify({
+          messages: messages.map((m) => ({ role: m.role, content: m.content })),
+          temperature: options.temperature,
+          maxTokens: options.maxTokens,
+          provider: providerOverride || this.plugin.settings.selectedModel || this.plugin.settings.provider
+        });
+        return btoa(key).substring(0, 32);
+      }
+      /**
+       * Gets response from cache if available and not expired.
+       */
+      getFromCache(cacheKey) {
+        var _a2;
+        const entry = this.cache.get(cacheKey);
+        if (!entry) return null;
+        if (Date.now() > entry.timestamp + entry.ttl) {
+          this.cache.delete(cacheKey);
+          return null;
+        }
+        debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", "[AIDispatcher] Cache hit", { key: cacheKey });
+        return entry.response;
+      }
+      /**
+       * Stores response in cache.
+       */
+      setCache(cacheKey, response, ttl = this.CACHE_TTL) {
+        var _a2;
+        this.cache.set(cacheKey, {
+          response,
+          timestamp: Date.now(),
+          ttl
+        });
+        debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", "[AIDispatcher] Response cached", { key: cacheKey });
+      }
+      /**
+       * Determines which provider to use.
+       */
+      determineProvider(providerOverride) {
+        if (providerOverride) return providerOverride;
+        if (this.plugin.settings.selectedModel) {
+          return this.plugin.settings.selectedModel.split(":")[0];
+        }
+        return this.plugin.settings.provider;
+      }
+      /**
+       * Checks if circuit breaker is open for provider.
+       */
+      isCircuitBreakerOpen(providerName) {
+        var _a2;
+        const breaker = this.circuitBreakers.get(providerName);
+        if (!breaker) return false;
+        if (breaker.isOpen) {
+          if (Date.now() > breaker.nextRetryTime) {
+            breaker.isOpen = false;
+            breaker.failureCount = 0;
+            debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", "[AIDispatcher] Circuit breaker reset", { provider: providerName });
+          }
+        }
+        return breaker.isOpen;
+      }
+      /**
+       * Records failure for circuit breaker.
+       */
+      recordFailure(providerName) {
+        var _a2;
+        const breaker = this.circuitBreakers.get(providerName);
+        if (!breaker) return;
+        breaker.failureCount++;
+        breaker.lastFailureTime = Date.now();
+        if (breaker.failureCount >= this.CIRCUIT_BREAKER_THRESHOLD) {
+          breaker.isOpen = true;
+          breaker.nextRetryTime = Date.now() + this.CIRCUIT_BREAKER_TIMEOUT;
+          debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "warn", "[AIDispatcher] Circuit breaker opened", {
+            provider: providerName,
+            failures: breaker.failureCount
+          });
+        }
+      }
+      /**
+       * Records success for circuit breaker.
+       */
+      recordSuccess(providerName) {
+        const breaker = this.circuitBreakers.get(providerName);
+        if (!breaker) return;
+        breaker.failureCount = Math.max(0, breaker.failureCount - 1);
+      }
+      /**
+       * Checks if provider is rate limited.
+       */
+      isRateLimited(providerName) {
+        const limit = this.rateLimits.get(providerName);
+        if (!limit) return false;
+        if (Date.now() > limit.resetTime) {
+          this.rateLimits.delete(providerName);
+          return false;
+        }
+        const maxRequests = this.getProviderRateLimit(providerName);
+        return limit.requests >= maxRequests;
+      }
+      /**
+       * Gets rate limit for provider.
+       */
+      getProviderRateLimit(providerName) {
+        switch (providerName) {
+          case "openai":
+            return 60;
+          // 60 requests per minute
+          case "anthropic":
+            return 50;
+          case "gemini":
+            return 60;
+          case "ollama":
+            return 100;
+          // Local, more generous
+          default:
+            return 60;
+        }
+      }
+      /**
+       * Records request for rate limiting.
+       */
+      recordRequest(providerName) {
+        const limit = this.rateLimits.get(providerName) || { requests: 0, resetTime: Date.now() + this.RATE_LIMIT_WINDOW };
+        limit.requests++;
+        this.rateLimits.set(providerName, limit);
+      }
+      /**
+       * Queues request for later processing.
+       */
+      async queueRequest(messages, options, providerOverride, priority = 0) {
+        if (this.requestQueue.length >= this.MAX_QUEUE_SIZE) {
+          throw new Error("Request queue is full. Please try again later.");
+        }
+        return new Promise((resolve, reject) => {
+          var _a2;
+          const request = {
+            id: Math.random().toString(36).substr(2, 9),
+            messages,
+            options,
+            providerType: providerOverride,
+            resolve,
+            reject,
+            priority,
+            timestamp: Date.now()
+          };
+          this.requestQueue.push(request);
+          this.requestQueue.sort((a, b) => b.priority - a.priority);
+          debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", "[AIDispatcher] Request queued", {
+            id: request.id,
+            queueSize: this.requestQueue.length
+          });
+        });
+      }
+      /**
+       * Starts the queue processor.
+       */
+      startQueueProcessor() {
+        setInterval(() => {
+          if (!this.isProcessingQueue && this.requestQueue.length > 0) {
+            this.processQueue();
+          }
+        }, 1e3);
+      }
+      /**
+       * Processes queued requests.
+       */
+      async processQueue() {
+        if (this.isProcessingQueue) return;
+        this.isProcessingQueue = true;
+        try {
+          while (this.requestQueue.length > 0) {
+            const request = this.requestQueue.shift();
+            const providerName = this.determineProvider(request.providerType);
+            if (!this.isRateLimited(providerName) && !this.isCircuitBreakerOpen(providerName)) {
+              try {
+                await this.executeRequest(request);
+              } catch (error) {
+                request.reject(error);
+              }
+            } else {
+              this.requestQueue.unshift(request);
+              break;
+            }
+          }
+        } finally {
+          this.isProcessingQueue = false;
+        }
+      }
+      /**
+       * Executes a queued request.
+       */
+      async executeRequest(request) {
+        const providerName = this.determineProvider(request.providerType);
+        const cacheKey = this.generateCacheKey(request.messages, request.options, request.providerType);
+        try {
+          await this.executeWithRetry(request.messages, request.options, providerName, cacheKey);
+          request.resolve();
+        } catch (error) {
+          request.reject(error);
+        }
+      }
+      async executeWithRetry(messages, options, providerName, cacheKey, retryCount = 0) {
+        var _a2, _b, _c, _d, _e;
+        const startTime = Date.now();
+        let provider;
+        let fullResponse = "";
+        let abortController;
+        try {
+          if (this.plugin.settings.selectedModel) {
+            provider = createProviderFromUnifiedModel(this.plugin.settings, this.plugin.settings.selectedModel);
+          } else {
+            const tempSettings = { ...this.plugin.settings, provider: providerName };
+            provider = createProvider(tempSettings);
+          }
+          this.recordRequest(providerName);
+          const streamId = Math.random().toString(36).substr(2, 9);
+          abortController = new AbortController();
+          this.activeStreams.set(streamId, abortController);
+          const requestData = {
+            provider: providerName,
+            model: this.plugin.settings.selectedModel || "default",
+            messages,
+            options,
+            timestamp: (/* @__PURE__ */ new Date()).toISOString()
+          };
+          const originalStreamCallback = options.streamCallback;
+          const wrappedOptions = {
+            ...options,
+            streamCallback: (chunk) => {
+              fullResponse += chunk;
+              if (originalStreamCallback) {
+                originalStreamCallback(chunk);
+              }
+            },
+            abortController
+          };
+          await provider.getCompletion(messages, wrappedOptions);
+          this.activeStreams.delete(streamId);
+          this.recordSuccess(providerName);
+          this.updateMetrics(providerName, true, Date.now() - startTime, fullResponse.length);
+          this.setCache(cacheKey, fullResponse);
+          const responseData = {
+            content: fullResponse,
+            provider: providerName,
+            model: this.plugin.settings.selectedModel || "default",
+            timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+            duration: Date.now() - startTime
+          };
+          debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", "[AIDispatcher] AI request completed", {
+            provider: providerName,
+            responseLength: fullResponse.length,
+            duration: responseData.duration
+          });
+          try {
+            await saveAICallToFolder(requestData, responseData, this.vault, this.plugin);
+          } catch (saveError) {
+            debugLog((_b = this.plugin.settings.debugMode) != null ? _b : false, "error", "[AIDispatcher] Failed to save AI call:", saveError);
+          }
+        } catch (error) {
+          this.activeStreams.forEach((controller, id) => {
+            if (controller === abortController) {
+              this.activeStreams.delete(id);
+            }
+          });
+          this.recordFailure(providerName);
+          this.updateMetrics(providerName, false, Date.now() - startTime, 0);
+          debugLog((_c = this.plugin.settings.debugMode) != null ? _c : false, "error", "[AIDispatcher] AI request failed:", error);
+          const maxRetries = 3;
+          if (retryCount < maxRetries && this.shouldRetry(error)) {
+            const backoffDelay = Math.pow(2, retryCount) * 1e3;
+            debugLog((_d = this.plugin.settings.debugMode) != null ? _d : false, "info", "[AIDispatcher] Retrying request", {
+              attempt: retryCount + 1,
+              delay: backoffDelay
+            });
+            await new Promise((resolve) => setTimeout(resolve, backoffDelay));
+            return this.executeWithRetry(messages, options, providerName, cacheKey, retryCount + 1);
+          }
+          try {
+            const errorResponseData = {
+              error: error.message || "Unknown error",
+              provider: providerName,
+              timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+              duration: Date.now() - startTime
+            };
+            const requestData = {
+              provider: providerName,
+              model: this.plugin.settings.selectedModel || "default",
+              messages,
+              options,
+              timestamp: (/* @__PURE__ */ new Date()).toISOString()
+            };
+            await saveAICallToFolder(requestData, errorResponseData, this.vault, this.plugin);
+          } catch (saveError) {
+            debugLog((_e = this.plugin.settings.debugMode) != null ? _e : false, "error", "[AIDispatcher] Failed to save error log:", saveError);
+          }
+          throw error;
+        }
+      }
+      /**
+       * Determines if error is retryable.
+       */
+      shouldRetry(error) {
+        const retryableErrors = ["ECONNRESET", "ETIMEDOUT", "ENOTFOUND", "rate_limit_exceeded"];
+        return retryableErrors.some(
+          (code) => {
+            var _a2;
+            return ((_a2 = error.message) == null ? void 0 : _a2.includes(code)) || error.code === code;
+          }
+        );
+      }
+      /**
+       * Updates metrics tracking.
+       */
+      updateMetrics(providerName, success, duration, tokenCount) {
+        this.metrics.totalRequests++;
+        if (success) {
+          this.metrics.successfulRequests++;
+          this.metrics.totalTokens += tokenCount;
+          this.metrics.averageResponseTime = (this.metrics.averageResponseTime * (this.metrics.successfulRequests - 1) + duration) / this.metrics.successfulRequests;
+        } else {
+          this.metrics.failedRequests++;
+          this.metrics.errorsByProvider[providerName] = (this.metrics.errorsByProvider[providerName] || 0) + 1;
+        }
+        this.metrics.requestsByProvider[providerName] = (this.metrics.requestsByProvider[providerName] || 0) + 1;
+      }
+      /**
+       * Gets current metrics.
+       */
+      getMetrics() {
+        return { ...this.metrics };
+      }
+      /**
+       * Resets metrics.
+       */
+      resetMetrics() {
+        this.metrics = {
+          totalRequests: 0,
+          successfulRequests: 0,
+          failedRequests: 0,
+          totalTokens: 0,
+          totalCost: 0,
+          averageResponseTime: 0,
+          requestsByProvider: {},
+          errorsByProvider: {}
+        };
+      }
+      /**
+       * Clears cache.
+       */
+      clearCache() {
+        var _a2;
+        this.cache.clear();
+        debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", "[AIDispatcher] Cache cleared");
+      }
+      /**
+       * Aborts all active streams.
+       */
+      abortAllStreams() {
+        var _a2;
+        for (const [id, controller] of this.activeStreams) {
+          controller.abort();
+          debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", "[AIDispatcher] Stream aborted", { id });
+        }
+        this.activeStreams.clear();
+      }
+      /**
+       * Aborts specific stream by ID.
+       */
+      abortStream(streamId) {
+        var _a2;
+        const controller = this.activeStreams.get(streamId);
+        if (controller) {
+          controller.abort();
+          this.activeStreams.delete(streamId);
+          debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", "[AIDispatcher] Stream aborted", { id: streamId });
+        }
+      }
+      /**
+       * Test connection to a specific provider.
+       * 
+       * @param providerType - The type of provider to test
+       * @returns Promise resolving to connection test result
+       */
+      async testConnection(providerType) {
+        var _a2;
+        debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", "[AIDispatcher] Testing connection", { provider: providerType });
+        const tempSettings = { ...this.plugin.settings, provider: providerType };
+        const provider = createProvider(tempSettings);
+        return await provider.testConnection();
+      }
+      /**
+       * Get available models from a specific provider.
+       * 
+       * @param providerType - The type of provider to query
+       * @returns Promise resolving to list of available models
+       */
+      async getAvailableModels(providerType) {
+        var _a2;
+        debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", "[AIDispatcher] Fetching available models", { provider: providerType });
+        const tempSettings = { ...this.plugin.settings, provider: providerType };
+        const provider = createProvider(tempSettings);
+        return await provider.getAvailableModels();
+      }
+      /**
+       * Get all available unified models from all configured providers.
+       * 
+       * @returns Promise resolving to unified model list
+       */
+      async getAllUnifiedModels() {
+        var _a2;
+        debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", "[AIDispatcher] Fetching all unified models");
+        return await getAllAvailableModels(this.plugin.settings);
+      }
+      /**
+       * Refresh available models for a specific provider and update settings.
+       * 
+       * @param providerType - The provider to refresh models for
+       * @returns Promise resolving to the updated models list
+       */
+      async refreshProviderModels(providerType) {
+        var _a2, _b, _c;
+        debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", "[AIDispatcher] Refreshing models for provider", { provider: providerType });
+        try {
+          const models = await this.getAvailableModels(providerType);
+          const settingsKey = `${providerType}Settings`;
+          const providerSettings = this.plugin.settings[settingsKey];
+          if (providerSettings) {
+            providerSettings.availableModels = models;
+            providerSettings.lastTestResult = {
+              timestamp: Date.now(),
+              success: true,
+              message: `Successfully refreshed ${models.length} models`
+            };
+            await this.plugin.saveSettings();
+            debugLog(
+              (_b = this.plugin.settings.debugMode) != null ? _b : false,
+              "info",
+              "[AIDispatcher] Successfully refreshed models",
+              {
+                provider: providerType,
+                count: models.length
+              }
+            );
+          }
+          return models;
+        } catch (error) {
+          debugLog(
+            (_c = this.plugin.settings.debugMode) != null ? _c : false,
+            "error",
+            "[AIDispatcher] Failed to refresh models",
+            { provider: providerType, error }
+          );
+          const settingsKey = `${providerType}Settings`;
+          const providerSettings = this.plugin.settings[settingsKey];
+          if (providerSettings) {
+            providerSettings.lastTestResult = {
+              timestamp: Date.now(),
+              success: false,
+              message: error.message || "Failed to refresh models"
+            };
+            await this.plugin.saveSettings();
+          }
+          throw error;
+        }
+      }
+      /**
+       * Refresh models for all configured providers.
+       * 
+       * @returns Promise resolving to a map of provider -> models
+       */
+      async refreshAllProviderModels() {
+        var _a2, _b;
+        debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", "[AIDispatcher] Refreshing models for all providers");
+        const providers = ["openai", "anthropic", "gemini", "ollama"];
+        const results = {};
+        for (const provider of providers) {
+          try {
+            results[provider] = await this.refreshProviderModels(provider);
+          } catch (error) {
+            debugLog(
+              (_b = this.plugin.settings.debugMode) != null ? _b : false,
+              "warn",
+              "[AIDispatcher] Failed to refresh models for provider",
+              { provider, error }
+            );
+            results[provider] = [];
+          }
+        }
+        this.plugin.settings.availableModels = await this.getAllUnifiedModels();
+        await this.plugin.saveSettings();
+        return results;
+      }
+      /**
+       * Set the current model selection.
+       * 
+       * @param unifiedModelId - The unified model ID (e.g., "openai:gpt-4")
+       */
+      async setSelectedModel(unifiedModelId) {
+        var _a2;
+        debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", "[AIDispatcher] Setting selected model", { model: unifiedModelId });
+        this.plugin.settings.selectedModel = unifiedModelId;
+        const [providerType] = unifiedModelId.split(":", 2);
+        this.plugin.settings.provider = providerType;
+        await this.plugin.saveSettings();
+      }
+      /**
+       * Get the currently selected model.
+       * 
+       * @returns The current unified model ID or undefined
+       */
+      getCurrentModel() {
+        return this.plugin.settings.selectedModel;
+      }
+      /**
+       * Get model information for a specific unified model ID.
+       * 
+       * @param unifiedModelId - The unified model ID
+       * @returns The model information or undefined if not found
+       */
+      getModelInfo(unifiedModelId) {
+        var _a2;
+        return (_a2 = this.plugin.settings.availableModels) == null ? void 0 : _a2.find((model) => model.id === unifiedModelId);
+      }
+      /**
+       * Check if a specific provider is configured (has API key).
+       * 
+       * @param providerType - The provider to check
+       * @returns True if the provider is configured
+       */
+      isProviderConfigured(providerType) {
+        switch (providerType) {
+          case "openai":
+            return !!this.plugin.settings.openaiSettings.apiKey;
+          case "anthropic":
+            return !!this.plugin.settings.anthropicSettings.apiKey;
+          case "gemini":
+            return !!this.plugin.settings.geminiSettings.apiKey;
+          case "ollama":
+            return !!this.plugin.settings.ollamaSettings.serverUrl;
+          default:
+            return false;
+        }
+      }
+      /**
+       * Get configured providers (those with API keys).
+       * 
+       * @returns Array of configured provider names
+       */
+      getConfiguredProviders() {
+        const providers = [];
+        if (this.isProviderConfigured("openai")) providers.push("openai");
+        if (this.isProviderConfigured("anthropic")) providers.push("anthropic");
+        if (this.isProviderConfigured("gemini")) providers.push("gemini");
+        if (this.isProviderConfigured("ollama")) providers.push("ollama");
+        return providers;
+      }
+    };
+  }
+});
+
 // src/components/chat/SettingsSections.ts
 var SettingsSections_exports = {};
 __export(SettingsSections_exports, {
   SettingsSections: () => SettingsSections
 });
-var import_obsidian14, SettingsSections;
+var import_obsidian15, SettingsSections;
 var init_SettingsSections = __esm({
   "src/components/chat/SettingsSections.ts"() {
-    import_obsidian14 = require("obsidian");
-    init_providers();
+    import_obsidian15 = require("obsidian");
+    init_aiDispatcher();
     SettingsSections = class {
       /**
        * @param plugin The plugin instance (for accessing/saving settings).
@@ -11592,11 +12298,11 @@ var init_SettingsSections = __esm({
                   window._aiModelSettingsRefreshTimeout = null;
                 }, 50);
               }
-              new import_obsidian14.Notice(`Applied preset: ${preset.name}`);
+              new import_obsidian15.Notice(`Applied preset: ${preset.name}`);
             };
           });
         }
-        new import_obsidian14.Setting(containerEl).setName("System Message").setDesc("Set the system message for the AI").addTextArea((text) => {
+        new import_obsidian15.Setting(containerEl).setName("System Message").setDesc("Set the system message for the AI").addTextArea((text) => {
           text.setPlaceholder("You are a helpful assistant.").setValue(this.plugin.settings.systemMessage).onChange((value) => {
             this.plugin.settings.systemMessage = value;
           });
@@ -11605,23 +12311,23 @@ var init_SettingsSections = __esm({
           });
           return text;
         });
-        new import_obsidian14.Setting(containerEl).setName("Enable Streaming").setDesc("Enable or disable streaming for completions").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableStreaming).onChange(async (value) => {
+        new import_obsidian15.Setting(containerEl).setName("Enable Streaming").setDesc("Enable or disable streaming for completions").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableStreaming).onChange(async (value) => {
           this.plugin.settings.enableStreaming = value;
           await this.plugin.saveSettings();
         }));
-        new import_obsidian14.Setting(containerEl).setName("Temperature").setDesc("Set the randomness of the model's output (0-1)").addSlider((slider) => slider.setLimits(0, 1, 0.1).setValue(this.plugin.settings.temperature).setDynamicTooltip().onChange(async (value) => {
+        new import_obsidian15.Setting(containerEl).setName("Temperature").setDesc("Set the randomness of the model's output (0-1)").addSlider((slider) => slider.setLimits(0, 1, 0.1).setValue(this.plugin.settings.temperature).setDynamicTooltip().onChange(async (value) => {
           this.plugin.settings.temperature = value;
           await this.plugin.saveSettings();
         }));
-        new import_obsidian14.Setting(containerEl).setName("Refresh Available Models").setDesc("Test connections to all configured providers and refresh available models").addButton((button) => button.setButtonText("Refresh Models").onClick(async () => {
+        new import_obsidian15.Setting(containerEl).setName("Refresh Available Models").setDesc("Test connections to all configured providers and refresh available models").addButton((button) => button.setButtonText("Refresh Models").onClick(async () => {
           button.setButtonText("Refreshing...");
           button.setDisabled(true);
           try {
             await this.refreshAllAvailableModels();
-            new import_obsidian14.Notice("Successfully refreshed available models");
+            new import_obsidian15.Notice("Successfully refreshed available models");
             if (onRefresh) onRefresh();
           } catch (error) {
-            new import_obsidian14.Notice(`Error refreshing models: ${error.message}`);
+            new import_obsidian15.Notice(`Error refreshing models: ${error.message}`);
           } finally {
             button.setButtonText("Refresh Models");
             button.setDisabled(false);
@@ -11635,11 +12341,11 @@ var init_SettingsSections = __esm({
        * @param containerEl The HTML element to render the section into.
        */
       renderDateSettings(containerEl) {
-        new import_obsidian14.Setting(containerEl).setName("Include Date with System Message").setDesc("Add the current date to the system message").addToggle((toggle) => toggle.setValue(this.plugin.settings.includeDateWithSystemMessage).onChange(async (value) => {
+        new import_obsidian15.Setting(containerEl).setName("Include Date with System Message").setDesc("Add the current date to the system message").addToggle((toggle) => toggle.setValue(this.plugin.settings.includeDateWithSystemMessage).onChange(async (value) => {
           this.plugin.settings.includeDateWithSystemMessage = value;
           await this.plugin.saveSettings();
         }));
-        new import_obsidian14.Setting(containerEl).setName("Include Time with System Message").setDesc("Add the current time along with the date to the system message").addToggle((toggle) => toggle.setValue(this.plugin.settings.includeTimeWithSystemMessage).onChange(async (value) => {
+        new import_obsidian15.Setting(containerEl).setName("Include Time with System Message").setDesc("Add the current time along with the date to the system message").addToggle((toggle) => toggle.setValue(this.plugin.settings.includeTimeWithSystemMessage).onChange(async (value) => {
           this.plugin.settings.includeTimeWithSystemMessage = value;
           await this.plugin.saveSettings();
         }));
@@ -11650,17 +12356,17 @@ var init_SettingsSections = __esm({
        * @param containerEl The HTML element to render the section into.
        */
       renderNoteReferenceSettings(containerEl) {
-        new import_obsidian14.Setting(containerEl).setName("Enable Obsidian Links").setDesc("Read Obsidian links in messages using [[filename]] syntax").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableObsidianLinks).onChange(async (value) => {
+        new import_obsidian15.Setting(containerEl).setName("Enable Obsidian Links").setDesc("Read Obsidian links in messages using [[filename]] syntax").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableObsidianLinks).onChange(async (value) => {
           this.plugin.settings.enableObsidianLinks = value;
           await this.plugin.saveSettings();
         }));
-        new import_obsidian14.Setting(containerEl).setName("Enable Context Notes").setDesc("Attach specified note content to chat messages").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableContextNotes).onChange(async (value) => {
+        new import_obsidian15.Setting(containerEl).setName("Enable Context Notes").setDesc("Attach specified note content to chat messages").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableContextNotes).onChange(async (value) => {
           this.plugin.settings.enableContextNotes = value;
           await this.plugin.saveSettings();
         }));
         const contextNotesContainer = containerEl.createDiv("context-notes-container");
         contextNotesContainer.style.marginBottom = "24px";
-        new import_obsidian14.Setting(contextNotesContainer).setName("Context Notes").setDesc("Notes to attach as context (supports [[filename]] and [[filename#header]] syntax)").addTextArea((text) => {
+        new import_obsidian15.Setting(contextNotesContainer).setName("Context Notes").setDesc("Notes to attach as context (supports [[filename]] and [[filename#header]] syntax)").addTextArea((text) => {
           text.setPlaceholder("[[Note Name]]\n[[Another Note#Header]]").setValue(this.plugin.settings.contextNotes || "").onChange((value) => {
             this.plugin.settings.contextNotes = value;
           });
@@ -11671,7 +12377,7 @@ var init_SettingsSections = __esm({
           text.inputEl.style.width = "100%";
           return text;
         });
-        new import_obsidian14.Setting(containerEl).setName("Expand Linked Notes Recursively").setDesc("If enabled, when fetching a note, also fetch and expand links within that note recursively (prevents infinite loops).").addToggle((toggle) => {
+        new import_obsidian15.Setting(containerEl).setName("Expand Linked Notes Recursively").setDesc("If enabled, when fetching a note, also fetch and expand links within that note recursively (prevents infinite loops).").addToggle((toggle) => {
           var _a2;
           return toggle.setValue((_a2 = this.plugin.settings.expandLinkedNotesRecursively) != null ? _a2 : false).onChange(async (value) => {
             this.plugin.settings.expandLinkedNotesRecursively = value;
@@ -11701,10 +12407,11 @@ var init_SettingsSections = __esm({
        */
       async renderUnifiedModelDropdown(containerEl) {
         if (!this.plugin.settings.availableModels || this.plugin.settings.availableModels.length === 0) {
-          this.plugin.settings.availableModels = await getAllAvailableModels(this.plugin.settings);
+          const aiDispatcher = new AIDispatcher(this.plugin.app.vault, this.plugin);
+          this.plugin.settings.availableModels = await aiDispatcher.getAllUnifiedModels();
           await this.plugin.saveSettings();
         }
-        new import_obsidian14.Setting(containerEl).setName("Selected Model").setDesc("Choose from all available models across all configured providers").addDropdown((dropdown) => {
+        new import_obsidian15.Setting(containerEl).setName("Selected Model").setDesc("Choose from all available models across all configured providers").addDropdown((dropdown) => {
           if (!this.plugin.settings.availableModels || this.plugin.settings.availableModels.length === 0) {
             dropdown.addOption("", "No models available - configure providers below");
           } else {
@@ -11727,7 +12434,7 @@ var init_SettingsSections = __esm({
           dropdown.setValue(this.plugin.settings.selectedModel || "").onChange(async (value) => {
             this.plugin.settings.selectedModel = value;
             if (value) {
-              const provider = getProviderFromUnifiedModel(value);
+              const [provider] = value.split(":", 2);
               this.plugin.settings.provider = provider;
             }
             await this.plugin.saveSettings();
@@ -11744,45 +12451,18 @@ var init_SettingsSections = __esm({
         }
       }
       /**
-       * Refreshes available models from all configured providers.
-       * Tests connection for each provider and updates the list of available models.
+       * Refreshes available models from all configured providers using the dispatcher.
+       * Uses the AIDispatcher to test connections and update available models.
        */
       async refreshAllAvailableModels() {
-        const providers = ["openai", "anthropic", "gemini", "ollama"];
-        for (const providerType of providers) {
-          try {
-            const originalProvider = this.plugin.settings.provider;
-            this.plugin.settings.provider = providerType;
-            const providerInstance = createProvider(this.plugin.settings);
-            const result = await providerInstance.testConnection();
-            this.plugin.settings.provider = originalProvider;
-            const providerSettings = this.plugin.settings[`${providerType}Settings`];
-            if (result.success && result.models) {
-              providerSettings.availableModels = result.models;
-              providerSettings.lastTestResult = {
-                timestamp: Date.now(),
-                success: true,
-                message: result.message
-              };
-            } else {
-              providerSettings.lastTestResult = {
-                timestamp: Date.now(),
-                success: false,
-                message: result.message
-              };
-            }
-          } catch (error) {
-            console.error(`Error testing ${providerType}:`, error);
-            const providerSettings = this.plugin.settings[`${providerType}Settings`];
-            providerSettings.lastTestResult = {
-              timestamp: Date.now(),
-              success: false,
-              message: `Test failed: ${error.message}`
-            };
-          }
+        const aiDispatcher = new AIDispatcher(this.plugin.app.vault, this.plugin);
+        try {
+          await aiDispatcher.refreshAllProviderModels();
+          this.plugin.settings.availableModels = await aiDispatcher.getAllUnifiedModels();
+          await this.plugin.saveSettings();
+        } catch (error) {
+          console.error("Error refreshing all available models:", error);
         }
-        this.plugin.settings.availableModels = await getAllAvailableModels(this.plugin.settings);
-        await this.plugin.saveSettings();
       }
       /**
        * Renders a collapsible section for provider configuration.
@@ -11831,7 +12511,7 @@ var init_SettingsSections = __esm({
        */
       renderOpenAIConfig(containerEl) {
         this._renderCollapsibleProviderConfig(containerEl, "openai", "OpenAI", (contentEl) => {
-          new import_obsidian14.Setting(contentEl).setName("OpenAI Base URL").setDesc("Custom base URL for OpenAI API (optional)").addText((text) => {
+          new import_obsidian15.Setting(contentEl).setName("OpenAI Base URL").setDesc("Custom base URL for OpenAI API (optional)").addText((text) => {
             text.setPlaceholder("https://api.openai.com/v1").setValue(this.plugin.settings.openaiSettings.baseUrl || "").onChange((value) => {
               this.plugin.settings.openaiSettings.baseUrl = value;
             });
@@ -11882,15 +12562,12 @@ var init_SettingsSections = __esm({
        */
       renderProviderTestSection(containerEl, provider, displayName) {
         const settings = this.plugin.settings[`${provider}Settings`];
-        new import_obsidian14.Setting(containerEl).setName("Test Connection").setDesc(`Verify your API key and fetch available models for ${displayName}`).addButton((button) => button.setButtonText("Test").onClick(async () => {
+        new import_obsidian15.Setting(containerEl).setName("Test Connection").setDesc(`Verify your API key and fetch available models for ${displayName}`).addButton((button) => button.setButtonText("Test").onClick(async () => {
           button.setButtonText("Testing...");
           button.setDisabled(true);
           try {
-            const originalProvider = this.plugin.settings.provider;
-            this.plugin.settings.provider = provider;
-            const providerInstance = createProvider(this.plugin.settings);
-            const result = await providerInstance.testConnection();
-            this.plugin.settings.provider = originalProvider;
+            const aiDispatcher = new AIDispatcher(this.plugin.app.vault, this.plugin);
+            const result = await aiDispatcher.testConnection(provider);
             if (result.success && result.models) {
               settings.availableModels = result.models;
               settings.lastTestResult = {
@@ -11899,19 +12576,19 @@ var init_SettingsSections = __esm({
                 message: result.message
               };
               await this.plugin.saveSettings();
-              this.plugin.settings.availableModels = await getAllAvailableModels(this.plugin.settings);
+              this.plugin.settings.availableModels = await aiDispatcher.getAllUnifiedModels();
               await this.plugin.saveSettings();
-              new import_obsidian14.Notice(result.message);
+              new import_obsidian15.Notice(result.message);
             } else {
               settings.lastTestResult = {
                 timestamp: Date.now(),
                 success: false,
                 message: result.message
               };
-              new import_obsidian14.Notice(result.message);
+              new import_obsidian15.Notice(result.message);
             }
           } catch (error) {
-            new import_obsidian14.Notice(`Error: ${error.message}`);
+            new import_obsidian15.Notice(`Error: ${error.message}`);
             settings.lastTestResult = {
               timestamp: Date.now(),
               success: false,
@@ -11942,7 +12619,7 @@ var init_SettingsSections = __esm({
        * @param containerEl The HTML element to render the section into.
        */
       renderDebugModeSettings(containerEl) {
-        new import_obsidian14.Setting(containerEl).setName("Debug Mode").setDesc("Enable verbose logging and debug UI features").addToggle((toggle) => {
+        new import_obsidian15.Setting(containerEl).setName("Debug Mode").setDesc("Enable verbose logging and debug UI features").addToggle((toggle) => {
           var _a2;
           return toggle.setValue((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false).onChange(async (value) => {
             this.plugin.settings.debugMode = value;
@@ -11972,12 +12649,12 @@ var SettingsModal_exports = {};
 __export(SettingsModal_exports, {
   SettingsModal: () => SettingsModal
 });
-var import_obsidian15, SettingsModal;
+var import_obsidian16, SettingsModal;
 var init_SettingsModal = __esm({
   "src/components/chat/SettingsModal.ts"() {
-    import_obsidian15 = require("obsidian");
+    import_obsidian16 = require("obsidian");
     init_SettingsSections();
-    SettingsModal = class extends import_obsidian15.Modal {
+    SettingsModal = class extends import_obsidian16.Modal {
       /**
        * Constructs a SettingsModal instance.
        * @param app The Obsidian App instance.
@@ -12078,7 +12755,7 @@ function handleClearChat(messagesContainer, chatHistoryManager) {
     try {
       await chatHistoryManager.clearHistory();
     } catch (e) {
-      new import_obsidian16.Notice("Failed to clear chat history.");
+      new import_obsidian17.Notice("Failed to clear chat history.");
     }
   };
 }
@@ -12110,11 +12787,11 @@ function handleCopyMessage(messageEl, plugin) {
       contentToCopy = messageEl.dataset.rawContent || "";
     }
     if (contentToCopy.trim() === "") {
-      new import_obsidian16.Notice("No content to copy");
+      new import_obsidian17.Notice("No content to copy");
       return;
     }
     await copyToClipboard(contentToCopy);
-    new import_obsidian16.Notice("Message copied to clipboard");
+    new import_obsidian17.Notice("Message copied to clipboard");
   };
 }
 function handleEditMessage(messageEl, chatHistoryManager, plugin) {
@@ -12163,14 +12840,14 @@ function handleEditMessage(messageEl, chatHistoryManager, plugin) {
               toolResults: enhancedData.toolResults
             }, messageEl, void 0);
           } else {
-            await import_obsidian16.MarkdownRenderer.render(plugin.app, newContent, contentEl, "", void 0);
+            await import_obsidian17.MarkdownRenderer.render(plugin.app, newContent, contentEl, "", void 0);
           }
           contentEl.removeClass("editing");
         } catch (e) {
-          new import_obsidian16.Notice("Failed to save edited message.");
+          new import_obsidian17.Notice("Failed to save edited message.");
           messageEl.dataset.rawContent = oldContent || "";
           contentEl.empty();
-          await import_obsidian16.MarkdownRenderer.render(plugin.app, oldContent || "", contentEl, "", void 0);
+          await import_obsidian17.MarkdownRenderer.render(plugin.app, oldContent || "", contentEl, "", void 0);
           contentEl.removeClass("editing");
         }
       });
@@ -12188,7 +12865,7 @@ function handleDeleteMessage(messageEl, chatHistoryManager, app) {
         ).then(() => {
           messageEl.remove();
         }).catch(() => {
-          new import_obsidian16.Notice("Failed to delete message from history.");
+          new import_obsidian17.Notice("Failed to delete message from history.");
         });
       }
     });
@@ -12200,13 +12877,13 @@ function handleRegenerateMessage(messageEl, regenerateCallback) {
     regenerateCallback(messageEl);
   };
 }
-var import_obsidian16;
+var import_obsidian17;
 var init_eventHandlers = __esm({
   "src/components/chat/eventHandlers.ts"() {
     init_Buttons();
     init_chatPersistence();
     init_ChatHelpModal();
-    import_obsidian16 = require("obsidian");
+    import_obsidian17 = require("obsidian");
     init_MessageRenderer();
     init_ConfirmationModal();
   }
@@ -12217,12 +12894,12 @@ var BotMessage_exports = {};
 __export(BotMessage_exports, {
   BotMessage: () => BotMessage
 });
-var import_obsidian21, BotMessage;
+var import_obsidian22, BotMessage;
 var init_BotMessage = __esm({
   "src/components/chat/BotMessage.ts"() {
-    import_obsidian21 = require("obsidian");
+    import_obsidian22 = require("obsidian");
     init_Buttons();
-    BotMessage = class extends import_obsidian21.Component {
+    BotMessage = class extends import_obsidian22.Component {
       /**
        * Constructs a BotMessage instance.
        * @param app Obsidian App instance
@@ -12261,7 +12938,7 @@ var init_BotMessage = __esm({
         this.content = content;
         this.element.dataset.rawContent = content;
         this.contentEl.empty();
-        await import_obsidian21.MarkdownRenderer.render(
+        await import_obsidian22.MarkdownRenderer.render(
           this.app,
           content,
           this.contentEl,
@@ -12279,7 +12956,7 @@ var init_BotMessage = __esm({
         messageEl.dataset.rawContent = this.content;
         const messageContainer = messageEl.createDiv("message-container");
         this.contentEl = messageContainer.createDiv("message-content");
-        import_obsidian21.MarkdownRenderer.render(
+        import_obsidian22.MarkdownRenderer.render(
           this.app,
           this.content,
           this.contentEl,
@@ -12431,12 +13108,12 @@ function generateTableOfContents(noteContent) {
     return `${"  ".repeat(level - 1)}- ${title}`;
   }).join("\n");
 }
-async function generateNoteTitle(app, settings, processMessages2) {
+async function generateNoteTitle(app, settings, processMessages2, dispatcher) {
   var _a2, _b;
   debugLog(DEBUG, "debug", "Starting generateNoteTitle");
   const activeFile = app.workspace.getActiveFile();
   if (!activeFile) {
-    new import_obsidian31.Notice("No active note found.");
+    new import_obsidian32.Notice("No active note found.");
     return;
   }
   let noteContent = await app.vault.cachedRead(activeFile);
@@ -12446,7 +13123,8 @@ async function generateNoteTitle(app, settings, processMessages2) {
   const userContent = (toc && toc.trim().length > 0 ? "Table of Contents:\n" + toc + "\n\n" : "") + noteContent;
   try {
     debugLog(DEBUG, "debug", "Provider:", settings.provider);
-    const provider = settings.selectedModel ? createProviderFromUnifiedModel(settings, settings.selectedModel) : createProvider(settings);
+    const aiDispatcher = dispatcher != null ? dispatcher : new AIDispatcher(app.vault, { settings, saveSettings: async () => {
+    } });
     const messages = [
       { role: "system", content: prompt },
       { role: "user", content: userContent }
@@ -12461,18 +13139,18 @@ async function generateNoteTitle(app, settings, processMessages2) {
       settings.enableContextNotes = originalEnableContextNotes;
       if (!processedMessages || processedMessages.length === 0) {
         debugLog(DEBUG, "debug", "No processed messages!");
-        new import_obsidian31.Notice("No valid messages to send to the model. Please check your note content.");
+        new import_obsidian32.Notice("No valid messages to send to the model. Please check your note content.");
         return;
       }
-      debugLog(DEBUG, "debug", "Calling provider.getCompletion");
+      debugLog(DEBUG, "debug", "Calling dispatcher.getCompletion");
       let resultBuffer = "";
-      await provider.getCompletion(processedMessages, {
+      await aiDispatcher.getCompletion(processedMessages, {
         temperature: 0,
         streamCallback: (chunk) => {
           resultBuffer += chunk;
         }
       });
-      debugLog(DEBUG, "debug", "Result from provider (buffered):", resultBuffer);
+      debugLog(DEBUG, "debug", "Result from dispatcher (buffered):", resultBuffer);
       let title = resultBuffer.trim();
       debugLog(DEBUG, "debug", "Extracted title before sanitization:", title);
       title = title.replace(/[\\/:]/g, "").trim();
@@ -12489,28 +13167,28 @@ async function generateNoteTitle(app, settings, processMessages2) {
             const newPath = parentPath ? parentPath + "/" + sanitized + ext : sanitized + ext;
             if (file.path !== newPath) {
               await app.fileManager.renameFile(file, newPath);
-              new import_obsidian31.Notice(`Note renamed to: ${sanitized}${ext}`);
+              new import_obsidian32.Notice(`Note renamed to: ${sanitized}${ext}`);
             } else {
-              new import_obsidian31.Notice(`Note title is already: ${sanitized}${ext}`);
+              new import_obsidian32.Notice(`Note title is already: ${sanitized}${ext}`);
             }
           }
         } else if (outputMode === "metadata") {
           const file = app.workspace.getActiveFile();
           if (file) {
             await upsertYamlField(app, file, "title", title);
-            new import_obsidian31.Notice(`Inserted title into metadata: ${title}`);
+            new import_obsidian32.Notice(`Inserted title into metadata: ${title}`);
           }
         } else {
           try {
             await navigator.clipboard.writeText(title);
-            new import_obsidian31.Notice(`Generated title (copied): ${title}`);
+            new import_obsidian32.Notice(`Generated title (copied): ${title}`);
           } catch (e) {
-            new import_obsidian31.Notice(`Generated title: ${title}`);
+            new import_obsidian32.Notice(`Generated title: ${title}`);
           }
         }
       } else {
         debugLog(DEBUG, "debug", "No title generated after sanitization.");
-        new import_obsidian31.Notice("No title generated.");
+        new import_obsidian32.Notice("No title generated.");
       }
     } catch (processError) {
       debugLog(DEBUG, "debug", "Error in processMessages or provider.getCompletion:", processError);
@@ -12518,14 +13196,14 @@ async function generateNoteTitle(app, settings, processMessages2) {
       throw processError;
     }
   } catch (err) {
-    new import_obsidian31.Notice("Error generating title: " + ((_b = err == null ? void 0 : err.message) != null ? _b : err));
+    new import_obsidian32.Notice("Error generating title: " + ((_b = err == null ? void 0 : err.message) != null ? _b : err));
   }
 }
-async function generateYamlAttribute(app, settings, processMessages2, attributeName, prompt, outputMode = "metadata") {
+async function generateYamlAttribute(app, settings, processMessages2, attributeName, prompt, outputMode = "metadata", dispatcher) {
   debugLog(DEBUG, "debug", `Starting generateYamlAttribute for ${attributeName}`);
   const activeFile = app.workspace.getActiveFile();
   if (!activeFile) {
-    new import_obsidian31.Notice("No active note found.");
+    new import_obsidian32.Notice("No active note found.");
     return;
   }
   let noteContent = await app.vault.cachedRead(activeFile);
@@ -12544,20 +13222,21 @@ async function generateYamlAttribute(app, settings, processMessages2, attributeN
     settings.enableContextNotes = originalEnableContextNotes;
     if (!processedMessages || processedMessages.length === 0) {
       debugLog(DEBUG, "debug", "No processed messages!");
-      new import_obsidian31.Notice("No valid messages to send to the model. Please check your note content.");
+      new import_obsidian32.Notice("No valid messages to send to the model. Please check your note content.");
       return;
     }
-    debugLog(DEBUG, "debug", "Calling provider.getCompletion");
-    const provider = settings.selectedModel ? createProviderFromUnifiedModel(settings, settings.selectedModel) : createProvider(settings);
+    debugLog(DEBUG, "debug", "Calling dispatcher.getCompletion");
+    const aiDispatcher = dispatcher != null ? dispatcher : new AIDispatcher(app.vault, { settings, saveSettings: async () => {
+    } });
     let resultBuffer = "";
-    await provider.getCompletion(processedMessages, {
+    await aiDispatcher.getCompletion(processedMessages, {
       temperature: 0,
       // Always use temperature 0 for predictable YAML output
       streamCallback: (chunk) => {
         resultBuffer += chunk;
       }
     });
-    debugLog(DEBUG, "debug", "Result from provider (buffered):", resultBuffer);
+    debugLog(DEBUG, "debug", "Result from dispatcher (buffered):", resultBuffer);
     let value = resultBuffer.trim();
     debugLog(DEBUG, "debug", "Extracted value before sanitization:", value);
     value = value.replace(/[\\/]/g, "").trim();
@@ -12566,18 +13245,18 @@ async function generateYamlAttribute(app, settings, processMessages2, attributeN
       debugLog(DEBUG, "debug", "Output mode:", outputMode);
       if (outputMode === "metadata") {
         await upsertYamlField(app, activeFile, attributeName, value);
-        new import_obsidian31.Notice(`Inserted ${attributeName} into metadata: ${value}`);
+        new import_obsidian32.Notice(`Inserted ${attributeName} into metadata: ${value}`);
       } else {
         try {
           await navigator.clipboard.writeText(value);
-          new import_obsidian31.Notice(`Generated ${attributeName} (copied): ${value}`);
+          new import_obsidian32.Notice(`Generated ${attributeName} (copied): ${value}`);
         } catch (e) {
-          new import_obsidian31.Notice(`Generated ${attributeName}: ${value}`);
+          new import_obsidian32.Notice(`Generated ${attributeName}: ${value}`);
         }
       }
     } else {
       debugLog(DEBUG, "debug", `No value generated for ${attributeName} after sanitization.`);
-      new import_obsidian31.Notice(`No value generated for ${attributeName}.`);
+      new import_obsidian32.Notice(`No value generated for ${attributeName}.`);
     }
   } catch (processError) {
     debugLog(DEBUG, "debug", "Error in processMessages or provider.getCompletion:", processError);
@@ -12644,11 +13323,11 @@ function registerYamlAttributeCommands(plugin, settings, processMessages2, yamlA
   }
   return newCommandIds;
 }
-var import_obsidian31, DEBUG;
+var import_obsidian32, DEBUG;
 var init_YAMLHandler = __esm({
   "src/YAMLHandler.ts"() {
-    import_obsidian31 = require("obsidian");
-    init_providers();
+    import_obsidian32 = require("obsidian");
+    init_aiDispatcher();
     init_promptConstants();
     init_pluginUtils();
     init_js_yaml();
@@ -12663,11 +13342,11 @@ __export(main_exports, {
   default: () => MyPlugin
 });
 module.exports = __toCommonJS(main_exports);
-var import_obsidian32 = require("obsidian");
+var import_obsidian33 = require("obsidian");
 init_types();
 
 // src/settings/SettingTab.ts
-var import_obsidian29 = require("obsidian");
+var import_obsidian30 = require("obsidian");
 
 // src/components/commands/viewCommands.ts
 init_pluginUtils();
@@ -12686,7 +13365,7 @@ async function activateView(app, viewType, reveal = true) {
 }
 
 // src/chat.ts
-var import_obsidian24 = require("obsidian");
+var import_obsidian25 = require("obsidian");
 
 // src/components/chat/ChatHistoryManager.ts
 var import_obsidian7 = require("obsidian");
@@ -12848,7 +13527,7 @@ var ChatHistoryManager = class {
 };
 
 // src/components/chat/Message.ts
-var import_obsidian17 = require("obsidian");
+var import_obsidian18 = require("obsidian");
 init_Buttons();
 init_MessageRenderer();
 init_eventHandlers();
@@ -12886,14 +13565,14 @@ async function createMessageElement(app, role, content, chatHistoryManager, plug
       if (!contentEl) {
         contentEl = messageContainer.createDiv("message-content");
       }
-      await import_obsidian17.MarkdownRenderer.render(app, content, contentEl, "", parentComponent);
+      await import_obsidian18.MarkdownRenderer.render(app, content, contentEl, "", parentComponent);
     }
   } else {
     contentEl = messageEl.querySelector(".message-content");
     if (!contentEl) {
       contentEl = messageContainer.createDiv("message-content");
     }
-    await import_obsidian17.MarkdownRenderer.render(app, content, contentEl, "", parentComponent);
+    await import_obsidian18.MarkdownRenderer.render(app, content, contentEl, "", parentComponent);
   }
   if (!contentEl) {
     contentEl = messageEl.querySelector(".message-content");
@@ -14532,13 +15211,13 @@ The current time is ${currentTime} ${timeZoneString}.`;
 }
 
 // src/utils/noteUtils.ts
-var import_obsidian19 = require("obsidian");
+var import_obsidian20 = require("obsidian");
 
 // src/utils/generalUtils.ts
-var import_obsidian18 = require("obsidian");
+var import_obsidian19 = require("obsidian");
 init_logger();
 function showNotice(message) {
-  new import_obsidian18.Notice(message);
+  new import_obsidian19.Notice(message);
 }
 async function copyToClipboard3(text, successMsg = "Copied to clipboard", failMsg = "Failed to copy to clipboard") {
   try {
@@ -14654,10 +15333,10 @@ ${extractedContent}
 `
           );
         } else {
-          new import_obsidian19.Notice(`File not found: ${filePath}. Ensure the file name and path are correct.`);
+          new import_obsidian20.Notice(`File not found: ${filePath}. Ensure the file name and path are correct.`);
         }
       } catch (error) {
-        new import_obsidian19.Notice(`Error processing link for ${filePath}: ${error.message}`);
+        new import_obsidian20.Notice(`Error processing link for ${filePath}: ${error.message}`);
       }
     }
   }
@@ -14811,15 +15490,15 @@ ${currentNoteContent}`
 };
 
 // src/components/chat/MessageRegenerator.ts
-var import_obsidian23 = require("obsidian");
+var import_obsidian24 = require("obsidian");
 
 // src/components/chat/ResponseStreamer.ts
-var import_obsidian22 = require("obsidian");
-init_providers();
+var import_obsidian23 = require("obsidian");
+init_aiDispatcher();
 init_MessageRenderer();
 
 // src/components/chat/agent/TaskContinuation.ts
-var import_obsidian20 = require("obsidian");
+var import_obsidian21 = require("obsidian");
 var TaskContinuation = class {
   /**
    * @param plugin The main plugin instance (for settings and logging)
@@ -14983,7 +15662,7 @@ var TaskContinuation = class {
     const contentEl = container.querySelector(".message-content");
     if (contentEl) {
       contentEl.empty();
-      await import_obsidian20.MarkdownRenderer.render(
+      await import_obsidian21.MarkdownRenderer.render(
         this.plugin.app,
         content,
         contentEl,
@@ -15026,10 +15705,10 @@ var TaskContinuation = class {
       if ((_a2 = this.agentResponseHandler) == null ? void 0 : _a2.isToolLimitReached()) {
         return "*[Tool execution limit reached - no continuation response]*";
       }
-      const { createProvider: createProvider2, createProviderFromUnifiedModel: createProviderFromUnifiedModel2 } = await Promise.resolve().then(() => (init_providers(), providers_exports));
-      const provider = this.plugin.settings.selectedModel ? createProviderFromUnifiedModel2(this.plugin.settings, this.plugin.settings.selectedModel) : createProvider2(this.plugin.settings);
+      const { AIDispatcher: AIDispatcher2 } = await Promise.resolve().then(() => (init_aiDispatcher(), aiDispatcher_exports));
+      const aiDispatcher = new AIDispatcher2(this.plugin.app.vault, this.plugin);
       let continuationContent = "";
-      await provider.getCompletion(
+      await aiDispatcher.getCompletion(
         messages,
         {
           temperature: this.plugin.settings.temperature,
@@ -15125,8 +15804,8 @@ var ResponseStreamer = class {
     this.activeStream = new AbortController();
     await this.addAgentSystemPrompt(messages);
     try {
-      const provider = this.createProvider();
-      await provider.getCompletion(messages, {
+      const aiDispatcher = new AIDispatcher(this.plugin.app.vault, this.plugin);
+      await aiDispatcher.getCompletion(messages, {
         temperature: this.plugin.settings.temperature,
         maxTokens: this.plugin.settings.maxTokens,
         streamCallback: async (chunk) => {
@@ -15134,7 +15813,6 @@ var ResponseStreamer = class {
           await this.updateMessageContent(container, responseContent);
         },
         abortController: this.activeStream || void 0
-        // Pass the abort controller
       });
       if (this.plugin.agentModeManager.isAgentModeEnabled() && this.agentResponseHandler) {
         responseContent = await this.processAgentResponse(responseContent, container, messages, "streamer-main", chatHistory);
@@ -15148,12 +15826,6 @@ var ResponseStreamer = class {
     } finally {
       (_a2 = this.agentResponseHandler) == null ? void 0 : _a2.hideTaskProgress();
     }
-  }
-  /**
-   * Creates AI provider instance based on current settings.
-   */
-  createProvider() {
-    return this.plugin.settings.selectedModel ? createProviderFromUnifiedModel(this.plugin.settings, this.plugin.settings.selectedModel) : createProvider(this.plugin.settings);
   }
   /**
    * Adds agent system prompt to messages if agent mode is enabled.
@@ -15189,7 +15861,7 @@ var ResponseStreamer = class {
     if (!contentEl) return;
     this.updateContainerDataset(container, content);
     contentEl.empty();
-    await import_obsidian22.MarkdownRenderer.render(
+    await import_obsidian23.MarkdownRenderer.render(
       this.plugin.app,
       content,
       contentEl,
@@ -15485,9 +16157,9 @@ var ResponseStreamer = class {
       if ((_a2 = this.agentResponseHandler) == null ? void 0 : _a2.isToolLimitReached()) {
         return "*[Tool execution limit reached - no continuation response]*";
       }
-      const provider = this.createProvider();
+      const aiDispatcher = new AIDispatcher(this.plugin.app.vault, this.plugin);
       let continuationContent = "";
-      await provider.getCompletion(messages, {
+      await aiDispatcher.getCompletion(messages, {
         temperature: this.plugin.settings.temperature,
         maxTokens: this.plugin.settings.maxTokens,
         streamCallback: async (chunk) => {
@@ -15698,7 +16370,7 @@ var MessageRegenerator = class {
       );
     } catch (error) {
       if (error.name !== "AbortError") {
-        new import_obsidian23.Notice(`Error: ${error.message}`);
+        new import_obsidian24.Notice(`Error: ${error.message}`);
         assistantContainer.remove();
       }
     } finally {
@@ -15714,7 +16386,7 @@ var MessageRegenerator = class {
 // src/chat.ts
 init_MessageRenderer();
 var VIEW_TYPE_CHAT = "chat-view";
-var ChatView = class extends import_obsidian24.ItemView {
+var ChatView = class extends import_obsidian25.ItemView {
   constructor(leaf, plugin) {
     super(leaf);
     // Plugin instance
@@ -15772,7 +16444,7 @@ var ChatView = class extends import_obsidian24.ItemView {
     try {
       loadedHistory = await this.chatHistoryManager.getHistory();
     } catch (e) {
-      new import_obsidian24.Notice("Failed to load chat history.");
+      new import_obsidian25.Notice("Failed to load chat history.");
       loadedHistory = [];
     }
     const ui = createChatUI(this.app, contentEl);
@@ -15842,14 +16514,14 @@ var ChatView = class extends import_obsidian24.ItemView {
       if (this.plugin.agentModeManager.isAgentModeEnabled()) {
         ui.agentModeButton.classList.add("active");
         ui.agentModeButton.setAttribute("title", "Agent Mode: ON - AI can use tools");
-        new import_obsidian24.Notice("Agent Mode enabled - AI can now use tools");
+        new import_obsidian25.Notice("Agent Mode enabled - AI can now use tools");
         if (this.agentResponseHandler) {
           this.agentResponseHandler.resetExecutionCount();
         }
       } else {
         ui.agentModeButton.classList.remove("active");
         ui.agentModeButton.setAttribute("title", "Agent Mode: OFF - Regular chat");
-        new import_obsidian24.Notice("Agent Mode disabled");
+        new import_obsidian25.Notice("Agent Mode disabled");
       }
     });
     if (this.plugin.agentModeManager.isAgentModeEnabled()) {
@@ -15880,7 +16552,7 @@ var ChatView = class extends import_obsidian24.ItemView {
           content
         });
       } catch (e) {
-        new import_obsidian24.Notice("Failed to save user message: " + e.message);
+        new import_obsidian25.Notice("Failed to save user message: " + e.message);
       }
       try {
         const messages = await this.buildContextMessages();
@@ -15938,7 +16610,7 @@ var ChatView = class extends import_obsidian24.ItemView {
         }
       } catch (error) {
         if (error.name !== "AbortError") {
-          new import_obsidian24.Notice(`Error: ${error.message}`);
+          new import_obsidian25.Notice(`Error: ${error.message}`);
           await createMessageElement(this.app, "assistant", `Error: ${error.message}`, this.chatHistoryManager, this.plugin, (el) => this.regenerateResponse(el), this);
         }
       } finally {
@@ -16044,7 +16716,7 @@ var ChatView = class extends import_obsidian24.ItemView {
         ...enhancedData || {}
       });
     } catch (e) {
-      new import_obsidian24.Notice("Failed to save chat message: " + e.message);
+      new import_obsidian25.Notice("Failed to save chat message: " + e.message);
     }
   }
   /**
@@ -16180,9 +16852,9 @@ var ChatView = class extends import_obsidian24.ItemView {
       const content = display.toMarkdown();
       try {
         await navigator.clipboard.writeText(content);
-        new import_obsidian24.Notice("Tool result copied to clipboard");
+        new import_obsidian25.Notice("Tool result copied to clipboard");
       } catch (error) {
-        new import_obsidian24.Notice("Failed to copy to clipboard");
+        new import_obsidian25.Notice("Failed to copy to clipboard");
         this.plugin.debugLog("error", "[chat.ts] Clipboard error:", error);
       }
     });
@@ -16275,7 +16947,7 @@ var CollapsibleSectionRenderer = class {
 init_logger();
 
 // src/settings/components/SettingCreators.ts
-var import_obsidian25 = require("obsidian");
+var import_obsidian26 = require("obsidian");
 var SettingCreators = class {
   /**
    * @param plugin The plugin instance, used for saving settings.
@@ -16298,7 +16970,7 @@ var SettingCreators = class {
    * @param options Additional options for the text input (e.g., trim, undefinedIfEmpty, isTextArea).
    */
   createTextSetting(containerEl, name, desc, placeholder, getValue, setValue, options) {
-    new import_obsidian25.Setting(containerEl).setName(name).setDesc(desc).then((setting) => {
+    new import_obsidian26.Setting(containerEl).setName(name).setDesc(desc).then((setting) => {
       const textInputOptions = {
         trim: options == null ? void 0 : options.trim,
         undefinedIfEmpty: options == null ? void 0 : options.undefinedIfEmpty
@@ -16364,7 +17036,7 @@ var SettingCreators = class {
    * @param setValue A function to set the new value of the setting.
    */
   createDropdownSetting(containerEl, name, desc, options, getValue, setValue) {
-    new import_obsidian25.Setting(containerEl).setName(name).setDesc(desc).addDropdown((drop) => {
+    new import_obsidian26.Setting(containerEl).setName(name).setDesc(desc).addDropdown((drop) => {
       Object.entries(options).forEach(([key, display]) => drop.addOption(key, display));
       drop.setValue(getValue());
       drop.onChange(async (value) => {
@@ -16383,7 +17055,7 @@ var SettingCreators = class {
    * @param onChangeCallback An optional callback to run after the value changes and settings are saved.
    */
   createToggleSetting(containerEl, name, desc, getValue, setValue, onChangeCallback) {
-    new import_obsidian25.Setting(containerEl).setName(name).setDesc(desc).addToggle((toggle) => toggle.setValue(getValue()).onChange(async (value) => {
+    new import_obsidian26.Setting(containerEl).setName(name).setDesc(desc).addToggle((toggle) => toggle.setValue(getValue()).onChange(async (value) => {
       await setValue(value);
       if (onChangeCallback) {
         onChangeCallback();
@@ -16401,7 +17073,7 @@ var SettingCreators = class {
    * @param setValue A function to set the new numeric value.
    */
   createSliderSetting(containerEl, name, desc, limits, getValue, setValue) {
-    new import_obsidian25.Setting(containerEl).setName(name).setDesc(desc).addSlider((slider) => {
+    new import_obsidian26.Setting(containerEl).setName(name).setDesc(desc).addSlider((slider) => {
       slider.setLimits(limits.min, limits.max, limits.step).setValue(getValue()).setDynamicTooltip().onChange(async (value) => {
         await setValue(value);
         this.reRenderCallback();
@@ -16477,8 +17149,8 @@ var GeneralSettingsSection = class {
 };
 
 // src/settings/sections/AIModelConfigurationSection.ts
-var import_obsidian26 = require("obsidian");
-init_providers();
+var import_obsidian27 = require("obsidian");
+init_aiDispatcher();
 var AIModelConfigurationSection = class {
   /**
    * @param plugin The main plugin instance.
@@ -16614,15 +17286,12 @@ var AIModelConfigurationSection = class {
    */
   renderProviderTestSection(containerEl, provider, displayName) {
     const settings = this.plugin.settings[`${provider}Settings`];
-    new import_obsidian26.Setting(containerEl).setName("Test Connection").setDesc(`Verify your API key and fetch available models for ${displayName}`).addButton((button) => button.setButtonText("Test").onClick(async () => {
+    new import_obsidian27.Setting(containerEl).setName("Test Connection").setDesc(`Verify your API key and fetch available models for ${displayName}`).addButton((button) => button.setButtonText("Test").onClick(async () => {
       button.setButtonText("Testing...");
       button.setDisabled(true);
       try {
-        const originalProvider = this.plugin.settings.provider;
-        this.plugin.settings.provider = provider;
-        const providerInstance = createProvider(this.plugin.settings);
-        const result = await providerInstance.testConnection();
-        this.plugin.settings.provider = originalProvider;
+        const aiDispatcher = new AIDispatcher(this.plugin.app.vault, this.plugin);
+        const result = await aiDispatcher.testConnection(provider);
         if (result.success && result.models) {
           settings.availableModels = result.models;
           settings.lastTestResult = {
@@ -16631,19 +17300,19 @@ var AIModelConfigurationSection = class {
             message: result.message
           };
           await this.plugin.saveSettings();
-          this.plugin.settings.availableModels = await getAllAvailableModels(this.plugin.settings);
+          this.plugin.settings.availableModels = await aiDispatcher.getAllUnifiedModels();
           await this.plugin.saveSettings();
-          new import_obsidian26.Notice(result.message);
+          new import_obsidian27.Notice(result.message);
         } else {
           settings.lastTestResult = {
             timestamp: Date.now(),
             success: false,
             message: result.message
           };
-          new import_obsidian26.Notice(result.message);
+          new import_obsidian27.Notice(result.message);
         }
       } catch (error) {
-        new import_obsidian26.Notice(`Error: ${error.message}`);
+        new import_obsidian27.Notice(`Error: ${error.message}`);
       } finally {
         button.setButtonText("Test");
         button.setDisabled(false);
@@ -16683,11 +17352,11 @@ var AIModelConfigurationSection = class {
           if (preset.maxTokens !== void 0) this.plugin.settings.maxTokens = preset.maxTokens;
           if (preset.enableStreaming !== void 0) this.plugin.settings.enableStreaming = preset.enableStreaming;
           await this.plugin.saveSettings();
-          new import_obsidian26.Notice(`Applied preset: ${preset.name}`);
+          new import_obsidian27.Notice(`Applied preset: ${preset.name}`);
         };
       });
     }
-    new import_obsidian26.Setting(containerEl).setName("System Message").setDesc("Set the system message for the AI").addTextArea((text) => {
+    new import_obsidian27.Setting(containerEl).setName("System Message").setDesc("Set the system message for the AI").addTextArea((text) => {
       text.setPlaceholder("You are a helpful assistant.").setValue(this.plugin.settings.systemMessage).onChange((value) => {
         this.plugin.settings.systemMessage = value;
       });
@@ -16696,22 +17365,22 @@ var AIModelConfigurationSection = class {
       });
       return text;
     });
-    new import_obsidian26.Setting(containerEl).setName("Enable Streaming").setDesc("Enable or disable streaming for completions").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableStreaming).onChange(async (value) => {
+    new import_obsidian27.Setting(containerEl).setName("Enable Streaming").setDesc("Enable or disable streaming for completions").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableStreaming).onChange(async (value) => {
       this.plugin.settings.enableStreaming = value;
       await this.plugin.saveSettings();
     }));
-    new import_obsidian26.Setting(containerEl).setName("Temperature").setDesc("Set the randomness of the model's output (0-1)").addSlider((slider) => slider.setLimits(0, 1, 0.1).setValue(this.plugin.settings.temperature).setDynamicTooltip().onChange(async (value) => {
+    new import_obsidian27.Setting(containerEl).setName("Temperature").setDesc("Set the randomness of the model's output (0-1)").addSlider((slider) => slider.setLimits(0, 1, 0.1).setValue(this.plugin.settings.temperature).setDynamicTooltip().onChange(async (value) => {
       this.plugin.settings.temperature = value;
       await this.plugin.saveSettings();
     }));
-    new import_obsidian26.Setting(containerEl).setName("Refresh Available Models").setDesc("Test connections to all configured providers and refresh available models").addButton((button) => button.setButtonText("Refresh Models").onClick(async () => {
+    new import_obsidian27.Setting(containerEl).setName("Refresh Available Models").setDesc("Test connections to all configured providers and refresh available models").addButton((button) => button.setButtonText("Refresh Models").onClick(async () => {
       button.setButtonText("Refreshing...");
       button.setDisabled(true);
       try {
         await this.refreshAllAvailableModels();
-        new import_obsidian26.Notice("Successfully refreshed available models");
+        new import_obsidian27.Notice("Successfully refreshed available models");
       } catch (error) {
-        new import_obsidian26.Notice(`Error refreshing models: ${error.message}`);
+        new import_obsidian27.Notice(`Error refreshing models: ${error.message}`);
       } finally {
         button.setButtonText("Refresh Models");
         button.setDisabled(false);
@@ -16726,10 +17395,11 @@ var AIModelConfigurationSection = class {
    */
   async renderUnifiedModelDropdown(containerEl) {
     if (!this.plugin.settings.availableModels || this.plugin.settings.availableModels.length === 0) {
-      this.plugin.settings.availableModels = await getAllAvailableModels(this.plugin.settings);
+      const aiDispatcher = new AIDispatcher(this.plugin.app.vault, this.plugin);
+      this.plugin.settings.availableModels = await aiDispatcher.getAllUnifiedModels();
       await this.plugin.saveSettings();
     }
-    new import_obsidian26.Setting(containerEl).setName("Selected Model").setDesc("Choose from all available models across all configured providers").addDropdown((dropdown) => {
+    new import_obsidian27.Setting(containerEl).setName("Selected Model").setDesc("Choose from all available models across all configured providers").addDropdown((dropdown) => {
       if (!this.plugin.settings.availableModels || this.plugin.settings.availableModels.length === 0) {
         dropdown.addOption("", "No models available - configure providers above");
       } else {
@@ -16752,7 +17422,7 @@ var AIModelConfigurationSection = class {
       dropdown.setValue(this.plugin.settings.selectedModel || "").onChange(async (value) => {
         this.plugin.settings.selectedModel = value;
         if (value) {
-          const provider = getProviderFromUnifiedModel(value);
+          const [provider] = value.split(":", 2);
           this.plugin.settings.provider = provider;
         }
         await this.plugin.saveSettings();
@@ -16769,44 +17439,18 @@ var AIModelConfigurationSection = class {
     }
   }
   /**
-   * Refreshes available models from all configured providers.
-   * This function iterates through all known providers, tests their connection,
-   * and updates the list of available models in the plugin settings.
+   * Refreshes available models from all configured providers using the dispatcher.
+   * This function uses the dispatcher to refresh models from all providers.
    */
   async refreshAllAvailableModels() {
-    const providers = ["openai", "anthropic", "gemini", "ollama"];
-    let originalProvider;
-    for (const providerType of providers) {
-      try {
-        originalProvider = this.plugin.settings.provider;
-        this.plugin.settings.provider = providerType;
-        const providerInstance = createProvider(this.plugin.settings);
-        const result = await providerInstance.testConnection();
-        const providerSettings = this.plugin.settings[`${providerType}Settings`];
-        if (result.success && result.models) {
-          providerSettings.availableModels = result.models;
-          providerSettings.lastTestResult = {
-            timestamp: Date.now(),
-            success: true,
-            message: result.message
-          };
-        } else {
-          providerSettings.lastTestResult = {
-            timestamp: Date.now(),
-            success: false,
-            message: result.message
-          };
-        }
-      } catch (error) {
-        console.error(`Error testing ${providerType}:`, error);
-      } finally {
-        if (originalProvider !== void 0) {
-          this.plugin.settings.provider = originalProvider;
-        }
-      }
+    const aiDispatcher = new AIDispatcher(this.plugin.app.vault, this.plugin);
+    try {
+      await aiDispatcher.refreshAllProviderModels();
+      this.plugin.settings.availableModels = await aiDispatcher.getAllUnifiedModels();
+      await this.plugin.saveSettings();
+    } catch (error) {
+      console.error("Error refreshing all available models:", error);
     }
-    this.plugin.settings.availableModels = await getAllAvailableModels(this.plugin.settings);
-    await this.plugin.saveSettings();
   }
   /**
    * Renders the Available Models section in the Model Management settings.
@@ -16832,7 +17476,7 @@ var AIModelConfigurationSection = class {
       const row = tbody.createEl("tr");
       row.createEl("td", { text: model.name });
       row.createEl("td", { text: model.provider });
-      const enabledToggle = new import_obsidian26.Setting(row.createEl("td")).setName("").setDesc("Enable or disable this model").addToggle((toggle) => {
+      const enabledToggle = new import_obsidian27.Setting(row.createEl("td")).setName("").setDesc("Enable or disable this model").addToggle((toggle) => {
         var _a2;
         return toggle.setValue(((_a2 = this.plugin.settings.enabledModels) == null ? void 0 : _a2[model.id]) !== false).onChange(async (value) => {
           const enabledModels = this.plugin.settings.enabledModels || {};
@@ -16842,27 +17486,28 @@ var AIModelConfigurationSection = class {
         });
       });
       const actionsCell = row.createEl("td");
-      new import_obsidian26.Setting(actionsCell).setName("").setDesc("Delete local copy of this model").addButton((button) => button.setButtonText("Delete").setWarning().onClick(async () => {
+      new import_obsidian27.Setting(actionsCell).setName("").setDesc("Delete local copy of this model").addButton((button) => button.setButtonText("Delete").setWarning().onClick(async () => {
         const confirmed = confirm(`Are you sure you want to delete the local copy of the model "${model.name}"?`);
         if (confirmed) {
           try {
             await this.plugin.app.vault.adapter.remove(`ai-models/${model.id}.json`);
-            this.plugin.settings.availableModels = await getAllAvailableModels(this.plugin.settings);
+            const aiDispatcher = new AIDispatcher(this.plugin.app.vault, this.plugin);
+            this.plugin.settings.availableModels = await aiDispatcher.getAllUnifiedModels();
             await this.plugin.saveSettings();
-            new import_obsidian26.Notice(`Deleted model "${model.name}"`);
+            new import_obsidian27.Notice(`Deleted model "${model.name}"`);
             containerEl.empty();
             await this.renderAvailableModelsSection(containerEl);
           } catch (error) {
-            new import_obsidian26.Notice(`Error deleting model: ${error.message}`);
+            new import_obsidian27.Notice(`Error deleting model: ${error.message}`);
           }
         }
       })).addButton((button) => button.setButtonText("Re-download").onClick(async () => {
         const confirmed = confirm(`Are you sure you want to re-download the model "${model.name}"?`);
         if (confirmed) {
           try {
-            new import_obsidian26.Notice(`Re-download feature is not yet implemented. Please pull the model again using the provider settings.`);
+            new import_obsidian27.Notice(`Re-download feature is not yet implemented. Please pull the model again using the provider settings.`);
           } catch (error) {
-            new import_obsidian26.Notice(`Error re-downloading model: ${error.message}`);
+            new import_obsidian27.Notice(`Error re-downloading model: ${error.message}`);
           }
         }
       }));
@@ -16881,7 +17526,7 @@ var AIModelConfigurationSection = class {
     });
     const presetList = this.plugin.settings.modelSettingPresets || [];
     presetList.forEach((preset, idx) => {
-      new import_obsidian26.Setting(containerEl).setName("Preset Name").setDesc("Edit the name of this preset").addText((text) => {
+      new import_obsidian27.Setting(containerEl).setName("Preset Name").setDesc("Edit the name of this preset").addText((text) => {
         text.setPlaceholder("Preset Name").setValue(preset.name).onChange((value) => {
           preset.name = value != null ? value : "";
         });
@@ -16889,7 +17534,7 @@ var AIModelConfigurationSection = class {
           await this.plugin.saveSettings();
         });
       });
-      new import_obsidian26.Setting(containerEl).setName("Model ID (provider:model)").setDesc("Edit the model for this preset").addText((text) => {
+      new import_obsidian27.Setting(containerEl).setName("Model ID (provider:model)").setDesc("Edit the model for this preset").addText((text) => {
         text.setPlaceholder("Model ID (provider:model)").setValue(preset.selectedModel || "").onChange((value) => {
           preset.selectedModel = value != null ? value : "";
         });
@@ -16897,7 +17542,7 @@ var AIModelConfigurationSection = class {
           await this.plugin.saveSettings();
         });
       });
-      new import_obsidian26.Setting(containerEl).setName("System Message").setDesc("Edit the system message for this preset").addTextArea((text) => {
+      new import_obsidian27.Setting(containerEl).setName("System Message").setDesc("Edit the system message for this preset").addTextArea((text) => {
         text.setPlaceholder("System message").setValue(preset.systemMessage || "").onChange((value) => {
           preset.systemMessage = value != null ? value : "";
         });
@@ -16912,7 +17557,7 @@ var AIModelConfigurationSection = class {
         preset.temperature = value;
         await this.plugin.saveSettings();
       });
-      new import_obsidian26.Setting(containerEl).setName("Max Tokens").setDesc("Edit the max tokens for this preset").addText((text) => {
+      new import_obsidian27.Setting(containerEl).setName("Max Tokens").setDesc("Edit the max tokens for this preset").addText((text) => {
         var _a2;
         text.setPlaceholder("Max tokens").setValue(((_a2 = preset.maxTokens) == null ? void 0 : _a2.toString()) || "").onChange((value) => {
           const num = parseInt(value != null ? value : "", 10);
@@ -16929,7 +17574,7 @@ var AIModelConfigurationSection = class {
         preset.enableStreaming = value;
         await this.plugin.saveSettings();
       });
-      new import_obsidian26.Setting(containerEl).addExtraButton(
+      new import_obsidian27.Setting(containerEl).addExtraButton(
         (btn) => btn.setIcon("cross").setTooltip("Delete").onClick(async () => {
           var _a2;
           (_a2 = this.plugin.settings.modelSettingPresets) == null ? void 0 : _a2.splice(idx, 1);
@@ -16937,7 +17582,7 @@ var AIModelConfigurationSection = class {
         })
       );
     });
-    new import_obsidian26.Setting(containerEl).addButton(
+    new import_obsidian27.Setting(containerEl).addButton(
       (btn) => btn.setButtonText("Add Preset").setCta().onClick(async () => {
         if (!this.plugin.settings.modelSettingPresets) this.plugin.settings.modelSettingPresets = [];
         this.plugin.settings.modelSettingPresets.push(JSON.parse(JSON.stringify({
@@ -17162,7 +17807,7 @@ var AgentSettingsSection = class {
 };
 
 // src/settings/sections/ContentNoteHandlingSection.ts
-var import_obsidian27 = require("obsidian");
+var import_obsidian28 = require("obsidian");
 var ContentNoteHandlingSection = class {
   /**
    * @param plugin The main plugin instance.
@@ -17286,7 +17931,7 @@ var ContentNoteHandlingSection = class {
     );
     const contextNotesContainer = containerEl.createDiv("context-notes-container");
     contextNotesContainer.style.marginBottom = "24px";
-    new import_obsidian27.Setting(contextNotesContainer).setName("Context Notes").setDesc("Notes to attach as context (supports [[filename]] and [[another note#header]] syntax)").addTextArea((text) => {
+    new import_obsidian28.Setting(contextNotesContainer).setName("Context Notes").setDesc("Notes to attach as context (supports [[filename]] and [[another note#header]] syntax)").addTextArea((text) => {
       text.setPlaceholder("[[Note Name]]\n[[Another Note#Header]]").setValue(this.plugin.settings.contextNotes || "").onChange((value) => {
         this.plugin.settings.contextNotes = value;
       });
@@ -17366,7 +18011,7 @@ var ContentNoteHandlingSection = class {
       genContainer.style.padding = "1em";
       genContainer.style.marginBottom = "1em";
       genContainer.createEl("h4", { text: autoCommandName });
-      new import_obsidian27.Setting(genContainer).setName("YAML Attribute Name").setDesc("The YAML field name to insert/update").addText((text) => {
+      new import_obsidian28.Setting(genContainer).setName("YAML Attribute Name").setDesc("The YAML field name to insert/update").addText((text) => {
         text.setPlaceholder("YAML Attribute Name").setValue(gen.attributeName).onChange((value) => {
           if (this.plugin.settings.yamlAttributeGenerators) {
             this.plugin.settings.yamlAttributeGenerators[idx].attributeName = value != null ? value : "";
@@ -17377,7 +18022,7 @@ var ContentNoteHandlingSection = class {
           await this.plugin.saveSettings();
         });
       });
-      new import_obsidian27.Setting(genContainer).setName("Prompt for LLM").setDesc("The prompt to send to the AI for generating the YAML value").addTextArea((text) => {
+      new import_obsidian28.Setting(genContainer).setName("Prompt for LLM").setDesc("The prompt to send to the AI for generating the YAML value").addTextArea((text) => {
         text.setPlaceholder("Prompt for LLM").setValue(gen.prompt).onChange((value) => {
           if (this.plugin.settings.yamlAttributeGenerators) {
             this.plugin.settings.yamlAttributeGenerators[idx].prompt = value != null ? value : "";
@@ -17389,7 +18034,7 @@ var ContentNoteHandlingSection = class {
         text.inputEl.rows = 3;
         text.inputEl.style.width = "100%";
       });
-      new import_obsidian27.Setting(genContainer).setName("Output Mode").setDesc("Where to put the generated YAML attribute").addDropdown((drop) => {
+      new import_obsidian28.Setting(genContainer).setName("Output Mode").setDesc("Where to put the generated YAML attribute").addDropdown((drop) => {
         drop.addOption("clipboard", "Copy to clipboard");
         drop.addOption("metadata", "Insert into metadata");
         drop.setValue(gen.outputMode);
@@ -17400,7 +18045,7 @@ var ContentNoteHandlingSection = class {
           }
         });
       });
-      new import_obsidian27.Setting(genContainer).addExtraButton((btn) => {
+      new import_obsidian28.Setting(genContainer).addExtraButton((btn) => {
         btn.setIcon("cross").setTooltip("Delete this YAML generator").onClick(async () => {
           if (this.plugin.settings.yamlAttributeGenerators) {
             this.plugin.settings.yamlAttributeGenerators.splice(idx, 1);
@@ -17409,7 +18054,7 @@ var ContentNoteHandlingSection = class {
         });
       });
     });
-    new import_obsidian27.Setting(containerEl).addButton((btn) => {
+    new import_obsidian28.Setting(containerEl).addButton((btn) => {
       btn.setButtonText("Add YAML Attribute Generator").setCta().onClick(async () => {
         if (!this.plugin.settings.yamlAttributeGenerators) this.plugin.settings.yamlAttributeGenerators = [];
         this.plugin.settings.yamlAttributeGenerators.push(JSON.parse(JSON.stringify({
@@ -17425,7 +18070,7 @@ var ContentNoteHandlingSection = class {
 };
 
 // src/settings/sections/BackupManagementSection.ts
-var import_obsidian28 = require("obsidian");
+var import_obsidian29 = require("obsidian");
 
 // src/settings/components/DialogHelpers.ts
 var DialogHelpers = class {
@@ -17534,10 +18179,10 @@ var BackupManagementSection = class {
         if (confirmed) {
           try {
             await backupManager.deleteAllBackups();
-            new import_obsidian28.Notice("Deleted all backups successfully");
+            new import_obsidian29.Notice("Deleted all backups successfully");
             this.renderBackupManagement(containerEl.parentElement);
           } catch (error) {
-            new import_obsidian28.Notice(`Error deleting all backups: ${error.message}`);
+            new import_obsidian29.Notice(`Error deleting all backups: ${error.message}`);
           }
         }
       };
@@ -17596,12 +18241,12 @@ var BackupManagementSection = class {
             try {
               const result = await backupManager.restoreBackup(backup);
               if (result.success) {
-                new import_obsidian28.Notice(`Successfully restored backup for ${filePath}`);
+                new import_obsidian29.Notice(`Successfully restored backup for ${filePath}`);
               } else {
-                new import_obsidian28.Notice(`Failed to restore backup: ${result.error}`);
+                new import_obsidian29.Notice(`Failed to restore backup: ${result.error}`);
               }
             } catch (error) {
-              new import_obsidian28.Notice(`Error restoring backup: ${error.message}`);
+              new import_obsidian29.Notice(`Error restoring backup: ${error.message}`);
             }
           }
         };
@@ -17617,11 +18262,11 @@ var BackupManagementSection = class {
           if (confirmed) {
             try {
               await backupManager.deleteSpecificBackup(filePath, backup.timestamp);
-              new import_obsidian28.Notice(`Deleted backup for ${filePath}`);
+              new import_obsidian29.Notice(`Deleted backup for ${filePath}`);
               containerEl.empty();
               await this.renderBackupFilesList(containerEl, backupFiles, backupManager);
             } catch (error) {
-              new import_obsidian28.Notice(`Error deleting backup: ${error.message}`);
+              new import_obsidian29.Notice(`Error deleting backup: ${error.message}`);
             }
           }
         };
@@ -17633,7 +18278,7 @@ var BackupManagementSection = class {
           previewBtn.onclick = () => {
             const preview = backup.content.substring(0, 200);
             const truncated = backup.content.length > 200 ? "..." : "";
-            new import_obsidian28.Notice(`Preview: ${preview}${truncated}`, 1e4);
+            new import_obsidian29.Notice(`Preview: ${preview}${truncated}`, 1e4);
           };
         } else if (backup.isBinary) {
           const infoBtn = backupActions.createEl("button", {
@@ -17642,7 +18287,7 @@ var BackupManagementSection = class {
           });
           infoBtn.onclick = () => {
             const sizeKB2 = backup.fileSize ? Math.round(backup.fileSize / 1024) : 0;
-            new import_obsidian28.Notice(`Binary file backup: ${sizeKB2} KB
+            new import_obsidian29.Notice(`Binary file backup: ${sizeKB2} KB
 Stored at: ${backup.backupFilePath || "Unknown location"}`, 5e3);
           };
         }
@@ -17659,11 +18304,11 @@ Stored at: ${backup.backupFilePath || "Unknown location"}`, 5e3);
         if (confirmed) {
           try {
             await backupManager.deleteBackupsForFile(filePath);
-            new import_obsidian28.Notice(`Deleted all backups for ${filePath}`);
+            new import_obsidian29.Notice(`Deleted all backups for ${filePath}`);
             containerEl.empty();
             await this.renderBackupFilesList(containerEl, backupFiles, backupManager);
           } catch (error) {
-            new import_obsidian28.Notice(`Error deleting backups: ${error.message}`);
+            new import_obsidian29.Notice(`Error deleting backups: ${error.message}`);
           }
         }
       };
@@ -17712,10 +18357,10 @@ Stored at: ${backup.backupFilePath || "Unknown location"}`, 5e3);
         });
         return;
       }
-    } else if (trashFolder instanceof import_obsidian28.TFolder) {
+    } else if (trashFolder instanceof import_obsidian29.TFolder) {
       trashItems = trashFolder.children.map((item) => ({
         name: item.name,
-        isFolder: item instanceof import_obsidian28.TFolder,
+        isFolder: item instanceof import_obsidian29.TFolder,
         size: isTFile(item) && item.stat ? item.stat.size : void 0
       }));
     } else {
@@ -17763,10 +18408,10 @@ Stored at: ${backup.backupFilePath || "Unknown location"}`, 5e3);
                 await adapter.remove(fullPath);
               }
             }
-            new import_obsidian28.Notice(`Emptied trash - permanently deleted ${trashItems.length} items`);
+            new import_obsidian29.Notice(`Emptied trash - permanently deleted ${trashItems.length} items`);
             this.renderTrashManagement(containerEl.parentElement);
           } catch (error) {
-            new import_obsidian28.Notice(`Error emptying trash: ${error.message}`);
+            new import_obsidian29.Notice(`Error emptying trash: ${error.message}`);
           }
         }
       };
@@ -17803,17 +18448,17 @@ Stored at: ${backup.backupFilePath || "Unknown location"}`, 5e3);
           if (confirmed) {
             try {
               const trashFolderObj = this.plugin.app.vault.getAbstractFileByPath(trashPath);
-              if (trashFolderObj instanceof import_obsidian28.TFolder) {
+              if (trashFolderObj instanceof import_obsidian29.TFolder) {
                 const fileObj = trashFolderObj.children.find((child) => child.name === item.name);
                 if (fileObj) {
                   const newPath = item.name;
                   await this.plugin.app.fileManager.renameFile(fileObj, newPath);
-                  new import_obsidian28.Notice(`Restored "${item.name}" to vault root`);
+                  new import_obsidian29.Notice(`Restored "${item.name}" to vault root`);
                   this.renderTrashManagement(containerEl.parentElement);
                 }
               }
             } catch (error) {
-              new import_obsidian28.Notice(`Error restoring item: ${error.message}`);
+              new import_obsidian29.Notice(`Error restoring item: ${error.message}`);
             }
           }
         };
@@ -17836,10 +18481,10 @@ Stored at: ${backup.backupFilePath || "Unknown location"}`, 5e3);
             } else {
               await adapter.remove(fullPath);
             }
-            new import_obsidian28.Notice(`Permanently deleted "${item.name}"`);
+            new import_obsidian29.Notice(`Permanently deleted "${item.name}"`);
             this.renderTrashManagement(containerEl.parentElement);
           } catch (error) {
-            new import_obsidian28.Notice(`Error deleting item: ${error.message}`);
+            new import_obsidian29.Notice(`Error deleting item: ${error.message}`);
           }
         }
       };
@@ -17947,7 +18592,7 @@ var ChatHistorySettingsSection = class {
 
 // src/settings/SettingTab.ts
 init_promptConstants();
-var MyPluginSettingTab = class extends import_obsidian29.PluginSettingTab {
+var MyPluginSettingTab = class extends import_obsidian30.PluginSettingTab {
   /**
    * Constructs the settings tab and initializes all settings sections.
    *
@@ -18057,7 +18702,7 @@ var MyPluginSettingTab = class extends import_obsidian29.PluginSettingTab {
       this.plugin,
       "backupManagementExpanded"
     );
-    new import_obsidian29.Setting(containerEl).setName("Reset All Settings to Default").setDesc("Reset all plugin settings (except API keys) to their original default values.").addButton((button) => button.setButtonText("Reset").onClick(async () => {
+    new import_obsidian30.Setting(containerEl).setName("Reset All Settings to Default").setDesc("Reset all plugin settings (except API keys) to their original default values.").addButton((button) => button.setButtonText("Reset").onClick(async () => {
       const { DEFAULT_SETTINGS: DEFAULT_SETTINGS2 } = await Promise.resolve().then(() => (init_types(), types_exports));
       const preservedApiKeys = {
         openai: this.plugin.settings.openaiSettings.apiKey,
@@ -18074,15 +18719,15 @@ var MyPluginSettingTab = class extends import_obsidian29.PluginSettingTab {
       setTimeout(() => {
         activateView(this.plugin.app, VIEW_TYPE_MODEL_SETTINGS);
       }, 100);
-      new import_obsidian29.Notice("All settings (except API keys) reset to default.");
+      new import_obsidian30.Notice("All settings (except API keys) reset to default.");
     }));
   }
 };
 
 // src/components/ModelSettingsView.ts
-var import_obsidian30 = require("obsidian");
+var import_obsidian31 = require("obsidian");
 var VIEW_TYPE_MODEL_SETTINGS2 = "model-settings-view";
-var ModelSettingsView = class extends import_obsidian30.ItemView {
+var ModelSettingsView = class extends import_obsidian31.ItemView {
   constructor(leaf, plugin) {
     super(leaf);
     __publicField(this, "plugin");
@@ -18182,9 +18827,6 @@ init_ToolRichDisplay();
 // src/components/commands/aiStreamCommands.ts
 init_pluginUtils();
 
-// src/utils/aiCompletionHandler.ts
-init_providers();
-
 // src/utils/parseSelection.ts
 function parseSelection(selection, chatSeparator, chatBoundaryString) {
   let insideChat = !chatBoundaryString;
@@ -18220,7 +18862,8 @@ function parseSelection(selection, chatSeparator, chatBoundaryString) {
 
 // src/utils/aiCompletionHandler.ts
 init_logger();
-async function handleAICompletion(editor, settings, processMessages2, getSystemMessage2, activeStream, setActiveStream) {
+init_aiDispatcher();
+async function handleAICompletion(editor, settings, processMessages2, getSystemMessage2, vault, plugin, activeStream, setActiveStream) {
   var _a2, _b, _c;
   let text;
   let insertPosition;
@@ -18250,10 +18893,8 @@ async function handleAICompletion(editor, settings, processMessages2, getSystemM
   }
   const sepLine = insertSeparator(editor, insertPosition, settings.chatSeparator);
   let currentPosition = { line: sepLine, ch: 0 };
-  activeStream.current = new AbortController();
-  setActiveStream(activeStream.current);
   try {
-    const provider = settings.selectedModel ? createProviderFromUnifiedModel(settings, settings.selectedModel) : createProvider(settings);
+    const dispatcher = new AIDispatcher(vault, plugin);
     const processedMessages = await processMessages2([
       { role: "system", content: getSystemMessage2() },
       ...messages
@@ -18268,7 +18909,7 @@ async function handleAICompletion(editor, settings, processMessages2, getSystemM
         bufferedChunk = "";
       }
     };
-    await provider.getCompletion(
+    await dispatcher.getCompletion(
       processedMessages,
       {
         temperature: settings.temperature,
@@ -18276,8 +18917,8 @@ async function handleAICompletion(editor, settings, processMessages2, getSystemM
         streamCallback: (chunk) => {
           bufferedChunk += chunk;
           setTimeout(flushBuffer, 100);
-        },
-        abortController: activeStream.current
+        }
+        // Note: abortController is now managed internally by the dispatcher
       }
     );
     flushBuffer();
@@ -18301,9 +18942,6 @@ ${errPrefix}
 ${settings.chatSeparator}
 
 `, currentPosition);
-  } finally {
-    activeStream.current = null;
-    setActiveStream(null);
   }
 }
 
@@ -18314,15 +18952,20 @@ function registerAIStreamCommands(plugin, settings, processMessages2, activeStre
     {
       id: "ai-completion",
       name: "Get AI Completion",
-      editorCallback: (editor) => handleAICompletion(
-        editor,
-        settings,
-        processMessages2,
-        () => getSystemMessage(settings),
-        // Function to get the current system message
-        activeStream,
-        setActiveStream
-      )
+      editorCallback: (editor) => {
+        var _a2;
+        return handleAICompletion(
+          editor,
+          settings,
+          processMessages2,
+          () => getSystemMessage(settings),
+          // Function to get the current system message
+          plugin.app.vault,
+          { settings, saveSettings: (_a2 = plugin.saveSettings) == null ? void 0 : _a2.bind(plugin) },
+          activeStream,
+          setActiveStream
+        );
+      }
     }
   );
   registerCommand(
@@ -18544,7 +19187,7 @@ function registerAllCommands(plugin, settings, processMessages2, activateChatVie
 
 // src/main.ts
 init_YAMLHandler();
-var _MyPlugin = class _MyPlugin extends import_obsidian32.Plugin {
+var _MyPlugin = class _MyPlugin extends import_obsidian33.Plugin {
   constructor() {
     super(...arguments);
     /**

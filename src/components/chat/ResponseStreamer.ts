@@ -1,6 +1,6 @@
 import { Notice, MarkdownRenderer, Component } from 'obsidian';
 import { Message, ToolCommand, ToolResult } from '../../types';
-import { createProvider, createProviderFromUnifiedModel } from '../../../providers';
+import { AIDispatcher } from '../../utils/aiDispatcher';
 import MyPlugin from '../../main';
 import { AgentResponseHandler } from './agent/AgentResponseHandler';
 import { MessageRenderer } from './MessageRenderer';
@@ -70,11 +70,9 @@ export class ResponseStreamer {
         await this.addAgentSystemPrompt(messages);
 
         try {
-            // Create the AI provider instance
-            const provider = this.createProvider();
-
-            // Get completion from the provider, streaming the response
-            await provider.getCompletion(messages, {
+            // Use AIDispatcher for all completions
+            const aiDispatcher = new AIDispatcher(this.plugin.app.vault, this.plugin);
+            await aiDispatcher.getCompletion(messages, {
                 temperature: this.plugin.settings.temperature,
                 maxTokens: this.plugin.settings.maxTokens,
                 streamCallback: async (chunk: string) => {
@@ -82,7 +80,7 @@ export class ResponseStreamer {
                     // Update the UI with the streamed chunk
                     await this.updateMessageContent(container, responseContent);
                 },
-                abortController: this.activeStream || undefined // Pass the abort controller
+                abortController: this.activeStream || undefined
             });
 
             // If agent mode is enabled, process the full response for tools/reasoning
@@ -102,15 +100,6 @@ export class ResponseStreamer {
             // Hide task progress indicator when streaming finishes (either success or error)
             this.agentResponseHandler?.hideTaskProgress();
         }
-    }
-
-    /**
-     * Creates AI provider instance based on current settings.
-     */
-    private createProvider() {
-        return this.plugin.settings.selectedModel 
-            ? createProviderFromUnifiedModel(this.plugin.settings, this.plugin.settings.selectedModel)
-            : createProvider(this.plugin.settings);
     }
 
     /**
@@ -568,12 +557,10 @@ export class ResponseStreamer {
             if (this.agentResponseHandler?.isToolLimitReached()) {
                 return '*[Tool execution limit reached - no continuation response]*';
             }
-
-            // Create provider and get completion
-            const provider = this.createProvider();
+            // Use AIDispatcher for continuation completions
+            const aiDispatcher = new AIDispatcher(this.plugin.app.vault, this.plugin);
             let continuationContent = '';
-
-            await provider.getCompletion(messages, {
+            await aiDispatcher.getCompletion(messages, {
                 temperature: this.plugin.settings.temperature,
                 maxTokens: this.plugin.settings.maxTokens,
                 streamCallback: async (chunk: string) => {
@@ -583,7 +570,6 @@ export class ResponseStreamer {
                 },
                 abortController: this.activeStream || undefined
             });
-
             return continuationContent;
         } catch (error) {
             console.error('ResponseStreamer: Error getting continuation response:', error);

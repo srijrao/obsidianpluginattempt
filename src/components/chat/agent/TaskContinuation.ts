@@ -265,18 +265,15 @@ export class TaskContinuation {
                 return '*[Tool execution limit reached - no continuation response]*';
             }
 
-            // Dynamically import provider creation functions
-            const { createProvider, createProviderFromUnifiedModel } = await import('../../../../providers');
+            // Use dispatcher for all AI completions
+            const { AIDispatcher } = await import('../../../utils/aiDispatcher');
+            const aiDispatcher = new AIDispatcher(this.plugin.app.vault, this.plugin);
 
             // Select the provider based on settings
-            const provider = this.plugin.settings.selectedModel 
-                ? createProviderFromUnifiedModel(this.plugin.settings, this.plugin.settings.selectedModel)
-                : createProvider(this.plugin.settings);
-
             let continuationContent = '';
 
             // Stream the completion result
-            await provider.getCompletion(
+            await aiDispatcher.getCompletion(
                 messages,
                 {
                     temperature: this.plugin.settings.temperature,

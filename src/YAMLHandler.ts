@@ -1,5 +1,5 @@
 import { Notice, TFile, App, Plugin } from "obsidian";
-import { createProvider, createProviderFromUnifiedModel } from "../providers";
+import { AIDispatcher } from "./utils/aiDispatcher";
 import { Message, MyPluginSettings } from "./types";
 import { DEFAULT_TITLE_PROMPT, DEFAULT_SUMMARY_PROMPT, DEFAULT_YAML_SYSTEM_MESSAGE } from "./promptConstants";
 import { registerCommand } from "./utils/pluginUtils";
@@ -48,7 +48,8 @@ const DEBUG = true;
 export async function generateNoteTitle(
     app: App,
     settings: MyPluginSettings,
-    processMessages: (messages: Message[]) => Promise<Message[]>
+    processMessages: (messages: Message[]) => Promise<Message[]>,
+    dispatcher?: AIDispatcher
 ) {
     debugLog(DEBUG, 'debug', "Starting generateNoteTitle");
     const activeFile = app.workspace.getActiveFile();
@@ -69,10 +70,8 @@ export async function generateNoteTitle(
     const userContent = (toc && toc.trim().length > 0 ? "Table of Contents:\n" + toc + "\n\n" : "") + noteContent;    try {
         debugLog(DEBUG, 'debug', "Provider:", settings.provider);
         
-        // Create the AI provider instance based on settings
-        const provider = settings.selectedModel 
-            ? createProviderFromUnifiedModel(settings, settings.selectedModel)
-            : createProvider(settings);
+        // Use dispatcher for all completions
+        const aiDispatcher = dispatcher ?? new AIDispatcher(app.vault, { settings, saveSettings: async () => {} });
         
         // Construct the initial messages array for the AI model
         const messages: Message[] = [
@@ -99,16 +98,16 @@ export async function generateNoteTitle(
                 return;
             }
 
-            debugLog(DEBUG, 'debug', "Calling provider.getCompletion");
+            debugLog(DEBUG, 'debug', "Calling dispatcher.getCompletion");
             let resultBuffer = "";
-            // Call the AI provider to get completion, streaming the response
-            await provider.getCompletion(processedMessages, {
+            // Use dispatcher to get completion, streaming the response
+            await aiDispatcher.getCompletion(processedMessages, {
                 temperature: 0,
                 streamCallback: (chunk: string) => {
                     resultBuffer += chunk; // Accumulate streamed chunks
                 }
             });
-            debugLog(DEBUG, 'debug', "Result from provider (buffered):", resultBuffer);
+            debugLog(DEBUG, 'debug', "Result from dispatcher (buffered):", resultBuffer);
 
             // Extract and trim the generated title
             let title = resultBuffer.trim();
@@ -186,7 +185,8 @@ export async function generateYamlAttribute(
     processMessages: (messages: Message[]) => Promise<Message[]>,
     attributeName: string,
     prompt: string,
-    outputMode: string = "metadata"
+    outputMode: string = "metadata",
+    dispatcher?: AIDispatcher
 ) {
     debugLog(DEBUG, 'debug', `Starting generateYamlAttribute for ${attributeName}`);
     const activeFile = app.workspace.getActiveFile();
@@ -222,21 +222,19 @@ export async function generateYamlAttribute(
             new Notice("No valid messages to send to the model. Please check your note content.");
             return;
         }        
-        debugLog(DEBUG, 'debug', "Calling provider.getCompletion");
+        debugLog(DEBUG, 'debug', "Calling dispatcher.getCompletion");
         
-        // Create the AI provider instance
-        const provider = settings.selectedModel 
-            ? createProviderFromUnifiedModel(settings, settings.selectedModel)
-            : createProvider(settings);
+        // Use dispatcher for all completions
+        const aiDispatcher = dispatcher ?? new AIDispatcher(app.vault, { settings, saveSettings: async () => {} });
         let resultBuffer = "";
-        // Call the AI provider to get completion, streaming the response
-        await provider.getCompletion(processedMessages, {
+        // Use dispatcher to get completion, streaming the response
+        await aiDispatcher.getCompletion(processedMessages, {
             temperature: 0, // Always use temperature 0 for predictable YAML output
             streamCallback: (chunk: string) => {
                 resultBuffer += chunk; // Accumulate streamed chunks
             }
         });
-        debugLog(DEBUG, 'debug', "Result from provider (buffered):", resultBuffer);
+        debugLog(DEBUG, 'debug', "Result from dispatcher (buffered):", resultBuffer);
 
         // Extract and trim the generated value
         let value = resultBuffer.trim();

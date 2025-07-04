@@ -1,6 +1,6 @@
 import { Component, Notice, App } from 'obsidian';
 import { Message } from '../../types';
-import { createProvider, createProviderFromUnifiedModel } from '../../../providers';
+import { AIDispatcher } from '../../utils/aiDispatcher';
 import MyPlugin from '../../main';
 import { BotMessage } from './BotMessage';
 import { UserMessage } from './UserMessage';
@@ -65,10 +65,8 @@ export class Commands extends Component implements IChatCommands {
         // Prepare for streaming AI response
         this.activeStream = new AbortController();
         try {
-            // Select provider based on settings
-            const provider = this.plugin.settings.selectedModel 
-                ? createProviderFromUnifiedModel(this.plugin.settings, this.plugin.settings.selectedModel)
-                : createProvider(this.plugin.settings);
+            // Use dispatcher for AI completion
+            const aiDispatcher = new AIDispatcher(this.app.vault, this.plugin);
 
             // Build system message (with context notes if enabled)
             let systemMessage = getSystemMessage(this.plugin.settings);
@@ -101,7 +99,7 @@ export class Commands extends Component implements IChatCommands {
             this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
 
             // Stream the AI response and update the bot message
-            await provider.getCompletion(
+            await aiDispatcher.getCompletion(
                 messages,
                 {
                     temperature: this.plugin.settings.temperature,
@@ -247,10 +245,10 @@ export class Commands extends Component implements IChatCommands {
         // Stream the regenerated response
         this.activeStream = new AbortController();
         try {
-            const provider = this.plugin.settings.selectedModel 
-                ? createProviderFromUnifiedModel(this.plugin.settings, this.plugin.settings.selectedModel)
-                : createProvider(this.plugin.settings);
-            await provider.getCompletion(
+            // Use dispatcher for AI completion
+            const aiDispatcher = new AIDispatcher(this.app.vault, this.plugin);
+            
+            await aiDispatcher.getCompletion(
                 messages,
                 {
                     temperature: this.plugin.settings.temperature,
