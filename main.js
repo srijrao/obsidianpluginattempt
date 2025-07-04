@@ -11695,14 +11695,7 @@ var init_aiDispatcher = __esm({
           maxTokens: options.maxTokens,
           provider: providerOverride || this.plugin.settings.selectedModel || this.plugin.settings.provider
         });
-<<<<<<< HEAD
         return btoa(key).substring(0, 32);
-=======
-        function btoaUtf8(str2) {
-          return btoa(unescape(encodeURIComponent(str2)));
-        }
-        return btoaUtf8(key).substring(0, 32);
->>>>>>> 29f12c1 (Refactor AI handling: Introduce AIDispatcher for centralized request management)
       }
       /**
        * Gets response from cache if available and not expired.
