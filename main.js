@@ -41,10 +41,17 @@ var FileSearchTool;
 var init_FileSearchTool = __esm({
   "src/components/chat/agent/tools/FileSearchTool.ts"() {
     FileSearchTool = class {
+      /**
+       * The constructor takes the Obsidian app instance so we can access the vault.
+       * @param app The main Obsidian app object
+       */
       constructor(app) {
         this.app = app;
+        // Name of the tool (used for referencing in the plugin system)
         __publicField(this, "name", "file_search");
+        // Description of what this tool does
         __publicField(this, "description", "Searches for files within the vault based on a query and specified file types, returning a limited number of results. This tool is useful for quickly locating relevant documents and assets.");
+        // Parameters that can be passed to this tool
         __publicField(this, "parameters", {
           query: {
             type: "string",
@@ -66,18 +73,22 @@ var init_FileSearchTool = __esm({
             type: "boolean",
             description: "Whether to search within file contents. Defaults to false.",
             required: false
+          },
+          useRegex: {
+            type: "boolean",
+            description: "If true, treat the query as a regular expression.",
+            required: false
           }
         });
       }
       /**
-       * Executes the file search operation.
-       * Filters files by type, applies the search query, and returns results.
-       * @param params FileSearchParams
-       * @param context Execution context (unused)
-       * @returns ToolResult with matching files or error
+       * Main function to execute the file search.
+       * @param params The search parameters (query, filterType, etc)
+       * @param context (Unused, but required by Tool interface)
+       * @returns ToolResult with matching files or an error message
        */
       async execute(params, context) {
-        const { query = "", filterType = "markdown", maxResults = 10, searchContent = false } = params;
+        const { query = "", filterType = "markdown", maxResults = 10, searchContent = false, useRegex = false } = params;
         try {
           const allFiles = filterType === "markdown" ? this.app.vault.getMarkdownFiles() : filterType === "image" ? this.app.vault.getFiles().filter((f) => {
             var _a2;
@@ -85,17 +96,38 @@ var init_FileSearchTool = __esm({
           }) : this.app.vault.getFiles();
           let matchingFiles = [];
           if (query.trim()) {
+            let regex = null;
+            if (useRegex) {
+              try {
+                regex = new RegExp(query, "i");
+              } catch (e) {
+                return {
+                  success: false,
+                  error: `Invalid regular expression: ${e.message}`
+                };
+              }
+            }
             const normalizedQuery = query.toLowerCase();
-            const queryWords = normalizedQuery.split(/\s+/).filter((word) => word.length > 0);
+            const queryWords = useRegex ? [] : normalizedQuery.split(/\s+/).filter((word) => word.length > 0);
             for (const file of allFiles) {
-              let contentMatch = true;
+              let contentMatch = false;
               if (searchContent && file.extension === "md") {
                 const fileContent = await this.app.vault.read(file);
-                contentMatch = queryWords.every((word) => fileContent.toLowerCase().includes(word));
+                if (useRegex && regex) {
+                  contentMatch = regex.test(fileContent);
+                } else {
+                  contentMatch = queryWords.every((word) => fileContent.toLowerCase().includes(word));
+                }
               }
               const searchText = `${file.path} ${file.basename}`.toLowerCase();
               const searchTextNormalized = searchText.replace(/_/g, " ");
-              if (queryWords.every((word) => searchText.includes(word) || searchTextNormalized.includes(word)) || contentMatch) {
+              let pathAndNameMatch = false;
+              if (useRegex && regex) {
+                pathAndNameMatch = regex.test(file.path) || regex.test(file.basename);
+              } else {
+                pathAndNameMatch = queryWords.every((word) => searchText.includes(word) || searchTextNormalized.includes(word));
+              }
+              if (pathAndNameMatch || contentMatch) {
                 matchingFiles.push(file);
                 if (matchingFiles.length >= maxResults) break;
               }
@@ -117,12 +149,19 @@ var init_FileSearchTool = __esm({
             var _a2, _b, _c;
             return {
               path: file.path,
+              // Full path in the vault
               name: file.name,
+              // File name with extension
               basename: file.basename,
+              // File name without extension
               extension: file.extension,
+              // File extension (e.g. 'md')
               size: ((_a2 = file.stat) == null ? void 0 : _a2.size) || 0,
+              // File size in bytes
               created: ((_b = file.stat) == null ? void 0 : _b.ctime) || 0,
+              // Creation time (timestamp)
               modified: ((_c = file.stat) == null ? void 0 : _c.mtime) || 0
+              // Last modified time (timestamp)
             };
           });
           return {
@@ -141,9 +180,9 @@ var init_FileSearchTool = __esm({
         }
       }
       /**
-       * Returns a filter function for files based on filterType.
-       * Not used in main logic, but available for extension.
-       * @param filterType The type of files to filter
+       * (Advanced) Returns a filter function for files based on filterType.
+       * Not used in the main logic, but can be used for custom filtering.
+       * @param filterType The type of files to filter ('markdown', 'image', 'all')
        * @returns A function that returns true if the file matches the filter
        */
       getFileFilter(filterType) {
@@ -11709,7 +11748,8 @@ var init_aiDispatcher = __esm({
         }
       }
       /**
-       * Generates cache key for request.
+       * Generates a cache key for the request.
+       * Uses base64 encoding that supports Unicode (so it won't throw on non-Latin1 chars).
        */
       generateCacheKey(messages, options, providerOverride) {
         const key = JSON.stringify({
@@ -11718,7 +11758,12 @@ var init_aiDispatcher = __esm({
           maxTokens: options.maxTokens,
           provider: providerOverride || this.plugin.settings.selectedModel || this.plugin.settings.provider
         });
-        return btoa(key).substring(0, 32);
+        function btoaUnicode(str2) {
+          return btoa(encodeURIComponent(str2).replace(/%([0-9A-F]{2})/g, function(match, p1) {
+            return String.fromCharCode(parseInt(p1, 16));
+          }));
+        }
+        return btoaUnicode(key).substring(0, 32);
       }
       /**
        * Gets response from cache if available and not expired.

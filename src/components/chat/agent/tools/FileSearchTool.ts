@@ -1,23 +1,39 @@
+// Import necessary types from Obsidian API
 import { App, TFile } from 'obsidian';
+// Import base Tool and ToolResult types for plugin tool integration
 import { Tool, ToolResult } from '../ToolRegistry';
 
 /**
- * Parameters for searching files in the vault.
+ * Interface for the parameters you can pass to the file search tool.
+ * - query: The search string or regex to look for in file names or content.
+ * - filterType: What kind of files to search (markdown, image, or all).
+ * - maxResults: The maximum number of results to return.
+ * - searchContent: Whether to search inside the file contents (only for markdown files).
+ * - useRegex: If true, treat the query as a regular expression (advanced).
  */
 export interface FileSearchParams {
-    query?: string; // Search query string (optional)
-    filterType?: 'markdown' | 'image' | 'all'; // Type of files to filter (optional)
-    maxResults?: number; // Maximum number of results to return (optional)
-    searchContent?: boolean; // Whether to search within file contents (optional)
+    query?: string;
+    filterType?: 'markdown' | 'image' | 'all';
+    maxResults?: number;
+    searchContent?: boolean;
+    useRegex?: boolean; // If true, treat query as regex
 }
 
 /**
- * Tool for searching files in the vault by query and file type.
- * Supports filtering by markdown, image, or all files, and result limiting.
+ * FileSearchTool is a plugin tool for searching files in your Obsidian vault.
+ * It lets you search by file name, file type, and even inside markdown file contents.
+ *
+ * Example usage:
+ *   - Find all notes with "meeting" in the name
+ *   - Find all images
+ *   - Find notes containing a specific word in their text
  */
 export class FileSearchTool implements Tool {
+    // Name of the tool (used for referencing in the plugin system)
     name = 'file_search';
+    // Description of what this tool does
     description = 'Searches for files within the vault based on a query and specified file types, returning a limited number of results. This tool is useful for quickly locating relevant documents and assets.';
+    // Parameters that can be passed to this tool
     parameters = {
         query: {
             type: 'string',
@@ -39,56 +55,104 @@ export class FileSearchTool implements Tool {
             type: 'boolean',
             description: 'Whether to search within file contents. Defaults to false.',
             required: false
+        },
+        useRegex: {
+            type: 'boolean',
+            description: 'If true, treat the query as a regular expression.',
+            required: false
         }
     };
 
+    /**
+     * The constructor takes the Obsidian app instance so we can access the vault.
+     * @param app The main Obsidian app object
+     */
     constructor(private app: App) {}
 
     /**
-     * Executes the file search operation.
-     * Filters files by type, applies the search query, and returns results.
-     * @param params FileSearchParams
-     * @param context Execution context (unused)
-     * @returns ToolResult with matching files or error
+     * Main function to execute the file search.
+     * @param params The search parameters (query, filterType, etc)
+     * @param context (Unused, but required by Tool interface)
+     * @returns ToolResult with matching files or an error message
      */
     async execute(params: FileSearchParams, context: any): Promise<ToolResult> {
-        const { query = '', filterType = 'markdown', maxResults = 10, searchContent = false } = params;
+        // Destructure parameters, set defaults if not provided
+        const { query = '', filterType = 'markdown', maxResults = 10, searchContent = false, useRegex = false } = params;
 
         try {
-            // Get all files based on filterType
+            // Get all files from the vault, filtered by type
+            // - markdown: only .md files
+            // - image: only image files (png, jpg, etc)
+            // - all: every file in the vault
             const allFiles = filterType === 'markdown' ? 
                 this.app.vault.getMarkdownFiles() : 
                 filterType === 'image' ? 
                     this.app.vault.getFiles().filter(f => ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp'].includes(f.extension?.toLowerCase())) :
                     this.app.vault.getFiles();
 
+            // This array will hold files that match the search
             let matchingFiles: TFile[] = [];
 
-            // If a query is provided, filter files by query
+            // If a search query is provided, filter files by the query
             if (query.trim()) {
-                const normalizedQuery = query.toLowerCase();
-                const queryWords = normalizedQuery.split(/\s+/).filter(word => word.length > 0);
+                // If useRegex is true, compile the regex (case-insensitive)
+                let regex: RegExp | null = null;
+                if (useRegex) {
+                    try {
+                        regex = new RegExp(query, 'i');
+                    } catch (e) {
+                        return {
+                            success: false,
+                            error: `Invalid regular expression: ${e.message}`
+                        };
+                    }
+                }
 
+                // If not using regex, prepare for word-based search
+                const normalizedQuery = query.toLowerCase();
+                const queryWords = useRegex ? [] : normalizedQuery.split(/\s+/).filter(word => word.length > 0);
+
+                // Loop through all files and check if they match the query
                 for (const file of allFiles) {
-                    let contentMatch = true;
-                    if (searchContent && file.extension === 'md') { // Only search content for markdown files
+                    let contentMatch = false;
+                    // If searchContent is true and the file is markdown, check inside the file's text
+                    if (searchContent && file.extension === 'md') {
                         const fileContent = await this.app.vault.read(file);
-                        contentMatch = queryWords.every(word => fileContent.toLowerCase().includes(word));
+                        if (useRegex && regex) {
+                            // Regex match in content
+                            contentMatch = regex.test(fileContent);
+                        } else {
+                            // Only match if ALL query words are found in the content
+                            contentMatch = queryWords.every(word => fileContent.toLowerCase().includes(word));
+                        }
                     }
 
+                    // Build a string with the file's path and base name for searching
                     const searchText = `${file.path} ${file.basename}`.toLowerCase();
+                    // Also normalize underscores to spaces for more flexible matching
                     const searchTextNormalized = searchText.replace(/_/g, ' ');
-                    // Match if all query words are present in path or basename
-                    if ((queryWords.every(word => searchText.includes(word) || searchTextNormalized.includes(word))) || contentMatch) {
+                    let pathAndNameMatch = false;
+                    if (useRegex && regex) {
+                        // Regex match in path or name
+                        pathAndNameMatch = regex.test(file.path) || regex.test(file.basename);
+                    } else {
+                        // Check if ALL query words are in the path or name
+                        pathAndNameMatch = queryWords.every(word => searchText.includes(word) || searchTextNormalized.includes(word));
+                    }
+
+                    // If the file matches by name/path or by content, add it to the results
+                    if (pathAndNameMatch || contentMatch) {
                         matchingFiles.push(file);
+                        // Stop if we've reached the max number of results
                         if (matchingFiles.length >= maxResults) break;
                     }
                 }
             } else {
-                // No query: just take the first maxResults files
+                // If no query, just return the first maxResults files
                 matchingFiles = allFiles.slice(0, maxResults);
             }
 
+            // If no files matched, return an error
             if (matchingFiles.length === 0) {
                 return {
                     success: false,
@@ -96,22 +160,23 @@ export class FileSearchTool implements Tool {
                 };
             }
 
-            // Sort by modified time (descending) and limit results
+            // Sort the results by last modified time (most recent first) and limit to maxResults
             const limitedFiles = matchingFiles
                 .sort((a, b) => (b.stat?.mtime || 0) - (a.stat?.mtime || 0))
                 .slice(0, maxResults);
 
-            // Map file objects to a simple structure for output
+            // Map the file objects to a simpler structure for output
             const files = limitedFiles.map(file => ({
-                path: file.path,
-                name: file.name,
-                basename: file.basename,
-                extension: file.extension,
-                size: file.stat?.size || 0,
-                created: file.stat?.ctime || 0,
-                modified: file.stat?.mtime || 0
+                path: file.path,           // Full path in the vault
+                name: file.name,           // File name with extension
+                basename: file.basename,   // File name without extension
+                extension: file.extension, // File extension (e.g. 'md')
+                size: file.stat?.size || 0,      // File size in bytes
+                created: file.stat?.ctime || 0,  // Creation time (timestamp)
+                modified: file.stat?.mtime || 0  // Last modified time (timestamp)
             }));
 
+            // Return the results as a ToolResult object
             return {
                 success: true,
                 data: {
@@ -121,6 +186,7 @@ export class FileSearchTool implements Tool {
                 }
             };
         } catch (error: any) {
+            // If something goes wrong, return an error message
             return {
                 success: false,
                 error: `Failed to search files: ${error.message}`
@@ -129,9 +195,9 @@ export class FileSearchTool implements Tool {
     }
 
     /**
-     * Returns a filter function for files based on filterType.
-     * Not used in main logic, but available for extension.
-     * @param filterType The type of files to filter
+     * (Advanced) Returns a filter function for files based on filterType.
+     * Not used in the main logic, but can be used for custom filtering.
+     * @param filterType The type of files to filter ('markdown', 'image', 'all')
      * @returns A function that returns true if the file matches the filter
      */
     private getFileFilter(filterType: string): (file: any) => boolean {

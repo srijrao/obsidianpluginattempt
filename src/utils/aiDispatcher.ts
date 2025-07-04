@@ -193,8 +193,10 @@ export class AIDispatcher {
         }
     }
 
+
     /**
-     * Generates cache key for request.
+     * Generates a cache key for the request.
+     * Uses base64 encoding that supports Unicode (so it won't throw on non-Latin1 chars).
      */
     private generateCacheKey(messages: Message[], options: CompletionOptions, providerOverride?: string): string {
         const key = JSON.stringify({
@@ -203,7 +205,14 @@ export class AIDispatcher {
             maxTokens: options.maxTokens,
             provider: providerOverride || this.plugin.settings.selectedModel || this.plugin.settings.provider
         });
-        return btoa(key).substring(0, 32); // Base64 encode and truncate
+        // Use Unicode-safe base64 encoding
+        function btoaUnicode(str: string) {
+            // First encode to UTF-8, then to base64
+            return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, function(match, p1) {
+                return String.fromCharCode(parseInt(p1, 16));
+            }));
+        }
+        return btoaUnicode(key).substring(0, 32);
     }
 
     /**
