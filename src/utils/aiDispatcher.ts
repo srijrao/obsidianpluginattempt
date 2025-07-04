@@ -504,7 +504,7 @@ export class AIDispatcher {
 
             // Save the call to the vault
             try {
-                await saveAICallToFolder(requestData, responseData, this.vault, this.plugin);
+                await saveAICallToFolder(requestData, responseData, { settings: this.plugin.settings, app: (this.plugin as any).app });
             } catch (saveError) {
                 debugLog(this.plugin.settings.debugMode ?? false, 'error', '[AIDispatcher] Failed to save AI call:', saveError);
             }
@@ -551,7 +551,7 @@ export class AIDispatcher {
                     options: options,
                     timestamp: new Date().toISOString()
                 };
-                await saveAICallToFolder(requestData, errorResponseData, this.vault, this.plugin);
+                await saveAICallToFolder(requestData, errorResponseData, { settings: this.plugin.settings, app: (this.plugin as any).app });
             } catch (saveError) {
                 debugLog(this.plugin.settings.debugMode ?? false, 'error', '[AIDispatcher] Failed to save error log:', saveError);
             }

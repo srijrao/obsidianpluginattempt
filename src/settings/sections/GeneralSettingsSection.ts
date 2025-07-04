@@ -80,5 +80,23 @@ export class GeneralSettingsSection {
                 await this.plugin.saveSettings();
             }
         );
+
+        // AI Call Log Management Section
+        containerEl.createEl('h3', { text: 'AI Call Log Management' });
+        new Setting(containerEl)
+            .setName('Clear AI Call Logs')
+            .setDesc('Delete all AI call log files from the plugin\'s ai-calls folder.')
+            .addButton(btn => {
+                btn.setButtonText('Clear Logs')
+                    .setCta()
+                    .onClick(async () => {
+                        const { clearAICallLogs } = await import('../../utils/clearAICallLogs');
+                        const pluginFolder = __dirname;
+                        const deleted = await clearAICallLogs(pluginFolder, 'ai-calls');
+                        // @ts-ignore
+                        // eslint-disable-next-line no-new
+                        new (window as any).Notice(`Cleared ${deleted} AI call log file(s).`);
+                    });
+            });
     }
 }
