@@ -12150,6 +12150,824 @@ var init_objectPool = __esm({
   }
 });
 
+// src/utils/lruCache.ts
+var LRUCache, LRUCacheFactory;
+var init_lruCache = __esm({
+  "src/utils/lruCache.ts"() {
+    LRUCache = class {
+      constructor(options) {
+        __publicField(this, "maxSize");
+        __publicField(this, "defaultTTL");
+        __publicField(this, "onEvict");
+        __publicField(this, "cache", /* @__PURE__ */ new Map());
+        __publicField(this, "head", null);
+        __publicField(this, "tail", null);
+        __publicField(this, "cleanupInterval", null);
+        this.maxSize = options.maxSize;
+        this.defaultTTL = options.defaultTTL;
+        this.onEvict = options.onEvict;
+        if (this.defaultTTL) {
+          this.startCleanupInterval();
+        }
+      }
+      /**
+       * Get a value from the cache
+       */
+      get(key) {
+        const node = this.cache.get(key);
+        if (!node) {
+          return void 0;
+        }
+        if (this.isExpired(node)) {
+          this.delete(key);
+          return void 0;
+        }
+        this.moveToHead(node);
+        return node.value;
+      }
+      /**
+       * Set a value in the cache
+       */
+      set(key, value, ttl) {
+        const existingNode = this.cache.get(key);
+        if (existingNode) {
+          existingNode.value = value;
+          existingNode.timestamp = Date.now();
+          existingNode.ttl = ttl != null ? ttl : this.defaultTTL;
+          this.moveToHead(existingNode);
+          return;
+        }
+        const newNode = {
+          key,
+          value,
+          timestamp: Date.now(),
+          ttl: ttl != null ? ttl : this.defaultTTL,
+          prev: null,
+          next: null
+        };
+        this.cache.set(key, newNode);
+        this.addToHead(newNode);
+        if (this.cache.size > this.maxSize) {
+          this.evictLRU();
+        }
+      }
+      /**
+       * Check if a key exists in the cache
+       */
+      has(key) {
+        const node = this.cache.get(key);
+        if (!node) {
+          return false;
+        }
+        if (this.isExpired(node)) {
+          this.delete(key);
+          return false;
+        }
+        return true;
+      }
+      /**
+       * Delete a key from the cache
+       */
+      delete(key) {
+        const node = this.cache.get(key);
+        if (!node) {
+          return false;
+        }
+        this.removeNode(node);
+        this.cache.delete(key);
+        if (this.onEvict) {
+          this.onEvict(key, node.value);
+        }
+        return true;
+      }
+      /**
+       * Clear all items from the cache
+       */
+      clear() {
+        if (this.onEvict) {
+          for (const [key, node] of this.cache) {
+            this.onEvict(key, node.value);
+          }
+        }
+        this.cache.clear();
+        this.head = null;
+        this.tail = null;
+      }
+      /**
+       * Get current cache size
+       */
+      size() {
+        return this.cache.size;
+      }
+      /**
+       * Get maximum cache size
+       */
+      maxCacheSize() {
+        return this.maxSize;
+      }
+      /**
+       * Get all keys in the cache (ordered from most to least recently used)
+       */
+      keys() {
+        const keys = [];
+        let current = this.head;
+        while (current) {
+          keys.push(current.key);
+          current = current.next;
+        }
+        return keys;
+      }
+      /**
+       * Get all values in the cache (ordered from most to least recently used)
+       */
+      values() {
+        const values = [];
+        let current = this.head;
+        while (current) {
+          if (!this.isExpired(current)) {
+            values.push(current.value);
+          }
+          current = current.next;
+        }
+        return values;
+      }
+      /**
+       * Get cache statistics
+       */
+      getStats() {
+        let oldestTimestamp;
+        let newestTimestamp;
+        if (this.tail) {
+          oldestTimestamp = this.tail.timestamp;
+        }
+        if (this.head) {
+          newestTimestamp = this.head.timestamp;
+        }
+        return {
+          size: this.cache.size,
+          maxSize: this.maxSize,
+          oldestTimestamp,
+          newestTimestamp
+        };
+      }
+      /**
+       * Manually trigger cleanup of expired items
+       */
+      cleanup() {
+        let removedCount = 0;
+        const now = Date.now();
+        const keysToRemove = [];
+        for (const [key, node] of this.cache) {
+          if (this.isExpired(node, now)) {
+            keysToRemove.push(key);
+          }
+        }
+        for (const key of keysToRemove) {
+          this.delete(key);
+          removedCount++;
+        }
+        return removedCount;
+      }
+      /**
+       * Update the max size of the cache
+       */
+      setMaxSize(newMaxSize) {
+        this.maxSize = newMaxSize;
+        while (this.cache.size > this.maxSize) {
+          this.evictLRU();
+        }
+      }
+      /**
+       * Destroy the cache and cleanup resources
+       */
+      destroy() {
+        if (this.cleanupInterval) {
+          clearInterval(this.cleanupInterval);
+          this.cleanupInterval = null;
+        }
+        this.clear();
+      }
+      isExpired(node, now = Date.now()) {
+        if (!node.ttl) {
+          return false;
+        }
+        return now > node.timestamp + node.ttl;
+      }
+      moveToHead(node) {
+        this.removeNode(node);
+        this.addToHead(node);
+      }
+      addToHead(node) {
+        node.prev = null;
+        node.next = this.head;
+        if (this.head) {
+          this.head.prev = node;
+        }
+        this.head = node;
+        if (!this.tail) {
+          this.tail = node;
+        }
+      }
+      removeNode(node) {
+        if (node.prev) {
+          node.prev.next = node.next;
+        } else {
+          this.head = node.next;
+        }
+        if (node.next) {
+          node.next.prev = node.prev;
+        } else {
+          this.tail = node.prev;
+        }
+      }
+      evictLRU() {
+        if (!this.tail) {
+          return;
+        }
+        const lruNode = this.tail;
+        this.removeNode(lruNode);
+        this.cache.delete(lruNode.key);
+        if (this.onEvict) {
+          this.onEvict(lruNode.key, lruNode.value);
+        }
+      }
+      startCleanupInterval() {
+        this.cleanupInterval = setInterval(() => {
+          this.cleanup();
+        }, 5 * 60 * 1e3);
+      }
+    };
+    LRUCacheFactory = class {
+      /**
+       * Create a cache for AI responses
+       */
+      static createResponseCache(maxSize = 100) {
+        return new LRUCache({
+          maxSize,
+          defaultTTL: 5 * 60 * 1e3,
+          // 5 minutes
+          onEvict: (key, value) => {
+          }
+        });
+      }
+      /**
+       * Create a cache for DOM elements
+       */
+      static createDOMCache(maxSize = 50) {
+        return new LRUCache({
+          maxSize,
+          defaultTTL: 10 * 60 * 1e3,
+          // 10 minutes
+          onEvict: (key, element) => {
+            if (element.parentNode) {
+              element.parentNode.removeChild(element);
+            }
+          }
+        });
+      }
+      /**
+       * Create a cache for API data
+       */
+      static createAPICache(maxSize = 200) {
+        return new LRUCache({
+          maxSize,
+          defaultTTL: 15 * 60 * 1e3
+          // 15 minutes
+        });
+      }
+      /**
+       * Create a cache for computed values
+       */
+      static createComputedCache(maxSize = 500) {
+        return new LRUCache({
+          maxSize,
+          defaultTTL: 30 * 60 * 1e3
+          // 30 minutes
+        });
+      }
+    };
+  }
+});
+
+// src/utils/errorHandler.ts
+function handleChatError(error, operation, metadata) {
+  errorHandler.handleError(error, {
+    component: "ChatView",
+    operation,
+    metadata
+  });
+}
+function handleAIDispatcherError(error, operation, metadata) {
+  errorHandler.handleError(error, {
+    component: "AIDispatcher",
+    operation,
+    metadata
+  });
+}
+async function withErrorHandling(operation, component, operationName, options) {
+  return errorHandler.handleAsync(operation, {
+    component,
+    operation: operationName
+  }, options);
+}
+var import_obsidian14, _ErrorHandler, ErrorHandler, errorHandler;
+var init_errorHandler = __esm({
+  "src/utils/errorHandler.ts"() {
+    import_obsidian14 = require("obsidian");
+    init_logger();
+    _ErrorHandler = class _ErrorHandler {
+      constructor() {
+        __publicField(this, "errorCounts", /* @__PURE__ */ new Map());
+        __publicField(this, "lastErrors", /* @__PURE__ */ new Map());
+        __publicField(this, "MAX_ERROR_COUNT", 5);
+        __publicField(this, "ERROR_RESET_TIME", 5 * 60 * 1e3);
+      }
+      // 5 minutes
+      static getInstance() {
+        if (!_ErrorHandler.instance) {
+          _ErrorHandler.instance = new _ErrorHandler();
+        }
+        return _ErrorHandler.instance;
+      }
+      /**
+       * Handle an error with consistent logging and user notification
+       */
+      handleError(error, context, options = {}) {
+        const {
+          showNotice: showNotice2 = true,
+          logLevel = "error",
+          fallbackMessage = "An unexpected error occurred",
+          retryable = false
+        } = options;
+        const errorKey = `${context.component}:${context.operation}`;
+        const errorMessage = this.extractErrorMessage(error);
+        const enhancedError = this.enhanceError(error, context);
+        this.trackError(errorKey, enhancedError);
+        debugLog(true, logLevel, `[${context.component}] ${context.operation} failed:`, {
+          error: errorMessage,
+          context: context.metadata,
+          retryable,
+          errorCount: this.errorCounts.get(errorKey) || 0
+        });
+        if (showNotice2 && this.shouldShowNotice(errorKey)) {
+          const userMessage = this.formatUserMessage(errorMessage, context, fallbackMessage);
+          new import_obsidian14.Notice(userMessage, retryable ? 5e3 : 3e3);
+        }
+      }
+      /**
+       * Handle async operations with automatic error handling
+       */
+      async handleAsync(operation, context, options = {}) {
+        try {
+          return await operation();
+        } catch (error) {
+          this.handleError(error, context, options);
+          return null;
+        }
+      }
+      /**
+       * Handle sync operations with automatic error handling
+       */
+      handleSync(operation, context, options = {}) {
+        try {
+          return operation();
+        } catch (error) {
+          this.handleError(error, context, options);
+          return null;
+        }
+      }
+      /**
+       * Create a wrapped version of an async function with error handling
+       */
+      wrapAsync(fn, context, options = {}) {
+        return async (...args) => {
+          return this.handleAsync(() => fn(...args), context, options);
+        };
+      }
+      /**
+       * Create a wrapped version of a sync function with error handling
+       */
+      wrapSync(fn, context, options = {}) {
+        return (...args) => {
+          return this.handleSync(() => fn(...args), context, options);
+        };
+      }
+      /**
+       * Check if an error is retryable based on its type
+       */
+      isRetryableError(error) {
+        const errorMessage = this.extractErrorMessage(error);
+        const retryablePatterns = [
+          /network/i,
+          /timeout/i,
+          /rate.?limit/i,
+          /temporary/i,
+          /unavailable/i,
+          /ECONNRESET/,
+          /ETIMEDOUT/,
+          /ENOTFOUND/,
+          /502/,
+          /503/,
+          /504/
+        ];
+        return retryablePatterns.some((pattern) => pattern.test(errorMessage));
+      }
+      /**
+       * Get error statistics for monitoring
+       */
+      getErrorStats() {
+        const stats = {};
+        for (const [key, count] of this.errorCounts.entries()) {
+          const lastError = this.lastErrors.get(key);
+          stats[key] = {
+            count,
+            lastError: (lastError == null ? void 0 : lastError.error.message) || "Unknown",
+            lastTimestamp: (lastError == null ? void 0 : lastError.timestamp) || 0
+          };
+        }
+        return stats;
+      }
+      /**
+       * Reset error counts (useful for testing or manual reset)
+       */
+      resetErrorCounts() {
+        this.errorCounts.clear();
+        this.lastErrors.clear();
+      }
+      extractErrorMessage(error) {
+        if (error instanceof Error) {
+          return error.message;
+        }
+        if (typeof error === "string") {
+          return error;
+        }
+        if (error && typeof error === "object" && "message" in error) {
+          return String(error.message);
+        }
+        return "Unknown error";
+      }
+      enhanceError(error, context) {
+        if (error instanceof Error) {
+          error.context = context;
+          return error;
+        }
+        const newError = new Error(this.extractErrorMessage(error));
+        newError.context = context;
+        newError.originalError = error;
+        return newError;
+      }
+      trackError(errorKey, error) {
+        const currentCount = this.errorCounts.get(errorKey) || 0;
+        this.errorCounts.set(errorKey, currentCount + 1);
+        this.lastErrors.set(errorKey, {
+          error,
+          timestamp: Date.now()
+        });
+        this.cleanupOldErrors();
+      }
+      shouldShowNotice(errorKey) {
+        const count = this.errorCounts.get(errorKey) || 0;
+        if (count > this.MAX_ERROR_COUNT) {
+          return false;
+        }
+        return count <= 3;
+      }
+      formatUserMessage(errorMessage, context, fallbackMessage) {
+        const sanitizedMessage = this.sanitizeErrorMessage(errorMessage);
+        if (sanitizedMessage.length > 100) {
+          return `${context.component}: ${fallbackMessage}`;
+        }
+        return `${context.component}: ${sanitizedMessage}`;
+      }
+      sanitizeErrorMessage(message) {
+        return message.replace(/api[_-]?key[s]?[:\s=]+[^\s]+/gi, "API_KEY_HIDDEN").replace(/token[s]?[:\s=]+[^\s]+/gi, "TOKEN_HIDDEN").replace(/password[s]?[:\s=]+[^\s]+/gi, "PASSWORD_HIDDEN").replace(/\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/g, "IP_HIDDEN").replace(/https?:\/\/[^\s]+/g, "URL_HIDDEN");
+      }
+      cleanupOldErrors() {
+        const now = Date.now();
+        for (const [key, errorInfo] of this.lastErrors.entries()) {
+          if (now - errorInfo.timestamp > this.ERROR_RESET_TIME) {
+            this.errorCounts.delete(key);
+            this.lastErrors.delete(key);
+          }
+        }
+      }
+    };
+    __publicField(_ErrorHandler, "instance");
+    ErrorHandler = _ErrorHandler;
+    errorHandler = ErrorHandler.getInstance();
+  }
+});
+
+// src/utils/asyncOptimizer.ts
+var AsyncBatcher, ParallelExecutor, AsyncDebouncer, AsyncThrottler, AsyncOptimizerFactory;
+var init_asyncOptimizer = __esm({
+  "src/utils/asyncOptimizer.ts"() {
+    AsyncBatcher = class {
+      constructor(processor, options) {
+        this.processor = processor;
+        this.options = options;
+        __publicField(this, "pendingItems", []);
+        __publicField(this, "batchTimer", null);
+        __publicField(this, "isProcessing", false);
+      }
+      /**
+       * Add an item to the batch for processing
+       */
+      async add(input) {
+        return new Promise((resolve, reject) => {
+          this.pendingItems.push({
+            input,
+            resolve,
+            reject,
+            timestamp: Date.now()
+          });
+          this.scheduleBatch();
+        });
+      }
+      /**
+       * Force process the current batch immediately
+       */
+      async flush() {
+        if (this.batchTimer) {
+          clearTimeout(this.batchTimer);
+          this.batchTimer = null;
+        }
+        await this.processBatch();
+      }
+      /**
+       * Get current batch size
+       */
+      getPendingCount() {
+        return this.pendingItems.length;
+      }
+      scheduleBatch() {
+        if (this.pendingItems.length >= this.options.batchSize) {
+          this.processBatch();
+          return;
+        }
+        if (!this.batchTimer && this.options.delayMs) {
+          this.batchTimer = setTimeout(() => {
+            this.batchTimer = null;
+            this.processBatch();
+          }, this.options.delayMs);
+        }
+        if (this.options.maxWaitMs) {
+          const oldestItem = this.pendingItems[0];
+          if (oldestItem && Date.now() - oldestItem.timestamp > this.options.maxWaitMs) {
+            this.processBatch();
+          }
+        }
+      }
+      async processBatch() {
+        if (this.isProcessing || this.pendingItems.length === 0) {
+          return;
+        }
+        this.isProcessing = true;
+        const currentBatch = this.pendingItems.splice(0, this.options.batchSize);
+        try {
+          const inputs = currentBatch.map((item) => item.input);
+          const outputs = await this.processor(inputs);
+          currentBatch.forEach((item, index) => {
+            if (index < outputs.length) {
+              item.resolve(outputs[index]);
+            } else {
+              item.reject(new Error("Batch processing failed: insufficient outputs"));
+            }
+          });
+        } catch (error) {
+          currentBatch.forEach((item) => {
+            item.reject(error instanceof Error ? error : new Error(String(error)));
+          });
+        } finally {
+          this.isProcessing = false;
+          if (this.pendingItems.length > 0) {
+            this.scheduleBatch();
+          }
+        }
+      }
+    };
+    ParallelExecutor = class {
+      constructor() {
+        __publicField(this, "activePromises", /* @__PURE__ */ new Set());
+      }
+      /**
+       * Execute tasks in parallel with concurrency limit
+       */
+      async executeParallel(tasks, options) {
+        const results = new Array(tasks.length);
+        const errors = [];
+        let completedCount = 0;
+        return new Promise((resolve, reject) => {
+          const executeTask = async (taskIndex, retryCount = 0) => {
+            if (taskIndex >= tasks.length) return;
+            const task = tasks[taskIndex];
+            const promise = this.executeWithRetry(task, options, retryCount);
+            this.activePromises.add(promise);
+            try {
+              const result = await promise;
+              results[taskIndex] = result;
+              completedCount++;
+              if (completedCount === tasks.length) {
+                if (errors.length > 0) {
+                  reject(new AggregateError(errors, "Some tasks failed"));
+                } else {
+                  resolve(results);
+                }
+              }
+            } catch (error) {
+              errors.push(error instanceof Error ? error : new Error(String(error)));
+              completedCount++;
+              if (completedCount === tasks.length) {
+                reject(new AggregateError(errors, "Some tasks failed"));
+              }
+            } finally {
+              this.activePromises.delete(promise);
+              const nextTaskIndex = taskIndex + options.concurrency;
+              if (nextTaskIndex < tasks.length) {
+                executeTask(nextTaskIndex);
+              }
+            }
+          };
+          const initialTasks = Math.min(options.concurrency, tasks.length);
+          for (let i = 0; i < initialTasks; i++) {
+            executeTask(i);
+          }
+        });
+      }
+      /**
+       * Execute tasks in batches
+       */
+      async executeBatched(tasks, batchSize, delayBetweenBatches = 0) {
+        const results = [];
+        for (let i = 0; i < tasks.length; i += batchSize) {
+          const batch = tasks.slice(i, i + batchSize);
+          const batchResults = await Promise.allSettled(
+            batch.map((task) => task())
+          );
+          for (const result of batchResults) {
+            if (result.status === "fulfilled") {
+              results.push(result.value);
+            } else {
+              throw result.reason;
+            }
+          }
+          if (delayBetweenBatches > 0 && i + batchSize < tasks.length) {
+            await new Promise((resolve) => setTimeout(resolve, delayBetweenBatches));
+          }
+        }
+        return results;
+      }
+      /**
+       * Get count of currently active promises
+       */
+      getActiveCount() {
+        return this.activePromises.size;
+      }
+      /**
+       * Cancel all active promises (if they support cancellation)
+       */
+      cancelAll() {
+        this.activePromises.clear();
+      }
+      async executeWithRetry(task, options, retryCount) {
+        try {
+          return await task();
+        } catch (error) {
+          const maxRetries = options.retryAttempts || 0;
+          if (retryCount < maxRetries) {
+            const delay = options.retryDelayMs || 1e3;
+            await new Promise((resolve) => setTimeout(resolve, delay * Math.pow(2, retryCount)));
+            return this.executeWithRetry(task, options, retryCount + 1);
+          }
+          throw error;
+        }
+      }
+    };
+    AsyncDebouncer = class {
+      constructor(delayMs) {
+        this.delayMs = delayMs;
+        __publicField(this, "timeoutId", null);
+        __publicField(this, "lastPromise", null);
+      }
+      /**
+       * Debounce an async operation
+       */
+      async debounce(operation) {
+        if (this.timeoutId) {
+          clearTimeout(this.timeoutId);
+        }
+        return new Promise((resolve, reject) => {
+          this.timeoutId = setTimeout(async () => {
+            try {
+              this.lastPromise = operation();
+              const result = await this.lastPromise;
+              resolve(result);
+            } catch (error) {
+              reject(error);
+            } finally {
+              this.timeoutId = null;
+              this.lastPromise = null;
+            }
+          }, this.delayMs);
+        });
+      }
+      /**
+       * Cancel pending debounced operation
+       */
+      cancel() {
+        if (this.timeoutId) {
+          clearTimeout(this.timeoutId);
+          this.timeoutId = null;
+        }
+      }
+      /**
+       * Check if operation is pending
+       */
+      isPending() {
+        return this.timeoutId !== null;
+      }
+    };
+    AsyncThrottler = class {
+      constructor(intervalMs) {
+        this.intervalMs = intervalMs;
+        __publicField(this, "lastExecution", 0);
+        __publicField(this, "pendingPromise", null);
+      }
+      /**
+       * Throttle an async operation
+       */
+      async throttle(operation) {
+        const now = Date.now();
+        const timeSinceLastExecution = now - this.lastExecution;
+        if (timeSinceLastExecution >= this.intervalMs) {
+          this.lastExecution = now;
+          this.pendingPromise = operation();
+          return this.pendingPromise;
+        }
+        if (this.pendingPromise) {
+          return this.pendingPromise;
+        }
+        const delay = this.intervalMs - timeSinceLastExecution;
+        return new Promise((resolve, reject) => {
+          setTimeout(async () => {
+            try {
+              this.lastExecution = Date.now();
+              this.pendingPromise = operation();
+              const result = await this.pendingPromise;
+              resolve(result);
+            } catch (error) {
+              reject(error);
+            } finally {
+              this.pendingPromise = null;
+            }
+          }, delay);
+        });
+      }
+    };
+    AsyncOptimizerFactory = class {
+      /**
+       * Create a batcher for DOM operations
+       */
+      static createDOMBatcher(processor) {
+        return new AsyncBatcher(processor, {
+          batchSize: 10,
+          delayMs: 16,
+          // ~60fps
+          maxWaitMs: 100
+        });
+      }
+      /**
+       * Create a batcher for API requests
+       */
+      static createAPIBatcher(processor) {
+        return new AsyncBatcher(processor, {
+          batchSize: 5,
+          delayMs: 50,
+          maxWaitMs: 500
+        });
+      }
+      /**
+       * Create a parallel executor for I/O operations
+       */
+      static createIOExecutor() {
+        return new ParallelExecutor();
+      }
+      /**
+       * Create a debouncer for user input
+       */
+      static createInputDebouncer() {
+        return new AsyncDebouncer(300);
+      }
+      /**
+       * Create a throttler for API calls
+       */
+      static createAPIThrottler() {
+        return new AsyncThrottler(1e3);
+      }
+    };
+  }
+});
+
 // src/utils/aiDispatcher.ts
 var aiDispatcher_exports = {};
 __export(aiDispatcher_exports, {
@@ -12162,11 +12980,18 @@ var init_aiDispatcher = __esm({
     init_saveAICalls();
     init_logger();
     init_objectPool();
+    init_lruCache();
+    init_errorHandler();
+    init_asyncOptimizer();
     AIDispatcher = class {
+      // Maximum cache entries
       constructor(vault, plugin) {
         this.vault = vault;
         this.plugin = plugin;
-        __publicField(this, "cache", /* @__PURE__ */ new Map());
+        // Priority 2 Optimization: LRU Cache with size limits
+        __publicField(this, "cache");
+        __publicField(this, "modelCache");
+        __publicField(this, "providerCache");
         __publicField(this, "metrics", {
           totalRequests: 0,
           successfulRequests: 0,
@@ -12182,13 +13007,16 @@ var init_aiDispatcher = __esm({
         __publicField(this, "activeStreams", /* @__PURE__ */ new Map());
         __publicField(this, "rateLimits", /* @__PURE__ */ new Map());
         __publicField(this, "isProcessingQueue", false);
-        // Priority 1 Optimization: Request deduplication
-        __publicField(this, "pendingRequests", /* @__PURE__ */ new Map());
+        // Priority 1 Optimization: Request deduplication with LRU
+        __publicField(this, "pendingRequests");
         __publicField(this, "DEDUP_TTL", 30 * 1e3);
         // 30 seconds
         // Memory optimization: Object pools
         __publicField(this, "messagePool");
         __publicField(this, "arrayManager");
+        // Priority 2 Optimization: Async optimization
+        __publicField(this, "requestBatcher");
+        __publicField(this, "parallelExecutor");
         // Configuration
         __publicField(this, "CACHE_TTL", 5 * 60 * 1e3);
         // 5 minutes
@@ -12198,6 +13026,7 @@ var init_aiDispatcher = __esm({
         __publicField(this, "RATE_LIMIT_WINDOW", 60 * 1e3);
         // 1 minute
         __publicField(this, "MAX_QUEUE_SIZE", 100);
+        __publicField(this, "CACHE_MAX_SIZE", 200);
         ["openai", "anthropic", "gemini", "ollama"].forEach((provider) => {
           this.circuitBreakers.set(provider, {
             isOpen: false,
@@ -12206,8 +13035,44 @@ var init_aiDispatcher = __esm({
             nextRetryTime: 0
           });
         });
+        this.cache = LRUCacheFactory.createResponseCache(this.CACHE_MAX_SIZE);
+        this.modelCache = new LRUCache({
+          maxSize: 10,
+          defaultTTL: 30 * 60 * 1e3
+          // 30 minutes
+        });
+        this.providerCache = new LRUCache({
+          maxSize: 20,
+          defaultTTL: 15 * 60 * 1e3
+          // 15 minutes
+        });
+        this.pendingRequests = new LRUCache({
+          maxSize: 100,
+          defaultTTL: this.DEDUP_TTL
+        });
         this.messagePool = MessageContextPool.getInstance();
         this.arrayManager = PreAllocatedArrays.getInstance();
+        this.requestBatcher = AsyncOptimizerFactory.createAPIBatcher(
+          async (requests) => {
+            const results = [];
+            for (const request of requests) {
+              try {
+                await this.executeWithRetry(
+                  request.messages,
+                  request.options,
+                  this.determineProvider(request.providerOverride),
+                  this.generateCacheKey(request.messages, request.options, request.providerOverride)
+                );
+                results.push();
+              } catch (error) {
+                handleAIDispatcherError(error, "batchedRequest", { requestCount: requests.length });
+                results.push();
+              }
+            }
+            return results;
+          }
+        );
+        this.parallelExecutor = AsyncOptimizerFactory.createIOExecutor();
         this.startQueueProcessor();
         this.startPendingRequestCleanup();
       }
@@ -12216,12 +13081,7 @@ var init_aiDispatcher = __esm({
        */
       startPendingRequestCleanup() {
         setInterval(() => {
-          const now = Date.now();
-          for (const [key, request] of this.pendingRequests.entries()) {
-            if (now - request.timestamp > this.DEDUP_TTL) {
-              this.pendingRequests.delete(key);
-            }
-          }
+          this.pendingRequests.cleanup();
         }, this.DEDUP_TTL);
       }
       /**
@@ -12240,11 +13100,11 @@ var init_aiDispatcher = __esm({
         this.validateRequest(messages, options);
         const cacheKey = this.generateCacheKey(messages, options, providerOverride);
         const existingRequest = this.pendingRequests.get(cacheKey);
-        if (existingRequest && Date.now() - existingRequest.timestamp < this.DEDUP_TTL) {
+        if (existingRequest) {
           debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", "[AIDispatcher] Deduplicating request", { key: cacheKey });
-          return existingRequest.promise;
+          return existingRequest;
         }
-        const cachedResponse = this.getFromCache(cacheKey);
+        const cachedResponse = this.cache.get(cacheKey);
         if (cachedResponse && options.streamCallback) {
           options.streamCallback(cachedResponse);
           return;
@@ -12257,10 +13117,7 @@ var init_aiDispatcher = __esm({
           return this.queueRequest(messages, options, providerOverride, priority);
         }
         const requestPromise = this.executeWithRetry(messages, options, providerName, cacheKey);
-        this.pendingRequests.set(cacheKey, {
-          promise: requestPromise,
-          timestamp: Date.now()
-        });
+        this.pendingRequests.set(cacheKey, requestPromise);
         requestPromise.finally(() => {
           this.pendingRequests.delete(cacheKey);
         });
@@ -12337,25 +13194,18 @@ var init_aiDispatcher = __esm({
        */
       getFromCache(cacheKey) {
         var _a2;
-        const entry = this.cache.get(cacheKey);
-        if (!entry) return null;
-        if (Date.now() > entry.timestamp + entry.ttl) {
-          this.cache.delete(cacheKey);
-          return null;
+        const response = this.cache.get(cacheKey);
+        if (response) {
+          debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", "[AIDispatcher] Cache hit", { key: cacheKey });
         }
-        debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", "[AIDispatcher] Cache hit", { key: cacheKey });
-        return entry.response;
+        return response || null;
       }
       /**
        * Stores response in cache.
        */
       setCache(cacheKey, response, ttl = this.CACHE_TTL) {
         var _a2;
-        this.cache.set(cacheKey, {
-          response,
-          timestamp: Date.now(),
-          ttl
-        });
+        this.cache.set(cacheKey, response, ttl);
         debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", "[AIDispatcher] Response cached", { key: cacheKey });
       }
       /**
@@ -12676,7 +13526,9 @@ var init_aiDispatcher = __esm({
       clearCache() {
         var _a2;
         this.cache.clear();
-        debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", "[AIDispatcher] Cache cleared");
+        this.modelCache.clear();
+        this.providerCache.clear();
+        debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", "[AIDispatcher] All caches cleared");
       }
       /**
        * Aborts all active streams.
@@ -12728,26 +13580,55 @@ var init_aiDispatcher = __esm({
       }
       /**
        * Get available models from a specific provider.
-       * 
+       *
        * @param providerType - The type of provider to query
        * @returns Promise resolving to list of available models
        */
       async getAvailableModels(providerType) {
-        var _a2;
+        var _a2, _b;
         debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", "[AIDispatcher] Fetching available models", { provider: providerType });
-        const tempSettings = { ...this.plugin.settings, provider: providerType };
-        const provider = createProvider(tempSettings);
-        return await provider.getAvailableModels();
+        const cachedModels = this.providerCache.get(providerType);
+        if (cachedModels) {
+          debugLog((_b = this.plugin.settings.debugMode) != null ? _b : false, "info", "[AIDispatcher] Using cached models", { provider: providerType });
+          return cachedModels;
+        }
+        return await withErrorHandling(
+          async () => {
+            const tempSettings = { ...this.plugin.settings, provider: providerType };
+            const provider = createProvider(tempSettings);
+            const models = await provider.getAvailableModels();
+            this.providerCache.set(providerType, models);
+            return models;
+          },
+          "AIDispatcher",
+          "getAvailableModels",
+          { fallbackMessage: `Failed to fetch models for ${providerType}` }
+        ) || [];
       }
       /**
        * Get all available unified models from all configured providers.
-       * 
+       *
        * @returns Promise resolving to unified model list
        */
       async getAllUnifiedModels() {
-        var _a2;
+        var _a2, _b;
         debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", "[AIDispatcher] Fetching all unified models");
-        return await getAllAvailableModels(this.plugin.settings);
+        const cacheKey = "all-unified-models";
+        const cachedModels = this.modelCache.get(cacheKey);
+        if (cachedModels) {
+          debugLog((_b = this.plugin.settings.debugMode) != null ? _b : false, "info", "[AIDispatcher] Using cached unified models");
+          return cachedModels;
+        }
+        return await withErrorHandling(
+          async () => {
+            const models = await getAllAvailableModels(this.plugin.settings);
+            this.modelCache.set(cacheKey, models);
+            return models;
+          },
+          "AIDispatcher",
+          "getAllUnifiedModels",
+          { fallbackMessage: "Failed to fetch unified models" }
+        ) || [];
       }
       /**
        * Refresh available models for a specific provider and update settings.
@@ -12901,10 +13782,10 @@ var SettingsSections_exports = {};
 __export(SettingsSections_exports, {
   SettingsSections: () => SettingsSections
 });
-var import_obsidian14, SettingsSections;
+var import_obsidian15, SettingsSections;
 var init_SettingsSections = __esm({
   "src/components/chat/SettingsSections.ts"() {
-    import_obsidian14 = require("obsidian");
+    import_obsidian15 = require("obsidian");
     init_aiDispatcher();
     SettingsSections = class {
       /**
@@ -12945,11 +13826,11 @@ var init_SettingsSections = __esm({
                   window._aiModelSettingsRefreshTimeout = null;
                 }, 50);
               }
-              new import_obsidian14.Notice(`Applied preset: ${preset.name}`);
+              new import_obsidian15.Notice(`Applied preset: ${preset.name}`);
             };
           });
         }
-        new import_obsidian14.Setting(containerEl).setName("System Message").setDesc("Set the system message for the AI").addTextArea((text) => {
+        new import_obsidian15.Setting(containerEl).setName("System Message").setDesc("Set the system message for the AI").addTextArea((text) => {
           text.setPlaceholder("You are a helpful assistant.").setValue(this.plugin.settings.systemMessage).onChange((value) => {
             this.plugin.settings.systemMessage = value;
           });
@@ -12958,23 +13839,23 @@ var init_SettingsSections = __esm({
           });
           return text;
         });
-        new import_obsidian14.Setting(containerEl).setName("Enable Streaming").setDesc("Enable or disable streaming for completions").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableStreaming).onChange(async (value) => {
+        new import_obsidian15.Setting(containerEl).setName("Enable Streaming").setDesc("Enable or disable streaming for completions").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableStreaming).onChange(async (value) => {
           this.plugin.settings.enableStreaming = value;
           await this.plugin.saveSettings();
         }));
-        new import_obsidian14.Setting(containerEl).setName("Temperature").setDesc("Set the randomness of the model's output (0-1)").addSlider((slider) => slider.setLimits(0, 1, 0.1).setValue(this.plugin.settings.temperature).setDynamicTooltip().onChange(async (value) => {
+        new import_obsidian15.Setting(containerEl).setName("Temperature").setDesc("Set the randomness of the model's output (0-1)").addSlider((slider) => slider.setLimits(0, 1, 0.1).setValue(this.plugin.settings.temperature).setDynamicTooltip().onChange(async (value) => {
           this.plugin.settings.temperature = value;
           await this.plugin.saveSettings();
         }));
-        new import_obsidian14.Setting(containerEl).setName("Refresh Available Models").setDesc("Test connections to all configured providers and refresh available models").addButton((button) => button.setButtonText("Refresh Models").onClick(async () => {
+        new import_obsidian15.Setting(containerEl).setName("Refresh Available Models").setDesc("Test connections to all configured providers and refresh available models").addButton((button) => button.setButtonText("Refresh Models").onClick(async () => {
           button.setButtonText("Refreshing...");
           button.setDisabled(true);
           try {
             await this.refreshAllAvailableModels();
-            new import_obsidian14.Notice("Successfully refreshed available models");
+            new import_obsidian15.Notice("Successfully refreshed available models");
             if (onRefresh) onRefresh();
           } catch (error) {
-            new import_obsidian14.Notice(`Error refreshing models: ${error.message}`);
+            new import_obsidian15.Notice(`Error refreshing models: ${error.message}`);
           } finally {
             button.setButtonText("Refresh Models");
             button.setDisabled(false);
@@ -12988,11 +13869,11 @@ var init_SettingsSections = __esm({
        * @param containerEl The HTML element to render the section into.
        */
       renderDateSettings(containerEl) {
-        new import_obsidian14.Setting(containerEl).setName("Include Date with System Message").setDesc("Add the current date to the system message").addToggle((toggle) => toggle.setValue(this.plugin.settings.includeDateWithSystemMessage).onChange(async (value) => {
+        new import_obsidian15.Setting(containerEl).setName("Include Date with System Message").setDesc("Add the current date to the system message").addToggle((toggle) => toggle.setValue(this.plugin.settings.includeDateWithSystemMessage).onChange(async (value) => {
           this.plugin.settings.includeDateWithSystemMessage = value;
           await this.plugin.saveSettings();
         }));
-        new import_obsidian14.Setting(containerEl).setName("Include Time with System Message").setDesc("Add the current time along with the date to the system message").addToggle((toggle) => toggle.setValue(this.plugin.settings.includeTimeWithSystemMessage).onChange(async (value) => {
+        new import_obsidian15.Setting(containerEl).setName("Include Time with System Message").setDesc("Add the current time along with the date to the system message").addToggle((toggle) => toggle.setValue(this.plugin.settings.includeTimeWithSystemMessage).onChange(async (value) => {
           this.plugin.settings.includeTimeWithSystemMessage = value;
           await this.plugin.saveSettings();
         }));
@@ -13003,17 +13884,17 @@ var init_SettingsSections = __esm({
        * @param containerEl The HTML element to render the section into.
        */
       renderNoteReferenceSettings(containerEl) {
-        new import_obsidian14.Setting(containerEl).setName("Enable Obsidian Links").setDesc("Read Obsidian links in messages using [[filename]] syntax").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableObsidianLinks).onChange(async (value) => {
+        new import_obsidian15.Setting(containerEl).setName("Enable Obsidian Links").setDesc("Read Obsidian links in messages using [[filename]] syntax").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableObsidianLinks).onChange(async (value) => {
           this.plugin.settings.enableObsidianLinks = value;
           await this.plugin.saveSettings();
         }));
-        new import_obsidian14.Setting(containerEl).setName("Enable Context Notes").setDesc("Attach specified note content to chat messages").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableContextNotes).onChange(async (value) => {
+        new import_obsidian15.Setting(containerEl).setName("Enable Context Notes").setDesc("Attach specified note content to chat messages").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableContextNotes).onChange(async (value) => {
           this.plugin.settings.enableContextNotes = value;
           await this.plugin.saveSettings();
         }));
         const contextNotesContainer = containerEl.createDiv("context-notes-container");
         contextNotesContainer.style.marginBottom = "24px";
-        new import_obsidian14.Setting(contextNotesContainer).setName("Context Notes").setDesc("Notes to attach as context (supports [[filename]] and [[filename#header]] syntax)").addTextArea((text) => {
+        new import_obsidian15.Setting(contextNotesContainer).setName("Context Notes").setDesc("Notes to attach as context (supports [[filename]] and [[filename#header]] syntax)").addTextArea((text) => {
           text.setPlaceholder("[[Note Name]]\n[[Another Note#Header]]").setValue(this.plugin.settings.contextNotes || "").onChange((value) => {
             this.plugin.settings.contextNotes = value;
           });
@@ -13024,7 +13905,7 @@ var init_SettingsSections = __esm({
           text.inputEl.style.width = "100%";
           return text;
         });
-        new import_obsidian14.Setting(containerEl).setName("Expand Linked Notes Recursively").setDesc("If enabled, when fetching a note, also fetch and expand links within that note recursively (prevents infinite loops).").addToggle((toggle) => {
+        new import_obsidian15.Setting(containerEl).setName("Expand Linked Notes Recursively").setDesc("If enabled, when fetching a note, also fetch and expand links within that note recursively (prevents infinite loops).").addToggle((toggle) => {
           var _a2;
           return toggle.setValue((_a2 = this.plugin.settings.expandLinkedNotesRecursively) != null ? _a2 : false).onChange(async (value) => {
             this.plugin.settings.expandLinkedNotesRecursively = value;
@@ -13058,7 +13939,7 @@ var init_SettingsSections = __esm({
           this.plugin.settings.availableModels = await aiDispatcher.getAllUnifiedModels();
           await this.plugin.saveSettings();
         }
-        new import_obsidian14.Setting(containerEl).setName("Selected Model").setDesc("Choose from all available models across all configured providers").addDropdown((dropdown) => {
+        new import_obsidian15.Setting(containerEl).setName("Selected Model").setDesc("Choose from all available models across all configured providers").addDropdown((dropdown) => {
           if (!this.plugin.settings.availableModels || this.plugin.settings.availableModels.length === 0) {
             dropdown.addOption("", "No models available - configure providers below");
           } else {
@@ -13158,7 +14039,7 @@ var init_SettingsSections = __esm({
        */
       renderOpenAIConfig(containerEl) {
         this._renderCollapsibleProviderConfig(containerEl, "openai", "OpenAI", (contentEl) => {
-          new import_obsidian14.Setting(contentEl).setName("OpenAI Base URL").setDesc("Custom base URL for OpenAI API (optional)").addText((text) => {
+          new import_obsidian15.Setting(contentEl).setName("OpenAI Base URL").setDesc("Custom base URL for OpenAI API (optional)").addText((text) => {
             text.setPlaceholder("https://api.openai.com/v1").setValue(this.plugin.settings.openaiSettings.baseUrl || "").onChange((value) => {
               this.plugin.settings.openaiSettings.baseUrl = value;
             });
@@ -13209,7 +14090,7 @@ var init_SettingsSections = __esm({
        */
       renderProviderTestSection(containerEl, provider, displayName) {
         const settings = this.plugin.settings[`${provider}Settings`];
-        new import_obsidian14.Setting(containerEl).setName("Test Connection").setDesc(`Verify your API key and fetch available models for ${displayName}`).addButton((button) => button.setButtonText("Test").onClick(async () => {
+        new import_obsidian15.Setting(containerEl).setName("Test Connection").setDesc(`Verify your API key and fetch available models for ${displayName}`).addButton((button) => button.setButtonText("Test").onClick(async () => {
           button.setButtonText("Testing...");
           button.setDisabled(true);
           try {
@@ -13225,17 +14106,17 @@ var init_SettingsSections = __esm({
               await this.plugin.saveSettings();
               this.plugin.settings.availableModels = await aiDispatcher.getAllUnifiedModels();
               await this.plugin.saveSettings();
-              new import_obsidian14.Notice(result.message);
+              new import_obsidian15.Notice(result.message);
             } else {
               settings.lastTestResult = {
                 timestamp: Date.now(),
                 success: false,
                 message: result.message
               };
-              new import_obsidian14.Notice(result.message);
+              new import_obsidian15.Notice(result.message);
             }
           } catch (error) {
-            new import_obsidian14.Notice(`Error: ${error.message}`);
+            new import_obsidian15.Notice(`Error: ${error.message}`);
             settings.lastTestResult = {
               timestamp: Date.now(),
               success: false,
@@ -13266,7 +14147,7 @@ var init_SettingsSections = __esm({
        * @param containerEl The HTML element to render the section into.
        */
       renderDebugModeSettings(containerEl) {
-        new import_obsidian14.Setting(containerEl).setName("Debug Mode").setDesc("Enable verbose logging and debug UI features").addToggle((toggle) => {
+        new import_obsidian15.Setting(containerEl).setName("Debug Mode").setDesc("Enable verbose logging and debug UI features").addToggle((toggle) => {
           var _a2;
           return toggle.setValue((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false).onChange(async (value) => {
             this.plugin.settings.debugMode = value;
@@ -13296,12 +14177,12 @@ var SettingsModal_exports = {};
 __export(SettingsModal_exports, {
   SettingsModal: () => SettingsModal
 });
-var import_obsidian15, SettingsModal;
+var import_obsidian16, SettingsModal;
 var init_SettingsModal = __esm({
   "src/components/chat/SettingsModal.ts"() {
-    import_obsidian15 = require("obsidian");
+    import_obsidian16 = require("obsidian");
     init_SettingsSections();
-    SettingsModal = class extends import_obsidian15.Modal {
+    SettingsModal = class extends import_obsidian16.Modal {
       /**
        * Constructs a SettingsModal instance.
        * @param app The Obsidian App instance.
@@ -13402,7 +14283,7 @@ function handleClearChat(messagesContainer, chatHistoryManager) {
     try {
       await chatHistoryManager.clearHistory();
     } catch (e) {
-      new import_obsidian16.Notice("Failed to clear chat history.");
+      new import_obsidian17.Notice("Failed to clear chat history.");
     }
   };
 }
@@ -13434,11 +14315,11 @@ function handleCopyMessage(messageEl, plugin) {
       contentToCopy = messageEl.dataset.rawContent || "";
     }
     if (contentToCopy.trim() === "") {
-      new import_obsidian16.Notice("No content to copy");
+      new import_obsidian17.Notice("No content to copy");
       return;
     }
     await copyToClipboard(contentToCopy);
-    new import_obsidian16.Notice("Message copied to clipboard");
+    new import_obsidian17.Notice("Message copied to clipboard");
   };
 }
 function handleEditMessage(messageEl, chatHistoryManager, plugin) {
@@ -13487,14 +14368,14 @@ function handleEditMessage(messageEl, chatHistoryManager, plugin) {
               toolResults: enhancedData.toolResults
             }, messageEl, void 0);
           } else {
-            await import_obsidian16.MarkdownRenderer.render(plugin.app, newContent, contentEl, "", void 0);
+            await import_obsidian17.MarkdownRenderer.render(plugin.app, newContent, contentEl, "", void 0);
           }
           contentEl.removeClass("editing");
         } catch (e) {
-          new import_obsidian16.Notice("Failed to save edited message.");
+          new import_obsidian17.Notice("Failed to save edited message.");
           messageEl.dataset.rawContent = oldContent || "";
           contentEl.empty();
-          await import_obsidian16.MarkdownRenderer.render(plugin.app, oldContent || "", contentEl, "", void 0);
+          await import_obsidian17.MarkdownRenderer.render(plugin.app, oldContent || "", contentEl, "", void 0);
           contentEl.removeClass("editing");
         }
       });
@@ -13512,7 +14393,7 @@ function handleDeleteMessage(messageEl, chatHistoryManager, app) {
         ).then(() => {
           messageEl.remove();
         }).catch(() => {
-          new import_obsidian16.Notice("Failed to delete message from history.");
+          new import_obsidian17.Notice("Failed to delete message from history.");
         });
       }
     });
@@ -13524,13 +14405,13 @@ function handleRegenerateMessage(messageEl, regenerateCallback) {
     regenerateCallback(messageEl);
   };
 }
-var import_obsidian16;
+var import_obsidian17;
 var init_eventHandlers = __esm({
   "src/components/chat/eventHandlers.ts"() {
     init_Buttons();
     init_chatPersistence();
     init_ChatHelpModal();
-    import_obsidian16 = require("obsidian");
+    import_obsidian17 = require("obsidian");
     init_MessageRenderer();
     init_ConfirmationModal();
   }
@@ -13541,12 +14422,12 @@ var BotMessage_exports = {};
 __export(BotMessage_exports, {
   BotMessage: () => BotMessage
 });
-var import_obsidian21, BotMessage;
+var import_obsidian22, BotMessage;
 var init_BotMessage = __esm({
   "src/components/chat/BotMessage.ts"() {
-    import_obsidian21 = require("obsidian");
+    import_obsidian22 = require("obsidian");
     init_Buttons();
-    BotMessage = class extends import_obsidian21.Component {
+    BotMessage = class extends import_obsidian22.Component {
       /**
        * Constructs a BotMessage instance.
        * @param app Obsidian App instance
@@ -13585,7 +14466,7 @@ var init_BotMessage = __esm({
         this.content = content;
         this.element.dataset.rawContent = content;
         this.contentEl.empty();
-        await import_obsidian21.MarkdownRenderer.render(
+        await import_obsidian22.MarkdownRenderer.render(
           this.app,
           content,
           this.contentEl,
@@ -13603,7 +14484,7 @@ var init_BotMessage = __esm({
         messageEl.dataset.rawContent = this.content;
         const messageContainer = messageEl.createDiv("message-container");
         this.contentEl = messageContainer.createDiv("message-content");
-        import_obsidian21.MarkdownRenderer.render(
+        import_obsidian22.MarkdownRenderer.render(
           this.app,
           this.content,
           this.contentEl,
@@ -13787,7 +14668,7 @@ async function generateNoteTitle(app, settings, processMessages2, dispatcher) {
   debugLog(DEBUG, "debug", "Starting generateNoteTitle");
   const activeFile = app.workspace.getActiveFile();
   if (!activeFile) {
-    new import_obsidian32.Notice("No active note found.");
+    new import_obsidian33.Notice("No active note found.");
     return;
   }
   let noteContent = await app.vault.cachedRead(activeFile);
@@ -13813,7 +14694,7 @@ async function generateNoteTitle(app, settings, processMessages2, dispatcher) {
       settings.enableContextNotes = originalEnableContextNotes;
       if (!processedMessages || processedMessages.length === 0) {
         debugLog(DEBUG, "debug", "No processed messages!");
-        new import_obsidian32.Notice("No valid messages to send to the model. Please check your note content.");
+        new import_obsidian33.Notice("No valid messages to send to the model. Please check your note content.");
         return;
       }
       debugLog(DEBUG, "debug", "Calling dispatcher.getCompletion");
@@ -13841,28 +14722,28 @@ async function generateNoteTitle(app, settings, processMessages2, dispatcher) {
             const newPath = parentPath ? parentPath + "/" + sanitized + ext : sanitized + ext;
             if (file.path !== newPath) {
               await app.fileManager.renameFile(file, newPath);
-              new import_obsidian32.Notice(`Note renamed to: ${sanitized}${ext}`);
+              new import_obsidian33.Notice(`Note renamed to: ${sanitized}${ext}`);
             } else {
-              new import_obsidian32.Notice(`Note title is already: ${sanitized}${ext}`);
+              new import_obsidian33.Notice(`Note title is already: ${sanitized}${ext}`);
             }
           }
         } else if (outputMode === "metadata") {
           const file = app.workspace.getActiveFile();
           if (file) {
             await upsertYamlField(app, file, "title", title);
-            new import_obsidian32.Notice(`Inserted title into metadata: ${title}`);
+            new import_obsidian33.Notice(`Inserted title into metadata: ${title}`);
           }
         } else {
           try {
             await navigator.clipboard.writeText(title);
-            new import_obsidian32.Notice(`Generated title (copied): ${title}`);
+            new import_obsidian33.Notice(`Generated title (copied): ${title}`);
           } catch (e) {
-            new import_obsidian32.Notice(`Generated title: ${title}`);
+            new import_obsidian33.Notice(`Generated title: ${title}`);
           }
         }
       } else {
         debugLog(DEBUG, "debug", "No title generated after sanitization.");
-        new import_obsidian32.Notice("No title generated.");
+        new import_obsidian33.Notice("No title generated.");
       }
     } catch (processError) {
       debugLog(DEBUG, "debug", "Error in processMessages or provider.getCompletion:", processError);
@@ -13870,14 +14751,14 @@ async function generateNoteTitle(app, settings, processMessages2, dispatcher) {
       throw processError;
     }
   } catch (err) {
-    new import_obsidian32.Notice("Error generating title: " + ((_b = err == null ? void 0 : err.message) != null ? _b : err));
+    new import_obsidian33.Notice("Error generating title: " + ((_b = err == null ? void 0 : err.message) != null ? _b : err));
   }
 }
 async function generateYamlAttribute(app, settings, processMessages2, attributeName, prompt, outputMode = "metadata", dispatcher) {
   debugLog(DEBUG, "debug", `Starting generateYamlAttribute for ${attributeName}`);
   const activeFile = app.workspace.getActiveFile();
   if (!activeFile) {
-    new import_obsidian32.Notice("No active note found.");
+    new import_obsidian33.Notice("No active note found.");
     return;
   }
   let noteContent = await app.vault.cachedRead(activeFile);
@@ -13896,7 +14777,7 @@ async function generateYamlAttribute(app, settings, processMessages2, attributeN
     settings.enableContextNotes = originalEnableContextNotes;
     if (!processedMessages || processedMessages.length === 0) {
       debugLog(DEBUG, "debug", "No processed messages!");
-      new import_obsidian32.Notice("No valid messages to send to the model. Please check your note content.");
+      new import_obsidian33.Notice("No valid messages to send to the model. Please check your note content.");
       return;
     }
     debugLog(DEBUG, "debug", "Calling dispatcher.getCompletion");
@@ -13919,18 +14800,18 @@ async function generateYamlAttribute(app, settings, processMessages2, attributeN
       debugLog(DEBUG, "debug", "Output mode:", outputMode);
       if (outputMode === "metadata") {
         await upsertYamlField(app, activeFile, attributeName, value);
-        new import_obsidian32.Notice(`Inserted ${attributeName} into metadata: ${value}`);
+        new import_obsidian33.Notice(`Inserted ${attributeName} into metadata: ${value}`);
       } else {
         try {
           await navigator.clipboard.writeText(value);
-          new import_obsidian32.Notice(`Generated ${attributeName} (copied): ${value}`);
+          new import_obsidian33.Notice(`Generated ${attributeName} (copied): ${value}`);
         } catch (e) {
-          new import_obsidian32.Notice(`Generated ${attributeName}: ${value}`);
+          new import_obsidian33.Notice(`Generated ${attributeName}: ${value}`);
         }
       }
     } else {
       debugLog(DEBUG, "debug", `No value generated for ${attributeName} after sanitization.`);
-      new import_obsidian32.Notice(`No value generated for ${attributeName}.`);
+      new import_obsidian33.Notice(`No value generated for ${attributeName}.`);
     }
   } catch (processError) {
     debugLog(DEBUG, "debug", "Error in processMessages or provider.getCompletion:", processError);
@@ -13997,10 +14878,10 @@ function registerYamlAttributeCommands(plugin, settings, processMessages2, yamlA
   }
   return newCommandIds;
 }
-var import_obsidian32, DEBUG;
+var import_obsidian33, DEBUG;
 var init_YAMLHandler = __esm({
   "src/YAMLHandler.ts"() {
-    import_obsidian32 = require("obsidian");
+    import_obsidian33 = require("obsidian");
     init_aiDispatcher();
     init_promptConstants();
     init_pluginUtils();
@@ -14010,17 +14891,1320 @@ var init_YAMLHandler = __esm({
   }
 });
 
+// src/utils/dependencyInjection.ts
+var dependencyInjection_exports = {};
+__export(dependencyInjection_exports, {
+  DIContainer: () => DIContainer,
+  DIContainerFactory: () => DIContainerFactory,
+  Injectable: () => Injectable,
+  ServiceLocator: () => ServiceLocator
+});
+function Injectable(name, lifecycle = "singleton") {
+  return function(constructor) {
+    const container = ServiceLocator.getContainer();
+    container.register(name, () => new constructor(), lifecycle);
+    return constructor;
+  };
+}
+var DIContainer, _ServiceLocator, ServiceLocator, DIContainerFactory;
+var init_dependencyInjection = __esm({
+  "src/utils/dependencyInjection.ts"() {
+    init_aiDispatcher();
+    init_errorHandler();
+    DIContainer = class {
+      constructor() {
+        __publicField(this, "services", /* @__PURE__ */ new Map());
+        __publicField(this, "instances", /* @__PURE__ */ new Map());
+        __publicField(this, "metadata", /* @__PURE__ */ new Map());
+        __publicField(this, "scopes", /* @__PURE__ */ new Map());
+        __publicField(this, "currentScope", null);
+        __publicField(this, "isDisposed", false);
+        this.registerCoreServices();
+      }
+      /**
+       * Register a service with the container
+       */
+      register(name, factory, lifecycle = "singleton", dependencies = []) {
+        if (this.isDisposed) {
+          throw new Error("Cannot register services on disposed container");
+        }
+        this.services.set(name, {
+          factory,
+          lifecycle,
+          dependencies
+        });
+        this.metadata.set(name, {
+          name,
+          lifecycle,
+          dependencies,
+          createdAt: Date.now(),
+          lastAccessed: 0,
+          accessCount: 0
+        });
+      }
+      /**
+       * Register a singleton service
+       */
+      registerSingleton(name, factory, dependencies = []) {
+        this.register(name, factory, "singleton", dependencies);
+      }
+      /**
+       * Register a transient service (new instance every time)
+       */
+      registerTransient(name, factory, dependencies = []) {
+        this.register(name, factory, "transient", dependencies);
+      }
+      /**
+       * Register a scoped service (one instance per scope)
+       */
+      registerScoped(name, factory, dependencies = []) {
+        this.register(name, factory, "scoped", dependencies);
+      }
+      /**
+       * Resolve a service by name
+       */
+      resolve(name) {
+        if (this.isDisposed) {
+          throw new Error("Cannot resolve services from disposed container");
+        }
+        const service = this.services.get(name);
+        if (!service) {
+          throw new Error(`Service '${name}' not registered`);
+        }
+        const meta = this.metadata.get(name);
+        meta.lastAccessed = Date.now();
+        meta.accessCount++;
+        this.checkCircularDependencies(name, /* @__PURE__ */ new Set());
+        switch (service.lifecycle) {
+          case "singleton":
+            return this.resolveSingleton(name, service);
+          case "transient":
+            return this.resolveTransient(name, service);
+          case "scoped":
+            return this.resolveScoped(name, service);
+          default:
+            throw new Error(`Unknown lifecycle: ${service.lifecycle}`);
+        }
+      }
+      /**
+       * Check if a service is registered
+       */
+      isRegistered(name) {
+        return this.services.has(name);
+      }
+      /**
+       * Get all registered service names
+       */
+      getRegisteredServices() {
+        return Array.from(this.services.keys());
+      }
+      /**
+       * Get service metadata
+       */
+      getServiceMetadata(name) {
+        return this.metadata.get(name);
+      }
+      /**
+       * Get all service metadata
+       */
+      getAllServiceMetadata() {
+        return Array.from(this.metadata.values());
+      }
+      /**
+       * Create a new scope
+       */
+      createScope(scopeId) {
+        if (this.scopes.has(scopeId)) {
+          throw new Error(`Scope '${scopeId}' already exists`);
+        }
+        this.scopes.set(scopeId, /* @__PURE__ */ new Map());
+      }
+      /**
+       * Enter a scope
+       */
+      enterScope(scopeId) {
+        if (!this.scopes.has(scopeId)) {
+          this.createScope(scopeId);
+        }
+        this.currentScope = scopeId;
+      }
+      /**
+       * Exit current scope
+       */
+      exitScope() {
+        this.currentScope = null;
+      }
+      /**
+       * Dispose a scope and all its instances
+       */
+      disposeScope(scopeId) {
+        const scope = this.scopes.get(scopeId);
+        if (scope) {
+          for (const [, instance] of scope) {
+            this.disposeInstance(instance);
+          }
+          this.scopes.delete(scopeId);
+        }
+        if (this.currentScope === scopeId) {
+          this.currentScope = null;
+        }
+      }
+      /**
+       * Dispose the entire container
+       */
+      dispose() {
+        if (this.isDisposed) return;
+        for (const scopeId of this.scopes.keys()) {
+          this.disposeScope(scopeId);
+        }
+        for (const [, instance] of this.instances) {
+          this.disposeInstance(instance);
+        }
+        this.services.clear();
+        this.instances.clear();
+        this.metadata.clear();
+        this.scopes.clear();
+        this.currentScope = null;
+        this.isDisposed = true;
+      }
+      /**
+       * Get container statistics
+       */
+      getStats() {
+        const totalResolutions = Array.from(this.metadata.values()).reduce((sum, meta) => sum + meta.accessCount, 0);
+        return {
+          totalServices: this.services.size,
+          singletonInstances: this.instances.size,
+          activeScopes: this.scopes.size,
+          totalResolutions,
+          memoryUsage: this.estimateMemoryUsage()
+        };
+      }
+      registerCoreServices() {
+        this.registerSingleton("errorHandler", () => ErrorHandler.getInstance());
+      }
+      resolveSingleton(name, service) {
+        if (this.instances.has(name)) {
+          return this.instances.get(name);
+        }
+        const instance = this.createInstance(name, service);
+        this.instances.set(name, instance);
+        return instance;
+      }
+      resolveTransient(name, service) {
+        return this.createInstance(name, service);
+      }
+      resolveScoped(name, service) {
+        if (!this.currentScope) {
+          throw new Error(`Cannot resolve scoped service '${name}' outside of a scope`);
+        }
+        const scope = this.scopes.get(this.currentScope);
+        if (scope.has(name)) {
+          return scope.get(name);
+        }
+        const instance = this.createInstance(name, service);
+        scope.set(name, instance);
+        return instance;
+      }
+      createInstance(name, service) {
+        const dependencies = service.dependencies || [];
+        const resolvedDependencies = dependencies.map((dep) => this.resolve(dep));
+        try {
+          return service.factory(this);
+        } catch (error) {
+          throw new Error(`Failed to create instance of '${name}': ${error.message}`);
+        }
+      }
+      checkCircularDependencies(name, visited) {
+        if (visited.has(name)) {
+          throw new Error(`Circular dependency detected: ${Array.from(visited).join(" -> ")} -> ${name}`);
+        }
+        visited.add(name);
+        const service = this.services.get(name);
+        if (service && service.dependencies) {
+          for (const dep of service.dependencies) {
+            this.checkCircularDependencies(dep, new Set(visited));
+          }
+        }
+        visited.delete(name);
+      }
+      disposeInstance(instance) {
+        if (instance && typeof instance.dispose === "function") {
+          try {
+            instance.dispose();
+          } catch (error) {
+            console.warn("Error disposing instance:", error);
+          }
+        }
+      }
+      estimateMemoryUsage() {
+        let size = 0;
+        size += this.services.size * 100;
+        size += this.instances.size * 500;
+        size += this.metadata.size * 200;
+        return size;
+      }
+    };
+    _ServiceLocator = class _ServiceLocator {
+      static initialize(container) {
+        _ServiceLocator.container = container;
+      }
+      static getContainer() {
+        if (!_ServiceLocator.container) {
+          throw new Error("ServiceLocator not initialized. Call initialize() first.");
+        }
+        return _ServiceLocator.container;
+      }
+      static resolve(name) {
+        return _ServiceLocator.getContainer().resolve(name);
+      }
+      static isInitialized() {
+        return _ServiceLocator.container !== null;
+      }
+      static dispose() {
+        if (_ServiceLocator.container) {
+          _ServiceLocator.container.dispose();
+          _ServiceLocator.container = null;
+        }
+      }
+    };
+    __publicField(_ServiceLocator, "container", null);
+    ServiceLocator = _ServiceLocator;
+    DIContainerFactory = class {
+      /**
+       * Create a container for the AI Assistant plugin
+       */
+      static createPluginContainer(app, plugin) {
+        const container = new DIContainer();
+        container.registerSingleton("app", () => app);
+        container.registerSingleton("plugin", () => plugin);
+        container.registerSingleton("vault", () => app.vault);
+        container.registerSingleton("workspace", () => app.workspace);
+        container.registerSingleton("aiDispatcher", (c) => {
+          const vault = c.resolve("vault");
+          const pluginInstance = c.resolve("plugin");
+          return new AIDispatcher(vault, pluginInstance);
+        }, ["vault", "plugin"]);
+        container.registerSingleton("errorHandler", () => ErrorHandler.getInstance());
+        return container;
+      }
+      /**
+       * Create a container for testing
+       */
+      static createTestContainer() {
+        const container = new DIContainer();
+        container.registerSingleton("mockService", () => ({ test: true }));
+        return container;
+      }
+    };
+  }
+});
+
+// src/utils/stateManager.ts
+var stateManager_exports = {};
+__export(stateManager_exports, {
+  StateManager: () => StateManager,
+  StateUtils: () => StateUtils,
+  globalStateManager: () => globalStateManager
+});
+var import_events, StateManager, globalStateManager, StateUtils;
+var init_stateManager = __esm({
+  "src/utils/stateManager.ts"() {
+    import_events = require("events");
+    init_lruCache();
+    init_errorHandler();
+    StateManager = class extends import_events.EventEmitter {
+      constructor(storageKey = "ai-assistant-state") {
+        super();
+        this.storageKey = storageKey;
+        __publicField(this, "state", {});
+        __publicField(this, "stateListeners", /* @__PURE__ */ new Map());
+        __publicField(this, "validators", /* @__PURE__ */ new Map());
+        __publicField(this, "transformers", /* @__PURE__ */ new Map());
+        __publicField(this, "persistentKeys", /* @__PURE__ */ new Set());
+        __publicField(this, "debounceTimers", /* @__PURE__ */ new Map());
+        __publicField(this, "snapshots");
+        __publicField(this, "version", 0);
+        __publicField(this, "isDisposed", false);
+        this.snapshots = new LRUCache({
+          maxSize: 50,
+          defaultTTL: 60 * 60 * 1e3
+          // 1 hour
+        });
+        this.loadPersistedState();
+      }
+      /**
+       * Set a value in the state
+       */
+      setState(path3, value, options = {}) {
+        if (this.isDisposed) {
+          throw new Error("Cannot set state on disposed StateManager");
+        }
+        try {
+          const transformer = options.transformer || this.transformers.get(path3);
+          const transformedValue = transformer ? transformer(value, path3) : value;
+          const validator = options.validator || this.validators.get(path3);
+          if (validator) {
+            const validationResult = validator(transformedValue, path3);
+            if (validationResult !== true) {
+              const errorMessage = typeof validationResult === "string" ? validationResult : `Invalid value for state path: ${path3}`;
+              throw new Error(errorMessage);
+            }
+          }
+          const oldValue = this.getState(path3);
+          this.setNestedValue(this.state, path3, transformedValue);
+          this.version++;
+          if (options.persistent) {
+            this.persistentKeys.add(path3);
+          }
+          this.createSnapshot();
+          const debounceMs = options.debounceMs || 0;
+          if (debounceMs > 0) {
+            this.debouncedNotify(path3, transformedValue, oldValue, debounceMs);
+          } else {
+            this.notifyListeners(path3, transformedValue, oldValue);
+          }
+          if (this.persistentKeys.has(path3)) {
+            this.persistState();
+          }
+        } catch (error) {
+          errorHandler.handleError(error, {
+            component: "StateManager",
+            operation: "setState",
+            metadata: { path: path3, valueType: typeof value }
+          });
+          throw error;
+        }
+      }
+      /**
+       * Get a value from the state
+       */
+      getState(path3, defaultValue) {
+        if (this.isDisposed) {
+          throw new Error("Cannot get state from disposed StateManager");
+        }
+        try {
+          const value = this.getNestedValue(this.state, path3);
+          return value !== void 0 ? value : defaultValue;
+        } catch (error) {
+          errorHandler.handleError(error, {
+            component: "StateManager",
+            operation: "getState",
+            metadata: { path: path3 }
+          });
+          return defaultValue;
+        }
+      }
+      /**
+       * Check if a state path exists
+       */
+      hasState(path3) {
+        return this.getNestedValue(this.state, path3) !== void 0;
+      }
+      /**
+       * Delete a state path
+       */
+      deleteState(path3) {
+        if (this.isDisposed) {
+          throw new Error("Cannot delete state from disposed StateManager");
+        }
+        const oldValue = this.getState(path3);
+        this.deleteNestedValue(this.state, path3);
+        this.version++;
+        this.persistentKeys.delete(path3);
+        this.notifyListeners(path3, void 0, oldValue);
+        this.createSnapshot();
+        this.persistState();
+      }
+      /**
+       * Subscribe to state changes for a specific path
+       */
+      subscribe(path3, listener) {
+        if (!this.stateListeners.has(path3)) {
+          this.stateListeners.set(path3, /* @__PURE__ */ new Set());
+        }
+        this.stateListeners.get(path3).add(listener);
+        return () => {
+          const pathListeners = this.stateListeners.get(path3);
+          if (pathListeners) {
+            pathListeners.delete(listener);
+            if (pathListeners.size === 0) {
+              this.stateListeners.delete(path3);
+            }
+          }
+        };
+      }
+      /**
+       * Subscribe to all state changes
+       */
+      subscribeAll(listener) {
+        this.on("stateChange", listener);
+        return () => this.off("stateChange", listener);
+      }
+      /**
+       * Register a validator for a state path
+       */
+      registerValidator(path3, validator) {
+        this.validators.set(path3, validator);
+      }
+      /**
+       * Register a transformer for a state path
+       */
+      registerTransformer(path3, transformer) {
+        this.transformers.set(path3, transformer);
+      }
+      /**
+       * Get the entire state object (read-only)
+       */
+      getFullState() {
+        return Object.freeze(JSON.parse(JSON.stringify(this.state)));
+      }
+      /**
+       * Reset the entire state
+       */
+      resetState(newState = {}) {
+        if (this.isDisposed) {
+          throw new Error("Cannot reset state on disposed StateManager");
+        }
+        const oldState = this.getFullState();
+        this.state = { ...newState };
+        this.version++;
+        this.createSnapshot();
+        this.emit("stateReset", this.state, oldState);
+        this.persistState();
+      }
+      /**
+       * Create a snapshot of the current state
+       */
+      createSnapshot() {
+        const snapshot = {
+          timestamp: Date.now(),
+          state: JSON.parse(JSON.stringify(this.state)),
+          version: this.version
+        };
+        this.snapshots.set(`snapshot-${this.version}`, snapshot);
+      }
+      /**
+       * Restore state from a snapshot
+       */
+      restoreSnapshot(version) {
+        const snapshot = this.snapshots.get(`snapshot-${version}`);
+        if (!snapshot) {
+          return false;
+        }
+        const oldState = this.getFullState();
+        this.state = JSON.parse(JSON.stringify(snapshot.state));
+        this.version = snapshot.version;
+        this.emit("stateRestored", this.state, oldState, snapshot);
+        this.persistState();
+        return true;
+      }
+      /**
+       * Get available snapshots
+       */
+      getSnapshots() {
+        return this.snapshots.values().sort((a, b) => b.timestamp - a.timestamp);
+      }
+      /**
+       * Get current state version
+       */
+      getVersion() {
+        return this.version;
+      }
+      /**
+       * Batch multiple state updates
+       */
+      batch(updates) {
+        var _a2;
+        if (this.isDisposed) {
+          throw new Error("Cannot batch updates on disposed StateManager");
+        }
+        const oldStates = /* @__PURE__ */ new Map();
+        try {
+          for (const update of updates) {
+            oldStates.set(update.path, this.getState(update.path));
+          }
+          for (const update of updates) {
+            this.setNestedValue(this.state, update.path, update.value);
+            if ((_a2 = update.options) == null ? void 0 : _a2.persistent) {
+              this.persistentKeys.add(update.path);
+            }
+          }
+          this.version++;
+          this.createSnapshot();
+          for (const update of updates) {
+            const oldValue = oldStates.get(update.path);
+            this.notifyListeners(update.path, update.value, oldValue);
+          }
+          this.persistState();
+        } catch (error) {
+          for (const [path3, oldValue] of oldStates) {
+            this.setNestedValue(this.state, path3, oldValue);
+          }
+          throw error;
+        }
+      }
+      /**
+       * Watch for changes to multiple paths
+       */
+      watch(paths, listener) {
+        const unsubscribers = [];
+        const changes = [];
+        let debounceTimer = null;
+        for (const path3 of paths) {
+          const unsubscribe = this.subscribe(path3, (newValue, oldValue, changePath) => {
+            changes.push({ path: changePath, newValue, oldValue });
+            if (debounceTimer) {
+              clearTimeout(debounceTimer);
+            }
+            debounceTimer = setTimeout(() => {
+              if (changes.length > 0) {
+                listener([...changes]);
+                changes.length = 0;
+              }
+            }, 10);
+          });
+          unsubscribers.push(unsubscribe);
+        }
+        return () => {
+          unsubscribers.forEach((unsub) => unsub());
+          if (debounceTimer) {
+            clearTimeout(debounceTimer);
+          }
+        };
+      }
+      /**
+       * Get state statistics
+       */
+      getStats() {
+        const totalListeners = Array.from(this.stateListeners.values()).reduce((sum, set2) => sum + set2.size, 0);
+        return {
+          totalKeys: this.countKeys(this.state),
+          persistentKeys: this.persistentKeys.size,
+          listeners: totalListeners,
+          snapshots: this.snapshots.size(),
+          version: this.version,
+          memoryUsage: this.estimateMemoryUsage()
+        };
+      }
+      /**
+       * Dispose the state manager
+       */
+      dispose() {
+        if (this.isDisposed) return;
+        for (const timer of this.debounceTimers.values()) {
+          clearTimeout(timer);
+        }
+        this.debounceTimers.clear();
+        this.stateListeners.clear();
+        this.removeAllListeners();
+        this.state = {};
+        this.validators.clear();
+        this.transformers.clear();
+        this.persistentKeys.clear();
+        this.snapshots.destroy();
+        this.isDisposed = true;
+      }
+      setNestedValue(obj, path3, value) {
+        const keys = path3.split(".");
+        let current = obj;
+        for (let i = 0; i < keys.length - 1; i++) {
+          const key = keys[i];
+          if (!(key in current) || typeof current[key] !== "object") {
+            current[key] = {};
+          }
+          current = current[key];
+        }
+        current[keys[keys.length - 1]] = value;
+      }
+      getNestedValue(obj, path3) {
+        const keys = path3.split(".");
+        let current = obj;
+        for (const key of keys) {
+          if (current === null || current === void 0 || !(key in current)) {
+            return void 0;
+          }
+          current = current[key];
+        }
+        return current;
+      }
+      deleteNestedValue(obj, path3) {
+        const keys = path3.split(".");
+        let current = obj;
+        for (let i = 0; i < keys.length - 1; i++) {
+          const key = keys[i];
+          if (!(key in current) || typeof current[key] !== "object") {
+            return;
+          }
+          current = current[key];
+        }
+        delete current[keys[keys.length - 1]];
+      }
+      notifyListeners(path3, newValue, oldValue) {
+        const pathListeners = this.stateListeners.get(path3);
+        if (pathListeners) {
+          for (const listener of pathListeners) {
+            try {
+              listener(newValue, oldValue, path3);
+            } catch (error) {
+              errorHandler.handleError(error, {
+                component: "StateManager",
+                operation: "notifyListeners",
+                metadata: { path: path3 }
+              });
+            }
+          }
+        }
+        this.emit("stateChange", newValue, oldValue, path3);
+      }
+      debouncedNotify(path3, newValue, oldValue, debounceMs) {
+        const existingTimer = this.debounceTimers.get(path3);
+        if (existingTimer) {
+          clearTimeout(existingTimer);
+        }
+        const timer = setTimeout(() => {
+          this.notifyListeners(path3, newValue, oldValue);
+          this.debounceTimers.delete(path3);
+        }, debounceMs);
+        this.debounceTimers.set(path3, timer);
+      }
+      loadPersistedState() {
+        try {
+          const stored = localStorage.getItem(this.storageKey);
+          if (stored) {
+            const parsed = JSON.parse(stored);
+            this.state = parsed.state || {};
+            this.persistentKeys = new Set(parsed.persistentKeys || []);
+            this.version = parsed.version || 0;
+          }
+        } catch (error) {
+          errorHandler.handleError(error, {
+            component: "StateManager",
+            operation: "loadPersistedState"
+          });
+        }
+      }
+      persistState() {
+        try {
+          const persistentState = {};
+          for (const key of this.persistentKeys) {
+            const value = this.getState(key);
+            if (value !== void 0) {
+              this.setNestedValue(persistentState, key, value);
+            }
+          }
+          const toStore = {
+            state: persistentState,
+            persistentKeys: Array.from(this.persistentKeys),
+            version: this.version,
+            timestamp: Date.now()
+          };
+          localStorage.setItem(this.storageKey, JSON.stringify(toStore));
+        } catch (error) {
+          errorHandler.handleError(error, {
+            component: "StateManager",
+            operation: "persistState"
+          });
+        }
+      }
+      countKeys(obj, depth = 0) {
+        if (depth > 10 || typeof obj !== "object" || obj === null) {
+          return 0;
+        }
+        let count = 0;
+        for (const key in obj) {
+          count++;
+          if (typeof obj[key] === "object" && obj[key] !== null) {
+            count += this.countKeys(obj[key], depth + 1);
+          }
+        }
+        return count;
+      }
+      estimateMemoryUsage() {
+        try {
+          return JSON.stringify(this.state).length * 2;
+        } catch (e) {
+          return 0;
+        }
+      }
+    };
+    globalStateManager = new StateManager();
+    StateUtils = class {
+      /**
+       * Create a computed state that updates when dependencies change
+       */
+      static createComputed(stateManager, dependencies, computeFn, targetPath) {
+        const updateComputed = () => {
+          const values = dependencies.map((dep) => stateManager.getState(dep));
+          const computed = computeFn(values);
+          stateManager.setState(targetPath, computed);
+        };
+        updateComputed();
+        const unsubscribe = stateManager.watch(dependencies, updateComputed);
+        return unsubscribe;
+      }
+      /**
+       * Create a state slice with a specific prefix
+       */
+      static createSlice(stateManager, prefix) {
+        return {
+          get: (path3, defaultValue) => stateManager.getState(`${prefix}.${path3}`, defaultValue),
+          set: (path3, value, options) => stateManager.setState(`${prefix}.${path3}`, value, options),
+          subscribe: (path3, listener) => stateManager.subscribe(`${prefix}.${path3}`, listener),
+          delete: (path3) => stateManager.deleteState(`${prefix}.${path3}`)
+        };
+      }
+    };
+  }
+});
+
+// src/utils/streamManager.ts
+var streamManager_exports = {};
+__export(streamManager_exports, {
+  ManagedStream: () => ManagedStream,
+  StreamManager: () => StreamManager,
+  StreamUtils: () => StreamUtils,
+  globalStreamManager: () => globalStreamManager
+});
+var import_events2, StreamManager, ManagedStream, globalStreamManager, StreamUtils;
+var init_streamManager = __esm({
+  "src/utils/streamManager.ts"() {
+    import_events2 = require("events");
+    init_errorHandler();
+    init_lruCache();
+    StreamManager = class extends import_events2.EventEmitter {
+      constructor(options = {}) {
+        super();
+        __publicField(this, "streams", /* @__PURE__ */ new Map());
+        __publicField(this, "transformers", /* @__PURE__ */ new Map());
+        __publicField(this, "filters", /* @__PURE__ */ new Map());
+        __publicField(this, "streamCache");
+        __publicField(this, "activeStreams", /* @__PURE__ */ new Set());
+        __publicField(this, "pausedStreams", /* @__PURE__ */ new Set());
+        __publicField(this, "streamPool", []);
+        __publicField(this, "maxConcurrentStreams");
+        __publicField(this, "defaultTimeout");
+        __publicField(this, "isDisposed", false);
+        this.maxConcurrentStreams = options.maxConcurrentStreams || 10;
+        this.defaultTimeout = options.defaultTimeout || 3e4;
+        this.streamCache = new LRUCache({
+          maxSize: options.cacheSize || 50,
+          defaultTTL: 5 * 60 * 1e3,
+          // 5 minutes
+          onEvict: (key, stream) => this.destroyStream(key)
+        });
+        this.setupCleanupInterval();
+      }
+      /**
+       * Create a new managed stream
+       */
+      createStream(id, source, options = {}) {
+        if (this.isDisposed) {
+          throw new Error("Cannot create stream on disposed StreamManager");
+        }
+        if (this.streams.has(id)) {
+          throw new Error(`Stream with id '${id}' already exists`);
+        }
+        if (this.activeStreams.size >= this.maxConcurrentStreams) {
+          throw new Error(`Maximum concurrent streams (${this.maxConcurrentStreams}) reached`);
+        }
+        const streamState = {
+          id,
+          status: "idle",
+          metrics: {
+            bytesRead: 0,
+            bytesWritten: 0,
+            chunksProcessed: 0,
+            errors: 0,
+            startTime: Date.now()
+          },
+          options: {
+            timeout: this.defaultTimeout,
+            retryAttempts: 3,
+            backpressureThreshold: 16384,
+            // 16KB
+            ...options
+          },
+          createdAt: Date.now(),
+          lastActivity: Date.now()
+        };
+        this.streams.set(id, streamState);
+        const actualSource = typeof source === "function" ? source() : source;
+        const managedStream = new ManagedStream(id, actualSource, this, streamState);
+        this.streamCache.set(id, actualSource);
+        this.emit("streamCreated", id, streamState);
+        return managedStream;
+      }
+      /**
+       * Get a stream by ID
+       */
+      getStream(id) {
+        const state = this.streams.get(id);
+        const source = this.streamCache.get(id);
+        if (!state || !source) {
+          return null;
+        }
+        return new ManagedStream(id, source, this, state);
+      }
+      /**
+       * Pause a stream
+       */
+      pauseStream(id) {
+        const state = this.streams.get(id);
+        if (!state || state.status !== "active") {
+          return false;
+        }
+        state.status = "paused";
+        state.lastActivity = Date.now();
+        this.activeStreams.delete(id);
+        this.pausedStreams.add(id);
+        this.emit("streamPaused", id);
+        return true;
+      }
+      /**
+       * Resume a paused stream
+       */
+      resumeStream(id) {
+        const state = this.streams.get(id);
+        if (!state || state.status !== "paused") {
+          return false;
+        }
+        if (this.activeStreams.size >= this.maxConcurrentStreams) {
+          return false;
+        }
+        state.status = "active";
+        state.lastActivity = Date.now();
+        this.pausedStreams.delete(id);
+        this.activeStreams.add(id);
+        this.emit("streamResumed", id);
+        return true;
+      }
+      /**
+       * Destroy a stream
+       */
+      destroyStream(id) {
+        const state = this.streams.get(id);
+        if (!state) {
+          return false;
+        }
+        try {
+          state.status = "destroyed";
+          state.metrics.endTime = Date.now();
+          state.metrics.duration = state.metrics.endTime - state.metrics.startTime;
+          this.activeStreams.delete(id);
+          this.pausedStreams.delete(id);
+          this.streams.delete(id);
+          this.streamCache.delete(id);
+          this.emit("streamDestroyed", id, state);
+          return true;
+        } catch (error) {
+          errorHandler.handleError(error, {
+            component: "StreamManager",
+            operation: "destroyStream",
+            metadata: { streamId: id }
+          });
+          return false;
+        }
+      }
+      /**
+       * Register a transformer for streams
+       */
+      registerTransformer(name, transformer) {
+        this.transformers.set(name, transformer);
+      }
+      /**
+       * Register a filter for streams
+       */
+      registerFilter(name, filter) {
+        this.filters.set(name, filter);
+      }
+      /**
+       * Get transformer by name
+       */
+      getTransformer(name) {
+        return this.transformers.get(name);
+      }
+      /**
+       * Get filter by name
+       */
+      getFilter(name) {
+        return this.filters.get(name);
+      }
+      /**
+       * Get all stream states
+       */
+      getAllStreams() {
+        return Array.from(this.streams.values());
+      }
+      /**
+       * Get active streams
+       */
+      getActiveStreams() {
+        return Array.from(this.activeStreams).map((id) => this.streams.get(id));
+      }
+      /**
+       * Get stream statistics
+       */
+      getStats() {
+        const states = Array.from(this.streams.values());
+        const totalBytesProcessed = states.reduce((sum, state) => sum + state.metrics.bytesRead + state.metrics.bytesWritten, 0);
+        const completedStreams = states.filter((s) => s.status === "completed");
+        const averageThroughput = completedStreams.length > 0 ? completedStreams.reduce((sum, s) => sum + (s.metrics.throughput || 0), 0) / completedStreams.length : 0;
+        return {
+          totalStreams: this.streams.size,
+          activeStreams: this.activeStreams.size,
+          pausedStreams: this.pausedStreams.size,
+          completedStreams: states.filter((s) => s.status === "completed").length,
+          errorStreams: states.filter((s) => s.status === "error").length,
+          totalBytesProcessed,
+          averageThroughput,
+          cacheHitRate: this.streamCache.getStats().hitRate || 0
+        };
+      }
+      /**
+       * Cleanup inactive streams
+       */
+      cleanup(maxAge = 6e4) {
+        const now = Date.now();
+        let cleaned = 0;
+        for (const [id, state] of this.streams) {
+          if (now - state.lastActivity > maxAge && (state.status === "completed" || state.status === "error")) {
+            this.destroyStream(id);
+            cleaned++;
+          }
+        }
+        return cleaned;
+      }
+      /**
+       * Dispose the stream manager
+       */
+      dispose() {
+        if (this.isDisposed) return;
+        for (const id of this.streams.keys()) {
+          this.destroyStream(id);
+        }
+        this.streams.clear();
+        this.transformers.clear();
+        this.filters.clear();
+        this.activeStreams.clear();
+        this.pausedStreams.clear();
+        this.streamPool.length = 0;
+        this.streamCache.destroy();
+        this.removeAllListeners();
+        this.isDisposed = true;
+      }
+      setupCleanupInterval() {
+        setInterval(() => {
+          if (!this.isDisposed) {
+            this.cleanup();
+          }
+        }, 6e4);
+      }
+      updateStreamMetrics(id, metrics) {
+        const state = this.streams.get(id);
+        if (state) {
+          Object.assign(state.metrics, metrics);
+          state.lastActivity = Date.now();
+          if (state.metrics.duration && state.metrics.duration > 0) {
+            const totalBytes = state.metrics.bytesRead + state.metrics.bytesWritten;
+            state.metrics.throughput = totalBytes / (state.metrics.duration / 1e3);
+          }
+        }
+      }
+      updateStreamStatus(id, status) {
+        const state = this.streams.get(id);
+        if (state) {
+          const oldStatus = state.status;
+          state.status = status;
+          state.lastActivity = Date.now();
+          if (status === "active" && oldStatus !== "active") {
+            this.activeStreams.add(id);
+            this.pausedStreams.delete(id);
+          } else if (status === "paused" && oldStatus !== "paused") {
+            this.activeStreams.delete(id);
+            this.pausedStreams.add(id);
+          } else if (status === "completed" || status === "error" || status === "destroyed") {
+            this.activeStreams.delete(id);
+            this.pausedStreams.delete(id);
+            if (status === "completed") {
+              state.metrics.endTime = Date.now();
+              state.metrics.duration = state.metrics.endTime - state.metrics.startTime;
+            }
+          }
+          this.emit("streamStatusChanged", id, status, oldStatus);
+        }
+      }
+    };
+    ManagedStream = class extends import_events2.EventEmitter {
+      constructor(id, source, manager, state) {
+        super();
+        this.id = id;
+        this.source = source;
+        this.manager = manager;
+        this.state = state;
+        __publicField(this, "reader", null);
+        __publicField(this, "isReading", false);
+        __publicField(this, "backpressureActive", false);
+        this.setupTimeout();
+      }
+      /**
+       * Start reading from the stream
+       */
+      async start() {
+        if (this.isReading) {
+          throw new Error("Stream is already reading");
+        }
+        try {
+          this.manager.updateStreamStatus(this.id, "active");
+          this.reader = this.source.getReader();
+          this.isReading = true;
+          await this.readLoop();
+        } catch (error) {
+          this.handleError(error);
+        }
+      }
+      /**
+       * Transform stream data
+       */
+      transform(transformer) {
+        const actualTransformer = typeof transformer === "string" ? this.manager.getTransformer(transformer) : transformer;
+        if (!actualTransformer) {
+          throw new Error(`Transformer not found: ${transformer}`);
+        }
+        const transformedSource = new ReadableStream({
+          start: (controller) => {
+            this.on("data", async (chunk) => {
+              try {
+                const transformed = await actualTransformer(chunk);
+                controller.enqueue(transformed);
+              } catch (error) {
+                controller.error(error);
+              }
+            });
+            this.on("end", () => controller.close());
+            this.on("error", (error) => controller.error(error));
+          }
+        });
+        return this.manager.createStream(`${this.id}-transformed`, transformedSource, this.state.options);
+      }
+      /**
+       * Filter stream data
+       */
+      filter(filter) {
+        const actualFilter = typeof filter === "string" ? this.manager.getFilter(filter) : filter;
+        if (!actualFilter) {
+          throw new Error(`Filter not found: ${filter}`);
+        }
+        const filteredSource = new ReadableStream({
+          start: (controller) => {
+            this.on("data", async (chunk) => {
+              try {
+                const shouldInclude = await actualFilter(chunk);
+                if (shouldInclude) {
+                  controller.enqueue(chunk);
+                }
+              } catch (error) {
+                controller.error(error);
+              }
+            });
+            this.on("end", () => controller.close());
+            this.on("error", (error) => controller.error(error));
+          }
+        });
+        return this.manager.createStream(`${this.id}-filtered`, filteredSource, this.state.options);
+      }
+      /**
+       * Pause the stream
+       */
+      pause() {
+        return this.manager.pauseStream(this.id);
+      }
+      /**
+       * Resume the stream
+       */
+      resume() {
+        return this.manager.resumeStream(this.id);
+      }
+      /**
+       * Destroy the stream
+       */
+      destroy() {
+        if (this.reader) {
+          this.reader.releaseLock();
+          this.reader = null;
+        }
+        this.isReading = false;
+        return this.manager.destroyStream(this.id);
+      }
+      /**
+       * Get stream metrics
+       */
+      getMetrics() {
+        return { ...this.state.metrics };
+      }
+      /**
+       * Get stream status
+       */
+      getStatus() {
+        return this.state.status;
+      }
+      async readLoop() {
+        if (!this.reader) return;
+        try {
+          while (this.isReading && this.state.status === "active") {
+            const { done, value } = await this.reader.read();
+            if (done) {
+              this.manager.updateStreamStatus(this.id, "completed");
+              this.emit("end");
+              break;
+            }
+            this.state.metrics.chunksProcessed++;
+            if (typeof value === "string") {
+              this.state.metrics.bytesRead += value.length;
+            } else if (value instanceof Uint8Array) {
+              this.state.metrics.bytesRead += value.length;
+            }
+            this.manager.updateStreamMetrics(this.id, this.state.metrics);
+            if (this.state.options.backpressureThreshold && this.state.metrics.bytesRead > this.state.options.backpressureThreshold && !this.backpressureActive) {
+              this.backpressureActive = true;
+              this.emit("backpressure");
+              await this.handleBackpressure();
+            }
+            this.emit("data", value);
+            await new Promise((resolve) => setImmediate(resolve));
+          }
+        } catch (error) {
+          this.handleError(error);
+        } finally {
+          if (this.reader) {
+            this.reader.releaseLock();
+            this.reader = null;
+          }
+          this.isReading = false;
+        }
+      }
+      async handleBackpressure() {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        this.backpressureActive = false;
+      }
+      handleError(error) {
+        this.state.metrics.errors++;
+        this.manager.updateStreamStatus(this.id, "error");
+        this.manager.updateStreamMetrics(this.id, this.state.metrics);
+        errorHandler.handleError(error, {
+          component: "ManagedStream",
+          operation: "readLoop",
+          metadata: { streamId: this.id }
+        });
+        this.emit("error", error);
+      }
+      setupTimeout() {
+        if (this.state.options.timeout) {
+          setTimeout(() => {
+            if (this.state.status === "active" || this.state.status === "idle") {
+              this.handleError(new Error(`Stream timeout after ${this.state.options.timeout}ms`));
+            }
+          }, this.state.options.timeout);
+        }
+      }
+    };
+    globalStreamManager = new StreamManager();
+    StreamUtils = class {
+      /**
+       * Create a stream from an array
+       */
+      static fromArray(items) {
+        let index = 0;
+        return new ReadableStream({
+          pull(controller) {
+            if (index < items.length) {
+              controller.enqueue(items[index++]);
+            } else {
+              controller.close();
+            }
+          }
+        });
+      }
+      /**
+       * Create a stream from a generator
+       */
+      static fromGenerator(generator) {
+        return new ReadableStream({
+          pull(controller) {
+            const { done, value } = generator.next();
+            if (done) {
+              controller.close();
+            } else {
+              controller.enqueue(value);
+            }
+          }
+        });
+      }
+      /**
+       * Merge multiple streams
+       */
+      static merge(...streams) {
+        return new ReadableStream({
+          start(controller) {
+            let activeStreams = streams.length;
+            streams.forEach((stream) => {
+              const reader = stream.getReader();
+              const pump = async () => {
+                try {
+                  while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) {
+                      activeStreams--;
+                      if (activeStreams === 0) {
+                        controller.close();
+                      }
+                      break;
+                    }
+                    controller.enqueue(value);
+                  }
+                } catch (error) {
+                  controller.error(error);
+                } finally {
+                  reader.releaseLock();
+                }
+              };
+              pump();
+            });
+          }
+        });
+      }
+      /**
+       * Convert stream to array
+       */
+      static async toArray(stream) {
+        const reader = stream.getReader();
+        const chunks = [];
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            chunks.push(value);
+          }
+        } finally {
+          reader.releaseLock();
+        }
+        return chunks;
+      }
+    };
+  }
+});
+
 // src/main.ts
 var main_exports = {};
 __export(main_exports, {
   default: () => MyPlugin
 });
 module.exports = __toCommonJS(main_exports);
-var import_obsidian33 = require("obsidian");
+var import_obsidian35 = require("obsidian");
 init_types();
 
 // src/settings/SettingTab.ts
-var import_obsidian30 = require("obsidian");
+var import_obsidian31 = require("obsidian");
 
 // src/components/commands/viewCommands.ts
 init_pluginUtils();
@@ -14039,7 +16223,7 @@ async function activateView(app, viewType, reveal = true) {
 }
 
 // src/chat.ts
-var import_obsidian24 = require("obsidian");
+var import_obsidian25 = require("obsidian");
 
 // src/components/chat/ChatHistoryManager.ts
 var import_obsidian7 = require("obsidian");
@@ -14201,7 +16385,7 @@ var ChatHistoryManager = class {
 };
 
 // src/components/chat/Message.ts
-var import_obsidian17 = require("obsidian");
+var import_obsidian18 = require("obsidian");
 init_Buttons();
 init_MessageRenderer();
 init_eventHandlers();
@@ -14239,14 +16423,14 @@ async function createMessageElement(app, role, content, chatHistoryManager, plug
       if (!contentEl) {
         contentEl = messageContainer.createDiv("message-content");
       }
-      await import_obsidian17.MarkdownRenderer.render(app, content, contentEl, "", parentComponent);
+      await import_obsidian18.MarkdownRenderer.render(app, content, contentEl, "", parentComponent);
     }
   } else {
     contentEl = messageEl.querySelector(".message-content");
     if (!contentEl) {
       contentEl = messageContainer.createDiv("message-content");
     }
-    await import_obsidian17.MarkdownRenderer.render(app, content, contentEl, "", parentComponent);
+    await import_obsidian18.MarkdownRenderer.render(app, content, contentEl, "", parentComponent);
   }
   if (!contentEl) {
     contentEl = messageEl.querySelector(".message-content");
@@ -15948,13 +18132,13 @@ The current time is ${currentTime} ${timeZoneString}.`;
 }
 
 // src/utils/noteUtils.ts
-var import_obsidian19 = require("obsidian");
+var import_obsidian20 = require("obsidian");
 
 // src/utils/generalUtils.ts
-var import_obsidian18 = require("obsidian");
+var import_obsidian19 = require("obsidian");
 init_logger();
 function showNotice(message) {
-  new import_obsidian18.Notice(message);
+  new import_obsidian19.Notice(message);
 }
 async function copyToClipboard3(text, successMsg = "Copied to clipboard", failMsg = "Failed to copy to clipboard") {
   try {
@@ -16070,10 +18254,10 @@ ${extractedContent}
 `
           );
         } else {
-          new import_obsidian19.Notice(`File not found: ${filePath}. Ensure the file name and path are correct.`);
+          new import_obsidian20.Notice(`File not found: ${filePath}. Ensure the file name and path are correct.`);
         }
       } catch (error) {
-        new import_obsidian19.Notice(`Error processing link for ${filePath}: ${error.message}`);
+        new import_obsidian20.Notice(`Error processing link for ${filePath}: ${error.message}`);
       }
     }
   }
@@ -16195,15 +18379,15 @@ ${currentNoteContent}`
 }
 
 // src/components/chat/MessageRegenerator.ts
-var import_obsidian23 = require("obsidian");
+var import_obsidian24 = require("obsidian");
 
 // src/components/chat/ResponseStreamer.ts
-var import_obsidian22 = require("obsidian");
+var import_obsidian23 = require("obsidian");
 init_aiDispatcher();
 init_MessageRenderer();
 
 // src/components/chat/agent/TaskContinuation.ts
-var import_obsidian20 = require("obsidian");
+var import_obsidian21 = require("obsidian");
 var TaskContinuation = class {
   /**
    * @param plugin The main plugin instance (for settings and logging)
@@ -16367,7 +18551,7 @@ var TaskContinuation = class {
     const contentEl = container.querySelector(".message-content");
     if (contentEl) {
       contentEl.empty();
-      await import_obsidian20.MarkdownRenderer.render(
+      await import_obsidian21.MarkdownRenderer.render(
         this.plugin.app,
         content,
         contentEl,
@@ -16566,7 +18750,7 @@ var ResponseStreamer = class {
     if (!contentEl) return;
     this.updateContainerDataset(container, content);
     contentEl.empty();
-    await import_obsidian22.MarkdownRenderer.render(
+    await import_obsidian23.MarkdownRenderer.render(
       this.plugin.app,
       content,
       contentEl,
@@ -17075,7 +19259,7 @@ var MessageRegenerator = class {
       );
     } catch (error) {
       if (error.name !== "AbortError") {
-        new import_obsidian23.Notice(`Error: ${error.message}`);
+        new import_obsidian24.Notice(`Error: ${error.message}`);
         assistantContainer.remove();
       }
     } finally {
@@ -17181,45 +19365,34 @@ var DOMBatcher = class {
 var globalDOMBatcher = new DOMBatcher();
 
 // src/chat.ts
+init_errorHandler();
+init_asyncOptimizer();
 var VIEW_TYPE_CHAT = "chat-view";
-var ChatView = class extends import_obsidian24.ItemView {
+var ChatView = class extends import_obsidian25.ItemView {
   constructor(leaf, plugin) {
     super(leaf);
-    // Plugin instance
     __publicField(this, "plugin");
-    // Manages persistent chat history
     __publicField(this, "chatHistoryManager");
-    // Container for chat messages
     __publicField(this, "messagesContainer");
-    // Container for input area
     __publicField(this, "inputContainer");
-    // Tracks the current streaming response (for aborting)
     __publicField(this, "activeStream", null);
-    // UI element indicating reference note status
     __publicField(this, "referenceNoteIndicator");
-    // UI element displaying current model name
     __publicField(this, "modelNameDisplay");
-    // Handles agent/tool responses and tool result display
     __publicField(this, "agentResponseHandler", null);
-    // Handles message regeneration (retry/modify)
     __publicField(this, "messageRegenerator", null);
-    // Handles streaming of assistant responses
     __publicField(this, "responseStreamer", null);
-    // Renders messages (markdown, etc.)
     __publicField(this, "messageRenderer");
-    // Memory optimization: Object pools and caches
     __publicField(this, "messagePool");
     __publicField(this, "domCache");
     __publicField(this, "arrayManager");
-    // Cached DOM references to avoid repeated queries
     __publicField(this, "cachedMessageElements", []);
     __publicField(this, "lastScrollHeight", 0);
-    // Priority 1 Optimization: Cache frequently accessed DOM elements
     __publicField(this, "domElementCache", {});
-    // Event listener cleanup tracking
     __publicField(this, "eventListeners", []);
-    // Priority 1 Optimization: DOM batching for efficient bulk operations
     __publicField(this, "domBatcher");
+    // Priority 2 Optimization: Async optimization
+    __publicField(this, "scrollDebouncer");
+    __publicField(this, "updateDebouncer");
     this.plugin = plugin;
     this.chatHistoryManager = new ChatHistoryManager(this.app.vault, this.plugin.manifest.id, "chat-history.json");
     this.messageRenderer = new MessageRenderer(this.app);
@@ -17227,17 +19400,13 @@ var ChatView = class extends import_obsidian24.ItemView {
     this.domCache = new WeakCache();
     this.arrayManager = PreAllocatedArrays.getInstance();
     this.domBatcher = new DOMBatcher();
+    this.scrollDebouncer = AsyncOptimizerFactory.createInputDebouncer();
+    this.updateDebouncer = AsyncOptimizerFactory.createInputDebouncer();
   }
-  /**
-   * Priority 1 Optimization: Helper method to add event listener with cleanup tracking
-   */
   addEventListenerWithCleanup(element, event, handler) {
     element.addEventListener(event, handler);
     this.eventListeners.push({ element, event, handler });
   }
-  /**
-   * Priority 1 Optimization: Cache DOM elements for reuse
-   */
   cacheUIElements(ui) {
     this.domElementCache.textarea = ui.textarea;
     this.domElementCache.sendButton = ui.sendButton;
@@ -17260,27 +19429,35 @@ var ChatView = class extends import_obsidian24.ItemView {
   getIcon() {
     return "message-square";
   }
-  /**
-   * Called when the view is opened. Sets up UI, loads history, and wires up events.
-   *
-   * - Loads chat history from disk
-   * - Builds and wires up all UI elements
-   * - Sets up event handlers for chat controls, agent mode, and input
-   * - Handles streaming, message regeneration, and tool result display
-   * - Applies YAML settings from the current note if available
-   */
   async onOpen() {
     const { contentEl } = this;
+    this.prepareChatView(contentEl);
+    const loadedHistory = await this.loadChatHistory();
+    const ui = createChatUI(this.app, contentEl);
+    this.initializeUIElements(ui);
+    this.setupEventHandlers(ui);
+    this.setupAgentResponseHandler();
+    this.setupResponseStreamerAndRegenerator();
+    this.setupAgentModeButton();
+    this.setupSendAndStopButtons();
+    this.setupInputHandler(ui);
+    await this.loadAndRenderHistory(loadedHistory);
+    this.updateReferenceNoteIndicator();
+    this.registerWorkspaceAndSettingsEvents();
+  }
+  prepareChatView(contentEl) {
     contentEl.empty();
     contentEl.addClass("ai-chat-view");
-    let loadedHistory = [];
-    try {
-      loadedHistory = await this.chatHistoryManager.getHistory();
-    } catch (e) {
-      new import_obsidian24.Notice("Failed to load chat history.");
-      loadedHistory = [];
-    }
-    const ui = createChatUI(this.app, contentEl);
+  }
+  async loadChatHistory() {
+    return await withErrorHandling(
+      () => this.chatHistoryManager.getHistory(),
+      "ChatView",
+      "loadChatHistory",
+      { fallbackMessage: "Failed to load chat history" }
+    ) || [];
+  }
+  initializeUIElements(ui) {
     this.messagesContainer = ui.messagesContainer;
     this.inputContainer = ui.inputContainer;
     this.referenceNoteIndicator = ui.referenceNoteIndicator;
@@ -17288,9 +19465,8 @@ var ChatView = class extends import_obsidian24.ItemView {
     this.cacheUIElements(ui);
     this.updateReferenceNoteIndicator();
     this.updateModelNameDisplay();
-    const textarea = this.domElementCache.textarea;
-    const sendButton = this.domElementCache.sendButton;
-    const stopButton = this.domElementCache.stopButton;
+  }
+  setupEventHandlers(ui) {
     this.addEventListenerWithCleanup(this.domElementCache.copyAllButton, "click", handleCopyAll(this.messagesContainer, this.plugin));
     this.addEventListenerWithCleanup(this.domElementCache.clearButton, "click", handleClearChat(this.messagesContainer, this.chatHistoryManager));
     this.addEventListenerWithCleanup(this.domElementCache.settingsButton, "click", handleSettings(this.app, this.plugin));
@@ -17300,6 +19476,9 @@ var ChatView = class extends import_obsidian24.ItemView {
       this.plugin.saveSettings();
       this.updateReferenceNoteIndicator();
     });
+    this.addEventListenerWithCleanup(this.domElementCache.saveNoteButton, "click", handleSaveNote(this.messagesContainer, this.plugin, this.app, this.agentResponseHandler));
+  }
+  setupAgentResponseHandler() {
     this.agentResponseHandler = new AgentResponseHandler({
       app: this.app,
       plugin: this.plugin,
@@ -17307,9 +19486,9 @@ var ChatView = class extends import_obsidian24.ItemView {
       toolContinuationContainer: this.domElementCache.toolContinuationContainer,
       onToolResult: (toolResult, command) => {
         if (toolResult.success) {
-          this.plugin.debugLog("info", "[chat.ts] Tool ${command.action} completed successfully", toolResult.data);
+          this.plugin.debugLog("info", `[chat.ts] Tool ${command.action} completed successfully`, toolResult.data);
         } else {
-          this.plugin.debugLog("error", "[chat.ts] Tool ${command.action} failed:", toolResult.error);
+          this.plugin.debugLog("error", `[chat.ts] Tool ${command.action} failed:`, toolResult.error);
         }
       },
       onToolDisplay: (display) => {
@@ -17326,7 +19505,8 @@ var ChatView = class extends import_obsidian24.ItemView {
         }
       }
     });
-    this.addEventListenerWithCleanup(this.domElementCache.saveNoteButton, "click", handleSaveNote(this.messagesContainer, this.plugin, this.app, this.agentResponseHandler));
+  }
+  setupResponseStreamerAndRegenerator() {
     this.responseStreamer = new ResponseStreamer(
       this.plugin,
       this.agentResponseHandler,
@@ -17342,6 +19522,8 @@ var ChatView = class extends import_obsidian24.ItemView {
       this.agentResponseHandler,
       this.activeStream
     );
+  }
+  setupAgentModeButton() {
     this.addEventListenerWithCleanup(this.domElementCache.agentModeButton, "click", async () => {
       const isCurrentlyEnabled = this.plugin.agentModeManager.isAgentModeEnabled();
       await this.plugin.agentModeManager.setAgentModeEnabled(!isCurrentlyEnabled);
@@ -17349,14 +19531,14 @@ var ChatView = class extends import_obsidian24.ItemView {
       if (this.plugin.agentModeManager.isAgentModeEnabled()) {
         agentButton2.classList.add("active");
         agentButton2.setAttribute("title", "Agent Mode: ON - AI can use tools");
-        new import_obsidian24.Notice("Agent Mode enabled - AI can now use tools");
+        new import_obsidian25.Notice("Agent Mode enabled - AI can now use tools");
         if (this.agentResponseHandler) {
           this.agentResponseHandler.resetExecutionCount();
         }
       } else {
         agentButton2.classList.remove("active");
         agentButton2.setAttribute("title", "Agent Mode: OFF - Regular chat");
-        new import_obsidian24.Notice("Agent Mode disabled");
+        new import_obsidian25.Notice("Agent Mode disabled");
       }
     });
     const agentButton = this.domElementCache.agentModeButton;
@@ -17367,6 +19549,11 @@ var ChatView = class extends import_obsidian24.ItemView {
       agentButton.classList.remove("active");
       agentButton.setAttribute("title", "Agent Mode: OFF - Regular chat");
     }
+  }
+  setupSendAndStopButtons() {
+    const textarea = this.domElementCache.textarea;
+    const sendButton = this.domElementCache.sendButton;
+    const stopButton = this.domElementCache.stopButton;
     const sendMessage = async () => {
       var _a2;
       const content = textarea.value.trim();
@@ -17379,17 +19566,18 @@ var ChatView = class extends import_obsidian24.ItemView {
       stopButton.classList.remove("hidden");
       const userMessageEl = await createMessageElement(this.app, "user", content, this.chatHistoryManager, this.plugin, (el) => this.regenerateResponse(el), this);
       this.messagesContainer.appendChild(userMessageEl);
-      this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+      this.debouncedScrollToBottom();
       textarea.value = "";
-      try {
-        await this.chatHistoryManager.addMessage({
+      await withErrorHandling(
+        () => this.chatHistoryManager.addMessage({
           timestamp: userMessageEl.dataset.timestamp || (/* @__PURE__ */ new Date()).toISOString(),
           sender: "user",
           content
-        });
-      } catch (e) {
-        new import_obsidian24.Notice("Failed to save user message: " + e.message);
-      }
+        }),
+        "ChatView",
+        "saveUserMessage",
+        { fallbackMessage: "Failed to save user message" }
+      );
       try {
         const messages = await this.buildContextMessages();
         this.addVisibleMessagesToContext(messages);
@@ -17397,7 +19585,7 @@ var ChatView = class extends import_obsidian24.ItemView {
         tempContainer.addClass("ai-chat-message", "assistant");
         tempContainer.createDiv("message-content");
         this.messagesContainer.appendChild(tempContainer);
-        this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+        this.debouncedScrollToBottom();
         const responseContent = await this.streamAssistantResponse(messages, tempContainer);
         let enhancedMessageData = void 0;
         this.plugin.debugLog("debug", "[chat.ts] tempContainer.dataset.messageData exists:", !!tempContainer.dataset.messageData);
@@ -17440,7 +19628,10 @@ var ChatView = class extends import_obsidian24.ItemView {
         }
       } catch (error) {
         if (error.name !== "AbortError") {
-          new import_obsidian24.Notice(`Error: ${error.message}`);
+          handleChatError(error, "sendMessage", {
+            messageLength: content.length,
+            agentMode: this.plugin.agentModeManager.isAgentModeEnabled()
+          });
           await createMessageElement(this.app, "assistant", `Error: ${error.message}`, this.chatHistoryManager, this.plugin, (el) => this.regenerateResponse(el), this);
         }
       } finally {
@@ -17466,11 +19657,16 @@ var ChatView = class extends import_obsidian24.ItemView {
       stopButton.classList.add("hidden");
       sendButton.classList.remove("hidden");
     });
+  }
+  setupInputHandler(ui) {
+    const textarea = this.domElementCache.textarea;
+    const sendButton = this.domElementCache.sendButton;
+    const stopButton = this.domElementCache.stopButton;
     Promise.resolve().then(() => (init_inputHandler(), inputHandler_exports)).then(({ setupInputHandler: setupInputHandler2 }) => {
       setupInputHandler2(
         textarea,
         this.messagesContainer,
-        sendMessage,
+        async () => sendButton.click(),
         async (cmd) => {
           switch (cmd) {
             case "/clear":
@@ -17499,6 +19695,8 @@ var ChatView = class extends import_obsidian24.ItemView {
         stopButton
       );
     });
+  }
+  async loadAndRenderHistory(loadedHistory) {
     if (loadedHistory.length > 0) {
       this.messagesContainer.empty();
       const file = this.app.workspace.getActiveFile();
@@ -17519,7 +19717,8 @@ var ChatView = class extends import_obsidian24.ItemView {
         scrollToBottom: true
       });
     }
-    this.updateReferenceNoteIndicator();
+  }
+  registerWorkspaceAndSettingsEvents() {
     this.registerEvent(this.app.workspace.on("active-leaf-change", () => {
       this.updateReferenceNoteIndicator();
     }));
@@ -17528,34 +19727,23 @@ var ChatView = class extends import_obsidian24.ItemView {
       this.updateModelNameDisplay();
     });
   }
-  /**
-   * Adds a message to the UI and persists it to history.
-   * Optionally includes enhanced data (tool results, reasoning, etc.).
-   *
-   * @param role 'user' or 'assistant'
-   * @param content Message content
-   * @param isError Whether this is an error message
-   * @param enhancedData Optional enhanced data (toolResults, reasoning, taskStatus)
-   */
   async addMessage(role, content, isError = false, enhancedData) {
     const messageEl = await createMessageElement(this.app, role, content, this.chatHistoryManager, this.plugin, (el) => this.regenerateResponse(el), this, enhancedData ? { role, content, ...enhancedData } : void 0);
     const uiTimestamp = messageEl.dataset.timestamp || (/* @__PURE__ */ new Date()).toISOString();
     this.messagesContainer.appendChild(messageEl);
-    this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
-    try {
-      await this.chatHistoryManager.addMessage({
+    this.debouncedScrollToBottom();
+    await withErrorHandling(
+      () => this.chatHistoryManager.addMessage({
         timestamp: uiTimestamp,
         sender: role,
         content,
         ...enhancedData || {}
-      });
-    } catch (e) {
-      new import_obsidian24.Notice("Failed to save chat message: " + e.message);
-    }
+      }),
+      "ChatView",
+      "addMessage",
+      { fallbackMessage: "Failed to save chat message" }
+    );
   }
-  /**
-   * Called when the view is closed. Aborts any active streaming response.
-   */
   async onClose() {
     if (this.activeStream) {
       this.activeStream.abort();
@@ -17564,18 +19752,12 @@ var ChatView = class extends import_obsidian24.ItemView {
     this.cleanupEventListeners();
     this.cleanupMemoryResources();
   }
-  /**
-   * Priority 1 Optimization: Clean up all tracked event listeners
-   */
   cleanupEventListeners() {
     for (const { element, event, handler } of this.eventListeners) {
       element.removeEventListener(event, handler);
     }
     this.eventListeners.length = 0;
   }
-  /**
-   * Clean up pooled objects and cached resources
-   */
   cleanupMemoryResources() {
     this.cachedMessageElements.length = 0;
     this.lastScrollHeight = 0;
@@ -17584,41 +19766,32 @@ var ChatView = class extends import_obsidian24.ItemView {
       this.domBatcher.clear();
     }
   }
-  /**
-   * Regenerates an assistant response for a given message element.
-   * Used for retrying or modifying previous responses.
-   * @param messageEl The message element to regenerate
-   */
   async regenerateResponse(messageEl) {
     if (this.messageRegenerator) {
       await this.messageRegenerator.regenerateResponse(messageEl, () => this.buildContextMessages());
     }
   }
-  /**
-   * Updates the reference note indicator UI to reflect current state.
-   */
   updateReferenceNoteIndicator() {
-    const currentFile = this.app.workspace.getActiveFile();
-    const isReferenceEnabled = this.plugin.settings.referenceCurrentNote;
-    const button = this.referenceNoteIndicator.previousElementSibling;
-    if (isReferenceEnabled && currentFile) {
-      this.referenceNoteIndicator.setText(`\u{1F4DD} Referencing: ${currentFile.basename}`);
-      this.referenceNoteIndicator.style.display = "block";
-      if (button && button.getAttribute("aria-label") === "Toggle referencing current note") {
-        button.setText("\u{1F4DD}");
-        button.classList.add("active");
+    this.updateDebouncer.debounce(async () => {
+      const currentFile = this.app.workspace.getActiveFile();
+      const isReferenceEnabled = this.plugin.settings.referenceCurrentNote;
+      const button = this.referenceNoteIndicator.previousElementSibling;
+      if (isReferenceEnabled && currentFile) {
+        this.referenceNoteIndicator.setText(`\u{1F4DD} Referencing: ${currentFile.basename}`);
+        this.referenceNoteIndicator.style.display = "block";
+        if (button && button.getAttribute("aria-label") === "Toggle referencing current note") {
+          button.setText("\u{1F4DD}");
+          button.classList.add("active");
+        }
+      } else {
+        this.referenceNoteIndicator.style.display = "none";
+        if (button && button.getAttribute("aria-label") === "Toggle referencing current note") {
+          button.setText("\u{1F4DD}");
+          button.classList.remove("active");
+        }
       }
-    } else {
-      this.referenceNoteIndicator.style.display = "none";
-      if (button && button.getAttribute("aria-label") === "Toggle referencing current note") {
-        button.setText("\u{1F4DD}");
-        button.classList.remove("active");
-      }
-    }
+    });
   }
-  /**
-   * Updates the model name display UI to show the current model.
-   */
   updateModelNameDisplay() {
     if (!this.modelNameDisplay) return;
     let modelName = "Unknown Model";
@@ -17632,17 +19805,9 @@ var ChatView = class extends import_obsidian24.ItemView {
     }
     this.modelNameDisplay.textContent = `Model: ${modelName}`;
   }
-  /**
-   * Builds the context messages for the assistant (system prompt, reference note, etc.).
-   * @returns Array of context messages
-   */
   async buildContextMessages() {
     return await buildContextMessages({ app: this.app, plugin: this.plugin });
   }
-  /**
-   * Optimized method to add visible messages to context using object pooling
-   * @param messages Array to add messages to
-   */
   addVisibleMessagesToContext(messages) {
     const currentScrollHeight = this.messagesContainer.scrollHeight;
     let messageElements;
@@ -17664,16 +19829,6 @@ var ChatView = class extends import_obsidian24.ItemView {
       messages.push(messageObj);
     }
   }
-  /**
-   * Streams the assistant response and updates the UI in real time.
-   * Optionally updates an existing message in history.
-   *
-   * @param messages Array of context and chat messages
-   * @param container The DOM element to stream response into
-   * @param originalTimestamp (Optional) Timestamp if updating an existing message
-   * @param originalContent (Optional) Original content if updating
-   * @returns The streamed assistant response content
-   */
   async streamAssistantResponse(messages, container, originalTimestamp, originalContent) {
     if (!this.responseStreamer) {
       throw new Error("ResponseStreamer not initialized");
@@ -17704,24 +19859,15 @@ var ChatView = class extends import_obsidian24.ItemView {
     }
     return responseContent;
   }
-  /**
-   * Clears all messages from the UI and resets agent execution count.
-   */
   clearMessages() {
     this.messagesContainer.empty();
     if (this.agentResponseHandler) {
       this.agentResponseHandler.resetExecutionCount();
     }
   }
-  /**
-   * Scrolls the messages container to the bottom.
-   */
   scrollMessagesToBottom() {
     this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
   }
-  /**
-   * Stop the active AI stream in this chat view.
-   */
   stopActiveStream() {
     if (this.activeStream) {
       this.activeStream.abort();
@@ -17732,9 +19878,6 @@ var ChatView = class extends import_obsidian24.ItemView {
       myPlugin.aiDispatcher.abortAllStreams();
     }
   }
-  /**
-   * Check if this chat view has an active AI stream.
-   */
   hasActiveStream() {
     if (this.activeStream !== null) {
       return true;
@@ -17744,6 +19887,24 @@ var ChatView = class extends import_obsidian24.ItemView {
       return myPlugin.aiDispatcher.hasActiveStreams();
     }
     return false;
+  }
+  /**
+   * Priority 2 Optimization: Debounced scroll to bottom
+   */
+  debouncedScrollToBottom() {
+    this.scrollDebouncer.debounce(async () => {
+      this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+    });
+  }
+  /**
+   * Priority 2 Optimization: Batch DOM updates for better performance
+   */
+  batchDOMUpdates(elements, parent) {
+    const operations = elements.map((element) => ({
+      element,
+      parent
+    }));
+    this.domBatcher.addElements(operations);
   }
 };
 
@@ -17822,7 +19983,7 @@ var CollapsibleSectionRenderer = class {
 init_logger();
 
 // src/settings/components/SettingCreators.ts
-var import_obsidian25 = require("obsidian");
+var import_obsidian26 = require("obsidian");
 var SettingCreators = class {
   /**
    * @param plugin The plugin instance, used for saving settings.
@@ -17845,7 +20006,7 @@ var SettingCreators = class {
    * @param options Additional options for the text input (e.g., trim, undefinedIfEmpty, isTextArea).
    */
   createTextSetting(containerEl, name, desc, placeholder, getValue, setValue, options) {
-    new import_obsidian25.Setting(containerEl).setName(name).setDesc(desc).then((setting) => {
+    new import_obsidian26.Setting(containerEl).setName(name).setDesc(desc).then((setting) => {
       const textInputOptions = {
         trim: options == null ? void 0 : options.trim,
         undefinedIfEmpty: options == null ? void 0 : options.undefinedIfEmpty
@@ -17911,7 +20072,7 @@ var SettingCreators = class {
    * @param setValue A function to set the new value of the setting.
    */
   createDropdownSetting(containerEl, name, desc, options, getValue, setValue) {
-    new import_obsidian25.Setting(containerEl).setName(name).setDesc(desc).addDropdown((drop) => {
+    new import_obsidian26.Setting(containerEl).setName(name).setDesc(desc).addDropdown((drop) => {
       Object.entries(options).forEach(([key, display]) => drop.addOption(key, display));
       drop.setValue(getValue());
       drop.onChange(async (value) => {
@@ -17930,7 +20091,7 @@ var SettingCreators = class {
    * @param onChangeCallback An optional callback to run after the value changes and settings are saved.
    */
   createToggleSetting(containerEl, name, desc, getValue, setValue, onChangeCallback) {
-    new import_obsidian25.Setting(containerEl).setName(name).setDesc(desc).addToggle((toggle) => toggle.setValue(getValue()).onChange(async (value) => {
+    new import_obsidian26.Setting(containerEl).setName(name).setDesc(desc).addToggle((toggle) => toggle.setValue(getValue()).onChange(async (value) => {
       await setValue(value);
       if (onChangeCallback) {
         onChangeCallback();
@@ -17948,7 +20109,7 @@ var SettingCreators = class {
    * @param setValue A function to set the new numeric value.
    */
   createSliderSetting(containerEl, name, desc, limits, getValue, setValue) {
-    new import_obsidian25.Setting(containerEl).setName(name).setDesc(desc).addSlider((slider) => {
+    new import_obsidian26.Setting(containerEl).setName(name).setDesc(desc).addSlider((slider) => {
       slider.setLimits(limits.min, limits.max, limits.step).setValue(getValue()).setDynamicTooltip().onChange(async (value) => {
         await setValue(value);
         this.reRenderCallback();
@@ -17958,7 +20119,7 @@ var SettingCreators = class {
 };
 
 // src/settings/sections/GeneralSettingsSection.ts
-var import_obsidian26 = require("obsidian");
+var import_obsidian27 = require("obsidian");
 var GeneralSettingsSection = class {
   /**
    * @param plugin The main plugin instance.
@@ -18022,7 +20183,7 @@ var GeneralSettingsSection = class {
       }
     );
     containerEl.createEl("h3", { text: "AI Call Log Management" });
-    new import_obsidian26.Setting(containerEl).setName("Clear AI Call Logs").setDesc("Delete all AI call log files from the plugin's ai-calls folder.").addButton((btn) => {
+    new import_obsidian27.Setting(containerEl).setName("Clear AI Call Logs").setDesc("Delete all AI call log files from the plugin's ai-calls folder.").addButton((btn) => {
       btn.setButtonText("Clear Logs").setCta().onClick(async () => {
         const { clearAICallLogs: clearAICallLogs2 } = await Promise.resolve().then(() => (init_clearAICallLogs(), clearAICallLogs_exports));
         const pluginFolder = __dirname;
@@ -18034,7 +20195,7 @@ var GeneralSettingsSection = class {
 };
 
 // src/settings/sections/AIModelConfigurationSection.ts
-var import_obsidian27 = require("obsidian");
+var import_obsidian28 = require("obsidian");
 init_aiDispatcher();
 var AIModelConfigurationSection = class {
   /**
@@ -18171,7 +20332,7 @@ var AIModelConfigurationSection = class {
    */
   renderProviderTestSection(containerEl, provider, displayName) {
     const settings = this.plugin.settings[`${provider}Settings`];
-    new import_obsidian27.Setting(containerEl).setName("Test Connection").setDesc(`Verify your API key and fetch available models for ${displayName}`).addButton((button) => button.setButtonText("Test").onClick(async () => {
+    new import_obsidian28.Setting(containerEl).setName("Test Connection").setDesc(`Verify your API key and fetch available models for ${displayName}`).addButton((button) => button.setButtonText("Test").onClick(async () => {
       button.setButtonText("Testing...");
       button.setDisabled(true);
       try {
@@ -18187,17 +20348,17 @@ var AIModelConfigurationSection = class {
           await this.plugin.saveSettings();
           this.plugin.settings.availableModels = await aiDispatcher.getAllUnifiedModels();
           await this.plugin.saveSettings();
-          new import_obsidian27.Notice(result.message);
+          new import_obsidian28.Notice(result.message);
         } else {
           settings.lastTestResult = {
             timestamp: Date.now(),
             success: false,
             message: result.message
           };
-          new import_obsidian27.Notice(result.message);
+          new import_obsidian28.Notice(result.message);
         }
       } catch (error) {
-        new import_obsidian27.Notice(`Error: ${error.message}`);
+        new import_obsidian28.Notice(`Error: ${error.message}`);
       } finally {
         button.setButtonText("Test");
         button.setDisabled(false);
@@ -18237,11 +20398,11 @@ var AIModelConfigurationSection = class {
           if (preset.maxTokens !== void 0) this.plugin.settings.maxTokens = preset.maxTokens;
           if (preset.enableStreaming !== void 0) this.plugin.settings.enableStreaming = preset.enableStreaming;
           await this.plugin.saveSettings();
-          new import_obsidian27.Notice(`Applied preset: ${preset.name}`);
+          new import_obsidian28.Notice(`Applied preset: ${preset.name}`);
         };
       });
     }
-    new import_obsidian27.Setting(containerEl).setName("System Message").setDesc("Set the system message for the AI").addTextArea((text) => {
+    new import_obsidian28.Setting(containerEl).setName("System Message").setDesc("Set the system message for the AI").addTextArea((text) => {
       text.setPlaceholder("You are a helpful assistant.").setValue(this.plugin.settings.systemMessage).onChange((value) => {
         this.plugin.settings.systemMessage = value;
       });
@@ -18250,22 +20411,22 @@ var AIModelConfigurationSection = class {
       });
       return text;
     });
-    new import_obsidian27.Setting(containerEl).setName("Enable Streaming").setDesc("Enable or disable streaming for completions").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableStreaming).onChange(async (value) => {
+    new import_obsidian28.Setting(containerEl).setName("Enable Streaming").setDesc("Enable or disable streaming for completions").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableStreaming).onChange(async (value) => {
       this.plugin.settings.enableStreaming = value;
       await this.plugin.saveSettings();
     }));
-    new import_obsidian27.Setting(containerEl).setName("Temperature").setDesc("Set the randomness of the model's output (0-1)").addSlider((slider) => slider.setLimits(0, 1, 0.1).setValue(this.plugin.settings.temperature).setDynamicTooltip().onChange(async (value) => {
+    new import_obsidian28.Setting(containerEl).setName("Temperature").setDesc("Set the randomness of the model's output (0-1)").addSlider((slider) => slider.setLimits(0, 1, 0.1).setValue(this.plugin.settings.temperature).setDynamicTooltip().onChange(async (value) => {
       this.plugin.settings.temperature = value;
       await this.plugin.saveSettings();
     }));
-    new import_obsidian27.Setting(containerEl).setName("Refresh Available Models").setDesc("Test connections to all configured providers and refresh available models").addButton((button) => button.setButtonText("Refresh Models").onClick(async () => {
+    new import_obsidian28.Setting(containerEl).setName("Refresh Available Models").setDesc("Test connections to all configured providers and refresh available models").addButton((button) => button.setButtonText("Refresh Models").onClick(async () => {
       button.setButtonText("Refreshing...");
       button.setDisabled(true);
       try {
         await this.refreshAllAvailableModels();
-        new import_obsidian27.Notice("Successfully refreshed available models");
+        new import_obsidian28.Notice("Successfully refreshed available models");
       } catch (error) {
-        new import_obsidian27.Notice(`Error refreshing models: ${error.message}`);
+        new import_obsidian28.Notice(`Error refreshing models: ${error.message}`);
       } finally {
         button.setButtonText("Refresh Models");
         button.setDisabled(false);
@@ -18284,7 +20445,7 @@ var AIModelConfigurationSection = class {
       this.plugin.settings.availableModels = await aiDispatcher.getAllUnifiedModels();
       await this.plugin.saveSettings();
     }
-    new import_obsidian27.Setting(containerEl).setName("Selected Model").setDesc("Choose from all available models across all configured providers").addDropdown((dropdown) => {
+    new import_obsidian28.Setting(containerEl).setName("Selected Model").setDesc("Choose from all available models across all configured providers").addDropdown((dropdown) => {
       if (!this.plugin.settings.availableModels || this.plugin.settings.availableModels.length === 0) {
         dropdown.addOption("", "No models available - configure providers above");
       } else {
@@ -18361,7 +20522,7 @@ var AIModelConfigurationSection = class {
       const row = tbody.createEl("tr");
       row.createEl("td", { text: model.name });
       row.createEl("td", { text: model.provider });
-      const enabledToggle = new import_obsidian27.Setting(row.createEl("td")).setName("").setDesc("Enable or disable this model").addToggle((toggle) => {
+      const enabledToggle = new import_obsidian28.Setting(row.createEl("td")).setName("").setDesc("Enable or disable this model").addToggle((toggle) => {
         var _a2;
         return toggle.setValue(((_a2 = this.plugin.settings.enabledModels) == null ? void 0 : _a2[model.id]) !== false).onChange(async (value) => {
           const enabledModels = this.plugin.settings.enabledModels || {};
@@ -18371,7 +20532,7 @@ var AIModelConfigurationSection = class {
         });
       });
       const actionsCell = row.createEl("td");
-      new import_obsidian27.Setting(actionsCell).setName("").setDesc("Delete local copy of this model").addButton((button) => button.setButtonText("Delete").setWarning().onClick(async () => {
+      new import_obsidian28.Setting(actionsCell).setName("").setDesc("Delete local copy of this model").addButton((button) => button.setButtonText("Delete").setWarning().onClick(async () => {
         const confirmed = confirm(`Are you sure you want to delete the local copy of the model "${model.name}"?`);
         if (confirmed) {
           try {
@@ -18379,20 +20540,20 @@ var AIModelConfigurationSection = class {
             const aiDispatcher = new AIDispatcher(this.plugin.app.vault, this.plugin);
             this.plugin.settings.availableModels = await aiDispatcher.getAllUnifiedModels();
             await this.plugin.saveSettings();
-            new import_obsidian27.Notice(`Deleted model "${model.name}"`);
+            new import_obsidian28.Notice(`Deleted model "${model.name}"`);
             containerEl.empty();
             await this.renderAvailableModelsSection(containerEl);
           } catch (error) {
-            new import_obsidian27.Notice(`Error deleting model: ${error.message}`);
+            new import_obsidian28.Notice(`Error deleting model: ${error.message}`);
           }
         }
       })).addButton((button) => button.setButtonText("Re-download").onClick(async () => {
         const confirmed = confirm(`Are you sure you want to re-download the model "${model.name}"?`);
         if (confirmed) {
           try {
-            new import_obsidian27.Notice(`Re-download feature is not yet implemented. Please pull the model again using the provider settings.`);
+            new import_obsidian28.Notice(`Re-download feature is not yet implemented. Please pull the model again using the provider settings.`);
           } catch (error) {
-            new import_obsidian27.Notice(`Error re-downloading model: ${error.message}`);
+            new import_obsidian28.Notice(`Error re-downloading model: ${error.message}`);
           }
         }
       }));
@@ -18411,7 +20572,7 @@ var AIModelConfigurationSection = class {
     });
     const presetList = this.plugin.settings.modelSettingPresets || [];
     presetList.forEach((preset, idx) => {
-      new import_obsidian27.Setting(containerEl).setName("Preset Name").setDesc("Edit the name of this preset").addText((text) => {
+      new import_obsidian28.Setting(containerEl).setName("Preset Name").setDesc("Edit the name of this preset").addText((text) => {
         text.setPlaceholder("Preset Name").setValue(preset.name).onChange((value) => {
           preset.name = value != null ? value : "";
         });
@@ -18419,7 +20580,7 @@ var AIModelConfigurationSection = class {
           await this.plugin.saveSettings();
         });
       });
-      new import_obsidian27.Setting(containerEl).setName("Model ID (provider:model)").setDesc("Edit the model for this preset").addText((text) => {
+      new import_obsidian28.Setting(containerEl).setName("Model ID (provider:model)").setDesc("Edit the model for this preset").addText((text) => {
         text.setPlaceholder("Model ID (provider:model)").setValue(preset.selectedModel || "").onChange((value) => {
           preset.selectedModel = value != null ? value : "";
         });
@@ -18427,7 +20588,7 @@ var AIModelConfigurationSection = class {
           await this.plugin.saveSettings();
         });
       });
-      new import_obsidian27.Setting(containerEl).setName("System Message").setDesc("Edit the system message for this preset").addTextArea((text) => {
+      new import_obsidian28.Setting(containerEl).setName("System Message").setDesc("Edit the system message for this preset").addTextArea((text) => {
         text.setPlaceholder("System message").setValue(preset.systemMessage || "").onChange((value) => {
           preset.systemMessage = value != null ? value : "";
         });
@@ -18442,7 +20603,7 @@ var AIModelConfigurationSection = class {
         preset.temperature = value;
         await this.plugin.saveSettings();
       });
-      new import_obsidian27.Setting(containerEl).setName("Max Tokens").setDesc("Edit the max tokens for this preset").addText((text) => {
+      new import_obsidian28.Setting(containerEl).setName("Max Tokens").setDesc("Edit the max tokens for this preset").addText((text) => {
         var _a2;
         text.setPlaceholder("Max tokens").setValue(((_a2 = preset.maxTokens) == null ? void 0 : _a2.toString()) || "").onChange((value) => {
           const num = parseInt(value != null ? value : "", 10);
@@ -18459,7 +20620,7 @@ var AIModelConfigurationSection = class {
         preset.enableStreaming = value;
         await this.plugin.saveSettings();
       });
-      new import_obsidian27.Setting(containerEl).addExtraButton(
+      new import_obsidian28.Setting(containerEl).addExtraButton(
         (btn) => btn.setIcon("cross").setTooltip("Delete").onClick(async () => {
           var _a2;
           (_a2 = this.plugin.settings.modelSettingPresets) == null ? void 0 : _a2.splice(idx, 1);
@@ -18467,7 +20628,7 @@ var AIModelConfigurationSection = class {
         })
       );
     });
-    new import_obsidian27.Setting(containerEl).addButton(
+    new import_obsidian28.Setting(containerEl).addButton(
       (btn) => btn.setButtonText("Add Preset").setCta().onClick(async () => {
         if (!this.plugin.settings.modelSettingPresets) this.plugin.settings.modelSettingPresets = [];
         this.plugin.settings.modelSettingPresets.push(JSON.parse(JSON.stringify({
@@ -18692,7 +20853,7 @@ var AgentSettingsSection = class {
 };
 
 // src/settings/sections/ContentNoteHandlingSection.ts
-var import_obsidian28 = require("obsidian");
+var import_obsidian29 = require("obsidian");
 var ContentNoteHandlingSection = class {
   /**
    * @param plugin The main plugin instance.
@@ -18816,7 +20977,7 @@ var ContentNoteHandlingSection = class {
     );
     const contextNotesContainer = containerEl.createDiv("context-notes-container");
     contextNotesContainer.style.marginBottom = "24px";
-    new import_obsidian28.Setting(contextNotesContainer).setName("Context Notes").setDesc("Notes to attach as context (supports [[filename]] and [[another note#header]] syntax)").addTextArea((text) => {
+    new import_obsidian29.Setting(contextNotesContainer).setName("Context Notes").setDesc("Notes to attach as context (supports [[filename]] and [[another note#header]] syntax)").addTextArea((text) => {
       text.setPlaceholder("[[Note Name]]\n[[Another Note#Header]]").setValue(this.plugin.settings.contextNotes || "").onChange((value) => {
         this.plugin.settings.contextNotes = value;
       });
@@ -18896,7 +21057,7 @@ var ContentNoteHandlingSection = class {
       genContainer.style.padding = "1em";
       genContainer.style.marginBottom = "1em";
       genContainer.createEl("h4", { text: autoCommandName });
-      new import_obsidian28.Setting(genContainer).setName("YAML Attribute Name").setDesc("The YAML field name to insert/update").addText((text) => {
+      new import_obsidian29.Setting(genContainer).setName("YAML Attribute Name").setDesc("The YAML field name to insert/update").addText((text) => {
         text.setPlaceholder("YAML Attribute Name").setValue(gen.attributeName).onChange((value) => {
           if (this.plugin.settings.yamlAttributeGenerators) {
             this.plugin.settings.yamlAttributeGenerators[idx].attributeName = value != null ? value : "";
@@ -18907,7 +21068,7 @@ var ContentNoteHandlingSection = class {
           await this.plugin.saveSettings();
         });
       });
-      new import_obsidian28.Setting(genContainer).setName("Prompt for LLM").setDesc("The prompt to send to the AI for generating the YAML value").addTextArea((text) => {
+      new import_obsidian29.Setting(genContainer).setName("Prompt for LLM").setDesc("The prompt to send to the AI for generating the YAML value").addTextArea((text) => {
         text.setPlaceholder("Prompt for LLM").setValue(gen.prompt).onChange((value) => {
           if (this.plugin.settings.yamlAttributeGenerators) {
             this.plugin.settings.yamlAttributeGenerators[idx].prompt = value != null ? value : "";
@@ -18919,7 +21080,7 @@ var ContentNoteHandlingSection = class {
         text.inputEl.rows = 3;
         text.inputEl.style.width = "100%";
       });
-      new import_obsidian28.Setting(genContainer).setName("Output Mode").setDesc("Where to put the generated YAML attribute").addDropdown((drop) => {
+      new import_obsidian29.Setting(genContainer).setName("Output Mode").setDesc("Where to put the generated YAML attribute").addDropdown((drop) => {
         drop.addOption("clipboard", "Copy to clipboard");
         drop.addOption("metadata", "Insert into metadata");
         drop.setValue(gen.outputMode);
@@ -18930,7 +21091,7 @@ var ContentNoteHandlingSection = class {
           }
         });
       });
-      new import_obsidian28.Setting(genContainer).addExtraButton((btn) => {
+      new import_obsidian29.Setting(genContainer).addExtraButton((btn) => {
         btn.setIcon("cross").setTooltip("Delete this YAML generator").onClick(async () => {
           if (this.plugin.settings.yamlAttributeGenerators) {
             this.plugin.settings.yamlAttributeGenerators.splice(idx, 1);
@@ -18939,7 +21100,7 @@ var ContentNoteHandlingSection = class {
         });
       });
     });
-    new import_obsidian28.Setting(containerEl).addButton((btn) => {
+    new import_obsidian29.Setting(containerEl).addButton((btn) => {
       btn.setButtonText("Add YAML Attribute Generator").setCta().onClick(async () => {
         if (!this.plugin.settings.yamlAttributeGenerators) this.plugin.settings.yamlAttributeGenerators = [];
         this.plugin.settings.yamlAttributeGenerators.push(JSON.parse(JSON.stringify({
@@ -18955,7 +21116,7 @@ var ContentNoteHandlingSection = class {
 };
 
 // src/settings/sections/BackupManagementSection.ts
-var import_obsidian29 = require("obsidian");
+var import_obsidian30 = require("obsidian");
 
 // src/settings/components/DialogHelpers.ts
 var DialogHelpers = class {
@@ -19044,10 +21205,10 @@ var BackupManagementSection = class {
       if (confirmed) {
         try {
           await backupManager.deleteAllBackups();
-          new import_obsidian29.Notice("Deleted all backups successfully");
+          new import_obsidian30.Notice("Deleted all backups successfully");
           await this.renderBackupManagement(containerEl.parentElement);
         } catch (error) {
-          new import_obsidian29.Notice(`Error deleting all backups: ${error.message}`);
+          new import_obsidian30.Notice(`Error deleting all backups: ${error.message}`);
         }
       }
     });
@@ -19140,12 +21301,12 @@ var BackupManagementSection = class {
         try {
           const result = await backupManager.restoreBackup(backup);
           if (result.success) {
-            new import_obsidian29.Notice(`Successfully restored backup for ${filePath}`);
+            new import_obsidian30.Notice(`Successfully restored backup for ${filePath}`);
           } else {
-            new import_obsidian29.Notice(`Failed to restore backup: ${result.error}`);
+            new import_obsidian30.Notice(`Failed to restore backup: ${result.error}`);
           }
         } catch (error) {
-          new import_obsidian29.Notice(`Error restoring backup: ${error.message}`);
+          new import_obsidian30.Notice(`Error restoring backup: ${error.message}`);
         }
       }
     };
@@ -19161,11 +21322,11 @@ var BackupManagementSection = class {
       if (confirmed) {
         try {
           await backupManager.deleteSpecificBackup(filePath, backup.timestamp);
-          new import_obsidian29.Notice(`Deleted backup for ${filePath}`);
+          new import_obsidian30.Notice(`Deleted backup for ${filePath}`);
           containerEl.empty();
           await this.renderBackupFilesList(containerEl, backupFiles, backupManager);
         } catch (error) {
-          new import_obsidian29.Notice(`Error deleting backup: ${error.message}`);
+          new import_obsidian30.Notice(`Error deleting backup: ${error.message}`);
         }
       }
     };
@@ -19177,7 +21338,7 @@ var BackupManagementSection = class {
       previewBtn.onclick = () => {
         const preview = backup.content.substring(0, 200);
         const truncated = backup.content.length > 200 ? "..." : "";
-        new import_obsidian29.Notice(`Preview: ${preview}${truncated}`, 1e4);
+        new import_obsidian30.Notice(`Preview: ${preview}${truncated}`, 1e4);
       };
     } else if (backup.isBinary) {
       const infoBtn = backupActions.createEl("button", {
@@ -19186,7 +21347,7 @@ var BackupManagementSection = class {
       });
       infoBtn.onclick = () => {
         const sizeKB = backup.fileSize ? Math.round(backup.fileSize / 1024) : 0;
-        new import_obsidian29.Notice(`Binary file backup: ${sizeKB} KB
+        new import_obsidian30.Notice(`Binary file backup: ${sizeKB} KB
 Stored at: ${backup.backupFilePath || "Unknown location"}`, 5e3);
       };
     }
@@ -19207,11 +21368,11 @@ Stored at: ${backup.backupFilePath || "Unknown location"}`, 5e3);
       if (confirmed) {
         try {
           await backupManager.deleteBackupsForFile(filePath);
-          new import_obsidian29.Notice(`Deleted all backups for ${filePath}`);
+          new import_obsidian30.Notice(`Deleted all backups for ${filePath}`);
           containerEl.empty();
           await this.renderBackupFilesList(containerEl, backupFiles, backupManager);
         } catch (error) {
-          new import_obsidian29.Notice(`Error deleting backups: ${error.message}`);
+          new import_obsidian30.Notice(`Error deleting backups: ${error.message}`);
         }
       }
     };
@@ -19254,10 +21415,10 @@ Stored at: ${backup.backupFilePath || "Unknown location"}`, 5e3);
         });
         return;
       }
-    } else if (trashFolder instanceof import_obsidian29.TFolder) {
+    } else if (trashFolder instanceof import_obsidian30.TFolder) {
       trashItems = trashFolder.children.map((item) => ({
         name: item.name,
-        isFolder: item instanceof import_obsidian29.TFolder,
+        isFolder: item instanceof import_obsidian30.TFolder,
         size: isTFile(item) && item.stat ? item.stat.size : void 0
       }));
     } else {
@@ -19292,10 +21453,10 @@ Stored at: ${backup.backupFilePath || "Unknown location"}`, 5e3);
               await adapter.remove(fullPath);
             }
           }
-          new import_obsidian29.Notice(`Emptied trash - permanently deleted ${trashItems.length} items`);
+          new import_obsidian30.Notice(`Emptied trash - permanently deleted ${trashItems.length} items`);
           await this.renderTrashManagement(containerEl.parentElement);
         } catch (error) {
-          new import_obsidian29.Notice(`Error emptying trash: ${error.message}`);
+          new import_obsidian30.Notice(`Error emptying trash: ${error.message}`);
         }
       }
     });
@@ -19374,17 +21535,17 @@ Stored at: ${backup.backupFilePath || "Unknown location"}`, 5e3);
       if (confirmed) {
         try {
           const trashFolderObj = this.plugin.app.vault.getAbstractFileByPath(".trash");
-          if (trashFolderObj instanceof import_obsidian29.TFolder) {
+          if (trashFolderObj instanceof import_obsidian30.TFolder) {
             const fileObj = trashFolderObj.children.find((child) => child.name === name);
             if (fileObj) {
               const newPath = name;
               await this.plugin.app.fileManager.renameFile(fileObj, newPath);
-              new import_obsidian29.Notice(`Restored "${name}" to vault root`);
+              new import_obsidian30.Notice(`Restored "${name}" to vault root`);
               await this.renderTrashManagement(containerEl.parentElement);
             }
           }
         } catch (error) {
-          new import_obsidian29.Notice(`Error restoring item: ${error.message}`);
+          new import_obsidian30.Notice(`Error restoring item: ${error.message}`);
         }
       }
     };
@@ -19411,10 +21572,10 @@ Stored at: ${backup.backupFilePath || "Unknown location"}`, 5e3);
           } else {
             await adapter.remove(fullPath);
           }
-          new import_obsidian29.Notice(`Permanently deleted "${name}"`);
+          new import_obsidian30.Notice(`Permanently deleted "${name}"`);
           await this.renderTrashManagement(containerEl.parentElement);
         } catch (error) {
-          new import_obsidian29.Notice(`Error deleting item: ${error.message}`);
+          new import_obsidian30.Notice(`Error deleting item: ${error.message}`);
         }
       }
     };
@@ -19514,7 +21675,7 @@ var ChatHistorySettingsSection = class {
 
 // src/settings/SettingTab.ts
 init_promptConstants();
-var MyPluginSettingTab = class extends import_obsidian30.PluginSettingTab {
+var MyPluginSettingTab = class extends import_obsidian31.PluginSettingTab {
   /**
    * Constructs the settings tab and initializes all settings sections.
    *
@@ -19624,7 +21785,7 @@ var MyPluginSettingTab = class extends import_obsidian30.PluginSettingTab {
       this.plugin,
       "backupManagementExpanded"
     );
-    new import_obsidian30.Setting(containerEl).setName("Reset All Settings to Default").setDesc("Reset all plugin settings (except API keys) to their original default values.").addButton((button) => button.setButtonText("Reset").onClick(async () => {
+    new import_obsidian31.Setting(containerEl).setName("Reset All Settings to Default").setDesc("Reset all plugin settings (except API keys) to their original default values.").addButton((button) => button.setButtonText("Reset").onClick(async () => {
       const { DEFAULT_SETTINGS: DEFAULT_SETTINGS2 } = await Promise.resolve().then(() => (init_types(), types_exports));
       const preservedApiKeys = {
         openai: this.plugin.settings.openaiSettings.apiKey,
@@ -19641,15 +21802,15 @@ var MyPluginSettingTab = class extends import_obsidian30.PluginSettingTab {
       setTimeout(() => {
         activateView(this.plugin.app, VIEW_TYPE_MODEL_SETTINGS);
       }, 100);
-      new import_obsidian30.Notice("All settings (except API keys) reset to default.");
+      new import_obsidian31.Notice("All settings (except API keys) reset to default.");
     }));
   }
 };
 
 // src/components/ModelSettingsView.ts
-var import_obsidian31 = require("obsidian");
+var import_obsidian32 = require("obsidian");
 var VIEW_TYPE_MODEL_SETTINGS2 = "model-settings-view";
-var ModelSettingsView = class extends import_obsidian31.ItemView {
+var ModelSettingsView = class extends import_obsidian32.ItemView {
   constructor(leaf, plugin) {
     super(leaf);
     __publicField(this, "plugin");
@@ -20158,7 +22319,318 @@ function registerAllCommands(plugin, settings, processMessages2, activateChatVie
 init_YAMLHandler();
 init_aiDispatcher();
 init_objectPool();
-var _MyPlugin = class _MyPlugin extends import_obsidian33.Plugin {
+
+// src/integration/priority3Integration.ts
+var import_obsidian34 = require("obsidian");
+init_dependencyInjection();
+init_stateManager();
+init_streamManager();
+init_errorHandler();
+init_lruCache();
+init_asyncOptimizer();
+var Priority3IntegrationManager = class {
+  constructor(plugin) {
+    this.plugin = plugin;
+    __publicField(this, "container");
+    __publicField(this, "stateUnsubscribers", []);
+    __publicField(this, "isInitialized", false);
+    this.container = new DIContainer();
+  }
+  /**
+   * Initialize all Priority 3 systems
+   */
+  async initialize() {
+    if (this.isInitialized) {
+      throw new Error("Priority 3 systems already initialized");
+    }
+    try {
+      await this.setupDependencyInjection();
+      await this.setupStateManagement();
+      await this.setupStreamManagement();
+      this.setupMonitoring();
+      this.setupCleanup();
+      this.isInitialized = true;
+      console.log("Priority 3 optimizations initialized successfully");
+    } catch (error) {
+      errorHandler.handleError(error, {
+        component: "Priority3IntegrationManager",
+        operation: "initialize"
+      });
+      throw error;
+    }
+  }
+  /**
+   * Setup dependency injection container
+   */
+  async setupDependencyInjection() {
+    this.container.registerSingleton("plugin", () => this.plugin);
+    this.container.registerSingleton("stateManager", () => globalStateManager);
+    this.container.registerSingleton("streamManager", () => globalStreamManager);
+    this.container.registerSingleton("errorHandler", () => errorHandler);
+    this.container.registerSingleton("asyncOptimizerFactory", () => AsyncOptimizerFactory);
+    this.container.registerSingleton(
+      "settingsCache",
+      () => new LRUCache({ maxSize: 100, defaultTTL: 5 * 60 * 1e3 })
+    );
+    this.container.registerTransient("httpClient", () => {
+      return {
+        async fetch(url, options) {
+          const throttler = AsyncOptimizerFactory.createAPIThrottler();
+          return throttler.throttle(() => fetch(url, options));
+        }
+      };
+    });
+    this.container.registerScoped("chatSession", () => ({
+      id: `session-${Date.now()}`,
+      messages: [],
+      startTime: Date.now(),
+      dispose: () => console.log("Chat session disposed")
+    }));
+    ServiceLocator.initialize(this.container);
+    console.log("Dependency injection system configured");
+  }
+  /**
+   * Setup centralized state management
+   */
+  async setupStateManagement() {
+    globalStateManager.setState("plugin.version", this.plugin.manifest.version, {
+      persistent: true
+    });
+    globalStateManager.setState("plugin.initialized", false);
+    globalStateManager.setState("plugin.performance", {
+      startTime: Date.now(),
+      memoryUsage: 0,
+      operationCount: 0
+    });
+    globalStateManager.registerValidator("settings.apiKey", (value) => {
+      return value && value.length > 10 ? true : "API key must be at least 10 characters";
+    });
+    globalStateManager.registerValidator("chat.maxMessages", (value) => {
+      return value > 0 && value <= 1e3 ? true : "Max messages must be between 1 and 1000";
+    });
+    globalStateManager.registerTransformer("settings.theme", (value) => {
+      return value.toLowerCase().trim();
+    });
+    StateUtils.createComputed(
+      globalStateManager,
+      ["plugin.performance.operationCount", "plugin.performance.startTime"],
+      ([operations, startTime]) => {
+        const duration = Date.now() - startTime;
+        return duration > 0 ? operations / (duration / 1e3) : 0;
+      },
+      "plugin.performance.operationsPerSecond"
+    );
+    this.stateUnsubscribers.push(
+      globalStateManager.subscribe("plugin.error", (error) => {
+        if (error) {
+          console.error("Plugin error state changed:", error);
+          this.handleCriticalError(error);
+        }
+      }),
+      globalStateManager.subscribe("plugin.performance.memoryUsage", (usage) => {
+        if (typeof usage === "number" && usage > 100 * 1024 * 1024) {
+          console.warn("High memory usage detected:", usage);
+          this.handleHighMemoryUsage();
+        }
+      }),
+      globalStateManager.subscribeAll((newValue, oldValue, path3) => {
+        if (true) {
+          console.log(`State changed: ${path3}`, { oldValue, newValue });
+        }
+      })
+    );
+    globalStateManager.setState("plugin.stateManagement.ready", true);
+    console.log("State management system configured");
+  }
+  /**
+   * Setup stream management
+   */
+  async setupStreamManagement() {
+    globalStreamManager.registerTransformer("jsonParse", (chunk) => {
+      try {
+        return JSON.parse(chunk);
+      } catch (e) {
+        return chunk;
+      }
+    });
+    globalStreamManager.registerTransformer("textDecode", (chunk) => {
+      return new TextDecoder().decode(chunk);
+    });
+    globalStreamManager.registerTransformer("markdown", (text) => {
+      return text.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>").replace(/\*(.*?)\*/g, "<em>$1</em>");
+    });
+    globalStreamManager.registerFilter("nonEmpty", (chunk) => {
+      return chunk !== null && chunk !== void 0 && chunk !== "";
+    });
+    globalStreamManager.registerFilter("validJson", (chunk) => {
+      try {
+        JSON.parse(chunk);
+        return true;
+      } catch (e) {
+        return false;
+      }
+    });
+    globalStreamManager.on("streamCreated", (id, state) => {
+      globalStateManager.setState(`streams.${id}`, {
+        status: state.status,
+        createdAt: state.createdAt
+      });
+    });
+    globalStreamManager.on("streamDestroyed", (id) => {
+      globalStateManager.deleteState(`streams.${id}`);
+    });
+    console.log("Stream management system configured");
+  }
+  /**
+   * Setup monitoring and metrics collection
+   */
+  setupMonitoring() {
+    setInterval(() => {
+      if (!this.isInitialized) return;
+      try {
+        const diStats = this.container.getStats();
+        const stateStats = globalStateManager.getStats();
+        const streamStats = globalStreamManager.getStats();
+        globalStateManager.setState("plugin.performance.metrics", {
+          timestamp: Date.now(),
+          dependencyInjection: diStats,
+          stateManagement: stateStats,
+          streamManagement: streamStats,
+          memoryUsage: this.estimateMemoryUsage()
+        });
+        this.checkPerformanceThresholds(diStats, stateStats, streamStats);
+      } catch (error) {
+        errorHandler.handleError(error, {
+          component: "Priority3IntegrationManager",
+          operation: "monitoring"
+        });
+      }
+    }, 3e4);
+    console.log("Monitoring system configured");
+  }
+  /**
+   * Setup cleanup handlers
+   */
+  setupCleanup() {
+    this.plugin.register(() => {
+      this.dispose();
+    });
+    setInterval(() => {
+      if (!this.isInitialized) return;
+      try {
+        const cleaned = globalStreamManager.cleanup(5 * 60 * 1e3);
+        if (cleaned > 0) {
+          console.log(`Cleaned up ${cleaned} old streams`);
+        }
+        const snapshots = globalStateManager.getSnapshots();
+        if (snapshots.length > 20) {
+          console.log(`Managing ${snapshots.length} state snapshots`);
+        }
+      } catch (error) {
+        errorHandler.handleError(error, {
+          component: "Priority3IntegrationManager",
+          operation: "cleanup"
+        });
+      }
+    }, 2 * 60 * 1e3);
+    console.log("Cleanup handlers configured");
+  }
+  /**
+   * Handle critical errors
+   */
+  handleCriticalError(error) {
+    globalStateManager.createSnapshot();
+    const activeStreams = globalStreamManager.getActiveStreams();
+    for (const stream of activeStreams) {
+      if (!stream.id.includes("critical")) {
+        globalStreamManager.pauseStream(stream.id);
+      }
+    }
+    console.error("Critical error handled:", error);
+  }
+  /**
+   * Handle high memory usage
+   */
+  handleHighMemoryUsage() {
+    globalStreamManager.cleanup(6e4);
+    const settingsCache = ServiceLocator.resolve("settingsCache");
+    settingsCache.clear();
+    globalStateManager.createSnapshot();
+    console.warn("High memory usage mitigation applied");
+  }
+  /**
+   * Check performance thresholds
+   */
+  checkPerformanceThresholds(diStats, stateStats, streamStats) {
+    const warnings = [];
+    if (diStats.resolutionCount > 1e4) {
+      warnings.push("High dependency resolution count");
+    }
+    if (stateStats.listeners > 1e3) {
+      warnings.push("High number of state listeners");
+    }
+    if (stateStats.memoryUsage > 50 * 1024 * 1024) {
+      warnings.push("High state memory usage");
+    }
+    if (streamStats.activeStreams > 50) {
+      warnings.push("High number of active streams");
+    }
+    if (streamStats.averageThroughput < 1e3) {
+      warnings.push("Low stream throughput");
+    }
+    if (warnings.length > 0) {
+      globalStateManager.setState("plugin.performance.warnings", warnings);
+      console.warn("Performance warnings:", warnings);
+    }
+  }
+  /**
+   * Estimate memory usage
+   */
+  estimateMemoryUsage() {
+    try {
+      const stateSize = JSON.stringify(globalStateManager.getFullState()).length;
+      const containerSize = this.container.getStats().totalServices * 1e3;
+      return stateSize + containerSize;
+    } catch (e) {
+      return 0;
+    }
+  }
+  /**
+   * Get integration status
+   */
+  getStatus() {
+    return {
+      initialized: this.isInitialized,
+      services: this.container.getRegisteredServices(),
+      stateKeys: globalStateManager.getStats().totalKeys,
+      activeStreams: globalStreamManager.getStats().activeStreams,
+      memoryUsage: this.estimateMemoryUsage()
+    };
+  }
+  /**
+   * Dispose all systems
+   */
+  dispose() {
+    if (!this.isInitialized) return;
+    try {
+      this.stateUnsubscribers.forEach((unsub) => unsub());
+      this.stateUnsubscribers = [];
+      globalStreamManager.dispose();
+      globalStateManager.dispose();
+      this.container.dispose();
+      this.isInitialized = false;
+      console.log("Priority 3 systems disposed");
+    } catch (error) {
+      errorHandler.handleError(error, {
+        component: "Priority3IntegrationManager",
+        operation: "dispose"
+      });
+    }
+  }
+};
+
+// src/main.ts
+var _MyPlugin = class _MyPlugin extends import_obsidian35.Plugin {
   constructor() {
     super(...arguments);
     /**
@@ -20193,6 +22665,10 @@ var _MyPlugin = class _MyPlugin extends import_obsidian33.Plugin {
      * Agent mode manager instance for handling agent-related settings and logic.
      */
     __publicField(this, "agentModeManager");
+    /**
+     * Priority 3 optimizations integration manager.
+     */
+    __publicField(this, "priority3Manager");
   }
   /**
    * Register a callback to be called when settings change.
@@ -20274,7 +22750,7 @@ var _MyPlugin = class _MyPlugin extends import_obsidian33.Plugin {
    * Handles initialization, settings, view registration, and command registration.
    */
   async onload() {
-    var _a2;
+    var _a2, _b;
     await this.loadSettings();
     const pluginDataPath = this.app.vault.configDir + "/plugins/ai-assistant-for-obsidian";
     this.backupManager = new BackupManager(this.app, pluginDataPath);
@@ -20290,6 +22766,9 @@ var _MyPlugin = class _MyPlugin extends import_obsidian33.Plugin {
       // Changed from log to debugLog
     );
     this.aiDispatcher = new AIDispatcher(this.app.vault, this);
+    this.priority3Manager = new Priority3IntegrationManager(this);
+    await this.priority3Manager.initialize();
+    debugLog((_a2 = this.settings.debugMode) != null ? _a2 : false, "info", "Priority 3 optimizations initialized");
     this.addSettingTab(new MyPluginSettingTab(this.app, this));
     this.registerPluginView(VIEW_TYPE_CHAT, (leaf) => new ChatView(leaf, this));
     this.registerPluginView(VIEW_TYPE_MODEL_SETTINGS, (leaf) => new ModelSettingsView(leaf, this));
@@ -20315,7 +22794,7 @@ var _MyPlugin = class _MyPlugin extends import_obsidian33.Plugin {
     this.registerMarkdownCodeBlockProcessor("ai-tool-execution", (source, el, ctx) => {
       this.processToolExecutionCodeBlock(source, el, ctx);
     });
-    debugLog((_a2 = this.settings.debugMode) != null ? _a2 : false, "info", "AI Assistant Plugin loaded.");
+    debugLog((_b = this.settings.debugMode) != null ? _b : false, "info", "AI Assistant Plugin loaded.");
   }
   /**
    * Enhanced debug logger for the plugin.
@@ -20367,6 +22846,9 @@ var _MyPlugin = class _MyPlugin extends import_obsidian33.Plugin {
   onunload() {
     _MyPlugin.registeredViewTypes.delete(VIEW_TYPE_MODEL_SETTINGS);
     _MyPlugin.registeredViewTypes.delete(VIEW_TYPE_CHAT);
+    if (this.priority3Manager) {
+      this.priority3Manager.dispose();
+    }
     MessageContextPool.getInstance().clear();
     PreAllocatedArrays.getInstance().clear();
   }
@@ -20488,6 +22970,53 @@ var _MyPlugin = class _MyPlugin extends import_obsidian33.Plugin {
       }
     });
     return info.join("\n");
+  }
+  /**
+   * Test Priority 3 optimizations to demonstrate their functionality.
+   */
+  async testPriority3Optimizations() {
+    try {
+      if (!this.priority3Manager) {
+        showNotice("Priority 3 optimizations not initialized");
+        return;
+      }
+      const status = this.priority3Manager.getStatus();
+      const { ServiceLocator: ServiceLocator2 } = await Promise.resolve().then(() => (init_dependencyInjection(), dependencyInjection_exports));
+      const { globalStateManager: globalStateManager2 } = await Promise.resolve().then(() => (init_stateManager(), stateManager_exports));
+      const { globalStreamManager: globalStreamManager2, StreamUtils: StreamUtils2 } = await Promise.resolve().then(() => (init_streamManager(), streamManager_exports));
+      console.log("\u{1F527} Testing Dependency Injection...");
+      const stateManager = ServiceLocator2.resolve("stateManager");
+      const streamManager = ServiceLocator2.resolve("streamManager");
+      console.log("\u2705 Services resolved successfully");
+      console.log("\u{1F4CA} Testing State Management...");
+      globalStateManager2.setState("test.priority3.demo", {
+        timestamp: Date.now(),
+        message: "Priority 3 optimizations are working!",
+        features: ["dependency-injection", "state-management", "stream-management"]
+      }, { persistent: true });
+      const testData = globalStateManager2.getState("test.priority3.demo");
+      console.log("\u2705 State set and retrieved:", testData);
+      console.log("\u{1F30A} Testing Stream Management...");
+      const testStream = globalStreamManager2.createStream(
+        "priority3-test",
+        StreamUtils2.fromArray(["Hello", " ", "Priority", " ", "3", " ", "Optimizations!"]),
+        { timeout: 1e4 }
+      );
+      let streamResult = "";
+      testStream.on("data", (chunk) => {
+        streamResult += chunk;
+      });
+      testStream.on("end", () => {
+        console.log("\u2705 Stream completed:", streamResult);
+        showNotice(`Priority 3 Test Complete! Check console for details. Status: ${status.services.length} services, ${status.stateKeys} state keys, ${status.activeStreams} active streams`);
+      });
+      await testStream.start();
+      console.log("\u{1F4C8} Priority 3 Status:", status);
+      console.log("\u{1F3AF} All Priority 3 optimizations tested successfully!");
+    } catch (error) {
+      console.error("\u274C Priority 3 test failed:", error);
+      showNotice("Priority 3 test failed - check console for details");
+    }
   }
 };
 /**

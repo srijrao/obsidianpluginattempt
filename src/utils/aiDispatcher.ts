@@ -6,12 +6,21 @@ import { saveAICallToFolder } from './saveAICalls';
 import { debugLog } from './logger';
 import type { MyPluginSettings } from '../types';
 import { MessageContextPool, PreAllocatedArrays } from './objectPool';
+import { LRUCache, LRUCacheFactory } from './lruCache';
+import { errorHandler, handleAIDispatcherError, withErrorHandling } from './errorHandler';
+import { AsyncBatcher, ParallelExecutor, AsyncOptimizerFactory } from './asyncOptimizer';
 
 // Types for new features
 interface CacheEntry {
     response: string;
     timestamp: number;
     ttl: number;
+}
+
+interface BatchedRequest {
+    messages: Message[];
+    options: CompletionOptions;
+    providerOverride?: string;
 }
 
 interface RequestMetrics {
@@ -68,7 +77,11 @@ interface PendingRequest {
  * - Error handling
  */
 export class AIDispatcher {
-    private cache = new Map<string, CacheEntry>();
+    // Priority 2 Optimization: LRU Cache with size limits
+    private cache: LRUCache<string>;
+    private modelCache: LRUCache<UnifiedModel[]>;
+    private providerCache: LRUCache<string[]>;
+    
     private metrics: RequestMetrics = {
         totalRequests: 0,
         successfulRequests: 0,
@@ -85,13 +98,17 @@ export class AIDispatcher {
     private rateLimits = new Map<string, { requests: number; resetTime: number }>();
     private isProcessingQueue = false;
 
-    // Priority 1 Optimization: Request deduplication
-    private pendingRequests = new Map<string, PendingRequest>();
+    // Priority 1 Optimization: Request deduplication with LRU
+    private pendingRequests: LRUCache<Promise<void>>;
     private readonly DEDUP_TTL = 30 * 1000; // 30 seconds
 
     // Memory optimization: Object pools
     private messagePool: MessageContextPool;
     private arrayManager: PreAllocatedArrays;
+
+    // Priority 2 Optimization: Async optimization
+    private requestBatcher: AsyncBatcher<BatchedRequest, void>;
+    private parallelExecutor: ParallelExecutor;
 
     // Configuration
     private readonly CACHE_TTL = 5 * 60 * 1000; // 5 minutes
@@ -99,6 +116,7 @@ export class AIDispatcher {
     private readonly CIRCUIT_BREAKER_TIMEOUT = 30 * 1000; // 30 seconds
     private readonly RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
     private readonly MAX_QUEUE_SIZE = 100;
+    private readonly CACHE_MAX_SIZE = 200; // Maximum cache entries
 
     constructor(
         private vault: Vault,
@@ -114,9 +132,44 @@ export class AIDispatcher {
             });
         });
 
+        // Priority 2 Optimization: Initialize LRU caches
+        this.cache = LRUCacheFactory.createResponseCache(this.CACHE_MAX_SIZE);
+        this.modelCache = new LRUCache<UnifiedModel[]>({
+            maxSize: 10,
+            defaultTTL: 30 * 60 * 1000, // 30 minutes
+        });
+        this.providerCache = new LRUCache<string[]>({
+            maxSize: 20,
+            defaultTTL: 15 * 60 * 1000, // 15 minutes
+        });
+        this.pendingRequests = new LRUCache<Promise<void>>({
+            maxSize: 100,
+            defaultTTL: this.DEDUP_TTL,
+        });
+
         // Initialize memory optimization components
         this.messagePool = MessageContextPool.getInstance();
         this.arrayManager = PreAllocatedArrays.getInstance();
+
+        // Priority 2 Optimization: Initialize async optimizers
+        this.requestBatcher = AsyncOptimizerFactory.createAPIBatcher(
+            async (requests: BatchedRequest[]) => {
+                const results: void[] = [];
+                for (const request of requests) {
+                    try {
+                        await this.executeWithRetry(request.messages, request.options,
+                            this.determineProvider(request.providerOverride),
+                            this.generateCacheKey(request.messages, request.options, request.providerOverride));
+                        results.push();
+                    } catch (error) {
+                        handleAIDispatcherError(error, 'batchedRequest', { requestCount: requests.length });
+                        results.push();
+                    }
+                }
+                return results;
+            }
+        );
+        this.parallelExecutor = AsyncOptimizerFactory.createIOExecutor();
 
         // Start queue processor
         this.startQueueProcessor();
@@ -130,12 +183,8 @@ export class AIDispatcher {
      */
     private startPendingRequestCleanup(): void {
         setInterval(() => {
-            const now = Date.now();
-            for (const [key, request] of this.pendingRequests.entries()) {
-                if (now - request.timestamp > this.DEDUP_TTL) {
-                    this.pendingRequests.delete(key);
-                }
-            }
+            // LRU cache handles TTL automatically, just trigger cleanup
+            this.pendingRequests.cleanup();
         }, this.DEDUP_TTL); // Clean up every 30 seconds
     }
 
@@ -164,13 +213,13 @@ export class AIDispatcher {
         
         // Priority 1 Optimization: Check for duplicate requests
         const existingRequest = this.pendingRequests.get(cacheKey);
-        if (existingRequest && Date.now() - existingRequest.timestamp < this.DEDUP_TTL) {
+        if (existingRequest) {
             debugLog(this.plugin.settings.debugMode ?? false, 'info', '[AIDispatcher] Deduplicating request', { key: cacheKey });
-            return existingRequest.promise;
+            return existingRequest;
         }
         
         // Check cache first
-        const cachedResponse = this.getFromCache(cacheKey);
+        const cachedResponse = this.cache.get(cacheKey);
         if (cachedResponse && options.streamCallback) {
             options.streamCallback(cachedResponse);
             return;
@@ -192,10 +241,7 @@ export class AIDispatcher {
 
         // Create and track the request promise
         const requestPromise = this.executeWithRetry(messages, options, providerName, cacheKey);
-        this.pendingRequests.set(cacheKey, {
-            promise: requestPromise,
-            timestamp: Date.now()
-        });
+        this.pendingRequests.set(cacheKey, requestPromise);
 
         // Clean up after completion
         requestPromise.finally(() => {
@@ -297,27 +343,18 @@ export class AIDispatcher {
      * Gets response from cache if available and not expired.
      */
     private getFromCache(cacheKey: string): string | null {
-        const entry = this.cache.get(cacheKey);
-        if (!entry) return null;
-
-        if (Date.now() > entry.timestamp + entry.ttl) {
-            this.cache.delete(cacheKey);
-            return null;
+        const response = this.cache.get(cacheKey);
+        if (response) {
+            debugLog(this.plugin.settings.debugMode ?? false, 'info', '[AIDispatcher] Cache hit', { key: cacheKey });
         }
-
-        debugLog(this.plugin.settings.debugMode ?? false, 'info', '[AIDispatcher] Cache hit', { key: cacheKey });
-        return entry.response;
+        return response || null;
     }
 
     /**
      * Stores response in cache.
      */
     private setCache(cacheKey: string, response: string, ttl: number = this.CACHE_TTL): void {
-        this.cache.set(cacheKey, {
-            response,
-            timestamp: Date.now(),
-            ttl
-        });
+        this.cache.set(cacheKey, response, ttl);
         debugLog(this.plugin.settings.debugMode ?? false, 'info', '[AIDispatcher] Response cached', { key: cacheKey });
     }
 
@@ -706,7 +743,9 @@ export class AIDispatcher {
      */
     clearCache(): void {
         this.cache.clear();
-        debugLog(this.plugin.settings.debugMode ?? false, 'info', '[AIDispatcher] Cache cleared');
+        this.modelCache.clear();
+        this.providerCache.clear();
+        debugLog(this.plugin.settings.debugMode ?? false, 'info', '[AIDispatcher] All caches cleared');
     }
 
     /**
@@ -763,28 +802,60 @@ export class AIDispatcher {
 
     /**
      * Get available models from a specific provider.
-     * 
+     *
      * @param providerType - The type of provider to query
      * @returns Promise resolving to list of available models
      */
-    async getAvailableModels(providerType: 'openai' | 'anthropic' | 'gemini' | 'ollama') {
+    async getAvailableModels(providerType: 'openai' | 'anthropic' | 'gemini' | 'ollama'): Promise<string[]> {
         debugLog(this.plugin.settings.debugMode ?? false, 'info', '[AIDispatcher] Fetching available models', { provider: providerType });
         
-        const tempSettings = { ...this.plugin.settings, provider: providerType };
-        const provider = createProvider(tempSettings);
-        
-        return await provider.getAvailableModels();
+        // Check cache first
+        const cachedModels = this.providerCache.get(providerType);
+        if (cachedModels) {
+            debugLog(this.plugin.settings.debugMode ?? false, 'info', '[AIDispatcher] Using cached models', { provider: providerType });
+            return cachedModels;
+        }
+
+        return await withErrorHandling(
+            async () => {
+                const tempSettings = { ...this.plugin.settings, provider: providerType };
+                const provider = createProvider(tempSettings);
+                const models = await provider.getAvailableModels();
+                this.providerCache.set(providerType, models);
+                return models;
+            },
+            'AIDispatcher',
+            'getAvailableModels',
+            { fallbackMessage: `Failed to fetch models for ${providerType}` }
+        ) || [];
     }
 
     /**
      * Get all available unified models from all configured providers.
-     * 
+     *
      * @returns Promise resolving to unified model list
      */
     async getAllUnifiedModels(): Promise<UnifiedModel[]> {
         debugLog(this.plugin.settings.debugMode ?? false, 'info', '[AIDispatcher] Fetching all unified models');
         
-        return await getAllAvailableModels(this.plugin.settings);
+        // Check cache first
+        const cacheKey = 'all-unified-models';
+        const cachedModels = this.modelCache.get(cacheKey);
+        if (cachedModels) {
+            debugLog(this.plugin.settings.debugMode ?? false, 'info', '[AIDispatcher] Using cached unified models');
+            return cachedModels;
+        }
+
+        return await withErrorHandling(
+            async () => {
+                const models = await getAllAvailableModels(this.plugin.settings);
+                this.modelCache.set(cacheKey, models);
+                return models;
+            },
+            'AIDispatcher',
+            'getAllUnifiedModels',
+            { fallbackMessage: 'Failed to fetch unified models' }
+        ) || [];
     }
 
     /**

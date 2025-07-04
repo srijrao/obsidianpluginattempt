@@ -15,6 +15,7 @@ import { VIEW_TYPE_MODEL_SETTINGS } from './components/commands/viewCommands';
 import { registerYamlAttributeCommands } from './YAMLHandler';
 import { AIDispatcher } from './utils/aiDispatcher';
 import { MessageContextPool, PreAllocatedArrays } from './utils/objectPool';
+import { Priority3IntegrationManager } from './integration/priority3Integration';
 
 /**
  * AI Assistant Plugin
@@ -65,6 +66,10 @@ export default class MyPlugin extends Plugin {
      * Agent mode manager instance for handling agent-related settings and logic.
      */
     public agentModeManager: AgentModeManager;
+    /**
+     * Priority 3 optimizations integration manager.
+     */
+    public priority3Manager: Priority3IntegrationManager;
 
     /**
      * Register a callback to be called when settings change.
@@ -180,6 +185,12 @@ export default class MyPlugin extends Plugin {
         // Initialize central AI dispatcher for managing all AI requests and streams
         this.aiDispatcher = new AIDispatcher(this.app.vault, this);
         
+        // Initialize Priority 3 optimizations (dependency injection, state management, stream management)
+        this.priority3Manager = new Priority3IntegrationManager(this);
+        await this.priority3Manager.initialize();
+        
+        debugLog(this.settings.debugMode ?? false, 'info', 'Priority 3 optimizations initialized');
+        
         // Add the plugin's settings tab to Obsidian's settings UI
         this.addSettingTab(new MyPluginSettingTab(this.app, this));
 
@@ -268,6 +279,11 @@ export default class MyPlugin extends Plugin {
     onunload() {
         MyPlugin.registeredViewTypes.delete(VIEW_TYPE_MODEL_SETTINGS);
         MyPlugin.registeredViewTypes.delete(VIEW_TYPE_CHAT);
+        
+        // Clean up Priority 3 optimizations
+        if (this.priority3Manager) {
+            this.priority3Manager.dispose();
+        }
         
         // Clean up object pools to free memory
         MessageContextPool.getInstance().clear();
@@ -417,5 +433,70 @@ export default class MyPlugin extends Plugin {
         });
         
         return info.join('\n');
+    }
+
+    /**
+     * Test Priority 3 optimizations to demonstrate their functionality.
+     */
+    private async testPriority3Optimizations(): Promise<void> {
+        try {
+            if (!this.priority3Manager) {
+                showNotice('Priority 3 optimizations not initialized');
+                return;
+            }
+
+            // Get system status
+            const status = this.priority3Manager.getStatus();
+            
+            // Import the required modules
+            const { ServiceLocator } = await import('./utils/dependencyInjection');
+            const { globalStateManager } = await import('./utils/stateManager');
+            const { globalStreamManager, StreamUtils } = await import('./utils/streamManager');
+
+            // Test 1: Dependency Injection
+            console.log('🔧 Testing Dependency Injection...');
+            const stateManager = ServiceLocator.resolve('stateManager');
+            const streamManager = ServiceLocator.resolve('streamManager');
+            console.log('✅ Services resolved successfully');
+
+            // Test 2: State Management
+            console.log('📊 Testing State Management...');
+            globalStateManager.setState('test.priority3.demo', {
+                timestamp: Date.now(),
+                message: 'Priority 3 optimizations are working!',
+                features: ['dependency-injection', 'state-management', 'stream-management']
+            }, { persistent: true });
+
+            const testData = globalStateManager.getState('test.priority3.demo');
+            console.log('✅ State set and retrieved:', testData);
+
+            // Test 3: Stream Management
+            console.log('🌊 Testing Stream Management...');
+            const testStream = globalStreamManager.createStream(
+                'priority3-test',
+                StreamUtils.fromArray(['Hello', ' ', 'Priority', ' ', '3', ' ', 'Optimizations!']),
+                { timeout: 10000 }
+            );
+
+            let streamResult = '';
+            testStream.on('data', (chunk: string) => {
+                streamResult += chunk;
+            });
+
+            testStream.on('end', () => {
+                console.log('✅ Stream completed:', streamResult);
+                showNotice(`Priority 3 Test Complete! Check console for details. Status: ${status.services.length} services, ${status.stateKeys} state keys, ${status.activeStreams} active streams`);
+            });
+
+            await testStream.start();
+
+            // Show comprehensive status
+            console.log('📈 Priority 3 Status:', status);
+            console.log('🎯 All Priority 3 optimizations tested successfully!');
+
+        } catch (error) {
+            console.error('❌ Priority 3 test failed:', error);
+            showNotice('Priority 3 test failed - check console for details');
+        }
     }
 }
