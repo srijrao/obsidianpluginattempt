@@ -1306,3 +1306,135 @@
     color: var(--text-muted);
     font-style: italic;
 }
+
+/* User Feedback Tool Styles */
+.user-feedback-ui {
+    margin-top: var(--spacing-md);
+    padding: var(--spacing-md);
+    background-color: var(--background-secondary);
+    border-radius: var(--border-radius);
+    border: 1px solid var(--background-modifier-border);
+}
+
+.feedback-question {
+    margin-bottom: var(--spacing-md);
+    font-size: 0.95em;
+}
+
+.feedback-response-container {
+    margin-top: var(--spacing-md);
+}
+
+.feedback-choices {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+    margin-bottom: var(--spacing-md);
+}
+
+.feedback-choice-btn {
+    padding: var(--spacing-md);
+    background-color: var(--interactive-normal);
+    border: 1px solid var(--background-modifier-border);
+    border-radius: var(--border-radius);
+    color: var(--text-normal);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-align: left;
+    font-size: 0.9em;
+}
+
+.feedback-choice-btn:hover {
+    background-color: var(--interactive-hover);
+    border-color: var(--interactive-accent);
+}
+
+.feedback-choice-btn:active {
+    background-color: var(--interactive-accent);
+    color: var(--text-on-accent);
+}
+
+.feedback-custom {
+    margin-top: var(--spacing-md);
+    padding-top: var(--spacing-md);
+    border-top: 1px solid var(--background-modifier-border);
+}
+
+.feedback-custom-input,
+.feedback-text-input {
+    width: 100%;
+    padding: var(--spacing-md);
+    margin: var(--spacing-sm) 0;
+    background-color: var(--background-primary);
+    border: 1px solid var(--background-modifier-border);
+    border-radius: var(--border-radius);
+    color: var(--text-normal);
+    font-family: var(--font-interface);
+    font-size: 0.9em;
+    resize: vertical;
+}
+
+.feedback-custom-input:focus,
+.feedback-text-input:focus {
+    outline: none;
+    border-color: var(--interactive-accent);
+    box-shadow: 0 0 0 2px rgba(var(--interactive-accent-rgb), 0.2);
+}
+
+.feedback-submit-btn {
+    padding: var(--spacing-sm) var(--spacing-md);
+    background-color: var(--interactive-accent);
+    color: var(--text-on-accent);
+    border: none;
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    font-size: 0.85em;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    margin-top: var(--spacing-sm);
+}
+
+.feedback-submit-btn:hover {
+    background-color: var(--interactive-accent-hover);
+}
+
+.feedback-submit-btn:active {
+    transform: translateY(1px);
+}
+
+.feedback-selected {
+    padding: var(--spacing-md);
+    background-color: var(--background-modifier-success);
+    border: 1px solid var(--text-success);
+    border-radius: var(--border-radius);
+    color: var(--text-success);
+    font-weight: 500;
+    text-align: center;
+}
+
+.feedback-error {
+    padding: var(--spacing-md);
+    background-color: var(--background-modifier-error);
+    border: 1px solid var(--text-error);
+    border-radius: var(--border-radius);
+    color: var(--text-error);
+    font-weight: 500;
+    text-align: center;
+}
+
+.feedback-timeout {
+    margin-top: var(--spacing-md);
+    text-align: center;
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+.tool-pending {
+    color: var(--text-accent);
+    font-weight: 500;
+}
+
+.tool-success {
+    color: var(--text-success);
+    font-weight: 500;
+}

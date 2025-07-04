@@ -66,7 +66,8 @@ export class ToolRichDisplay extends Component {
             'file_move': '📁',
             'file_rename': '🏷️',
             'file_list': '📋',
-            'thought': '🧠'
+            'thought': '🧠',
+            'get_user_feedback': '❓'
         };
         return iconMap[this.options.command.action] || '🔧';
     }
@@ -83,7 +84,8 @@ export class ToolRichDisplay extends Component {
             'file_move': 'File Move',
             'file_rename': 'File Rename',
             'file_list': 'File List',
-            'thought': 'Thought Process'
+            'thought': 'Thought Process',
+            'get_user_feedback': 'User Feedback'
         };
         return nameMap[this.options.command.action] || this.options.command.action;
     }
@@ -147,6 +149,18 @@ export class ToolRichDisplay extends Component {
         if (this.options.command.action === 'thought' && data) {
             const thought = data.thought || data.reasoning || '';
             return `<span class="tool-success">🧠 ${thought}</span>`;
+        }
+        if (this.options.command.action === 'get_user_feedback' && data) {
+            if (data.status === 'completed') {
+                const answer = data.answer || '';
+                const responseTime = data.responseTimeMs ? ` (responded in ${Math.round(data.responseTimeMs / 1000)}s)` : '';
+                return `<span class="tool-success">❓ User responded: <strong>${answer}</strong>${responseTime}</span>`;
+            } else if (data.status === 'failed') {
+                return `<span class="tool-error">❓ Failed to get user response</span>`;
+            } else {
+                // Still waiting for response
+                return `<span class="tool-pending">❓ Waiting for user response...</span>`;
+            }
         }
         if (typeof data === 'string') {
             return data;
@@ -290,6 +304,16 @@ export class ToolRichDisplay extends Component {
         resultDiv.innerHTML = `<strong>Result:</strong> ${ToolRichDisplay.getStaticResultSummary(command, result)}`;
         infoDiv.appendChild(resultDiv);
 
+        // Special handling for user feedback tool - add interactive elements if waiting for response
+        if (command.action === 'get_user_feedback' && result.data && 
+            (result.data.status === 'pending' || (!result.data.status && result.data.requestId))) {
+            // This is a pending feedback request - create interactive UI
+            const feedbackDiv = ToolRichDisplay.createUserFeedbackUI(command, result);
+            if (feedbackDiv) {
+                infoDiv.appendChild(feedbackDiv);
+            }
+        }
+
         // Details (expandable)
         const details = ToolRichDisplay.getStaticDetailedResult(result);
         if (details) {
@@ -376,7 +400,8 @@ export class ToolRichDisplay extends Component {
             'file_move': '📁',
             'file_rename': '🏷️',
             'file_list': '📋',
-            'thought': '🧠'
+            'thought': '🧠',
+            'get_user_feedback': '❓'
         };
         return iconMap[action] || '🔧';
     }
@@ -393,7 +418,8 @@ export class ToolRichDisplay extends Component {
             'file_move': 'File Move',
             'file_rename': 'File Rename',
             'file_list': 'File List',
-            'thought': 'Thought Process'
+            'thought': 'Thought Process',
+            'get_user_feedback': 'User Feedback'
         };
         return nameMap[action] || action;
     }
@@ -457,6 +483,18 @@ export class ToolRichDisplay extends Component {
             const thought = data.thought || data.reasoning || '';
             return `<span class="tool-success">🧠 ${thought}</span>`;
         }
+        if (command.action === 'get_user_feedback' && data) {
+            if (data.status === 'completed') {
+                const answer = data.answer || '';
+                const responseTime = data.responseTimeMs ? ` (responded in ${Math.round(data.responseTimeMs / 1000)}s)` : '';
+                return `<span class="tool-success">❓ User responded: <strong>${answer}</strong>${responseTime}</span>`;
+            } else if (data.status === 'failed') {
+                return `<span class="tool-error">❓ Failed to get user response</span>`;
+            } else {
+                // Still waiting for response
+                return `<span class="tool-pending">❓ Waiting for user response...</span>`;
+            }
+        }
         if (typeof data === 'string') {
             return data;
         }
@@ -511,5 +549,150 @@ export class ToolRichDisplay extends Component {
                 }
             }
         }
+    }
+
+    /**
+     * Creates an interactive UI for user feedback tools.
+     * This method creates the input elements and buttons for user interaction.
+     * @param command The tool command requesting feedback
+     * @param result The tool result (should contain request data)
+     * @returns HTMLElement with the interactive feedback UI or null if not applicable
+     */
+    static createUserFeedbackUI(command: ToolCommand, result: ToolResult): HTMLElement | null {
+        const params = command.parameters;
+        const data = result.data;
+        
+        if (!params.question || !data || !data.requestId) {
+            return null;
+        }
+
+        const feedbackContainer = document.createElement('div');
+        feedbackContainer.className = 'user-feedback-ui';
+        
+        // Question display
+        const questionDiv = document.createElement('div');
+        questionDiv.className = 'feedback-question';
+        questionDiv.innerHTML = `<strong>Question:</strong> ${params.question}`;
+        feedbackContainer.appendChild(questionDiv);
+
+        const responseContainer = document.createElement('div');
+        responseContainer.className = 'feedback-response-container';
+
+        // Create the pending request promise for this feedback
+        const timeout = data.timeout || 300000;
+        import('./tools/GetUserFeedback').then(({ GetUserFeedbackTool }) => {
+            GetUserFeedbackTool.createPendingRequest(data.requestId, timeout).then((userResponse) => {
+                // Update the UI to show the completed response
+                responseContainer.innerHTML = `<div class="feedback-selected">✅ Response received: <strong>${userResponse.answer}</strong></div>`;
+            }).catch((error) => {
+                // Update the UI to show timeout or error
+                responseContainer.innerHTML = `<div class="feedback-error">❌ ${error.message}</div>`;
+            });
+        });
+
+        if (params.type === 'choice' && params.choices && Array.isArray(params.choices)) {
+            // Multiple choice interface
+            const choicesDiv = document.createElement('div');
+            choicesDiv.className = 'feedback-choices';
+
+            params.choices.forEach((choice: string, index: number) => {
+                const choiceButton = document.createElement('button');
+                choiceButton.className = 'feedback-choice-btn';
+                choiceButton.textContent = choice;
+                choiceButton.onclick = () => {
+                    // Import and call the user feedback handler
+                    import('./tools/GetUserFeedback').then(({ GetUserFeedbackTool }) => {
+                        GetUserFeedbackTool.handleUserResponse(data.requestId, choice, index);
+                        // Update UI to show selection was made
+                        responseContainer.innerHTML = `<div class="feedback-selected">✅ Selected: <strong>${choice}</strong></div>`;
+                    }).catch(error => {
+                        console.error('Failed to handle user response:', error);
+                    });
+                };
+                choicesDiv.appendChild(choiceButton);
+            });
+
+            responseContainer.appendChild(choicesDiv);
+
+            // Custom answer option if allowed
+            if (params.allowCustomAnswer) {
+                const customDiv = document.createElement('div');
+                customDiv.className = 'feedback-custom';
+                customDiv.innerHTML = '<strong>Or provide a custom answer:</strong>';
+                
+                const customInput = document.createElement('input');
+                customInput.type = 'text';
+                customInput.className = 'feedback-custom-input';
+                customInput.placeholder = params.placeholder || 'Enter your custom answer...';
+                
+                const customButton = document.createElement('button');
+                customButton.className = 'feedback-submit-btn';
+                customButton.textContent = 'Submit Custom Answer';
+                customButton.onclick = () => {
+                    const customAnswer = customInput.value.trim();
+                    if (customAnswer) {
+                        import('./tools/GetUserFeedback').then(({ GetUserFeedbackTool }) => {
+                            GetUserFeedbackTool.handleUserResponse(data.requestId, customAnswer, undefined, true);
+                            responseContainer.innerHTML = `<div class="feedback-selected">✅ Custom answer: <strong>${customAnswer}</strong></div>`;
+                        }).catch(error => {
+                            console.error('Failed to handle user response:', error);
+                        });
+                    }
+                };
+
+                customDiv.appendChild(customInput);
+                customDiv.appendChild(customButton);
+                responseContainer.appendChild(customDiv);
+            }
+        } else {
+            // Text input interface
+            const textDiv = document.createElement('div');
+            textDiv.className = 'feedback-text';
+
+            const textInput = document.createElement('textarea');
+            textInput.className = 'feedback-text-input';
+            textInput.placeholder = params.placeholder || 'Enter your answer...';
+            textInput.rows = 3;
+
+            const submitButton = document.createElement('button');
+            submitButton.className = 'feedback-submit-btn';
+            submitButton.textContent = 'Submit Answer';
+            submitButton.onclick = () => {
+                const answer = textInput.value.trim();
+                if (answer) {
+                    import('./tools/GetUserFeedback').then(({ GetUserFeedbackTool }) => {
+                        GetUserFeedbackTool.handleUserResponse(data.requestId, answer);
+                        responseContainer.innerHTML = `<div class="feedback-selected">✅ Answer submitted: <strong>${answer}</strong></div>`;
+                    }).catch(error => {
+                        console.error('Failed to handle user response:', error);
+                    });
+                }
+            };
+
+            // Allow Enter to submit (Shift+Enter for new line)
+            textInput.onkeydown = (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    submitButton.click();
+                }
+            };
+
+            textDiv.appendChild(textInput);
+            textDiv.appendChild(submitButton);
+            responseContainer.appendChild(textDiv);
+        }
+
+        feedbackContainer.appendChild(responseContainer);
+
+        // Timeout indicator if specified
+        if (data.timeout) {
+            const timeoutDiv = document.createElement('div');
+            timeoutDiv.className = 'feedback-timeout';
+            const timeoutSeconds = Math.round(data.timeout / 1000);
+            timeoutDiv.innerHTML = `<small>⏱️ Timeout: ${timeoutSeconds} seconds</small>`;
+            feedbackContainer.appendChild(timeoutDiv);
+        }
+
+        return feedbackContainer;
     }
 }

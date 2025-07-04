@@ -194,6 +194,31 @@ export class AgentResponseHandler {
                 this.createToolDisplay(command, result);
                 this.context.onToolResult(result, command);
 
+                // Special handling for get_user_feedback tool
+                if (command.action === 'get_user_feedback' && result.success && result.data?.status === 'pending') {
+                    this.debugLog("User feedback tool detected - pausing execution", { command, result }, contextLabel);
+                    
+                    // Set up the pending feedback request and wait for user response
+                    const userResponse = await this.handlePendingUserFeedback(command, result);
+                    
+                    // Update the tool result with the actual user response
+                    const completedResult = {
+                        success: true,
+                        data: {
+                            ...userResponse,
+                            requestId: result.data.requestId,
+                            status: 'completed'
+                        }
+                    };
+                    
+                    // Replace the pending result with the completed result
+                    toolResults[toolResults.length - 1] = { command, result: completedResult };
+                    
+                    // Update the display with the completed result
+                    this.updateToolDisplay(command, completedResult);
+                    this.context.onToolResult(completedResult, command);
+                }
+
                 // Stop if execution limit is reached.
                 if (this.executionCount >= effectiveLimit) {
                     break;
@@ -554,7 +579,16 @@ ${resultData}
             const result = await this.processResponse(response, contextLabel, chatHistory);
             let status: TaskStatus["status"] = "completed";
             if (result.hasTools) {
-                if (this.isToolLimitReached()) {
+                // Check if any tools are pending user feedback
+                const hasPendingFeedback = result.toolResults.some(tr => 
+                    tr.command.action === 'get_user_feedback' && 
+                    tr.result.success && 
+                    tr.result.data?.status === 'pending'
+                );
+                
+                if (hasPendingFeedback) {
+                    status = "waiting_for_user";
+                } else if (this.isToolLimitReached()) {
                     status = "limit_reached";
                 } else {
                     status = "running";
@@ -573,6 +607,22 @@ ${resultData}
     }
 
     /**
+     * Creates a TaskStatus object with the given status and current execution state.
+     * @param status The task status
+     * @returns TaskStatus object
+     */
+    private createTaskStatus(status: TaskStatus["status"]): TaskStatus {
+        const agentSettings = this.context.plugin.agentModeManager.getAgentModeSettings();
+        return {
+            status,
+            toolExecutionCount: this.executionCount,
+            maxToolExecutions: this.getEffectiveToolLimit(),
+            canContinue: status === "running" || status === "waiting_for_user",
+            lastUpdateTime: new Date().toISOString()
+        };
+    }
+
+    /**
      * Shows a task completion notification.
      * @param message The message to display.
      * @param type Notification type ("success", "warning", etc).
@@ -582,26 +632,52 @@ ${resultData}
     }
 
     /**
-     * Creates and returns a tool limit warning UI element.
+     * Creates a tool limit warning UI element.
+     * @returns HTMLElement containing the tool limit warning interface
      */
     createToolLimitWarning(): HTMLElement {
         return this.toolLimitWarningUI.createToolLimitWarning();
     }
 
     /**
-     * Creates a TaskStatus object for UI updates.
-     * @param status The current status ("completed", "running", etc).
-     * @param progress Optional progress value.
+     * Handles pending user feedback by setting up the async request and waiting for response.
+     * @param command The get_user_feedback command
+     * @param result The pending result from the tool
+     * @returns Promise that resolves with the user response
      */
-    createTaskStatus(status: TaskStatus["status"], progress?: TaskStatus["progress"]): TaskStatus {
-        const agentSettings = this.context.plugin.agentModeManager.getAgentModeSettings();
-        return {
-            status,
-            progress,
-            toolExecutionCount: this.executionCount,
-            maxToolExecutions: agentSettings.maxToolCalls,
-            canContinue: status === "limit_reached" || status === "stopped",
-            lastUpdateTime: new Date().toISOString()
-        };
+    private async handlePendingUserFeedback(command: ToolCommand, result: ToolResult): Promise<any> {
+        const { GetUserFeedbackTool } = await import('../tools/GetUserFeedback');
+        
+        const timeout = result.data.timeout || 300000; // Default 5 minutes
+        
+        // Create the pending request that will be resolved when user responds
+        try {
+            const userResponse = await GetUserFeedbackTool.createPendingRequest(result.data.requestId, timeout);
+            this.debugLog("User feedback received", { userResponse });
+            return userResponse;
+        } catch (error) {
+            this.debugLog("User feedback timeout or error", { error });
+            throw error;
+        }
+    }
+
+    /**
+     * Updates an existing tool display with a new result.
+     * @param command The tool command
+     * @param result The updated result
+     */
+    private updateToolDisplay(command: ToolCommand, result: ToolResult): void {
+        const displayId = this.generateDisplayId(command);
+        const existingDisplay = this.toolDisplays.get(displayId);
+        
+        if (existingDisplay) {
+            // Update the existing display with the new result
+            existingDisplay.updateResult(result);
+            // Update the markdown cache as well
+            this.toolMarkdownCache.set(displayId, existingDisplay.toMarkdown());
+        } else {
+            // If no existing display, create a new one
+            this.createToolDisplay(command, result);
+        }
     }
 }

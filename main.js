@@ -2868,6 +2868,185 @@ var init_FileDeleteTool = __esm({
   }
 });
 
+// src/components/chat/agent/tools/GetUserFeedback.ts
+var GetUserFeedback_exports = {};
+__export(GetUserFeedback_exports, {
+  GetUserFeedbackTool: () => GetUserFeedbackTool
+});
+var _GetUserFeedbackTool, GetUserFeedbackTool;
+var init_GetUserFeedback = __esm({
+  "src/components/chat/agent/tools/GetUserFeedback.ts"() {
+    _GetUserFeedbackTool = class _GetUserFeedbackTool {
+      constructor(app) {
+        this.app = app;
+        __publicField(this, "name", "get_user_feedback");
+        __publicField(this, "description", "Asks the user a question and waits for their response. Supports both text input and multiple choice questions with interactive buttons. Use this when you need user input to proceed with a task.");
+        __publicField(this, "parameters", {
+          question: {
+            type: "string",
+            description: "The question to ask the user",
+            required: true
+          },
+          type: {
+            type: "string",
+            description: 'Type of response expected: "text" for free text input, "choice" for multiple choice',
+            enum: ["text", "choice"],
+            default: "text",
+            required: false
+          },
+          choices: {
+            type: "array",
+            description: 'Array of choices for multiple choice questions (required if type is "choice")',
+            items: { type: "string" },
+            required: false
+          },
+          timeout: {
+            type: "number",
+            description: "Timeout in milliseconds to wait for response (default: 300000 = 5 minutes)",
+            default: 3e5,
+            required: false
+          },
+          allowCustomAnswer: {
+            type: "boolean",
+            description: "For choice type, allow user to provide custom text answer in addition to choices",
+            default: false,
+            required: false
+          },
+          placeholder: {
+            type: "string",
+            description: "Placeholder text for text input",
+            required: false
+          }
+        });
+      }
+      /**
+       * Executes the user feedback request.
+       * Returns a special result that allows the UI to show interactive elements while waiting for user response.
+       * @param params GetUserFeedbackParams
+       * @param context Execution context (unused)
+       * @returns ToolResult with pending status and request data for UI creation
+       */
+      async execute(params, context) {
+        const {
+          question,
+          type: type2 = "text",
+          choices = [],
+          timeout = 3e5,
+          // 5 minutes default
+          allowCustomAnswer = false,
+          placeholder
+        } = params;
+        if (!question || question.trim().length === 0) {
+          return {
+            success: false,
+            error: "Question parameter is required and cannot be empty"
+          };
+        }
+        if (type2 === "choice" && (!choices || choices.length === 0)) {
+          return {
+            success: false,
+            error: 'Choices parameter is required and cannot be empty when type is "choice"'
+          };
+        }
+        const requestId = `feedback_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        const startTime = Date.now();
+        return {
+          success: true,
+          data: {
+            requestId,
+            status: "pending",
+            question,
+            type: type2,
+            choices,
+            timeout,
+            allowCustomAnswer,
+            placeholder,
+            startTime
+          }
+        };
+      }
+      /**
+       * Creates a pending feedback request after the UI has been displayed.
+       * This should be called by the ToolRichDisplay when it creates the interactive UI.
+       * @param requestId The request ID from the tool result
+       * @param timeout Timeout in milliseconds
+       * @returns Promise that resolves when user responds or times out
+       */
+      static createPendingRequest(requestId, timeout) {
+        return new Promise((resolve, reject) => {
+          const timeoutId = setTimeout(() => {
+            _GetUserFeedbackTool.pendingFeedback.delete(requestId);
+            reject(new Error(`User feedback timeout after ${timeout}ms`));
+          }, timeout);
+          _GetUserFeedbackTool.pendingFeedback.set(requestId, {
+            resolve,
+            reject,
+            timeoutId,
+            startTime: Date.now()
+          });
+        });
+      }
+      /**
+       * Static method to handle user response from the UI.
+       * Called by the ToolRichDisplay when user interacts with the feedback UI.
+       * @param requestId The request ID of the pending feedback
+       * @param answer The user's answer
+       * @param choiceIndex Optional index of selected choice (for choice type)
+       * @param isCustomAnswer Whether this is a custom answer (for choice type with allowCustomAnswer)
+       */
+      static handleUserResponse(requestId, answer, choiceIndex, isCustomAnswer) {
+        const pending = _GetUserFeedbackTool.pendingFeedback.get(requestId);
+        if (!pending) {
+          console.warn(`No pending feedback request found for ID: ${requestId}`);
+          return;
+        }
+        clearTimeout(pending.timeoutId);
+        _GetUserFeedbackTool.pendingFeedback.delete(requestId);
+        const responseTimeMs = Date.now() - pending.startTime;
+        const response = {
+          question: "",
+          // This will be populated by the tool execution context
+          type: choiceIndex !== void 0 ? "choice" : "text",
+          answer,
+          choiceIndex,
+          isCustomAnswer,
+          timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+          responseTimeMs
+        };
+        pending.resolve(response);
+      }
+      /**
+       * Static method to cancel a pending feedback request.
+       * @param requestId The request ID to cancel
+       */
+      static cancelFeedbackRequest(requestId) {
+        const pending = _GetUserFeedbackTool.pendingFeedback.get(requestId);
+        if (pending) {
+          clearTimeout(pending.timeoutId);
+          _GetUserFeedbackTool.pendingFeedback.delete(requestId);
+          pending.reject(new Error("Feedback request cancelled"));
+        }
+      }
+      /**
+       * Static method to get all pending feedback requests.
+       * Used for debugging and UI management.
+       */
+      static getPendingRequests() {
+        return Array.from(_GetUserFeedbackTool.pendingFeedback.keys());
+      }
+      /**
+       * Static method to check if a request is pending.
+       * @param requestId The request ID to check
+       */
+      static isPending(requestId) {
+        return _GetUserFeedbackTool.pendingFeedback.has(requestId);
+      }
+    };
+    __publicField(_GetUserFeedbackTool, "pendingFeedback", /* @__PURE__ */ new Map());
+    GetUserFeedbackTool = _GetUserFeedbackTool;
+  }
+});
+
 // src/components/chat/agent/tools/toolcollect.ts
 function getAllToolClasses() {
   return [
@@ -2879,7 +3058,8 @@ function getAllToolClasses() {
     ThoughtTool,
     FileListTool,
     VaultTreeTool,
-    FileDeleteTool
+    FileDeleteTool,
+    GetUserFeedbackTool
   ];
 }
 function getToolMetadata() {
@@ -2977,6 +3157,7 @@ var init_toolcollect = __esm({
     init_FileListTool();
     init_VaultTreeTool();
     init_FileDeleteTool();
+    init_GetUserFeedback();
   }
 });
 
@@ -3477,7 +3658,8 @@ var init_ToolRichDisplay = __esm({
           "file_move": "\u{1F4C1}",
           "file_rename": "\u{1F3F7}\uFE0F",
           "file_list": "\u{1F4CB}",
-          "thought": "\u{1F9E0}"
+          "thought": "\u{1F9E0}",
+          "get_user_feedback": "\u2753"
         };
         return iconMap[this.options.command.action] || "\u{1F527}";
       }
@@ -3493,7 +3675,8 @@ var init_ToolRichDisplay = __esm({
           "file_move": "File Move",
           "file_rename": "File Rename",
           "file_list": "File List",
-          "thought": "Thought Process"
+          "thought": "Thought Process",
+          "get_user_feedback": "User Feedback"
         };
         return nameMap[this.options.command.action] || this.options.command.action;
       }
@@ -3550,6 +3733,17 @@ var init_ToolRichDisplay = __esm({
         if (this.options.command.action === "thought" && data) {
           const thought = data.thought || data.reasoning || "";
           return `<span class="tool-success">\u{1F9E0} ${thought}</span>`;
+        }
+        if (this.options.command.action === "get_user_feedback" && data) {
+          if (data.status === "completed") {
+            const answer = data.answer || "";
+            const responseTime = data.responseTimeMs ? ` (responded in ${Math.round(data.responseTimeMs / 1e3)}s)` : "";
+            return `<span class="tool-success">\u2753 User responded: <strong>${answer}</strong>${responseTime}</span>`;
+          } else if (data.status === "failed") {
+            return `<span class="tool-error">\u2753 Failed to get user response</span>`;
+          } else {
+            return `<span class="tool-pending">\u2753 Waiting for user response...</span>`;
+          }
         }
         if (typeof data === "string") {
           return data;
@@ -3682,6 +3876,12 @@ ${details}
         const resultDiv = document.createElement("div");
         resultDiv.innerHTML = `<strong>Result:</strong> ${_ToolRichDisplay.getStaticResultSummary(command, result)}`;
         infoDiv.appendChild(resultDiv);
+        if (command.action === "get_user_feedback" && result.data && (result.data.status === "pending" || !result.data.status && result.data.requestId)) {
+          const feedbackDiv = _ToolRichDisplay.createUserFeedbackUI(command, result);
+          if (feedbackDiv) {
+            infoDiv.appendChild(feedbackDiv);
+          }
+        }
         const details = _ToolRichDisplay.getStaticDetailedResult(result);
         if (details) {
           const toggle = document.createElement("div");
@@ -3754,7 +3954,8 @@ ${details}
           "file_move": "\u{1F4C1}",
           "file_rename": "\u{1F3F7}\uFE0F",
           "file_list": "\u{1F4CB}",
-          "thought": "\u{1F9E0}"
+          "thought": "\u{1F9E0}",
+          "get_user_feedback": "\u2753"
         };
         return iconMap[action] || "\u{1F527}";
       }
@@ -3770,7 +3971,8 @@ ${details}
           "file_move": "File Move",
           "file_rename": "File Rename",
           "file_list": "File List",
-          "thought": "Thought Process"
+          "thought": "Thought Process",
+          "get_user_feedback": "User Feedback"
         };
         return nameMap[action] || action;
       }
@@ -3827,6 +4029,17 @@ ${details}
           const thought = data.thought || data.reasoning || "";
           return `<span class="tool-success">\u{1F9E0} ${thought}</span>`;
         }
+        if (command.action === "get_user_feedback" && data) {
+          if (data.status === "completed") {
+            const answer = data.answer || "";
+            const responseTime = data.responseTimeMs ? ` (responded in ${Math.round(data.responseTimeMs / 1e3)}s)` : "";
+            return `<span class="tool-success">\u2753 User responded: <strong>${answer}</strong>${responseTime}</span>`;
+          } else if (data.status === "failed") {
+            return `<span class="tool-error">\u2753 Failed to get user response</span>`;
+          } else {
+            return `<span class="tool-pending">\u2753 Waiting for user response...</span>`;
+          }
+        }
         if (typeof data === "string") {
           return data;
         }
@@ -3875,6 +4088,120 @@ ${details}
             }
           }
         }
+      }
+      /**
+       * Creates an interactive UI for user feedback tools.
+       * This method creates the input elements and buttons for user interaction.
+       * @param command The tool command requesting feedback
+       * @param result The tool result (should contain request data)
+       * @returns HTMLElement with the interactive feedback UI or null if not applicable
+       */
+      static createUserFeedbackUI(command, result) {
+        const params = command.parameters;
+        const data = result.data;
+        if (!params.question || !data || !data.requestId) {
+          return null;
+        }
+        const feedbackContainer = document.createElement("div");
+        feedbackContainer.className = "user-feedback-ui";
+        const questionDiv = document.createElement("div");
+        questionDiv.className = "feedback-question";
+        questionDiv.innerHTML = `<strong>Question:</strong> ${params.question}`;
+        feedbackContainer.appendChild(questionDiv);
+        const responseContainer = document.createElement("div");
+        responseContainer.className = "feedback-response-container";
+        const timeout = data.timeout || 3e5;
+        Promise.resolve().then(() => (init_GetUserFeedback(), GetUserFeedback_exports)).then(({ GetUserFeedbackTool: GetUserFeedbackTool2 }) => {
+          GetUserFeedbackTool2.createPendingRequest(data.requestId, timeout).then((userResponse) => {
+            responseContainer.innerHTML = `<div class="feedback-selected">\u2705 Response received: <strong>${userResponse.answer}</strong></div>`;
+          }).catch((error) => {
+            responseContainer.innerHTML = `<div class="feedback-error">\u274C ${error.message}</div>`;
+          });
+        });
+        if (params.type === "choice" && params.choices && Array.isArray(params.choices)) {
+          const choicesDiv = document.createElement("div");
+          choicesDiv.className = "feedback-choices";
+          params.choices.forEach((choice, index) => {
+            const choiceButton = document.createElement("button");
+            choiceButton.className = "feedback-choice-btn";
+            choiceButton.textContent = choice;
+            choiceButton.onclick = () => {
+              Promise.resolve().then(() => (init_GetUserFeedback(), GetUserFeedback_exports)).then(({ GetUserFeedbackTool: GetUserFeedbackTool2 }) => {
+                GetUserFeedbackTool2.handleUserResponse(data.requestId, choice, index);
+                responseContainer.innerHTML = `<div class="feedback-selected">\u2705 Selected: <strong>${choice}</strong></div>`;
+              }).catch((error) => {
+                console.error("Failed to handle user response:", error);
+              });
+            };
+            choicesDiv.appendChild(choiceButton);
+          });
+          responseContainer.appendChild(choicesDiv);
+          if (params.allowCustomAnswer) {
+            const customDiv = document.createElement("div");
+            customDiv.className = "feedback-custom";
+            customDiv.innerHTML = "<strong>Or provide a custom answer:</strong>";
+            const customInput = document.createElement("input");
+            customInput.type = "text";
+            customInput.className = "feedback-custom-input";
+            customInput.placeholder = params.placeholder || "Enter your custom answer...";
+            const customButton = document.createElement("button");
+            customButton.className = "feedback-submit-btn";
+            customButton.textContent = "Submit Custom Answer";
+            customButton.onclick = () => {
+              const customAnswer = customInput.value.trim();
+              if (customAnswer) {
+                Promise.resolve().then(() => (init_GetUserFeedback(), GetUserFeedback_exports)).then(({ GetUserFeedbackTool: GetUserFeedbackTool2 }) => {
+                  GetUserFeedbackTool2.handleUserResponse(data.requestId, customAnswer, void 0, true);
+                  responseContainer.innerHTML = `<div class="feedback-selected">\u2705 Custom answer: <strong>${customAnswer}</strong></div>`;
+                }).catch((error) => {
+                  console.error("Failed to handle user response:", error);
+                });
+              }
+            };
+            customDiv.appendChild(customInput);
+            customDiv.appendChild(customButton);
+            responseContainer.appendChild(customDiv);
+          }
+        } else {
+          const textDiv = document.createElement("div");
+          textDiv.className = "feedback-text";
+          const textInput = document.createElement("textarea");
+          textInput.className = "feedback-text-input";
+          textInput.placeholder = params.placeholder || "Enter your answer...";
+          textInput.rows = 3;
+          const submitButton = document.createElement("button");
+          submitButton.className = "feedback-submit-btn";
+          submitButton.textContent = "Submit Answer";
+          submitButton.onclick = () => {
+            const answer = textInput.value.trim();
+            if (answer) {
+              Promise.resolve().then(() => (init_GetUserFeedback(), GetUserFeedback_exports)).then(({ GetUserFeedbackTool: GetUserFeedbackTool2 }) => {
+                GetUserFeedbackTool2.handleUserResponse(data.requestId, answer);
+                responseContainer.innerHTML = `<div class="feedback-selected">\u2705 Answer submitted: <strong>${answer}</strong></div>`;
+              }).catch((error) => {
+                console.error("Failed to handle user response:", error);
+              });
+            }
+          };
+          textInput.onkeydown = (e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              submitButton.click();
+            }
+          };
+          textDiv.appendChild(textInput);
+          textDiv.appendChild(submitButton);
+          responseContainer.appendChild(textDiv);
+        }
+        feedbackContainer.appendChild(responseContainer);
+        if (data.timeout) {
+          const timeoutDiv = document.createElement("div");
+          timeoutDiv.className = "feedback-timeout";
+          const timeoutSeconds = Math.round(data.timeout / 1e3);
+          timeoutDiv.innerHTML = `<small>\u23F1\uFE0F Timeout: ${timeoutSeconds} seconds</small>`;
+          feedbackContainer.appendChild(timeoutDiv);
+        }
+        return feedbackContainer;
       }
     };
   }
@@ -14922,6 +15249,7 @@ var AgentResponseHandler = class {
    * @param contextLabel Logging context label.
    */
   async executeToolCommands(commands, text, contextLabel) {
+    var _a2;
     const toolResults = [];
     const agentSettings = this.context.plugin.agentModeManager.getAgentModeSettings();
     const effectiveLimit = this.getEffectiveToolLimit();
@@ -14932,6 +15260,21 @@ var AgentResponseHandler = class {
         this.executionCount++;
         this.createToolDisplay(command, result);
         this.context.onToolResult(result, command);
+        if (command.action === "get_user_feedback" && result.success && ((_a2 = result.data) == null ? void 0 : _a2.status) === "pending") {
+          this.debugLog("User feedback tool detected - pausing execution", { command, result }, contextLabel);
+          const userResponse = await this.handlePendingUserFeedback(command, result);
+          const completedResult = {
+            success: true,
+            data: {
+              ...userResponse,
+              requestId: result.data.requestId,
+              status: "completed"
+            }
+          };
+          toolResults[toolResults.length - 1] = { command, result: completedResult };
+          this.updateToolDisplay(command, completedResult);
+          this.context.onToolResult(completedResult, command);
+        }
         if (this.executionCount >= effectiveLimit) {
           break;
         }
@@ -15232,7 +15575,15 @@ ${resultData}
       const result = await this.processResponse(response, contextLabel, chatHistory);
       let status = "completed";
       if (result.hasTools) {
-        if (this.isToolLimitReached()) {
+        const hasPendingFeedback = result.toolResults.some(
+          (tr) => {
+            var _a2;
+            return tr.command.action === "get_user_feedback" && tr.result.success && ((_a2 = tr.result.data) == null ? void 0 : _a2.status) === "pending";
+          }
+        );
+        if (hasPendingFeedback) {
+          status = "waiting_for_user";
+        } else if (this.isToolLimitReached()) {
           status = "limit_reached";
         } else {
           status = "running";
@@ -15250,6 +15601,21 @@ ${resultData}
     })();
   }
   /**
+   * Creates a TaskStatus object with the given status and current execution state.
+   * @param status The task status
+   * @returns TaskStatus object
+   */
+  createTaskStatus(status) {
+    const agentSettings = this.context.plugin.agentModeManager.getAgentModeSettings();
+    return {
+      status,
+      toolExecutionCount: this.executionCount,
+      maxToolExecutions: this.getEffectiveToolLimit(),
+      canContinue: status === "running" || status === "waiting_for_user",
+      lastUpdateTime: (/* @__PURE__ */ new Date()).toISOString()
+    };
+  }
+  /**
    * Shows a task completion notification.
    * @param message The message to display.
    * @param type Notification type ("success", "warning", etc).
@@ -15258,26 +15624,44 @@ ${resultData}
     this.notificationManager.showTaskCompletionNotification(message, type2);
   }
   /**
-   * Creates and returns a tool limit warning UI element.
+   * Creates a tool limit warning UI element.
+   * @returns HTMLElement containing the tool limit warning interface
    */
   createToolLimitWarning() {
     return this.toolLimitWarningUI.createToolLimitWarning();
   }
   /**
-   * Creates a TaskStatus object for UI updates.
-   * @param status The current status ("completed", "running", etc).
-   * @param progress Optional progress value.
+   * Handles pending user feedback by setting up the async request and waiting for response.
+   * @param command The get_user_feedback command
+   * @param result The pending result from the tool
+   * @returns Promise that resolves with the user response
    */
-  createTaskStatus(status, progress) {
-    const agentSettings = this.context.plugin.agentModeManager.getAgentModeSettings();
-    return {
-      status,
-      progress,
-      toolExecutionCount: this.executionCount,
-      maxToolExecutions: agentSettings.maxToolCalls,
-      canContinue: status === "limit_reached" || status === "stopped",
-      lastUpdateTime: (/* @__PURE__ */ new Date()).toISOString()
-    };
+  async handlePendingUserFeedback(command, result) {
+    const { GetUserFeedbackTool: GetUserFeedbackTool2 } = await Promise.resolve().then(() => (init_GetUserFeedback(), GetUserFeedback_exports));
+    const timeout = result.data.timeout || 3e5;
+    try {
+      const userResponse = await GetUserFeedbackTool2.createPendingRequest(result.data.requestId, timeout);
+      this.debugLog("User feedback received", { userResponse });
+      return userResponse;
+    } catch (error) {
+      this.debugLog("User feedback timeout or error", { error });
+      throw error;
+    }
+  }
+  /**
+   * Updates an existing tool display with a new result.
+   * @param command The tool command
+   * @param result The updated result
+   */
+  updateToolDisplay(command, result) {
+    const displayId = this.generateDisplayId(command);
+    const existingDisplay = this.toolDisplays.get(displayId);
+    if (existingDisplay) {
+      existingDisplay.updateResult(result);
+      this.toolMarkdownCache.set(displayId, existingDisplay.toMarkdown());
+    } else {
+      this.createToolDisplay(command, result);
+    }
   }
 };
 

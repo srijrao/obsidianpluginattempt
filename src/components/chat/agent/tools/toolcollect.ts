@@ -7,6 +7,7 @@ import { ThoughtTool } from './ThoughtTool';
 import { FileListTool } from './FileListTool';
 import { VaultTreeTool } from './VaultTreeTool';
 import { FileDeleteTool } from './FileDeleteTool';
+import { GetUserFeedbackTool } from './GetUserFeedback';
 
 /**
  * Returns an array of all tool classes.
@@ -23,7 +24,8 @@ export function getAllToolClasses(): any[] {
         ThoughtTool,
         FileListTool,
         VaultTreeTool,
-        FileDeleteTool
+        FileDeleteTool,
+        GetUserFeedbackTool
     ];
 }
 
