@@ -203,7 +203,15 @@ export class AIDispatcher {
             maxTokens: options.maxTokens,
             provider: providerOverride || this.plugin.settings.selectedModel || this.plugin.settings.provider
         });
+<<<<<<< HEAD
         return btoa(key).substring(0, 32); // Base64 encode and truncate
+=======
+        // Use UTF-8 safe base64 encoding
+        function btoaUtf8(str: string): string {
+            return btoa(unescape(encodeURIComponent(str)));
+        }
+        return btoaUtf8(key).substring(0, 32); // Base64 encode and truncate
+>>>>>>> 29f12c1 (Refactor AI handling: Introduce AIDispatcher for centralized request management)
     }
 
     /**
