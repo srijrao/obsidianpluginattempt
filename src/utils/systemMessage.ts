@@ -20,7 +20,7 @@ export function getSystemMessage(settings: MyPluginSettings): string {
     if (settings.includeTimeWithSystemMessage) {
         const now = new Date();
         const timeZoneOffset = now.getTimezoneOffset();
-        const offsetHours = Math.abs(timeZoneOffset) / 60;
+        const offsetHours = Math.abs(Math.floor(timeZoneOffset / 60));
         const offsetMinutes = Math.abs(timeZoneOffset) % 60;
         const sign = timeZoneOffset > 0 ? '-' : '+';
 

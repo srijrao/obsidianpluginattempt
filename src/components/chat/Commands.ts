@@ -5,8 +5,7 @@ import MyPlugin from '../../main';
 import { BotMessage } from './BotMessage';
 import { UserMessage } from './UserMessage';
 import { MessageRenderer } from './MessageRenderer';
-import { getSystemMessage } from '../../utils/systemMessage';
-import { processContextNotes } from '../../utils/noteUtils';
+import { buildContextMessages } from '../../utils/contextBuilder';
 
 /**
  * Interface for chat command handlers.
@@ -69,30 +68,14 @@ export class Commands extends Component implements IChatCommands {
             const myPlugin = this.plugin as any;
             const aiDispatcher = myPlugin.aiDispatcher || new AIDispatcher(this.app.vault, this.plugin);
 
-            // Build system message (with context notes if enabled)
-            let systemMessage = getSystemMessage(this.plugin.settings);
-            if (this.plugin.settings.enableContextNotes && this.plugin.settings.contextNotes) {
-                const contextContent = await processContextNotes(this.plugin.settings.contextNotes, this.plugin.app);
-                systemMessage += `\n\nContext Notes:\n${contextContent}`;
-            }
-
-            // Build message history for the provider
-            const messages: Message[] = [{ role: 'system', content: systemMessage }];
-
-            // Optionally add current note content as context
-            if (this.plugin.settings.referenceCurrentNote) {
-                const currentFile = this.app.workspace.getActiveFile();
-                if (currentFile) {
-                    const currentNoteContent = await this.app.vault.cachedRead(currentFile);
-                    messages.push({
-                        role: 'system',
-                        content: `Here is the content of the current note:\n\n${currentNoteContent}`
-                    });
-                }
-            }
+            // Build context messages (system, context notes, current note)
+            const contextMessages = await buildContextMessages({
+                app: this.app,
+                plugin: this.plugin
+            });
 
             // Add the user message
-            messages.push({ role: 'user', content });
+            const messages: Message[] = [...contextMessages, { role: 'user', content }];
 
             // Render assistant message (empty, to be filled by streaming)
             const botMessage = new BotMessage(this.app, this.plugin, '');
@@ -206,20 +189,17 @@ export class Commands extends Component implements IChatCommands {
      * @param messageEl The message element to regenerate
      */
     async regenerateResponse(messageEl: HTMLElement): Promise<void> {
-        // Build system message (with context notes if enabled)
-        const messages: Message[] = [
-            { role: 'system', content: getSystemMessage(this.plugin.settings) }
-        ];
-
-        if (this.plugin.settings.enableContextNotes && this.plugin.settings.contextNotes) {
-            const contextContent = await processContextNotes(this.plugin.settings.contextNotes, this.plugin.app);
-            messages[0].content += `\n\nContext Notes:\n${contextContent}`;
-        }
+        // Build context messages (system, context notes, current note)
+        const contextMessages = await buildContextMessages({
+            app: this.app,
+            plugin: this.plugin
+        });
 
         // Build message history up to the selected message
         const allMessages = Array.from(this.messagesContainer.querySelectorAll('.ai-chat-message'));
         const currentIndex = allMessages.indexOf(messageEl);
 
+        const messages: Message[] = [...contextMessages];
         for (let i = 0; i <= currentIndex; i++) {
             const el = allMessages[i];
             const role = el.classList.contains('user') ? 'user' : 'assistant';

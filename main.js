@@ -15722,7 +15722,7 @@ The current date is ${currentDate}.`;
   if (settings.includeTimeWithSystemMessage) {
     const now = /* @__PURE__ */ new Date();
     const timeZoneOffset = now.getTimezoneOffset();
-    const offsetHours = Math.abs(timeZoneOffset) / 60;
+    const offsetHours = Math.abs(Math.floor(timeZoneOffset / 60));
     const offsetMinutes = Math.abs(timeZoneOffset) % 60;
     const sign = timeZoneOffset > 0 ? "-" : "+";
     const currentTime = now.toLocaleTimeString();
@@ -15939,79 +15939,47 @@ ${contextContent}`
   return processedMessages;
 }
 
-// src/components/chat/agent/ContextBuilder.ts
-var ContextBuilder = class {
-  /**
-   * @param app The Obsidian App instance.
-   * @param plugin The plugin instance (for settings and logging).
-   */
-  constructor(app, plugin) {
-    this.app = app;
-    this.plugin = plugin;
-  }
-  /**
-   * Builds an array of context messages for the AI conversation.
-   * Includes the system message, context notes (if enabled), and the current note (if referenced).
-   * @returns Promise resolving to an array of Message objects.
-   */
-  async buildContextMessages() {
-    const messages = [
-      { role: "system", content: getSystemMessage(this.plugin.settings) }
-    ];
-    if (this.plugin.settings.enableContextNotes && this.plugin.settings.contextNotes) {
-      const contextContent = await processContextNotes(this.plugin.settings.contextNotes, this.plugin.app);
-      messages[0].content += `
+// src/utils/contextBuilder.ts
+async function buildContextMessages({
+  app,
+  plugin,
+  includeCurrentNote = true,
+  includeContextNotes = true,
+  debug: debug2 = false,
+  forceNoCurrentNote = false
+}) {
+  var _a2;
+  const messages = [
+    { role: "system", content: getSystemMessage(plugin.settings) }
+  ];
+  if (includeContextNotes && plugin.settings.enableContextNotes && plugin.settings.contextNotes) {
+    const contextContent = await processContextNotes(plugin.settings.contextNotes, app);
+    messages[0].content += `
 
 Context Notes:
 ${contextContent}`;
-    }
-    if (this.plugin.settings.referenceCurrentNote) {
-      const currentFile = this.app.workspace.getActiveFile();
-      if (currentFile) {
-        const currentNoteContent = await this.app.vault.cachedRead(currentFile);
-        messages.push({
-          role: "system",
-          content: `Here is the content of the current note (${currentFile.path}):
+  }
+  if (!forceNoCurrentNote && includeCurrentNote && plugin.settings.referenceCurrentNote) {
+    const currentFile = app.workspace.getActiveFile();
+    if (currentFile) {
+      const currentNoteContent = await app.vault.cachedRead(currentFile);
+      messages.push({
+        role: "system",
+        content: `Here is the content of the current note (${currentFile.path}):
 
 ${currentNoteContent}`
-        });
-      }
-    }
-    if (this.plugin.settings.debugMode) {
-      this.plugin.debugLog("debug", "[ContextBuilder] Building context messages", {
-        enableContextNotes: this.plugin.settings.enableContextNotes,
-        contextNotes: this.plugin.settings.contextNotes,
-        referenceCurrentNote: this.plugin.settings.referenceCurrentNote
       });
     }
-    return messages;
   }
-  /**
-   * Updates the UI indicator for referencing the current note.
-   * Shows or hides the indicator and updates the button state.
-   * @param referenceNoteIndicator The HTMLElement to update.
-   */
-  updateReferenceNoteIndicator(referenceNoteIndicator) {
-    if (!referenceNoteIndicator) return;
-    const currentFile = this.app.workspace.getActiveFile();
-    const isReferenceEnabled = this.plugin.settings.referenceCurrentNote;
-    const button = referenceNoteIndicator.previousElementSibling;
-    if (isReferenceEnabled && currentFile) {
-      referenceNoteIndicator.setText(`\u{1F4DD} Referencing: ${currentFile.basename}`);
-      referenceNoteIndicator.style.display = "block";
-      if (button && button.getAttribute("aria-label") === "Toggle referencing current note") {
-        button.setText("\u{1F4DD}");
-        button.classList.add("active");
-      }
-    } else {
-      referenceNoteIndicator.style.display = "none";
-      if (button && button.getAttribute("aria-label") === "Toggle referencing current note") {
-        button.setText("\u{1F4DD}");
-        button.classList.remove("active");
-      }
-    }
+  if (debug2 || plugin.settings.debugMode) {
+    (_a2 = plugin.debugLog) == null ? void 0 : _a2.call(plugin, "debug", "[contextBuilder] Building context messages", {
+      enableContextNotes: plugin.settings.enableContextNotes,
+      contextNotes: plugin.settings.contextNotes,
+      referenceCurrentNote: plugin.settings.referenceCurrentNote
+    });
   }
-};
+  return messages;
+}
 
 // src/components/chat/MessageRegenerator.ts
 var import_obsidian23 = require("obsidian");
@@ -16821,7 +16789,7 @@ var MessageRegenerator = class {
    * @param messageEl The message element to regenerate (user or assistant)
    * @param buildContextMessages Function to build the initial context messages (system/context notes/etc.)
    */
-  async regenerateResponse(messageEl, buildContextMessages) {
+  async regenerateResponse(messageEl, buildContextMessages2) {
     const textarea = this.inputContainer.querySelector("textarea");
     if (textarea) textarea.disabled = true;
     const allMessages = Array.from(this.messagesContainer.querySelectorAll(".ai-chat-message"));
@@ -16848,7 +16816,7 @@ var MessageRegenerator = class {
         userMsgIndex--;
       }
     }
-    const messages = await buildContextMessages();
+    const messages = await buildContextMessages2();
     for (let i = 0; i <= userMsgIndex; i++) {
       const el = allMessages[i];
       const role = el.classList.contains("user") ? "user" : "assistant";
@@ -16875,7 +16843,7 @@ var MessageRegenerator = class {
       "",
       this.chatHistoryManager,
       this.plugin,
-      (el) => this.regenerateResponse(el, buildContextMessages),
+      (el) => this.regenerateResponse(el, buildContextMessages2),
       this.component || null
     );
     assistantContainer.dataset.timestamp = originalTimestamp;
@@ -16929,8 +16897,6 @@ var ChatView = class extends import_obsidian24.ItemView {
     __publicField(this, "modelNameDisplay");
     // Handles agent/tool responses and tool result display
     __publicField(this, "agentResponseHandler", null);
-    // Builds context for chat (e.g., reference note, system prompt)
-    __publicField(this, "contextBuilder");
     // Handles message regeneration (retry/modify)
     __publicField(this, "messageRegenerator", null);
     // Handles streaming of assistant responses
@@ -16939,7 +16905,6 @@ var ChatView = class extends import_obsidian24.ItemView {
     __publicField(this, "messageRenderer");
     this.plugin = plugin;
     this.chatHistoryManager = new ChatHistoryManager(this.app.vault, this.plugin.manifest.id, "chat-history.json");
-    this.contextBuilder = new ContextBuilder(this.app, this.plugin);
     this.messageRenderer = new MessageRenderer(this.app);
   }
   getViewType() {
@@ -17270,7 +17235,23 @@ var ChatView = class extends import_obsidian24.ItemView {
    * Updates the reference note indicator UI to reflect current state.
    */
   updateReferenceNoteIndicator() {
-    this.contextBuilder.updateReferenceNoteIndicator(this.referenceNoteIndicator);
+    const currentFile = this.app.workspace.getActiveFile();
+    const isReferenceEnabled = this.plugin.settings.referenceCurrentNote;
+    const button = this.referenceNoteIndicator.previousElementSibling;
+    if (isReferenceEnabled && currentFile) {
+      this.referenceNoteIndicator.setText(`\u{1F4DD} Referencing: ${currentFile.basename}`);
+      this.referenceNoteIndicator.style.display = "block";
+      if (button && button.getAttribute("aria-label") === "Toggle referencing current note") {
+        button.setText("\u{1F4DD}");
+        button.classList.add("active");
+      }
+    } else {
+      this.referenceNoteIndicator.style.display = "none";
+      if (button && button.getAttribute("aria-label") === "Toggle referencing current note") {
+        button.setText("\u{1F4DD}");
+        button.classList.remove("active");
+      }
+    }
   }
   /**
    * Updates the model name display UI to show the current model.
@@ -17293,7 +17274,7 @@ var ChatView = class extends import_obsidian24.ItemView {
    * @returns Array of context messages
    */
   async buildContextMessages() {
-    return await this.contextBuilder.buildContextMessages();
+    return await buildContextMessages({ app: this.app, plugin: this.plugin });
   }
   /**
    * Streams the assistant response and updates the UI in real time.
@@ -17349,54 +17330,6 @@ var ChatView = class extends import_obsidian24.ItemView {
    */
   scrollMessagesToBottom() {
     this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
-  }
-  /**
-   * Insert a rich tool display into the messages container.
-   * Used for displaying tool results outside of normal chat flow.
-   * @param display The ToolRichDisplay instance to insert
-   */
-  insertToolDisplay(display) {
-    const toolDisplayWrapper = document.createElement("div");
-    toolDisplayWrapper.className = "ai-chat-message tool-display-message";
-    const messageContainer = toolDisplayWrapper.createDiv("message-container");
-    messageContainer.appendChild(display.getElement());
-    toolDisplayWrapper.dataset.timestamp = (/* @__PURE__ */ new Date()).toISOString();
-    toolDisplayWrapper.dataset.rawContent = display.toMarkdown();
-    const actionsEl = messageContainer.createDiv("message-actions");
-    actionsEl.classList.add("hidden");
-    toolDisplayWrapper.addEventListener("mouseenter", () => {
-      actionsEl.classList.remove("hidden");
-      actionsEl.classList.add("visible");
-    });
-    toolDisplayWrapper.addEventListener("mouseleave", () => {
-      actionsEl.classList.remove("visible");
-      actionsEl.classList.add("hidden");
-    });
-    const copyBtn = document.createElement("button");
-    copyBtn.className = "ai-chat-action-button";
-    copyBtn.setAttribute("aria-label", "Copy tool result");
-    copyBtn.innerHTML = "<span>Copy</span>";
-    copyBtn.addEventListener("click", async () => {
-      const content = display.toMarkdown();
-      try {
-        await navigator.clipboard.writeText(content);
-        new import_obsidian24.Notice("Tool result copied to clipboard");
-      } catch (error) {
-        new import_obsidian24.Notice("Failed to copy to clipboard");
-        this.plugin.debugLog("error", "[chat.ts] Clipboard error:", error);
-      }
-    });
-    actionsEl.appendChild(copyBtn);
-    const deleteBtn = document.createElement("button");
-    deleteBtn.className = "ai-chat-action-button";
-    deleteBtn.setAttribute("aria-label", "Delete tool display");
-    deleteBtn.innerHTML = "<span>Delete</span>";
-    deleteBtn.addEventListener("click", () => {
-      toolDisplayWrapper.remove();
-    });
-    actionsEl.appendChild(deleteBtn);
-    this.messagesContainer.appendChild(toolDisplayWrapper);
-    this.scrollMessagesToBottom();
   }
   /**
    * Stop the active AI stream in this chat view.
@@ -19464,7 +19397,7 @@ function parseSelection(selection, chatSeparator, chatBoundaryString) {
 // src/utils/aiCompletionHandler.ts
 init_logger();
 init_aiDispatcher();
-async function handleAICompletion(editor, settings, processMessages2, getSystemMessage2, vault, plugin, activeStream, setActiveStream) {
+async function handleAICompletion(editor, settings, processMessages2, getSystemMessage2, vault, plugin, activeStream, setActiveStream, app) {
   var _a2, _b, _c;
   let text;
   let insertPosition;
@@ -19497,8 +19430,15 @@ async function handleAICompletion(editor, settings, processMessages2, getSystemM
   try {
     const myPlugin = plugin;
     const dispatcher = myPlugin.aiDispatcher || new AIDispatcher(vault, plugin);
+    const contextMessages = await buildContextMessages({
+      app: app || myPlugin.app,
+      plugin: myPlugin,
+      includeCurrentNote: false,
+      includeContextNotes: true,
+      forceNoCurrentNote: true
+    });
     const processedMessages = await processMessages2([
-      { role: "system", content: getSystemMessage2() },
+      ...contextMessages,
       ...messages
     ]);
     let bufferedChunk = "";
@@ -19565,7 +19505,8 @@ function registerAIStreamCommands(plugin, settings, processMessages2, activeStre
           plugin.app.vault,
           { settings, saveSettings: (_a2 = plugin.saveSettings) == null ? void 0 : _a2.bind(plugin) },
           activeStream,
-          setActiveStream
+          setActiveStream,
+          plugin.app
         );
       }
     }

@@ -4,7 +4,6 @@ import { MyPluginSettingTab } from './settings';
 import { ChatView, VIEW_TYPE_CHAT } from './chat';
 import { ModelSettingsView } from './components/ModelSettingsView';
 import { processMessages } from './utils/noteUtils'; // Removed getContextNotesContent
-import { getSystemMessage } from './utils/systemMessage';
 import { showNotice } from './utils/generalUtils';
 import { debugLog } from './utils/logger'; // Changed from log to debugLog
 import { activateView } from './utils/viewManager';

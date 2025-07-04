@@ -4,6 +4,7 @@ import { parseSelection } from './parseSelection';
 import { showNotice, insertSeparator } from './generalUtils';
 import { debugLog } from '../utils/logger';
 import { AIDispatcher } from './aiDispatcher';
+import { buildContextMessages } from './contextBuilder';
 
 /**
  * Handles the AI completion logic for the editor.
@@ -26,6 +27,7 @@ import { AIDispatcher } from './aiDispatcher';
  * @param plugin The plugin instance for accessing settings and save functionality.
  * @param activeStream Legacy parameter - now managed by dispatcher (kept for compatibility).
  * @param setActiveStream Legacy parameter - now managed by dispatcher (kept for compatibility).
+ * @param app The Obsidian app instance for accessing workspace and files (optional, will use plugin.app if not provided).
  */
 export async function handleAICompletion(
     editor: Editor,
@@ -35,7 +37,8 @@ export async function handleAICompletion(
     vault: Vault,
     plugin: { settings: MyPluginSettings; saveSettings: () => Promise<void> },
     activeStream: { current: AbortController | null },
-    setActiveStream: (stream: AbortController | null) => void
+    setActiveStream: (stream: AbortController | null) => void,
+    app?: any
 ) {
     let text: string;
     let insertPosition;
@@ -81,9 +84,18 @@ export async function handleAICompletion(
         const myPlugin = plugin as any;
         const dispatcher = myPlugin.aiDispatcher || new AIDispatcher(vault, plugin);
 
-        // Preprocess messages, adding the system message at the start.
+        // Build context messages for editor completion: include context notes, but never the full current note.
+        const contextMessages = await buildContextMessages({
+            app: app || myPlugin.app,
+            plugin: myPlugin,
+            includeCurrentNote: false,
+            includeContextNotes: true,
+            forceNoCurrentNote: true
+        });
+
+        // Preprocess messages, adding the context messages at the start.
         const processedMessages = await processMessages([
-            { role: 'system', content: getSystemMessage() },
+            ...contextMessages,
             ...messages
         ]);
 

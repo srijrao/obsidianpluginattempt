@@ -39,7 +39,8 @@ export function registerAIStreamCommands(
                 plugin.app.vault,
                 { settings, saveSettings: (plugin as any).saveSettings?.bind(plugin) },
                 activeStream,
-                setActiveStream
+                setActiveStream,
+                plugin.app
             )
         }
     );

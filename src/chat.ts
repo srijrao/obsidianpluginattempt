@@ -15,18 +15,16 @@
  * - Supporting message regeneration and error handling
  */
 
-import { ItemView, WorkspaceLeaf, Notice, MarkdownRenderer, App } from 'obsidian';
+import { ItemView, WorkspaceLeaf, Notice } from 'obsidian';
 import MyPlugin from './main';
-import { Message, TaskStatus, ToolCommand, ToolResult } from './types';
+import { Message, ToolCommand, ToolResult } from './types';
 import { ChatHistoryManager, ChatMessage } from './components/chat/ChatHistoryManager';
 import { createMessageElement } from './components/chat/Message';
 import { createChatUI, ChatUIElements } from './components/chat/ui';
-import { handleCopyAll, handleSaveNote, handleClearChat, handleSettings, handleHelp, handleReferenceNote } from './components/chat/eventHandlers';
-import { saveChatAsNote, loadChatYamlAndApplySettings } from './components/chat/chatPersistence';
+import { handleCopyAll, handleSaveNote, handleClearChat, handleSettings, handleHelp } from './components/chat/eventHandlers';import { loadChatYamlAndApplySettings } from './components/chat/chatPersistence';
 import { renderChatHistory } from './components/chat/chatHistoryUtils';
-import { ChatHelpModal } from './components/chat/ChatHelpModal';
-import { AgentResponseHandler, AgentContext } from './components/chat/agent/AgentResponseHandler';
-import { ContextBuilder } from './components/chat/agent/ContextBuilder';
+import { AgentResponseHandler } from './components/chat/agent/AgentResponseHandler';
+import { buildContextMessages } from './utils/contextBuilder';
 import { MessageRegenerator } from './components/chat/MessageRegenerator';
 import { ResponseStreamer } from './components/chat/ResponseStreamer';
 import { MessageRenderer } from './components/chat/MessageRenderer';
@@ -64,8 +62,6 @@ export class ChatView extends ItemView {
     private modelNameDisplay: HTMLElement; 
     // Handles agent/tool responses and tool result display
     private agentResponseHandler: AgentResponseHandler | null = null;
-    // Builds context for chat (e.g., reference note, system prompt)
-    private contextBuilder: ContextBuilder;
     // Handles message regeneration (retry/modify)
     private messageRegenerator: MessageRegenerator | null = null;
     // Handles streaming of assistant responses
@@ -78,8 +74,6 @@ export class ChatView extends ItemView {
         this.plugin = plugin;
         // Initializes chat history manager for persistent storage
         this.chatHistoryManager = new ChatHistoryManager(this.app.vault, this.plugin.manifest.id, "chat-history.json");
-        // Builds context for each chat session (system prompt, reference note, etc.)
-        this.contextBuilder = new ContextBuilder(this.app, this.plugin);
         // Renders markdown and message content
         this.messageRenderer = new MessageRenderer(this.app);
     }
@@ -498,7 +492,25 @@ export class ChatView extends ItemView {
      * Updates the reference note indicator UI to reflect current state.
      */
     private updateReferenceNoteIndicator() {
-        this.contextBuilder.updateReferenceNoteIndicator(this.referenceNoteIndicator);
+        // Optionally update the reference note indicator here if needed
+        const currentFile = this.app.workspace.getActiveFile();
+        const isReferenceEnabled = this.plugin.settings.referenceCurrentNote;
+        const button = this.referenceNoteIndicator.previousElementSibling as HTMLButtonElement;
+
+        if (isReferenceEnabled && currentFile) {
+            this.referenceNoteIndicator.setText(`📝 Referencing: ${currentFile.basename}`);
+            this.referenceNoteIndicator.style.display = 'block';
+            if (button && button.getAttribute('aria-label') === 'Toggle referencing current note') {
+                button.setText('📝');
+                button.classList.add('active');
+            }
+        } else {
+            this.referenceNoteIndicator.style.display = 'none';
+            if (button && button.getAttribute('aria-label') === 'Toggle referencing current note') {
+                button.setText('📝');
+                button.classList.remove('active');
+            }
+        }
     }
 
     /**
@@ -522,8 +534,7 @@ export class ChatView extends ItemView {
      * Builds the context messages for the assistant (system prompt, reference note, etc.).
      * @returns Array of context messages
      */
-    private async buildContextMessages(): Promise<Message[]> {
-        return await this.contextBuilder.buildContextMessages();
+    private async buildContextMessages(): Promise<Message[]> {        return await buildContextMessages({ app: this.app, plugin: this.plugin });
     }
 
     /**
@@ -589,63 +600,6 @@ export class ChatView extends ItemView {
      */
     public scrollMessagesToBottom() {
         this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
-    }
-    /**
-     * Insert a rich tool display into the messages container.
-     * Used for displaying tool results outside of normal chat flow.
-     * @param display The ToolRichDisplay instance to insert
-     */
-    private insertToolDisplay(display: ToolRichDisplay): void {
-        // Create wrapper for tool display
-        const toolDisplayWrapper = document.createElement('div');
-        toolDisplayWrapper.className = 'ai-chat-message tool-display-message';
-        // Message container for tool result
-        const messageContainer = toolDisplayWrapper.createDiv('message-container');
-        messageContainer.appendChild(display.getElement());
-        // Store timestamp and raw markdown for reference
-        toolDisplayWrapper.dataset.timestamp = new Date().toISOString();
-        toolDisplayWrapper.dataset.rawContent = display.toMarkdown();
-        // Actions (copy/delete) for tool result
-        const actionsEl = messageContainer.createDiv('message-actions');
-        actionsEl.classList.add('hidden');
-        // Show actions on hover
-        toolDisplayWrapper.addEventListener('mouseenter', () => {
-            actionsEl.classList.remove('hidden');
-            actionsEl.classList.add('visible');
-        });
-        toolDisplayWrapper.addEventListener('mouseleave', () => {
-            actionsEl.classList.remove('visible');
-            actionsEl.classList.add('hidden');
-        });
-        // Copy button for tool result
-        const copyBtn = document.createElement('button');
-        copyBtn.className = 'ai-chat-action-button';
-        copyBtn.setAttribute('aria-label', 'Copy tool result');
-        copyBtn.innerHTML = '<span>Copy</span>';
-        copyBtn.addEventListener('click', async () => {
-            const content = display.toMarkdown();
-            try {
-                await navigator.clipboard.writeText(content);
-                new Notice('Tool result copied to clipboard');
-            } catch (error) {
-                new Notice('Failed to copy to clipboard');
-                this.plugin.debugLog('error', '[chat.ts] Clipboard error:', error);
-            }
-        });
-        actionsEl.appendChild(copyBtn);
-        // Delete button for tool result
-        const deleteBtn = document.createElement('button');
-        deleteBtn.className = 'ai-chat-action-button';
-        deleteBtn.setAttribute('aria-label', 'Delete tool display');
-        deleteBtn.innerHTML = '<span>Delete</span>';
-        deleteBtn.addEventListener('click', () => {
-            toolDisplayWrapper.remove();
-        });
-        actionsEl.appendChild(deleteBtn);
-        // Add tool display to messages container
-        this.messagesContainer.appendChild(toolDisplayWrapper);
-        // Scroll to bottom to show new tool result
-        this.scrollMessagesToBottom();
     }
     
     /**
