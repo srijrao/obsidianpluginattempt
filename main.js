@@ -11930,13 +11930,18 @@ var init_ConfirmationModal = __esm({
 
 // src/utils/saveAICalls.ts
 async function saveAICallToFolder(request, response, plugin, folder = "ai-calls") {
-  var _a2;
+  var _a2, _b;
   const debugMode = (_a2 = plugin.settings.debugMode) != null ? _a2 : false;
-  const pluginFolder = __dirname;
+  const vaultBase = plugin.app.vault.adapter.basePath;
+  const pluginId = ((_b = plugin.manifest) == null ? void 0 : _b.id) || "ai-assistant-for-obsidian";
+  const pluginFolder = path.join(vaultBase, ".obsidian", "plugins", pluginId);
+  debugLog(debugMode, "info", "[saveAICalls.ts] pluginFolder:", pluginFolder);
   const targetFolder = path.join(pluginFolder, folder);
+  debugLog(debugMode, "info", "[saveAICalls.ts] targetFolder:", targetFolder);
   const timestamp2 = (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-");
   let fileName = `ai-call-${timestamp2}.md`;
   let finalFilePath = path.join(targetFolder, fileName);
+  debugLog(debugMode, "info", "[saveAICalls.ts] finalFilePath:", finalFilePath);
   const fileContent = `# AI Call
 
 ## Request

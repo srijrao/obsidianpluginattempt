@@ -25,19 +25,25 @@ import * as path from "path";
 export async function saveAICallToFolder(
     request: any,
     response: any,
-    plugin: { settings: { debugMode?: boolean }, app: any },
+    plugin: { settings: { debugMode?: boolean }, app: any, manifest?: { id: string } },
     folder: string = "ai-calls"
 ) {
     const debugMode = plugin.settings.debugMode ?? false;
 
-    // Get the plugin folder path (where this file is located)
-    // __dirname points to the compiled JS location, which is the plugin folder
-    const pluginFolder = __dirname;
+    // Get the vault base path
+    const vaultBase = plugin.app.vault.adapter.basePath;
+    // Get the plugin folder name from manifest.id, fallback to old name if missing
+    const pluginId = plugin.manifest?.id || 'ai-assistant-for-obsidian';
+    const pluginFolder = path.join(vaultBase, '.obsidian', 'plugins', pluginId);
+    debugLog(debugMode, 'info', '[saveAICalls.ts] pluginFolder:', pluginFolder);
+
     const targetFolder = path.join(pluginFolder, folder);
+    debugLog(debugMode, 'info', '[saveAICalls.ts] targetFolder:', targetFolder);
 
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
     let fileName = `ai-call-${timestamp}.md`;
     let finalFilePath = path.join(targetFolder, fileName);
+    debugLog(debugMode, 'info', '[saveAICalls.ts] finalFilePath:', finalFilePath);
     const fileContent = `# AI Call\n\n## Request\n\`\`\`json\n${JSON.stringify(request, null, 2)}\n\`\`\`\n\n## Response\n\`\`\`json\n${JSON.stringify(response, null, 2)}\n\`\`\``;
 
     // Ensure the folder exists

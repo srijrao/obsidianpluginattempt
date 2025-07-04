@@ -13,3 +13,4 @@ AGENT_MODE_IMPLEMENTATION_PLAN.md
 backups.json
 *.log
 .clinerules/localrules.md
+ai-calls/*
