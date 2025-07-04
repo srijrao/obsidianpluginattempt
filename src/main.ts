@@ -14,6 +14,7 @@ import { registerAllCommands } from './components/commands/commandRegistry';
 import { VIEW_TYPE_MODEL_SETTINGS } from './components/commands/viewCommands';
 import { registerYamlAttributeCommands } from './YAMLHandler';
 import { AIDispatcher } from './utils/aiDispatcher';
+import { MessageContextPool, PreAllocatedArrays } from './utils/objectPool';
 
 /**
  * AI Assistant Plugin
@@ -267,6 +268,10 @@ export default class MyPlugin extends Plugin {
     onunload() {
         MyPlugin.registeredViewTypes.delete(VIEW_TYPE_MODEL_SETTINGS);
         MyPlugin.registeredViewTypes.delete(VIEW_TYPE_CHAT);
+        
+        // Clean up object pools to free memory
+        MessageContextPool.getInstance().clear();
+        PreAllocatedArrays.getInstance().clear();
     }
 
     /**

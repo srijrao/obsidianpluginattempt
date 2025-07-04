@@ -11992,6 +11992,164 @@ var init_saveAICalls = __esm({
   }
 });
 
+// src/utils/objectPool.ts
+var ObjectPool, _MessageContextPool, MessageContextPool, WeakCache, _PreAllocatedArrays, PreAllocatedArrays;
+var init_objectPool = __esm({
+  "src/utils/objectPool.ts"() {
+    ObjectPool = class {
+      constructor(createFn, resetFn, maxSize = 50) {
+        __publicField(this, "pool", []);
+        __publicField(this, "createFn");
+        __publicField(this, "resetFn");
+        __publicField(this, "maxSize");
+        this.createFn = createFn;
+        this.resetFn = resetFn;
+        this.maxSize = maxSize;
+      }
+      /**
+       * Get an object from the pool or create a new one
+       */
+      acquire() {
+        if (this.pool.length > 0) {
+          return this.pool.pop();
+        }
+        return this.createFn();
+      }
+      /**
+       * Return an object to the pool for reuse
+       */
+      release(obj) {
+        if (this.pool.length < this.maxSize) {
+          if (this.resetFn) {
+            this.resetFn(obj);
+          }
+          this.pool.push(obj);
+        }
+      }
+      /**
+       * Clear the pool
+       */
+      clear() {
+        this.pool.length = 0;
+      }
+      /**
+       * Get current pool size
+       */
+      size() {
+        return this.pool.length;
+      }
+    };
+    _MessageContextPool = class _MessageContextPool {
+      constructor() {
+        __publicField(this, "messagePool");
+        __publicField(this, "arrayPool");
+        this.messagePool = new ObjectPool(
+          () => ({ role: "", content: "" }),
+          (obj) => {
+            obj.role = "";
+            obj.content = "";
+          }
+        );
+        this.arrayPool = new ObjectPool(
+          () => [],
+          (arr) => {
+            arr.length = 0;
+          }
+        );
+      }
+      static getInstance() {
+        if (!_MessageContextPool.instance) {
+          _MessageContextPool.instance = new _MessageContextPool();
+        }
+        return _MessageContextPool.instance;
+      }
+      acquireMessage() {
+        return this.messagePool.acquire();
+      }
+      releaseMessage(msg) {
+        this.messagePool.release(msg);
+      }
+      acquireArray() {
+        return this.arrayPool.acquire();
+      }
+      releaseArray(arr) {
+        this.arrayPool.release(arr);
+      }
+      clear() {
+        this.messagePool.clear();
+        this.arrayPool.clear();
+      }
+    };
+    __publicField(_MessageContextPool, "instance");
+    MessageContextPool = _MessageContextPool;
+    WeakCache = class {
+      constructor() {
+        __publicField(this, "cache", /* @__PURE__ */ new WeakMap());
+      }
+      set(key, value) {
+        this.cache.set(key, value);
+      }
+      get(key) {
+        return this.cache.get(key);
+      }
+      has(key) {
+        return this.cache.has(key);
+      }
+      delete(key) {
+        return this.cache.delete(key);
+      }
+    };
+    _PreAllocatedArrays = class _PreAllocatedArrays {
+      constructor() {
+        __publicField(this, "arrays", /* @__PURE__ */ new Map());
+      }
+      static getInstance() {
+        if (!_PreAllocatedArrays.instance) {
+          _PreAllocatedArrays.instance = new _PreAllocatedArrays();
+        }
+        return _PreAllocatedArrays.instance;
+      }
+      /**
+       * Get a pre-allocated array of specified size
+       */
+      getArray(size) {
+        if (!this.arrays.has(size)) {
+          this.arrays.set(size, []);
+        }
+        const pool = this.arrays.get(size);
+        if (pool.length > 0) {
+          const arr = pool.pop();
+          arr.length = 0;
+          return arr;
+        }
+        return new Array(size);
+      }
+      /**
+       * Return array to pool for reuse
+       */
+      returnArray(arr) {
+        const size = arr.length;
+        if (!this.arrays.has(size)) {
+          this.arrays.set(size, []);
+        }
+        const pool = this.arrays.get(size);
+        if (pool.length < 10) {
+          arr.length = 0;
+          pool.push(arr);
+        }
+      }
+      /**
+       * Clear all pools
+       */
+      clear() {
+        this.arrays.clear();
+      }
+    };
+    __publicField(_PreAllocatedArrays, "instance");
+    PreAllocatedArrays = _PreAllocatedArrays;
+  }
+});
+
 // src/utils/aiDispatcher.ts
 var aiDispatcher_exports = {};
 __export(aiDispatcher_exports, {
@@ -12003,6 +12161,7 @@ var init_aiDispatcher = __esm({
     init_providers();
     init_saveAICalls();
     init_logger();
+    init_objectPool();
     AIDispatcher = class {
       constructor(vault, plugin) {
         this.vault = vault;
@@ -12023,6 +12182,13 @@ var init_aiDispatcher = __esm({
         __publicField(this, "activeStreams", /* @__PURE__ */ new Map());
         __publicField(this, "rateLimits", /* @__PURE__ */ new Map());
         __publicField(this, "isProcessingQueue", false);
+        // Priority 1 Optimization: Request deduplication
+        __publicField(this, "pendingRequests", /* @__PURE__ */ new Map());
+        __publicField(this, "DEDUP_TTL", 30 * 1e3);
+        // 30 seconds
+        // Memory optimization: Object pools
+        __publicField(this, "messagePool");
+        __publicField(this, "arrayManager");
         // Configuration
         __publicField(this, "CACHE_TTL", 5 * 60 * 1e3);
         // 5 minutes
@@ -12040,7 +12206,23 @@ var init_aiDispatcher = __esm({
             nextRetryTime: 0
           });
         });
+        this.messagePool = MessageContextPool.getInstance();
+        this.arrayManager = PreAllocatedArrays.getInstance();
         this.startQueueProcessor();
+        this.startPendingRequestCleanup();
+      }
+      /**
+       * Priority 1 Optimization: Clean up expired pending requests
+       */
+      startPendingRequestCleanup() {
+        setInterval(() => {
+          const now = Date.now();
+          for (const [key, request] of this.pendingRequests.entries()) {
+            if (now - request.timestamp > this.DEDUP_TTL) {
+              this.pendingRequests.delete(key);
+            }
+          }
+        }, this.DEDUP_TTL);
       }
       /**
        * Makes an AI completion request through the appropriate provider.
@@ -12054,8 +12236,14 @@ var init_aiDispatcher = __esm({
        * @returns Promise that resolves when the completion is finished
        */
       async getCompletion(messages, options, providerOverride, priority = 0) {
+        var _a2;
         this.validateRequest(messages, options);
         const cacheKey = this.generateCacheKey(messages, options, providerOverride);
+        const existingRequest = this.pendingRequests.get(cacheKey);
+        if (existingRequest && Date.now() - existingRequest.timestamp < this.DEDUP_TTL) {
+          debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", "[AIDispatcher] Deduplicating request", { key: cacheKey });
+          return existingRequest.promise;
+        }
         const cachedResponse = this.getFromCache(cacheKey);
         if (cachedResponse && options.streamCallback) {
           options.streamCallback(cachedResponse);
@@ -12068,7 +12256,15 @@ var init_aiDispatcher = __esm({
         if (this.isRateLimited(providerName)) {
           return this.queueRequest(messages, options, providerOverride, priority);
         }
-        return this.executeWithRetry(messages, options, providerName, cacheKey);
+        const requestPromise = this.executeWithRetry(messages, options, providerName, cacheKey);
+        this.pendingRequests.set(cacheKey, {
+          promise: requestPromise,
+          timestamp: Date.now()
+        });
+        requestPromise.finally(() => {
+          this.pendingRequests.delete(cacheKey);
+        });
+        return requestPromise;
       }
       /**
        * Validates request format and content.
@@ -12104,20 +12300,37 @@ var init_aiDispatcher = __esm({
       /**
        * Generates a cache key for the request.
        * Uses base64 encoding that supports Unicode (so it won't throw on non-Latin1 chars).
+       * Optimized to use object pooling for reduced memory allocations.
        */
       generateCacheKey(messages, options, providerOverride) {
-        const key = JSON.stringify({
-          messages: messages.map((m) => ({ role: m.role, content: m.content })),
-          temperature: options.temperature,
-          maxTokens: options.maxTokens,
-          provider: providerOverride || this.plugin.settings.selectedModel || this.plugin.settings.provider
-        });
-        function btoaUnicode(str2) {
-          return btoa(encodeURIComponent(str2).replace(/%([0-9A-F]{2})/g, function(match, p1) {
-            return String.fromCharCode(parseInt(p1, 16));
-          }));
+        const messageArray = this.arrayManager.getArray(messages.length);
+        try {
+          let btoaUnicode = function(str2) {
+            return btoa(encodeURIComponent(str2).replace(/%([0-9A-F]{2})/g, function(match, p1) {
+              return String.fromCharCode(parseInt(p1, 16));
+            }));
+          };
+          for (let i = 0; i < messages.length; i++) {
+            const pooledMsg = this.messagePool.acquireMessage();
+            pooledMsg.role = messages[i].role;
+            pooledMsg.content = messages[i].content;
+            messageArray[i] = pooledMsg;
+          }
+          const key = JSON.stringify({
+            messages: messageArray,
+            temperature: options.temperature,
+            maxTokens: options.maxTokens,
+            provider: providerOverride || this.plugin.settings.selectedModel || this.plugin.settings.provider
+          });
+          return btoaUnicode(key).substring(0, 32);
+        } finally {
+          for (let i = 0; i < messageArray.length; i++) {
+            if (messageArray[i]) {
+              this.messagePool.releaseMessage(messageArray[i]);
+            }
+          }
+          this.arrayManager.returnArray(messageArray);
         }
-        return btoaUnicode(key).substring(0, 32);
       }
       /**
        * Gets response from cache if available and not expired.
@@ -16877,6 +17090,97 @@ var MessageRegenerator = class {
 
 // src/chat.ts
 init_MessageRenderer();
+init_objectPool();
+
+// src/utils/domBatcher.ts
+var DOMBatcher = class {
+  constructor() {
+    __publicField(this, "operations", []);
+    __publicField(this, "scheduledFlush", false);
+  }
+  /**
+   * Add an element to be inserted in the next batch
+   */
+  addElement(element, parent, insertBefore) {
+    this.operations.push({ element, parent, insertBefore });
+    this.scheduleFlush();
+  }
+  /**
+   * Add multiple elements to be inserted in the next batch
+   */
+  addElements(operations) {
+    this.operations.push(...operations);
+    this.scheduleFlush();
+  }
+  /**
+   * Schedule a flush operation using requestAnimationFrame for optimal timing
+   */
+  scheduleFlush() {
+    if (!this.scheduledFlush) {
+      this.scheduledFlush = true;
+      requestAnimationFrame(() => {
+        this.flush();
+        this.scheduledFlush = false;
+      });
+    }
+  }
+  /**
+   * Immediately flush all pending operations
+   */
+  flush() {
+    if (this.operations.length === 0) return;
+    const operationsByParent = /* @__PURE__ */ new Map();
+    for (const operation of this.operations) {
+      if (!operationsByParent.has(operation.parent)) {
+        operationsByParent.set(operation.parent, []);
+      }
+      operationsByParent.get(operation.parent).push(operation);
+    }
+    for (const [parent, parentOperations] of operationsByParent) {
+      this.flushForParent(parent, parentOperations);
+    }
+    this.operations.length = 0;
+  }
+  /**
+   * Flush operations for a specific parent using DocumentFragment
+   */
+  flushForParent(parent, operations) {
+    const appendOperations = [];
+    const insertOperations = [];
+    for (const operation of operations) {
+      if (operation.insertBefore) {
+        insertOperations.push(operation);
+      } else {
+        appendOperations.push(operation);
+      }
+    }
+    if (appendOperations.length > 0) {
+      const fragment = document.createDocumentFragment();
+      for (const operation of appendOperations) {
+        fragment.appendChild(operation.element);
+      }
+      parent.appendChild(fragment);
+    }
+    for (const operation of insertOperations) {
+      parent.insertBefore(operation.element, operation.insertBefore);
+    }
+  }
+  /**
+   * Get the number of pending operations
+   */
+  getPendingCount() {
+    return this.operations.length;
+  }
+  /**
+   * Clear all pending operations without executing them
+   */
+  clear() {
+    this.operations.length = 0;
+  }
+};
+var globalDOMBatcher = new DOMBatcher();
+
+// src/chat.ts
 var VIEW_TYPE_CHAT = "chat-view";
 var ChatView = class extends import_obsidian24.ItemView {
   constructor(leaf, plugin) {
@@ -16903,9 +17207,49 @@ var ChatView = class extends import_obsidian24.ItemView {
     __publicField(this, "responseStreamer", null);
     // Renders messages (markdown, etc.)
     __publicField(this, "messageRenderer");
+    // Memory optimization: Object pools and caches
+    __publicField(this, "messagePool");
+    __publicField(this, "domCache");
+    __publicField(this, "arrayManager");
+    // Cached DOM references to avoid repeated queries
+    __publicField(this, "cachedMessageElements", []);
+    __publicField(this, "lastScrollHeight", 0);
+    // Priority 1 Optimization: Cache frequently accessed DOM elements
+    __publicField(this, "domElementCache", {});
+    // Event listener cleanup tracking
+    __publicField(this, "eventListeners", []);
+    // Priority 1 Optimization: DOM batching for efficient bulk operations
+    __publicField(this, "domBatcher");
     this.plugin = plugin;
     this.chatHistoryManager = new ChatHistoryManager(this.app.vault, this.plugin.manifest.id, "chat-history.json");
     this.messageRenderer = new MessageRenderer(this.app);
+    this.messagePool = MessageContextPool.getInstance();
+    this.domCache = new WeakCache();
+    this.arrayManager = PreAllocatedArrays.getInstance();
+    this.domBatcher = new DOMBatcher();
+  }
+  /**
+   * Priority 1 Optimization: Helper method to add event listener with cleanup tracking
+   */
+  addEventListenerWithCleanup(element, event, handler) {
+    element.addEventListener(event, handler);
+    this.eventListeners.push({ element, event, handler });
+  }
+  /**
+   * Priority 1 Optimization: Cache DOM elements for reuse
+   */
+  cacheUIElements(ui) {
+    this.domElementCache.textarea = ui.textarea;
+    this.domElementCache.sendButton = ui.sendButton;
+    this.domElementCache.stopButton = ui.stopButton;
+    this.domElementCache.copyAllButton = ui.copyAllButton;
+    this.domElementCache.clearButton = ui.clearButton;
+    this.domElementCache.settingsButton = ui.settingsButton;
+    this.domElementCache.helpButton = ui.helpButton;
+    this.domElementCache.saveNoteButton = ui.saveNoteButton;
+    this.domElementCache.referenceNoteButton = ui.referenceNoteButton;
+    this.domElementCache.agentModeButton = ui.agentModeButton;
+    this.domElementCache.toolContinuationContainer = ui.toolContinuationContainer;
   }
   getViewType() {
     return VIEW_TYPE_CHAT;
@@ -16941,16 +17285,17 @@ var ChatView = class extends import_obsidian24.ItemView {
     this.inputContainer = ui.inputContainer;
     this.referenceNoteIndicator = ui.referenceNoteIndicator;
     this.modelNameDisplay = ui.modelNameDisplay;
+    this.cacheUIElements(ui);
     this.updateReferenceNoteIndicator();
     this.updateModelNameDisplay();
-    const textarea = ui.textarea;
-    const sendButton = ui.sendButton;
-    const stopButton = ui.stopButton;
-    ui.copyAllButton.addEventListener("click", handleCopyAll(this.messagesContainer, this.plugin));
-    ui.clearButton.addEventListener("click", handleClearChat(this.messagesContainer, this.chatHistoryManager));
-    ui.settingsButton.addEventListener("click", handleSettings(this.app, this.plugin));
-    ui.helpButton.addEventListener("click", handleHelp(this.app));
-    ui.referenceNoteButton.addEventListener("click", () => {
+    const textarea = this.domElementCache.textarea;
+    const sendButton = this.domElementCache.sendButton;
+    const stopButton = this.domElementCache.stopButton;
+    this.addEventListenerWithCleanup(this.domElementCache.copyAllButton, "click", handleCopyAll(this.messagesContainer, this.plugin));
+    this.addEventListenerWithCleanup(this.domElementCache.clearButton, "click", handleClearChat(this.messagesContainer, this.chatHistoryManager));
+    this.addEventListenerWithCleanup(this.domElementCache.settingsButton, "click", handleSettings(this.app, this.plugin));
+    this.addEventListenerWithCleanup(this.domElementCache.helpButton, "click", handleHelp(this.app));
+    this.addEventListenerWithCleanup(this.domElementCache.referenceNoteButton, "click", () => {
       this.plugin.settings.referenceCurrentNote = !this.plugin.settings.referenceCurrentNote;
       this.plugin.saveSettings();
       this.updateReferenceNoteIndicator();
@@ -16959,7 +17304,7 @@ var ChatView = class extends import_obsidian24.ItemView {
       app: this.app,
       plugin: this.plugin,
       messagesContainer: this.messagesContainer,
-      toolContinuationContainer: ui.toolContinuationContainer,
+      toolContinuationContainer: this.domElementCache.toolContinuationContainer,
       onToolResult: (toolResult, command) => {
         if (toolResult.success) {
           this.plugin.debugLog("info", "[chat.ts] Tool ${command.action} completed successfully", toolResult.data);
@@ -16981,7 +17326,7 @@ var ChatView = class extends import_obsidian24.ItemView {
         }
       }
     });
-    ui.saveNoteButton.addEventListener("click", handleSaveNote(this.messagesContainer, this.plugin, this.app, this.agentResponseHandler));
+    this.addEventListenerWithCleanup(this.domElementCache.saveNoteButton, "click", handleSaveNote(this.messagesContainer, this.plugin, this.app, this.agentResponseHandler));
     this.responseStreamer = new ResponseStreamer(
       this.plugin,
       this.agentResponseHandler,
@@ -16997,28 +17342,30 @@ var ChatView = class extends import_obsidian24.ItemView {
       this.agentResponseHandler,
       this.activeStream
     );
-    ui.agentModeButton.addEventListener("click", async () => {
+    this.addEventListenerWithCleanup(this.domElementCache.agentModeButton, "click", async () => {
       const isCurrentlyEnabled = this.plugin.agentModeManager.isAgentModeEnabled();
       await this.plugin.agentModeManager.setAgentModeEnabled(!isCurrentlyEnabled);
+      const agentButton2 = this.domElementCache.agentModeButton;
       if (this.plugin.agentModeManager.isAgentModeEnabled()) {
-        ui.agentModeButton.classList.add("active");
-        ui.agentModeButton.setAttribute("title", "Agent Mode: ON - AI can use tools");
+        agentButton2.classList.add("active");
+        agentButton2.setAttribute("title", "Agent Mode: ON - AI can use tools");
         new import_obsidian24.Notice("Agent Mode enabled - AI can now use tools");
         if (this.agentResponseHandler) {
           this.agentResponseHandler.resetExecutionCount();
         }
       } else {
-        ui.agentModeButton.classList.remove("active");
-        ui.agentModeButton.setAttribute("title", "Agent Mode: OFF - Regular chat");
+        agentButton2.classList.remove("active");
+        agentButton2.setAttribute("title", "Agent Mode: OFF - Regular chat");
         new import_obsidian24.Notice("Agent Mode disabled");
       }
     });
+    const agentButton = this.domElementCache.agentModeButton;
     if (this.plugin.agentModeManager.isAgentModeEnabled()) {
-      ui.agentModeButton.classList.add("active");
-      ui.agentModeButton.setAttribute("title", "Agent Mode: ON - AI can use tools");
+      agentButton.classList.add("active");
+      agentButton.setAttribute("title", "Agent Mode: ON - AI can use tools");
     } else {
-      ui.agentModeButton.classList.remove("active");
-      ui.agentModeButton.setAttribute("title", "Agent Mode: OFF - Regular chat");
+      agentButton.classList.remove("active");
+      agentButton.setAttribute("title", "Agent Mode: OFF - Regular chat");
     }
     const sendMessage = async () => {
       var _a2;
@@ -17045,13 +17392,7 @@ var ChatView = class extends import_obsidian24.ItemView {
       }
       try {
         const messages = await this.buildContextMessages();
-        const messageElements = this.messagesContainer.querySelectorAll(".ai-chat-message");
-        messageElements.forEach((el) => {
-          var _a3;
-          const role = el.classList.contains("user") ? "user" : "assistant";
-          const content2 = ((_a3 = el.querySelector(".message-content")) == null ? void 0 : _a3.textContent) || "";
-          messages.push({ role, content: content2 });
-        });
+        this.addVisibleMessagesToContext(messages);
         const tempContainer = document.createElement("div");
         tempContainer.addClass("ai-chat-message", "assistant");
         tempContainer.createDiv("message-content");
@@ -17110,8 +17451,8 @@ var ChatView = class extends import_obsidian24.ItemView {
         this.activeStream = null;
       }
     };
-    sendButton.addEventListener("click", sendMessage);
-    stopButton.addEventListener("click", () => {
+    this.addEventListenerWithCleanup(sendButton, "click", sendMessage);
+    this.addEventListenerWithCleanup(stopButton, "click", () => {
       const myPlugin = this.plugin;
       if (myPlugin.stopAllAIStreams && typeof myPlugin.stopAllAIStreams === "function") {
         myPlugin.stopAllAIStreams();
@@ -17220,6 +17561,28 @@ var ChatView = class extends import_obsidian24.ItemView {
       this.activeStream.abort();
       this.activeStream = null;
     }
+    this.cleanupEventListeners();
+    this.cleanupMemoryResources();
+  }
+  /**
+   * Priority 1 Optimization: Clean up all tracked event listeners
+   */
+  cleanupEventListeners() {
+    for (const { element, event, handler } of this.eventListeners) {
+      element.removeEventListener(event, handler);
+    }
+    this.eventListeners.length = 0;
+  }
+  /**
+   * Clean up pooled objects and cached resources
+   */
+  cleanupMemoryResources() {
+    this.cachedMessageElements.length = 0;
+    this.lastScrollHeight = 0;
+    this.domElementCache = {};
+    if (this.domBatcher) {
+      this.domBatcher.clear();
+    }
   }
   /**
    * Regenerates an assistant response for a given message element.
@@ -17275,6 +17638,31 @@ var ChatView = class extends import_obsidian24.ItemView {
    */
   async buildContextMessages() {
     return await buildContextMessages({ app: this.app, plugin: this.plugin });
+  }
+  /**
+   * Optimized method to add visible messages to context using object pooling
+   * @param messages Array to add messages to
+   */
+  addVisibleMessagesToContext(messages) {
+    const currentScrollHeight = this.messagesContainer.scrollHeight;
+    let messageElements;
+    if (this.lastScrollHeight === currentScrollHeight && this.cachedMessageElements.length > 0) {
+      messageElements = this.cachedMessageElements;
+    } else {
+      messageElements = this.messagesContainer.querySelectorAll(".ai-chat-message");
+      this.cachedMessageElements = Array.from(messageElements);
+      this.lastScrollHeight = currentScrollHeight;
+    }
+    for (let i = 0; i < messageElements.length; i++) {
+      const el = messageElements[i];
+      const role = el.classList.contains("user") ? "user" : "assistant";
+      const contentEl = el.querySelector(".message-content");
+      const content = (contentEl == null ? void 0 : contentEl.textContent) || "";
+      const messageObj = this.messagePool.acquireMessage();
+      messageObj.role = role;
+      messageObj.content = content;
+      messages.push(messageObj);
+    }
   }
   /**
    * Streams the assistant response and updates the UI in real time.
@@ -19769,6 +20157,7 @@ function registerAllCommands(plugin, settings, processMessages2, activateChatVie
 // src/main.ts
 init_YAMLHandler();
 init_aiDispatcher();
+init_objectPool();
 var _MyPlugin = class _MyPlugin extends import_obsidian33.Plugin {
   constructor() {
     super(...arguments);
@@ -19978,6 +20367,8 @@ var _MyPlugin = class _MyPlugin extends import_obsidian33.Plugin {
   onunload() {
     _MyPlugin.registeredViewTypes.delete(VIEW_TYPE_MODEL_SETTINGS);
     _MyPlugin.registeredViewTypes.delete(VIEW_TYPE_CHAT);
+    MessageContextPool.getInstance().clear();
+    PreAllocatedArrays.getInstance().clear();
   }
   /**
    * Process ai-tool-execution code blocks specifically for Live Preview mode

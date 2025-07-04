@@ -29,6 +29,8 @@ import { MessageRegenerator } from './components/chat/MessageRegenerator';
 import { ResponseStreamer } from './components/chat/ResponseStreamer';
 import { MessageRenderer } from './components/chat/MessageRenderer';
 import { ToolRichDisplay } from './components/chat/agent/ToolRichDisplay';
+import { MessageContextPool, WeakCache, PreAllocatedArrays } from './utils/objectPool';
+import { DOMBatcher } from './utils/domBatcher';
 
 export const VIEW_TYPE_CHAT = 'chat-view';
 
@@ -57,9 +59,9 @@ export class ChatView extends ItemView {
     // Tracks the current streaming response (for aborting)
     private activeStream: AbortController | null = null;
     // UI element indicating reference note status
-    private referenceNoteIndicator: HTMLElement; 
+    private referenceNoteIndicator: HTMLElement;
     // UI element displaying current model name
-    private modelNameDisplay: HTMLElement; 
+    private modelNameDisplay: HTMLElement;
     // Handles agent/tool responses and tool result display
     private agentResponseHandler: AgentResponseHandler | null = null;
     // Handles message regeneration (retry/modify)
@@ -68,6 +70,40 @@ export class ChatView extends ItemView {
     private responseStreamer: ResponseStreamer | null = null;
     // Renders messages (markdown, etc.)
     private messageRenderer: MessageRenderer;
+    
+    // Memory optimization: Object pools and caches
+    private messagePool: MessageContextPool;
+    private domCache: WeakCache<HTMLElement, any>;
+    private arrayManager: PreAllocatedArrays;
+    
+    // Cached DOM references to avoid repeated queries
+    private cachedMessageElements: HTMLElement[] = [];
+    private lastScrollHeight: number = 0;
+    
+    // Priority 1 Optimization: Cache frequently accessed DOM elements
+    private domElementCache: {
+        textarea?: HTMLTextAreaElement;
+        sendButton?: HTMLButtonElement;
+        stopButton?: HTMLButtonElement;
+        copyAllButton?: HTMLButtonElement;
+        clearButton?: HTMLButtonElement;
+        settingsButton?: HTMLButtonElement;
+        helpButton?: HTMLButtonElement;
+        saveNoteButton?: HTMLButtonElement;
+        referenceNoteButton?: HTMLButtonElement;
+        agentModeButton?: HTMLButtonElement;
+        toolContinuationContainer?: HTMLElement;
+    } = {};
+    
+    // Event listener cleanup tracking
+    private eventListeners: Array<{
+        element: HTMLElement;
+        event: string;
+        handler: EventListener;
+    }> = [];
+    
+    // Priority 1 Optimization: DOM batching for efficient bulk operations
+    private domBatcher: DOMBatcher;
 
     constructor(leaf: WorkspaceLeaf, plugin: MyPlugin) {
         super(leaf);
@@ -76,6 +112,39 @@ export class ChatView extends ItemView {
         this.chatHistoryManager = new ChatHistoryManager(this.app.vault, this.plugin.manifest.id, "chat-history.json");
         // Renders markdown and message content
         this.messageRenderer = new MessageRenderer(this.app);
+        
+        // Initialize memory optimization components
+        this.messagePool = MessageContextPool.getInstance();
+        this.domCache = new WeakCache();
+        this.arrayManager = PreAllocatedArrays.getInstance();
+        
+        // Priority 1 Optimization: Initialize DOM batcher
+        this.domBatcher = new DOMBatcher();
+    }
+
+    /**
+     * Priority 1 Optimization: Helper method to add event listener with cleanup tracking
+     */
+    private addEventListenerWithCleanup(element: HTMLElement, event: string, handler: EventListener): void {
+        element.addEventListener(event, handler);
+        this.eventListeners.push({ element, event, handler });
+    }
+
+    /**
+     * Priority 1 Optimization: Cache DOM elements for reuse
+     */
+    private cacheUIElements(ui: any): void {
+        this.domElementCache.textarea = ui.textarea;
+        this.domElementCache.sendButton = ui.sendButton;
+        this.domElementCache.stopButton = ui.stopButton;
+        this.domElementCache.copyAllButton = ui.copyAllButton;
+        this.domElementCache.clearButton = ui.clearButton;
+        this.domElementCache.settingsButton = ui.settingsButton;
+        this.domElementCache.helpButton = ui.helpButton;
+        this.domElementCache.saveNoteButton = ui.saveNoteButton;
+        this.domElementCache.referenceNoteButton = ui.referenceNoteButton;
+        this.domElementCache.agentModeButton = ui.agentModeButton;
+        this.domElementCache.toolContinuationContainer = ui.toolContinuationContainer;
     }
 
     getViewType(): string {
@@ -120,23 +189,26 @@ export class ChatView extends ItemView {
         this.referenceNoteIndicator = ui.referenceNoteIndicator;
         this.modelNameDisplay = ui.modelNameDisplay;
 
+        // Priority 1 Optimization: Cache UI elements for reuse
+        this.cacheUIElements(ui);
+
         // Update indicators for reference note and model
         this.updateReferenceNoteIndicator();
         this.updateModelNameDisplay();
 
-        // Input and control buttons
-        const textarea = ui.textarea;
-        const sendButton = ui.sendButton;
-        const stopButton = ui.stopButton;        
+        // Input and control buttons - use cached references
+        const textarea = this.domElementCache.textarea!;
+        const sendButton = this.domElementCache.sendButton!;
+        const stopButton = this.domElementCache.stopButton!;
 
-        // Wire up chat control buttons to their handlers
-        ui.copyAllButton.addEventListener('click', handleCopyAll(this.messagesContainer, this.plugin));
-        ui.clearButton.addEventListener('click', handleClearChat(this.messagesContainer, this.chatHistoryManager));
-        ui.settingsButton.addEventListener('click', handleSettings(this.app, this.plugin));
-        ui.helpButton.addEventListener('click', handleHelp(this.app));
+        // Wire up chat control buttons to their handlers with cleanup tracking
+        this.addEventListenerWithCleanup(this.domElementCache.copyAllButton!, 'click', handleCopyAll(this.messagesContainer, this.plugin));
+        this.addEventListenerWithCleanup(this.domElementCache.clearButton!, 'click', handleClearChat(this.messagesContainer, this.chatHistoryManager));
+        this.addEventListenerWithCleanup(this.domElementCache.settingsButton!, 'click', handleSettings(this.app, this.plugin));
+        this.addEventListenerWithCleanup(this.domElementCache.helpButton!, 'click', handleHelp(this.app));
         
         // Toggle reference note mode
-        ui.referenceNoteButton.addEventListener('click', () => {
+        this.addEventListenerWithCleanup(this.domElementCache.referenceNoteButton!, 'click', () => {
             this.plugin.settings.referenceCurrentNote = !this.plugin.settings.referenceCurrentNote;
             this.plugin.saveSettings();
             this.updateReferenceNoteIndicator();
@@ -147,7 +219,7 @@ export class ChatView extends ItemView {
             app: this.app,
             plugin: this.plugin,
             messagesContainer: this.messagesContainer,
-            toolContinuationContainer: ui.toolContinuationContainer,
+            toolContinuationContainer: this.domElementCache.toolContinuationContainer!,
             onToolResult: (toolResult: ToolResult, command: ToolCommand) => {
                 // Log tool result for debugging
                 if (toolResult.success) {
@@ -175,7 +247,7 @@ export class ChatView extends ItemView {
         });
         
         // Save chat as note
-        ui.saveNoteButton.addEventListener('click', handleSaveNote(this.messagesContainer, this.plugin, this.app, this.agentResponseHandler));
+        this.addEventListenerWithCleanup(this.domElementCache.saveNoteButton!, 'click', handleSaveNote(this.messagesContainer, this.plugin, this.app, this.agentResponseHandler));
         
         // Set up response streaming and regeneration
         this.responseStreamer = new ResponseStreamer(
@@ -195,31 +267,33 @@ export class ChatView extends ItemView {
         );
 
         // Toggle agent mode (tool use)
-        ui.agentModeButton.addEventListener('click', async () => {
+        this.addEventListenerWithCleanup(this.domElementCache.agentModeButton!, 'click', async () => {
             const isCurrentlyEnabled = this.plugin.agentModeManager.isAgentModeEnabled();
             await this.plugin.agentModeManager.setAgentModeEnabled(!isCurrentlyEnabled);
+            const agentButton = this.domElementCache.agentModeButton!;
             if (this.plugin.agentModeManager.isAgentModeEnabled()) {
-                ui.agentModeButton.classList.add('active');
-                ui.agentModeButton.setAttribute('title', 'Agent Mode: ON - AI can use tools');
+                agentButton.classList.add('active');
+                agentButton.setAttribute('title', 'Agent Mode: ON - AI can use tools');
                 new Notice('Agent Mode enabled - AI can now use tools');
                 // Reset tool execution count for new session
                 if (this.agentResponseHandler) {
                     this.agentResponseHandler.resetExecutionCount();
                 }
             } else {
-                ui.agentModeButton.classList.remove('active');
-                ui.agentModeButton.setAttribute('title', 'Agent Mode: OFF - Regular chat');
+                agentButton.classList.remove('active');
+                agentButton.setAttribute('title', 'Agent Mode: OFF - Regular chat');
                 new Notice('Agent Mode disabled');
             }
         });
 
         // Set initial agent mode button state
+        const agentButton = this.domElementCache.agentModeButton!;
         if (this.plugin.agentModeManager.isAgentModeEnabled()) {
-            ui.agentModeButton.classList.add('active');
-            ui.agentModeButton.setAttribute('title', 'Agent Mode: ON - AI can use tools');
+            agentButton.classList.add('active');
+            agentButton.setAttribute('title', 'Agent Mode: ON - AI can use tools');
         } else {
-            ui.agentModeButton.classList.remove('active');
-            ui.agentModeButton.setAttribute('title', 'Agent Mode: OFF - Regular chat');
+            agentButton.classList.remove('active');
+            agentButton.setAttribute('title', 'Agent Mode: OFF - Regular chat');
         }
         
         /**
@@ -267,13 +341,8 @@ export class ChatView extends ItemView {
                 // Build context for assistant (system prompt, reference note, etc.)
                 const messages = await this.buildContextMessages();
 
-                // Add all visible messages to context (for streaming)
-                const messageElements = this.messagesContainer.querySelectorAll('.ai-chat-message');
-                messageElements.forEach(el => {
-                    const role = el.classList.contains('user') ? 'user' : 'assistant';
-                    const content = el.querySelector('.message-content')?.textContent || '';
-                    messages.push({ role, content });
-                });
+                // Add all visible messages to context (for streaming) - optimized version
+                this.addVisibleMessagesToContext(messages);
 
                 // Create a temporary container for streaming assistant response
                 const tempContainer = document.createElement('div');
@@ -347,9 +416,9 @@ export class ChatView extends ItemView {
         };
 
         // Send button triggers sendMessage
-        sendButton.addEventListener('click', sendMessage);
+        this.addEventListenerWithCleanup(sendButton, 'click', sendMessage);
         // Stop button aborts streaming response
-        stopButton.addEventListener('click', () => {
+        this.addEventListenerWithCleanup(stopButton, 'click', () => {
             // Use the plugin's centralized stop method
             const myPlugin = this.plugin as any;
             if (myPlugin.stopAllAIStreams && typeof myPlugin.stopAllAIStreams === 'function') {
@@ -475,6 +544,42 @@ export class ChatView extends ItemView {
             this.activeStream.abort();
             this.activeStream = null;
         }
+        
+        // Priority 1 Optimization: Clean up event listeners
+        this.cleanupEventListeners();
+        
+        // Clean up memory optimization resources
+        this.cleanupMemoryResources();
+    }
+
+    /**
+     * Priority 1 Optimization: Clean up all tracked event listeners
+     */
+    private cleanupEventListeners(): void {
+        for (const { element, event, handler } of this.eventListeners) {
+            element.removeEventListener(event, handler);
+        }
+        this.eventListeners.length = 0;
+    }
+
+    /**
+     * Clean up pooled objects and cached resources
+     */
+    private cleanupMemoryResources(): void {
+        // Clear cached DOM elements
+        this.cachedMessageElements.length = 0;
+        this.lastScrollHeight = 0;
+        
+        // Clear DOM element cache
+        this.domElementCache = {};
+        
+        // Priority 1 Optimization: Clean up DOM batcher
+        if (this.domBatcher) {
+            this.domBatcher.clear();
+        }
+        
+        // Note: We don't clear the singleton pools as they may be used by other instances
+        // The pools will be cleaned up when the plugin is unloaded
     }
 
     /**
@@ -535,6 +640,41 @@ export class ChatView extends ItemView {
      * @returns Array of context messages
      */
     private async buildContextMessages(): Promise<Message[]> {        return await buildContextMessages({ app: this.app, plugin: this.plugin });
+    }
+
+    /**
+     * Optimized method to add visible messages to context using object pooling
+     * @param messages Array to add messages to
+     */
+    private addVisibleMessagesToContext(messages: Message[]): void {
+        // Use cached elements if available and DOM hasn't changed
+        const currentScrollHeight = this.messagesContainer.scrollHeight;
+        let messageElements: NodeListOf<Element>;
+        
+        if (this.lastScrollHeight === currentScrollHeight && this.cachedMessageElements.length > 0) {
+            // Use cached elements
+            messageElements = this.cachedMessageElements as any;
+        } else {
+            // Query DOM and cache results
+            messageElements = this.messagesContainer.querySelectorAll('.ai-chat-message');
+            this.cachedMessageElements = Array.from(messageElements) as HTMLElement[];
+            this.lastScrollHeight = currentScrollHeight;
+        }
+
+        // Use object pool for message objects
+        for (let i = 0; i < messageElements.length; i++) {
+            const el = messageElements[i] as HTMLElement;
+            const role = el.classList.contains('user') ? 'user' : 'assistant';
+            const contentEl = el.querySelector('.message-content');
+            const content = contentEl?.textContent || '';
+            
+            // Use pooled message object
+            const messageObj = this.messagePool.acquireMessage();
+            messageObj.role = role;
+            messageObj.content = content;
+            
+            messages.push(messageObj as Message);
+        }
     }
 
     /**

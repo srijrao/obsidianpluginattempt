@@ -5,6 +5,7 @@ import { createProvider, createProviderFromUnifiedModel, getAllAvailableModels }
 import { saveAICallToFolder } from './saveAICalls';
 import { debugLog } from './logger';
 import type { MyPluginSettings } from '../types';
+import { MessageContextPool, PreAllocatedArrays } from './objectPool';
 
 // Types for new features
 interface CacheEntry {
@@ -39,6 +40,11 @@ interface QueuedRequest {
     resolve: (value: void) => void;
     reject: (error: Error) => void;
     priority: number;
+    timestamp: number;
+}
+
+interface PendingRequest {
+    promise: Promise<void>;
     timestamp: number;
 }
 
@@ -79,6 +85,14 @@ export class AIDispatcher {
     private rateLimits = new Map<string, { requests: number; resetTime: number }>();
     private isProcessingQueue = false;
 
+    // Priority 1 Optimization: Request deduplication
+    private pendingRequests = new Map<string, PendingRequest>();
+    private readonly DEDUP_TTL = 30 * 1000; // 30 seconds
+
+    // Memory optimization: Object pools
+    private messagePool: MessageContextPool;
+    private arrayManager: PreAllocatedArrays;
+
     // Configuration
     private readonly CACHE_TTL = 5 * 60 * 1000; // 5 minutes
     private readonly CIRCUIT_BREAKER_THRESHOLD = 5;
@@ -100,8 +114,29 @@ export class AIDispatcher {
             });
         });
 
+        // Initialize memory optimization components
+        this.messagePool = MessageContextPool.getInstance();
+        this.arrayManager = PreAllocatedArrays.getInstance();
+
         // Start queue processor
         this.startQueueProcessor();
+        
+        // Priority 1 Optimization: Start cleanup for expired pending requests
+        this.startPendingRequestCleanup();
+    }
+
+    /**
+     * Priority 1 Optimization: Clean up expired pending requests
+     */
+    private startPendingRequestCleanup(): void {
+        setInterval(() => {
+            const now = Date.now();
+            for (const [key, request] of this.pendingRequests.entries()) {
+                if (now - request.timestamp > this.DEDUP_TTL) {
+                    this.pendingRequests.delete(key);
+                }
+            }
+        }, this.DEDUP_TTL); // Clean up every 30 seconds
     }
 
     /**
@@ -127,6 +162,13 @@ export class AIDispatcher {
         // Generate cache key
         const cacheKey = this.generateCacheKey(messages, options, providerOverride);
         
+        // Priority 1 Optimization: Check for duplicate requests
+        const existingRequest = this.pendingRequests.get(cacheKey);
+        if (existingRequest && Date.now() - existingRequest.timestamp < this.DEDUP_TTL) {
+            debugLog(this.plugin.settings.debugMode ?? false, 'info', '[AIDispatcher] Deduplicating request', { key: cacheKey });
+            return existingRequest.promise;
+        }
+        
         // Check cache first
         const cachedResponse = this.getFromCache(cacheKey);
         if (cachedResponse && options.streamCallback) {
@@ -148,8 +190,19 @@ export class AIDispatcher {
             return this.queueRequest(messages, options, providerOverride, priority);
         }
 
-        // Execute request with retry logic
-        return this.executeWithRetry(messages, options, providerName, cacheKey);
+        // Create and track the request promise
+        const requestPromise = this.executeWithRetry(messages, options, providerName, cacheKey);
+        this.pendingRequests.set(cacheKey, {
+            promise: requestPromise,
+            timestamp: Date.now()
+        });
+
+        // Clean up after completion
+        requestPromise.finally(() => {
+            this.pendingRequests.delete(cacheKey);
+        });
+
+        return requestPromise;
     }
 
     /**
@@ -197,22 +250,47 @@ export class AIDispatcher {
     /**
      * Generates a cache key for the request.
      * Uses base64 encoding that supports Unicode (so it won't throw on non-Latin1 chars).
+     * Optimized to use object pooling for reduced memory allocations.
      */
     private generateCacheKey(messages: Message[], options: CompletionOptions, providerOverride?: string): string {
-        const key = JSON.stringify({
-            messages: messages.map(m => ({ role: m.role, content: m.content })),
-            temperature: options.temperature,
-            maxTokens: options.maxTokens,
-            provider: providerOverride || this.plugin.settings.selectedModel || this.plugin.settings.provider
-        });
-        // Use Unicode-safe base64 encoding
-        function btoaUnicode(str: string) {
-            // First encode to UTF-8, then to base64
-            return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, function(match, p1) {
-                return String.fromCharCode(parseInt(p1, 16));
-            }));
+        // Use pre-allocated array for message mapping to reduce allocations
+        const messageArray = this.arrayManager.getArray<{role: string, content: string}>(messages.length);
+        
+        try {
+            // Map messages using pooled objects
+            for (let i = 0; i < messages.length; i++) {
+                const pooledMsg = this.messagePool.acquireMessage();
+                pooledMsg.role = messages[i].role;
+                pooledMsg.content = messages[i].content;
+                messageArray[i] = pooledMsg;
+            }
+
+            const key = JSON.stringify({
+                messages: messageArray,
+                temperature: options.temperature,
+                maxTokens: options.maxTokens,
+                provider: providerOverride || this.plugin.settings.selectedModel || this.plugin.settings.provider
+            });
+
+            // Use Unicode-safe base64 encoding
+            function btoaUnicode(str: string) {
+                // First encode to UTF-8, then to base64
+                return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, function(match, p1) {
+                    return String.fromCharCode(parseInt(p1, 16));
+                }));
+            }
+            
+            return btoaUnicode(key).substring(0, 32);
+        } finally {
+            // Return pooled objects
+            for (let i = 0; i < messageArray.length; i++) {
+                if (messageArray[i]) {
+                    this.messagePool.releaseMessage(messageArray[i]);
+                }
+            }
+            // Return array to pool
+            this.arrayManager.returnArray(messageArray);
         }
-        return btoaUnicode(key).substring(0, 32);
     }
 
     /**
