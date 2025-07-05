@@ -4,7 +4,7 @@ import { AIDispatcher } from '../../utils/aiDispatcher';
 import MyPlugin from '../../main';
 import { BotMessage } from './BotMessage';
 import { UserMessage } from './UserMessage';
-import { MessageRenderer } from './agent/MessageRenderer';
+import { MessageRenderer } from '../agent/MessageRenderer';
 import { buildContextMessages } from '../../utils/contextBuilder';
 
 /**

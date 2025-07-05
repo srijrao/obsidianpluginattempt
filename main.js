@@ -36,10 +36,10 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
 
-// src/components/chat/agent/tools/FileSearchTool.ts
+// src/components/agent/tools/FileSearchTool.ts
 var FileSearchTool;
 var init_FileSearchTool = __esm({
-  "src/components/chat/agent/tools/FileSearchTool.ts"() {
+  "src/components/agent/tools/FileSearchTool.ts"() {
     FileSearchTool = class {
       /**
        * The constructor takes the Obsidian app instance so we can access the vault.
@@ -203,10 +203,10 @@ var init_FileSearchTool = __esm({
   }
 });
 
-// src/components/chat/agent/tools/pathValidation.ts
+// src/components/agent/tools/pathValidation.ts
 var import_path, PathValidator;
 var init_pathValidation = __esm({
-  "src/components/chat/agent/tools/pathValidation.ts"() {
+  "src/components/agent/tools/pathValidation.ts"() {
     import_path = require("path");
     PathValidator = class {
       /**
@@ -439,10 +439,10 @@ var init_fileUtils = __esm({
   }
 });
 
-// src/components/chat/agent/tools/FileReadTool.ts
+// src/components/agent/tools/FileReadTool.ts
 var FileReadTool;
 var init_FileReadTool = __esm({
-  "src/components/chat/agent/tools/FileReadTool.ts"() {
+  "src/components/agent/tools/FileReadTool.ts"() {
     init_pathValidation();
     init_fileUtils();
     init_logger();
@@ -1084,10 +1084,10 @@ var init_BackupManager = __esm({
   }
 });
 
-// src/components/chat/agent/tools/FileWriteTool.ts
+// src/components/agent/tools/FileWriteTool.ts
 var import_obsidian2, FileWriteTool;
 var init_FileWriteTool = __esm({
-  "src/components/chat/agent/tools/FileWriteTool.ts"() {
+  "src/components/agent/tools/FileWriteTool.ts"() {
     import_obsidian2 = require("obsidian");
     init_BackupManager();
     init_pathValidation();
@@ -1579,13 +1579,13 @@ var init_editorUtils = __esm({
   }
 });
 
-// src/components/chat/agent/tools/FileDiffTool.ts
+// src/components/agent/tools/FileDiffTool.ts
 function showFileChangeSuggestionsModal(app, suggestions) {
   new FileChangeSuggestionsModal(app, suggestions).open();
 }
 var import_obsidian3, FileChangeSuggestionsModal, FileDiffTool;
 var init_FileDiffTool = __esm({
-  "src/components/chat/agent/tools/FileDiffTool.ts"() {
+  "src/components/agent/tools/FileDiffTool.ts"() {
     import_obsidian3 = require("obsidian");
     init_libesm();
     init_pathValidation();
@@ -1955,10 +1955,10 @@ ${diff}`
   }
 });
 
-// src/components/chat/agent/tools/FileMoveTool.ts
+// src/components/agent/tools/FileMoveTool.ts
 var import_obsidian4, FileMoveTool;
 var init_FileMoveTool = __esm({
-  "src/components/chat/agent/tools/FileMoveTool.ts"() {
+  "src/components/agent/tools/FileMoveTool.ts"() {
     import_obsidian4 = require("obsidian");
     init_pathValidation();
     init_fileUtils();
@@ -2110,10 +2110,10 @@ var init_FileMoveTool = __esm({
   }
 });
 
-// src/components/chat/agent/tools/ThoughtTool.ts
+// src/components/agent/tools/ThoughtTool.ts
 var ThoughtTool;
 var init_ThoughtTool = __esm({
-  "src/components/chat/agent/tools/ThoughtTool.ts"() {
+  "src/components/agent/tools/ThoughtTool.ts"() {
     ThoughtTool = class {
       constructor(app) {
         this.app = app;
@@ -2219,10 +2219,10 @@ var init_ThoughtTool = __esm({
   }
 });
 
-// src/components/chat/agent/tools/FileListTool.ts
+// src/components/agent/tools/FileListTool.ts
 var import_obsidian5, FileListTool;
 var init_FileListTool = __esm({
-  "src/components/chat/agent/tools/FileListTool.ts"() {
+  "src/components/agent/tools/FileListTool.ts"() {
     import_obsidian5 = require("obsidian");
     init_pathValidation();
     init_fileUtils();
@@ -2338,10 +2338,10 @@ var init_FileListTool = __esm({
   }
 });
 
-// src/components/chat/agent/tools/VaultTreeTool.ts
+// src/components/agent/tools/VaultTreeTool.ts
 var import_obsidian6, VaultTreeTool;
 var init_VaultTreeTool = __esm({
-  "src/components/chat/agent/tools/VaultTreeTool.ts"() {
+  "src/components/agent/tools/VaultTreeTool.ts"() {
     import_obsidian6 = require("obsidian");
     init_pathValidation();
     init_typeGuards();
@@ -2515,10 +2515,10 @@ var init_VaultTreeTool = __esm({
   }
 });
 
-// src/components/chat/agent/tools/FileDeleteTool.ts
+// src/components/agent/tools/FileDeleteTool.ts
 var FileDeleteTool;
 var init_FileDeleteTool = __esm({
-  "src/components/chat/agent/tools/FileDeleteTool.ts"() {
+  "src/components/agent/tools/FileDeleteTool.ts"() {
     init_BackupManager();
     init_pathValidation();
     init_typeGuards();
@@ -2895,14 +2895,14 @@ var init_FileDeleteTool = __esm({
   }
 });
 
-// src/components/chat/agent/tools/GetUserFeedback.ts
+// src/components/agent/tools/GetUserFeedback.ts
 var GetUserFeedback_exports = {};
 __export(GetUserFeedback_exports, {
   GetUserFeedbackTool: () => GetUserFeedbackTool
 });
 var _GetUserFeedbackTool, GetUserFeedbackTool;
 var init_GetUserFeedback = __esm({
-  "src/components/chat/agent/tools/GetUserFeedback.ts"() {
+  "src/components/agent/tools/GetUserFeedback.ts"() {
     _GetUserFeedbackTool = class _GetUserFeedbackTool {
       constructor(app) {
         this.app = app;
@@ -3074,7 +3074,7 @@ var init_GetUserFeedback = __esm({
   }
 });
 
-// src/components/chat/agent/tools/toolcollect.ts
+// src/components/agent/tools/toolcollect.ts
 function getAllToolClasses() {
   return [
     FileSearchTool,
@@ -3174,7 +3174,7 @@ function createToolInstances(app, plugin) {
   return tools;
 }
 var init_toolcollect = __esm({
-  "src/components/chat/agent/tools/toolcollect.ts"() {
+  "src/components/agent/tools/toolcollect.ts"() {
     init_FileSearchTool();
     init_FileReadTool();
     init_FileWriteTool();
@@ -3656,10 +3656,10 @@ var init_Buttons = __esm({
   }
 });
 
-// src/components/chat/agent/ToolRichDisplay.ts
+// src/components/agent/ToolRichDisplay.ts
 var import_obsidian9, ToolRichDisplay;
 var init_ToolRichDisplay = __esm({
-  "src/components/chat/agent/ToolRichDisplay.ts"() {
+  "src/components/agent/ToolRichDisplay.ts"() {
     import_obsidian9 = require("obsidian");
     ToolRichDisplay = class _ToolRichDisplay extends import_obsidian9.Component {
       /**
@@ -4256,10 +4256,10 @@ ${details}
   }
 });
 
-// src/components/chat/agent/MessageRenderer.ts
+// src/components/agent/MessageRenderer.ts
 var import_obsidian10, MessageRenderer;
 var init_MessageRenderer = __esm({
-  "src/components/chat/agent/MessageRenderer.ts"() {
+  "src/components/agent/MessageRenderer.ts"() {
     import_obsidian10 = require("obsidian");
     init_ToolRichDisplay();
     init_logger();
@@ -17201,7 +17201,7 @@ async function renderChatHistory({
   }
 }
 
-// src/components/chat/agent/CommandParser.ts
+// src/components/agent/CommandParser.ts
 init_toolcollect();
 var CommandParser = class {
   /**
@@ -17406,7 +17406,7 @@ var CommandParser = class {
   }
 };
 
-// src/components/chat/agent/ToolRegistry.ts
+// src/components/agent/ToolRegistry.ts
 init_logger();
 var ToolRegistry = class {
   /**
@@ -17523,11 +17523,11 @@ var ToolRegistry = class {
   }
 };
 
-// src/components/chat/agent/AgentResponseHandler/AgentResponseHandler.ts
+// src/components/agent/AgentResponseHandler/AgentResponseHandler.ts
 init_ToolRichDisplay();
 init_toolcollect();
 
-// src/components/chat/agent/AgentResponseHandler/constants.ts
+// src/components/agent/AgentResponseHandler/constants.ts
 var CONSTANTS = {
   NOTIFICATION_DISPLAY_DELAY: 100,
   NOTIFICATION_AUTO_REMOVE_DELAY: 5e3,
@@ -17547,12 +17547,12 @@ var CONSTANTS = {
   COMMAND_KEY_SEPARATOR: ":"
 };
 
-// src/components/chat/agent/AgentResponseHandler/utils.ts
+// src/components/agent/AgentResponseHandler/utils.ts
 function stringifyJson(obj) {
   return JSON.stringify(obj, null, CONSTANTS.JSON_INDENT);
 }
 
-// src/components/chat/agent/AgentResponseHandler/TaskNotificationManager.ts
+// src/components/agent/AgentResponseHandler/TaskNotificationManager.ts
 var TaskNotificationManager = class {
   /**
    * Constructs a TaskNotificationManager with the given context.
@@ -17637,7 +17637,7 @@ var TaskNotificationManager = class {
   }
 };
 
-// src/components/chat/agent/AgentResponseHandler/ToolResultFormatter.ts
+// src/components/agent/AgentResponseHandler/ToolResultFormatter.ts
 var ToolResultFormatter = class {
   /**
    * Returns a status icon or label based on success and style.
@@ -17766,7 +17766,7 @@ ${resultText}`
   }
 };
 
-// src/components/chat/agent/AgentResponseHandler/ToolExecutor.ts
+// src/components/agent/AgentResponseHandler/ToolExecutor.ts
 var ToolExecutor = class {
   /**
    * Constructs a ToolExecutor.
@@ -17893,7 +17893,7 @@ var ToolExecutor = class {
   }
 };
 
-// src/components/chat/agent/AgentResponseHandler/ReasoningProcessor.ts
+// src/components/agent/AgentResponseHandler/ReasoningProcessor.ts
 var ReasoningProcessor = class {
   /**
    * Constructs a ReasoningProcessor with the given agent context.
@@ -17978,7 +17978,7 @@ var ReasoningProcessor = class {
   }
 };
 
-// src/components/chat/agent/AgentResponseHandler/ToolLimitWarningUI.ts
+// src/components/agent/AgentResponseHandler/ToolLimitWarningUI.ts
 var ToolLimitWarningUI = class {
   /**
    * Constructs the ToolLimitWarningUI with the given context.
@@ -18116,7 +18116,7 @@ var ToolLimitWarningUI = class {
   }
 };
 
-// src/components/chat/agent/AgentResponseHandler/AgentResponseHandler.ts
+// src/components/agent/AgentResponseHandler/AgentResponseHandler.ts
 var AgentResponseHandler = class {
   /**
    * Constructs a new AgentResponseHandler.
@@ -18937,7 +18937,7 @@ var import_obsidian23 = require("obsidian");
 init_aiDispatcher();
 init_MessageRenderer();
 
-// src/components/chat/agent/TaskContinuation.ts
+// src/components/agent/TaskContinuation.ts
 var import_obsidian21 = require("obsidian");
 var TaskContinuation = class {
   /**
@@ -22413,7 +22413,7 @@ var ModelSettingsView = class extends import_obsidian32.ItemView {
 // src/main.ts
 init_logger();
 
-// src/components/chat/agent/agentModeManager.ts
+// src/components/agent/agentModeManager.ts
 init_logger();
 var AgentModeManager = class {
   /**

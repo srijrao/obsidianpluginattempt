@@ -1,4 +1,4 @@
-import { ToolCommand, ToolResult } from "../../../../types";
+import { ToolCommand, ToolResult } from "../../../types";
 import { ToolRegistry } from "../ToolRegistry";
 import { CONSTANTS } from "./constants";
 

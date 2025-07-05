@@ -1,7 +1,7 @@
 import { App, TFile, TFolder, Vault } from 'obsidian';
 import { Tool, ToolResult } from '../ToolRegistry';
 import { PathValidator } from './pathValidation';
-import { getTFolderByPath } from '../../../../utils/fileUtils'; // Import the new utility
+import { getTFolderByPath } from '../../../utils/fileUtils'; // Import the new utility
 
 /**
  * Parameters for listing files/folders.

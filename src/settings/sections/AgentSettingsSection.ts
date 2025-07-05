@@ -1,7 +1,7 @@
 import { App, Setting } from 'obsidian';
 import MyPlugin from '../../main';
 import { SettingCreators } from '../components/SettingCreators';
-import { createToolInstances } from '../../components/chat/agent/tools/toolcollect';
+import { createToolInstances } from '../../components/agent/tools/toolcollect';
 import { AGENT_SYSTEM_PROMPT_TEMPLATE } from '../../promptConstants';
 
 /**

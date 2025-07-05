@@ -4,7 +4,7 @@ import MyPlugin from '../../main';
 import { ChatHistoryManager } from './ChatHistoryManager';
 import { createMessageElement } from './Message';
 import { ResponseStreamer } from './ResponseStreamer';
-import { AgentResponseHandler } from './agent/AgentResponseHandler';
+import { AgentResponseHandler } from '../agent/AgentResponseHandler';
 
 /**
  * MessageRegenerator handles the logic for regenerating assistant responses in the chat.

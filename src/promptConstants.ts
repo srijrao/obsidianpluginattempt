@@ -1,4 +1,4 @@
-import { getAllToolClasses, getToolMetadata } from './components/chat/agent/tools/toolcollect';
+import { getAllToolClasses, getToolMetadata } from './components/agent/tools/toolcollect';
 
 export const DEFAULT_TITLE_PROMPT = "You are a title generator. You will give succinct titles that do not contain backslashes, forward slashes, or colons. Only generate a title as your response.";
 

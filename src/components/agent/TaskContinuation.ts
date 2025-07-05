@@ -1,6 +1,6 @@
 import { MarkdownRenderer, Component } from 'obsidian';
-import { Message, ToolCommand, ToolResult } from '../../../types';
-import MyPlugin from '../../../main';
+import { Message, ToolCommand, ToolResult } from '../../types';
+import MyPlugin from '../../main';
 import { AgentResponseHandler } from './AgentResponseHandler';
 
 /**
@@ -266,7 +266,7 @@ export class TaskContinuation {
             }
 
             // Use dispatcher for all AI completions
-            const { AIDispatcher } = await import('../../../utils/aiDispatcher');
+            const { AIDispatcher } = await import('../../utils/aiDispatcher');
             const aiDispatcher = new AIDispatcher(this.plugin.app.vault, this.plugin);
 
             // Select the provider based on settings

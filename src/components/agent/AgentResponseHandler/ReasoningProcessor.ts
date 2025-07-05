@@ -1,4 +1,4 @@
-import { ToolCommand, ToolResult, ToolExecutionResult, ReasoningData } from "../../../../types";
+import { ToolCommand, ToolResult, ToolExecutionResult, ReasoningData } from "../../../types";
 import { AgentContext } from "./types";
 
 /**

@@ -1,6 +1,6 @@
 import { App } from "obsidian";
-import MyPlugin from "../../../../main";
-import { ToolCommand, ToolResult, Message, ReasoningData, TaskStatus, ToolExecutionResult } from "../../../../types";
+import MyPlugin from "../../../main";
+import { ToolCommand, ToolResult, Message, ReasoningData, TaskStatus, ToolExecutionResult } from "../../../types";
 import { ToolRichDisplay } from "../ToolRichDisplay";
 
 /**

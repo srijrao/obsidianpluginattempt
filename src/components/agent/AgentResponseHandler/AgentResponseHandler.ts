@@ -1,4 +1,4 @@
-import { ToolCommand, ToolResult, Message, ReasoningData, TaskStatus, ToolExecutionResult } from "../../../../types";
+import { ToolCommand, ToolResult, Message, ReasoningData, TaskStatus, ToolExecutionResult } from "../../../types";
 import { CommandParser } from "../CommandParser";
 import { ToolRegistry } from "../ToolRegistry";
 import { ToolRichDisplay } from "../ToolRichDisplay";

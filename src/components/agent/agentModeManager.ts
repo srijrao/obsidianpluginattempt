@@ -1,5 +1,5 @@
-import { MyPluginSettings, AgentModeSettings } from '../../../types';
-import { debugLog } from '../../../utils/logger'; // Import debugLog
+import { MyPluginSettings, AgentModeSettings } from '../../types';
+import { debugLog } from '../../utils/logger'; // Import debugLog
 
 /**
  * Manages the agent mode settings for the plugin.

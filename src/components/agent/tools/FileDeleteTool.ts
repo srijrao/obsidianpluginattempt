@@ -1,10 +1,10 @@
 import { App, TFile, TFolder } from 'obsidian';
 import { Tool, ToolResult } from '../ToolRegistry';
-import { BackupManager } from '../../../BackupManager';
+import { BackupManager } from '../../BackupManager';
 import { PathValidator } from './pathValidation';
-import { isTFile, isTFolder } from '../../../../utils/typeGuards';
-import { getTFileByPath, getTFolderByPath, ensureFolderExists } from '../../../../utils/fileUtils';
-import { debugLog } from '../../../../utils/logger';
+import { isTFile, isTFolder } from '../../../utils/typeGuards';
+import { getTFileByPath, getTFolderByPath, ensureFolderExists } from '../../../utils/fileUtils';
+import { debugLog } from '../../../utils/logger';
 
 /**
  * Parameters for file/folder deletion.

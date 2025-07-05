@@ -1,9 +1,9 @@
 import { App, TFile, TFolder } from 'obsidian';
 import { Tool, ToolResult } from '../ToolRegistry';
 import { PathValidator } from './pathValidation';
-import { isTFile } from '../../../../utils/typeGuards';
-import { getTFileByPath, getTFolderByPath } from '../../../../utils/fileUtils'; // Import the new utilities
-import { debugLog } from '../../../../utils/logger';
+import { isTFile } from '../../../utils/typeGuards';
+import { getTFileByPath, getTFolderByPath } from '../../../utils/fileUtils'; // Import the new utilities
+import { debugLog } from '../../../utils/logger';
 
 /**
  * Parameters for moving or renaming a file.

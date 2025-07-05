@@ -1,7 +1,7 @@
 import { MarkdownRenderer, App, Component } from 'obsidian';
-import { Message, TaskStatus, ToolCommand, ToolResult, ToolExecutionResult } from '../../../types';
+import { Message, TaskStatus, ToolCommand, ToolResult, ToolExecutionResult } from '../../types';
 import { ToolRichDisplay } from './ToolRichDisplay';
-import { debugLog } from '../../../utils/logger';
+import { debugLog } from '../../utils/logger';
 
 /**
  * MessageRenderer handles rendering of chat message content,

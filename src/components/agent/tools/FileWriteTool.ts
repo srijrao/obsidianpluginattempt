@@ -1,9 +1,9 @@
 import { App, TFile } from 'obsidian';
 import { Tool, ToolResult } from '../ToolRegistry';
-import { BackupManager } from '../../../BackupManager';
+import { BackupManager } from '../../BackupManager';
 import { PathValidator } from './pathValidation';
-import { getTFileByPath, ensureFolderExists } from '../../../../utils/fileUtils';
-import { debugLog } from '../../../../utils/logger';
+import { getTFileByPath, ensureFolderExists } from '../../../utils/fileUtils';
+import { debugLog } from '../../../utils/logger';
 
 /**
  * Parameters for writing to a file.

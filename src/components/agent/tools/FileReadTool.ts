@@ -1,8 +1,8 @@
 import { App, TFile } from 'obsidian';
 import { Tool, ToolResult } from '../ToolRegistry';
 import { PathValidator } from './pathValidation';
-import { getTFileByPath } from '../../../../utils/fileUtils';
-import { debugLog } from '../../../../utils/logger';
+import { getTFileByPath } from '../../../utils/fileUtils';
+import { debugLog } from '../../../utils/logger';
 
 /**
  * Parameters for reading a file.

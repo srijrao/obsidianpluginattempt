@@ -1,4 +1,4 @@
-import { ToolCommand, ToolResult, Message } from "../../../../types";
+import { ToolCommand, ToolResult, Message } from "../../../types";
 import { ToolResultFormatStyle, NotificationType } from "./types";
 import { stringifyJson } from "./utils";
 

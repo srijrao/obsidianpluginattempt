@@ -1,4 +1,4 @@
-import { PathValidator } from '../src/components/chat/agent/tools/pathValidation';
+import { PathValidator } from '../src/components/agent/tools/pathValidation';
 
 // Mock Obsidian App
 const mockApp = {

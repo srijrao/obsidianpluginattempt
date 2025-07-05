@@ -1,5 +1,5 @@
-import { ToolCommand, ToolResult } from '../../../types';
-import { debugLog } from '../../../utils/logger'; // Import debugLog
+import { ToolCommand, ToolResult } from '../../types';
+import { debugLog } from '../../utils/logger'; // Import debugLog
 
 /**
  * Interface for a Tool.

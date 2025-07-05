@@ -1,6 +1,6 @@
 import { Component, App } from 'obsidian';
-import { Buttons } from '../Buttons';
-import { Commands } from '../Commands';
+import { Buttons } from '../chat/Buttons';
+import { Commands } from '../chat/Commands';
 
 /**
  * State interface for the ChatInput component.

@@ -1,5 +1,5 @@
 import { Component } from 'obsidian';
-import { ToolCommand, ToolResult } from '../../../types';
+import { ToolCommand, ToolResult } from '../../types';
 
 /**
  * Options for displaying a tool result in the UI.
