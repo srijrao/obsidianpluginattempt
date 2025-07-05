@@ -115,7 +115,6 @@ describe('AIDispatcher', () => {
         showPrompt: true,
         stream: true,
         vaultPath: '',
-        includeDateWithSystemMessage: false,
         includeTimeWithSystemMessage: false,
         enableStreaming: true,
         autoOpenModelSettings: false,

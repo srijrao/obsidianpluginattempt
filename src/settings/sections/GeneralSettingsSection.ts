@@ -41,18 +41,6 @@ export class GeneralSettingsSection {
 
         // Date & Time Settings Section Header
         containerEl.createEl('h3', { text: 'Date & Time Settings' });
-        
-        // Include Date with System Message Toggle
-        this.settingCreators.createToggleSetting(
-            containerEl,
-            'Include Date with System Message',
-            'Add the current date to the system message',
-            () => this.plugin.settings.includeDateWithSystemMessage,
-            async (value) => {
-                this.plugin.settings.includeDateWithSystemMessage = value;
-                await this.plugin.saveSettings();
-            }
-        );
 
         // Include Time with System Message Toggle
         this.settingCreators.createToggleSetting(

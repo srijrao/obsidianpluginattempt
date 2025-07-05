@@ -3309,8 +3309,6 @@ var init_settings = __esm({
       /** @inheritdoc */
       maxTokens: 1e3,
       /** @inheritdoc */
-      includeDateWithSystemMessage: false,
-      /** @inheritdoc */
       includeTimeWithSystemMessage: false,
       /** @inheritdoc */
       enableStreaming: true,
@@ -14403,10 +14401,6 @@ var init_SettingsSections = __esm({
        * @param containerEl The HTML element to render the section into.
        */
       renderDateSettings(containerEl) {
-        new import_obsidian15.Setting(containerEl).setName("Include Date with System Message").setDesc("Add the current date to the system message").addToggle((toggle) => toggle.setValue(this.plugin.settings.includeDateWithSystemMessage).onChange(async (value) => {
-          this.plugin.settings.includeDateWithSystemMessage = value;
-          await this.plugin.saveSettings();
-        }));
         new import_obsidian15.Setting(containerEl).setName("Include Time with System Message").setDesc("Add the current time along with the date to the system message").addToggle((toggle) => toggle.setValue(this.plugin.settings.includeTimeWithSystemMessage).onChange(async (value) => {
           this.plugin.settings.includeTimeWithSystemMessage = value;
           await this.plugin.saveSettings();
@@ -18661,14 +18655,9 @@ ${resultData}
 // src/utils/systemMessage.ts
 function getSystemMessage(settings) {
   let systemMessage = settings.systemMessage;
-  if (settings.includeDateWithSystemMessage) {
-    const currentDate = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
-    systemMessage = `${systemMessage}
-
-The current date is ${currentDate}.`;
-  }
   if (settings.includeTimeWithSystemMessage) {
     const now = /* @__PURE__ */ new Date();
+    const currentDate = now.toISOString().split("T")[0];
     const timeZoneOffset = now.getTimezoneOffset();
     const offsetHours = Math.abs(Math.floor(timeZoneOffset / 60));
     const offsetMinutes = Math.abs(timeZoneOffset) % 60;
@@ -18677,7 +18666,7 @@ The current date is ${currentDate}.`;
     const timeZoneString = `UTC${sign}${offsetHours.toString().padStart(2, "0")}:${offsetMinutes.toString().padStart(2, "0")}`;
     systemMessage = `${systemMessage}
 
-The current time is ${currentTime} ${timeZoneString}.`;
+The current time is ${currentDate} ${currentTime} ${timeZoneString}.`;
   }
   return systemMessage;
 }
@@ -20699,16 +20688,6 @@ var GeneralSettingsSection = class {
       }
     );
     containerEl.createEl("h3", { text: "Date & Time Settings" });
-    this.settingCreators.createToggleSetting(
-      containerEl,
-      "Include Date with System Message",
-      "Add the current date to the system message",
-      () => this.plugin.settings.includeDateWithSystemMessage,
-      async (value) => {
-        this.plugin.settings.includeDateWithSystemMessage = value;
-        await this.plugin.saveSettings();
-      }
-    );
     this.settingCreators.createToggleSetting(
       containerEl,
       "Include Time with System Message",

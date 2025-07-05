@@ -132,16 +132,6 @@ export class SettingsSections {
      */
     renderDateSettings(containerEl: HTMLElement): void {
         new Setting(containerEl)
-            .setName('Include Date with System Message')
-            .setDesc('Add the current date to the system message')
-            .addToggle(toggle => toggle
-                .setValue(this.plugin.settings.includeDateWithSystemMessage)
-                .onChange(async (value) => {
-                    this.plugin.settings.includeDateWithSystemMessage = value;
-                    await this.plugin.saveSettings();
-                }));
-
-        new Setting(containerEl)
             .setName('Include Time with System Message')
             .setDesc('Add the current time along with the date to the system message')
             .addToggle(toggle => toggle

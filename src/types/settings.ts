@@ -143,8 +143,6 @@ export interface MyPluginSettings {
     temperature: number;
     /** The maximum number of tokens the model should generate in its response. */
     maxTokens: number;
-    /** If true, includes the current date in the system message. */
-    includeDateWithSystemMessage: boolean;
     /** If true, includes the current time in the system message. */
     includeTimeWithSystemMessage: boolean;
     /** If true, enables streaming responses from the AI model for a more interactive experience. */
@@ -318,8 +316,6 @@ export const DEFAULT_SETTINGS: MyPluginSettings = {
     temperature: 0.7,
     /** @inheritdoc */
     maxTokens: 1000,
-    /** @inheritdoc */
-    includeDateWithSystemMessage: false,
     /** @inheritdoc */
     includeTimeWithSystemMessage: false,
     /** @inheritdoc */

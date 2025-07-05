@@ -12,13 +12,9 @@ import { MyPluginSettings } from '../types';
 export function getSystemMessage(settings: MyPluginSettings): string {
     let systemMessage = settings.systemMessage;
 
-    if (settings.includeDateWithSystemMessage) {
-        const currentDate = new Date().toISOString().split('T')[0];
-        systemMessage = `${systemMessage}\n\nThe current date is ${currentDate}.`;
-    }
-
     if (settings.includeTimeWithSystemMessage) {
         const now = new Date();
+        const currentDate = now.toISOString().split('T')[0];
         const timeZoneOffset = now.getTimezoneOffset();
         const offsetHours = Math.abs(Math.floor(timeZoneOffset / 60));
         const offsetMinutes = Math.abs(timeZoneOffset) % 60;
@@ -26,7 +22,7 @@ export function getSystemMessage(settings: MyPluginSettings): string {
 
         const currentTime = now.toLocaleTimeString();
         const timeZoneString = `UTC${sign}${offsetHours.toString().padStart(2, '0')}:${offsetMinutes.toString().padStart(2, '0')}`;
-        systemMessage = `${systemMessage}\n\nThe current time is ${currentTime} ${timeZoneString}.`;
+        systemMessage = `${systemMessage}\n\nThe current time is ${currentDate} ${currentTime} ${timeZoneString}.`;
     }
 
     return systemMessage;
