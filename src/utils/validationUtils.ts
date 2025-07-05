@@ -160,24 +160,6 @@ export function validateTemperature(temperature: unknown): number {
 }
 
 /**
- * Validates max tokens parameter for AI models
- * @param maxTokens The max tokens value
- * @returns Validated max tokens
- * @throws Error if max tokens is invalid
- */
-export function validateMaxTokens(maxTokens: unknown): number {
-    if (typeof maxTokens !== 'number' || isNaN(maxTokens)) {
-        throw new Error('Max tokens must be a number');
-    }
-    
-    if (maxTokens <= 0 || maxTokens > 100000) {
-        throw new Error('Max tokens must be between 1 and 100000');
-    }
-    
-    return Math.floor(maxTokens);
-}
-
-/**
  * Validates file path to prevent directory traversal attacks
  * @param path The file path to validate
  * @returns Validated path

@@ -116,7 +116,6 @@ export async function handleAICompletion(
             processedMessages,
             {
                 temperature: settings.temperature,
-                maxTokens: settings.maxTokens,
                 streamCallback: (chunk: string) => {
                     bufferedChunk += chunk;
                     setTimeout(flushBuffer, 100); // Flush buffer every 100ms.

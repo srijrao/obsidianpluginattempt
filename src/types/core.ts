@@ -62,7 +62,6 @@ export interface ReasoningStep {
  */
 export interface CompletionOptions {
     temperature?: number;
-    maxTokens?: number;
     streamCallback?: (chunk: string) => void;
     abortController?: AbortController;
 }

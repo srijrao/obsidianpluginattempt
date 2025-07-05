@@ -212,7 +212,7 @@ export class AIDispatcher {
      * Includes caching, rate limiting, retry logic, and validation.
      * 
      * @param messages - The conversation messages to send
-     * @param options - Completion options (temperature, maxTokens, etc.)
+     * @param options - Completion options (temperature, etc.)
      * @param providerOverride - Optional specific provider to use instead of default
      * @param priority - Request priority (higher = processed first)
      * @returns Promise that resolves when the completion is finished
@@ -336,15 +336,6 @@ export class AIDispatcher {
                 throw new Error('Temperature must be between 0 and 2');
             }
         }
-        
-        if (options.maxTokens !== undefined) {
-            if (typeof options.maxTokens !== 'number' || isNaN(options.maxTokens)) {
-                throw new Error('Max tokens must be a valid number');
-            }
-            if (options.maxTokens <= 0 || options.maxTokens > 100000) {
-                throw new Error('Max tokens must be between 1 and 100000');
-            }
-        }
 
         // Validate stream callback if provided
         if (options.streamCallback !== undefined && typeof options.streamCallback !== 'function') {
@@ -417,7 +408,6 @@ export class AIDispatcher {
             const key = JSON.stringify({
                 messages: messageArray,
                 temperature: options.temperature,
-                maxTokens: options.maxTokens,
                 provider: providerOverride || this.plugin.settings.selectedModel || this.plugin.settings.provider
             });
 

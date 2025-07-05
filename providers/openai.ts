@@ -74,8 +74,7 @@ export class OpenAIProvider extends BaseProvider {
                 body: JSON.stringify({
                     model: this.model,
                     messages,
-                    temperature: options.temperature ?? 0.7,
-                    max_tokens: options.maxTokens ?? 1000,
+                    temperature: options.temperature ?? 0.0,
                     stream: true
                 }),
                 signal: options.abortController?.signal

@@ -74,7 +74,6 @@ export class ResponseStreamer {
             const aiDispatcher = new AIDispatcher(this.plugin.app.vault, this.plugin);
             await aiDispatcher.getCompletion(messages, {
                 temperature: this.plugin.settings.temperature,
-                maxTokens: this.plugin.settings.maxTokens,
                 streamCallback: async (chunk: string) => {
                     responseContent += chunk;
                     // Update the UI with the streamed chunk
@@ -562,7 +561,6 @@ export class ResponseStreamer {
             let continuationContent = '';
             await aiDispatcher.getCompletion(messages, {
                 temperature: this.plugin.settings.temperature,
-                maxTokens: this.plugin.settings.maxTokens,
                 streamCallback: async (chunk: string) => {
                     continuationContent += chunk;
                     // Note: UI update during streaming is handled by the main streamer,

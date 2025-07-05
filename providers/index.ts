@@ -10,13 +10,11 @@ import { BaseProvider, ProviderError, ProviderErrorType } from './base';
 import { AnthropicProvider } from './anthropic';
 import { OpenAIProvider } from './openai';
 import { GeminiProvider } from './gemini';
-import { OllamaProvider } from './ollama';
 
 export { BaseProvider, ProviderError, ProviderErrorType };
 export { AnthropicProvider };
 export { OpenAIProvider };
 export { GeminiProvider };
-export { OllamaProvider };
 
 /**
  * Creates an AI provider instance based on the plugin settings
@@ -47,12 +45,7 @@ export function createProvider(settings: MyPluginSettings): BaseProvider {
                 undefined, // apiVersion is optional, so pass undefined if not explicitly set
                 settings.debugMode ?? false // Pass debugMode
             );
-        case 'ollama':
-            return new OllamaProvider(
-                settings.ollamaSettings.serverUrl,
-                settings.ollamaSettings.model,
-                settings.debugMode ?? false // Pass debugMode
-            );        default:
+        default:
             throw new Error(`Invalid provider type: ${settings.provider}`);
     }
 }
@@ -74,8 +67,6 @@ export function createProviderFromUnifiedModel(settings: MyPluginSettings, unifi
             return new AnthropicProvider(settings.anthropicSettings.apiKey, modelId, settings.debugMode ?? false); // Pass debugMode
         case 'gemini':
             return new GeminiProvider(settings.geminiSettings.apiKey, modelId, undefined, settings.debugMode ?? false); // Pass debugMode
-        case 'ollama':
-            return new OllamaProvider(settings.ollamaSettings.serverUrl, modelId, settings.debugMode ?? false); // Pass debugMode
         default:
             throw new Error(`Invalid provider type: ${providerType}`);
     }
@@ -96,7 +87,6 @@ export async function getAllAvailableModels(settings: MyPluginSettings): Promise
             case 'openai': return 'OpenAI';
             case 'anthropic': return 'Anthropic';
             case 'gemini': return 'Google';
-            case 'ollama': return 'Ollama';
             default: return provider;
         }
     };
@@ -137,18 +127,6 @@ export async function getAllAvailableModels(settings: MyPluginSettings): Promise
         });
     }
     
-    // Ollama models
-    if (settings.ollamaSettings.serverUrl && settings.ollamaSettings.availableModels.length > 0) {
-        settings.ollamaSettings.availableModels.forEach(model => {
-            allModels.push({
-                id: `ollama:${model}`,
-                name: `${model} (${getProviderDisplayName('ollama')})`,
-                provider: 'ollama',
-                modelId: model
-            });
-        });
-    }
-    
     return allModels;
 }
 
@@ -158,9 +136,9 @@ export async function getAllAvailableModels(settings: MyPluginSettings): Promise
  * @param unifiedModelId The unified model ID (e.g., "openai:gpt-4")
  * @returns The provider type
  */
-export function getProviderFromUnifiedModel(unifiedModelId: string): 'openai' | 'anthropic' | 'gemini' | 'ollama' {
+export function getProviderFromUnifiedModel(unifiedModelId: string): 'openai' | 'anthropic' | 'gemini' {
     const [providerType] = unifiedModelId.split(':', 2);
-    return providerType as 'openai' | 'anthropic' | 'gemini' | 'ollama';
+    return providerType as 'openai' | 'anthropic' | 'gemini';
 }
 
 /**

@@ -277,7 +277,6 @@ export class TaskContinuation {
                 messages,
                 {
                     temperature: this.plugin.settings.temperature,
-                    maxTokens: this.plugin.settings.maxTokens,
                     streamCallback: async (chunk: string) => {
                         continuationContent += chunk;
                         // (Optional: update UI with streaming chunk)

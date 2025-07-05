@@ -39,7 +39,6 @@ export class SettingsSections {
                     if (preset.selectedModel !== undefined) this.plugin.settings.selectedModel = preset.selectedModel;
                     if (preset.systemMessage !== undefined) this.plugin.settings.systemMessage = preset.systemMessage;
                     if (preset.temperature !== undefined) this.plugin.settings.temperature = preset.temperature;
-                    if (preset.maxTokens !== undefined) this.plugin.settings.maxTokens = preset.maxTokens;
                     if (preset.enableStreaming !== undefined) this.plugin.settings.enableStreaming = preset.enableStreaming;
                     await this.plugin.saveSettings();
                     // Refresh the UI after applying preset (with a small delay to avoid race conditions)

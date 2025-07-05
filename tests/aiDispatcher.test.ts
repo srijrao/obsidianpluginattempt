@@ -103,7 +103,6 @@ describe('AIDispatcher', () => {
         referenceCurrentNote: false,
         systemMessage: '',
         temperature: 0.7,
-        maxTokens: 2000,
         aiCallFolder: 'AI Calls',
         autoSuggest: false,
         autoSuggestTrigger: ' ',
@@ -125,7 +124,6 @@ describe('AIDispatcher', () => {
         toolUseProvider: 'openai',
         toolUseModel: 'gpt-4',
         toolUseTemperature: 0.5,
-        toolUseMaxTokens: 1000,
         toolUseSystemMessage: '',
         toolUsePrompt: '',
         toolUseHistory: [],
@@ -136,7 +134,6 @@ describe('AIDispatcher', () => {
         toolUseToolUseProvider: 'openai',
         toolUseToolUseModel: 'gpt-4',
         toolUseToolUseTemperature: 0.5,
-        toolUseToolUseMaxTokens: 1000,
         toolUseToolUseSystemMessage: '',
         toolUseToolUsePrompt: '',
         toolUseToolUseHistory: [],
@@ -314,11 +311,6 @@ describe('AIDispatcher', () => {
       expect(() => dispatcher['validateRequest'](msgs, { temperature: 3 })).toThrow('Temperature must be between 0 and 2');
     });
 
-    test('should throw error for invalid maxTokens', () => {
-      const msgs: Message[] = [{ role: 'user', content: 'test' }];
-      expect(() => dispatcher['validateRequest'](msgs, { maxTokens: 0 })).toThrow('Max tokens must be positive');
-    });
-
     test('should sanitize message content', () => {
       const msgs: Message[] = [{ role: 'user', content: '  Hello World  ' }];
       dispatcher['validateRequest'](msgs, {});
@@ -329,7 +321,7 @@ describe('AIDispatcher', () => {
   describe('generateCacheKey', () => {
     test('should generate a consistent cache key', () => {
       const msgs: Message[] = [{ role: 'user', content: 'Test message' }];
-      const opts: CompletionOptions = { temperature: 0.5, maxTokens: 100 };
+      const opts: CompletionOptions = { temperature: 0.5 };
       const key1 = dispatcher['generateCacheKey'](msgs, opts, 'openai');
       const key2 = dispatcher['generateCacheKey'](msgs, opts, 'openai');
       expect(key1).toBe(key2);

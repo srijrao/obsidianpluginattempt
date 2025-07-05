@@ -276,15 +276,6 @@ export function isValidTemperature(value: unknown): value is number {
 }
 
 /**
- * Type guard to check if a value is a valid max tokens (1-100000)
- * @param value - The value to check
- * @returns True if the value is a valid max tokens value
- */
-export function isValidMaxTokens(value: unknown): value is number {
-    return isNumberInRange(value, 1, 100000);
-}
-
-/**
  * Type guard to check if a value is a function
  * @param value - The value to check
  * @returns True if the value is a function
@@ -314,7 +305,6 @@ export function isArrayOf<T>(value: unknown, itemValidator: (item: unknown) => i
  */
 export function isValidCompletionOptions(value: unknown): value is {
     temperature?: number;
-    maxTokens?: number;
     streamCallback?: Function;
 } {
     if (!isObject(value)) {
@@ -325,7 +315,6 @@ export function isValidCompletionOptions(value: unknown): value is {
     
     return (
         (obj.temperature === undefined || isValidTemperature(obj.temperature)) &&
-        (obj.maxTokens === undefined || isValidMaxTokens(obj.maxTokens)) &&
         (obj.streamCallback === undefined || isFunction(obj.streamCallback))
     );
 }

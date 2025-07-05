@@ -35,7 +35,7 @@ export interface ModelSettingPreset {
     temperature?: number;
     /** The maximum number of tokens the model should generate in its response. */
     maxTokens?: number;
-    /** Whether streaming is enabled for responses with this preset. */
+    /** Whether to enable streaming for this preset. */
     enableStreaming?: boolean;
     
 }
@@ -141,8 +141,6 @@ export interface MyPluginSettings {
     systemMessage: string;
     /** The temperature setting for the model, controlling randomness (0.0 to 1.0). */
     temperature: number;
-    /** The maximum number of tokens the model should generate in its response. */
-    maxTokens: number;
     /** If true, includes the current time in the system message. */
     includeTimeWithSystemMessage: boolean;
     /** If true, enables streaming responses from the AI model for a more interactive experience. */
@@ -315,8 +313,6 @@ export const DEFAULT_SETTINGS: MyPluginSettings = {
     /** @inheritdoc */
     temperature: 0.7,
     /** @inheritdoc */
-    maxTokens: 1000,
-    /** @inheritdoc */
     includeTimeWithSystemMessage: false,
     /** @inheritdoc */
     enableStreaming: true,
@@ -405,8 +401,7 @@ export const DEFAULT_SETTINGS: MyPluginSettings = {
             name: "Default",
             selectedModel: undefined,
             systemMessage: DEFAULT_GENERAL_SYSTEM_PROMPT,
-            temperature: 0.7,
-            maxTokens: 1000,
+            temperature: 0.0,
             enableStreaming: true
         }
     ],

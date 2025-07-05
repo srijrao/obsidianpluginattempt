@@ -87,7 +87,6 @@ export class Commands extends Component implements IChatCommands {
                 messages,
                 {
                     temperature: this.plugin.settings.temperature,
-                    maxTokens: this.plugin.settings.maxTokens,
                     streamCallback: async (chunk: string) => {
                         botMessage.setContent(botMessage.getContent() + chunk);
                         this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
@@ -241,7 +240,6 @@ export class Commands extends Component implements IChatCommands {
                 messages,
                 {
                     temperature: this.plugin.settings.temperature,
-                    maxTokens: this.plugin.settings.maxTokens,
                     streamCallback: async (chunk: string) => {
                         botMessage.setContent(botMessage.getContent() + chunk);
                         this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;

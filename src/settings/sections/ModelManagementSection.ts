@@ -117,25 +117,6 @@ export class ModelManagementSection {
                 await this.plugin.saveSettings();
             });
 
-            // Max Tokens Setting for Preset
-            new Setting(containerEl)
-                .setName('Max Tokens')
-                .setDesc('Edit the max tokens for this preset')
-                .addText(text => {
-                    text.setPlaceholder('Max tokens')
-                        .setValue(preset.maxTokens?.toString() || '')
-                        .onChange((value) => {
-                            // Parse and update max tokens immediately on change
-                            const num = parseInt(value ?? '', 10);
-                            preset.maxTokens = isNaN(num) ? undefined : num;
-                        });
-                    
-                    // Save settings on blur
-                    text.inputEl.addEventListener('blur', async () => {
-                        await this.plugin.saveSettings();
-                    });
-                });
-
             // Enable Streaming Toggle for Preset
             this.settingCreators.createToggleSetting(containerEl, 'Enable Streaming', '', () => preset.enableStreaming ?? true, async (value) => {
                 preset.enableStreaming = value;
@@ -168,7 +149,6 @@ export class ModelManagementSection {
                         selectedModel: this.plugin.settings.selectedModel,
                         systemMessage: this.plugin.settings.systemMessage,
                         temperature: this.plugin.settings.temperature,
-                        maxTokens: this.plugin.settings.maxTokens,
                         enableStreaming: this.plugin.settings.enableStreaming
                     })));
                     await this.plugin.saveSettings();

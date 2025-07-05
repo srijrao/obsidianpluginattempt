@@ -3307,8 +3307,6 @@ var init_settings = __esm({
       /** @inheritdoc */
       temperature: 0.7,
       /** @inheritdoc */
-      maxTokens: 1e3,
-      /** @inheritdoc */
       includeTimeWithSystemMessage: false,
       /** @inheritdoc */
       enableStreaming: true,
@@ -3392,8 +3390,7 @@ var init_settings = __esm({
           name: "Default",
           selectedModel: void 0,
           systemMessage: DEFAULT_GENERAL_SYSTEM_PROMPT,
-          temperature: 0.7,
-          maxTokens: 1e3,
+          temperature: 0,
           enableStreaming: true
         }
       ],
@@ -10718,7 +10715,7 @@ function estimateTokenCount(messages) {
   }, 0);
   return Math.ceil(totalChars / CHARS_PER_TOKEN);
 }
-var MODEL_CONTEXT_WINDOWS, MODEL_OUTPUT_TOKEN_LIMITS, AnthropicProvider;
+var MODEL_CONTEXT_WINDOWS, maxTokens, MODEL_OUTPUT_TOKEN_LIMITS, AnthropicProvider;
 var init_anthropic = __esm({
   "providers/anthropic.ts"() {
     init_base2();
@@ -10733,6 +10730,7 @@ var init_anthropic = __esm({
       "claude-3-5-sonnet-20240620": 2e5,
       "claude-3-5-haiku-20241022": 2e5
     };
+    maxTokens = 4096;
     MODEL_OUTPUT_TOKEN_LIMITS = {
       "claude-3-7-sonnet-20250219": 64e3,
       "claude-3-5-sonnet-20241022": 8192,
@@ -10775,13 +10773,12 @@ var init_anthropic = __esm({
        * @param options - Settings for this completion
        */
       async getCompletion(messages, options) {
-        var _a2, _b, _c, _d;
+        var _a2, _b, _c;
         try {
           const contextWindow = (_a2 = MODEL_CONTEXT_WINDOWS[this.model]) != null ? _a2 : 2e5;
           const outputTokenLimit = MODEL_OUTPUT_TOKEN_LIMITS[this.model];
           const inputTokens = estimateTokenCount(messages);
-          let maxTokens = (_b = options.maxTokens) != null ? _b : 1e3;
-          if (inputTokens + maxTokens > contextWindow) {
+          if (inputTokens > contextWindow) {
             const adjustedMaxTokens = contextWindow - inputTokens;
             if (adjustedMaxTokens <= 0) {
               throw new ProviderError(
@@ -10792,7 +10789,7 @@ var init_anthropic = __esm({
             debugLog(
               this.debugMode,
               "info",
-              `Adjusting max_tokens from ${maxTokens} to ${adjustedMaxTokens} to fit within ${this.model}'s context window`
+              `max_tokens ${adjustedMaxTokens} to fit within ${this.model}'s context window`
             );
             maxTokens = adjustedMaxTokens;
           }
@@ -10808,7 +10805,8 @@ var init_anthropic = __esm({
           const requestParams = {
             model: this.model,
             messages: anthropicMessages,
-            temperature: (_c = options.temperature) != null ? _c : 0.7,
+            temperature: (_b = options.temperature) != null ? _b : 0,
+            // Default temperature if not provided
             max_tokens: maxTokens,
             stream: true
           };
@@ -10831,7 +10829,7 @@ var init_anthropic = __esm({
                 });
               } else if (Symbol.asyncIterator in stream) {
                 for await (const chunk of stream) {
-                  if (chunk.type === "content_block_delta" && ((_d = chunk.delta) == null ? void 0 : _d.type) === "text_delta" && options.streamCallback) {
+                  if (chunk.type === "content_block_delta" && ((_c = chunk.delta) == null ? void 0 : _c.type) === "text_delta" && options.streamCallback) {
                     options.streamCallback(chunk.delta.text);
                   }
                 }
@@ -10951,7 +10949,7 @@ var init_openai = __esm({
        * @param options - Settings for this completion
        */
       async getCompletion(messages, options) {
-        var _a2, _b, _c, _d, _e, _f;
+        var _a2, _b, _c, _d, _e;
         try {
           const response = await fetch(`${this.baseUrl}/chat/completions`, {
             method: "POST",
@@ -10962,16 +10960,15 @@ var init_openai = __esm({
             body: JSON.stringify({
               model: this.model,
               messages,
-              temperature: (_a2 = options.temperature) != null ? _a2 : 0.7,
-              max_tokens: (_b = options.maxTokens) != null ? _b : 1e3,
+              temperature: (_a2 = options.temperature) != null ? _a2 : 0,
               stream: true
             }),
-            signal: (_c = options.abortController) == null ? void 0 : _c.signal
+            signal: (_b = options.abortController) == null ? void 0 : _b.signal
           });
           if (!response.ok) {
             throw this.handleHttpError(response);
           }
-          const reader = (_d = response.body) == null ? void 0 : _d.getReader();
+          const reader = (_c = response.body) == null ? void 0 : _c.getReader();
           const decoder = new TextDecoder("utf-8");
           let buffer = "";
           while (true) {
@@ -10984,7 +10981,7 @@ var init_openai = __esm({
               if (line.startsWith("data: ") && line !== "data: [DONE]") {
                 try {
                   const data = JSON.parse(line.slice(6));
-                  const content = (_f = (_e = data.choices[0]) == null ? void 0 : _e.delta) == null ? void 0 : _f.content;
+                  const content = (_e = (_d = data.choices[0]) == null ? void 0 : _d.delta) == null ? void 0 : _e.content;
                   if (content && options.streamCallback) {
                     options.streamCallback(content);
                   }
@@ -11097,7 +11094,7 @@ var init_gemini = __esm({
        * @param options - Settings for this completion
        */
       async getCompletion(messages, options) {
-        var _a2, _b, _c, _d, _e, _f, _g, _h;
+        var _a2, _b, _c, _d, _e, _f, _g;
         try {
           const formattedMessages = this.formatMessages(messages);
           const baseUrl = this.getBaseUrlForModel(this.model);
@@ -11110,18 +11107,17 @@ var init_gemini = __esm({
             body: JSON.stringify({
               contents: formattedMessages,
               generationConfig: {
-                temperature: (_a2 = options.temperature) != null ? _a2 : 0.7,
-                maxOutputTokens: (_b = options.maxTokens) != null ? _b : 1e3
+                temperature: (_a2 = options.temperature) != null ? _a2 : 0
               }
             }),
-            signal: (_c = options.abortController) == null ? void 0 : _c.signal
+            signal: (_b = options.abortController) == null ? void 0 : _b.signal
           });
           if (!response.ok) {
             throw this.handleHttpError(response);
           }
           const data = await response.json();
           debugLog(this.debugMode, "debug", "Gemini response:", JSON.stringify(data));
-          const text = (_h = (_g = (_f = (_e = (_d = data.candidates) == null ? void 0 : _d[0]) == null ? void 0 : _e.content) == null ? void 0 : _f.parts) == null ? void 0 : _g[0]) == null ? void 0 : _h.text;
+          const text = (_g = (_f = (_e = (_d = (_c = data.candidates) == null ? void 0 : _c[0]) == null ? void 0 : _d.content) == null ? void 0 : _e.parts) == null ? void 0 : _f[0]) == null ? void 0 : _g.text;
           if (text && options.streamCallback) {
             options.streamCallback(text);
           } else {
@@ -11217,164 +11213,9 @@ var init_gemini = __esm({
   }
 });
 
-// providers/ollama.ts
-var OllamaProvider;
-var init_ollama = __esm({
-  "providers/ollama.ts"() {
-    init_base2();
-    init_logger();
-    OllamaProvider = class extends BaseProvider {
-      // Add debugMode property
-      constructor(serverUrl = "http://localhost:11434", model = "llama2", debugMode = false) {
-        super();
-        __publicField(this, "apiKey", "");
-        // Not used for Ollama
-        __publicField(this, "baseUrl");
-        __publicField(this, "model");
-        __publicField(this, "debugMode");
-        this.baseUrl = serverUrl.replace(/\/$/, "");
-        this.model = model;
-        this.debugMode = debugMode;
-        debugLog(true, "debug", "[Ollama Provider] Initializing Ollama API", { config: { serverUrl, model, debugMode } });
-      }
-      /**
-       * Convert messages to Ollama format
-       * 
-       * @param messages - Standard message format
-       * @returns Prompt string in Ollama format
-       */
-      convertToOllamaFormat(messages) {
-        return messages.map((msg) => {
-          if (msg.role === "system") {
-            return `System: ${msg.content}
-
-`;
-          }
-          return `${msg.role === "user" ? "Human" : "Assistant"}: ${msg.content}
-
-`;
-        }).join("") + "Assistant:";
-      }
-      /**
-       * Get a completion from Ollama
-       * 
-       * Sends the conversation to the local Ollama server and streams back the response.
-       * 
-       * @param messages - The conversation history
-       * @param options - Settings for this completion
-       */
-      async getCompletion(messages, options) {
-        var _a2, _b, _c, _d;
-        try {
-          const prompt = this.convertToOllamaFormat(messages);
-          const response = await fetch(`${this.baseUrl}/api/generate`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-              model: this.model,
-              prompt,
-              stream: true,
-              options: {
-                temperature: (_a2 = options.temperature) != null ? _a2 : 0.7,
-                num_predict: (_b = options.maxTokens) != null ? _b : 1e3
-              }
-            }),
-            signal: (_c = options.abortController) == null ? void 0 : _c.signal
-          });
-          if (!response.ok) {
-            throw this.handleHttpError(response);
-          }
-          const reader = (_d = response.body) == null ? void 0 : _d.getReader();
-          const decoder = new TextDecoder("utf-8");
-          let buffer = "";
-          while (true) {
-            const { done, value } = await (reader == null ? void 0 : reader.read()) || { done: true, value: void 0 };
-            if (done) break;
-            buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split("\n");
-            buffer = lines.pop() || "";
-            for (const line of lines) {
-              if (line.trim()) {
-                try {
-                  const data = JSON.parse(line);
-                  if (data.response && options.streamCallback) {
-                    options.streamCallback(data.response);
-                  }
-                } catch (e) {
-                  debugLog(this.debugMode, "warn", "Error parsing Ollama response chunk:", e);
-                }
-              }
-            }
-          }
-        } catch (error) {
-          if (error instanceof ProviderError) {
-            throw error;
-          }
-          if (error.name === "AbortError") {
-            debugLog(this.debugMode, "info", "Ollama stream was aborted");
-          } else {
-            debugLog(this.debugMode, "error", "Error calling Ollama:", error);
-            throw error;
-          }
-        }
-      }
-      /**
-       * Get available Ollama models
-       * 
-       * Fetches the list of models installed on the local Ollama server.
-       * 
-       * @returns List of available model names
-       */
-      async getAvailableModels() {
-        var _a2;
-        try {
-          const response = await fetch(`${this.baseUrl}/api/tags`);
-          if (!response.ok) {
-            throw this.handleHttpError(response);
-          }
-          const data = await response.json();
-          return ((_a2 = data.models) == null ? void 0 : _a2.map((model) => model.name)) || [];
-        } catch (error) {
-          debugLog(this.debugMode, "error", "Error fetching Ollama models:", error);
-          throw error;
-        }
-      }
-      /**
-       * Test connection to Ollama
-       * 
-       * Verifies the Ollama server is running and accessible.
-       * Also checks if any models are installed.
-       * 
-       * @returns Test results including success/failure and available models
-       */
-      async testConnection() {
-        try {
-          const models = await this.getAvailableModels();
-          if (models.length === 0) {
-            return {
-              success: false,
-              message: 'Connected to Ollama server, but no models are installed. Use "ollama pull model-name" to install models.',
-              models: []
-            };
-          }
-          return {
-            success: true,
-            message: `Successfully connected to Ollama! Found ${models.length} installed models.`,
-            models
-          };
-        } catch (error) {
-          return this.createErrorResponse(error);
-        }
-      }
-    };
-  }
-});
-
 // providers/index.ts
 function createProvider(settings) {
-  var _a2, _b, _c, _d;
+  var _a2, _b, _c;
   switch (settings.provider) {
     case "openai":
       return new OpenAIProvider(
@@ -11400,19 +11241,12 @@ function createProvider(settings) {
         (_c = settings.debugMode) != null ? _c : false
         // Pass debugMode
       );
-    case "ollama":
-      return new OllamaProvider(
-        settings.ollamaSettings.serverUrl,
-        settings.ollamaSettings.model,
-        (_d = settings.debugMode) != null ? _d : false
-        // Pass debugMode
-      );
     default:
       throw new Error(`Invalid provider type: ${settings.provider}`);
   }
 }
 function createProviderFromUnifiedModel(settings, unifiedModelId) {
-  var _a2, _b, _c, _d;
+  var _a2, _b, _c;
   const [providerType, modelId] = unifiedModelId.split(":", 2);
   switch (providerType) {
     case "openai":
@@ -11423,9 +11257,6 @@ function createProviderFromUnifiedModel(settings, unifiedModelId) {
     // Pass debugMode
     case "gemini":
       return new GeminiProvider(settings.geminiSettings.apiKey, modelId, void 0, (_c = settings.debugMode) != null ? _c : false);
-    // Pass debugMode
-    case "ollama":
-      return new OllamaProvider(settings.ollamaSettings.serverUrl, modelId, (_d = settings.debugMode) != null ? _d : false);
     // Pass debugMode
     default:
       throw new Error(`Invalid provider type: ${providerType}`);
@@ -11441,8 +11272,6 @@ async function getAllAvailableModels(settings) {
         return "Anthropic";
       case "gemini":
         return "Google";
-      case "ollama":
-        return "Ollama";
       default:
         return provider;
     }
@@ -11477,16 +11306,6 @@ async function getAllAvailableModels(settings) {
       });
     });
   }
-  if (settings.ollamaSettings.serverUrl && settings.ollamaSettings.availableModels.length > 0) {
-    settings.ollamaSettings.availableModels.forEach((model) => {
-      allModels.push({
-        id: `ollama:${model}`,
-        name: `${model} (${getProviderDisplayName("ollama")})`,
-        provider: "ollama",
-        modelId: model
-      });
-    });
-  }
   return allModels;
 }
 function getProviderFromUnifiedModel(unifiedModelId) {
@@ -11503,7 +11322,6 @@ var init_providers = __esm({
     init_anthropic();
     init_openai();
     init_gemini();
-    init_ollama();
   }
 });
 
@@ -13549,7 +13367,7 @@ var init_aiDispatcher = __esm({
        * Includes caching, rate limiting, retry logic, and validation.
        * 
        * @param messages - The conversation messages to send
-       * @param options - Completion options (temperature, maxTokens, etc.)
+       * @param options - Completion options (temperature, etc.)
        * @param providerOverride - Optional specific provider to use instead of default
        * @param priority - Request priority (higher = processed first)
        * @returns Promise that resolves when the completion is finished
@@ -13633,14 +13451,6 @@ var init_aiDispatcher = __esm({
             throw new Error("Temperature must be between 0 and 2");
           }
         }
-        if (options.maxTokens !== void 0) {
-          if (typeof options.maxTokens !== "number" || isNaN(options.maxTokens)) {
-            throw new Error("Max tokens must be a valid number");
-          }
-          if (options.maxTokens <= 0 || options.maxTokens > 1e5) {
-            throw new Error("Max tokens must be between 1 and 100000");
-          }
-        }
         if (options.streamCallback !== void 0 && typeof options.streamCallback !== "function") {
           throw new Error("Stream callback must be a function");
         }
@@ -13693,7 +13503,6 @@ var init_aiDispatcher = __esm({
           const key = JSON.stringify({
             messages: messageArray,
             temperature: options.temperature,
-            maxTokens: options.maxTokens,
             provider: providerOverride || this.plugin.settings.selectedModel || this.plugin.settings.provider
           });
           return btoaUnicode(key).substring(0, 32);
@@ -14346,7 +14155,6 @@ var init_SettingsSections = __esm({
               if (preset.selectedModel !== void 0) this.plugin.settings.selectedModel = preset.selectedModel;
               if (preset.systemMessage !== void 0) this.plugin.settings.systemMessage = preset.systemMessage;
               if (preset.temperature !== void 0) this.plugin.settings.temperature = preset.temperature;
-              if (preset.maxTokens !== void 0) this.plugin.settings.maxTokens = preset.maxTokens;
               if (preset.enableStreaming !== void 0) this.plugin.settings.enableStreaming = preset.enableStreaming;
               await this.plugin.saveSettings();
               if (onRefresh) {
@@ -19312,7 +19120,6 @@ var TaskContinuation = class {
         messages,
         {
           temperature: this.plugin.settings.temperature,
-          maxTokens: this.plugin.settings.maxTokens,
           streamCallback: async (chunk) => {
             continuationContent += chunk;
           }
@@ -19407,7 +19214,6 @@ var ResponseStreamer = class {
       const aiDispatcher = new AIDispatcher(this.plugin.app.vault, this.plugin);
       await aiDispatcher.getCompletion(messages, {
         temperature: this.plugin.settings.temperature,
-        maxTokens: this.plugin.settings.maxTokens,
         streamCallback: async (chunk) => {
           responseContent += chunk;
           await this.updateMessageContent(container, responseContent);
@@ -19761,7 +19567,6 @@ var ResponseStreamer = class {
       let continuationContent = "";
       await aiDispatcher.getCompletion(messages, {
         temperature: this.plugin.settings.temperature,
-        maxTokens: this.plugin.settings.maxTokens,
         streamCallback: async (chunk) => {
           continuationContent += chunk;
         },
@@ -21113,7 +20918,6 @@ var AIModelConfigurationSection = class {
           if (preset.selectedModel !== void 0) this.plugin.settings.selectedModel = preset.selectedModel;
           if (preset.systemMessage !== void 0) this.plugin.settings.systemMessage = preset.systemMessage;
           if (preset.temperature !== void 0) this.plugin.settings.temperature = preset.temperature;
-          if (preset.maxTokens !== void 0) this.plugin.settings.maxTokens = preset.maxTokens;
           if (preset.enableStreaming !== void 0) this.plugin.settings.enableStreaming = preset.enableStreaming;
           await this.plugin.saveSettings();
           new import_obsidian28.Notice(`Applied preset: ${preset.name}`);
@@ -21321,16 +21125,6 @@ var AIModelConfigurationSection = class {
         preset.temperature = value;
         await this.plugin.saveSettings();
       });
-      new import_obsidian28.Setting(containerEl).setName("Max Tokens").setDesc("Edit the max tokens for this preset").addText((text) => {
-        var _a2;
-        text.setPlaceholder("Max tokens").setValue(((_a2 = preset.maxTokens) == null ? void 0 : _a2.toString()) || "").onChange((value) => {
-          const num = parseInt(value != null ? value : "", 10);
-          preset.maxTokens = isNaN(num) ? void 0 : num;
-        });
-        text.inputEl.addEventListener("blur", async () => {
-          await this.plugin.saveSettings();
-        });
-      });
       this.settingCreators.createToggleSetting(containerEl, "Enable Streaming", "", () => {
         var _a2;
         return (_a2 = preset.enableStreaming) != null ? _a2 : true;
@@ -21354,7 +21148,6 @@ var AIModelConfigurationSection = class {
           selectedModel: this.plugin.settings.selectedModel,
           systemMessage: this.plugin.settings.systemMessage,
           temperature: this.plugin.settings.temperature,
-          maxTokens: this.plugin.settings.maxTokens,
           enableStreaming: this.plugin.settings.enableStreaming
         })));
         await this.plugin.saveSettings();
@@ -22722,7 +22515,6 @@ async function handleAICompletion(editor, settings, processMessages2, vault, plu
       processedMessages,
       {
         temperature: settings.temperature,
-        maxTokens: settings.maxTokens,
         streamCallback: (chunk) => {
           bufferedChunk += chunk;
           setTimeout(flushBuffer, 100);

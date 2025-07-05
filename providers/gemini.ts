@@ -91,9 +91,7 @@ export class GeminiProvider extends BaseProvider {
                 body: JSON.stringify({
                     contents: formattedMessages,
                     generationConfig: {
-                        temperature: options.temperature ?? 0.7,
-                        maxOutputTokens: options.maxTokens ?? 1000
-                    }
+                        temperature: options.temperature ?? 0.0,                    }
                 }),
                 signal: options.abortController?.signal
             });

@@ -7,7 +7,7 @@ import { getRecentlyOpenedFiles } from './recently-opened-files';
 
 /**
  * Centralized utility for building context messages for AI conversations.
- * This function constructs the system message, appends context notes, and optionally includes the current note content.
+ * This function constructs the system message, appends context, and optionally includes the current note content.
  * All context-building logic for the plugin should be routed through here for DRYness and maintainability.
  */
 export async function buildContextMessages({

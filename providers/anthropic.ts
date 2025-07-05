@@ -44,7 +44,7 @@ const MODEL_CONTEXT_WINDOWS: Record<string, number> = {
     'claude-3-5-sonnet-20240620': 200000,
     'claude-3-5-haiku-20241022': 200000,
 };
-
+let maxTokens = 4096; // Default max tokens, can be adjusted dynamically
 /**
  * Maximum output tokens per Anthropic model
  */
@@ -128,12 +128,9 @@ export class AnthropicProvider extends BaseProvider {
             // Estimate token count for input messages
             const inputTokens = estimateTokenCount(messages);
 
-            // Calculate safe max_tokens value
-            let maxTokens = options.maxTokens ?? 1000;
-
             // If the combined input + output tokens would exceed the context window,
             // automatically adjust max_tokens to fit
-            if (inputTokens + maxTokens > contextWindow) {
+            if (inputTokens > contextWindow) {
                 const adjustedMaxTokens = contextWindow - inputTokens;
 
                 if (adjustedMaxTokens <= 0) {
@@ -145,8 +142,7 @@ export class AnthropicProvider extends BaseProvider {
                 }
 
                 debugLog(this.debugMode, 'info',
-                    `Adjusting max_tokens from ${maxTokens} to ${adjustedMaxTokens} ` +
-                    `to fit within ${this.model}'s context window`
+                    `max_tokens ${adjustedMaxTokens} to fit within ${this.model}'s context window`
                 ); // Use debugLog
 
                 maxTokens = adjustedMaxTokens;
@@ -167,7 +163,7 @@ export class AnthropicProvider extends BaseProvider {
             const requestParams: any = {
                 model: this.model,
                 messages: anthropicMessages,
-                temperature: options.temperature ?? 0.7,
+                temperature: options.temperature ?? 0.0, // Default temperature if not provided
                 max_tokens: maxTokens,
                 stream: true
             };
