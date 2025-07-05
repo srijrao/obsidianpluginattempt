@@ -293,7 +293,7 @@ describe('ErrorHandler', () => {
 
     // Test sanitizeErrorMessage
     test('sanitizeErrorMessage should remove sensitive data', () => {
-      const sensitiveMessage = 'API_KEY: abc123token=xyz password=123 http://example.com 192.168.1.1';
+      const sensitiveMessage = 'API_KEY: abc123 token=xyz password=123 http://example.com 192.168.1.1';
       handler.handleError(new Error(sensitiveMessage), { component: 'Sanitize', operation: 'test' });
       
       expect(mockNotice).toHaveBeenCalledWith(

@@ -12819,8 +12819,6 @@ var init_errorHandler = __esm({
         return newError;
       }
       trackError(errorKey, error) {
-        const currentCount = this.errorCounts.get(errorKey) || 0;
-        this.errorCounts.set(errorKey, currentCount + 1);
         const currentTimestamp = Date.now();
         const existingEntry = this.lastErrors.get(errorKey);
         if (existingEntry) {
@@ -12850,7 +12848,8 @@ var init_errorHandler = __esm({
         return `${context.component}: ${sanitizedMessage}`;
       }
       sanitizeErrorMessage(message) {
-        let sanitized = message.replace(/(api[_-]?key[s]?|key)\s*[:=]\s*[^\\s,;]+/gi, "API_KEY_HIDDEN").replace(/(token[s]?|auth|bearer)\s*[:=]\s*[^\\s,;]+/gi, "TOKEN_HIDDEN").replace(/(password[s]?|pass)\s*[:=]\s*[^\\s,;]+/gi, "PASSWORD_HIDDEN").replace(/\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/g, "IP_HIDDEN").replace(/https?:\/\/[^\\s,;]+/g, "URL_HIDDEN");
+        let normalized = message.replace(/([\w-]*token[\w-]*)/gi, "TOKEN").replace(/(api[_-]?key[s]?|apikey|api-key|key)/gi, "API_KEY").replace(/(password[s]?|pass)/gi, "PASSWORD");
+        let sanitized = normalized.replace(/TOKEN\s*[:=]\s*[^\s,;]+/gi, "TOKEN_HIDDEN").replace(/API_KEY\s*[:=]\s*[^\s,;]+/gi, "API_KEY_HIDDEN").replace(/PASSWORD\s*[:=]\s*[^\s,;]+/gi, "PASSWORD_HIDDEN").replace(/\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/g, "IP_HIDDEN").replace(/https?:\/\/[^\s,;]+/g, "URL_HIDDEN");
         sanitized = sanitized.replace(/(?:[a-zA-Z]:)?(?:[\/\\](?:[\w\-. ]+))+[\/\\][\w\-. ]+\.\w+/g, "FILE_PATH_HIDDEN");
         sanitized = sanitized.replace(/at\s+[\w\-. ]+\s+\([^)]+\)/g, "STACK_TRACE_HIDDEN");
         sanitized = sanitized.replace(/at\s+[\w\-. ]+\s+<anonymous>/g, "STACK_TRACE_HIDDEN");
@@ -13372,42 +13371,44 @@ var init_aiDispatcher = __esm({
        * @param priority - Request priority (higher = processed first)
        * @returns Promise that resolves when the completion is finished
        */
-      async getCompletion(messages, options, providerOverride, priority = 0) {
-        var _a2, _b, _c;
-        this.validateRequest(messages, options);
-        const cacheKey = this.generateCacheKey(messages, options, providerOverride);
-        const existingRequest = this.pendingRequests.get(cacheKey);
-        if (existingRequest) {
-          this.metrics.deduplicatedRequests++;
-          performanceMonitor.recordMetric("deduplicated_requests", 1, "count");
-          debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", "[AIDispatcher] Deduplicating request", { key: cacheKey });
-          return existingRequest;
-        }
-        const cachedResponse = this.cache.get(cacheKey);
-        if (cachedResponse && options.streamCallback) {
-          this.metrics.cacheHits++;
-          performanceMonitor.recordMetric("cache_hits", 1, "count");
-          debugLog((_b = this.plugin.settings.debugMode) != null ? _b : false, "info", "[AIDispatcher] Cache hit", { key: cacheKey });
-          options.streamCallback(cachedResponse);
-          return;
-        } else {
-          this.metrics.cacheMisses++;
-          performanceMonitor.recordMetric("cache_misses", 1, "count");
-          debugLog((_c = this.plugin.settings.debugMode) != null ? _c : false, "info", "[AIDispatcher] Cache miss", { key: cacheKey });
-        }
-        const providerName = this.determineProvider(providerOverride);
-        if (this.isCircuitBreakerOpen(providerName)) {
-          throw new Error(`Provider ${providerName} is temporarily unavailable (circuit breaker open)`);
-        }
-        if (this.isRateLimited(providerName)) {
-          return this.queueRequest(messages, options, providerOverride, priority);
-        }
-        const requestPromise = this.executeWithRetry(messages, options, providerName, cacheKey);
-        this.pendingRequests.set(cacheKey, requestPromise);
-        requestPromise.finally(() => {
-          this.pendingRequests.delete(cacheKey);
-        });
-        return requestPromise;
+      getCompletion(messages, options, providerOverride, priority = 0) {
+        return (async () => {
+          var _a2, _b, _c;
+          this.validateRequest(messages, options);
+          const cacheKey = this.generateCacheKey(messages, options, providerOverride);
+          const existingRequest = this.pendingRequests.get(cacheKey);
+          if (existingRequest) {
+            this.metrics.deduplicatedRequests++;
+            performanceMonitor.recordMetric("deduplicated_requests", 1, "count");
+            debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", "[AIDispatcher] Deduplicating request", { key: cacheKey });
+            return existingRequest;
+          }
+          const cachedResponse = this.cache.get(cacheKey);
+          if (cachedResponse && options.streamCallback) {
+            this.metrics.cacheHits++;
+            performanceMonitor.recordMetric("cache_hits", 1, "count");
+            debugLog((_b = this.plugin.settings.debugMode) != null ? _b : false, "info", "[AIDispatcher] Cache hit", { key: cacheKey });
+            options.streamCallback(cachedResponse);
+            return Promise.resolve();
+          } else {
+            this.metrics.cacheMisses++;
+            performanceMonitor.recordMetric("cache_misses", 1, "count");
+            debugLog((_c = this.plugin.settings.debugMode) != null ? _c : false, "info", "[AIDispatcher] Cache miss", { key: cacheKey });
+          }
+          const providerName = this.determineProvider(providerOverride);
+          if (this.isCircuitBreakerOpen(providerName)) {
+            throw new Error(`Provider ${providerName} is temporarily unavailable (circuit breaker open)`);
+          }
+          if (this.isRateLimited(providerName)) {
+            return this.queueRequest(messages, options, providerOverride, priority);
+          }
+          const requestPromise = this.executeWithRetry(messages, options, providerName, cacheKey);
+          this.pendingRequests.set(cacheKey, requestPromise);
+          requestPromise.finally(() => {
+            this.pendingRequests.delete(cacheKey);
+          });
+          return requestPromise;
+        })();
       }
       /**
        * Validates request format and content with enhanced security using comprehensive type guards.
@@ -13584,7 +13585,12 @@ var init_aiDispatcher = __esm({
       recordSuccess(providerName) {
         const breaker = this.circuitBreakers.get(providerName);
         if (!breaker) return;
-        breaker.failureCount = Math.max(0, breaker.failureCount - 1);
+        if (breaker.isOpen && Date.now() > breaker.nextRetryTime) {
+          breaker.isOpen = false;
+          breaker.failureCount = 0;
+        } else {
+          breaker.failureCount = Math.max(0, breaker.failureCount - 1);
+        }
       }
       /**
        * Checks if provider is rate limited.
@@ -14079,7 +14085,13 @@ var init_aiDispatcher = __esm({
        */
       getModelInfo(unifiedModelId) {
         var _a2;
-        return (_a2 = this.plugin.settings.availableModels) == null ? void 0 : _a2.find((model) => model.id === unifiedModelId);
+        const model = (_a2 = this.plugin.settings.availableModels) == null ? void 0 : _a2.find((model2) => model2.id === unifiedModelId);
+        if (!model) return void 0;
+        return {
+          id: model.id,
+          name: model.name,
+          provider: model.provider
+        };
       }
       /**
        * Check if a specific provider is configured (has API key).

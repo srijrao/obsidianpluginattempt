@@ -178,13 +178,13 @@ describe('PathValidator', () => {
 
 describe('PathValidator factory functions', () => {
   test('createPathValidator should create a new instance', () => {
-    const { createPathValidator } = require('../src/components/chat/agent/tools/pathValidation');
+    const { createPathValidator } = require('../src/components/agent/tools/pathValidation');
     const validator = createPathValidator(mockApp);
     expect(validator).toBeInstanceOf(PathValidator);
   });
 
   test('validateAndNormalizePath should work as standalone function', () => {
-    const { validateAndNormalizePath } = require('../src/components/chat/agent/tools/pathValidation');
+    const { validateAndNormalizePath } = require('../src/components/agent/tools/pathValidation');
     const result = validateAndNormalizePath(mockApp, 'folder/file.md');
     expect(result).toBe('folder/file.md');
   });

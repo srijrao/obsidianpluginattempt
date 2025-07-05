@@ -348,10 +348,6 @@ export class ErrorHandler {
     }
 
     private trackError(errorKey: string, error: Error): void {
-        // Increment error count
-        const currentCount = this.errorCounts.get(errorKey) || 0;
-        this.errorCounts.set(errorKey, currentCount + 1);
-
         // Store error timestamp
         const currentTimestamp = Date.now();
         const existingEntry = this.lastErrors.get(errorKey);
@@ -394,13 +390,27 @@ export class ErrorHandler {
     }
 
     private sanitizeErrorMessage(message: string): string {
+        // Normalize sensitive keys to a standard form
+        let normalized = message
+            // Normalize token keys
+            .replace(/([\w-]*token[\w-]*)/gi, 'TOKEN')
+            // Normalize API key variants
+            .replace(/(api[_-]?key[s]?|apikey|api-key|key)/gi, 'API_KEY')
+            // Normalize password variants
+            .replace(/(password[s]?|pass)/gi, 'PASSWORD');
+
         // Remove sensitive information and technical details
-        let sanitized = message
-            .replace(/(api[_-]?key[s]?|key)\s*[:=]\s*[^\\s,;]+/gi, 'API_KEY_HIDDEN')
-            .replace(/(token[s]?|auth|bearer)\s*[:=]\s*[^\\s,;]+/gi, 'TOKEN_HIDDEN')
-            .replace(/(password[s]?|pass)\s*[:=]\s*[^\\s,;]+/gi, 'PASSWORD_HIDDEN')
+        let sanitized = normalized
+            // Replace token values
+            .replace(/TOKEN\s*[:=]\s*[^\s,;]+/gi, 'TOKEN_HIDDEN')
+            // Replace API key values
+            .replace(/API_KEY\s*[:=]\s*[^\s,;]+/gi, 'API_KEY_HIDDEN')
+            // Replace password values
+            .replace(/PASSWORD\s*[:=]\s*[^\s,;]+/gi, 'PASSWORD_HIDDEN')
+            // IP addresses
             .replace(/\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/g, 'IP_HIDDEN')
-            .replace(/https?:\/\/[^\\s,;]+/g, 'URL_HIDDEN');
+            // URLs
+            .replace(/https?:\/\/[^\s,;]+/g, 'URL_HIDDEN');
 
         // Remove file paths (common in stack traces or error messages)
         // Matches common path patterns for Windows and Unix-like systems

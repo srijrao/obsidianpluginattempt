@@ -217,65 +217,67 @@ export class AIDispatcher {
      * @param priority - Request priority (higher = processed first)
      * @returns Promise that resolves when the completion is finished
      */
-    async getCompletion(
+    getCompletion(
         messages: Message[],
         options: CompletionOptions,
         providerOverride?: string,
         priority: number = 0
     ): Promise<void> {
-        // Validate request
-        this.validateRequest(messages, options);
+        return (async () => {
+            // Validate request
+            this.validateRequest(messages, options);
 
-        // Generate cache key
-        const cacheKey = this.generateCacheKey(messages, options, providerOverride);
-        
-        // Priority 1 Optimization: Check for duplicate requests
-        const existingRequest = this.pendingRequests.get(cacheKey);
-        if (existingRequest) {
-            this.metrics.deduplicatedRequests++;
-            performanceMonitor.recordMetric('deduplicated_requests', 1, 'count');
-            debugLog(this.plugin.settings.debugMode ?? false, 'info', '[AIDispatcher] Deduplicating request', { key: cacheKey });
-            return existingRequest;
-        }
-        
-        // Check cache first
-        const cachedResponse = this.cache.get(cacheKey);
-        if (cachedResponse && options.streamCallback) {
-            this.metrics.cacheHits++;
-            performanceMonitor.recordMetric('cache_hits', 1, 'count');
-            debugLog(this.plugin.settings.debugMode ?? false, 'info', '[AIDispatcher] Cache hit', { key: cacheKey });
-            options.streamCallback(cachedResponse);
-            return;
-        } else {
-            this.metrics.cacheMisses++;
-            performanceMonitor.recordMetric('cache_misses', 1, 'count');
-            debugLog(this.plugin.settings.debugMode ?? false, 'info', '[AIDispatcher] Cache miss', { key: cacheKey });
-        }
+            // Generate cache key
+            const cacheKey = this.generateCacheKey(messages, options, providerOverride);
+            
+            // Priority 1 Optimization: Check for duplicate requests
+            const existingRequest = this.pendingRequests.get(cacheKey);
+            if (existingRequest) {
+                this.metrics.deduplicatedRequests++;
+                performanceMonitor.recordMetric('deduplicated_requests', 1, 'count');
+                debugLog(this.plugin.settings.debugMode ?? false, 'info', '[AIDispatcher] Deduplicating request', { key: cacheKey });
+                return existingRequest;
+            }
+            
+            // Check cache first
+            const cachedResponse = this.cache.get(cacheKey);
+            if (cachedResponse && options.streamCallback) {
+                this.metrics.cacheHits++;
+                performanceMonitor.recordMetric('cache_hits', 1, 'count');
+                debugLog(this.plugin.settings.debugMode ?? false, 'info', '[AIDispatcher] Cache hit', { key: cacheKey });
+                options.streamCallback(cachedResponse);
+                return Promise.resolve();
+            } else {
+                this.metrics.cacheMisses++;
+                performanceMonitor.recordMetric('cache_misses', 1, 'count');
+                debugLog(this.plugin.settings.debugMode ?? false, 'info', '[AIDispatcher] Cache miss', { key: cacheKey });
+            }
 
-        // Determine provider
-        const providerName = this.determineProvider(providerOverride);
-        
-        // Check circuit breaker
-        if (this.isCircuitBreakerOpen(providerName)) {
-            throw new Error(`Provider ${providerName} is temporarily unavailable (circuit breaker open)`);
-        }
+            // Determine provider
+            const providerName = this.determineProvider(providerOverride);
+            
+            // Check circuit breaker
+            if (this.isCircuitBreakerOpen(providerName)) {
+                throw new Error(`Provider ${providerName} is temporarily unavailable (circuit breaker open)`);
+            }
 
-        // Check rate limits
-        if (this.isRateLimited(providerName)) {
-            // Queue the request
-            return this.queueRequest(messages, options, providerOverride, priority);
-        }
+            // Check rate limits
+            if (this.isRateLimited(providerName)) {
+                // Queue the request
+                return this.queueRequest(messages, options, providerOverride, priority);
+            }
 
-        // Create and track the request promise
-        const requestPromise = this.executeWithRetry(messages, options, providerName, cacheKey);
-        this.pendingRequests.set(cacheKey, requestPromise);
+            // Create and track the request promise
+            const requestPromise = this.executeWithRetry(messages, options, providerName, cacheKey);
+            this.pendingRequests.set(cacheKey, requestPromise);
 
-        // Clean up after completion
-        requestPromise.finally(() => {
-            this.pendingRequests.delete(cacheKey);
-        });
+            // Clean up after completion
+            requestPromise.finally(() => {
+                this.pendingRequests.delete(cacheKey);
+            });
 
-        return requestPromise;
+            return requestPromise;
+        })();
     }
 
     /**
@@ -508,7 +510,13 @@ export class AIDispatcher {
         const breaker = this.circuitBreakers.get(providerName);
         if (!breaker) return;
 
-        breaker.failureCount = Math.max(0, breaker.failureCount - 1);
+        // If the retry time has passed, fully close the breaker
+        if (breaker.isOpen && Date.now() > breaker.nextRetryTime) {
+            breaker.isOpen = false;
+            breaker.failureCount = 0;
+        } else {
+            breaker.failureCount = Math.max(0, breaker.failureCount - 1);
+        }
     }
 
     /**
@@ -1083,8 +1091,15 @@ export class AIDispatcher {
      * @param unifiedModelId - The unified model ID
      * @returns The model information or undefined if not found
      */
-    getModelInfo(unifiedModelId: string): UnifiedModel | undefined {
-        return this.plugin.settings.availableModels?.find(model => model.id === unifiedModelId);
+    getModelInfo(unifiedModelId: string): { id: string; name: string; provider: string } | undefined {
+        const model = this.plugin.settings.availableModels?.find(model => model.id === unifiedModelId);
+        if (!model) return undefined;
+        
+        return {
+            id: model.id,
+            name: model.name,
+            provider: model.provider
+        };
     }
 
     /**
