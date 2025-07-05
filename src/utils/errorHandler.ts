@@ -24,7 +24,7 @@ export interface ErrorHandlingOptions {
 export class ErrorHandler {
     private static instance: ErrorHandler;
     private errorCounts = new Map<string, number>();
-    private lastErrors = new Map<string, { error: Error; timestamp: number }>();
+    private lastErrors = new Map<string, { error: Error; timestamps: number[] }>(); // Changed to array of timestamps
     private readonly MAX_ERROR_COUNT = 5;
     private readonly ERROR_RESET_TIME = 5 * 60 * 1000; // 5 minutes
 
@@ -137,7 +137,7 @@ export class ErrorHandler {
         const errorMessage = this.extractErrorMessage(error);
         const retryablePatterns = [
             /network/i,
-            /timeout/i,
+            /timed out|timeout/i,
             /rate.?limit/i,
             /temporary/i,
             /unavailable/i,
@@ -159,11 +159,11 @@ export class ErrorHandler {
         const stats: Record<string, { count: number; lastError: string; lastTimestamp: number }> = {};
         
         for (const [key, count] of this.errorCounts.entries()) {
-            const lastError = this.lastErrors.get(key);
+            const errorInfo = this.lastErrors.get(key);
             stats[key] = {
                 count,
-                lastError: lastError?.error.message || 'Unknown',
-                lastTimestamp: lastError?.timestamp || 0
+                lastError: errorInfo?.error.message || 'Unknown',
+                lastTimestamp: errorInfo?.timestamps[errorInfo.timestamps.length - 1] || 0 // Get the latest timestamp
             };
         }
 
@@ -210,11 +210,18 @@ export class ErrorHandler {
         const currentCount = this.errorCounts.get(errorKey) || 0;
         this.errorCounts.set(errorKey, currentCount + 1);
 
-        // Store last error
-        this.lastErrors.set(errorKey, {
-            error,
-            timestamp: Date.now()
-        });
+        // Store error timestamp
+        const currentTimestamp = Date.now();
+        const existingEntry = this.lastErrors.get(errorKey);
+        if (existingEntry) {
+            existingEntry.timestamps.push(currentTimestamp);
+            existingEntry.error = error; // Update with the latest error object
+        } else {
+            this.lastErrors.set(errorKey, {
+                error,
+                timestamps: [currentTimestamp]
+            });
+        }
 
         // Clean up old errors
         this.cleanupOldErrors();
@@ -229,12 +236,13 @@ export class ErrorHandler {
         }
 
         // Show notice for first few occurrences
-        return count <= 3;
+        return count <= this.MAX_ERROR_COUNT;
     }
 
     private formatUserMessage(errorMessage: string, context: ErrorContext, fallbackMessage: string): string {
         // Sanitize error message for user display
-        const sanitizedMessage = this.sanitizeErrorMessage(errorMessage);
+        let sanitizedMessage = this.sanitizeErrorMessage(errorMessage);
+        sanitizedMessage = sanitizedMessage.replace(/\s+/g, ' ').trim(); // Replace multiple spaces with single and trim
         
         if (sanitizedMessage.length > 100) {
             return `${context.component}: ${fallbackMessage}`;
@@ -246,20 +254,29 @@ export class ErrorHandler {
     private sanitizeErrorMessage(message: string): string {
         // Remove sensitive information and technical details
         return message
-            .replace(/api[_-]?key[s]?[:\s=]+[^\s]+/gi, 'API_KEY_HIDDEN')
-            .replace(/token[s]?[:\s=]+[^\s]+/gi, 'TOKEN_HIDDEN')
-            .replace(/password[s]?[:\s=]+[^\s]+/gi, 'PASSWORD_HIDDEN')
+            .replace(/(api[_-]?key[s]?|key)\s*[:=]\s*([^\\s,;]+)/gi, 'API_KEY_HIDDEN')
+            .replace(/(token[s]?|auth|bearer)\s*[:=]\s*([^\\s,;]+)/gi, 'TOKEN_HIDDEN')
+            .replace(/(password[s]?|pass)\s*[:=]\s*([^\\s,;]+)/gi, 'PASSWORD_HIDDEN')
             .replace(/\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/g, 'IP_HIDDEN')
-            .replace(/https?:\/\/[^\s]+/g, 'URL_HIDDEN');
+            .replace(/https?:\/\/[^\\s,;]+/g, 'URL_HIDDEN');
     }
 
     private cleanupOldErrors(): void {
         const now = Date.now();
         
         for (const [key, errorInfo] of this.lastErrors.entries()) {
-            if (now - errorInfo.timestamp > this.ERROR_RESET_TIME) {
+            // Filter out old timestamps
+            errorInfo.timestamps = errorInfo.timestamps.filter(
+                timestamp => now - timestamp <= this.ERROR_RESET_TIME
+            );
+
+            // If no timestamps remain, remove the entry
+            if (errorInfo.timestamps.length === 0) {
                 this.errorCounts.delete(key);
                 this.lastErrors.delete(key);
+            } else {
+                // Update error count based on remaining timestamps
+                this.errorCounts.set(key, errorInfo.timestamps.length);
             }
         }
     }
