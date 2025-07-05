@@ -1,7 +1,7 @@
 import { App, WorkspaceLeaf, ItemView, Setting, Notice, TFile } from 'obsidian';
 import MyPlugin from '../main'; 
 import { AIDispatcher } from '../utils/aiDispatcher';
-import { CollapsibleSectionRenderer } from './chat/CollapsibleSection';
+import { CollapsibleSectionRenderer } from '../utils/CollapsibleSection';
 
 const VIEW_TYPE_MODEL_SETTINGS = 'model-settings-view';
 

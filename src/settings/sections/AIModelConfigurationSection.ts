@@ -1,7 +1,7 @@
 import { App, Setting, Notice } from 'obsidian';
 import MyPlugin from '../../main';
 import { SettingCreators } from '../components/SettingCreators';
-import { CollapsibleSectionRenderer } from '../../components/chat/CollapsibleSection';
+import { CollapsibleSectionRenderer } from '../../utils/CollapsibleSection';
 import { AIDispatcher } from '../../utils/aiDispatcher';
 import { isValidOpenAIApiKey, isValidAnthropicApiKey, isValidGoogleApiKey, isValidUrl } from '../../utils/validationUtils';
 

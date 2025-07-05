@@ -4,7 +4,7 @@ import { Message } from '../../types'; // Import Message
 import { MyPluginSettings } from '../../types/settings'; // Corrected import path
 import { debugLog } from '../../utils/logger';
 import { getProviderFromUnifiedModel, getModelIdFromUnifiedModel } from '../../../providers';
-import { MessageRenderer } from '../chat/MessageRenderer';
+import { MessageRenderer } from './agent/MessageRenderer';
 import { Notice } from 'obsidian'; // Import Notice
 
 /**

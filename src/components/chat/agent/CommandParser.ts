@@ -1,6 +1,6 @@
-import { ToolCommand } from '../../types';
-import { getAllToolNames } from './agent/tools/toolcollect';
-import MyPlugin from '../../main';
+import { ToolCommand } from '../../../types';
+import { getAllToolNames } from './tools/toolcollect';
+import MyPlugin from '../../../main';
 
 /**
  * CommandParser is responsible for parsing AI responses to extract tool commands

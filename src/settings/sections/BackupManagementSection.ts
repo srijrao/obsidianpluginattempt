@@ -1,7 +1,7 @@
 import { App, PluginSettingTab, Setting, Notice, TFolder, TFile } from 'obsidian';
 import MyPlugin from '../../main';
 import { SettingCreators } from '../components/SettingCreators';
-import { CollapsibleSectionRenderer } from '../../components/chat/CollapsibleSection';
+import { CollapsibleSectionRenderer } from '../../utils/CollapsibleSection';
 import { DialogHelpers } from '../components/DialogHelpers';
 import { FileBackup } from '../../types/backup';
 import { isTFile } from '../../utils/typeGuards';

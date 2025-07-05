@@ -2,8 +2,6 @@ import { App, Modal, Setting, Notice } from 'obsidian';
 import MyPlugin from '../../main';
 // All provider logic is now handled by AIDispatcher; direct provider imports removed.
 import { SettingsSections } from './SettingsSections';
-import { CollapsibleSectionRenderer } from './CollapsibleSection';
-
 /**
  * SettingsModal is a modal dialog for configuring the plugin's settings.
  * It uses SettingsSections to render different categories of settings.

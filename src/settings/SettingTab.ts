@@ -1,7 +1,7 @@
 import { App, PluginSettingTab, Setting, Notice } from 'obsidian';
 import MyPlugin from '../main';
 import { VIEW_TYPE_MODEL_SETTINGS } from '../components/commands/viewCommands'; // Corrected import path
-import { CollapsibleSectionRenderer } from '../components/chat/CollapsibleSection';
+import { CollapsibleSectionRenderer } from '../utils/CollapsibleSection';
 import { activateView } from '../utils/viewManager';
 import { debugLog } from '../utils/logger'; // Import debugLog
 

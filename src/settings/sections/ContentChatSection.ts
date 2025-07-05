@@ -1,7 +1,7 @@
 import { App, Setting } from 'obsidian';
 import MyPlugin from '../../main';
 import { SettingCreators } from '../components/SettingCreators';
-import { CollapsibleSectionRenderer } from '../../components/chat/CollapsibleSection';
+import { CollapsibleSectionRenderer } from '../../utils/CollapsibleSection';
 
 /**
  * ContentChatSection is responsible for rendering settings related to content and chat customization.

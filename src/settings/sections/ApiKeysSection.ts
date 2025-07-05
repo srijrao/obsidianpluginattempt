@@ -1,7 +1,7 @@
 import { App, Setting } from 'obsidian';
 import MyPlugin from '../../main';
 import { SettingCreators } from '../components/SettingCreators';
-import { CollapsibleSectionRenderer } from '../../components/chat/CollapsibleSection';
+import { CollapsibleSectionRenderer } from '../../utils/CollapsibleSection';
 
 /**
  * ApiKeysSection is responsible for rendering the settings related to API keys for various AI providers.

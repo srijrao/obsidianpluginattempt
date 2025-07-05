@@ -3,7 +3,7 @@ import { Message, ToolCommand, ToolResult } from '../../types';
 import { AIDispatcher } from '../../utils/aiDispatcher';
 import MyPlugin from '../../main';
 import { AgentResponseHandler } from './agent/AgentResponseHandler';
-import { MessageRenderer } from './MessageRenderer';
+import { MessageRenderer } from './agent/MessageRenderer';
 import { TaskContinuation } from './agent/TaskContinuation';
 
 /**

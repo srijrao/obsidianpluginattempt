@@ -2,7 +2,7 @@ import { App, MarkdownRenderer, Notice, Component } from 'obsidian';
 import { Message as MessageType } from '../../types';
 import { createActionButton, copyToClipboard } from './Buttons';
 import { ConfirmationModal } from './ConfirmationModal';
-import { MessageRenderer } from './MessageRenderer';
+import { MessageRenderer } from './agent/MessageRenderer';
 import { 
     handleCopyMessage, 
     handleEditMessage, 

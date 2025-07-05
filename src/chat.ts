@@ -29,7 +29,7 @@ import { AgentResponseHandler } from './components/chat/agent/AgentResponseHandl
 import { buildContextMessages } from './utils/contextBuilder';
 import { MessageRegenerator } from './components/chat/MessageRegenerator';
 import { ResponseStreamer } from './components/chat/ResponseStreamer';
-import { MessageRenderer } from './components/chat/MessageRenderer';
+import { MessageRenderer } from './components/chat/agent/MessageRenderer';
 import { ToolRichDisplay } from './components/chat/agent/ToolRichDisplay';
 import { MessageContextPool, WeakCache, PreAllocatedArrays } from './utils/objectPool';
 import { DOMBatcher } from './utils/domBatcher';

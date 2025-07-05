@@ -4256,10 +4256,10 @@ ${details}
   }
 });
 
-// src/components/chat/MessageRenderer.ts
+// src/components/chat/agent/MessageRenderer.ts
 var import_obsidian10, MessageRenderer;
 var init_MessageRenderer = __esm({
-  "src/components/chat/MessageRenderer.ts"() {
+  "src/components/chat/agent/MessageRenderer.ts"() {
     import_obsidian10 = require("obsidian");
     init_ToolRichDisplay();
     init_logger();
@@ -17201,7 +17201,7 @@ async function renderChatHistory({
   }
 }
 
-// src/components/chat/CommandParser.ts
+// src/components/chat/agent/CommandParser.ts
 init_toolcollect();
 var CommandParser = class {
   /**
@@ -20488,7 +20488,7 @@ function registerViewCommands(plugin) {
   );
 }
 
-// src/components/chat/CollapsibleSection.ts
+// src/utils/CollapsibleSection.ts
 var CollapsibleSectionRenderer = class {
   /**
    * Creates a collapsible section with a header that can be toggled.

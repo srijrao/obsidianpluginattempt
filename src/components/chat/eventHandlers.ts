@@ -4,7 +4,7 @@ import { ChatHelpModal } from './ChatHelpModal';
 import { Notice, App, MarkdownRenderer } from 'obsidian';
 import MyPlugin from '../../main';
 import { ChatHistoryManager } from './ChatHistoryManager';
-import { MessageRenderer } from './MessageRenderer';
+import { MessageRenderer } from './agent/MessageRenderer';
 import { ConfirmationModal } from './ConfirmationModal';
 
 /**

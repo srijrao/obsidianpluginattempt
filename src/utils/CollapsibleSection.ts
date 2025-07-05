@@ -1,5 +1,5 @@
-import MyPlugin from "../../main";
-import { MyPluginSettings } from "../../types/settings"; 
+import MyPlugin from "../main";
+import { MyPluginSettings } from "../types/settings"; 
 
 /**
  * CollapsibleSectionRenderer provides a utility for creating collapsible UI sections
