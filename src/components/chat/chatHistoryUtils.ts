@@ -1,5 +1,5 @@
 import { createMessageElement } from './Message';
-import { MessageRenderer } from './MessageRenderer';
+import { parseToolDataFromContent, cleanContentFromToolData } from '../../utils/messageContentParser';
 
 /**
  * Renders the chat history into the provided messages container.
@@ -29,14 +29,13 @@ export async function renderChatHistory({
 }) {
     // Clear the container before rendering
     messagesContainer.empty();
-    const renderer = new MessageRenderer(plugin.app);
 
     // Iterate through each message in the loaded history
     for (const msg of loadedHistory) {
         // Only render user and assistant messages
         if (msg.sender === 'user' || msg.sender === 'assistant') {
             // Parse tool data (if present) from the message content
-            const toolData = renderer.parseToolDataFromContent(msg.content);
+            const toolData = parseToolDataFromContent(msg.content);
 
             let messageData = msg;
             let cleanContent = msg.content;
@@ -49,7 +48,7 @@ export async function renderChatHistory({
                     reasoning: toolData.reasoning,
                     taskStatus: toolData.taskStatus
                 };
-                cleanContent = renderer.cleanContentFromToolData(msg.content);
+                cleanContent = cleanContentFromToolData(msg.content);
                 messageData.content = cleanContent;
             }
 

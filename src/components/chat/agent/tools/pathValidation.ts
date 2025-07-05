@@ -14,7 +14,14 @@ export class PathValidator {
      */
     constructor(private app: App) {
         // The vault's absolute path on disk.
-        this.vaultPath = (this.app.vault.adapter as any).basePath || '';
+        const adapter = this.app.vault.adapter as any; // Cast once to 'any' for easier access
+        if (adapter && typeof adapter.basePath === 'string') {
+            this.vaultPath = adapter.basePath;
+        } else {
+            // Fallback or error handling if basePath is not available or not a string
+            console.warn('Vault adapter basePath not found or not a string. Using empty string as fallback.');
+            this.vaultPath = '';
+        }
     }
 
     /**

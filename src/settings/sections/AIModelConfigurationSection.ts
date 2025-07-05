@@ -3,6 +3,7 @@ import MyPlugin from '../../main';
 import { SettingCreators } from '../components/SettingCreators';
 import { CollapsibleSectionRenderer } from '../../components/chat/CollapsibleSection';
 import { AIDispatcher } from '../../utils/aiDispatcher';
+import { isValidOpenAIApiKey, isValidAnthropicApiKey, isValidGoogleApiKey, isValidUrl } from '../../utils/validationUtils';
 
 /**
  * AIModelConfigurationSection is responsible for rendering the settings related to AI model configuration.
@@ -40,9 +41,13 @@ export class AIModelConfigurationSection {
                     'Enter your OpenAI API key', 
                     'Enter your API key',
                     () => this.plugin.settings.openaiSettings.apiKey,
-                    async (value) => { 
-                        this.plugin.settings.openaiSettings.apiKey = value ?? ''; 
-                        await this.plugin.saveSettings(); 
+                    async (value) => {
+                        if (value && !isValidOpenAIApiKey(value)) {
+                            new Notice('Invalid OpenAI API Key format. Please check your key.');
+                            return;
+                        }
+                        this.plugin.settings.openaiSettings.apiKey = value ?? '';
+                        await this.plugin.saveSettings();
                     }
                 );
                 
@@ -76,9 +81,13 @@ export class AIModelConfigurationSection {
                     'Enter your Anthropic API key', 
                     'Enter your API key',
                     () => this.plugin.settings.anthropicSettings.apiKey,
-                    async (value) => { 
-                        this.plugin.settings.anthropicSettings.apiKey = value ?? ''; 
-                        await this.plugin.saveSettings(); 
+                    async (value) => {
+                        if (value && !isValidAnthropicApiKey(value)) {
+                            new Notice('Invalid Anthropic API Key format. Please check your key.');
+                            return;
+                        }
+                        this.plugin.settings.anthropicSettings.apiKey = value ?? '';
+                        await this.plugin.saveSettings();
                     }
                 );
                 
@@ -99,9 +108,13 @@ export class AIModelConfigurationSection {
                     'Enter your Google API key', 
                     'Enter your API key',
                     () => this.plugin.settings.geminiSettings.apiKey,
-                    async (value) => { 
-                        this.plugin.settings.geminiSettings.apiKey = value ?? ''; 
-                        await this.plugin.saveSettings(); 
+                    async (value) => {
+                        if (value && !isValidGoogleApiKey(value)) {
+                            new Notice('Invalid Google API Key format. Please check your key.');
+                            return;
+                        }
+                        this.plugin.settings.geminiSettings.apiKey = value ?? '';
+                        await this.plugin.saveSettings();
                     }
                 );
                 
@@ -122,9 +135,13 @@ export class AIModelConfigurationSection {
                     'Enter your Ollama server URL (default: http://localhost:11434)', 
                     'http://localhost:11434',
                     () => this.plugin.settings.ollamaSettings.serverUrl,
-                    async (value) => { 
-                        this.plugin.settings.ollamaSettings.serverUrl = value ?? ''; 
-                        await this.plugin.saveSettings(); 
+                    async (value) => {
+                        if (value && !isValidUrl(value)) {
+                            new Notice('Invalid Ollama Server URL format. Please enter a valid URL.');
+                            return;
+                        }
+                        this.plugin.settings.ollamaSettings.serverUrl = value ?? '';
+                        await this.plugin.saveSettings();
                     }
                 );
                 

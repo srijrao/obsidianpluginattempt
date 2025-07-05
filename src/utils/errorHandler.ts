@@ -7,6 +7,8 @@
 
 import { Notice } from 'obsidian';
 import { debugLog } from './logger';
+import { performanceMonitor } from './performanceMonitor';
+import { isValidProviderName, ValidProviderName } from './typeGuards';
 
 export interface ErrorContext {
     component: string;
@@ -128,6 +130,146 @@ export class ErrorHandler {
         return (...args: TArgs) => {
             return this.handleSync(() => fn(...args), context, options);
         };
+    }
+
+    /**
+     * Handle errors with automatic fallback provider selection
+     */
+    async handleWithFallback(
+        error: Error | unknown,
+        context: ErrorContext,
+        currentProvider: string,
+        availableProviders: string[],
+        retryFunction?: (provider: string) => Promise<any>,
+        options: ErrorHandlingOptions = {}
+    ): Promise<{ success: boolean; result?: any; fallbackProvider?: string; message?: string; userMessage?: string }> {
+        const errorMessage = this.extractErrorMessage(error);
+        
+        // Record provider-specific error
+        performanceMonitor.recordMetric('provider_error', 1, 'count', {
+            provider: currentProvider,
+            context: context.component
+        });
+        
+        debugLog(true, 'error', `[${context.component}] Provider ${currentProvider} failed: ${errorMessage}`);
+        
+        // Try fallback providers if available and retry function is provided
+        if (retryFunction && availableProviders.length > 0) {
+            for (const fallbackProvider of availableProviders) {
+                if (fallbackProvider !== currentProvider && isValidProviderName(fallbackProvider)) {
+                    try {
+                        debugLog(true, 'info', `[${context.component}] Attempting fallback to provider: ${fallbackProvider}`);
+                        const result = await retryFunction(fallbackProvider);
+                        
+                        // Record successful fallback
+                        performanceMonitor.recordMetric('fallback_success', 1, 'count', {
+                            originalProvider: currentProvider,
+                            fallbackProvider
+                        });
+                        
+                        new Notice(`Switched to ${fallbackProvider} due to ${currentProvider} error`, 3000);
+                        return { success: true, result, fallbackProvider };
+                        
+                    } catch (fallbackError) {
+                        debugLog(true, 'warn', `[${context.component}] Fallback provider ${fallbackProvider} also failed:`, fallbackError);
+                        performanceMonitor.recordMetric('fallback_failed', 1, 'count', {
+                            provider: fallbackProvider
+                        });
+                    }
+                }
+            }
+        }
+        
+        // All providers failed or no fallback available
+        const displayMessage = `All AI providers failed. Please check your configuration.`;
+        if (options.showNotice !== false) {
+            new Notice(displayMessage, 5000);
+        }
+        
+        return {
+            success: false,
+            message: errorMessage,
+            userMessage: displayMessage
+        };
+    }
+
+    /**
+     * Handle errors with exponential backoff retry
+     */
+    async handleWithRetry<T>(
+        operation: () => Promise<T>,
+        context: ErrorContext,
+        maxRetries: number = 3,
+        baseDelay: number = 1000,
+        options: ErrorHandlingOptions = {}
+    ): Promise<T> {
+        let lastError: Error;
+        
+        for (let attempt = 0; attempt <= maxRetries; attempt++) {
+            try {
+                if (attempt > 0) {
+                    const delay = baseDelay * Math.pow(2, attempt - 1);
+                    debugLog(true, 'info', `[${context.component}] Retry attempt ${attempt}/${maxRetries} after ${delay}ms`);
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                }
+                
+                const result = await operation();
+                
+                if (attempt > 0) {
+                    // Record successful retry
+                    performanceMonitor.recordMetric('retry_success', 1, 'count', {
+                        context: context.component,
+                        attempt: attempt.toString()
+                    });
+                    if (options.showNotice !== false) {
+                        new Notice(`Operation succeeded after ${attempt} retries`, 2000);
+                    }
+                }
+                
+                return result;
+                
+            } catch (error) {
+                lastError = this.enhanceError(error, context);
+                
+                // Record retry attempt
+                performanceMonitor.recordMetric('retry_attempt', 1, 'count', {
+                    context: context.component,
+                    attempt: attempt.toString()
+                });
+                
+                debugLog(true, 'warn', `[${context.component}] Attempt ${attempt + 1}/${maxRetries + 1} failed:`, error);
+                
+                // Don't retry on certain types of errors
+                if (this.isNonRetryableError(lastError)) {
+                    debugLog(true, 'info', `[${context.component}] Non-retryable error, stopping retries`);
+                    break;
+                }
+            }
+        }
+        
+        // All retries failed
+        performanceMonitor.recordMetric('retry_exhausted', 1, 'count', { context: context.component });
+        this.handleError(lastError!, context, options);
+        throw lastError!;
+    }
+
+    /**
+     * Check if an error should not be retried
+     */
+    private isNonRetryableError(error: Error): boolean {
+        const nonRetryablePatterns = [
+            'invalid api key',
+            'unauthorized',
+            'forbidden',
+            'not found',
+            'bad request',
+            'invalid request',
+            'quota exceeded',
+            'billing'
+        ];
+        
+        const errorMessage = error.message.toLowerCase();
+        return nonRetryablePatterns.some(pattern => errorMessage.includes(pattern));
     }
 
     /**
@@ -253,12 +395,24 @@ export class ErrorHandler {
 
     private sanitizeErrorMessage(message: string): string {
         // Remove sensitive information and technical details
-        return message
-            .replace(/(api[_-]?key[s]?|key)\s*[:=]\s*([^\\s,;]+)/gi, 'API_KEY_HIDDEN')
-            .replace(/(token[s]?|auth|bearer)\s*[:=]\s*([^\\s,;]+)/gi, 'TOKEN_HIDDEN')
-            .replace(/(password[s]?|pass)\s*[:=]\s*([^\\s,;]+)/gi, 'PASSWORD_HIDDEN')
+        let sanitized = message
+            .replace(/(api[_-]?key[s]?|key)\s*[:=]\s*[^\\s,;]+/gi, 'API_KEY_HIDDEN')
+            .replace(/(token[s]?|auth|bearer)\s*[:=]\s*[^\\s,;]+/gi, 'TOKEN_HIDDEN')
+            .replace(/(password[s]?|pass)\s*[:=]\s*[^\\s,;]+/gi, 'PASSWORD_HIDDEN')
             .replace(/\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/g, 'IP_HIDDEN')
             .replace(/https?:\/\/[^\\s,;]+/g, 'URL_HIDDEN');
+
+        // Remove file paths (common in stack traces or error messages)
+        // Matches common path patterns for Windows and Unix-like systems
+        sanitized = sanitized.replace(/(?:[a-zA-Z]:)?(?:[\/\\](?:[\w\-. ]+))+[\/\\][\w\-. ]+\.\w+/g, 'FILE_PATH_HIDDEN');
+        sanitized = sanitized.replace(/at\s+[\w\-. ]+\s+\([^)]+\)/g, 'STACK_TRACE_HIDDEN'); // Basic stack trace line
+        sanitized = sanitized.replace(/at\s+[\w\-. ]+\s+<anonymous>/g, 'STACK_TRACE_HIDDEN'); // Anonymous functions in stack trace
+
+        // Remove common internal identifiers or sensitive data patterns
+        sanitized = sanitized.replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi, 'UUID_HIDDEN'); // UUIDs
+        sanitized = sanitized.replace(/\b\d{10,}\b/g, 'LARGE_NUMBER_HIDDEN'); // Large numbers that might be IDs or timestamps
+
+        return sanitized;
     }
 
     private cleanupOldErrors(): void {

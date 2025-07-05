@@ -16,6 +16,8 @@ import { registerYamlAttributeCommands } from './YAMLHandler';
 import { AIDispatcher } from './utils/aiDispatcher';
 import { MessageContextPool, PreAllocatedArrays } from './utils/objectPool';
 import { Priority3IntegrationManager } from './integration/priority3Integration';
+import { parseToolDataFromContent, cleanContentFromToolData } from './utils/messageContentParser';
+import { isVaultAdapterWithBasePath, validatePluginSettings } from './utils/typeGuards';
 
 /**
  * AI Assistant Plugin
@@ -117,18 +119,14 @@ export default class MyPlugin extends Plugin {
         const chatView = leaves[0].view as ChatView;
         chatView.clearMessages();
         
-        // Dynamically import the message renderer to avoid circular dependencies
-        const { MessageRenderer } = require('./components/chat/MessageRenderer');
-        const messageRenderer = new MessageRenderer(this.app);
-
         for (const msg of messages) {
             if (msg.role === 'user' || msg.role === 'assistant') {
                 // Parse tool data if present in the message content
-                const toolData = messageRenderer.parseToolDataFromContent(msg.content);
+                const toolData = parseToolDataFromContent(msg.content);
                 
                 if (toolData) {
                     // Clean the content to remove tool data markup
-                    const cleanContent = messageRenderer.cleanContentFromToolData(msg.content);
+                    const cleanContent = cleanContentFromToolData(msg.content);
                     // Add the message with tool data to the chat view
                     await chatView["addMessage"](msg.role, cleanContent, false, {
                         toolResults: toolData.toolResults,
@@ -166,6 +164,19 @@ export default class MyPlugin extends Plugin {
      */
     async onload() {
         await this.loadSettings();
+
+        // Safely get vault path with proper type checking
+        let vaultPath = '';
+        try {
+            const adapter = this.app.vault.adapter;
+            if (isVaultAdapterWithBasePath(adapter)) {
+                vaultPath = adapter.basePath;
+            } else {
+                debugLog(this.settings.debugMode ?? false, 'warn', '[main.ts] Vault adapter does not have basePath property');
+            }
+        } catch (error) {
+            debugLog(this.settings.debugMode ?? false, 'error', '[main.ts] Failed to get vault path:', error);
+        }
 
         // Compute the plugin data path for storing backups
         const pluginDataPath = this.app.vault.configDir + '/plugins/ai-assistant-for-obsidian';
@@ -240,10 +251,25 @@ export default class MyPlugin extends Plugin {
 
     /**
      * Loads plugin settings from data.
-     * Merges loaded data with default settings.
+     * Merges loaded data with default settings with runtime validation.
      */
     public async loadSettings() {
-        this.settings = Object.assign({}, DEFAULT_SETTINGS, await (this as Plugin).loadData());
+        try {
+            const loadedData = await (this as Plugin).loadData();
+            
+            // Validate loaded data before merging
+            if (loadedData !== null && loadedData !== undefined) {
+                const validatedData = validatePluginSettings(loadedData);
+                this.settings = Object.assign({}, DEFAULT_SETTINGS, validatedData);
+            } else {
+                this.settings = Object.assign({}, DEFAULT_SETTINGS);
+            }
+            
+            debugLog(this.settings.debugMode ?? false, 'info', '[main.ts] Settings loaded and validated successfully');
+        } catch (error) {
+            debugLog(true, 'error', '[main.ts] Failed to load settings, using defaults:', error);
+            this.settings = Object.assign({}, DEFAULT_SETTINGS);
+        }
     }
 
     /**

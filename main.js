@@ -216,7 +216,13 @@ var init_pathValidation = __esm({
       constructor(app) {
         this.app = app;
         __publicField(this, "vaultPath");
-        this.vaultPath = this.app.vault.adapter.basePath || "";
+        const adapter = this.app.vault.adapter;
+        if (adapter && typeof adapter.basePath === "string") {
+          this.vaultPath = adapter.basePath;
+        } else {
+          console.warn("Vault adapter basePath not found or not a string. Using empty string as fallback.");
+          this.vaultPath = "";
+        }
       }
       /**
        * Validates and normalizes a path to ensure it's within the vault.
@@ -328,15 +334,36 @@ var init_logger = __esm({
   }
 });
 
-// src/utils/typeguards.ts
-function isTFile(file) {
-  return !!file && typeof file === "object" && "path" in file && "basename" in file && "extension" in file && "stat" in file && typeof file.path === "string" && typeof file.basename === "string" && typeof file.extension === "string";
+// src/utils/typeGuards.ts
+function isValidProviderName(value) {
+  return typeof value === "string" && VALID_PROVIDER_NAMES.includes(value);
 }
-function isTFolder(file) {
-  return !!file && typeof file === "object" && "path" in file && "children" in file && Array.isArray(file.children) && typeof file.path === "string";
+function isPluginSettings(value) {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+  const obj = value;
+  return (obj.provider === void 0 || isValidProviderName(obj.provider)) && (obj.debugMode === void 0 || typeof obj.debugMode === "boolean") && (obj.selectedModel === void 0 || typeof obj.selectedModel === "string");
 }
-var init_typeguards = __esm({
-  "src/utils/typeguards.ts"() {
+function isVaultAdapterWithBasePath(value) {
+  return value !== null && typeof value === "object" && "basePath" in value && typeof value.basePath === "string";
+}
+function validatePluginSettings(value) {
+  if (!isPluginSettings(value)) {
+    throw new Error("Invalid plugin settings object");
+  }
+  return value;
+}
+function isTFile(value) {
+  return value !== null && typeof value === "object" && "stat" in value && "basename" in value && "extension" in value;
+}
+function isTFolder(value) {
+  return value !== null && typeof value === "object" && "children" in value && "isRoot" in value;
+}
+var VALID_PROVIDER_NAMES;
+var init_typeGuards = __esm({
+  "src/utils/typeGuards.ts"() {
+    VALID_PROVIDER_NAMES = ["openai", "anthropic", "gemini", "ollama"];
   }
 });
 
@@ -408,7 +435,7 @@ var init_fileUtils = __esm({
   "src/utils/fileUtils.ts"() {
     import_obsidian = require("obsidian");
     init_logger();
-    init_typeguards();
+    init_typeGuards();
   }
 });
 
@@ -514,7 +541,7 @@ var init_FileReadTool = __esm({
 var BackupManager;
 var init_BackupManager = __esm({
   "src/components/BackupManager.ts"() {
-    init_typeguards();
+    init_typeGuards();
     BackupManager = class {
       // Maximum number of backups to keep per file
       /**
@@ -2317,7 +2344,7 @@ var init_VaultTreeTool = __esm({
   "src/components/chat/agent/tools/VaultTreeTool.ts"() {
     import_obsidian6 = require("obsidian");
     init_pathValidation();
-    init_typeguards();
+    init_typeGuards();
     VaultTreeTool = class {
       constructor(app) {
         this.app = app;
@@ -2494,7 +2521,7 @@ var init_FileDeleteTool = __esm({
   "src/components/chat/agent/tools/FileDeleteTool.ts"() {
     init_BackupManager();
     init_pathValidation();
-    init_typeguards();
+    init_typeGuards();
     init_fileUtils();
     init_logger();
     FileDeleteTool = class {
@@ -4230,10 +4257,6 @@ ${details}
 });
 
 // src/components/chat/MessageRenderer.ts
-var MessageRenderer_exports = {};
-__export(MessageRenderer_exports, {
-  MessageRenderer: () => MessageRenderer
-});
 var import_obsidian10, MessageRenderer;
 var init_MessageRenderer = __esm({
   "src/components/chat/MessageRenderer.ts"() {
@@ -4624,33 +4647,6 @@ ${result.error}`;
           content += "\n```\n";
         }
         return content;
-      }
-      /**
-       * Parse tool data from saved content that contains ai-tool-execution blocks.
-       * @param content The message content string
-       * @returns Parsed tool data object or null
-       */
-      parseToolDataFromContent(content) {
-        const toolDataRegex = /```ai-tool-execution\n([\s\S]*?)\n```/g;
-        const match = toolDataRegex.exec(content);
-        if (match) {
-          try {
-            return JSON.parse(match[1]);
-          } catch (e) {
-            console.error("Failed to parse tool data:", e);
-          }
-        }
-        return null;
-      }
-      /**
-       * Remove tool data blocks from content to get clean content for display.
-       * @param content The message content string
-       * @returns Cleaned content string
-       */
-      cleanContentFromToolData(content) {
-        let cleanContent = content.replace(/```ai-tool-execution\n[\s\S]*?\n```\n?/g, "");
-        cleanContent = cleanContent.replace(/\n\n\*\*Tool Execution:\*\*[\s\S]*?(?=\n\n\*\*Tool Execution:\*\*|\n\n[^*]|$)/g, "");
-        return cleanContent.trim();
       }
     };
   }
@@ -12043,6 +12039,10 @@ var init_objectPool = __esm({
       constructor() {
         __publicField(this, "messagePool");
         __publicField(this, "arrayPool");
+        __publicField(this, "acquiredMessages", 0);
+        __publicField(this, "releasedMessages", 0);
+        __publicField(this, "acquiredArrays", 0);
+        __publicField(this, "releasedArrays", 0);
         this.messagePool = new ObjectPool(
           () => ({ role: "", content: "" }),
           (obj) => {
@@ -12064,20 +12064,42 @@ var init_objectPool = __esm({
         return _MessageContextPool.instance;
       }
       acquireMessage() {
+        this.acquiredMessages++;
         return this.messagePool.acquire();
       }
       releaseMessage(msg) {
+        this.releasedMessages++;
         this.messagePool.release(msg);
       }
       acquireArray() {
+        this.acquiredArrays++;
         return this.arrayPool.acquire();
       }
       releaseArray(arr) {
+        this.releasedArrays++;
         this.arrayPool.release(arr);
       }
       clear() {
         this.messagePool.clear();
         this.arrayPool.clear();
+        this.acquiredMessages = 0;
+        this.releasedMessages = 0;
+        this.acquiredArrays = 0;
+        this.releasedArrays = 0;
+      }
+      getStats() {
+        const messageSizeEstimate = 50;
+        const arraySizeEstimate = 24;
+        const messageSaved = (this.releasedMessages - this.messagePool.size()) * messageSizeEstimate;
+        const arraySaved = (this.releasedArrays - this.arrayPool.size()) * arraySizeEstimate;
+        return {
+          acquiredMessages: this.acquiredMessages,
+          releasedMessages: this.releasedMessages,
+          estimatedMessageMemorySaved: `${(messageSaved / 1024).toFixed(2)} KB`,
+          acquiredArrays: this.acquiredArrays,
+          releasedArrays: this.releasedArrays,
+          estimatedArrayMemorySaved: `${(arraySaved / 1024).toFixed(2)} KB`
+        };
       }
     };
     __publicField(_MessageContextPool, "instance");
@@ -12102,6 +12124,8 @@ var init_objectPool = __esm({
     _PreAllocatedArrays = class _PreAllocatedArrays {
       constructor() {
         __publicField(this, "arrays", /* @__PURE__ */ new Map());
+        __publicField(this, "acquiredArraysCount", /* @__PURE__ */ new Map());
+        __publicField(this, "releasedArraysCount", /* @__PURE__ */ new Map());
       }
       static getInstance() {
         if (!_PreAllocatedArrays.instance) {
@@ -12113,6 +12137,7 @@ var init_objectPool = __esm({
        * Get a pre-allocated array of specified size
        */
       getArray(size) {
+        this.acquiredArraysCount.set(size, (this.acquiredArraysCount.get(size) || 0) + 1);
         if (!this.arrays.has(size)) {
           this.arrays.set(size, []);
         }
@@ -12129,6 +12154,7 @@ var init_objectPool = __esm({
        */
       returnArray(arr) {
         const size = arr.length;
+        this.releasedArraysCount.set(size, (this.releasedArraysCount.get(size) || 0) + 1);
         if (!this.arrays.has(size)) {
           this.arrays.set(size, []);
         }
@@ -12143,6 +12169,32 @@ var init_objectPool = __esm({
        */
       clear() {
         this.arrays.clear();
+        this.acquiredArraysCount.clear();
+        this.releasedArraysCount.clear();
+      }
+      getStats() {
+        let totalAcquired = 0;
+        let totalReleased = 0;
+        let estimatedSavedBytes = 0;
+        const arraysBySize = [];
+        for (const [size, pool] of this.arrays.entries()) {
+          const acquired = this.acquiredArraysCount.get(size) || 0;
+          const released = this.releasedArraysCount.get(size) || 0;
+          const inPool = pool.length;
+          totalAcquired += acquired;
+          totalReleased += released;
+          const arrayOverhead = 24;
+          const elementSize = 8;
+          const savedForSize = (released - inPool) * (arrayOverhead + size * elementSize);
+          estimatedSavedBytes += savedForSize;
+          arraysBySize.push({ size, acquired, released, inPool });
+        }
+        return {
+          totalAcquired,
+          totalReleased,
+          estimatedMemorySaved: `${(estimatedSavedBytes / 1024).toFixed(2)} KB`,
+          arraysBySize: arraysBySize.sort((a, b) => a.size - b.size)
+        };
       }
     };
     __publicField(_PreAllocatedArrays, "instance");
@@ -12449,6 +12501,238 @@ var init_lruCache = __esm({
   }
 });
 
+// src/utils/performanceMonitor.ts
+var PerformanceMonitor, performanceMonitor;
+var init_performanceMonitor = __esm({
+  "src/utils/performanceMonitor.ts"() {
+    PerformanceMonitor = class {
+      constructor() {
+        __publicField(this, "metrics", []);
+        __publicField(this, "aggregatedMetrics", /* @__PURE__ */ new Map());
+        __publicField(this, "debugMode", false);
+        __publicField(this, "MAX_METRICS_HISTORY", 1e3);
+        __publicField(this, "CLEANUP_INTERVAL", 5 * 60 * 1e3);
+        // 5 minutes
+        __publicField(this, "cleanupTimer");
+        this.startCleanupTimer();
+      }
+      /**
+       * Set debug mode for detailed logging
+       */
+      setDebugMode(enabled) {
+        this.debugMode = enabled;
+      }
+      /**
+       * Record a performance metric
+       */
+      recordMetric(name, value, type2, tags) {
+        const metric = {
+          name,
+          value,
+          type: type2,
+          timestamp: Date.now(),
+          tags
+        };
+        this.metrics.push(metric);
+        if (!this.aggregatedMetrics.has(name)) {
+          this.aggregatedMetrics.set(name, []);
+        }
+        this.aggregatedMetrics.get(name).push(metric);
+        if (this.metrics.length > this.MAX_METRICS_HISTORY) {
+          this.cleanupOldMetrics();
+        }
+        if (this.debugMode) {
+          console.log(`[PerformanceMonitor] ${name}: ${value} ${type2}`, tags);
+        }
+      }
+      /**
+       * Get current performance metrics summary
+       */
+      getMetrics() {
+        const now = Date.now();
+        const oneMinuteAgo = now - 60 * 1e3;
+        const fiveMinutesAgo = now - 5 * 60 * 1e3;
+        const cacheHits = this.getMetricSum("cache_hits", fiveMinutesAgo);
+        const cacheMisses = this.getMetricSum("cache_misses", fiveMinutesAgo);
+        const cacheHitRate = cacheHits + cacheMisses > 0 ? cacheHits / (cacheHits + cacheMisses) * 100 : 0;
+        const responseTimes = this.getMetricValues("api_response_time", fiveMinutesAgo);
+        const averageResponseTime = responseTimes.length > 0 ? responseTimes.reduce((sum, time) => sum + time, 0) / responseTimes.length : 0;
+        const memoryMetrics = this.getMetricValues("memory_usage", fiveMinutesAgo);
+        const memoryUsage = memoryMetrics.length > 0 ? memoryMetrics[memoryMetrics.length - 1] : 0;
+        const totalRequests = this.getMetricSum("api_requests", fiveMinutesAgo);
+        const errors = this.getMetricSum("api_errors", fiveMinutesAgo);
+        const errorRate = totalRequests > 0 ? errors / totalRequests * 100 : 0;
+        const recentRequests = this.getMetricSum("api_requests", oneMinuteAgo);
+        const apiCallsPerMinute = recentRequests;
+        const streamingLatencies = this.getMetricValues("streaming_latency", fiveMinutesAgo);
+        const streamingLatency = streamingLatencies.length > 0 ? streamingLatencies.reduce((sum, latency) => sum + latency, 0) / streamingLatencies.length : 0;
+        const poolHits = this.getMetricSum("object_pool_hits", fiveMinutesAgo);
+        const poolMisses = this.getMetricSum("object_pool_misses", fiveMinutesAgo);
+        const objectPoolEfficiency = poolHits + poolMisses > 0 ? poolHits / (poolHits + poolMisses) * 100 : 0;
+        return {
+          cacheHitRate,
+          averageResponseTime,
+          memoryUsage,
+          totalRequests,
+          errorRate,
+          apiCallsPerMinute,
+          streamingLatency,
+          objectPoolEfficiency
+        };
+      }
+      /**
+       * Get metric values for a specific metric name since a timestamp
+       */
+      getMetricValues(name, since) {
+        const metrics = this.aggregatedMetrics.get(name) || [];
+        return metrics.filter((metric) => metric.timestamp >= since).map((metric) => metric.value);
+      }
+      /**
+       * Get sum of metric values for a specific metric name since a timestamp
+       */
+      getMetricSum(name, since) {
+        const values = this.getMetricValues(name, since);
+        return values.reduce((sum, value) => sum + value, 0);
+      }
+      /**
+       * Log current performance metrics to console
+       */
+      logMetrics() {
+        const metrics = this.getMetrics();
+        console.group("\u{1F680} Performance Metrics");
+        console.log(`Cache Hit Rate: ${metrics.cacheHitRate.toFixed(2)}%`);
+        console.log(`Average Response Time: ${metrics.averageResponseTime.toFixed(2)}ms`);
+        console.log(`Memory Usage: ${(metrics.memoryUsage / 1024 / 1024).toFixed(2)}MB`);
+        console.log(`Total Requests (5min): ${metrics.totalRequests}`);
+        console.log(`Error Rate: ${metrics.errorRate.toFixed(2)}%`);
+        console.log(`API Calls/min: ${metrics.apiCallsPerMinute}`);
+        console.log(`Streaming Latency: ${metrics.streamingLatency.toFixed(2)}ms`);
+        console.log(`Object Pool Efficiency: ${metrics.objectPoolEfficiency.toFixed(2)}%`);
+        console.groupEnd();
+      }
+      /**
+       * Clear all metrics
+       */
+      clearMetrics() {
+        this.metrics = [];
+        this.aggregatedMetrics.clear();
+        if (this.debugMode) {
+          console.log("[PerformanceMonitor] All metrics cleared");
+        }
+      }
+      /**
+       * Start a performance timer
+       */
+      startTimer(name) {
+        const startTime = performance.now();
+        return () => {
+          const duration = performance.now() - startTime;
+          this.recordMetric(name, duration, "time");
+        };
+      }
+      /**
+       * Measure memory usage
+       */
+      measureMemory() {
+        if (typeof performance !== "undefined" && "memory" in performance) {
+          const memory = performance.memory;
+          this.recordMetric("memory_usage", memory.usedJSHeapSize, "size");
+          this.recordMetric("memory_total", memory.totalJSHeapSize, "size");
+          this.recordMetric("memory_limit", memory.jsHeapSizeLimit, "size");
+        }
+      }
+      /**
+       * Record API request metrics
+       */
+      recordAPIRequest(success, responseTime, provider) {
+        this.recordMetric("api_requests", 1, "count", { provider });
+        this.recordMetric("api_response_time", responseTime, "time", { provider });
+        if (success) {
+          this.recordMetric("api_success", 1, "count", { provider });
+        } else {
+          this.recordMetric("api_errors", 1, "count", { provider });
+        }
+      }
+      /**
+       * Record cache metrics
+       */
+      recordCacheMetrics(hits, misses) {
+        this.recordMetric("cache_hits", hits, "count");
+        this.recordMetric("cache_misses", misses, "count");
+      }
+      /**
+       * Record object pool metrics
+       */
+      recordObjectPoolMetrics(hits, misses) {
+        this.recordMetric("object_pool_hits", hits, "count");
+        this.recordMetric("object_pool_misses", misses, "count");
+      }
+      /**
+       * Record streaming metrics
+       */
+      recordStreamingMetrics(latency, chunkSize) {
+        this.recordMetric("streaming_latency", latency, "time");
+        this.recordMetric("streaming_chunk_size", chunkSize, "size");
+      }
+      /**
+       * Get performance report as string
+       */
+      getPerformanceReport() {
+        const metrics = this.getMetrics();
+        return `
+Performance Report:
+==================
+Cache Hit Rate: ${metrics.cacheHitRate.toFixed(2)}%
+Average Response Time: ${metrics.averageResponseTime.toFixed(2)}ms
+Memory Usage: ${(metrics.memoryUsage / 1024 / 1024).toFixed(2)}MB
+Total Requests (5min): ${metrics.totalRequests}
+Error Rate: ${metrics.errorRate.toFixed(2)}%
+API Calls/min: ${metrics.apiCallsPerMinute}
+Streaming Latency: ${metrics.streamingLatency.toFixed(2)}ms
+Object Pool Efficiency: ${metrics.objectPoolEfficiency.toFixed(2)}%
+        `.trim();
+      }
+      /**
+       * Start cleanup timer for old metrics
+       */
+      startCleanupTimer() {
+        this.cleanupTimer = setInterval(() => {
+          this.cleanupOldMetrics();
+        }, this.CLEANUP_INTERVAL);
+      }
+      /**
+       * Clean up old metrics to prevent memory leaks
+       */
+      cleanupOldMetrics() {
+        const cutoffTime = Date.now() - 10 * 60 * 1e3;
+        this.metrics = this.metrics.filter((metric) => metric.timestamp >= cutoffTime);
+        for (const [name, metrics] of this.aggregatedMetrics.entries()) {
+          const filteredMetrics = metrics.filter((metric) => metric.timestamp >= cutoffTime);
+          if (filteredMetrics.length === 0) {
+            this.aggregatedMetrics.delete(name);
+          } else {
+            this.aggregatedMetrics.set(name, filteredMetrics);
+          }
+        }
+        if (this.debugMode) {
+          console.log(`[PerformanceMonitor] Cleaned up old metrics. Current count: ${this.metrics.length}`);
+        }
+      }
+      /**
+       * Dispose of the performance monitor
+       */
+      dispose() {
+        if (this.cleanupTimer) {
+          clearInterval(this.cleanupTimer);
+          this.cleanupTimer = void 0;
+        }
+        this.clearMetrics();
+      }
+    };
+    performanceMonitor = new PerformanceMonitor();
+  }
+});
+
 // src/utils/errorHandler.ts
 function handleChatError(error, operation, metadata) {
   errorHandler.handleError(error, {
@@ -12475,10 +12759,13 @@ var init_errorHandler = __esm({
   "src/utils/errorHandler.ts"() {
     import_obsidian14 = require("obsidian");
     init_logger();
+    init_performanceMonitor();
+    init_typeGuards();
     _ErrorHandler = class _ErrorHandler {
       constructor() {
         __publicField(this, "errorCounts", /* @__PURE__ */ new Map());
         __publicField(this, "lastErrors", /* @__PURE__ */ new Map());
+        // Changed to array of timestamps
         __publicField(this, "MAX_ERROR_COUNT", 5);
         __publicField(this, "ERROR_RESET_TIME", 5 * 60 * 1e3);
       }
@@ -12553,13 +12840,111 @@ var init_errorHandler = __esm({
         };
       }
       /**
+       * Handle errors with automatic fallback provider selection
+       */
+      async handleWithFallback(error, context, currentProvider, availableProviders, retryFunction, options = {}) {
+        const errorMessage = this.extractErrorMessage(error);
+        performanceMonitor.recordMetric("provider_error", 1, "count", {
+          provider: currentProvider,
+          context: context.component
+        });
+        debugLog(true, "error", `[${context.component}] Provider ${currentProvider} failed: ${errorMessage}`);
+        if (retryFunction && availableProviders.length > 0) {
+          for (const fallbackProvider of availableProviders) {
+            if (fallbackProvider !== currentProvider && isValidProviderName(fallbackProvider)) {
+              try {
+                debugLog(true, "info", `[${context.component}] Attempting fallback to provider: ${fallbackProvider}`);
+                const result = await retryFunction(fallbackProvider);
+                performanceMonitor.recordMetric("fallback_success", 1, "count", {
+                  originalProvider: currentProvider,
+                  fallbackProvider
+                });
+                new import_obsidian14.Notice(`Switched to ${fallbackProvider} due to ${currentProvider} error`, 3e3);
+                return { success: true, result, fallbackProvider };
+              } catch (fallbackError) {
+                debugLog(true, "warn", `[${context.component}] Fallback provider ${fallbackProvider} also failed:`, fallbackError);
+                performanceMonitor.recordMetric("fallback_failed", 1, "count", {
+                  provider: fallbackProvider
+                });
+              }
+            }
+          }
+        }
+        const displayMessage = `All AI providers failed. Please check your configuration.`;
+        if (options.showNotice !== false) {
+          new import_obsidian14.Notice(displayMessage, 5e3);
+        }
+        return {
+          success: false,
+          message: errorMessage,
+          userMessage: displayMessage
+        };
+      }
+      /**
+       * Handle errors with exponential backoff retry
+       */
+      async handleWithRetry(operation, context, maxRetries = 3, baseDelay = 1e3, options = {}) {
+        let lastError;
+        for (let attempt = 0; attempt <= maxRetries; attempt++) {
+          try {
+            if (attempt > 0) {
+              const delay = baseDelay * Math.pow(2, attempt - 1);
+              debugLog(true, "info", `[${context.component}] Retry attempt ${attempt}/${maxRetries} after ${delay}ms`);
+              await new Promise((resolve) => setTimeout(resolve, delay));
+            }
+            const result = await operation();
+            if (attempt > 0) {
+              performanceMonitor.recordMetric("retry_success", 1, "count", {
+                context: context.component,
+                attempt: attempt.toString()
+              });
+              if (options.showNotice !== false) {
+                new import_obsidian14.Notice(`Operation succeeded after ${attempt} retries`, 2e3);
+              }
+            }
+            return result;
+          } catch (error) {
+            lastError = this.enhanceError(error, context);
+            performanceMonitor.recordMetric("retry_attempt", 1, "count", {
+              context: context.component,
+              attempt: attempt.toString()
+            });
+            debugLog(true, "warn", `[${context.component}] Attempt ${attempt + 1}/${maxRetries + 1} failed:`, error);
+            if (this.isNonRetryableError(lastError)) {
+              debugLog(true, "info", `[${context.component}] Non-retryable error, stopping retries`);
+              break;
+            }
+          }
+        }
+        performanceMonitor.recordMetric("retry_exhausted", 1, "count", { context: context.component });
+        this.handleError(lastError, context, options);
+        throw lastError;
+      }
+      /**
+       * Check if an error should not be retried
+       */
+      isNonRetryableError(error) {
+        const nonRetryablePatterns = [
+          "invalid api key",
+          "unauthorized",
+          "forbidden",
+          "not found",
+          "bad request",
+          "invalid request",
+          "quota exceeded",
+          "billing"
+        ];
+        const errorMessage = error.message.toLowerCase();
+        return nonRetryablePatterns.some((pattern) => errorMessage.includes(pattern));
+      }
+      /**
        * Check if an error is retryable based on its type
        */
       isRetryableError(error) {
         const errorMessage = this.extractErrorMessage(error);
         const retryablePatterns = [
           /network/i,
-          /timeout/i,
+          /timed out|timeout/i,
           /rate.?limit/i,
           /temporary/i,
           /unavailable/i,
@@ -12578,11 +12963,12 @@ var init_errorHandler = __esm({
       getErrorStats() {
         const stats = {};
         for (const [key, count] of this.errorCounts.entries()) {
-          const lastError = this.lastErrors.get(key);
+          const errorInfo = this.lastErrors.get(key);
           stats[key] = {
             count,
-            lastError: (lastError == null ? void 0 : lastError.error.message) || "Unknown",
-            lastTimestamp: (lastError == null ? void 0 : lastError.timestamp) || 0
+            lastError: (errorInfo == null ? void 0 : errorInfo.error.message) || "Unknown",
+            lastTimestamp: (errorInfo == null ? void 0 : errorInfo.timestamps[errorInfo.timestamps.length - 1]) || 0
+            // Get the latest timestamp
           };
         }
         return stats;
@@ -12619,10 +13005,17 @@ var init_errorHandler = __esm({
       trackError(errorKey, error) {
         const currentCount = this.errorCounts.get(errorKey) || 0;
         this.errorCounts.set(errorKey, currentCount + 1);
-        this.lastErrors.set(errorKey, {
-          error,
-          timestamp: Date.now()
-        });
+        const currentTimestamp = Date.now();
+        const existingEntry = this.lastErrors.get(errorKey);
+        if (existingEntry) {
+          existingEntry.timestamps.push(currentTimestamp);
+          existingEntry.error = error;
+        } else {
+          this.lastErrors.set(errorKey, {
+            error,
+            timestamps: [currentTimestamp]
+          });
+        }
         this.cleanupOldErrors();
       }
       shouldShowNotice(errorKey) {
@@ -12630,24 +13023,36 @@ var init_errorHandler = __esm({
         if (count > this.MAX_ERROR_COUNT) {
           return false;
         }
-        return count <= 3;
+        return count <= this.MAX_ERROR_COUNT;
       }
       formatUserMessage(errorMessage, context, fallbackMessage) {
-        const sanitizedMessage = this.sanitizeErrorMessage(errorMessage);
+        let sanitizedMessage = this.sanitizeErrorMessage(errorMessage);
+        sanitizedMessage = sanitizedMessage.replace(/\s+/g, " ").trim();
         if (sanitizedMessage.length > 100) {
           return `${context.component}: ${fallbackMessage}`;
         }
         return `${context.component}: ${sanitizedMessage}`;
       }
       sanitizeErrorMessage(message) {
-        return message.replace(/api[_-]?key[s]?[:\s=]+[^\s]+/gi, "API_KEY_HIDDEN").replace(/token[s]?[:\s=]+[^\s]+/gi, "TOKEN_HIDDEN").replace(/password[s]?[:\s=]+[^\s]+/gi, "PASSWORD_HIDDEN").replace(/\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/g, "IP_HIDDEN").replace(/https?:\/\/[^\s]+/g, "URL_HIDDEN");
+        let sanitized = message.replace(/(api[_-]?key[s]?|key)\s*[:=]\s*[^\\s,;]+/gi, "API_KEY_HIDDEN").replace(/(token[s]?|auth|bearer)\s*[:=]\s*[^\\s,;]+/gi, "TOKEN_HIDDEN").replace(/(password[s]?|pass)\s*[:=]\s*[^\\s,;]+/gi, "PASSWORD_HIDDEN").replace(/\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/g, "IP_HIDDEN").replace(/https?:\/\/[^\\s,;]+/g, "URL_HIDDEN");
+        sanitized = sanitized.replace(/(?:[a-zA-Z]:)?(?:[\/\\](?:[\w\-. ]+))+[\/\\][\w\-. ]+\.\w+/g, "FILE_PATH_HIDDEN");
+        sanitized = sanitized.replace(/at\s+[\w\-. ]+\s+\([^)]+\)/g, "STACK_TRACE_HIDDEN");
+        sanitized = sanitized.replace(/at\s+[\w\-. ]+\s+<anonymous>/g, "STACK_TRACE_HIDDEN");
+        sanitized = sanitized.replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi, "UUID_HIDDEN");
+        sanitized = sanitized.replace(/\b\d{10,}\b/g, "LARGE_NUMBER_HIDDEN");
+        return sanitized;
       }
       cleanupOldErrors() {
         const now = Date.now();
         for (const [key, errorInfo] of this.lastErrors.entries()) {
-          if (now - errorInfo.timestamp > this.ERROR_RESET_TIME) {
+          errorInfo.timestamps = errorInfo.timestamps.filter(
+            (timestamp2) => now - timestamp2 <= this.ERROR_RESET_TIME
+          );
+          if (errorInfo.timestamps.length === 0) {
             this.errorCounts.delete(key);
             this.lastErrors.delete(key);
+          } else {
+            this.errorCounts.set(key, errorInfo.timestamps.length);
           }
         }
       }
@@ -12968,6 +13373,54 @@ var init_asyncOptimizer = __esm({
   }
 });
 
+// src/utils/validationUtils.ts
+function isValidOpenAIApiKey(key) {
+  if (typeof key !== "string") return false;
+  if (key.length < MIN_API_KEY_LENGTH || key.length > MAX_API_KEY_LENGTH) return false;
+  return key.startsWith("sk-") && key.length >= 40;
+}
+function isValidAnthropicApiKey(key) {
+  if (typeof key !== "string") return false;
+  if (key.length < MIN_API_KEY_LENGTH || key.length > MAX_API_KEY_LENGTH) return false;
+  return key.startsWith("sk-ant-") && key.length >= 40;
+}
+function isValidGoogleApiKey(key) {
+  if (typeof key !== "string") return false;
+  if (key.length < MIN_API_KEY_LENGTH || key.length > MAX_API_KEY_LENGTH) return false;
+  return key.length >= 30 && /^[a-zA-Z0-9_-]+$/.test(key);
+}
+function isValidUrl(url) {
+  if (typeof url !== "string") return false;
+  if (url.length > 2048) return false;
+  try {
+    const parsedUrl = new URL(url);
+    return ["http:", "https:"].includes(parsedUrl.protocol);
+  } catch (e) {
+    return false;
+  }
+}
+function sanitizeInput(input) {
+  if (typeof input !== "string") return "";
+  return input.replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/'/g, "&#039;").replace(/\x00/g, "").trim();
+}
+function validateContentLength(content, maxLength = MAX_INPUT_LENGTH) {
+  if (typeof content !== "string") {
+    throw new Error("Content must be a string");
+  }
+  if (content.length > maxLength) {
+    throw new Error(`Content too long. Maximum length is ${maxLength} characters`);
+  }
+  return content;
+}
+var MAX_INPUT_LENGTH, MAX_API_KEY_LENGTH, MIN_API_KEY_LENGTH;
+var init_validationUtils = __esm({
+  "src/utils/validationUtils.ts"() {
+    MAX_INPUT_LENGTH = 5e4;
+    MAX_API_KEY_LENGTH = 200;
+    MIN_API_KEY_LENGTH = 20;
+  }
+});
+
 // src/utils/aiDispatcher.ts
 var aiDispatcher_exports = {};
 __export(aiDispatcher_exports, {
@@ -12983,6 +13436,9 @@ var init_aiDispatcher = __esm({
     init_lruCache();
     init_errorHandler();
     init_asyncOptimizer();
+    init_performanceMonitor();
+    init_typeGuards();
+    init_validationUtils();
     AIDispatcher = class {
       // Maximum cache entries
       constructor(vault, plugin) {
@@ -13000,7 +13456,10 @@ var init_aiDispatcher = __esm({
           totalCost: 0,
           averageResponseTime: 0,
           requestsByProvider: {},
-          errorsByProvider: {}
+          errorsByProvider: {},
+          cacheHits: 0,
+          cacheMisses: 0,
+          deduplicatedRequests: 0
         });
         __publicField(this, "circuitBreakers", /* @__PURE__ */ new Map());
         __publicField(this, "requestQueue", []);
@@ -13027,6 +13486,8 @@ var init_aiDispatcher = __esm({
         // 1 minute
         __publicField(this, "MAX_QUEUE_SIZE", 100);
         __publicField(this, "CACHE_MAX_SIZE", 200);
+        var _a2;
+        performanceMonitor.setDebugMode((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false);
         ["openai", "anthropic", "gemini", "ollama"].forEach((provider) => {
           this.circuitBreakers.set(provider, {
             isOpen: false,
@@ -13096,18 +13557,27 @@ var init_aiDispatcher = __esm({
        * @returns Promise that resolves when the completion is finished
        */
       async getCompletion(messages, options, providerOverride, priority = 0) {
-        var _a2;
+        var _a2, _b, _c;
         this.validateRequest(messages, options);
         const cacheKey = this.generateCacheKey(messages, options, providerOverride);
         const existingRequest = this.pendingRequests.get(cacheKey);
         if (existingRequest) {
+          this.metrics.deduplicatedRequests++;
+          performanceMonitor.recordMetric("deduplicated_requests", 1, "count");
           debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", "[AIDispatcher] Deduplicating request", { key: cacheKey });
           return existingRequest;
         }
         const cachedResponse = this.cache.get(cacheKey);
         if (cachedResponse && options.streamCallback) {
+          this.metrics.cacheHits++;
+          performanceMonitor.recordMetric("cache_hits", 1, "count");
+          debugLog((_b = this.plugin.settings.debugMode) != null ? _b : false, "info", "[AIDispatcher] Cache hit", { key: cacheKey });
           options.streamCallback(cachedResponse);
           return;
+        } else {
+          this.metrics.cacheMisses++;
+          performanceMonitor.recordMetric("cache_misses", 1, "count");
+          debugLog((_c = this.plugin.settings.debugMode) != null ? _c : false, "info", "[AIDispatcher] Cache miss", { key: cacheKey });
         }
         const providerName = this.determineProvider(providerOverride);
         if (this.isCircuitBreakerOpen(providerName)) {
@@ -13124,34 +13594,83 @@ var init_aiDispatcher = __esm({
         return requestPromise;
       }
       /**
-       * Validates request format and content.
+       * Validates request format and content with enhanced security using comprehensive type guards.
        */
       validateRequest(messages, options) {
-        if (!messages || messages.length === 0) {
-          throw new Error("Messages array cannot be empty");
+        var _a2;
+        const MAX_TOTAL_MESSAGE_LENGTH = 5e4;
+        if (!Array.isArray(messages) || messages.length === 0) {
+          throw new Error("Messages array is required and cannot be empty");
         }
-        for (const message of messages) {
-          if (!message.role || !message.content) {
-            throw new Error("Each message must have role and content");
+        let totalMessageLength = 0;
+        for (let i = 0; i < messages.length; i++) {
+          const message = messages[i];
+          if (!message || typeof message !== "object") {
+            throw new Error(`Invalid message at index ${i}: Message must be an object`);
+          }
+          if (!message.role || typeof message.role !== "string") {
+            throw new Error(`Invalid message at index ${i}: Message role is required and must be a string`);
+          }
+          if (!message.content || typeof message.content !== "string") {
+            throw new Error(`Invalid message at index ${i}: Message content is required and must be a string`);
           }
           if (!["system", "user", "assistant"].includes(message.role)) {
-            throw new Error(`Invalid message role: ${message.role}`);
+            throw new Error(`Invalid message role at index ${i}: ${message.role}. Must be 'system', 'user', or 'assistant'`);
+          }
+          try {
+            validateContentLength(message.content, 1e4);
+            totalMessageLength += message.content.length;
+          } catch (error) {
+            throw new Error(`Message content validation failed at index ${i}: ${error instanceof Error ? error.message : "Unknown error"}`);
           }
         }
-        if (options.temperature !== void 0 && (options.temperature < 0 || options.temperature > 2)) {
-          throw new Error("Temperature must be between 0 and 2");
+        if (totalMessageLength > MAX_TOTAL_MESSAGE_LENGTH) {
+          throw new Error(`Total message content length (${totalMessageLength}) exceeds limit of ${MAX_TOTAL_MESSAGE_LENGTH} characters`);
         }
-        if (options.maxTokens !== void 0 && options.maxTokens <= 0) {
-          throw new Error("Max tokens must be positive");
+        if (options.temperature !== void 0) {
+          if (typeof options.temperature !== "number" || isNaN(options.temperature)) {
+            throw new Error("Temperature must be a valid number");
+          }
+          if (options.temperature < 0 || options.temperature > 2) {
+            throw new Error("Temperature must be between 0 and 2");
+          }
+        }
+        if (options.maxTokens !== void 0) {
+          if (typeof options.maxTokens !== "number" || isNaN(options.maxTokens)) {
+            throw new Error("Max tokens must be a valid number");
+          }
+          if (options.maxTokens <= 0 || options.maxTokens > 1e5) {
+            throw new Error("Max tokens must be between 1 and 100000");
+          }
+        }
+        if (options.streamCallback !== void 0 && typeof options.streamCallback !== "function") {
+          throw new Error("Stream callback must be a function");
         }
         this.sanitizeMessages(messages);
+        debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "debug", "[AIDispatcher] Request validation completed successfully", {
+          messageCount: messages.length,
+          totalLength: totalMessageLength
+        });
       }
       /**
-       * Sanitizes message content for safety.
+       * Sanitizes message content for safety using enhanced validation.
        */
       sanitizeMessages(messages) {
+        var _a2, _b;
+        const MAX_MESSAGE_LENGTH = 1e4;
         for (const message of messages) {
-          message.content = message.content.trim();
+          try {
+            message.content = validateContentLength(message.content, MAX_MESSAGE_LENGTH);
+            message.content = sanitizeInput(message.content);
+            debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "debug", "[AIDispatcher] Message content sanitized successfully");
+          } catch (error) {
+            debugLog((_b = this.plugin.settings.debugMode) != null ? _b : false, "warn", "[AIDispatcher] Message content sanitization failed:", error);
+            message.content = message.content.trim();
+            if (message.content.length > MAX_MESSAGE_LENGTH) {
+              message.content = message.content.substring(0, MAX_MESSAGE_LENGTH);
+            }
+            message.content = message.content.replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+          }
         }
       }
       /**
@@ -13385,6 +13904,9 @@ var init_aiDispatcher = __esm({
           if (this.plugin.settings.selectedModel) {
             provider = createProviderFromUnifiedModel(this.plugin.settings, this.plugin.settings.selectedModel);
           } else {
+            if (!isValidProviderName(providerName)) {
+              throw new Error(`Invalid provider name: ${providerName}`);
+            }
             const tempSettings = { ...this.plugin.settings, provider: providerName };
             provider = createProvider(tempSettings);
           }
@@ -13414,6 +13936,8 @@ var init_aiDispatcher = __esm({
           this.activeStreams.delete(streamId);
           this.recordSuccess(providerName);
           this.updateMetrics(providerName, true, Date.now() - startTime, fullResponse.length);
+          performanceMonitor.recordMetric("api_response_time", Date.now() - startTime, "time");
+          performanceMonitor.recordMetric("api_response_size", fullResponse.length, "size");
           this.setCache(cacheKey, fullResponse);
           const responseData = {
             content: fullResponse,
@@ -13517,7 +14041,10 @@ var init_aiDispatcher = __esm({
           totalCost: 0,
           averageResponseTime: 0,
           requestsByProvider: {},
-          errorsByProvider: {}
+          errorsByProvider: {},
+          cacheHits: 0,
+          cacheMisses: 0,
+          deduplicatedRequests: 0
         };
       }
       /**
@@ -13528,7 +14055,14 @@ var init_aiDispatcher = __esm({
         this.cache.clear();
         this.modelCache.clear();
         this.providerCache.clear();
+        performanceMonitor.clearMetrics();
         debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", "[AIDispatcher] All caches cleared");
+      }
+      /**
+       * Logs current performance metrics.
+       */
+      logPerformanceMetrics() {
+        performanceMonitor.logMetrics();
       }
       /**
        * Aborts all active streams.
@@ -16602,8 +17136,26 @@ function createChatUI(app, contentEl) {
 init_eventHandlers();
 init_chatPersistence();
 
+// src/utils/messageContentParser.ts
+function parseToolDataFromContent(content) {
+  const toolDataRegex = /```ai-tool-execution\n([\s\S]*?)\n```/g;
+  const match = toolDataRegex.exec(content);
+  if (match) {
+    try {
+      return JSON.parse(match[1]);
+    } catch (e) {
+      console.error("Failed to parse tool data:", e);
+    }
+  }
+  return null;
+}
+function cleanContentFromToolData(content) {
+  let cleanContent = content.replace(/```ai-tool-execution\n[\s\S]*?\n```\n?/g, "");
+  cleanContent = cleanContent.replace(/\n\n\*\*Tool Execution:\*\*[\s\S]*?(?=\n\n\*\*Tool Execution:\*\*|\n\n[^*]|$)/g, "");
+  return cleanContent.trim();
+}
+
 // src/components/chat/chatHistoryUtils.ts
-init_MessageRenderer();
 async function renderChatHistory({
   messagesContainer,
   loadedHistory,
@@ -16613,10 +17165,9 @@ async function renderChatHistory({
   scrollToBottom = true
 }) {
   messagesContainer.empty();
-  const renderer = new MessageRenderer(plugin.app);
   for (const msg of loadedHistory) {
     if (msg.sender === "user" || msg.sender === "assistant") {
-      const toolData = renderer.parseToolDataFromContent(msg.content);
+      const toolData = parseToolDataFromContent(msg.content);
       let messageData = msg;
       let cleanContent = msg.content;
       if (toolData) {
@@ -16626,7 +17177,7 @@ async function renderChatHistory({
           reasoning: toolData.reasoning,
           taskStatus: toolData.taskStatus
         };
-        cleanContent = renderer.cleanContentFromToolData(msg.content);
+        cleanContent = cleanContentFromToolData(msg.content);
         messageData.content = cleanContent;
       }
       const messageEl = await createMessageElement(
@@ -18212,7 +18763,7 @@ function extractContentUnderHeader(content, headerText) {
 }
 
 // src/utils/noteUtils.ts
-init_typeguards();
+init_typeGuards();
 async function processObsidianLinks(content, app, settings, visitedNotes = /* @__PURE__ */ new Set(), currentDepth = 0) {
   var _a2;
   if (!settings.enableObsidianLinks) return content;
@@ -20197,6 +20748,7 @@ var GeneralSettingsSection = class {
 // src/settings/sections/AIModelConfigurationSection.ts
 var import_obsidian28 = require("obsidian");
 init_aiDispatcher();
+init_validationUtils();
 var AIModelConfigurationSection = class {
   /**
    * @param plugin The main plugin instance.
@@ -20225,6 +20777,10 @@ var AIModelConfigurationSection = class {
           "Enter your API key",
           () => this.plugin.settings.openaiSettings.apiKey,
           async (value) => {
+            if (value && !isValidOpenAIApiKey(value)) {
+              new import_obsidian28.Notice("Invalid OpenAI API Key format. Please check your key.");
+              return;
+            }
             this.plugin.settings.openaiSettings.apiKey = value != null ? value : "";
             await this.plugin.saveSettings();
           }
@@ -20257,6 +20813,10 @@ var AIModelConfigurationSection = class {
           "Enter your API key",
           () => this.plugin.settings.anthropicSettings.apiKey,
           async (value) => {
+            if (value && !isValidAnthropicApiKey(value)) {
+              new import_obsidian28.Notice("Invalid Anthropic API Key format. Please check your key.");
+              return;
+            }
             this.plugin.settings.anthropicSettings.apiKey = value != null ? value : "";
             await this.plugin.saveSettings();
           }
@@ -20277,6 +20837,10 @@ var AIModelConfigurationSection = class {
           "Enter your API key",
           () => this.plugin.settings.geminiSettings.apiKey,
           async (value) => {
+            if (value && !isValidGoogleApiKey(value)) {
+              new import_obsidian28.Notice("Invalid Google API Key format. Please check your key.");
+              return;
+            }
             this.plugin.settings.geminiSettings.apiKey = value != null ? value : "";
             await this.plugin.saveSettings();
           }
@@ -20297,6 +20861,10 @@ var AIModelConfigurationSection = class {
           "http://localhost:11434",
           () => this.plugin.settings.ollamaSettings.serverUrl,
           async (value) => {
+            if (value && !isValidUrl(value)) {
+              new import_obsidian28.Notice("Invalid Ollama Server URL format. Please enter a valid URL.");
+              return;
+            }
             this.plugin.settings.ollamaSettings.serverUrl = value != null ? value : "";
             await this.plugin.saveSettings();
           }
@@ -21159,7 +21727,7 @@ var DialogHelpers = class {
 };
 
 // src/settings/sections/BackupManagementSection.ts
-init_typeguards();
+init_typeGuards();
 var BackupManagementSection = class {
   constructor(plugin, settingCreators) {
     __publicField(this, "plugin");
@@ -22630,6 +23198,7 @@ var Priority3IntegrationManager = class {
 };
 
 // src/main.ts
+init_typeGuards();
 var _MyPlugin = class _MyPlugin extends import_obsidian35.Plugin {
   constructor() {
     super(...arguments);
@@ -22711,13 +23280,11 @@ var _MyPlugin = class _MyPlugin extends import_obsidian35.Plugin {
     }
     const chatView = leaves[0].view;
     chatView.clearMessages();
-    const { MessageRenderer: MessageRenderer2 } = (init_MessageRenderer(), __toCommonJS(MessageRenderer_exports));
-    const messageRenderer = new MessageRenderer2(this.app);
     for (const msg of messages) {
       if (msg.role === "user" || msg.role === "assistant") {
-        const toolData = messageRenderer.parseToolDataFromContent(msg.content);
+        const toolData = parseToolDataFromContent(msg.content);
         if (toolData) {
-          const cleanContent = messageRenderer.cleanContentFromToolData(msg.content);
+          const cleanContent = cleanContentFromToolData(msg.content);
           await chatView["addMessage"](msg.role, cleanContent, false, {
             toolResults: toolData.toolResults,
             reasoning: toolData.reasoning,
@@ -22750,8 +23317,19 @@ var _MyPlugin = class _MyPlugin extends import_obsidian35.Plugin {
    * Handles initialization, settings, view registration, and command registration.
    */
   async onload() {
-    var _a2, _b;
+    var _a2, _b, _c, _d;
     await this.loadSettings();
+    let vaultPath = "";
+    try {
+      const adapter = this.app.vault.adapter;
+      if (isVaultAdapterWithBasePath(adapter)) {
+        vaultPath = adapter.basePath;
+      } else {
+        debugLog((_a2 = this.settings.debugMode) != null ? _a2 : false, "warn", "[main.ts] Vault adapter does not have basePath property");
+      }
+    } catch (error) {
+      debugLog((_b = this.settings.debugMode) != null ? _b : false, "error", "[main.ts] Failed to get vault path:", error);
+    }
     const pluginDataPath = this.app.vault.configDir + "/plugins/ai-assistant-for-obsidian";
     this.backupManager = new BackupManager(this.app, pluginDataPath);
     await this.backupManager.initialize();
@@ -22768,7 +23346,7 @@ var _MyPlugin = class _MyPlugin extends import_obsidian35.Plugin {
     this.aiDispatcher = new AIDispatcher(this.app.vault, this);
     this.priority3Manager = new Priority3IntegrationManager(this);
     await this.priority3Manager.initialize();
-    debugLog((_a2 = this.settings.debugMode) != null ? _a2 : false, "info", "Priority 3 optimizations initialized");
+    debugLog((_c = this.settings.debugMode) != null ? _c : false, "info", "Priority 3 optimizations initialized");
     this.addSettingTab(new MyPluginSettingTab(this.app, this));
     this.registerPluginView(VIEW_TYPE_CHAT, (leaf) => new ChatView(leaf, this));
     this.registerPluginView(VIEW_TYPE_MODEL_SETTINGS, (leaf) => new ModelSettingsView(leaf, this));
@@ -22794,7 +23372,7 @@ var _MyPlugin = class _MyPlugin extends import_obsidian35.Plugin {
     this.registerMarkdownCodeBlockProcessor("ai-tool-execution", (source, el, ctx) => {
       this.processToolExecutionCodeBlock(source, el, ctx);
     });
-    debugLog((_b = this.settings.debugMode) != null ? _b : false, "info", "AI Assistant Plugin loaded.");
+    debugLog((_d = this.settings.debugMode) != null ? _d : false, "info", "AI Assistant Plugin loaded.");
   }
   /**
    * Enhanced debug logger for the plugin.
@@ -22807,10 +23385,23 @@ var _MyPlugin = class _MyPlugin extends import_obsidian35.Plugin {
   }
   /**
    * Loads plugin settings from data.
-   * Merges loaded data with default settings.
+   * Merges loaded data with default settings with runtime validation.
    */
   async loadSettings() {
-    this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    var _a2;
+    try {
+      const loadedData = await this.loadData();
+      if (loadedData !== null && loadedData !== void 0) {
+        const validatedData = validatePluginSettings(loadedData);
+        this.settings = Object.assign({}, DEFAULT_SETTINGS, validatedData);
+      } else {
+        this.settings = Object.assign({}, DEFAULT_SETTINGS);
+      }
+      debugLog((_a2 = this.settings.debugMode) != null ? _a2 : false, "info", "[main.ts] Settings loaded and validated successfully");
+    } catch (error) {
+      debugLog(true, "error", "[main.ts] Failed to load settings, using defaults:", error);
+      this.settings = Object.assign({}, DEFAULT_SETTINGS);
+    }
   }
   /**
    * Saves plugin settings to data.

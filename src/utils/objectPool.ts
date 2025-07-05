@@ -58,6 +58,10 @@ export class MessageContextPool {
     private static instance: MessageContextPool;
     private messagePool: ObjectPool<{ role: string; content: string }>;
     private arrayPool: ObjectPool<any[]>;
+    private acquiredMessages: number = 0;
+    private releasedMessages: number = 0;
+    private acquiredArrays: number = 0;
+    private releasedArrays: number = 0;
 
     private constructor() {
         this.messagePool = new ObjectPool(
@@ -84,24 +88,56 @@ export class MessageContextPool {
     }
 
     acquireMessage(): { role: string; content: string } {
+        this.acquiredMessages++;
         return this.messagePool.acquire();
     }
 
     releaseMessage(msg: { role: string; content: string }): void {
+        this.releasedMessages++;
         this.messagePool.release(msg);
     }
 
     acquireArray<T>(): T[] {
+        this.acquiredArrays++;
         return this.arrayPool.acquire();
     }
 
     releaseArray<T>(arr: T[]): void {
+        this.releasedArrays++;
         this.arrayPool.release(arr);
     }
 
     clear(): void {
         this.messagePool.clear();
         this.arrayPool.clear();
+        this.acquiredMessages = 0;
+        this.releasedMessages = 0;
+        this.acquiredArrays = 0;
+        this.releasedArrays = 0;
+    }
+
+    getStats(): {
+        acquiredMessages: number;
+        releasedMessages: number;
+        estimatedMessageMemorySaved: string;
+        acquiredArrays: number;
+        releasedArrays: number;
+        estimatedArrayMemorySaved: string;
+    } {
+        const messageSizeEstimate = 50; // Estimate bytes per message object
+        const arraySizeEstimate = 24; // Estimate bytes per array object (empty array) + 8 bytes per element
+
+        const messageSaved = (this.releasedMessages - this.messagePool.size()) * messageSizeEstimate;
+        const arraySaved = (this.releasedArrays - this.arrayPool.size()) * arraySizeEstimate;
+
+        return {
+            acquiredMessages: this.acquiredMessages,
+            releasedMessages: this.releasedMessages,
+            estimatedMessageMemorySaved: `${(messageSaved / 1024).toFixed(2)} KB`,
+            acquiredArrays: this.acquiredArrays,
+            releasedArrays: this.releasedArrays,
+            estimatedArrayMemorySaved: `${(arraySaved / 1024).toFixed(2)} KB`,
+        };
     }
 }
 
@@ -135,6 +171,8 @@ export class WeakCache<K extends object, V> {
 export class PreAllocatedArrays {
     private static instance: PreAllocatedArrays;
     private arrays = new Map<number, any[][]>();
+    private acquiredArraysCount: Map<number, number> = new Map();
+    private releasedArraysCount: Map<number, number> = new Map();
 
     private constructor() {}
 
@@ -149,6 +187,7 @@ export class PreAllocatedArrays {
      * Get a pre-allocated array of specified size
      */
     getArray<T>(size: number): T[] {
+        this.acquiredArraysCount.set(size, (this.acquiredArraysCount.get(size) || 0) + 1);
         if (!this.arrays.has(size)) {
             this.arrays.set(size, []);
         }
@@ -168,6 +207,7 @@ export class PreAllocatedArrays {
      */
     returnArray<T>(arr: T[]): void {
         const size = arr.length;
+        this.releasedArraysCount.set(size, (this.releasedArraysCount.get(size) || 0) + 1);
         if (!this.arrays.has(size)) {
             this.arrays.set(size, []);
         }
@@ -184,5 +224,44 @@ export class PreAllocatedArrays {
      */
     clear(): void {
         this.arrays.clear();
+        this.acquiredArraysCount.clear();
+        this.releasedArraysCount.clear();
+    }
+
+    getStats(): {
+        totalAcquired: number;
+        totalReleased: number;
+        estimatedMemorySaved: string;
+        arraysBySize: { size: number; acquired: number; released: number; inPool: number }[];
+    } {
+        let totalAcquired = 0;
+        let totalReleased = 0;
+        let estimatedSavedBytes = 0;
+        const arraysBySize: { size: number; acquired: number; released: number; inPool: number }[] = [];
+
+        for (const [size, pool] of this.arrays.entries()) {
+            const acquired = this.acquiredArraysCount.get(size) || 0;
+            const released = this.releasedArraysCount.get(size) || 0;
+            const inPool = pool.length;
+
+            totalAcquired += acquired;
+            totalReleased += released;
+
+            // Estimate memory saved: (released - inPool) * (array_overhead + size * element_size)
+            // Assuming average element size of 8 bytes (for numbers/pointers)
+            const arrayOverhead = 24; // Estimate for empty array object
+            const elementSize = 8; // Estimate for element reference/value
+            const savedForSize = (released - inPool) * (arrayOverhead + size * elementSize);
+            estimatedSavedBytes += savedForSize;
+
+            arraysBySize.push({ size, acquired, released, inPool });
+        }
+
+        return {
+            totalAcquired,
+            totalReleased,
+            estimatedMemorySaved: `${(estimatedSavedBytes / 1024).toFixed(2)} KB`,
+            arraysBySize: arraysBySize.sort((a, b) => a.size - b.size),
+        };
     }
 }

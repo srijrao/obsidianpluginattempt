@@ -9,6 +9,15 @@ import { MessageContextPool, PreAllocatedArrays } from './objectPool';
 import { LRUCache, LRUCacheFactory } from './lruCache';
 import { errorHandler, handleAIDispatcherError, withErrorHandling } from './errorHandler';
 import { AsyncBatcher, ParallelExecutor, AsyncOptimizerFactory } from './asyncOptimizer';
+import { performanceMonitor } from './performanceMonitor';
+import {
+    isValidProviderName,
+    ValidProviderName,
+    isValidMessagesArray,
+    isValidMessage,
+    isNonEmptyString
+} from './typeGuards';
+import { sanitizeInput, validateContentLength } from './validationUtils';
 
 // Types for new features
 interface CacheEntry {
@@ -32,6 +41,9 @@ interface RequestMetrics {
     averageResponseTime: number;
     requestsByProvider: Record<string, number>;
     errorsByProvider: Record<string, number>;
+    cacheHits: number;
+    cacheMisses: number;
+    deduplicatedRequests: number;
 }
 
 interface CircuitBreakerState {
@@ -90,7 +102,10 @@ export class AIDispatcher {
         totalCost: 0,
         averageResponseTime: 0,
         requestsByProvider: {},
-        errorsByProvider: {}
+        errorsByProvider: {},
+        cacheHits: 0,
+        cacheMisses: 0,
+        deduplicatedRequests: 0
     };
     private circuitBreakers = new Map<string, CircuitBreakerState>();
     private requestQueue: QueuedRequest[] = [];
@@ -122,6 +137,9 @@ export class AIDispatcher {
         private vault: Vault,
         private plugin: { settings: MyPluginSettings; saveSettings: () => Promise<void> }
     ) {
+        // Set debug mode for performance monitor
+        performanceMonitor.setDebugMode(this.plugin.settings.debugMode ?? false);
+
         // Initialize circuit breakers
         ['openai', 'anthropic', 'gemini', 'ollama'].forEach(provider => {
             this.circuitBreakers.set(provider, {
@@ -214,6 +232,8 @@ export class AIDispatcher {
         // Priority 1 Optimization: Check for duplicate requests
         const existingRequest = this.pendingRequests.get(cacheKey);
         if (existingRequest) {
+            this.metrics.deduplicatedRequests++;
+            performanceMonitor.recordMetric('deduplicated_requests', 1, 'count');
             debugLog(this.plugin.settings.debugMode ?? false, 'info', '[AIDispatcher] Deduplicating request', { key: cacheKey });
             return existingRequest;
         }
@@ -221,8 +241,15 @@ export class AIDispatcher {
         // Check cache first
         const cachedResponse = this.cache.get(cacheKey);
         if (cachedResponse && options.streamCallback) {
+            this.metrics.cacheHits++;
+            performanceMonitor.recordMetric('cache_hits', 1, 'count');
+            debugLog(this.plugin.settings.debugMode ?? false, 'info', '[AIDispatcher] Cache hit', { key: cacheKey });
             options.streamCallback(cachedResponse);
             return;
+        } else {
+            this.metrics.cacheMisses++;
+            performanceMonitor.recordMetric('cache_misses', 1, 'count');
+            debugLog(this.plugin.settings.debugMode ?? false, 'info', '[AIDispatcher] Cache miss', { key: cacheKey });
         }
 
         // Determine provider
@@ -252,43 +279,119 @@ export class AIDispatcher {
     }
 
     /**
-     * Validates request format and content.
+     * Validates request format and content with enhanced security using comprehensive type guards.
      */
     private validateRequest(messages: Message[], options: CompletionOptions): void {
-        if (!messages || messages.length === 0) {
-            throw new Error('Messages array cannot be empty');
+        const MAX_TOTAL_MESSAGE_LENGTH = 50000; // Max total characters for all messages combined
+
+        // Use type guards for comprehensive validation
+        if (!Array.isArray(messages) || messages.length === 0) {
+            throw new Error('Messages array is required and cannot be empty');
         }
 
-        // Validate message format
-        for (const message of messages) {
-            if (!message.role || !message.content) {
-                throw new Error('Each message must have role and content');
+        let totalMessageLength = 0;
+
+        // Validate each message using type guards
+        for (let i = 0; i < messages.length; i++) {
+            const message = messages[i];
+            
+            // Basic message structure validation
+            if (!message || typeof message !== 'object') {
+                throw new Error(`Invalid message at index ${i}: Message must be an object`);
             }
+
+            if (!message.role || typeof message.role !== 'string') {
+                throw new Error(`Invalid message at index ${i}: Message role is required and must be a string`);
+            }
+
+            if (!message.content || typeof message.content !== 'string') {
+                throw new Error(`Invalid message at index ${i}: Message content is required and must be a string`);
+            }
+
+            // Validate role values
             if (!['system', 'user', 'assistant'].includes(message.role)) {
-                throw new Error(`Invalid message role: ${message.role}`);
+                throw new Error(`Invalid message role at index ${i}: ${message.role}. Must be 'system', 'user', or 'assistant'`);
+            }
+            
+            // Validate individual message content length
+            try {
+                validateContentLength(message.content, 10000); // Max per message
+                totalMessageLength += message.content.length;
+            } catch (error) {
+                throw new Error(`Message content validation failed at index ${i}: ${error instanceof Error ? error.message : 'Unknown error'}`);
             }
         }
 
-        // Validate options
-        if (options.temperature !== undefined && (options.temperature < 0 || options.temperature > 2)) {
-            throw new Error('Temperature must be between 0 and 2');
-        }
-        if (options.maxTokens !== undefined && options.maxTokens <= 0) {
-            throw new Error('Max tokens must be positive');
+        // Enforce total message length limit
+        if (totalMessageLength > MAX_TOTAL_MESSAGE_LENGTH) {
+            throw new Error(`Total message content length (${totalMessageLength}) exceeds limit of ${MAX_TOTAL_MESSAGE_LENGTH} characters`);
         }
 
-        // Content filtering/sanitization could go here
+        // Enhanced options validation with comprehensive type checking
+        if (options.temperature !== undefined) {
+            if (typeof options.temperature !== 'number' || isNaN(options.temperature)) {
+                throw new Error('Temperature must be a valid number');
+            }
+            if (options.temperature < 0 || options.temperature > 2) {
+                throw new Error('Temperature must be between 0 and 2');
+            }
+        }
+        
+        if (options.maxTokens !== undefined) {
+            if (typeof options.maxTokens !== 'number' || isNaN(options.maxTokens)) {
+                throw new Error('Max tokens must be a valid number');
+            }
+            if (options.maxTokens <= 0 || options.maxTokens > 100000) {
+                throw new Error('Max tokens must be between 1 and 100000');
+            }
+        }
+
+        // Validate stream callback if provided
+        if (options.streamCallback !== undefined && typeof options.streamCallback !== 'function') {
+            throw new Error('Stream callback must be a function');
+        }
+
+        // Apply content filtering and sanitization
         this.sanitizeMessages(messages);
+        
+        debugLog(this.plugin.settings.debugMode ?? false, 'debug', '[AIDispatcher] Request validation completed successfully', {
+            messageCount: messages.length,
+            totalLength: totalMessageLength
+        });
     }
 
     /**
-     * Sanitizes message content for safety.
+     * Sanitizes message content for safety using enhanced validation.
      */
     private sanitizeMessages(messages: Message[]): void {
+        const MAX_MESSAGE_LENGTH = 10000; // Max characters per message content
+
         for (const message of messages) {
-            // Basic sanitization - could be enhanced
-            message.content = message.content.trim();
-            // Remove potential injection attempts, etc.
+            try {
+                // Validate and sanitize content length
+                message.content = validateContentLength(message.content, MAX_MESSAGE_LENGTH);
+                
+                // Apply comprehensive sanitization
+                message.content = sanitizeInput(message.content);
+                
+                debugLog(this.plugin.settings.debugMode ?? false, 'debug', '[AIDispatcher] Message content sanitized successfully');
+            } catch (error) {
+                debugLog(this.plugin.settings.debugMode ?? false, 'warn', '[AIDispatcher] Message content sanitization failed:', error);
+                
+                // Fallback to basic sanitization if enhanced validation fails
+                message.content = message.content.trim();
+                if (message.content.length > MAX_MESSAGE_LENGTH) {
+                    message.content = message.content.substring(0, MAX_MESSAGE_LENGTH);
+                }
+                
+                // Basic sanitization as fallback
+                message.content = message.content
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/&/g, '&amp;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#039;');
+            }
         }
     }
 
@@ -564,7 +667,10 @@ export class AIDispatcher {
             if (this.plugin.settings.selectedModel) {
                 provider = createProviderFromUnifiedModel(this.plugin.settings, this.plugin.settings.selectedModel);
             } else {
-                const tempSettings = { ...this.plugin.settings, provider: providerName as any };
+                if (!isValidProviderName(providerName)) {
+                    throw new Error(`Invalid provider name: ${providerName}`);
+                }
+                const tempSettings = { ...this.plugin.settings, provider: providerName as ValidProviderName };
                 provider = createProvider(tempSettings);
             }
 
@@ -607,6 +713,8 @@ export class AIDispatcher {
             // Record success
             this.recordSuccess(providerName);
             this.updateMetrics(providerName, true, Date.now() - startTime, fullResponse.length);
+            performanceMonitor.recordMetric('api_response_time', Date.now() - startTime, 'time');
+            performanceMonitor.recordMetric('api_response_size', fullResponse.length, 'size');
 
             // Cache the response
             this.setCache(cacheKey, fullResponse);
@@ -734,7 +842,10 @@ export class AIDispatcher {
             totalCost: 0,
             averageResponseTime: 0,
             requestsByProvider: {},
-            errorsByProvider: {}
+            errorsByProvider: {},
+            cacheHits: 0,
+            cacheMisses: 0,
+            deduplicatedRequests: 0
         };
     }
 
@@ -745,7 +856,15 @@ export class AIDispatcher {
         this.cache.clear();
         this.modelCache.clear();
         this.providerCache.clear();
+        performanceMonitor.clearMetrics(); // Clear performance metrics as well
         debugLog(this.plugin.settings.debugMode ?? false, 'info', '[AIDispatcher] All caches cleared');
+    }
+
+    /**
+     * Logs current performance metrics.
+     */
+    logPerformanceMetrics(): void {
+        performanceMonitor.logMetrics();
     }
 
     /**

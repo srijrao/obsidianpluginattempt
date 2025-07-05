@@ -1,7 +1,7 @@
 import { App, TFile, TFolder, Vault } from 'obsidian';
 import { Tool, ToolResult } from '../ToolRegistry';
 import { PathValidator } from './pathValidation';
-import { isTFile, isTFolder } from '../../../../utils/typeguards';
+import { isTFile, isTFolder } from '../../../../utils/typeGuards';
 
 /**
  * Parameters for generating a vault tree.
