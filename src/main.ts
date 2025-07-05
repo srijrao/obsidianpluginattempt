@@ -18,6 +18,7 @@ import { MessageContextPool, PreAllocatedArrays } from './utils/objectPool';
 import { Priority3IntegrationManager } from './integration/priority3Integration';
 import { parseToolDataFromContent, cleanContentFromToolData } from './utils/messageContentParser';
 import { isVaultAdapterWithBasePath, validatePluginSettings } from './utils/typeGuards';
+import { RecentlyOpenedFilesManager } from './utils/recently-opened-files';
 
 /**
  * AI Assistant Plugin
@@ -72,6 +73,10 @@ export default class MyPlugin extends Plugin {
      * Priority 3 optimizations integration manager.
      */
     public priority3Manager: Priority3IntegrationManager;
+    /**
+     * Recently opened files manager for tracking file access.
+     */
+    public recentlyOpenedFilesManager: RecentlyOpenedFilesManager;
 
     /**
      * Register a callback to be called when settings change.
@@ -200,6 +205,9 @@ export default class MyPlugin extends Plugin {
         this.priority3Manager = new Priority3IntegrationManager(this);
         await this.priority3Manager.initialize();
         
+        // Initialize recently opened files manager for tracking file access
+        this.recentlyOpenedFilesManager = RecentlyOpenedFilesManager.getInstance(this.app);
+        
         debugLog(this.settings.debugMode ?? false, 'info', 'Priority 3 optimizations initialized');
         
         // Add the plugin's settings tab to Obsidian's settings UI
@@ -309,6 +317,11 @@ export default class MyPlugin extends Plugin {
         // Clean up Priority 3 optimizations
         if (this.priority3Manager) {
             this.priority3Manager.dispose();
+        }
+        
+        // Clean up recently opened files manager
+        if (this.recentlyOpenedFilesManager) {
+            this.recentlyOpenedFilesManager.destroy();
         }
         
         // Clean up object pools to free memory

@@ -18876,6 +18876,170 @@ ${contextContent}`
   return processedMessages;
 }
 
+// src/utils/recently-opened-files.ts
+init_logger();
+var _RecentlyOpenedFilesManager = class _RecentlyOpenedFilesManager {
+  constructor(app) {
+    __publicField(this, "app");
+    __publicField(this, "listenerRef", null);
+    __publicField(this, "FILENAME", "recently-opened-files.json");
+    __publicField(this, "MAX_FILES", 100);
+    this.app = app;
+    this.setupFileListener();
+  }
+  static getInstance(app) {
+    if (!_RecentlyOpenedFilesManager.instance) {
+      if (!app) {
+        throw new Error("App instance required for first initialization");
+      }
+      _RecentlyOpenedFilesManager.instance = new _RecentlyOpenedFilesManager(app);
+    }
+    return _RecentlyOpenedFilesManager.instance;
+  }
+  setupFileListener() {
+    if (this.listenerRef) {
+      return;
+    }
+    this.listenerRef = this.app.workspace.on("file-open", (file) => {
+      if (file) {
+        this.recordFileOpened(file);
+      }
+    });
+  }
+  getFilePath() {
+    return `${this.app.vault.configDir}/${this.FILENAME}`;
+  }
+  async recordFileOpened(file, debugMode = false) {
+    const filePath = this.getFilePath();
+    let data = {
+      recentFiles: [],
+      omittedPaths: [],
+      omittedTags: [],
+      updateOn: "file-open",
+      omitBookmarks: false,
+      maxLength: null
+    };
+    try {
+      if (await this.app.vault.adapter.exists(filePath)) {
+        const raw = await this.app.vault.adapter.read(filePath);
+        const parsed = JSON.parse(raw);
+        if (this.isValidDataJson(parsed)) {
+          data = parsed;
+        }
+      }
+    } catch (e) {
+      debugLog(debugMode, "warn", "[recently-opened-files] Failed to read existing records", e);
+    }
+    data.recentFiles = data.recentFiles.filter((r) => r.path !== file.path);
+    data.recentFiles.unshift({
+      path: file.path,
+      basename: file.basename
+    });
+    if (data.recentFiles.length > this.MAX_FILES) {
+      data.recentFiles = data.recentFiles.slice(0, this.MAX_FILES);
+    }
+    try {
+      await this.app.vault.adapter.write(filePath, JSON.stringify(data, null, 2));
+    } catch (e) {
+      debugLog(debugMode, "error", "[recently-opened-files] Failed to write records", e);
+    }
+  }
+  isValidDataJson(data) {
+    return typeof data === "object" && data !== null && Array.isArray(data.recentFiles) && Array.isArray(data.omittedPaths) && Array.isArray(data.omittedTags) && typeof data.updateOn === "string" && typeof data.omitBookmarks === "boolean" && (typeof data.maxLength === "number" || data.maxLength === null);
+  }
+  async getRecentlyOpenedFiles() {
+    const pluginFiles = await this.getRecentFilesFromPlugin();
+    if (pluginFiles.length > 0) {
+      return pluginFiles;
+    }
+    return this.getRecentFilesFromOwnFile();
+  }
+  async getRecentFilesFromPlugin() {
+    const pluginId = "recent-files-obsidian";
+    const pluginDataPath = `${this.app.vault.configDir}/plugins/${pluginId}/data.json`;
+    try {
+      if (await this.app.vault.adapter.exists(pluginDataPath)) {
+        const raw = await this.app.vault.adapter.read(pluginDataPath);
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed.recentFiles)) {
+          await this.syncWithOwnFile(parsed.recentFiles);
+          return parsed.recentFiles.map((f) => ({
+            path: f.path,
+            basename: f.basename
+          }));
+        }
+      }
+    } catch (e) {
+      debugLog(true, "warn", "[recently-opened-files] Failed to read recent-files-obsidian plugin data", e);
+    }
+    return [];
+  }
+  async syncWithOwnFile(pluginFiles) {
+    const filePath = this.getFilePath();
+    let data = {
+      recentFiles: [],
+      omittedPaths: [],
+      omittedTags: [],
+      updateOn: "file-open",
+      omitBookmarks: false,
+      maxLength: null
+    };
+    try {
+      if (await this.app.vault.adapter.exists(filePath)) {
+        const raw = await this.app.vault.adapter.read(filePath);
+        const parsed = JSON.parse(raw);
+        if (this.isValidDataJson(parsed)) {
+          data = parsed;
+        }
+      }
+    } catch (e) {
+    }
+    const seen = new Set(data.recentFiles.map((f) => f.path));
+    for (const file of pluginFiles) {
+      if (!seen.has(file.path)) {
+        data.recentFiles.push({
+          path: file.path,
+          basename: file.basename
+        });
+      }
+    }
+    if (data.recentFiles.length > this.MAX_FILES) {
+      data.recentFiles = data.recentFiles.slice(0, this.MAX_FILES);
+    }
+    try {
+      await this.app.vault.adapter.write(filePath, JSON.stringify(data, null, 2));
+    } catch (e) {
+    }
+  }
+  async getRecentFilesFromOwnFile() {
+    const filePath = this.getFilePath();
+    try {
+      if (await this.app.vault.adapter.exists(filePath)) {
+        const raw = await this.app.vault.adapter.read(filePath);
+        const parsed = JSON.parse(raw);
+        if (this.isValidDataJson(parsed)) {
+          return parsed.recentFiles;
+        }
+      }
+    } catch (e) {
+      debugLog(true, "warn", "[recently-opened-files] Failed to read own file", e);
+    }
+    return [];
+  }
+  destroy() {
+    if (this.listenerRef) {
+      this.app.workspace.offref(this.listenerRef);
+      this.listenerRef = null;
+    }
+  }
+};
+__publicField(_RecentlyOpenedFilesManager, "instance");
+var RecentlyOpenedFilesManager = _RecentlyOpenedFilesManager;
+async function getRecentlyOpenedFiles(app) {
+  const manager = RecentlyOpenedFilesManager.getInstance(app);
+  return manager.getRecentlyOpenedFiles();
+}
+
 // src/utils/contextBuilder.ts
 async function buildContextMessages({
   app,
@@ -18889,6 +19053,13 @@ async function buildContextMessages({
   const messages = [
     { role: "system", content: getSystemMessage(plugin.settings) }
   ];
+  const recentlyOpenedFiles = await getRecentlyOpenedFiles(app);
+  if (recentlyOpenedFiles.length > 0) {
+    messages[0].content += `
+
+Recently Opened Files:
+${recentlyOpenedFiles.slice(0, 5).map((f) => f.path).join("\n")}`;
+  }
   if (includeContextNotes && plugin.settings.enableContextNotes && plugin.settings.contextNotes) {
     const contextContent = await processContextNotes(plugin.settings.contextNotes, app);
     messages[0].content += `
@@ -22493,7 +22664,7 @@ function parseSelection(selection, chatSeparator, chatBoundaryString) {
 // src/utils/aiCompletionHandler.ts
 init_logger();
 init_aiDispatcher();
-async function handleAICompletion(editor, settings, processMessages2, getSystemMessage2, vault, plugin, activeStream, setActiveStream, app) {
+async function handleAICompletion(editor, settings, processMessages2, vault, plugin, activeStream, setActiveStream, app) {
   var _a2, _b, _c;
   let text;
   let insertPosition;
@@ -22596,8 +22767,6 @@ function registerAIStreamCommands(plugin, settings, processMessages2, activeStre
           editor,
           settings,
           processMessages2,
-          () => getSystemMessage(settings),
-          // Function to get the current system message
           plugin.app.vault,
           { settings, saveSettings: (_a2 = plugin.saveSettings) == null ? void 0 : _a2.bind(plugin) },
           activeStream,
@@ -23217,6 +23386,10 @@ var _MyPlugin = class _MyPlugin extends import_obsidian35.Plugin {
      * Priority 3 optimizations integration manager.
      */
     __publicField(this, "priority3Manager");
+    /**
+     * Recently opened files manager for tracking file access.
+     */
+    __publicField(this, "recentlyOpenedFilesManager");
   }
   /**
    * Register a callback to be called when settings change.
@@ -23325,6 +23498,7 @@ var _MyPlugin = class _MyPlugin extends import_obsidian35.Plugin {
     this.aiDispatcher = new AIDispatcher(this.app.vault, this);
     this.priority3Manager = new Priority3IntegrationManager(this);
     await this.priority3Manager.initialize();
+    this.recentlyOpenedFilesManager = RecentlyOpenedFilesManager.getInstance(this.app);
     debugLog((_c = this.settings.debugMode) != null ? _c : false, "info", "Priority 3 optimizations initialized");
     this.addSettingTab(new MyPluginSettingTab(this.app, this));
     this.registerPluginView(VIEW_TYPE_CHAT, (leaf) => new ChatView(leaf, this));
@@ -23418,6 +23592,9 @@ var _MyPlugin = class _MyPlugin extends import_obsidian35.Plugin {
     _MyPlugin.registeredViewTypes.delete(VIEW_TYPE_CHAT);
     if (this.priority3Manager) {
       this.priority3Manager.dispose();
+    }
+    if (this.recentlyOpenedFilesManager) {
+      this.recentlyOpenedFilesManager.destroy();
     }
     MessageContextPool.getInstance().clear();
     PreAllocatedArrays.getInstance().clear();

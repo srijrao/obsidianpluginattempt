@@ -1,7 +1,7 @@
 // recently-opened-files.ts
 // Utility for tracking recently opened files in the vault with timestamps.
 
-import { App, TFile } from 'obsidian';
+import { App, TFile, EventRef } from 'obsidian';
 import { debugLog } from './logger';
 
 export interface RecentlyOpenedFile {
@@ -18,149 +18,130 @@ export interface RecentFilesDataJson {
     maxLength: number | null;
 }
 
-
-const RECENTLY_OPENED_FILENAME = 'recently-opened-files.json';
-
-// Returns the path to recently-opened-files.json in the vault root
-function getRecentlyOpenedFilePath(app: App): string {
-    // Determine the base path of the vault (Obsidian's root folder)
-    // @ts-ignore
-    const adapter = app.vault.adapter;
-    const dataDir = adapter instanceof Object && 'basePath' in adapter
-        ? (adapter as any).basePath
-        : '';
-    return `${dataDir}/${RECENTLY_OPENED_FILENAME}`;
-}
-
-export async function recordFileOpened(app: App, file: TFile, debugMode = false) {
-    const filePath = getRecentlyOpenedFilePath(app);
-    let data: RecentFilesDataJson = {
-        recentFiles: [],
-        omittedPaths: [],
-        omittedTags: [],
-        updateOn: 'file-open',
-        omitBookmarks: false,
-        maxLength: null
-    };
-    try {
-        // @ts-ignore
-        if (await app.vault.adapter.exists(filePath)) {
-            // @ts-ignore
-            const raw = await app.vault.adapter.read(filePath);
-            const parsed = JSON.parse(raw);
-            // Defensive: if parsed is not an object, reset to default
-            if (typeof parsed === 'object' && parsed !== null) {
-                data = {
-                    recentFiles: Array.isArray(parsed.recentFiles) ? parsed.recentFiles : [],
-                    omittedPaths: Array.isArray(parsed.omittedPaths) ? parsed.omittedPaths : [],
-                    omittedTags: Array.isArray(parsed.omittedTags) ? parsed.omittedTags : [],
-                    updateOn: typeof parsed.updateOn === 'string' ? parsed.updateOn : 'file-open',
-                    omitBookmarks: typeof parsed.omitBookmarks === 'boolean' ? parsed.omitBookmarks : false,
-                    maxLength: typeof parsed.maxLength === 'number' || parsed.maxLength === null ? parsed.maxLength : null
-                };
-            }
-        }
-    } catch (e) {
-        debugLog(debugMode, 'warn', '[recently-opened-files] Failed to read existing records', e);
-    }
-    // Remove any previous entry for this file
-    data.recentFiles = data.recentFiles.filter(r => r.path !== file.path);
-    // Add new record to the front
-    data.recentFiles.unshift({ path: file.path, basename: file.basename });
-    // Optionally limit to last N (e.g., 100)
-    if (data.recentFiles.length > 100) data.recentFiles = data.recentFiles.slice(0, 100);
-    try {
-        // @ts-ignore
-        await app.vault.adapter.write(filePath, JSON.stringify(data, null, 2));
-    } catch (e) {
-        debugLog(debugMode, 'error', '[recently-opened-files] Failed to write records', e);
-    }
-}
-
-
-
 /**
- * Returns recently opened files, preferring the recent-files-obsidian plugin if present and enabled.
- * Falls back to this plugin's own record if not. If neither is present, sets up a file-open listener.
+ * Singleton class for tracking recently opened files in Obsidian.
+ * Handles integration with the recent-files-obsidian plugin if available.
  */
-export async function getRecentlyOpenedFiles(app: App): Promise<RecentlyOpenedFile[]> {
-    // Always listen for file-open events to keep our own file up to date
-    // @ts-ignore
-    if (app.workspace && typeof app.workspace.on === 'function' && !app.__recentlyOpenedListenerRegistered) {
-        // @ts-ignore
-        app.workspace.on('file-open', (file: TFile) => {
-            if (file) recordFileOpened(app, file);
-        });
-        // @ts-ignore
-        app.__recentlyOpenedListenerRegistered = true;
+export class RecentlyOpenedFilesManager {
+    private static instance: RecentlyOpenedFilesManager;
+    private app: App;
+    private listenerRef: EventRef | null = null;
+    private readonly FILENAME = 'recently-opened-files.json';
+    private readonly MAX_FILES = 100;
+
+    private constructor(app: App) {
+        this.app = app;
+        this.setupFileListener();
     }
 
-    // Try to use recent-files-obsidian plugin's data.json if present and enabled
-    // This is always at .obsidian/plugins/recent-files-obsidian/data.json (relative to vault root)
-    // @ts-ignore
-    const adapter = app.vault.adapter;
-    const dataDir = adapter instanceof Object && 'basePath' in adapter
-        ? (adapter as any).basePath
-        : '';
-    const recentFilesPluginPath = `${dataDir}/.obsidian/plugins/recent-files-obsidian/data.json`;
-    let pluginEnabled = false;
-    // Check if the plugin is enabled in Obsidian
-    // @ts-ignore
-    if (app.plugins && typeof app.plugins.enabledPlugins === 'object') {
-        // @ts-ignore
-        pluginEnabled = app.plugins.enabledPlugins.has('recent-files-obsidian');
+    public static getInstance(app?: App): RecentlyOpenedFilesManager {
+        if (!RecentlyOpenedFilesManager.instance) {
+            if (!app) {
+                throw new Error('App instance required for first initialization');
+            }
+            RecentlyOpenedFilesManager.instance = new RecentlyOpenedFilesManager(app);
+        }
+        return RecentlyOpenedFilesManager.instance;
     }
-    // If the plugin is enabled, import its recent files into our own file
-    if (pluginEnabled) {
+
+    private setupFileListener(): void {
+        if (this.listenerRef) {
+            return; // Already set up
+        }
+
+        this.listenerRef = this.app.workspace.on('file-open', (file: TFile) => {
+            if (file) {
+                this.recordFileOpened(file);
+            }
+        });
+    }
+
+    private getFilePath(): string {
+        return `${this.app.vault.configDir}/${this.FILENAME}`;
+    }
+
+    private async recordFileOpened(file: TFile, debugMode = false): Promise<void> {
+        const filePath = this.getFilePath();
+        let data: RecentFilesDataJson = {
+            recentFiles: [],
+            omittedPaths: [],
+            omittedTags: [],
+            updateOn: 'file-open',
+            omitBookmarks: false,
+            maxLength: null
+        };
+
         try {
-            // @ts-ignore
-            if (await app.vault.adapter.exists(recentFilesPluginPath)) {
-                // @ts-ignore
-                const raw = await app.vault.adapter.read(recentFilesPluginPath);
+            if (await this.app.vault.adapter.exists(filePath)) {
+                const raw = await this.app.vault.adapter.read(filePath);
                 const parsed = JSON.parse(raw);
+                if (this.isValidDataJson(parsed)) {
+                    data = parsed;
+                }
+            }
+        } catch (e) {
+            debugLog(debugMode, 'warn', '[recently-opened-files] Failed to read existing records', e);
+        }
+
+        // Remove any previous entry for this file
+        data.recentFiles = data.recentFiles.filter(r => r.path !== file.path);
+        
+        // Add new record to the front
+        data.recentFiles.unshift({ 
+            path: file.path, 
+            basename: file.basename 
+        });
+
+        // Limit to max files
+        if (data.recentFiles.length > this.MAX_FILES) {
+            data.recentFiles = data.recentFiles.slice(0, this.MAX_FILES);
+        }
+
+        try {
+            await this.app.vault.adapter.write(filePath, JSON.stringify(data, null, 2));
+        } catch (e) {
+            debugLog(debugMode, 'error', '[recently-opened-files] Failed to write records', e);
+        }
+    }
+
+    private isValidDataJson(data: any): data is RecentFilesDataJson {
+        return (
+            typeof data === 'object' &&
+            data !== null &&
+            Array.isArray(data.recentFiles) &&
+            Array.isArray(data.omittedPaths) &&
+            Array.isArray(data.omittedTags) &&
+            typeof data.updateOn === 'string' &&
+            typeof data.omitBookmarks === 'boolean' &&
+            (typeof data.maxLength === 'number' || data.maxLength === null)
+        );
+    }
+
+    public async getRecentlyOpenedFiles(): Promise<RecentlyOpenedFile[]> {
+        // Try to use recent-files-obsidian plugin's data first if enabled
+        const pluginFiles = await this.getRecentFilesFromPlugin();
+        if (pluginFiles.length > 0) {
+            return pluginFiles;
+        }
+
+        // Fallback to our own file
+        return this.getRecentFilesFromOwnFile();
+    }
+
+    private async getRecentFilesFromPlugin(): Promise<RecentlyOpenedFile[]> {
+        const pluginId = 'recent-files-obsidian';
+        const pluginDataPath = `${this.app.vault.configDir}/plugins/${pluginId}/data.json`;
+
+        try {
+            // Check if plugin data file exists (indicates plugin is installed and has data)
+            if (await this.app.vault.adapter.exists(pluginDataPath)) {
+                const raw = await this.app.vault.adapter.read(pluginDataPath);
+                const parsed = JSON.parse(raw);
+                
                 if (Array.isArray(parsed.recentFiles)) {
-                    // Import into our own file for backup/merge
-                    const fallbackFilePath = getRecentlyOpenedFilePath(app);
-                    let data: RecentFilesDataJson = {
-                        recentFiles: [],
-                        omittedPaths: [],
-                        omittedTags: [],
-                        updateOn: 'file-open',
-                        omitBookmarks: false,
-                        maxLength: null
-                    };
-                    try {
-                        // @ts-ignore
-                        if (await app.vault.adapter.exists(fallbackFilePath)) {
-                            // @ts-ignore
-                            const raw2 = await app.vault.adapter.read(fallbackFilePath);
-                            const parsed2 = JSON.parse(raw2);
-                            if (typeof parsed2 === 'object' && parsed2 !== null) {
-                                data = {
-                                    recentFiles: Array.isArray(parsed2.recentFiles) ? parsed2.recentFiles : [],
-                                    omittedPaths: Array.isArray(parsed2.omittedPaths) ? parsed2.omittedPaths : [],
-                                    omittedTags: Array.isArray(parsed2.omittedTags) ? parsed2.omittedTags : [],
-                                    updateOn: typeof parsed2.updateOn === 'string' ? parsed2.updateOn : 'file-open',
-                                    omitBookmarks: typeof parsed2.omitBookmarks === 'boolean' ? parsed2.omitBookmarks : false,
-                                    maxLength: typeof parsed2.maxLength === 'number' || parsed2.maxLength === null ? parsed2.maxLength : null
-                                };
-                            }
-                        }
-                    } catch (e) {}
-                    // Merge plugin's recent files into our own, avoiding duplicates
-                    const seen = new Set(data.recentFiles.map(f => f.path));
-                    for (const f of parsed.recentFiles) {
-                        if (!seen.has(f.path)) {
-                            data.recentFiles.push({ path: f.path, basename: f.basename });
-                        }
-                    }
-                    // Optionally limit to last N (e.g., 100)
-                    if (data.recentFiles.length > 100) data.recentFiles = data.recentFiles.slice(0, 100);
-                    try {
-                        // @ts-ignore
-                        await app.vault.adapter.write(fallbackFilePath, JSON.stringify(data, null, 2));
-                    } catch (e) {}
-                    // Return the plugin's list for compatibility
+                    // Sync with our own file for backup
+                    await this.syncWithOwnFile(parsed.recentFiles);
+                    
                     return parsed.recentFiles.map((f: any) => ({
                         path: f.path,
                         basename: f.basename
@@ -170,19 +151,90 @@ export async function getRecentlyOpenedFiles(app: App): Promise<RecentlyOpenedFi
         } catch (e) {
             debugLog(true, 'warn', '[recently-opened-files] Failed to read recent-files-obsidian plugin data', e);
         }
+
+        return [];
     }
-    // Fallback to our own file
-    const fallbackFilePath = getRecentlyOpenedFilePath(app);
-    try {
-        // @ts-ignore
-        if (await app.vault.adapter.exists(fallbackFilePath)) {
-            // @ts-ignore
-            const raw = await app.vault.adapter.read(fallbackFilePath);
-            const parsed = JSON.parse(raw);
-            if (Array.isArray(parsed.recentFiles)) {
-                return parsed.recentFiles;
+
+    private async syncWithOwnFile(pluginFiles: RecentlyOpenedFile[]): Promise<void> {
+        const filePath = this.getFilePath();
+        let data: RecentFilesDataJson = {
+            recentFiles: [],
+            omittedPaths: [],
+            omittedTags: [],
+            updateOn: 'file-open',
+            omitBookmarks: false,
+            maxLength: null
+        };
+
+        try {
+            if (await this.app.vault.adapter.exists(filePath)) {
+                const raw = await this.app.vault.adapter.read(filePath);
+                const parsed = JSON.parse(raw);
+                if (this.isValidDataJson(parsed)) {
+                    data = parsed;
+                }
+            }
+        } catch (e) {
+            // Continue with default data
+        }
+
+        // Merge plugin files with our own, avoiding duplicates
+        const seen = new Set(data.recentFiles.map(f => f.path));
+        for (const file of pluginFiles) {
+            if (!seen.has(file.path)) {
+                data.recentFiles.push({
+                    path: file.path,
+                    basename: file.basename
+                });
             }
         }
-    } catch (e) { }
-    return [];
+
+        // Limit and save
+        if (data.recentFiles.length > this.MAX_FILES) {
+            data.recentFiles = data.recentFiles.slice(0, this.MAX_FILES);
+        }
+
+        try {
+            await this.app.vault.adapter.write(filePath, JSON.stringify(data, null, 2));
+        } catch (e) {
+            // Silent failure for sync operation
+        }
+    }
+
+    private async getRecentFilesFromOwnFile(): Promise<RecentlyOpenedFile[]> {
+        const filePath = this.getFilePath();
+        
+        try {
+            if (await this.app.vault.adapter.exists(filePath)) {
+                const raw = await this.app.vault.adapter.read(filePath);
+                const parsed = JSON.parse(raw);
+                
+                if (this.isValidDataJson(parsed)) {
+                    return parsed.recentFiles;
+                }
+            }
+        } catch (e) {
+            debugLog(true, 'warn', '[recently-opened-files] Failed to read own file', e);
+        }
+
+        return [];
+    }
+
+    public destroy(): void {
+        if (this.listenerRef) {
+            this.app.workspace.offref(this.listenerRef);
+            this.listenerRef = null;
+        }
+    }
+}
+
+// Convenience functions for backward compatibility
+export async function getRecentlyOpenedFiles(app: App): Promise<RecentlyOpenedFile[]> {
+    const manager = RecentlyOpenedFilesManager.getInstance(app);
+    return manager.getRecentlyOpenedFiles();
+}
+
+export async function recordFileOpened(app: App, file: TFile, debugMode = false): Promise<void> {
+    // This is now handled automatically by the manager's file listener
+    // Keeping this function for backward compatibility, but it's essentially a no-op
 }

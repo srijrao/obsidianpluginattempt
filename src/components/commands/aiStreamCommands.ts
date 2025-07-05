@@ -35,7 +35,6 @@ export function registerAIStreamCommands(
                 editor,
                 settings,
                 processMessages,
-                () => getSystemMessage(settings), // Function to get the current system message
                 plugin.app.vault,
                 { settings, saveSettings: (plugin as any).saveSettings?.bind(plugin) },
                 activeStream,

@@ -22,7 +22,6 @@ import { buildContextMessages } from './contextBuilder';
  * @param editor The current Obsidian editor instance.
  * @param settings The plugin settings, containing configurations for AI models and behavior.
  * @param processMessages An asynchronous function to process and potentially modify messages before sending to the AI.
- * @param getSystemMessage A function that returns the system message to be included in the AI prompt.
  * @param vault The Obsidian vault instance for file operations.
  * @param plugin The plugin instance for accessing settings and save functionality.
  * @param activeStream Legacy parameter - now managed by dispatcher (kept for compatibility).
@@ -33,7 +32,6 @@ export async function handleAICompletion(
     editor: Editor,
     settings: MyPluginSettings,
     processMessages: (messages: Message[]) => Promise<Message[]>,
-    getSystemMessage: () => string,
     vault: Vault,
     plugin: { settings: MyPluginSettings; saveSettings: () => Promise<void> },
     activeStream: { current: AbortController | null },

@@ -3,6 +3,7 @@ import { Message } from '../types';
 import MyPlugin from '../main';
 import { getSystemMessage } from './systemMessage';
 import { processContextNotes } from './noteUtils';
+import { getRecentlyOpenedFiles } from './recently-opened-files';
 
 /**
  * Centralized utility for building context messages for AI conversations.
@@ -28,6 +29,12 @@ export async function buildContextMessages({
     const messages: Message[] = [
         { role: 'system', content: getSystemMessage(plugin.settings) }
     ];
+
+    // Add the list of 5 recently opened files to the system message.
+    const recentlyOpenedFiles = await getRecentlyOpenedFiles(app);
+    if (recentlyOpenedFiles.length > 0) {
+        messages[0].content += `\n\nRecently Opened Files:\n${recentlyOpenedFiles.slice(0, 5).map(f => f.path).join('\n')}`;
+    }
 
     // Optionally append context notes to the system message.
     if (includeContextNotes && plugin.settings.enableContextNotes && plugin.settings.contextNotes) {
