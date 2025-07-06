@@ -3238,27 +3238,24 @@ var init_promptConstants = __esm({
 - You are an AI assistant in an Obsidian Vault with access to powerful tools for vault management.
 - ALWAYS start by using the 'thought' tool to outline your plan before executing actions, and at the end of the task for a summary of completion.
 - ALWAYS use relative paths from the vault root.
-- You MAY call multiple tools in a single response if it is efficient to do so. Respond ONLY with a JSON array of tool call objects if you need to use more than one tool at once, or a single object if only one tool is needed.
+- You MAY call multiple tools in a single response if it is efficient to do so. Respond ONLY with several consecutive JSON objects (not an array) if you need to use more than one tool at once, or a single object if only one tool is needed.
 
 Available tools:
 {{TOOL_DESCRIPTIONS}}
 
-When using tools, respond ONLY with a JSON object (for a single tool call) or a JSON array (for multiple tool calls) using this parameter framework:
+When using tools, respond ONLY with JSON objects using this parameter framework:
 
-Multiple tool calls:
-[
-  {
-    "action": "tool1",
-    "parameters": { /* ... */ },
-    "requestId": "..."
-  },
-
-  {
-    "action": "tool2",
-    "parameters": { /* ... */ },
-    "requestId": "..."
-  }
-]
+Multiple tool calls (no commas between objects):
+{
+  "action": "tool1",
+  "parameters": { /* ... */ },
+  "requestId": "..."
+}
+{
+  "action": "tool2",
+  "parameters": { /* ... */ },
+  "requestId": "..."
+}
 `;
     AGENT_SYSTEM_PROMPT = buildAgentSystemPrompt();
     DEFAULT_YAML_SYSTEM_MESSAGE = "You are an assistant that generates YAML attribute values for Obsidian notes. Read the note and generate a value for the specified YAML field. Only output the value, not the key or extra text.";
@@ -17115,7 +17112,7 @@ var CommandParser = class {
    * @returns Array of extracted commands with their original text.
    */
   extractCommands(text) {
-    var _a2, _b, _c;
+    var _a2, _b, _c, _d;
     const commands = [];
     try {
       const parsed = JSON.parse(text.trim());
@@ -17193,6 +17190,49 @@ var CommandParser = class {
       }
     } catch (error) {
     }
+    if (commands.length === 0) {
+      const jsonObjects = this.extractIndividualJsonObjects(text);
+      for (const jsonText of jsonObjects) {
+        try {
+          const parsed = JSON.parse(jsonText);
+          if (parsed.action) {
+            let parameters = parsed.parameters;
+            if (!parameters) {
+              parameters = { ...parsed };
+              delete parameters.action;
+              delete parameters.requestId;
+            }
+            commands.push({
+              command: {
+                action: parsed.action,
+                parameters,
+                requestId: parsed.requestId || this.generateRequestId(),
+                finished: parsed.finished || false
+              },
+              originalText: jsonText
+            });
+          } else if (parsed.thought && parsed.nextTool) {
+            commands.push({
+              command: {
+                action: "thought",
+                parameters: {
+                  thought: parsed.thought,
+                  nextTool: parsed.nextTool,
+                  nextActionDescription: parsed.nextActionDescription,
+                  step: parsed.step,
+                  totalSteps: parsed.totalSteps
+                },
+                requestId: this.generateRequestId(),
+                finished: ((_c = parsed.nextTool) == null ? void 0 : _c.toLowerCase()) === "finished"
+              },
+              originalText: jsonText
+            });
+          }
+        } catch (error) {
+          continue;
+        }
+      }
+    }
     const patterns = [
       /```json\s*(\{[\s\S]*?\})\s*```/g,
       // ```json ... ```
@@ -17236,7 +17276,7 @@ var CommandParser = class {
                   totalSteps: parsed.totalSteps
                 },
                 requestId: this.generateRequestId(),
-                finished: ((_c = parsed.nextTool) == null ? void 0 : _c.toLowerCase()) === "finished"
+                finished: ((_d = parsed.nextTool) == null ? void 0 : _d.toLowerCase()) === "finished"
               },
               originalText
             });
@@ -17248,6 +17288,58 @@ var CommandParser = class {
       pattern.lastIndex = 0;
     }
     return commands;
+  }
+  /**
+   * Extract individual JSON objects from text with proper brace balancing.
+   * @param text The text containing multiple JSON objects.
+   * @returns Array of individual JSON object strings.
+   */
+  extractIndividualJsonObjects(text) {
+    const jsonObjects = [];
+    let braceCount = 0;
+    let currentObject = "";
+    let inString = false;
+    let escapeNext = false;
+    for (let i = 0; i < text.length; i++) {
+      const char = text[i];
+      if (escapeNext) {
+        currentObject += char;
+        escapeNext = false;
+        continue;
+      }
+      if (char === "\\" && inString) {
+        currentObject += char;
+        escapeNext = true;
+        continue;
+      }
+      if (char === '"' && !escapeNext) {
+        inString = !inString;
+        currentObject += char;
+        continue;
+      }
+      if (!inString) {
+        if (char === "{") {
+          if (braceCount === 0) {
+            currentObject = char;
+          } else {
+            currentObject += char;
+          }
+          braceCount++;
+        } else if (char === "}") {
+          currentObject += char;
+          braceCount--;
+          if (braceCount === 0 && currentObject.trim()) {
+            jsonObjects.push(currentObject.trim());
+            currentObject = "";
+          }
+        } else if (braceCount > 0) {
+          currentObject += char;
+        }
+      } else {
+        currentObject += char;
+      }
+    }
+    return jsonObjects;
   }
   /**
    * Generate a unique request ID for tool commands.

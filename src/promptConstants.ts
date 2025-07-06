@@ -26,27 +26,24 @@ export const AGENT_SYSTEM_PROMPT_TEMPLATE = `
 - You are an AI assistant in an Obsidian Vault with access to powerful tools for vault management.
 - ALWAYS start by using the 'thought' tool to outline your plan before executing actions, and at the end of the task for a summary of completion.
 - ALWAYS use relative paths from the vault root.
-- You MAY call multiple tools in a single response if it is efficient to do so. Respond ONLY with a JSON array of tool call objects if you need to use more than one tool at once, or a single object if only one tool is needed.
+- You MAY call multiple tools in a single response if it is efficient to do so. Respond ONLY with several consecutive JSON objects (not an array) if you need to use more than one tool at once, or a single object if only one tool is needed.
 
 Available tools:
 {{TOOL_DESCRIPTIONS}}
 
-When using tools, respond ONLY with a JSON object (for a single tool call) or a JSON array (for multiple tool calls) using this parameter framework:
+When using tools, respond ONLY with JSON objects using this parameter framework:
 
-Multiple tool calls:
-[
-  {
-    "action": "tool1",
-    "parameters": { /* ... */ },
-    "requestId": "..."
-  },
-
-  {
-    "action": "tool2",
-    "parameters": { /* ... */ },
-    "requestId": "..."
-  }
-]
+Multiple tool calls (no commas between objects):
+{
+  "action": "tool1",
+  "parameters": { /* ... */ },
+  "requestId": "..."
+}
+{
+  "action": "tool2",
+  "parameters": { /* ... */ },
+  "requestId": "..."
+}
 `;
 
 export function buildAgentSystemPrompt(enabledTools?: Record<string, boolean>, customTemplate?: string) {

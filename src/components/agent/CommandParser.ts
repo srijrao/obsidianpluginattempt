@@ -207,6 +207,52 @@ export class CommandParser {
             // Ignore parse errors, try regex extraction below.
         }
 
+        // New: Match multiple consecutive JSON objects in plain text (not in array)
+        // Use a more precise method to extract individual JSON objects
+        if (commands.length === 0) {
+            const jsonObjects = this.extractIndividualJsonObjects(text);
+            for (const jsonText of jsonObjects) {
+                try {
+                    const parsed = JSON.parse(jsonText);
+                    if (parsed.action) {
+                        let parameters = parsed.parameters;
+                        if (!parameters) {
+                            parameters = { ...parsed };
+                            delete parameters.action;
+                            delete parameters.requestId;
+                        }
+                        commands.push({
+                            command: {
+                                action: parsed.action,
+                                parameters: parameters,
+                                requestId: parsed.requestId || this.generateRequestId(),
+                                finished: parsed.finished || false
+                            },
+                            originalText: jsonText
+                        });
+                    } else if (parsed.thought && parsed.nextTool) {
+                        commands.push({
+                            command: {
+                                action: 'thought',
+                                parameters: {
+                                    thought: parsed.thought,
+                                    nextTool: parsed.nextTool,
+                                    nextActionDescription: parsed.nextActionDescription,
+                                    step: parsed.step,
+                                    totalSteps: parsed.totalSteps
+                                },
+                                requestId: this.generateRequestId(),
+                                finished: parsed.nextTool?.toLowerCase() === 'finished'
+                            },
+                            originalText: jsonText
+                        });
+                    }
+                } catch (error) {
+                    continue;
+                }
+            }
+        }
+
         // Patterns for extracting JSON blocks from text/code blocks.
         const patterns = [
             /```json\s*(\{[\s\S]*?\})\s*```/g,  // ```json ... ```
@@ -264,6 +310,68 @@ export class CommandParser {
         }
 
         return commands;
+    }
+
+    /**
+     * Extract individual JSON objects from text with proper brace balancing.
+     * @param text The text containing multiple JSON objects.
+     * @returns Array of individual JSON object strings.
+     */
+    private extractIndividualJsonObjects(text: string): string[] {
+        const jsonObjects: string[] = [];
+        let braceCount = 0;
+        let currentObject = '';
+        let inString = false;
+        let escapeNext = false;
+        
+        for (let i = 0; i < text.length; i++) {
+            const char = text[i];
+            
+            if (escapeNext) {
+                currentObject += char;
+                escapeNext = false;
+                continue;
+            }
+            
+            if (char === '\\' && inString) {
+                currentObject += char;
+                escapeNext = true;
+                continue;
+            }
+            
+            if (char === '"' && !escapeNext) {
+                inString = !inString;
+                currentObject += char;
+                continue;
+            }
+            
+            if (!inString) {
+                if (char === '{') {
+                    if (braceCount === 0) {
+                        currentObject = char; // Start new object
+                    } else {
+                        currentObject += char;
+                    }
+                    braceCount++;
+                } else if (char === '}') {
+                    currentObject += char;
+                    braceCount--;
+                    
+                    if (braceCount === 0 && currentObject.trim()) {
+                        // Complete JSON object found
+                        jsonObjects.push(currentObject.trim());
+                        currentObject = '';
+                    }
+                } else if (braceCount > 0) {
+                    currentObject += char;
+                }
+                // Skip whitespace and other characters when not inside an object
+            } else {
+                currentObject += char;
+            }
+        }
+        
+        return jsonObjects;
     }
 
     /**
