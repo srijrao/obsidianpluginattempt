@@ -127,10 +127,47 @@ export class CommandParser {
     extractCommands(text: string): Array<{ command: ToolCommand; originalText: string }> {
         const commands: Array<{ command: ToolCommand; originalText: string }> = [];
 
-        // Try to parse the entire text as a single JSON command.
+        // Try to parse the entire text as a JSON command or array of commands.
         try {
             const parsed = JSON.parse(text.trim());
-            if (parsed.action) {
+            if (Array.isArray(parsed)) {
+                for (const item of parsed) {
+                    if (item && typeof item === 'object' && item.action) {
+                        let parameters = item.parameters;
+                        if (!parameters) {
+                            parameters = { ...item };
+                            delete parameters.action;
+                            delete parameters.requestId;
+                        }
+                        commands.push({
+                            command: {
+                                action: item.action,
+                                parameters: parameters,
+                                requestId: item.requestId || this.generateRequestId(),
+                                finished: item.finished || false
+                            },
+                            originalText: JSON.stringify(item)
+                        });
+                    } else if (item && typeof item === 'object' && item.thought && item.nextTool) {
+                        commands.push({
+                            command: {
+                                action: 'thought',
+                                parameters: {
+                                    thought: item.thought,
+                                    nextTool: item.nextTool,
+                                    nextActionDescription: item.nextActionDescription,
+                                    step: item.step,
+                                    totalSteps: item.totalSteps
+                                },
+                                requestId: this.generateRequestId(),
+                                finished: item.nextTool?.toLowerCase() === 'finished'
+                            },
+                            originalText: JSON.stringify(item)
+                        });
+                    }
+                }
+                return commands;
+            } else if (parsed.action) {
                 let parameters = parsed.parameters;
                 // If parameters are missing, use all fields except action/requestId.
                 if (!parameters) {
