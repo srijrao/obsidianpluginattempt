@@ -17,7 +17,7 @@ import {
     isValidMessage,
     isNonEmptyString
 } from './typeGuards';
-import { sanitizeInput, validateContentLength } from './validationUtils';
+import { sanitizeInput, } from './validationUtils';
 
 // Types for new features
 interface CacheEntry {
@@ -284,49 +284,29 @@ export class AIDispatcher {
      * Validates request format and content with enhanced security using comprehensive type guards.
      */
     private validateRequest(messages: Message[], options: CompletionOptions): void {
-        const MAX_TOTAL_MESSAGE_LENGTH = 50000; // Max total characters for all messages combined
-
         // Use type guards for comprehensive validation
         if (!Array.isArray(messages) || messages.length === 0) {
             throw new Error('Messages array is required and cannot be empty');
         }
 
-        let totalMessageLength = 0;
-
         // Validate each message using type guards
         for (let i = 0; i < messages.length; i++) {
             const message = messages[i];
-            
             // Basic message structure validation
             if (!message || typeof message !== 'object') {
                 throw new Error(`Invalid message at index ${i}: Message must be an object`);
             }
-
             if (!message.role || typeof message.role !== 'string') {
                 throw new Error(`Invalid message at index ${i}: Message role is required and must be a string`);
             }
-
             if (!message.content || typeof message.content !== 'string') {
                 throw new Error(`Invalid message at index ${i}: Message content is required and must be a string`);
             }
-
             // Validate role values
             if (!['system', 'user', 'assistant'].includes(message.role)) {
                 throw new Error(`Invalid message role at index ${i}: ${message.role}. Must be 'system', 'user', or 'assistant'`);
             }
             
-            // Validate individual message content length
-            try {
-                validateContentLength(message.content, 10000); // Max per message
-                totalMessageLength += message.content.length;
-            } catch (error) {
-                throw new Error(`Message content validation failed at index ${i}: ${error instanceof Error ? error.message : 'Unknown error'}`);
-            }
-        }
-
-        // Enforce total message length limit
-        if (totalMessageLength > MAX_TOTAL_MESSAGE_LENGTH) {
-            throw new Error(`Total message content length (${totalMessageLength}) exceeds limit of ${MAX_TOTAL_MESSAGE_LENGTH} characters`);
         }
 
         // Enhanced options validation with comprehensive type checking
@@ -346,10 +326,9 @@ export class AIDispatcher {
 
         // Apply content filtering and sanitization
         this.sanitizeMessages(messages);
-        
+
         debugLog(this.plugin.settings.debugMode ?? false, 'debug', '[AIDispatcher] Request validation completed successfully', {
-            messageCount: messages.length,
-            totalLength: totalMessageLength
+            messageCount: messages.length
         });
     }
 
@@ -357,26 +336,15 @@ export class AIDispatcher {
      * Sanitizes message content for safety using enhanced validation.
      */
     private sanitizeMessages(messages: Message[]): void {
-        const MAX_MESSAGE_LENGTH = 10000; // Max characters per message content
-
         for (const message of messages) {
             try {
-                // Validate and sanitize content length
-                message.content = validateContentLength(message.content, MAX_MESSAGE_LENGTH);
-                
-                // Apply comprehensive sanitization
+                // Only apply comprehensive sanitization, no length limit
                 message.content = sanitizeInput(message.content);
-                
                 debugLog(this.plugin.settings.debugMode ?? false, 'debug', '[AIDispatcher] Message content sanitized successfully');
             } catch (error) {
                 debugLog(this.plugin.settings.debugMode ?? false, 'warn', '[AIDispatcher] Message content sanitization failed:', error);
-                
                 // Fallback to basic sanitization if enhanced validation fails
                 message.content = message.content.trim();
-                if (message.content.length > MAX_MESSAGE_LENGTH) {
-                    message.content = message.content.substring(0, MAX_MESSAGE_LENGTH);
-                }
-                
                 // Basic sanitization as fallback
                 message.content = message.content
                     .replace(/</g, '&lt;')

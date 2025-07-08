@@ -65,25 +65,6 @@ export function isValidUrl(url: string): boolean {
 }
 
 /**
- * Validates and sanitizes user input to prevent injection attacks
- * @param input The input string to validate
- * @returns Sanitized input string
- * @throws Error if input is invalid or too long
- */
-export function validateUserInput(input: string): string {
-    if (typeof input !== 'string') {
-        throw new Error('Input must be a string');
-    }
-    
-    if (input.length > MAX_INPUT_LENGTH) {
-        throw new Error(`Input too long. Maximum length is ${MAX_INPUT_LENGTH} characters`);
-    }
-    
-    // Basic sanitization to prevent common injection attempts
-    return sanitizeInput(input);
-}
-
-/**
  * Sanitizes input string to prevent XSS and injection attacks
  * @param input The input string to sanitize
  * @returns Sanitized string
@@ -187,25 +168,6 @@ export function validateFilePath(path: string): string {
     }
     
     return cleanPath;
-}
-
-/**
- * Validates content length to prevent excessive memory usage
- * @param content The content to validate
- * @param maxLength Maximum allowed length
- * @returns Validated content
- * @throws Error if content is too long
- */
-export function validateContentLength(content: string, maxLength: number = MAX_INPUT_LENGTH): string {
-    if (typeof content !== 'string') {
-        throw new Error('Content must be a string');
-    }
-    
-    if (content.length > maxLength) {
-        throw new Error(`Content too long. Maximum length is ${maxLength} characters`);
-    }
-    
-    return content;
 }
 
 /**

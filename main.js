@@ -13227,19 +13227,9 @@ function sanitizeInput(input) {
   if (typeof input !== "string") return "";
   return input.replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/'/g, "&#039;").replace(/\x00/g, "").trim();
 }
-function validateContentLength(content, maxLength = MAX_INPUT_LENGTH) {
-  if (typeof content !== "string") {
-    throw new Error("Content must be a string");
-  }
-  if (content.length > maxLength) {
-    throw new Error(`Content too long. Maximum length is ${maxLength} characters`);
-  }
-  return content;
-}
-var MAX_INPUT_LENGTH, MAX_API_KEY_LENGTH, MIN_API_KEY_LENGTH;
+var MAX_API_KEY_LENGTH, MIN_API_KEY_LENGTH;
 var init_validationUtils = __esm({
   "src/utils/validationUtils.ts"() {
-    MAX_INPUT_LENGTH = 5e4;
     MAX_API_KEY_LENGTH = 200;
     MIN_API_KEY_LENGTH = 20;
   }
@@ -13424,11 +13414,9 @@ var init_aiDispatcher = __esm({
        */
       validateRequest(messages, options) {
         var _a2;
-        const MAX_TOTAL_MESSAGE_LENGTH = 5e4;
         if (!Array.isArray(messages) || messages.length === 0) {
           throw new Error("Messages array is required and cannot be empty");
         }
-        let totalMessageLength = 0;
         for (let i = 0; i < messages.length; i++) {
           const message = messages[i];
           if (!message || typeof message !== "object") {
@@ -13443,15 +13431,6 @@ var init_aiDispatcher = __esm({
           if (!["system", "user", "assistant"].includes(message.role)) {
             throw new Error(`Invalid message role at index ${i}: ${message.role}. Must be 'system', 'user', or 'assistant'`);
           }
-          try {
-            validateContentLength(message.content, 1e4);
-            totalMessageLength += message.content.length;
-          } catch (error) {
-            throw new Error(`Message content validation failed at index ${i}: ${error instanceof Error ? error.message : "Unknown error"}`);
-          }
-        }
-        if (totalMessageLength > MAX_TOTAL_MESSAGE_LENGTH) {
-          throw new Error(`Total message content length (${totalMessageLength}) exceeds limit of ${MAX_TOTAL_MESSAGE_LENGTH} characters`);
         }
         if (options.temperature !== void 0) {
           if (typeof options.temperature !== "number" || isNaN(options.temperature)) {
@@ -13466,8 +13445,7 @@ var init_aiDispatcher = __esm({
         }
         this.sanitizeMessages(messages);
         debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "debug", "[AIDispatcher] Request validation completed successfully", {
-          messageCount: messages.length,
-          totalLength: totalMessageLength
+          messageCount: messages.length
         });
       }
       /**
@@ -13475,18 +13453,13 @@ var init_aiDispatcher = __esm({
        */
       sanitizeMessages(messages) {
         var _a2, _b;
-        const MAX_MESSAGE_LENGTH = 1e4;
         for (const message of messages) {
           try {
-            message.content = validateContentLength(message.content, MAX_MESSAGE_LENGTH);
             message.content = sanitizeInput(message.content);
             debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "debug", "[AIDispatcher] Message content sanitized successfully");
           } catch (error) {
             debugLog((_b = this.plugin.settings.debugMode) != null ? _b : false, "warn", "[AIDispatcher] Message content sanitization failed:", error);
             message.content = message.content.trim();
-            if (message.content.length > MAX_MESSAGE_LENGTH) {
-              message.content = message.content.substring(0, MAX_MESSAGE_LENGTH);
-            }
             message.content = message.content.replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
           }
         }
