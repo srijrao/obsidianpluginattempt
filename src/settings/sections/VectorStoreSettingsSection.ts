@@ -1,0 +1,213 @@
+/**
+ * @file VectorStoreSettingsSection.ts
+ * @description Settings section for configuring vector store and semantic search functionality.
+ */
+
+import { Setting, Notice, Modal } from 'obsidian';
+import MyPlugin from '../../main';
+import { SettingCreators } from '../components/SettingCreators';
+import { SemanticContextBuilder } from '../../components/agent/memory-handling/SemanticContextBuilder';
+import { showNotice } from '../../utils/generalUtils';
+
+/**
+ * VectorStoreSettingsSection
+ * ---------------------------
+ * Manages settings related to vector store and semantic search functionality.
+ */
+export class VectorStoreSettingsSection {
+    private semanticContextBuilder: SemanticContextBuilder | null = null;
+
+    constructor(
+        private plugin: MyPlugin,
+        private settingCreators: SettingCreators
+    ) {
+        // Initialize semantic context builder if available
+        try {
+            this.semanticContextBuilder = new SemanticContextBuilder(plugin.app, plugin);
+        } catch (error) {
+            console.warn('SemanticContextBuilder not available:', error);
+        }
+    }
+
+    /**
+     * Renders the vector store settings section.
+     */
+    render(containerEl: HTMLElement): void {
+        // Vector Store Status
+        new Setting(containerEl)
+            .setName('Vector Store Status')
+            .setDesc('Current status of the semantic memory system')
+            .addText(text => {
+                const stats = this.semanticContextBuilder?.getStats();
+                if (stats) {
+                    text.setValue(`${stats.totalVectors} embeddings stored`);
+                    text.setDisabled(true);
+                } else {
+                    text.setValue('Vector store unavailable (Desktop only)');
+                    text.setDisabled(true);
+                }
+            });
+
+        // Enable Semantic Context
+        new Setting(containerEl)
+            .setName('Enable Semantic Context')
+            .setDesc('Use semantic search to find relevant context for AI completions. Requires embeddings to be generated first.')
+            .addToggle(toggle => toggle
+                .setValue(this.plugin.settings.enableSemanticContext ?? false)
+                .onChange(async (value) => {
+                    this.plugin.settings.enableSemanticContext = value;
+                    await this.plugin.saveSettings();
+                }));
+
+        // Semantic Context Settings
+        if (this.plugin.settings.enableSemanticContext) {
+            new Setting(containerEl)
+                .setName('Max Context Chunks')
+                .setDesc('Maximum number of relevant chunks to include in AI context')
+                .addSlider(slider => slider
+                    .setLimits(1, 10, 1)
+                    .setValue(this.plugin.settings.maxSemanticContextChunks ?? 3)
+                    .setDynamicTooltip()
+                    .onChange(async (value) => {
+                        this.plugin.settings.maxSemanticContextChunks = value;
+                        await this.plugin.saveSettings();
+                    }));
+
+            new Setting(containerEl)
+                .setName('Similarity Threshold')
+                .setDesc('Minimum similarity score for including context (0.0 to 1.0)')
+                .addSlider(slider => slider
+                    .setLimits(0.0, 1.0, 0.1)
+                    .setValue(this.plugin.settings.semanticSimilarityThreshold ?? 0.7)
+                    .setDynamicTooltip()
+                    .onChange(async (value) => {
+                        this.plugin.settings.semanticSimilarityThreshold = value;
+                        await this.plugin.saveSettings();
+                    }));
+        }
+
+        // Embedding Management Actions
+        const actionsContainer = containerEl.createDiv({ cls: 'vector-store-actions' });
+        
+        // Embed All Notes
+        new Setting(actionsContainer)
+            .setName('Embed All Notes')
+            .setDesc('Generate embeddings for all notes in your vault. This may take several minutes and requires an API key.')
+            .addButton(button => button
+                .setButtonText('Embed All Notes')
+                .setCta()
+                .onClick(async () => {
+                    if (!this.semanticContextBuilder) {
+                        showNotice('Vector store not available on this platform');
+                        return;
+                    }
+                    
+                    if (!this.plugin.settings.openaiSettings.apiKey) {
+                        showNotice('OpenAI API key required for embedding generation');
+                        return;
+                    }
+
+                    try {
+                        button.setButtonText('Embedding...');
+                        button.setDisabled(true);
+                        await this.semanticContextBuilder.embedAllNotes();
+                        button.setButtonText('Embed All Notes');
+                        button.setDisabled(false);
+                        // Refresh the display to update stats
+                        containerEl.empty();
+                        this.render(containerEl);
+                    } catch (error) {
+                        button.setButtonText('Embed All Notes');
+                        button.setDisabled(false);
+                        showNotice(`Error: ${error.message}`);
+                    }
+                }));
+
+        // Clear All Embeddings
+        new Setting(actionsContainer)
+            .setName('Clear All Embeddings')
+            .setDesc('Remove all stored embeddings from the vector database')
+            .addButton(button => button
+                .setButtonText('Clear All')
+                .setWarning()
+                .onClick(async () => {
+                    if (!this.semanticContextBuilder) {
+                        showNotice('Vector store not available');
+                        return;
+                    }
+
+                    try {
+                        await this.semanticContextBuilder.clearAllEmbeddings();
+                        // Refresh the display to update stats
+                        containerEl.empty();
+                        this.render(containerEl);
+                    } catch (error) {
+                        showNotice(`Error: ${error.message}`);
+                    }
+                }));
+
+        // Test Semantic Search
+        let searchQuery = '';
+        new Setting(actionsContainer)
+            .setName('Test Semantic Search')
+            .setDesc('Test the semantic search functionality with a sample query')
+            .addText(text => text
+                .setPlaceholder('Enter search query...')
+                .onChange((value) => {
+                    searchQuery = value;
+                }))
+            .addButton(button => button
+                .setButtonText('Search')
+                .onClick(async () => {
+                    if (!this.semanticContextBuilder) {
+                        showNotice('Vector store not available');
+                        return;
+                    }
+
+                    if (!searchQuery.trim()) {
+                        showNotice('Please enter a search query');
+                        return;
+                    }
+
+                    try {
+                        const results = await this.semanticContextBuilder.semanticSearch(searchQuery, {
+                            topK: 3,
+                            minSimilarity: this.plugin.settings.semanticSimilarityThreshold ?? 0.7
+                        });
+
+                        if (results.length === 0) {
+                            showNotice('No similar content found');
+                        } else {
+                            const resultText = results.map((r, i) => 
+                                `${i + 1}. [${r.similarity.toFixed(3)}] ${r.text.slice(0, 100)}...`
+                            ).join('\n\n');
+                            
+                            // Create a modal to show results
+                            const modal = new Modal(this.plugin.app);
+                            modal.titleEl.setText('Semantic Search Results');
+                            modal.contentEl.createEl('pre', { text: resultText });
+                            modal.open();
+                        }
+                    } catch (error) {
+                        showNotice(`Search error: ${error.message}`);
+                    }
+                }));
+
+        // Information Box
+        const infoEl = containerEl.createDiv({ cls: 'setting-item-description' });
+        infoEl.style.marginTop = '20px';
+        infoEl.style.padding = '10px';
+        infoEl.style.border = '1px solid var(--background-modifier-border)';
+        infoEl.style.borderRadius = '5px';
+        infoEl.innerHTML = `
+            <strong>About Semantic Memory:</strong><br>
+            The vector store provides semantic memory capabilities by storing embeddings of your notes and conversations. 
+            This allows the AI to find and include relevant context even when the exact keywords don't match.<br><br>
+            <strong>Requirements:</strong><br>
+            • OpenAI API key for embedding generation<br>
+            • Desktop version of Obsidian (not available on mobile)<br>
+            • Initial embedding generation for your notes<br><br>
+            <strong>Privacy:</strong> Embeddings are stored locally in your vault and never sent to external services except for the initial generation.
+        `;
+    }
+}

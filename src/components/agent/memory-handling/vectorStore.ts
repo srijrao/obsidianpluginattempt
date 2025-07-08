@@ -97,7 +97,27 @@ export class VectorStore {
     stmt.run(id, text, embeddingBuffer, metadata ? JSON.stringify(metadata) : null);
   }
 
+  /**
+   * Retrieves a specific vector by its ID.
+   * @param id - The unique identifier of the vector to retrieve.
+   * @returns The vector object or null if not found.
+   */
+  getVector(id: string): { id: string; text: string; embedding: Buffer; metadata: string | null } | null {
+    const stmt = this.db.prepare('SELECT * FROM vectors WHERE id = ?;');
+    const result = stmt.get(id) as { id: string; text: string; embedding: Buffer; metadata: string | null } | undefined;
+    return result || null;
+  }
 
+  /**
+   * Deletes a vector by its ID.
+   * @param id - The unique identifier of the vector to delete.
+   * @returns True if a vector was deleted, false if not found.
+   */
+  deleteVector(id: string): boolean {
+    const stmt = this.db.prepare('DELETE FROM vectors WHERE id = ?;');
+    const result = stmt.run(id);
+    return result.changes > 0;
+  }
 
   /**
    * Retrieves all vectors stored in the database.
@@ -110,13 +130,173 @@ export class VectorStore {
     const stmt = this.db.prepare('SELECT * FROM vectors;');
     // Return the result as an array of objects
     return stmt.all() as Array<{ id: string; text: string; embedding: Buffer; metadata: string | null }>;
+
   }
 
   /**
-   * Returns the underlying better-sqlite3 Database instance.
-   * Useful for advanced queries or direct access.
+   * Calculates cosine similarity between two vectors.
+   * @param vec1 - First vector as Float32Array or number array.
+   * @param vec2 - Second vector as Float32Array or number array.
+   * @returns Cosine similarity score between -1 and 1.
    */
-  getDB() {
-    return this.db;
+  private cosineSimilarity(vec1: Float32Array | number[], vec2: Float32Array | number[]): number {
+    if (vec1.length !== vec2.length) {
+      throw new Error('Vectors must have the same length for similarity calculation');
+    }
+
+    let dotProduct = 0;
+    let norm1 = 0;
+    let norm2 = 0;
+
+    for (let i = 0; i < vec1.length; i++) {
+      dotProduct += vec1[i] * vec2[i];
+      norm1 += vec1[i] * vec1[i];
+      norm2 += vec2[i] * vec2[i];
+    }
+
+    if (norm1 === 0 || norm2 === 0) {
+      return 0; // Handle zero vectors
+    }
+
+    return dotProduct / (Math.sqrt(norm1) * Math.sqrt(norm2));
+  }
+
+  /**
+   * Converts a Buffer containing Float32Array data back to a Float32Array.
+   * @param buffer - Buffer containing the binary vector data.
+   * @returns Float32Array representation of the vector.
+   */
+  private bufferToFloat32Array(buffer: Buffer): Float32Array {
+    return new Float32Array(buffer.buffer, buffer.byteOffset, buffer.byteLength / 4);
+  }
+
+  /**
+   * Finds the most similar vectors to a query embedding using cosine similarity.
+   * @param queryEmbedding - The query vector to compare against (as number array).
+   * @param topK - Number of most similar vectors to return (default: 5).
+   * @param minSimilarity - Minimum similarity threshold (default: 0, returns all).
+   * @returns Array of similar vectors with similarity scores, sorted by similarity (highest first).
+   */
+  findSimilarVectors(
+    queryEmbedding: number[],
+    topK: number = 5,
+    minSimilarity: number = 0
+  ): Array<{
+    id: string;
+    text: string;
+    similarity: number;
+    metadata: Record<string, any> | null;
+  }> {
+    // Get all vectors from database
+    const allVectors = this.getAllVectors();
+
+    // Calculate similarities
+    const similarities = allVectors.map((vector: { id: string; text: string; embedding: Buffer; metadata: string | null }) => {
+      const vectorData = this.bufferToFloat32Array(vector.embedding);
+      const similarity = this.cosineSimilarity(queryEmbedding, vectorData);
+      
+      return {
+        id: vector.id,
+        text: vector.text,
+        similarity,
+        metadata: vector.metadata ? JSON.parse(vector.metadata) : null
+      };
+    });
+
+    // Filter by minimum similarity and sort by similarity (descending)
+    return similarities
+      .filter((item: { id: string; text: string; similarity: number; metadata: Record<string, any> | null }) => item.similarity >= minSimilarity)
+      .sort((a: { similarity: number }, b: { similarity: number }) => b.similarity - a.similarity)
+      .slice(0, topK);
+  }
+
+  /**
+   * Searches for vectors containing specific text (case-insensitive).
+   * @param searchText - Text to search for in vector text content.
+   * @param limit - Maximum number of results to return (default: 10).
+   * @returns Array of matching vectors.
+   */
+  searchByText(searchText: string, limit: number = 10): Array<{
+    id: string;
+    text: string;
+    embedding: Buffer;
+    metadata: Record<string, any> | null;
+  }> {
+    const stmt = this.db.prepare('SELECT * FROM vectors WHERE text LIKE ? LIMIT ?;');
+    const results = stmt.all(`%${searchText}%`, limit) as Array<{
+      id: string;
+      text: string;
+      embedding: Buffer;
+      metadata: string | null;
+    }>;
+
+    return results.map(result => ({
+      ...result,
+      metadata: result.metadata ? JSON.parse(result.metadata) : null
+    }));
+  }
+
+  /**
+   * Gets the total count of vectors in the database.
+   * @returns Number of vectors stored.
+   */
+  getVectorCount(): number {
+    const stmt = this.db.prepare('SELECT COUNT(*) as count FROM vectors;');
+    const result = stmt.get() as { count: number };
+    return result.count;
+  }
+
+  /**
+   * Clears all vectors from the database.
+   * @returns Number of vectors that were deleted.
+   */
+  clearAllVectors(): number {
+    const stmt = this.db.prepare('DELETE FROM vectors;');
+    const result = stmt.run();
+    return result.changes;
+  }
+
+  /**
+   * Gets vectors by their metadata properties.
+   * @param metadataQuery - Key-value pairs to match in metadata.
+   * @param limit - Maximum number of results (default: 10).
+   * @returns Array of matching vectors.
+   */
+  getVectorsByMetadata(
+    metadataQuery: Record<string, any>,
+    limit: number = 10
+  ): Array<{
+    id: string;
+    text: string;
+    embedding: Buffer;
+    metadata: Record<string, any> | null;
+  }> {
+    // Get all vectors and filter by metadata in JavaScript
+    // Note: For better performance with large datasets, consider using JSON operators in SQLite
+    const allVectors = this.getAllVectors();
+    
+    const matches = allVectors.filter((vector: { id: string; text: string; embedding: Buffer; metadata: string | null }) => {
+      if (!vector.metadata) return false;
+      
+      try {
+        const metadata = JSON.parse(vector.metadata);
+        return Object.entries(metadataQuery).every(([key, value]) => metadata[key] === value);
+      } catch {
+        return false;
+      }
+    }).slice(0, limit);
+
+    return matches.map((result: { id: string; text: string; embedding: Buffer; metadata: string | null }) => ({
+      ...result,
+      metadata: result.metadata ? JSON.parse(result.metadata) : null
+    }));
+  }
+
+  /**
+   * Closes the database connection.
+   * Should be called when the vector store is no longer needed.
+   */
+  close(): void {
+    this.db.close();
   }
 }

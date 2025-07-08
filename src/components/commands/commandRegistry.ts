@@ -9,6 +9,7 @@ import {
     registerToggleCommands,
 } from ".";
 import { registerYamlAttributeCommands } from "../../YAMLHandler";
+import { registerVectorStoreCommands } from "./vectorStoreCommands";
 import { debugLog } from "../../utils/logger"; // Changed from log to debugLog
 
 export function registerAllCommands(
@@ -26,6 +27,7 @@ export function registerAllCommands(
     registerGenerateNoteTitleCommand(plugin, settings, processMessages);
     registerContextCommands(plugin, settings);
     registerToggleCommands(plugin, settings);
+    registerVectorStoreCommands(plugin);
     return registerYamlAttributeCommands(
         plugin,
         settings,

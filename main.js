@@ -13,6 +13,9 @@ var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { en
 var __esm = (fn, res) => function __init() {
   return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
 };
+var __commonJS = (cb, mod) => function __require() {
+  return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
+};
 var __export = (target, all) => {
   for (var name in all)
     __defProp(target, name, { get: all[name], enumerable: true });
@@ -368,16 +371,16 @@ var init_typeGuards = __esm({
 });
 
 // src/utils/fileUtils.ts
-function getFileOrFolderByPath(app, path3, debugMode) {
-  debugLog(debugMode, "debug", "[fileUtils] Attempting to get file or folder by path:", path3);
+function getFileOrFolderByPath(app, path4, debugMode) {
+  debugLog(debugMode, "debug", "[fileUtils] Attempting to get file or folder by path:", path4);
   let fileOrFolder = null;
-  if (path3 === "" || path3 === "/") {
+  if (path4 === "" || path4 === "/") {
     fileOrFolder = app.vault.getRoot();
   } else {
-    fileOrFolder = app.vault.getAbstractFileByPath(path3);
-    if (!fileOrFolder && path3.endsWith("/")) {
+    fileOrFolder = app.vault.getAbstractFileByPath(path4);
+    if (!fileOrFolder && path4.endsWith("/")) {
       const allFolders = app.vault.getAllLoadedFiles().filter((f) => f instanceof import_obsidian.TFolder);
-      const match = allFolders.find((f) => f.path.toLowerCase() === path3.toLowerCase());
+      const match = allFolders.find((f) => f.path.toLowerCase() === path4.toLowerCase());
       if (match) fileOrFolder = match;
     }
   }
@@ -385,23 +388,23 @@ function getFileOrFolderByPath(app, path3, debugMode) {
     debugLog(debugMode, "debug", "[fileUtils] Found file or folder:", fileOrFolder.path);
     return fileOrFolder;
   }
-  debugLog(debugMode, "warn", "[fileUtils] File or folder not found:", path3);
+  debugLog(debugMode, "warn", "[fileUtils] File or folder not found:", path4);
   return void 0;
 }
-function getTFileByPath(app, path3, debugMode) {
-  const fileOrFolder = getFileOrFolderByPath(app, path3, debugMode);
+function getTFileByPath(app, path4, debugMode) {
+  const fileOrFolder = getFileOrFolderByPath(app, path4, debugMode);
   if (fileOrFolder && isTFile(fileOrFolder)) {
     return fileOrFolder;
   }
-  debugLog(debugMode, "warn", "[fileUtils] Path does not point to a valid TFile:", path3);
+  debugLog(debugMode, "warn", "[fileUtils] Path does not point to a valid TFile:", path4);
   return void 0;
 }
-function getTFolderByPath(app, path3, debugMode) {
-  const fileOrFolder = getFileOrFolderByPath(app, path3, debugMode);
+function getTFolderByPath(app, path4, debugMode) {
+  const fileOrFolder = getFileOrFolderByPath(app, path4, debugMode);
   if (fileOrFolder && isTFolder(fileOrFolder)) {
     return fileOrFolder;
   }
-  debugLog(debugMode, "warn", "[fileUtils] Path does not point to a valid TFolder:", path3);
+  debugLog(debugMode, "warn", "[fileUtils] Path does not point to a valid TFolder:", path4);
   return void 0;
 }
 async function ensureFolderExists(app, folderPath, debugMode) {
@@ -759,7 +762,7 @@ var init_BackupManager = __esm({
         try {
           const backupData = await this.loadBackupData();
           return Object.keys(backupData.backups).filter(
-            (path3) => backupData.backups[path3] && backupData.backups[path3].length > 0
+            (path4) => backupData.backups[path4] && backupData.backups[path4].length > 0
           );
         } catch (error) {
           console.error("Failed to get backup files:", error);
@@ -1377,16 +1380,16 @@ var init_base = __esm({
           }
         }
       }
-      addToPath(path3, added, removed, oldPosInc, options) {
-        const last = path3.lastComponent;
+      addToPath(path4, added, removed, oldPosInc, options) {
+        const last = path4.lastComponent;
         if (last && !options.oneChangePerToken && last.added === added && last.removed === removed) {
           return {
-            oldPos: path3.oldPos + oldPosInc,
+            oldPos: path4.oldPos + oldPosInc,
             lastComponent: { count: last.count + 1, added, removed, previousComponent: last.previousComponent }
           };
         } else {
           return {
-            oldPos: path3.oldPos + oldPosInc,
+            oldPos: path4.oldPos + oldPosInc,
             lastComponent: { count: 1, added, removed, previousComponent: last }
           };
         }
@@ -2368,14 +2371,14 @@ var init_VaultTreeTool = __esm({
        */
       async execute(params, context) {
         const {
-          path: path3 = "",
+          path: path4 = "",
           maxDepth = 10,
           maxItems = 200,
           showFolders = true
         } = params;
         let startPath;
         try {
-          startPath = this.pathValidator.validateAndNormalizePath(path3);
+          startPath = this.pathValidator.validateAndNormalizePath(path4);
         } catch (error) {
           return {
             success: false,
@@ -3383,6 +3386,8 @@ var init_settings = __esm({
       /** @inheritdoc */
       backupManagementExpanded: {},
       /** @inheritdoc */
+      vectorStoreExpanded: {},
+      /** @inheritdoc */
       modelSettingPresets: [
         {
           name: "Default",
@@ -3412,7 +3417,13 @@ var init_settings = __esm({
         maxToolCalls: 10,
         timeoutMs: 3e4,
         maxIterations: 10
-      }
+      },
+      /** @inheritdoc */
+      enableSemanticContext: false,
+      /** @inheritdoc */
+      maxSemanticContextChunks: 3,
+      /** @inheritdoc */
+      semanticSimilarityThreshold: 0.7
     };
   }
 });
@@ -3759,8 +3770,8 @@ var init_ToolRichDisplay = __esm({
         }
         if (this.options.command.action === "file_list" && data) {
           const count = data.count || (Array.isArray(data.files) ? data.files.length : 0);
-          const path3 = data.path || this.options.command.parameters.path;
-          return `<span class="tool-success">\u{1F4CB} Listed ${count} file${count !== 1 ? "s" : ""} in <strong>${path3}</strong></span>`;
+          const path4 = data.path || this.options.command.parameters.path;
+          return `<span class="tool-success">\u{1F4CB} Listed ${count} file${count !== 1 ? "s" : ""} in <strong>${path4}</strong></span>`;
         }
         if (this.options.command.action === "file_move" && data) {
           const from = this.options.command.parameters.sourcePath;
@@ -4054,8 +4065,8 @@ ${details}
         }
         if (command.action === "file_list" && data) {
           const count = data.count || (Array.isArray(data.files) ? data.files.length : 0);
-          const path3 = data.path || command.parameters.path;
-          return `<span class="tool-success">\u{1F4CB} Listed ${count} file${count !== 1 ? "s" : ""} in <strong>${path3}</strong></span>`;
+          const path4 = data.path || command.parameters.path;
+          return `<span class="tool-success">\u{1F4CB} Listed ${count} file${count !== 1 ? "s" : ""} in <strong>${path4}</strong></span>`;
         }
         if (command.action === "file_move" && data) {
           const from = command.parameters.sourcePath;
@@ -8252,29 +8263,29 @@ var init_core = __esm({
       defaultIdempotencyKey() {
         return `stainless-node-retry-${uuid4()}`;
       }
-      get(path3, opts) {
-        return this.methodRequest("get", path3, opts);
+      get(path4, opts) {
+        return this.methodRequest("get", path4, opts);
       }
-      post(path3, opts) {
-        return this.methodRequest("post", path3, opts);
+      post(path4, opts) {
+        return this.methodRequest("post", path4, opts);
       }
-      patch(path3, opts) {
-        return this.methodRequest("patch", path3, opts);
+      patch(path4, opts) {
+        return this.methodRequest("patch", path4, opts);
       }
-      put(path3, opts) {
-        return this.methodRequest("put", path3, opts);
+      put(path4, opts) {
+        return this.methodRequest("put", path4, opts);
       }
-      delete(path3, opts) {
-        return this.methodRequest("delete", path3, opts);
+      delete(path4, opts) {
+        return this.methodRequest("delete", path4, opts);
       }
-      methodRequest(method, path3, opts) {
+      methodRequest(method, path4, opts) {
         return this.request(Promise.resolve(opts).then(async (opts2) => {
           const body = opts2 && isBlobLike(opts2 == null ? void 0 : opts2.body) ? new DataView(await opts2.body.arrayBuffer()) : (opts2 == null ? void 0 : opts2.body) instanceof DataView ? opts2.body : (opts2 == null ? void 0 : opts2.body) instanceof ArrayBuffer ? new DataView(opts2.body) : opts2 && ArrayBuffer.isView(opts2 == null ? void 0 : opts2.body) ? new DataView(opts2.body.buffer) : opts2 == null ? void 0 : opts2.body;
-          return { method, path: path3, ...opts2, body };
+          return { method, path: path4, ...opts2, body };
         }));
       }
-      getAPIList(path3, Page2, opts) {
-        return this.requestAPIList(Page2, { method: "get", path: path3, ...opts });
+      getAPIList(path4, Page2, opts) {
+        return this.requestAPIList(Page2, { method: "get", path: path4, ...opts });
       }
       calculateContentLength(body) {
         if (typeof body === "string") {
@@ -8293,10 +8304,10 @@ var init_core = __esm({
       }
       buildRequest(options, { retryCount = 0 } = {}) {
         var _a2, _b, _c, _d, _e, _f;
-        const { method, path: path3, query, headers = {} } = options;
+        const { method, path: path4, query, headers = {} } = options;
         const body = ArrayBuffer.isView(options.body) || options.__binaryRequest && typeof options.body === "string" ? options.body : isMultipartBody(options.body) ? options.body.body : options.body ? JSON.stringify(options.body, null, 2) : null;
         const contentLength = this.calculateContentLength(body);
-        const url = this.buildURL(path3, query);
+        const url = this.buildURL(path4, query);
         if ("timeout" in options)
           validatePositiveInteger("timeout", options.timeout);
         const timeout = (_a2 = options.timeout) != null ? _a2 : this.timeout;
@@ -8410,8 +8421,8 @@ var init_core = __esm({
         const request = this.makeRequest(options, null);
         return new PagePromise(this, request, Page2);
       }
-      buildURL(path3, query) {
-        const url = isAbsoluteURL(path3) ? new URL(path3) : new URL(this.baseURL + (this.baseURL.endsWith("/") && path3.startsWith("/") ? path3.slice(1) : path3));
+      buildURL(path4, query) {
+        const url = isAbsoluteURL(path4) ? new URL(path4) : new URL(this.baseURL + (this.baseURL.endsWith("/") && path4.startsWith("/") ? path4.slice(1) : path4));
         const defaultQuery = this.defaultQuery();
         if (!isEmptyObj(defaultQuery)) {
           query = { ...defaultQuery, ...query };
@@ -14990,6 +15001,778 @@ var init_clearAICallLogs = __esm({
   }
 });
 
+// node_modules/better-sqlite3/lib/util.js
+var require_util = __commonJS({
+  "node_modules/better-sqlite3/lib/util.js"(exports) {
+    "use strict";
+    exports.getBooleanOption = (options, key) => {
+      let value = false;
+      if (key in options && typeof (value = options[key]) !== "boolean") {
+        throw new TypeError(`Expected the "${key}" option to be a boolean`);
+      }
+      return value;
+    };
+    exports.cppdb = Symbol();
+    exports.inspect = Symbol.for("nodejs.util.inspect.custom");
+  }
+});
+
+// node_modules/better-sqlite3/lib/sqlite-error.js
+var require_sqlite_error = __commonJS({
+  "node_modules/better-sqlite3/lib/sqlite-error.js"(exports, module2) {
+    "use strict";
+    var descriptor = { value: "SqliteError", writable: true, enumerable: false, configurable: true };
+    function SqliteError(message, code) {
+      if (new.target !== SqliteError) {
+        return new SqliteError(message, code);
+      }
+      if (typeof code !== "string") {
+        throw new TypeError("Expected second argument to be a string");
+      }
+      Error.call(this, message);
+      descriptor.value = "" + message;
+      Object.defineProperty(this, "message", descriptor);
+      Error.captureStackTrace(this, SqliteError);
+      this.code = code;
+    }
+    Object.setPrototypeOf(SqliteError, Error);
+    Object.setPrototypeOf(SqliteError.prototype, Error.prototype);
+    Object.defineProperty(SqliteError.prototype, "name", descriptor);
+    module2.exports = SqliteError;
+  }
+});
+
+// node_modules/file-uri-to-path/index.js
+var require_file_uri_to_path = __commonJS({
+  "node_modules/file-uri-to-path/index.js"(exports, module2) {
+    var sep = require("path").sep || "/";
+    module2.exports = fileUriToPath;
+    function fileUriToPath(uri) {
+      if ("string" != typeof uri || uri.length <= 7 || "file://" != uri.substring(0, 7)) {
+        throw new TypeError("must pass in a file:// URI to convert to a file path");
+      }
+      var rest = decodeURI(uri.substring(7));
+      var firstSlash = rest.indexOf("/");
+      var host = rest.substring(0, firstSlash);
+      var path4 = rest.substring(firstSlash + 1);
+      if ("localhost" == host) host = "";
+      if (host) {
+        host = sep + sep + host;
+      }
+      path4 = path4.replace(/^(.+)\|/, "$1:");
+      if (sep == "\\") {
+        path4 = path4.replace(/\//g, "\\");
+      }
+      if (/^.+\:/.test(path4)) {
+      } else {
+        path4 = sep + path4;
+      }
+      return host + path4;
+    }
+  }
+});
+
+// node_modules/bindings/bindings.js
+var require_bindings = __commonJS({
+  "node_modules/bindings/bindings.js"(exports, module2) {
+    var fs3 = require("fs");
+    var path4 = require("path");
+    var fileURLToPath = require_file_uri_to_path();
+    var join5 = path4.join;
+    var dirname = path4.dirname;
+    var exists = fs3.accessSync && function(path5) {
+      try {
+        fs3.accessSync(path5);
+      } catch (e) {
+        return false;
+      }
+      return true;
+    } || fs3.existsSync || path4.existsSync;
+    var defaults = {
+      arrow: process.env.NODE_BINDINGS_ARROW || " \u2192 ",
+      compiled: process.env.NODE_BINDINGS_COMPILED_DIR || "compiled",
+      platform: process.platform,
+      arch: process.arch,
+      nodePreGyp: "node-v" + process.versions.modules + "-" + process.platform + "-" + process.arch,
+      version: process.versions.node,
+      bindings: "bindings.node",
+      try: [
+        // node-gyp's linked version in the "build" dir
+        ["module_root", "build", "bindings"],
+        // node-waf and gyp_addon (a.k.a node-gyp)
+        ["module_root", "build", "Debug", "bindings"],
+        ["module_root", "build", "Release", "bindings"],
+        // Debug files, for development (legacy behavior, remove for node v0.9)
+        ["module_root", "out", "Debug", "bindings"],
+        ["module_root", "Debug", "bindings"],
+        // Release files, but manually compiled (legacy behavior, remove for node v0.9)
+        ["module_root", "out", "Release", "bindings"],
+        ["module_root", "Release", "bindings"],
+        // Legacy from node-waf, node <= 0.4.x
+        ["module_root", "build", "default", "bindings"],
+        // Production "Release" buildtype binary (meh...)
+        ["module_root", "compiled", "version", "platform", "arch", "bindings"],
+        // node-qbs builds
+        ["module_root", "addon-build", "release", "install-root", "bindings"],
+        ["module_root", "addon-build", "debug", "install-root", "bindings"],
+        ["module_root", "addon-build", "default", "install-root", "bindings"],
+        // node-pre-gyp path ./lib/binding/{node_abi}-{platform}-{arch}
+        ["module_root", "lib", "binding", "nodePreGyp", "bindings"]
+      ]
+    };
+    function bindings(opts) {
+      if (typeof opts == "string") {
+        opts = { bindings: opts };
+      } else if (!opts) {
+        opts = {};
+      }
+      Object.keys(defaults).map(function(i2) {
+        if (!(i2 in opts)) opts[i2] = defaults[i2];
+      });
+      if (!opts.module_root) {
+        opts.module_root = exports.getRoot(exports.getFileName());
+      }
+      if (path4.extname(opts.bindings) != ".node") {
+        opts.bindings += ".node";
+      }
+      var requireFunc = typeof __webpack_require__ === "function" ? __non_webpack_require__ : require;
+      var tries = [], i = 0, l = opts.try.length, n, b, err;
+      for (; i < l; i++) {
+        n = join5.apply(
+          null,
+          opts.try[i].map(function(p) {
+            return opts[p] || p;
+          })
+        );
+        tries.push(n);
+        try {
+          b = opts.path ? requireFunc.resolve(n) : requireFunc(n);
+          if (!opts.path) {
+            b.path = n;
+          }
+          return b;
+        } catch (e) {
+          if (e.code !== "MODULE_NOT_FOUND" && e.code !== "QUALIFIED_PATH_RESOLUTION_FAILED" && !/not find/i.test(e.message)) {
+            throw e;
+          }
+        }
+      }
+      err = new Error(
+        "Could not locate the bindings file. Tried:\n" + tries.map(function(a) {
+          return opts.arrow + a;
+        }).join("\n")
+      );
+      err.tries = tries;
+      throw err;
+    }
+    module2.exports = exports = bindings;
+    exports.getFileName = function getFileName(calling_file) {
+      var origPST = Error.prepareStackTrace, origSTL = Error.stackTraceLimit, dummy = {}, fileName;
+      Error.stackTraceLimit = 10;
+      Error.prepareStackTrace = function(e, st) {
+        for (var i = 0, l = st.length; i < l; i++) {
+          fileName = st[i].getFileName();
+          if (fileName !== __filename) {
+            if (calling_file) {
+              if (fileName !== calling_file) {
+                return;
+              }
+            } else {
+              return;
+            }
+          }
+        }
+      };
+      Error.captureStackTrace(dummy);
+      dummy.stack;
+      Error.prepareStackTrace = origPST;
+      Error.stackTraceLimit = origSTL;
+      var fileSchema = "file://";
+      if (fileName.indexOf(fileSchema) === 0) {
+        fileName = fileURLToPath(fileName);
+      }
+      return fileName;
+    };
+    exports.getRoot = function getRoot(file) {
+      var dir = dirname(file), prev;
+      while (true) {
+        if (dir === ".") {
+          dir = process.cwd();
+        }
+        if (exists(join5(dir, "package.json")) || exists(join5(dir, "node_modules"))) {
+          return dir;
+        }
+        if (prev === dir) {
+          throw new Error(
+            'Could not find module root given file: "' + file + '". Do you have a `package.json` file? '
+          );
+        }
+        prev = dir;
+        dir = join5(dir, "..");
+      }
+    };
+  }
+});
+
+// node_modules/better-sqlite3/lib/methods/wrappers.js
+var require_wrappers = __commonJS({
+  "node_modules/better-sqlite3/lib/methods/wrappers.js"(exports) {
+    "use strict";
+    var { cppdb } = require_util();
+    exports.prepare = function prepare(sql) {
+      return this[cppdb].prepare(sql, this, false);
+    };
+    exports.exec = function exec(sql) {
+      this[cppdb].exec(sql);
+      return this;
+    };
+    exports.close = function close() {
+      this[cppdb].close();
+      return this;
+    };
+    exports.loadExtension = function loadExtension(...args) {
+      this[cppdb].loadExtension(...args);
+      return this;
+    };
+    exports.defaultSafeIntegers = function defaultSafeIntegers(...args) {
+      this[cppdb].defaultSafeIntegers(...args);
+      return this;
+    };
+    exports.unsafeMode = function unsafeMode(...args) {
+      this[cppdb].unsafeMode(...args);
+      return this;
+    };
+    exports.getters = {
+      name: {
+        get: function name() {
+          return this[cppdb].name;
+        },
+        enumerable: true
+      },
+      open: {
+        get: function open() {
+          return this[cppdb].open;
+        },
+        enumerable: true
+      },
+      inTransaction: {
+        get: function inTransaction() {
+          return this[cppdb].inTransaction;
+        },
+        enumerable: true
+      },
+      readonly: {
+        get: function readonly() {
+          return this[cppdb].readonly;
+        },
+        enumerable: true
+      },
+      memory: {
+        get: function memory() {
+          return this[cppdb].memory;
+        },
+        enumerable: true
+      }
+    };
+  }
+});
+
+// node_modules/better-sqlite3/lib/methods/transaction.js
+var require_transaction = __commonJS({
+  "node_modules/better-sqlite3/lib/methods/transaction.js"(exports, module2) {
+    "use strict";
+    var { cppdb } = require_util();
+    var controllers = /* @__PURE__ */ new WeakMap();
+    module2.exports = function transaction(fn) {
+      if (typeof fn !== "function") throw new TypeError("Expected first argument to be a function");
+      const db = this[cppdb];
+      const controller = getController(db, this);
+      const { apply } = Function.prototype;
+      const properties = {
+        default: { value: wrapTransaction(apply, fn, db, controller.default) },
+        deferred: { value: wrapTransaction(apply, fn, db, controller.deferred) },
+        immediate: { value: wrapTransaction(apply, fn, db, controller.immediate) },
+        exclusive: { value: wrapTransaction(apply, fn, db, controller.exclusive) },
+        database: { value: this, enumerable: true }
+      };
+      Object.defineProperties(properties.default.value, properties);
+      Object.defineProperties(properties.deferred.value, properties);
+      Object.defineProperties(properties.immediate.value, properties);
+      Object.defineProperties(properties.exclusive.value, properties);
+      return properties.default.value;
+    };
+    var getController = (db, self) => {
+      let controller = controllers.get(db);
+      if (!controller) {
+        const shared = {
+          commit: db.prepare("COMMIT", self, false),
+          rollback: db.prepare("ROLLBACK", self, false),
+          savepoint: db.prepare("SAVEPOINT `	_bs3.	`", self, false),
+          release: db.prepare("RELEASE `	_bs3.	`", self, false),
+          rollbackTo: db.prepare("ROLLBACK TO `	_bs3.	`", self, false)
+        };
+        controllers.set(db, controller = {
+          default: Object.assign({ begin: db.prepare("BEGIN", self, false) }, shared),
+          deferred: Object.assign({ begin: db.prepare("BEGIN DEFERRED", self, false) }, shared),
+          immediate: Object.assign({ begin: db.prepare("BEGIN IMMEDIATE", self, false) }, shared),
+          exclusive: Object.assign({ begin: db.prepare("BEGIN EXCLUSIVE", self, false) }, shared)
+        });
+      }
+      return controller;
+    };
+    var wrapTransaction = (apply, fn, db, { begin, commit, rollback, savepoint, release, rollbackTo }) => function sqliteTransaction() {
+      let before, after, undo;
+      if (db.inTransaction) {
+        before = savepoint;
+        after = release;
+        undo = rollbackTo;
+      } else {
+        before = begin;
+        after = commit;
+        undo = rollback;
+      }
+      before.run();
+      try {
+        const result = apply.call(fn, this, arguments);
+        if (result && typeof result.then === "function") {
+          throw new TypeError("Transaction function cannot return a promise");
+        }
+        after.run();
+        return result;
+      } catch (ex) {
+        if (db.inTransaction) {
+          undo.run();
+          if (undo !== rollback) after.run();
+        }
+        throw ex;
+      }
+    };
+  }
+});
+
+// node_modules/better-sqlite3/lib/methods/pragma.js
+var require_pragma = __commonJS({
+  "node_modules/better-sqlite3/lib/methods/pragma.js"(exports, module2) {
+    "use strict";
+    var { getBooleanOption, cppdb } = require_util();
+    module2.exports = function pragma(source, options) {
+      if (options == null) options = {};
+      if (typeof source !== "string") throw new TypeError("Expected first argument to be a string");
+      if (typeof options !== "object") throw new TypeError("Expected second argument to be an options object");
+      const simple = getBooleanOption(options, "simple");
+      const stmt = this[cppdb].prepare(`PRAGMA ${source}`, this, true);
+      return simple ? stmt.pluck().get() : stmt.all();
+    };
+  }
+});
+
+// node_modules/better-sqlite3/lib/methods/backup.js
+var require_backup = __commonJS({
+  "node_modules/better-sqlite3/lib/methods/backup.js"(exports, module2) {
+    "use strict";
+    var fs3 = require("fs");
+    var path4 = require("path");
+    var { promisify } = require("util");
+    var { cppdb } = require_util();
+    var fsAccess = promisify(fs3.access);
+    module2.exports = async function backup(filename, options) {
+      if (options == null) options = {};
+      if (typeof filename !== "string") throw new TypeError("Expected first argument to be a string");
+      if (typeof options !== "object") throw new TypeError("Expected second argument to be an options object");
+      filename = filename.trim();
+      const attachedName = "attached" in options ? options.attached : "main";
+      const handler = "progress" in options ? options.progress : null;
+      if (!filename) throw new TypeError("Backup filename cannot be an empty string");
+      if (filename === ":memory:") throw new TypeError('Invalid backup filename ":memory:"');
+      if (typeof attachedName !== "string") throw new TypeError('Expected the "attached" option to be a string');
+      if (!attachedName) throw new TypeError('The "attached" option cannot be an empty string');
+      if (handler != null && typeof handler !== "function") throw new TypeError('Expected the "progress" option to be a function');
+      await fsAccess(path4.dirname(filename)).catch(() => {
+        throw new TypeError("Cannot save backup because the directory does not exist");
+      });
+      const isNewFile = await fsAccess(filename).then(() => false, () => true);
+      return runBackup(this[cppdb].backup(this, attachedName, filename, isNewFile), handler || null);
+    };
+    var runBackup = (backup, handler) => {
+      let rate = 0;
+      let useDefault = true;
+      return new Promise((resolve, reject) => {
+        setImmediate(function step() {
+          try {
+            const progress = backup.transfer(rate);
+            if (!progress.remainingPages) {
+              backup.close();
+              resolve(progress);
+              return;
+            }
+            if (useDefault) {
+              useDefault = false;
+              rate = 100;
+            }
+            if (handler) {
+              const ret = handler(progress);
+              if (ret !== void 0) {
+                if (typeof ret === "number" && ret === ret) rate = Math.max(0, Math.min(2147483647, Math.round(ret)));
+                else throw new TypeError("Expected progress callback to return a number or undefined");
+              }
+            }
+            setImmediate(step);
+          } catch (err) {
+            backup.close();
+            reject(err);
+          }
+        });
+      });
+    };
+  }
+});
+
+// node_modules/better-sqlite3/lib/methods/serialize.js
+var require_serialize = __commonJS({
+  "node_modules/better-sqlite3/lib/methods/serialize.js"(exports, module2) {
+    "use strict";
+    var { cppdb } = require_util();
+    module2.exports = function serialize(options) {
+      if (options == null) options = {};
+      if (typeof options !== "object") throw new TypeError("Expected first argument to be an options object");
+      const attachedName = "attached" in options ? options.attached : "main";
+      if (typeof attachedName !== "string") throw new TypeError('Expected the "attached" option to be a string');
+      if (!attachedName) throw new TypeError('The "attached" option cannot be an empty string');
+      return this[cppdb].serialize(attachedName);
+    };
+  }
+});
+
+// node_modules/better-sqlite3/lib/methods/function.js
+var require_function = __commonJS({
+  "node_modules/better-sqlite3/lib/methods/function.js"(exports, module2) {
+    "use strict";
+    var { getBooleanOption, cppdb } = require_util();
+    module2.exports = function defineFunction(name, options, fn) {
+      if (options == null) options = {};
+      if (typeof options === "function") {
+        fn = options;
+        options = {};
+      }
+      if (typeof name !== "string") throw new TypeError("Expected first argument to be a string");
+      if (typeof fn !== "function") throw new TypeError("Expected last argument to be a function");
+      if (typeof options !== "object") throw new TypeError("Expected second argument to be an options object");
+      if (!name) throw new TypeError("User-defined function name cannot be an empty string");
+      const safeIntegers = "safeIntegers" in options ? +getBooleanOption(options, "safeIntegers") : 2;
+      const deterministic = getBooleanOption(options, "deterministic");
+      const directOnly = getBooleanOption(options, "directOnly");
+      const varargs = getBooleanOption(options, "varargs");
+      let argCount = -1;
+      if (!varargs) {
+        argCount = fn.length;
+        if (!Number.isInteger(argCount) || argCount < 0) throw new TypeError("Expected function.length to be a positive integer");
+        if (argCount > 100) throw new RangeError("User-defined functions cannot have more than 100 arguments");
+      }
+      this[cppdb].function(fn, name, argCount, safeIntegers, deterministic, directOnly);
+      return this;
+    };
+  }
+});
+
+// node_modules/better-sqlite3/lib/methods/aggregate.js
+var require_aggregate = __commonJS({
+  "node_modules/better-sqlite3/lib/methods/aggregate.js"(exports, module2) {
+    "use strict";
+    var { getBooleanOption, cppdb } = require_util();
+    module2.exports = function defineAggregate(name, options) {
+      if (typeof name !== "string") throw new TypeError("Expected first argument to be a string");
+      if (typeof options !== "object" || options === null) throw new TypeError("Expected second argument to be an options object");
+      if (!name) throw new TypeError("User-defined function name cannot be an empty string");
+      const start = "start" in options ? options.start : null;
+      const step = getFunctionOption(options, "step", true);
+      const inverse = getFunctionOption(options, "inverse", false);
+      const result = getFunctionOption(options, "result", false);
+      const safeIntegers = "safeIntegers" in options ? +getBooleanOption(options, "safeIntegers") : 2;
+      const deterministic = getBooleanOption(options, "deterministic");
+      const directOnly = getBooleanOption(options, "directOnly");
+      const varargs = getBooleanOption(options, "varargs");
+      let argCount = -1;
+      if (!varargs) {
+        argCount = Math.max(getLength(step), inverse ? getLength(inverse) : 0);
+        if (argCount > 0) argCount -= 1;
+        if (argCount > 100) throw new RangeError("User-defined functions cannot have more than 100 arguments");
+      }
+      this[cppdb].aggregate(start, step, inverse, result, name, argCount, safeIntegers, deterministic, directOnly);
+      return this;
+    };
+    var getFunctionOption = (options, key, required) => {
+      const value = key in options ? options[key] : null;
+      if (typeof value === "function") return value;
+      if (value != null) throw new TypeError(`Expected the "${key}" option to be a function`);
+      if (required) throw new TypeError(`Missing required option "${key}"`);
+      return null;
+    };
+    var getLength = ({ length }) => {
+      if (Number.isInteger(length) && length >= 0) return length;
+      throw new TypeError("Expected function.length to be a positive integer");
+    };
+  }
+});
+
+// node_modules/better-sqlite3/lib/methods/table.js
+var require_table = __commonJS({
+  "node_modules/better-sqlite3/lib/methods/table.js"(exports, module2) {
+    "use strict";
+    var { cppdb } = require_util();
+    module2.exports = function defineTable(name, factory) {
+      if (typeof name !== "string") throw new TypeError("Expected first argument to be a string");
+      if (!name) throw new TypeError("Virtual table module name cannot be an empty string");
+      let eponymous = false;
+      if (typeof factory === "object" && factory !== null) {
+        eponymous = true;
+        factory = defer(parseTableDefinition(factory, "used", name));
+      } else {
+        if (typeof factory !== "function") throw new TypeError("Expected second argument to be a function or a table definition object");
+        factory = wrapFactory(factory);
+      }
+      this[cppdb].table(factory, name, eponymous);
+      return this;
+    };
+    function wrapFactory(factory) {
+      return function virtualTableFactory(moduleName, databaseName, tableName, ...args) {
+        const thisObject = {
+          module: moduleName,
+          database: databaseName,
+          table: tableName
+        };
+        const def = apply.call(factory, thisObject, args);
+        if (typeof def !== "object" || def === null) {
+          throw new TypeError(`Virtual table module "${moduleName}" did not return a table definition object`);
+        }
+        return parseTableDefinition(def, "returned", moduleName);
+      };
+    }
+    function parseTableDefinition(def, verb, moduleName) {
+      if (!hasOwnProperty.call(def, "rows")) {
+        throw new TypeError(`Virtual table module "${moduleName}" ${verb} a table definition without a "rows" property`);
+      }
+      if (!hasOwnProperty.call(def, "columns")) {
+        throw new TypeError(`Virtual table module "${moduleName}" ${verb} a table definition without a "columns" property`);
+      }
+      const rows = def.rows;
+      if (typeof rows !== "function" || Object.getPrototypeOf(rows) !== GeneratorFunctionPrototype) {
+        throw new TypeError(`Virtual table module "${moduleName}" ${verb} a table definition with an invalid "rows" property (should be a generator function)`);
+      }
+      let columns = def.columns;
+      if (!Array.isArray(columns) || !(columns = [...columns]).every((x) => typeof x === "string")) {
+        throw new TypeError(`Virtual table module "${moduleName}" ${verb} a table definition with an invalid "columns" property (should be an array of strings)`);
+      }
+      if (columns.length !== new Set(columns).size) {
+        throw new TypeError(`Virtual table module "${moduleName}" ${verb} a table definition with duplicate column names`);
+      }
+      if (!columns.length) {
+        throw new RangeError(`Virtual table module "${moduleName}" ${verb} a table definition with zero columns`);
+      }
+      let parameters;
+      if (hasOwnProperty.call(def, "parameters")) {
+        parameters = def.parameters;
+        if (!Array.isArray(parameters) || !(parameters = [...parameters]).every((x) => typeof x === "string")) {
+          throw new TypeError(`Virtual table module "${moduleName}" ${verb} a table definition with an invalid "parameters" property (should be an array of strings)`);
+        }
+      } else {
+        parameters = inferParameters(rows);
+      }
+      if (parameters.length !== new Set(parameters).size) {
+        throw new TypeError(`Virtual table module "${moduleName}" ${verb} a table definition with duplicate parameter names`);
+      }
+      if (parameters.length > 32) {
+        throw new RangeError(`Virtual table module "${moduleName}" ${verb} a table definition with more than the maximum number of 32 parameters`);
+      }
+      for (const parameter of parameters) {
+        if (columns.includes(parameter)) {
+          throw new TypeError(`Virtual table module "${moduleName}" ${verb} a table definition with column "${parameter}" which was ambiguously defined as both a column and parameter`);
+        }
+      }
+      let safeIntegers = 2;
+      if (hasOwnProperty.call(def, "safeIntegers")) {
+        const bool2 = def.safeIntegers;
+        if (typeof bool2 !== "boolean") {
+          throw new TypeError(`Virtual table module "${moduleName}" ${verb} a table definition with an invalid "safeIntegers" property (should be a boolean)`);
+        }
+        safeIntegers = +bool2;
+      }
+      let directOnly = false;
+      if (hasOwnProperty.call(def, "directOnly")) {
+        directOnly = def.directOnly;
+        if (typeof directOnly !== "boolean") {
+          throw new TypeError(`Virtual table module "${moduleName}" ${verb} a table definition with an invalid "directOnly" property (should be a boolean)`);
+        }
+      }
+      const columnDefinitions = [
+        ...parameters.map(identifier).map((str2) => `${str2} HIDDEN`),
+        ...columns.map(identifier)
+      ];
+      return [
+        `CREATE TABLE x(${columnDefinitions.join(", ")});`,
+        wrapGenerator(rows, new Map(columns.map((x, i) => [x, parameters.length + i])), moduleName),
+        parameters,
+        safeIntegers,
+        directOnly
+      ];
+    }
+    function wrapGenerator(generator, columnMap, moduleName) {
+      return function* virtualTable(...args) {
+        const output = args.map((x) => Buffer.isBuffer(x) ? Buffer.from(x) : x);
+        for (let i = 0; i < columnMap.size; ++i) {
+          output.push(null);
+        }
+        for (const row of generator(...args)) {
+          if (Array.isArray(row)) {
+            extractRowArray(row, output, columnMap.size, moduleName);
+            yield output;
+          } else if (typeof row === "object" && row !== null) {
+            extractRowObject(row, output, columnMap, moduleName);
+            yield output;
+          } else {
+            throw new TypeError(`Virtual table module "${moduleName}" yielded something that isn't a valid row object`);
+          }
+        }
+      };
+    }
+    function extractRowArray(row, output, columnCount, moduleName) {
+      if (row.length !== columnCount) {
+        throw new TypeError(`Virtual table module "${moduleName}" yielded a row with an incorrect number of columns`);
+      }
+      const offset = output.length - columnCount;
+      for (let i = 0; i < columnCount; ++i) {
+        output[i + offset] = row[i];
+      }
+    }
+    function extractRowObject(row, output, columnMap, moduleName) {
+      let count = 0;
+      for (const key of Object.keys(row)) {
+        const index = columnMap.get(key);
+        if (index === void 0) {
+          throw new TypeError(`Virtual table module "${moduleName}" yielded a row with an undeclared column "${key}"`);
+        }
+        output[index] = row[key];
+        count += 1;
+      }
+      if (count !== columnMap.size) {
+        throw new TypeError(`Virtual table module "${moduleName}" yielded a row with missing columns`);
+      }
+    }
+    function inferParameters({ length }) {
+      if (!Number.isInteger(length) || length < 0) {
+        throw new TypeError("Expected function.length to be a positive integer");
+      }
+      const params = [];
+      for (let i = 0; i < length; ++i) {
+        params.push(`$${i + 1}`);
+      }
+      return params;
+    }
+    var { hasOwnProperty } = Object.prototype;
+    var { apply } = Function.prototype;
+    var GeneratorFunctionPrototype = Object.getPrototypeOf(function* () {
+    });
+    var identifier = (str2) => `"${str2.replace(/"/g, '""')}"`;
+    var defer = (x) => () => x;
+  }
+});
+
+// node_modules/better-sqlite3/lib/methods/inspect.js
+var require_inspect = __commonJS({
+  "node_modules/better-sqlite3/lib/methods/inspect.js"(exports, module2) {
+    "use strict";
+    var DatabaseInspection = function Database2() {
+    };
+    module2.exports = function inspect(depth, opts) {
+      return Object.assign(new DatabaseInspection(), this);
+    };
+  }
+});
+
+// node_modules/better-sqlite3/lib/database.js
+var require_database = __commonJS({
+  "node_modules/better-sqlite3/lib/database.js"(exports, module2) {
+    "use strict";
+    var fs3 = require("fs");
+    var path4 = require("path");
+    var util = require_util();
+    var SqliteError = require_sqlite_error();
+    var DEFAULT_ADDON;
+    function Database2(filenameGiven, options) {
+      if (new.target == null) {
+        return new Database2(filenameGiven, options);
+      }
+      let buffer;
+      if (Buffer.isBuffer(filenameGiven)) {
+        buffer = filenameGiven;
+        filenameGiven = ":memory:";
+      }
+      if (filenameGiven == null) filenameGiven = "";
+      if (options == null) options = {};
+      if (typeof filenameGiven !== "string") throw new TypeError("Expected first argument to be a string");
+      if (typeof options !== "object") throw new TypeError("Expected second argument to be an options object");
+      if ("readOnly" in options) throw new TypeError('Misspelled option "readOnly" should be "readonly"');
+      if ("memory" in options) throw new TypeError('Option "memory" was removed in v7.0.0 (use ":memory:" filename instead)');
+      const filename = filenameGiven.trim();
+      const anonymous = filename === "" || filename === ":memory:";
+      const readonly = util.getBooleanOption(options, "readonly");
+      const fileMustExist = util.getBooleanOption(options, "fileMustExist");
+      const timeout = "timeout" in options ? options.timeout : 5e3;
+      const verbose = "verbose" in options ? options.verbose : null;
+      const nativeBinding = "nativeBinding" in options ? options.nativeBinding : null;
+      if (readonly && anonymous && !buffer) throw new TypeError("In-memory/temporary databases cannot be readonly");
+      if (!Number.isInteger(timeout) || timeout < 0) throw new TypeError('Expected the "timeout" option to be a positive integer');
+      if (timeout > 2147483647) throw new RangeError('Option "timeout" cannot be greater than 2147483647');
+      if (verbose != null && typeof verbose !== "function") throw new TypeError('Expected the "verbose" option to be a function');
+      if (nativeBinding != null && typeof nativeBinding !== "string" && typeof nativeBinding !== "object") throw new TypeError('Expected the "nativeBinding" option to be a string or addon object');
+      let addon;
+      if (nativeBinding == null) {
+        addon = DEFAULT_ADDON || (DEFAULT_ADDON = require_bindings()("better_sqlite3.node"));
+      } else if (typeof nativeBinding === "string") {
+        const requireFunc = typeof __non_webpack_require__ === "function" ? __non_webpack_require__ : require;
+        addon = requireFunc(path4.resolve(nativeBinding).replace(/(\.node)?$/, ".node"));
+      } else {
+        addon = nativeBinding;
+      }
+      if (!addon.isInitialized) {
+        addon.setErrorConstructor(SqliteError);
+        addon.isInitialized = true;
+      }
+      if (!anonymous && !fs3.existsSync(path4.dirname(filename))) {
+        throw new TypeError("Cannot open database because the directory does not exist");
+      }
+      Object.defineProperties(this, {
+        [util.cppdb]: { value: new addon.Database(filename, filenameGiven, anonymous, readonly, fileMustExist, timeout, verbose || null, buffer || null) },
+        ...wrappers.getters
+      });
+    }
+    var wrappers = require_wrappers();
+    Database2.prototype.prepare = wrappers.prepare;
+    Database2.prototype.transaction = require_transaction();
+    Database2.prototype.pragma = require_pragma();
+    Database2.prototype.backup = require_backup();
+    Database2.prototype.serialize = require_serialize();
+    Database2.prototype.function = require_function();
+    Database2.prototype.aggregate = require_aggregate();
+    Database2.prototype.table = require_table();
+    Database2.prototype.loadExtension = wrappers.loadExtension;
+    Database2.prototype.exec = wrappers.exec;
+    Database2.prototype.close = wrappers.close;
+    Database2.prototype.defaultSafeIntegers = wrappers.defaultSafeIntegers;
+    Database2.prototype.unsafeMode = wrappers.unsafeMode;
+    Database2.prototype[util.inspect] = require_inspect();
+    module2.exports = Database2;
+  }
+});
+
+// node_modules/better-sqlite3/lib/index.js
+var require_lib = __commonJS({
+  "node_modules/better-sqlite3/lib/index.js"(exports, module2) {
+    "use strict";
+    module2.exports = require_database();
+    module2.exports.SqliteError = require_sqlite_error();
+  }
+});
+
 // src/YAMLHandler.ts
 var YAMLHandler_exports = {};
 __export(YAMLHandler_exports, {
@@ -15014,7 +15797,7 @@ async function generateNoteTitle(app, settings, processMessages2, dispatcher) {
   debugLog(DEBUG, "debug", "Starting generateNoteTitle");
   const activeFile = app.workspace.getActiveFile();
   if (!activeFile) {
-    new import_obsidian33.Notice("No active note found.");
+    new import_obsidian35.Notice("No active note found.");
     return;
   }
   let noteContent = await app.vault.cachedRead(activeFile);
@@ -15040,7 +15823,7 @@ async function generateNoteTitle(app, settings, processMessages2, dispatcher) {
       settings.enableContextNotes = originalEnableContextNotes;
       if (!processedMessages || processedMessages.length === 0) {
         debugLog(DEBUG, "debug", "No processed messages!");
-        new import_obsidian33.Notice("No valid messages to send to the model. Please check your note content.");
+        new import_obsidian35.Notice("No valid messages to send to the model. Please check your note content.");
         return;
       }
       debugLog(DEBUG, "debug", "Calling dispatcher.getCompletion");
@@ -15068,28 +15851,28 @@ async function generateNoteTitle(app, settings, processMessages2, dispatcher) {
             const newPath = parentPath ? parentPath + "/" + sanitized + ext : sanitized + ext;
             if (file.path !== newPath) {
               await app.fileManager.renameFile(file, newPath);
-              new import_obsidian33.Notice(`Note renamed to: ${sanitized}${ext}`);
+              new import_obsidian35.Notice(`Note renamed to: ${sanitized}${ext}`);
             } else {
-              new import_obsidian33.Notice(`Note title is already: ${sanitized}${ext}`);
+              new import_obsidian35.Notice(`Note title is already: ${sanitized}${ext}`);
             }
           }
         } else if (outputMode === "metadata") {
           const file = app.workspace.getActiveFile();
           if (file) {
             await upsertYamlField(app, file, "title", title);
-            new import_obsidian33.Notice(`Inserted title into metadata: ${title}`);
+            new import_obsidian35.Notice(`Inserted title into metadata: ${title}`);
           }
         } else {
           try {
             await navigator.clipboard.writeText(title);
-            new import_obsidian33.Notice(`Generated title (copied): ${title}`);
+            new import_obsidian35.Notice(`Generated title (copied): ${title}`);
           } catch (e) {
-            new import_obsidian33.Notice(`Generated title: ${title}`);
+            new import_obsidian35.Notice(`Generated title: ${title}`);
           }
         }
       } else {
         debugLog(DEBUG, "debug", "No title generated after sanitization.");
-        new import_obsidian33.Notice("No title generated.");
+        new import_obsidian35.Notice("No title generated.");
       }
     } catch (processError) {
       debugLog(DEBUG, "debug", "Error in processMessages or provider.getCompletion:", processError);
@@ -15097,14 +15880,14 @@ async function generateNoteTitle(app, settings, processMessages2, dispatcher) {
       throw processError;
     }
   } catch (err) {
-    new import_obsidian33.Notice("Error generating title: " + ((_b = err == null ? void 0 : err.message) != null ? _b : err));
+    new import_obsidian35.Notice("Error generating title: " + ((_b = err == null ? void 0 : err.message) != null ? _b : err));
   }
 }
 async function generateYamlAttribute(app, settings, processMessages2, attributeName, prompt, outputMode = "metadata", dispatcher) {
   debugLog(DEBUG, "debug", `Starting generateYamlAttribute for ${attributeName}`);
   const activeFile = app.workspace.getActiveFile();
   if (!activeFile) {
-    new import_obsidian33.Notice("No active note found.");
+    new import_obsidian35.Notice("No active note found.");
     return;
   }
   let noteContent = await app.vault.cachedRead(activeFile);
@@ -15123,7 +15906,7 @@ async function generateYamlAttribute(app, settings, processMessages2, attributeN
     settings.enableContextNotes = originalEnableContextNotes;
     if (!processedMessages || processedMessages.length === 0) {
       debugLog(DEBUG, "debug", "No processed messages!");
-      new import_obsidian33.Notice("No valid messages to send to the model. Please check your note content.");
+      new import_obsidian35.Notice("No valid messages to send to the model. Please check your note content.");
       return;
     }
     debugLog(DEBUG, "debug", "Calling dispatcher.getCompletion");
@@ -15146,18 +15929,18 @@ async function generateYamlAttribute(app, settings, processMessages2, attributeN
       debugLog(DEBUG, "debug", "Output mode:", outputMode);
       if (outputMode === "metadata") {
         await upsertYamlField(app, activeFile, attributeName, value);
-        new import_obsidian33.Notice(`Inserted ${attributeName} into metadata: ${value}`);
+        new import_obsidian35.Notice(`Inserted ${attributeName} into metadata: ${value}`);
       } else {
         try {
           await navigator.clipboard.writeText(value);
-          new import_obsidian33.Notice(`Generated ${attributeName} (copied): ${value}`);
+          new import_obsidian35.Notice(`Generated ${attributeName} (copied): ${value}`);
         } catch (e) {
-          new import_obsidian33.Notice(`Generated ${attributeName}: ${value}`);
+          new import_obsidian35.Notice(`Generated ${attributeName}: ${value}`);
         }
       }
     } else {
       debugLog(DEBUG, "debug", `No value generated for ${attributeName} after sanitization.`);
-      new import_obsidian33.Notice(`No value generated for ${attributeName}.`);
+      new import_obsidian35.Notice(`No value generated for ${attributeName}.`);
     }
   } catch (processError) {
     debugLog(DEBUG, "debug", "Error in processMessages or provider.getCompletion:", processError);
@@ -15224,10 +16007,10 @@ function registerYamlAttributeCommands(plugin, settings, processMessages2, yamlA
   }
   return newCommandIds;
 }
-var import_obsidian33, DEBUG;
+var import_obsidian35, DEBUG;
 var init_YAMLHandler = __esm({
   "src/YAMLHandler.ts"() {
-    import_obsidian33 = require("obsidian");
+    import_obsidian35 = require("obsidian");
     init_aiDispatcher();
     init_promptConstants();
     init_pluginUtils();
@@ -15582,42 +16365,42 @@ var init_stateManager = __esm({
       /**
        * Set a value in the state
        */
-      setState(path3, value, options = {}) {
+      setState(path4, value, options = {}) {
         if (this.isDisposed) {
           throw new Error("Cannot set state on disposed StateManager");
         }
         try {
-          const transformer = options.transformer || this.transformers.get(path3);
-          const transformedValue = transformer ? transformer(value, path3) : value;
-          const validator = options.validator || this.validators.get(path3);
+          const transformer = options.transformer || this.transformers.get(path4);
+          const transformedValue = transformer ? transformer(value, path4) : value;
+          const validator = options.validator || this.validators.get(path4);
           if (validator) {
-            const validationResult = validator(transformedValue, path3);
+            const validationResult = validator(transformedValue, path4);
             if (validationResult !== true) {
-              const errorMessage = typeof validationResult === "string" ? validationResult : `Invalid value for state path: ${path3}`;
+              const errorMessage = typeof validationResult === "string" ? validationResult : `Invalid value for state path: ${path4}`;
               throw new Error(errorMessage);
             }
           }
-          const oldValue = this.getState(path3);
-          this.setNestedValue(this.state, path3, transformedValue);
+          const oldValue = this.getState(path4);
+          this.setNestedValue(this.state, path4, transformedValue);
           this.version++;
           if (options.persistent) {
-            this.persistentKeys.add(path3);
+            this.persistentKeys.add(path4);
           }
           this.createSnapshot();
           const debounceMs = options.debounceMs || 0;
           if (debounceMs > 0) {
-            this.debouncedNotify(path3, transformedValue, oldValue, debounceMs);
+            this.debouncedNotify(path4, transformedValue, oldValue, debounceMs);
           } else {
-            this.notifyListeners(path3, transformedValue, oldValue);
+            this.notifyListeners(path4, transformedValue, oldValue);
           }
-          if (this.persistentKeys.has(path3)) {
+          if (this.persistentKeys.has(path4)) {
             this.persistState();
           }
         } catch (error) {
           errorHandler.handleError(error, {
             component: "StateManager",
             operation: "setState",
-            metadata: { path: path3, valueType: typeof value }
+            metadata: { path: path4, valueType: typeof value }
           });
           throw error;
         }
@@ -15625,18 +16408,18 @@ var init_stateManager = __esm({
       /**
        * Get a value from the state
        */
-      getState(path3, defaultValue) {
+      getState(path4, defaultValue) {
         if (this.isDisposed) {
           throw new Error("Cannot get state from disposed StateManager");
         }
         try {
-          const value = this.getNestedValue(this.state, path3);
+          const value = this.getNestedValue(this.state, path4);
           return value !== void 0 ? value : defaultValue;
         } catch (error) {
           errorHandler.handleError(error, {
             component: "StateManager",
             operation: "getState",
-            metadata: { path: path3 }
+            metadata: { path: path4 }
           });
           return defaultValue;
         }
@@ -15644,38 +16427,38 @@ var init_stateManager = __esm({
       /**
        * Check if a state path exists
        */
-      hasState(path3) {
-        return this.getNestedValue(this.state, path3) !== void 0;
+      hasState(path4) {
+        return this.getNestedValue(this.state, path4) !== void 0;
       }
       /**
        * Delete a state path
        */
-      deleteState(path3) {
+      deleteState(path4) {
         if (this.isDisposed) {
           throw new Error("Cannot delete state from disposed StateManager");
         }
-        const oldValue = this.getState(path3);
-        this.deleteNestedValue(this.state, path3);
+        const oldValue = this.getState(path4);
+        this.deleteNestedValue(this.state, path4);
         this.version++;
-        this.persistentKeys.delete(path3);
-        this.notifyListeners(path3, void 0, oldValue);
+        this.persistentKeys.delete(path4);
+        this.notifyListeners(path4, void 0, oldValue);
         this.createSnapshot();
         this.persistState();
       }
       /**
        * Subscribe to state changes for a specific path
        */
-      subscribe(path3, listener) {
-        if (!this.stateListeners.has(path3)) {
-          this.stateListeners.set(path3, /* @__PURE__ */ new Set());
+      subscribe(path4, listener) {
+        if (!this.stateListeners.has(path4)) {
+          this.stateListeners.set(path4, /* @__PURE__ */ new Set());
         }
-        this.stateListeners.get(path3).add(listener);
+        this.stateListeners.get(path4).add(listener);
         return () => {
-          const pathListeners = this.stateListeners.get(path3);
+          const pathListeners = this.stateListeners.get(path4);
           if (pathListeners) {
             pathListeners.delete(listener);
             if (pathListeners.size === 0) {
-              this.stateListeners.delete(path3);
+              this.stateListeners.delete(path4);
             }
           }
         };
@@ -15690,14 +16473,14 @@ var init_stateManager = __esm({
       /**
        * Register a validator for a state path
        */
-      registerValidator(path3, validator) {
-        this.validators.set(path3, validator);
+      registerValidator(path4, validator) {
+        this.validators.set(path4, validator);
       }
       /**
        * Register a transformer for a state path
        */
-      registerTransformer(path3, transformer) {
-        this.transformers.set(path3, transformer);
+      registerTransformer(path4, transformer) {
+        this.transformers.set(path4, transformer);
       }
       /**
        * Get the entire state object (read-only)
@@ -15784,8 +16567,8 @@ var init_stateManager = __esm({
           }
           this.persistState();
         } catch (error) {
-          for (const [path3, oldValue] of oldStates) {
-            this.setNestedValue(this.state, path3, oldValue);
+          for (const [path4, oldValue] of oldStates) {
+            this.setNestedValue(this.state, path4, oldValue);
           }
           throw error;
         }
@@ -15797,8 +16580,8 @@ var init_stateManager = __esm({
         const unsubscribers = [];
         const changes = [];
         let debounceTimer = null;
-        for (const path3 of paths) {
-          const unsubscribe = this.subscribe(path3, (newValue, oldValue, changePath) => {
+        for (const path4 of paths) {
+          const unsubscribe = this.subscribe(path4, (newValue, oldValue, changePath) => {
             changes.push({ path: changePath, newValue, oldValue });
             if (debounceTimer) {
               clearTimeout(debounceTimer);
@@ -15851,8 +16634,8 @@ var init_stateManager = __esm({
         this.snapshots.destroy();
         this.isDisposed = true;
       }
-      setNestedValue(obj, path3, value) {
-        const keys = path3.split(".");
+      setNestedValue(obj, path4, value) {
+        const keys = path4.split(".");
         let current = obj;
         for (let i = 0; i < keys.length - 1; i++) {
           const key = keys[i];
@@ -15863,8 +16646,8 @@ var init_stateManager = __esm({
         }
         current[keys[keys.length - 1]] = value;
       }
-      getNestedValue(obj, path3) {
-        const keys = path3.split(".");
+      getNestedValue(obj, path4) {
+        const keys = path4.split(".");
         let current = obj;
         for (const key of keys) {
           if (current === null || current === void 0 || !(key in current)) {
@@ -15874,8 +16657,8 @@ var init_stateManager = __esm({
         }
         return current;
       }
-      deleteNestedValue(obj, path3) {
-        const keys = path3.split(".");
+      deleteNestedValue(obj, path4) {
+        const keys = path4.split(".");
         let current = obj;
         for (let i = 0; i < keys.length - 1; i++) {
           const key = keys[i];
@@ -15886,33 +16669,33 @@ var init_stateManager = __esm({
         }
         delete current[keys[keys.length - 1]];
       }
-      notifyListeners(path3, newValue, oldValue) {
-        const pathListeners = this.stateListeners.get(path3);
+      notifyListeners(path4, newValue, oldValue) {
+        const pathListeners = this.stateListeners.get(path4);
         if (pathListeners) {
           for (const listener of pathListeners) {
             try {
-              listener(newValue, oldValue, path3);
+              listener(newValue, oldValue, path4);
             } catch (error) {
               errorHandler.handleError(error, {
                 component: "StateManager",
                 operation: "notifyListeners",
-                metadata: { path: path3 }
+                metadata: { path: path4 }
               });
             }
           }
         }
-        this.emit("stateChange", newValue, oldValue, path3);
+        this.emit("stateChange", newValue, oldValue, path4);
       }
-      debouncedNotify(path3, newValue, oldValue, debounceMs) {
-        const existingTimer = this.debounceTimers.get(path3);
+      debouncedNotify(path4, newValue, oldValue, debounceMs) {
+        const existingTimer = this.debounceTimers.get(path4);
         if (existingTimer) {
           clearTimeout(existingTimer);
         }
         const timer = setTimeout(() => {
-          this.notifyListeners(path3, newValue, oldValue);
-          this.debounceTimers.delete(path3);
+          this.notifyListeners(path4, newValue, oldValue);
+          this.debounceTimers.delete(path4);
         }, debounceMs);
-        this.debounceTimers.set(path3, timer);
+        this.debounceTimers.set(path4, timer);
       }
       loadPersistedState() {
         try {
@@ -15994,10 +16777,10 @@ var init_stateManager = __esm({
        */
       static createSlice(stateManager, prefix) {
         return {
-          get: (path3, defaultValue) => stateManager.getState(`${prefix}.${path3}`, defaultValue),
-          set: (path3, value, options) => stateManager.setState(`${prefix}.${path3}`, value, options),
-          subscribe: (path3, listener) => stateManager.subscribe(`${prefix}.${path3}`, listener),
-          delete: (path3) => stateManager.deleteState(`${prefix}.${path3}`)
+          get: (path4, defaultValue) => stateManager.getState(`${prefix}.${path4}`, defaultValue),
+          set: (path4, value, options) => stateManager.setState(`${prefix}.${path4}`, value, options),
+          subscribe: (path4, listener) => stateManager.subscribe(`${prefix}.${path4}`, listener),
+          delete: (path4) => stateManager.deleteState(`${prefix}.${path4}`)
         };
       }
     };
@@ -16546,11 +17329,11 @@ __export(main_exports, {
   default: () => MyPlugin
 });
 module.exports = __toCommonJS(main_exports);
-var import_obsidian35 = require("obsidian");
+var import_obsidian38 = require("obsidian");
 init_types();
 
 // src/settings/SettingTab.ts
-var import_obsidian31 = require("obsidian");
+var import_obsidian33 = require("obsidian");
 
 // src/components/commands/viewCommands.ts
 init_pluginUtils();
@@ -22326,9 +23109,757 @@ var ChatHistorySettingsSection = class {
   }
 };
 
+// src/settings/sections/VectorStoreSettingsSection.ts
+var import_obsidian32 = require("obsidian");
+
+// src/components/agent/memory-handling/SemanticContextBuilder.ts
+init_logger();
+
+// src/components/agent/memory-handling/EmbeddingService.ts
+var import_obsidian31 = require("obsidian");
+
+// src/components/agent/memory-handling/vectorStore.ts
+var import_better_sqlite3 = __toESM(require_lib());
+var path3 = __toESM(require("path"));
+var VectorStore = class {
+  /**
+   * Constructs a new VectorStore instance.
+   * @param plugin - The Obsidian plugin instance (used to determine the data directory).
+   */
+  constructor(plugin) {
+    // The underlying SQLite database connection
+    __publicField(this, "db");
+    const dataDir = plugin.app.vault.adapter instanceof Object && "basePath" in plugin.app.vault.adapter ? plugin.app.vault.adapter.basePath : "";
+    const dbPath = path3.join(
+      dataDir,
+      ".obsidian",
+      "plugins",
+      "ai-assistant-for-obsidian",
+      "ai-assistant-vectorstore.sqlite"
+    );
+    this.db = new import_better_sqlite3.default(dbPath);
+    const createVectorsTable = `
+      CREATE TABLE IF NOT EXISTS vectors (
+        id TEXT PRIMARY KEY,
+        text TEXT NOT NULL,
+        embedding BLOB NOT NULL,
+        metadata TEXT
+      );
+    `;
+    this.db.exec(createVectorsTable);
+  }
+  /**
+   * Adds or updates a vector in the database.
+   * @param id - Unique identifier for the vector (e.g., hash or UUID).
+   * @param text - The original text that was embedded.
+   * @param embedding - The embedding vector (as Buffer or number[]).
+   * @param metadata - Optional metadata object (will be JSON-stringified).
+   */
+  addVector(id, text, embedding, metadata = null) {
+    const stmt = this.db.prepare(
+      "INSERT OR REPLACE INTO vectors (id, text, embedding, metadata) VALUES (?, ?, ?, ?);"
+    );
+    const embeddingBuffer = Buffer.isBuffer(embedding) ? embedding : Buffer.from(new Float32Array(embedding).buffer);
+    stmt.run(id, text, embeddingBuffer, metadata ? JSON.stringify(metadata) : null);
+  }
+  /**
+   * Retrieves a specific vector by its ID.
+   * @param id - The unique identifier of the vector to retrieve.
+   * @returns The vector object or null if not found.
+   */
+  getVector(id) {
+    const stmt = this.db.prepare("SELECT * FROM vectors WHERE id = ?;");
+    const result = stmt.get(id);
+    return result || null;
+  }
+  /**
+   * Deletes a vector by its ID.
+   * @param id - The unique identifier of the vector to delete.
+   * @returns True if a vector was deleted, false if not found.
+   */
+  deleteVector(id) {
+    const stmt = this.db.prepare("DELETE FROM vectors WHERE id = ?;");
+    const result = stmt.run(id);
+    return result.changes > 0;
+  }
+  /**
+   * Retrieves all vectors stored in the database.
+   * @returns Array of objects: { id, text, embedding, metadata }
+   *   - embedding is a Buffer containing the binary vector data.
+   *   - metadata is a JSON string or null.
+   */
+  getAllVectors() {
+    const stmt = this.db.prepare("SELECT * FROM vectors;");
+    return stmt.all();
+  }
+  /**
+   * Calculates cosine similarity between two vectors.
+   * @param vec1 - First vector as Float32Array or number array.
+   * @param vec2 - Second vector as Float32Array or number array.
+   * @returns Cosine similarity score between -1 and 1.
+   */
+  cosineSimilarity(vec1, vec2) {
+    if (vec1.length !== vec2.length) {
+      throw new Error("Vectors must have the same length for similarity calculation");
+    }
+    let dotProduct = 0;
+    let norm1 = 0;
+    let norm2 = 0;
+    for (let i = 0; i < vec1.length; i++) {
+      dotProduct += vec1[i] * vec2[i];
+      norm1 += vec1[i] * vec1[i];
+      norm2 += vec2[i] * vec2[i];
+    }
+    if (norm1 === 0 || norm2 === 0) {
+      return 0;
+    }
+    return dotProduct / (Math.sqrt(norm1) * Math.sqrt(norm2));
+  }
+  /**
+   * Converts a Buffer containing Float32Array data back to a Float32Array.
+   * @param buffer - Buffer containing the binary vector data.
+   * @returns Float32Array representation of the vector.
+   */
+  bufferToFloat32Array(buffer) {
+    return new Float32Array(buffer.buffer, buffer.byteOffset, buffer.byteLength / 4);
+  }
+  /**
+   * Finds the most similar vectors to a query embedding using cosine similarity.
+   * @param queryEmbedding - The query vector to compare against (as number array).
+   * @param topK - Number of most similar vectors to return (default: 5).
+   * @param minSimilarity - Minimum similarity threshold (default: 0, returns all).
+   * @returns Array of similar vectors with similarity scores, sorted by similarity (highest first).
+   */
+  findSimilarVectors(queryEmbedding, topK = 5, minSimilarity = 0) {
+    const allVectors = this.getAllVectors();
+    const similarities = allVectors.map((vector) => {
+      const vectorData = this.bufferToFloat32Array(vector.embedding);
+      const similarity = this.cosineSimilarity(queryEmbedding, vectorData);
+      return {
+        id: vector.id,
+        text: vector.text,
+        similarity,
+        metadata: vector.metadata ? JSON.parse(vector.metadata) : null
+      };
+    });
+    return similarities.filter((item) => item.similarity >= minSimilarity).sort((a, b) => b.similarity - a.similarity).slice(0, topK);
+  }
+  /**
+   * Searches for vectors containing specific text (case-insensitive).
+   * @param searchText - Text to search for in vector text content.
+   * @param limit - Maximum number of results to return (default: 10).
+   * @returns Array of matching vectors.
+   */
+  searchByText(searchText, limit = 10) {
+    const stmt = this.db.prepare("SELECT * FROM vectors WHERE text LIKE ? LIMIT ?;");
+    const results = stmt.all(`%${searchText}%`, limit);
+    return results.map((result) => ({
+      ...result,
+      metadata: result.metadata ? JSON.parse(result.metadata) : null
+    }));
+  }
+  /**
+   * Gets the total count of vectors in the database.
+   * @returns Number of vectors stored.
+   */
+  getVectorCount() {
+    const stmt = this.db.prepare("SELECT COUNT(*) as count FROM vectors;");
+    const result = stmt.get();
+    return result.count;
+  }
+  /**
+   * Clears all vectors from the database.
+   * @returns Number of vectors that were deleted.
+   */
+  clearAllVectors() {
+    const stmt = this.db.prepare("DELETE FROM vectors;");
+    const result = stmt.run();
+    return result.changes;
+  }
+  /**
+   * Gets vectors by their metadata properties.
+   * @param metadataQuery - Key-value pairs to match in metadata.
+   * @param limit - Maximum number of results (default: 10).
+   * @returns Array of matching vectors.
+   */
+  getVectorsByMetadata(metadataQuery, limit = 10) {
+    const allVectors = this.getAllVectors();
+    const matches = allVectors.filter((vector) => {
+      if (!vector.metadata) return false;
+      try {
+        const metadata = JSON.parse(vector.metadata);
+        return Object.entries(metadataQuery).every(([key, value]) => metadata[key] === value);
+      } catch (e) {
+        return false;
+      }
+    }).slice(0, limit);
+    return matches.map((result) => ({
+      ...result,
+      metadata: result.metadata ? JSON.parse(result.metadata) : null
+    }));
+  }
+  /**
+   * Closes the database connection.
+   * Should be called when the vector store is no longer needed.
+   */
+  close() {
+    this.db.close();
+  }
+};
+
+// src/components/agent/memory-handling/EmbeddingService.ts
+init_providers();
+init_logger();
+var crypto = __toESM(require("crypto"));
+var EmbeddingService = class {
+  constructor(plugin, settings) {
+    __publicField(this, "vectorStore");
+    __publicField(this, "plugin");
+    __publicField(this, "settings");
+    this.plugin = plugin;
+    this.settings = settings;
+    this.vectorStore = new VectorStore(plugin);
+  }
+  /**
+   * Generates embeddings for text using the configured AI provider.
+   * @param text - Text to embed
+   * @returns Promise<number[]> - The embedding vector
+   */
+  async generateEmbedding(text) {
+    var _a2;
+    try {
+      const provider = createProvider(this.settings);
+      const response = await fetch("https://api.openai.com/v1/embeddings", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${this.settings.openaiSettings.apiKey}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          input: text,
+          model: "text-embedding-3-small"
+          // Use smaller, faster embedding model
+        })
+      });
+      if (!response.ok) {
+        throw new Error(`Embedding API error: ${response.status}`);
+      }
+      const data = await response.json();
+      return data.data[0].embedding;
+    } catch (error) {
+      debugLog((_a2 = this.settings.debugMode) != null ? _a2 : false, "error", "Embedding generation failed:", error);
+      throw new Error(`Failed to generate embedding: ${error.message}`);
+    }
+  }
+  /**
+   * Splits text into chunks for embedding.
+   * @param text - Text to split
+   * @param options - Chunking options
+   * @returns Array of text chunks
+   */
+  splitIntoChunks(text, options = {}) {
+    const chunkSize = options.chunkSize || 1e3;
+    const overlap = options.chunkOverlap || 100;
+    const chunks = [];
+    let start = 0;
+    while (start < text.length) {
+      const end = Math.min(start + chunkSize, text.length);
+      const chunk = text.slice(start, end);
+      if (end < text.length) {
+        const lastSentence = chunk.lastIndexOf(".");
+        const lastNewline = chunk.lastIndexOf("\n");
+        const breakPoint = Math.max(lastSentence, lastNewline);
+        if (breakPoint > start + chunkSize / 2) {
+          chunks.push(text.slice(start, breakPoint + 1).trim());
+          start = breakPoint + 1 - overlap;
+        } else {
+          chunks.push(chunk.trim());
+          start = end - overlap;
+        }
+      } else {
+        chunks.push(chunk.trim());
+        break;
+      }
+      start = Math.max(start, 0);
+    }
+    return chunks.filter((chunk) => chunk.length > 0);
+  }
+  /**
+   * Generates a unique ID for a text chunk.
+   * @param text - Text content
+   * @param metadata - Associated metadata
+   * @returns Unique identifier
+   */
+  generateId(text, metadata = {}) {
+    const content = text + JSON.stringify(metadata);
+    return crypto.createHash("sha256").update(content).digest("hex");
+  }
+  /**
+   * Embeds a single note file.
+   * @param file - The note file to embed
+   * @param options - Embedding options
+   */
+  async embedNote(file, options = {}) {
+    var _a2, _b;
+    try {
+      const content = await this.plugin.app.vault.read(file);
+      await this.embedText(content, {
+        ...options,
+        customMetadata: {
+          filePath: file.path,
+          fileName: file.name,
+          type: "note",
+          lastModified: file.stat.mtime,
+          ...options.customMetadata
+        }
+      });
+      debugLog((_a2 = this.settings.debugMode) != null ? _a2 : false, "info", `Embedded note: ${file.path}`);
+    } catch (error) {
+      debugLog((_b = this.settings.debugMode) != null ? _b : false, "error", `Failed to embed note ${file.path}:`, error);
+      throw error;
+    }
+  }
+  /**
+   * Embeds arbitrary text content.
+   * @param text - Text to embed
+   * @param options - Embedding options
+   */
+  async embedText(text, options = {}) {
+    var _a2, _b;
+    try {
+      const chunks = this.splitIntoChunks(text, options);
+      for (let i = 0; i < chunks.length; i++) {
+        const chunk = chunks[i];
+        const embedding = await this.generateEmbedding(chunk);
+        const metadata = {
+          chunkIndex: i,
+          totalChunks: chunks.length,
+          timestamp: Date.now(),
+          ...options.customMetadata
+        };
+        const id = this.generateId(chunk, metadata);
+        this.vectorStore.addVector(id, chunk, embedding, metadata);
+      }
+      debugLog((_a2 = this.settings.debugMode) != null ? _a2 : false, "info", `Embedded ${chunks.length} chunks`);
+    } catch (error) {
+      debugLog((_b = this.settings.debugMode) != null ? _b : false, "error", "Failed to embed text:", error);
+      throw error;
+    }
+  }
+  /**
+   * Embeds a conversation or chat history.
+   * @param messages - Array of messages to embed
+   * @param sessionId - Optional session identifier
+   */
+  async embedConversation(messages, sessionId) {
+    var _a2, _b;
+    try {
+      for (let i = 0; i < messages.length; i++) {
+        const message = messages[i];
+        const text = typeof message.content === "string" ? message.content : JSON.stringify(message.content);
+        if (text.trim().length === 0) continue;
+        const embedding = await this.generateEmbedding(text);
+        const metadata = {
+          role: message.role,
+          messageIndex: i,
+          sessionId: sessionId || "unknown",
+          timestamp: Date.now(),
+          type: "conversation"
+        };
+        const id = this.generateId(text, metadata);
+        this.vectorStore.addVector(id, text, embedding, metadata);
+      }
+      debugLog((_a2 = this.settings.debugMode) != null ? _a2 : false, "info", `Embedded conversation with ${messages.length} messages`);
+    } catch (error) {
+      debugLog((_b = this.settings.debugMode) != null ? _b : false, "error", "Failed to embed conversation:", error);
+      throw error;
+    }
+  }
+  /**
+   * Performs semantic search to find relevant content.
+   * @param query - Search query
+   * @param options - Search options
+   * @returns Array of search results
+   */
+  async semanticSearch(query, options = {}) {
+    var _a2;
+    try {
+      const queryEmbedding = await this.generateEmbedding(query);
+      const topK = options.topK || 5;
+      const minSimilarity = options.minSimilarity || 0.7;
+      let results = this.vectorStore.findSimilarVectors(queryEmbedding, topK * 2, minSimilarity);
+      if (options.filterMetadata) {
+        results = results.filter((result) => {
+          if (!result.metadata) return false;
+          return Object.entries(options.filterMetadata).every(
+            ([key, value]) => result.metadata[key] === value
+          );
+        });
+      }
+      if (options.includeTypes) {
+        results = results.filter(
+          (result) => result.metadata && options.includeTypes.includes(result.metadata.type)
+        );
+      }
+      return results.slice(0, topK).map((result) => {
+        var _a3;
+        return {
+          text: result.text,
+          filePath: (_a3 = result.metadata) == null ? void 0 : _a3.filePath,
+          similarity: result.similarity,
+          metadata: result.metadata,
+          id: result.id
+        };
+      });
+    } catch (error) {
+      debugLog((_a2 = this.settings.debugMode) != null ? _a2 : false, "error", "Semantic search failed:", error);
+      throw error;
+    }
+  }
+  /**
+   * Gets contextually relevant content for AI completions.
+   * @param query - The current query or conversation context
+   * @param options - Context retrieval options
+   * @returns Array of relevant content chunks
+   */
+  async getRelevantContext(query, options = {}) {
+    const includeTypes = [];
+    if (options.includeNotes !== false) includeTypes.push("note");
+    if (options.includeConversations !== false) includeTypes.push("conversation");
+    const results = await this.semanticSearch(query, {
+      topK: options.maxChunks || 3,
+      minSimilarity: options.minSimilarity || 0.7,
+      includeTypes
+    });
+    return results.map((result) => {
+      const source = result.filePath ? `[${result.filePath}]` : "[Memory]";
+      return `${source}: ${result.text}`;
+    });
+  }
+  /**
+   * Embeds all notes in the vault.
+   * @param options - Embedding options
+   */
+  async embedAllNotes(options = {}) {
+    var _a2;
+    const notice = new import_obsidian31.Notice("Embedding all notes...", 0);
+    try {
+      const files = this.plugin.app.vault.getMarkdownFiles();
+      let processed = 0;
+      for (const file of files) {
+        try {
+          await this.embedNote(file, options);
+          processed++;
+          notice.setMessage(`Embedded ${processed}/${files.length} notes...`);
+        } catch (error) {
+          debugLog((_a2 = this.settings.debugMode) != null ? _a2 : false, "warn", `Skipped ${file.path}:`, error);
+        }
+      }
+      notice.hide();
+      showNotice(`Successfully embedded ${processed} notes!`);
+    } catch (error) {
+      notice.hide();
+      showNotice(`Error embedding notes: ${error.message}`);
+      throw error;
+    }
+  }
+  /**
+   * Clears all embeddings from the vector store.
+   */
+  async clearAllEmbeddings() {
+    var _a2;
+    const count = this.vectorStore.clearAllVectors();
+    showNotice(`Cleared ${count} embeddings from memory.`);
+    debugLog((_a2 = this.settings.debugMode) != null ? _a2 : false, "info", `Cleared ${count} embeddings`);
+  }
+  /**
+   * Gets statistics about the vector store.
+   */
+  getStats() {
+    return {
+      totalVectors: this.vectorStore.getVectorCount()
+    };
+  }
+  /**
+   * Closes the embedding service and cleans up resources.
+   */
+  close() {
+    this.vectorStore.close();
+  }
+};
+
+// src/components/agent/memory-handling/SemanticContextBuilder.ts
+var SemanticContextBuilder = class {
+  constructor(app, plugin) {
+    this.app = app;
+    this.plugin = plugin;
+    __publicField(this, "embeddingService", null);
+    var _a2;
+    if (this.app.isMobile === false) {
+      try {
+        this.embeddingService = new EmbeddingService(plugin, plugin.settings);
+      } catch (error) {
+        debugLog((_a2 = plugin.settings.debugMode) != null ? _a2 : false, "warn", "EmbeddingService unavailable:", error);
+      }
+    }
+  }
+  /**
+   * Builds semantic context messages for AI completions.
+   * @param options - Context building options
+   * @param query - The current query for semantic search
+   * @returns Array of context messages
+   */
+  async buildSemanticContext(options = {}, query) {
+    var _a2, _b, _c;
+    const contextMessages = [];
+    try {
+      if (!this.embeddingService) {
+        debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", "Embedding service not available, skipping semantic context");
+        return contextMessages;
+      }
+      const activeFile = this.app.workspace.getActiveFile();
+      let currentContent = "";
+      if (activeFile && options.includeCurrentNote && !options.forceNoCurrentNote) {
+        currentContent = await this.app.vault.read(activeFile);
+      }
+      let searchQuery = query || "";
+      if (!searchQuery && currentContent) {
+        searchQuery = currentContent.split("\n").slice(0, 5).join(" ").slice(0, 500);
+      }
+      if (searchQuery && options.includeSemanticContext) {
+        const relevantContext = await this.embeddingService.getRelevantContext(searchQuery, {
+          maxChunks: options.maxContextChunks || 3,
+          includeNotes: true,
+          includeConversations: options.includeConversationHistory !== false,
+          minSimilarity: options.minSimilarity || 0.7
+        });
+        if (relevantContext.length > 0) {
+          contextMessages.push({
+            role: "user",
+            content: `Relevant context from your knowledge base:
+
+${relevantContext.join("\n\n")}`
+          });
+        }
+      }
+      debugLog((_b = this.plugin.settings.debugMode) != null ? _b : false, "info", `Built semantic context with ${contextMessages.length} messages`);
+    } catch (error) {
+      debugLog((_c = this.plugin.settings.debugMode) != null ? _c : false, "error", "Failed to build semantic context:", error);
+    }
+    return contextMessages;
+  }
+  /**
+   * Embeds the current note if embedding service is available.
+   * @param file - File to embed (optional, uses active file if not provided)
+   */
+  async embedCurrentNote(file) {
+    var _a2, _b;
+    if (!this.embeddingService) return;
+    const targetFile = file || this.app.workspace.getActiveFile();
+    if (!targetFile) return;
+    try {
+      await this.embeddingService.embedNote(targetFile);
+      debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", `Embedded current note: ${targetFile.path}`);
+    } catch (error) {
+      debugLog((_b = this.plugin.settings.debugMode) != null ? _b : false, "error", "Failed to embed current note:", error);
+    }
+  }
+  /**
+   * Embeds a conversation when it's saved or completed.
+   * @param messages - Conversation messages
+   * @param sessionId - Session identifier
+   */
+  async embedConversation(messages, sessionId) {
+    var _a2, _b;
+    if (!this.embeddingService) return;
+    try {
+      await this.embeddingService.embedConversation(messages, sessionId);
+      debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", `Embedded conversation with ${messages.length} messages`);
+    } catch (error) {
+      debugLog((_b = this.plugin.settings.debugMode) != null ? _b : false, "error", "Failed to embed conversation:", error);
+    }
+  }
+  /**
+   * Gets embedding service statistics.
+   */
+  getStats() {
+    var _a2;
+    return ((_a2 = this.embeddingService) == null ? void 0 : _a2.getStats()) || null;
+  }
+  /**
+   * Performs a semantic search directly.
+   * @param query - Search query
+   * @param options - Search options
+   */
+  async semanticSearch(query, options = {}) {
+    if (!this.embeddingService) return [];
+    return await this.embeddingService.semanticSearch(query, options);
+  }
+  /**
+   * Clears all embeddings.
+   */
+  async clearAllEmbeddings() {
+    if (!this.embeddingService) return;
+    await this.embeddingService.clearAllEmbeddings();
+  }
+  /**
+   * Embeds all notes in the vault.
+   */
+  async embedAllNotes() {
+    if (!this.embeddingService) return;
+    await this.embeddingService.embedAllNotes();
+  }
+  /**
+   * Closes the semantic context builder and cleans up resources.
+   */
+  close() {
+    if (this.embeddingService) {
+      this.embeddingService.close();
+    }
+  }
+};
+
+// src/settings/sections/VectorStoreSettingsSection.ts
+var VectorStoreSettingsSection = class {
+  constructor(plugin, settingCreators) {
+    this.plugin = plugin;
+    this.settingCreators = settingCreators;
+    __publicField(this, "semanticContextBuilder", null);
+    try {
+      this.semanticContextBuilder = new SemanticContextBuilder(plugin.app, plugin);
+    } catch (error) {
+      console.warn("SemanticContextBuilder not available:", error);
+    }
+  }
+  /**
+   * Renders the vector store settings section.
+   */
+  render(containerEl) {
+    new import_obsidian32.Setting(containerEl).setName("Vector Store Status").setDesc("Current status of the semantic memory system").addText((text) => {
+      var _a2;
+      const stats = (_a2 = this.semanticContextBuilder) == null ? void 0 : _a2.getStats();
+      if (stats) {
+        text.setValue(`${stats.totalVectors} embeddings stored`);
+        text.setDisabled(true);
+      } else {
+        text.setValue("Vector store unavailable (Desktop only)");
+        text.setDisabled(true);
+      }
+    });
+    new import_obsidian32.Setting(containerEl).setName("Enable Semantic Context").setDesc("Use semantic search to find relevant context for AI completions. Requires embeddings to be generated first.").addToggle((toggle) => {
+      var _a2;
+      return toggle.setValue((_a2 = this.plugin.settings.enableSemanticContext) != null ? _a2 : false).onChange(async (value) => {
+        this.plugin.settings.enableSemanticContext = value;
+        await this.plugin.saveSettings();
+      });
+    });
+    if (this.plugin.settings.enableSemanticContext) {
+      new import_obsidian32.Setting(containerEl).setName("Max Context Chunks").setDesc("Maximum number of relevant chunks to include in AI context").addSlider((slider) => {
+        var _a2;
+        return slider.setLimits(1, 10, 1).setValue((_a2 = this.plugin.settings.maxSemanticContextChunks) != null ? _a2 : 3).setDynamicTooltip().onChange(async (value) => {
+          this.plugin.settings.maxSemanticContextChunks = value;
+          await this.plugin.saveSettings();
+        });
+      });
+      new import_obsidian32.Setting(containerEl).setName("Similarity Threshold").setDesc("Minimum similarity score for including context (0.0 to 1.0)").addSlider((slider) => {
+        var _a2;
+        return slider.setLimits(0, 1, 0.1).setValue((_a2 = this.plugin.settings.semanticSimilarityThreshold) != null ? _a2 : 0.7).setDynamicTooltip().onChange(async (value) => {
+          this.plugin.settings.semanticSimilarityThreshold = value;
+          await this.plugin.saveSettings();
+        });
+      });
+    }
+    const actionsContainer = containerEl.createDiv({ cls: "vector-store-actions" });
+    new import_obsidian32.Setting(actionsContainer).setName("Embed All Notes").setDesc("Generate embeddings for all notes in your vault. This may take several minutes and requires an API key.").addButton((button) => button.setButtonText("Embed All Notes").setCta().onClick(async () => {
+      if (!this.semanticContextBuilder) {
+        showNotice("Vector store not available on this platform");
+        return;
+      }
+      if (!this.plugin.settings.openaiSettings.apiKey) {
+        showNotice("OpenAI API key required for embedding generation");
+        return;
+      }
+      try {
+        button.setButtonText("Embedding...");
+        button.setDisabled(true);
+        await this.semanticContextBuilder.embedAllNotes();
+        button.setButtonText("Embed All Notes");
+        button.setDisabled(false);
+        containerEl.empty();
+        this.render(containerEl);
+      } catch (error) {
+        button.setButtonText("Embed All Notes");
+        button.setDisabled(false);
+        showNotice(`Error: ${error.message}`);
+      }
+    }));
+    new import_obsidian32.Setting(actionsContainer).setName("Clear All Embeddings").setDesc("Remove all stored embeddings from the vector database").addButton((button) => button.setButtonText("Clear All").setWarning().onClick(async () => {
+      if (!this.semanticContextBuilder) {
+        showNotice("Vector store not available");
+        return;
+      }
+      try {
+        await this.semanticContextBuilder.clearAllEmbeddings();
+        containerEl.empty();
+        this.render(containerEl);
+      } catch (error) {
+        showNotice(`Error: ${error.message}`);
+      }
+    }));
+    let searchQuery = "";
+    new import_obsidian32.Setting(actionsContainer).setName("Test Semantic Search").setDesc("Test the semantic search functionality with a sample query").addText((text) => text.setPlaceholder("Enter search query...").onChange((value) => {
+      searchQuery = value;
+    })).addButton((button) => button.setButtonText("Search").onClick(async () => {
+      var _a2;
+      if (!this.semanticContextBuilder) {
+        showNotice("Vector store not available");
+        return;
+      }
+      if (!searchQuery.trim()) {
+        showNotice("Please enter a search query");
+        return;
+      }
+      try {
+        const results = await this.semanticContextBuilder.semanticSearch(searchQuery, {
+          topK: 3,
+          minSimilarity: (_a2 = this.plugin.settings.semanticSimilarityThreshold) != null ? _a2 : 0.7
+        });
+        if (results.length === 0) {
+          showNotice("No similar content found");
+        } else {
+          const resultText = results.map(
+            (r, i) => `${i + 1}. [${r.similarity.toFixed(3)}] ${r.text.slice(0, 100)}...`
+          ).join("\n\n");
+          const modal = new import_obsidian32.Modal(this.plugin.app);
+          modal.titleEl.setText("Semantic Search Results");
+          modal.contentEl.createEl("pre", { text: resultText });
+          modal.open();
+        }
+      } catch (error) {
+        showNotice(`Search error: ${error.message}`);
+      }
+    }));
+    const infoEl = containerEl.createDiv({ cls: "setting-item-description" });
+    infoEl.style.marginTop = "20px";
+    infoEl.style.padding = "10px";
+    infoEl.style.border = "1px solid var(--background-modifier-border)";
+    infoEl.style.borderRadius = "5px";
+    infoEl.innerHTML = `
+            <strong>About Semantic Memory:</strong><br>
+            The vector store provides semantic memory capabilities by storing embeddings of your notes and conversations. 
+            This allows the AI to find and include relevant context even when the exact keywords don't match.<br><br>
+            <strong>Requirements:</strong><br>
+            \u2022 OpenAI API key for embedding generation<br>
+            \u2022 Desktop version of Obsidian (not available on mobile)<br>
+            \u2022 Initial embedding generation for your notes<br><br>
+            <strong>Privacy:</strong> Embeddings are stored locally in your vault and never sent to external services except for the initial generation.
+        `;
+  }
+};
+
 // src/settings/SettingTab.ts
 init_promptConstants();
-var MyPluginSettingTab = class extends import_obsidian31.PluginSettingTab {
+var MyPluginSettingTab = class extends import_obsidian33.PluginSettingTab {
   /**
    * Constructs the settings tab and initializes all settings sections.
    *
@@ -22355,6 +23886,8 @@ var MyPluginSettingTab = class extends import_obsidian31.PluginSettingTab {
     __publicField(this, "backupManagementSection");
     /** Chat history and UI section. */
     __publicField(this, "chatHistorySettingsSection");
+    /** Vector store and semantic memory section. */
+    __publicField(this, "vectorStoreSettingsSection");
     /** Listener for settings changes, used to refresh the UI when settings are updated elsewhere. */
     __publicField(this, "settingsChangeListener", null);
     this.plugin = plugin;
@@ -22366,6 +23899,7 @@ var MyPluginSettingTab = class extends import_obsidian31.PluginSettingTab {
     this.contentNoteHandlingSection = new ContentNoteHandlingSection(this.plugin, this.settingCreators);
     this.backupManagementSection = new BackupManagementSection(this.plugin, this.settingCreators);
     this.chatHistorySettingsSection = new ChatHistorySettingsSection(this.plugin, this.settingCreators);
+    this.vectorStoreSettingsSection = new VectorStoreSettingsSection(this.plugin, this.settingCreators);
     this.settingsChangeListener = () => {
       if (this.containerEl.isConnected) {
         this.display();
@@ -22438,7 +23972,14 @@ var MyPluginSettingTab = class extends import_obsidian31.PluginSettingTab {
       this.plugin,
       "backupManagementExpanded"
     );
-    new import_obsidian31.Setting(containerEl).setName("Reset All Settings to Default").setDesc("Reset all plugin settings (except API keys) to their original default values.").addButton((button) => button.setButtonText("Reset").onClick(async () => {
+    CollapsibleSectionRenderer.createCollapsibleSection(
+      containerEl,
+      "Vector Store & Semantic Memory",
+      (sectionEl) => this.vectorStoreSettingsSection.render(sectionEl),
+      this.plugin,
+      "vectorStoreExpanded"
+    );
+    new import_obsidian33.Setting(containerEl).setName("Reset All Settings to Default").setDesc("Reset all plugin settings (except API keys) to their original default values.").addButton((button) => button.setButtonText("Reset").onClick(async () => {
       const { DEFAULT_SETTINGS: DEFAULT_SETTINGS2 } = await Promise.resolve().then(() => (init_types(), types_exports));
       const preservedApiKeys = {
         openai: this.plugin.settings.openaiSettings.apiKey,
@@ -22455,15 +23996,15 @@ var MyPluginSettingTab = class extends import_obsidian31.PluginSettingTab {
       setTimeout(() => {
         activateView(this.plugin.app, VIEW_TYPE_MODEL_SETTINGS);
       }, 100);
-      new import_obsidian31.Notice("All settings (except API keys) reset to default.");
+      new import_obsidian33.Notice("All settings (except API keys) reset to default.");
     }));
   }
 };
 
 // src/components/ModelSettingsView.ts
-var import_obsidian32 = require("obsidian");
+var import_obsidian34 = require("obsidian");
 var VIEW_TYPE_MODEL_SETTINGS2 = "model-settings-view";
-var ModelSettingsView = class extends import_obsidian32.ItemView {
+var ModelSettingsView = class extends import_obsidian34.ItemView {
   constructor(leaf, plugin) {
     super(leaf);
     __publicField(this, "plugin");
@@ -22600,7 +24141,7 @@ function parseSelection(selection, chatSeparator, chatBoundaryString) {
 init_logger();
 init_aiDispatcher();
 async function handleAICompletion(editor, settings, processMessages2, vault, plugin, activeStream, setActiveStream, app) {
-  var _a2, _b, _c;
+  var _a2, _b, _c, _d, _e;
   let text;
   let insertPosition;
   if (editor.somethingSelected()) {
@@ -22639,8 +24180,27 @@ async function handleAICompletion(editor, settings, processMessages2, vault, plu
       includeContextNotes: true,
       forceNoCurrentNote: true
     });
+    let semanticContextMessages = [];
+    if (settings.enableSemanticContext) {
+      try {
+        const semanticBuilder = new SemanticContextBuilder(app || myPlugin.app, myPlugin);
+        const queryText = messages.map((m) => typeof m.content === "string" ? m.content : "").join(" ");
+        semanticContextMessages = await semanticBuilder.buildSemanticContext({
+          includeSemanticContext: true,
+          maxContextChunks: settings.maxSemanticContextChunks || 3,
+          minSimilarity: settings.semanticSimilarityThreshold || 0.7,
+          forceNoCurrentNote: true
+        }, queryText);
+        if (semanticContextMessages.length > 0) {
+          debugLog((_a2 = settings.debugMode) != null ? _a2 : false, "info", `Added ${semanticContextMessages.length} semantic context messages`);
+        }
+      } catch (error) {
+        debugLog((_b = settings.debugMode) != null ? _b : false, "warn", "Failed to build semantic context:", error);
+      }
+    }
     const processedMessages = await processMessages2([
       ...contextMessages,
+      ...semanticContextMessages,
       ...messages
     ]);
     let bufferedChunk = "";
@@ -22665,7 +24225,7 @@ async function handleAICompletion(editor, settings, processMessages2, vault, plu
       }
     );
     flushBuffer();
-    const endLineContent = (_a2 = editor.getLine(currentPosition.line)) != null ? _a2 : "";
+    const endLineContent = (_c = editor.getLine(currentPosition.line)) != null ? _c : "";
     const endPrefix = endLineContent.trim() !== "" ? "\n" : "";
     editor.replaceRange(`${endPrefix}
 ${settings.chatSeparator}
@@ -22677,8 +24237,8 @@ ${settings.chatSeparator}
     editor.setCursor(newCursorPos);
   } catch (error) {
     showNotice(`Error: ${error.message}`);
-    debugLog((_b = settings.debugMode) != null ? _b : false, "error", "AI Completion Error:", error);
-    const errLineContent = (_c = editor.getLine(currentPosition.line)) != null ? _c : "";
+    debugLog((_d = settings.debugMode) != null ? _d : false, "error", "AI Completion Error:", error);
+    const errLineContent = (_e = editor.getLine(currentPosition.line)) != null ? _e : "";
     const errPrefix = errLineContent.trim() !== "" ? "\n" : "";
     editor.replaceRange(`Error: ${error.message}
 ${errPrefix}
@@ -22945,6 +24505,222 @@ function registerToggleCommands(plugin, settings) {
 
 // src/components/commands/commandRegistry.ts
 init_YAMLHandler();
+
+// src/components/commands/vectorStoreCommands.ts
+var import_obsidian36 = require("obsidian");
+init_pluginUtils();
+init_logger();
+var SemanticSearchModal = class extends import_obsidian36.Modal {
+  constructor(app, results) {
+    super(app);
+    this.results = results;
+  }
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.createEl("h3", { text: "Semantic Search Results" });
+    if (this.results.length === 0) {
+      contentEl.createEl("p", { text: "No results found." });
+      return;
+    }
+    this.results.forEach((result, index) => {
+      const resultEl = contentEl.createDiv({ cls: "semantic-search-result" });
+      resultEl.style.marginBottom = "15px";
+      resultEl.style.padding = "10px";
+      resultEl.style.border = "1px solid var(--background-modifier-border)";
+      resultEl.style.borderRadius = "5px";
+      const headerEl = resultEl.createDiv({ cls: "result-header" });
+      headerEl.style.marginBottom = "5px";
+      headerEl.style.fontWeight = "bold";
+      headerEl.setText(`${index + 1}. Similarity: ${result.similarity.toFixed(3)}`);
+      if (result.filePath) {
+        const pathEl = resultEl.createDiv({ cls: "result-path" });
+        pathEl.style.fontSize = "0.9em";
+        pathEl.style.color = "var(--text-muted)";
+        pathEl.setText(`File: ${result.filePath}`);
+      }
+      const resultContentEl = resultEl.createDiv({ cls: "result-content" });
+      resultContentEl.style.marginTop = "10px";
+      resultContentEl.style.whiteSpace = "pre-wrap";
+      resultContentEl.setText(result.text);
+    });
+  }
+  onClose() {
+    const { contentEl } = this;
+    contentEl.empty();
+  }
+};
+var SemanticSearchInputModal = class extends import_obsidian36.Modal {
+  constructor(app) {
+    super(app);
+    __publicField(this, "result", null);
+  }
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.createEl("h3", { text: "Semantic Search" });
+    const inputEl = contentEl.createEl("input", {
+      type: "text",
+      placeholder: "Enter your search query..."
+    });
+    inputEl.style.width = "100%";
+    inputEl.style.marginBottom = "10px";
+    inputEl.style.padding = "8px";
+    const buttonContainer = contentEl.createDiv();
+    const searchBtn = buttonContainer.createEl("button", { text: "Search" });
+    searchBtn.style.marginRight = "10px";
+    const cancelBtn = buttonContainer.createEl("button", { text: "Cancel" });
+    searchBtn.addEventListener("click", () => {
+      this.result = inputEl.value.trim();
+      if (this.result) {
+        this.close();
+      }
+    });
+    cancelBtn.addEventListener("click", () => {
+      this.result = null;
+      this.close();
+    });
+    inputEl.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        this.result = inputEl.value.trim();
+        if (this.result) {
+          this.close();
+        }
+      } else if (e.key === "Escape") {
+        this.result = null;
+        this.close();
+      }
+    });
+    inputEl.focus();
+  }
+  onClose() {
+    const { contentEl } = this;
+    contentEl.empty();
+  }
+  async getSearchQuery() {
+    return new Promise((resolve) => {
+      this.onClose = () => {
+        this.contentEl.empty();
+        resolve(this.result);
+      };
+      this.open();
+    });
+  }
+};
+function registerVectorStoreCommands(plugin) {
+  registerCommand(plugin, {
+    id: "embed-current-note",
+    name: "Embed Current Note",
+    callback: async () => {
+      var _a2;
+      try {
+        const semanticBuilder = new SemanticContextBuilder(plugin.app, plugin);
+        await semanticBuilder.embedCurrentNote();
+        new import_obsidian36.Notice("Successfully embedded current note");
+      } catch (error) {
+        debugLog((_a2 = plugin.settings.debugMode) != null ? _a2 : false, "error", "Failed to embed current note:", error);
+        new import_obsidian36.Notice(`Error: ${error.message}`);
+      }
+    }
+  });
+  registerCommand(plugin, {
+    id: "embed-all-notes",
+    name: "Embed All Notes",
+    callback: async () => {
+      var _a2;
+      if (!plugin.settings.openaiSettings.apiKey) {
+        new import_obsidian36.Notice("OpenAI API key required for embedding generation");
+        return;
+      }
+      try {
+        const semanticBuilder = new SemanticContextBuilder(plugin.app, plugin);
+        await semanticBuilder.embedAllNotes();
+      } catch (error) {
+        debugLog((_a2 = plugin.settings.debugMode) != null ? _a2 : false, "error", "Failed to embed notes:", error);
+        new import_obsidian36.Notice(`Error: ${error.message}`);
+      }
+    }
+  });
+  registerCommand(plugin, {
+    id: "semantic-search",
+    name: "Semantic Search",
+    callback: async () => {
+      var _a2;
+      try {
+        const modal = new SemanticSearchInputModal(plugin.app);
+        const query = await modal.getSearchQuery();
+        if (!query) return;
+        const semanticBuilder = new SemanticContextBuilder(plugin.app, plugin);
+        const results = await semanticBuilder.semanticSearch(query, {
+          topK: 10,
+          minSimilarity: plugin.settings.semanticSimilarityThreshold || 0.7
+        });
+        const resultsModal = new SemanticSearchModal(plugin.app, results);
+        resultsModal.open();
+      } catch (error) {
+        debugLog((_a2 = plugin.settings.debugMode) != null ? _a2 : false, "error", "Semantic search failed:", error);
+        new import_obsidian36.Notice(`Error: ${error.message}`);
+      }
+    }
+  });
+  registerCommand(plugin, {
+    id: "clear-all-embeddings",
+    name: "Clear All Embeddings",
+    callback: async () => {
+      var _a2;
+      try {
+        const semanticBuilder = new SemanticContextBuilder(plugin.app, plugin);
+        await semanticBuilder.clearAllEmbeddings();
+      } catch (error) {
+        debugLog((_a2 = plugin.settings.debugMode) != null ? _a2 : false, "error", "Failed to clear embeddings:", error);
+        new import_obsidian36.Notice(`Error: ${error.message}`);
+      }
+    }
+  });
+  registerCommand(plugin, {
+    id: "vector-store-stats",
+    name: "Vector Store Statistics",
+    callback: () => {
+      var _a2;
+      try {
+        const semanticBuilder = new SemanticContextBuilder(plugin.app, plugin);
+        const stats = semanticBuilder.getStats();
+        if (stats) {
+          new import_obsidian36.Notice(`Vector Store: ${stats.totalVectors} embeddings stored`);
+        } else {
+          new import_obsidian36.Notice("Vector store not available on this platform");
+        }
+      } catch (error) {
+        debugLog((_a2 = plugin.settings.debugMode) != null ? _a2 : false, "error", "Failed to get stats:", error);
+        new import_obsidian36.Notice(`Error: ${error.message}`);
+      }
+    }
+  });
+  registerCommand(plugin, {
+    id: "semantic-search-selection",
+    name: "Semantic Search with Selection",
+    editorCallback: async (editor) => {
+      var _a2;
+      try {
+        const selection = editor.getSelection();
+        if (!selection.trim()) {
+          new import_obsidian36.Notice("Please select some text to search for similar content");
+          return;
+        }
+        const semanticBuilder = new SemanticContextBuilder(plugin.app, plugin);
+        const results = await semanticBuilder.semanticSearch(selection, {
+          topK: 5,
+          minSimilarity: plugin.settings.semanticSimilarityThreshold || 0.7
+        });
+        const resultsModal = new SemanticSearchModal(plugin.app, results);
+        resultsModal.open();
+      } catch (error) {
+        debugLog((_a2 = plugin.settings.debugMode) != null ? _a2 : false, "error", "Semantic search failed:", error);
+        new import_obsidian36.Notice(`Error: ${error.message}`);
+      }
+    }
+  });
+}
+
+// src/components/commands/commandRegistry.ts
 init_logger();
 function registerAllCommands(plugin, settings, processMessages2, activateChatViewAndLoadMessages, activeStream, setActiveStream, yamlAttributeCommandIds) {
   registerViewCommands(plugin);
@@ -22953,6 +24729,7 @@ function registerAllCommands(plugin, settings, processMessages2, activateChatVie
   registerGenerateNoteTitleCommand(plugin, settings, processMessages2);
   registerContextCommands(plugin, settings);
   registerToggleCommands(plugin, settings);
+  registerVectorStoreCommands(plugin);
   return registerYamlAttributeCommands(
     plugin,
     settings,
@@ -22971,7 +24748,7 @@ init_aiDispatcher();
 init_objectPool();
 
 // src/integration/priority3Integration.ts
-var import_obsidian34 = require("obsidian");
+var import_obsidian37 = require("obsidian");
 init_dependencyInjection();
 init_stateManager();
 init_streamManager();
@@ -23083,9 +24860,9 @@ var Priority3IntegrationManager = class {
           this.handleHighMemoryUsage();
         }
       }),
-      globalStateManager.subscribeAll((newValue, oldValue, path3) => {
+      globalStateManager.subscribeAll((newValue, oldValue, path4) => {
         if (true) {
-          console.log(`State changed: ${path3}`, { oldValue, newValue });
+          console.log(`State changed: ${path4}`, { oldValue, newValue });
         }
       })
     );
@@ -23281,7 +25058,7 @@ var Priority3IntegrationManager = class {
 
 // src/main.ts
 init_typeGuards();
-var _MyPlugin = class _MyPlugin extends import_obsidian35.Plugin {
+var _MyPlugin = class _MyPlugin extends import_obsidian38.Plugin {
   constructor() {
     super(...arguments);
     /**

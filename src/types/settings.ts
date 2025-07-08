@@ -229,6 +229,8 @@ export interface MyPluginSettings {
     pluginBehaviorExpanded?: Record<string, boolean>;
     /** Stores the expanded state of backup management sections. */
     backupManagementExpanded?: Record<string, boolean>;
+    /** Stores the expanded state of vector store sections. */
+    vectorStoreExpanded?: Record<string, boolean>;
 
     /** Model setting presets defined by the user. */
     modelSettingPresets?: ModelSettingPreset[];
@@ -255,6 +257,14 @@ export interface MyPluginSettings {
 
     /** Debug mode for verbose logging and UI. */
     debugMode?: boolean;
+
+    /** Vector Store / Semantic Memory settings. */
+    /** If true, enables semantic context using vector embeddings. */
+    enableSemanticContext?: boolean;
+    /** Maximum number of semantic context chunks to include in AI queries. */
+    maxSemanticContextChunks?: number;
+    /** Minimum similarity threshold for including semantic context (0.0 to 1.0). */
+    semanticSimilarityThreshold?: number;
 
     
 }
@@ -396,6 +406,8 @@ export const DEFAULT_SETTINGS: MyPluginSettings = {
     /** @inheritdoc */
     backupManagementExpanded: {},
     /** @inheritdoc */
+    vectorStoreExpanded: {},
+    /** @inheritdoc */
     modelSettingPresets: [
         {
             name: "Default",
@@ -426,4 +438,10 @@ export const DEFAULT_SETTINGS: MyPluginSettings = {
         timeoutMs: 30000,
         maxIterations: 10
     },
+    /** @inheritdoc */
+    enableSemanticContext: false,
+    /** @inheritdoc */
+    maxSemanticContextChunks: 3,
+    /** @inheritdoc */
+    semanticSimilarityThreshold: 0.7,
 };

@@ -5,6 +5,7 @@ import { showNotice, insertSeparator } from './generalUtils';
 import { debugLog } from '../utils/logger';
 import { AIDispatcher } from './aiDispatcher';
 import { buildContextMessages } from './contextBuilder';
+import { SemanticContextBuilder } from '../components/agent/memory-handling/SemanticContextBuilder';
 
 /**
  * Handles the AI completion logic for the editor.
@@ -91,9 +92,31 @@ export async function handleAICompletion(
             forceNoCurrentNote: true
         });
 
+        // Add semantic context if enabled
+        let semanticContextMessages: Message[] = [];
+        if (settings.enableSemanticContext) {
+            try {
+                const semanticBuilder = new SemanticContextBuilder(app || myPlugin.app, myPlugin);
+                const queryText = messages.map(m => typeof m.content === 'string' ? m.content : '').join(' ');
+                semanticContextMessages = await semanticBuilder.buildSemanticContext({
+                    includeSemanticContext: true,
+                    maxContextChunks: settings.maxSemanticContextChunks || 3,
+                    minSimilarity: settings.semanticSimilarityThreshold || 0.7,
+                    forceNoCurrentNote: true
+                }, queryText);
+                
+                if (semanticContextMessages.length > 0) {
+                    debugLog(settings.debugMode ?? false, 'info', `Added ${semanticContextMessages.length} semantic context messages`);
+                }
+            } catch (error) {
+                debugLog(settings.debugMode ?? false, 'warn', 'Failed to build semantic context:', error);
+            }
+        }
+
         // Preprocess messages, adding the context messages at the start.
         const processedMessages = await processMessages([
             ...contextMessages,
+            ...semanticContextMessages,
             ...messages
         ]);
 
