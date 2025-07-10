@@ -24951,7 +24951,6 @@ var VectorStore = class {
 };
 
 // src/components/agent/memory-handling/EmbeddingService.ts
-init_providers();
 init_logger();
 var crypto2 = __toESM(require("crypto"));
 var EmbeddingService = class {
@@ -25001,10 +25000,12 @@ var EmbeddingService = class {
    * @param text - Text to embed
    * @returns Promise<number[]> - The embedding vector
    */
+  /**
+   * Always uses OpenAI for embedding generation, regardless of provider settings.
+   */
   async generateEmbedding(text) {
     var _a2;
     try {
-      const provider = createProvider(this.settings);
       const response = await fetch("https://api.openai.com/v1/embeddings", {
         method: "POST",
         headers: {
@@ -25014,7 +25015,6 @@ var EmbeddingService = class {
         body: JSON.stringify({
           input: text,
           model: "text-embedding-3-small"
-          // Use smaller, faster embedding model
         })
       });
       if (!response.ok) {

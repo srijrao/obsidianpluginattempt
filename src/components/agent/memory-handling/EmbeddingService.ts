@@ -102,13 +102,12 @@ export class EmbeddingService {
    * @param text - Text to embed
    * @returns Promise<number[]> - The embedding vector
    */
+  /**
+   * Always uses OpenAI for embedding generation, regardless of provider settings.
+   */
   private async generateEmbedding(text: string): Promise<number[]> {
     try {
-      // Use OpenAI for embeddings by default (most reliable for embeddings)
-      const provider = createProvider(this.settings);
-      
-      // For embedding, we'll use a special embedding endpoint if available
-      // Otherwise fall back to a completion-based approach
+      // Always use OpenAI for embeddings
       const response = await fetch('https://api.openai.com/v1/embeddings', {
         method: 'POST',
         headers: {
@@ -117,7 +116,7 @@ export class EmbeddingService {
         },
         body: JSON.stringify({
           input: text,
-          model: 'text-embedding-3-small' // Use smaller, faster embedding model
+          model: 'text-embedding-3-small'
         })
       });
 
@@ -133,44 +132,60 @@ export class EmbeddingService {
     }
   }
 
+
   /**
-   * Splits text into chunks for embedding.
-   * @param text - Text to split
-   * @param options - Chunking options
+   * Splits a long text into smaller chunks for embedding.
+   * This helps keep each chunk within the model's context window.
+   * Tries to split at sentence or line boundaries for better semantic meaning.
+   *
+   * @param text - The text to split into chunks
+   * @param options - Options for chunk size and overlap
    * @returns Array of text chunks
    */
   private splitIntoChunks(text: string, options: EmbeddingOptions = {}): string[] {
+    // Set default chunk size and overlap if not provided
     const chunkSize = options.chunkSize || 1000;
     const overlap = options.chunkOverlap || 100;
-    
+
     const chunks: string[] = [];
     let start = 0;
-    
+
+    // Loop through the text and create chunks
     while (start < text.length) {
+      // Calculate the end position for this chunk
       const end = Math.min(start + chunkSize, text.length);
+      // Get the chunk of text
       const chunk = text.slice(start, end);
-      
-      // Try to break at sentence boundaries
+
+      // If not at the end, try to split at a sentence or newline
       if (end < text.length) {
+        // Find the last period or newline in the chunk
         const lastSentence = chunk.lastIndexOf('.');
         const lastNewline = chunk.lastIndexOf('\n');
+        // Choose the furthest boundary
         const breakPoint = Math.max(lastSentence, lastNewline);
-        
+
+        // If a boundary is found and it's not too close to the start, split there
         if (breakPoint > start + chunkSize / 2) {
           chunks.push(text.slice(start, breakPoint + 1).trim());
+          // Move start to just after the boundary, minus overlap
           start = breakPoint + 1 - overlap;
         } else {
+          // Otherwise, just split at the chunk size
           chunks.push(chunk.trim());
           start = end - overlap;
         }
       } else {
+        // If at the end, add the last chunk and break
         chunks.push(chunk.trim());
         break;
       }
-      
+
+      // Make sure start doesn't go negative
       start = Math.max(start, 0);
     }
-    
+
+    // Remove any empty chunks
     return chunks.filter(chunk => chunk.length > 0);
   }
 
@@ -204,7 +219,7 @@ export class EmbeddingService {
           ...options.customMetadata
         }
       });
-      
+
       debugLog(this.settings.debugMode ?? false, 'info', `Embedded note: ${file.path}`);
     } catch (error) {
       debugLog(this.settings.debugMode ?? false, 'error', `Failed to embed note ${file.path}:`, error);
@@ -221,22 +236,22 @@ export class EmbeddingService {
     this.ensureInitialized();
     try {
       const chunks = this.splitIntoChunks(text, options);
-      
+
       for (let i = 0; i < chunks.length; i++) {
         const chunk = chunks[i];
         const embedding = await this.generateEmbedding(chunk);
-        
+
         const metadata = {
           chunkIndex: i,
           totalChunks: chunks.length,
           timestamp: Date.now(),
           ...options.customMetadata
         };
-        
+
         const id = this.generateId(chunk, metadata);
         await this.vectorStore.addVector(id, chunk, embedding, metadata);
       }
-      
+
       debugLog(this.settings.debugMode ?? false, 'info', `Embedded ${chunks.length} chunks`);
     } catch (error) {
       debugLog(this.settings.debugMode ?? false, 'error', 'Failed to embed text:', error);
@@ -254,11 +269,11 @@ export class EmbeddingService {
     try {
       for (let i = 0; i < messages.length; i++) {
         const message = messages[i];
-        const text = typeof message.content === 'string' ? message.content : 
-                    JSON.stringify(message.content);
-        
+        const text = typeof message.content === 'string' ? message.content :
+          JSON.stringify(message.content);
+
         if (text.trim().length === 0) continue;
-        
+
         const embedding = await this.generateEmbedding(text);
         const metadata = {
           role: message.role,
@@ -267,11 +282,11 @@ export class EmbeddingService {
           timestamp: Date.now(),
           type: 'conversation'
         };
-        
+
         const id = this.generateId(text, metadata);
         await this.vectorStore.addVector(id, text, embedding, metadata);
       }
-      
+
       debugLog(this.settings.debugMode ?? false, 'info', `Embedded conversation with ${messages.length} messages`);
     } catch (error) {
       debugLog(this.settings.debugMode ?? false, 'error', 'Failed to embed conversation:', error);
@@ -286,7 +301,7 @@ export class EmbeddingService {
    * @returns Array of search results
    */
   async semanticSearch(
-    query: string, 
+    query: string,
     options: {
       topK?: number;
       minSimilarity?: number;
@@ -299,27 +314,27 @@ export class EmbeddingService {
       const queryEmbedding = await this.generateEmbedding(query);
       const topK = options.topK || 5;
       const minSimilarity = options.minSimilarity || 0.7;
-      
+
       // Get similar vectors (now async)
       let results = await this.vectorStore.findSimilarVectors(queryEmbedding, topK * 2, minSimilarity);
-      
+
       // Apply metadata filters if specified
       if (options.filterMetadata) {
         results = results.filter(result => {
           if (!result.metadata) return false;
-          return Object.entries(options.filterMetadata!).every(([key, value]) => 
+          return Object.entries(options.filterMetadata!).every(([key, value]) =>
             result.metadata![key] === value
           );
         });
       }
-      
+
       // Apply type filters if specified
       if (options.includeTypes) {
-        results = results.filter(result => 
+        results = results.filter(result =>
           result.metadata && options.includeTypes!.includes(result.metadata.type)
         );
       }
-      
+
       // Transform to SemanticSearchResult format
       return results.slice(0, topK).map(result => ({
         text: result.text,
@@ -352,13 +367,13 @@ export class EmbeddingService {
     const includeTypes: string[] = [];
     if (options.includeNotes !== false) includeTypes.push('note');
     if (options.includeConversations !== false) includeTypes.push('conversation');
-    
+
     const results = await this.semanticSearch(query, {
       topK: options.maxChunks || 3,
       minSimilarity: options.minSimilarity || 0.7,
       includeTypes
     });
-    
+
     return results.map(result => {
       const source = result.filePath ? `[${result.filePath}]` : '[Memory]';
       return `${source}: ${result.text}`;
@@ -372,11 +387,11 @@ export class EmbeddingService {
   async embedAllNotes(options: EmbeddingOptions = {}): Promise<void> {
     this.ensureInitialized();
     const notice = new Notice('Embedding all notes...', 0);
-    
+
     try {
       const files = this.plugin.app.vault.getMarkdownFiles();
       let processed = 0;
-      
+
       for (const file of files) {
         try {
           await this.embedNote(file, options);
@@ -386,7 +401,7 @@ export class EmbeddingService {
           debugLog(this.settings.debugMode ?? false, 'warn', `Skipped ${file.path}:`, error);
         }
       }
-      
+
       notice.hide();
       showNotice(`Successfully embedded ${processed} notes!`);
     } catch (error) {
