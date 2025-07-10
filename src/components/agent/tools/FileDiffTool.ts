@@ -1,5 +1,6 @@
 import { App, Modal, Notice, TFile, Vault, Editor } from 'obsidian';
-import { Diff, diffLines } from 'diff';
+import { diffLines } from 'diff';
+import type { Change } from 'diff';
 import { Tool, ToolResult } from '../ToolRegistry';
 import { PathValidator } from './pathValidation';
 import { debugLog } from '../../../utils/logger';

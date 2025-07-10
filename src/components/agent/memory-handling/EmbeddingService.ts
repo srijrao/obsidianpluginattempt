@@ -54,11 +54,47 @@ export class EmbeddingService {
   private vectorStore: VectorStore;
   private plugin: Plugin;
   private settings: MyPluginSettings;
+  private isInitialized: boolean = false;
 
   constructor(plugin: Plugin, settings: MyPluginSettings) {
     this.plugin = plugin;
     this.settings = settings;
     this.vectorStore = new VectorStore(plugin);
+  }
+
+  /**
+   * Initialize the EmbeddingService by setting up the VectorStore.
+   * Must be called before using any other methods.
+   */
+  async initialize(): Promise<void> {
+    if (this.isInitialized) {
+      return;
+    }
+
+    try {
+      await this.vectorStore.initialize();
+      this.isInitialized = true;
+      debugLog(this.settings.debugMode ?? false, 'info', 'EmbeddingService initialized successfully');
+    } catch (error) {
+      debugLog(this.settings.debugMode ?? false, 'error', 'Failed to initialize EmbeddingService:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Checks if the service is initialized and ready for use.
+   */
+  get initialized(): boolean {
+    return this.isInitialized && this.vectorStore.initialized;
+  }
+
+  /**
+   * Ensures the service is initialized before operations.
+   */
+  private ensureInitialized(): void {
+    if (!this.initialized) {
+      throw new Error('EmbeddingService not initialized. Call initialize() first.');
+    }
   }
 
   /**
@@ -155,6 +191,7 @@ export class EmbeddingService {
    * @param options - Embedding options
    */
   async embedNote(file: TFile, options: EmbeddingOptions = {}): Promise<void> {
+    this.ensureInitialized();
     try {
       const content = await this.plugin.app.vault.read(file);
       await this.embedText(content, {
@@ -181,6 +218,7 @@ export class EmbeddingService {
    * @param options - Embedding options
    */
   async embedText(text: string, options: EmbeddingOptions = {}): Promise<void> {
+    this.ensureInitialized();
     try {
       const chunks = this.splitIntoChunks(text, options);
       
@@ -196,7 +234,7 @@ export class EmbeddingService {
         };
         
         const id = this.generateId(chunk, metadata);
-        this.vectorStore.addVector(id, chunk, embedding, metadata);
+        await this.vectorStore.addVector(id, chunk, embedding, metadata);
       }
       
       debugLog(this.settings.debugMode ?? false, 'info', `Embedded ${chunks.length} chunks`);
@@ -212,6 +250,7 @@ export class EmbeddingService {
    * @param sessionId - Optional session identifier
    */
   async embedConversation(messages: Message[], sessionId?: string): Promise<void> {
+    this.ensureInitialized();
     try {
       for (let i = 0; i < messages.length; i++) {
         const message = messages[i];
@@ -230,7 +269,7 @@ export class EmbeddingService {
         };
         
         const id = this.generateId(text, metadata);
-        this.vectorStore.addVector(id, text, embedding, metadata);
+        await this.vectorStore.addVector(id, text, embedding, metadata);
       }
       
       debugLog(this.settings.debugMode ?? false, 'info', `Embedded conversation with ${messages.length} messages`);
@@ -255,13 +294,14 @@ export class EmbeddingService {
       includeTypes?: string[];
     } = {}
   ): Promise<SemanticSearchResult[]> {
+    this.ensureInitialized();
     try {
       const queryEmbedding = await this.generateEmbedding(query);
       const topK = options.topK || 5;
       const minSimilarity = options.minSimilarity || 0.7;
       
-      // Get similar vectors
-      let results = this.vectorStore.findSimilarVectors(queryEmbedding, topK * 2, minSimilarity);
+      // Get similar vectors (now async)
+      let results = await this.vectorStore.findSimilarVectors(queryEmbedding, topK * 2, minSimilarity);
       
       // Apply metadata filters if specified
       if (options.filterMetadata) {
@@ -330,6 +370,7 @@ export class EmbeddingService {
    * @param options - Embedding options
    */
   async embedAllNotes(options: EmbeddingOptions = {}): Promise<void> {
+    this.ensureInitialized();
     const notice = new Notice('Embedding all notes...', 0);
     
     try {
@@ -359,7 +400,8 @@ export class EmbeddingService {
    * Clears all embeddings from the vector store.
    */
   async clearAllEmbeddings(): Promise<void> {
-    const count = this.vectorStore.clearAllVectors();
+    this.ensureInitialized();
+    const count = await this.vectorStore.clearAllVectors();
     showNotice(`Cleared ${count} embeddings from memory.`);
     debugLog(this.settings.debugMode ?? false, 'info', `Cleared ${count} embeddings`);
   }
@@ -367,16 +409,17 @@ export class EmbeddingService {
   /**
    * Gets statistics about the vector store.
    */
-  getStats(): { totalVectors: number } {
+  async getStats(): Promise<{ totalVectors: number }> {
+    this.ensureInitialized();
     return {
-      totalVectors: this.vectorStore.getVectorCount()
+      totalVectors: await this.vectorStore.getVectorCount()
     };
   }
 
   /**
    * Closes the embedding service and cleans up resources.
    */
-  close(): void {
-    this.vectorStore.close();
+  async close(): Promise<void> {
+    await this.vectorStore.close();
   }
 }

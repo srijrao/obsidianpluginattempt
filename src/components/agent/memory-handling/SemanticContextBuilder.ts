@@ -38,19 +38,44 @@ interface SemanticContextOptions {
  */
 export class SemanticContextBuilder {
   private embeddingService: EmbeddingService | null = null;
+  private isInitialized: boolean = false;
   
   constructor(
     private app: App,
     private plugin: MyPlugin
   ) {
-    // Initialize embedding service if on desktop platform
-    if ((this.app as any).isMobile === false) {
-      try {
-        this.embeddingService = new EmbeddingService(plugin, plugin.settings);
-      } catch (error) {
-        debugLog(plugin.settings.debugMode ?? false, 'warn', 'EmbeddingService unavailable:', error);
-      }
+    // Initialize embedding service (now works on both desktop and mobile)
+    try {
+      this.embeddingService = new EmbeddingService(plugin, plugin.settings);
+    } catch (error) {
+      debugLog(plugin.settings.debugMode ?? false, 'warn', 'EmbeddingService unavailable:', error);
     }
+  }
+
+  /**
+   * Initialize the SemanticContextBuilder by setting up the EmbeddingService.
+   * Should be called before using other methods.
+   */
+  async initialize(): Promise<void> {
+    if (this.isInitialized || !this.embeddingService) {
+      return;
+    }
+
+    try {
+      await this.embeddingService.initialize();
+      this.isInitialized = true;
+      debugLog(this.plugin.settings.debugMode ?? false, 'info', 'SemanticContextBuilder initialized successfully');
+    } catch (error) {
+      debugLog(this.plugin.settings.debugMode ?? false, 'error', 'Failed to initialize SemanticContextBuilder:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Checks if the SemanticContextBuilder is ready for use.
+   */
+  get initialized(): boolean {
+    return this.isInitialized && this.embeddingService?.initialized === true;
   }
 
   /**
@@ -66,8 +91,13 @@ export class SemanticContextBuilder {
     const contextMessages: Message[] = [];
     
     try {
+      // Ensure initialization
+      if (!this.initialized) {
+        await this.initialize();
+      }
+
       // If no embedding service available, return empty context
-      if (!this.embeddingService) {
+      if (!this.embeddingService || !this.initialized) {
         debugLog(this.plugin.settings.debugMode ?? false, 'info', 'Embedding service not available, skipping semantic context');
         return contextMessages;
       }
@@ -150,7 +180,7 @@ export class SemanticContextBuilder {
   /**
    * Gets embedding service statistics.
    */
-  getStats(): { totalVectors: number } | null {
+  async getStats(): Promise<{ totalVectors: number } | null> {
     return this.embeddingService?.getStats() || null;
   }
 
@@ -188,9 +218,9 @@ export class SemanticContextBuilder {
   /**
    * Closes the semantic context builder and cleans up resources.
    */
-  close(): void {
+  async close(): Promise<void> {
     if (this.embeddingService) {
-      this.embeddingService.close();
+      await this.embeddingService.close();
     }
   }
 }

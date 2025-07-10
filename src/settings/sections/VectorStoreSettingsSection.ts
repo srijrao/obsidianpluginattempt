@@ -38,13 +38,22 @@ export class VectorStoreSettingsSection {
             .setName('Vector Store Status')
             .setDesc('Current status of the semantic memory system')
             .addText(text => {
-                const stats = this.semanticContextBuilder?.getStats();
-                if (stats) {
-                    text.setValue(`${stats.totalVectors} embeddings stored`);
-                    text.setDisabled(true);
+                text.setValue('Loading...');
+                text.setDisabled(true);
+                
+                // Load stats asynchronously
+                if (this.semanticContextBuilder) {
+                    this.semanticContextBuilder.getStats().then(stats => {
+                        if (stats) {
+                            text.setValue(`${stats.totalVectors} embeddings stored`);
+                        } else {
+                            text.setValue('Vector store unavailable');
+                        }
+                    }).catch(() => {
+                        text.setValue('Error loading stats');
+                    });
                 } else {
-                    text.setValue('Vector store unavailable (Desktop only)');
-                    text.setDisabled(true);
+                    text.setValue('Vector store unavailable');
                 }
             });
 
@@ -205,9 +214,9 @@ export class VectorStoreSettingsSection {
             This allows the AI to find and include relevant context even when the exact keywords don't match.<br><br>
             <strong>Requirements:</strong><br>
             • OpenAI API key for embedding generation<br>
-            • Desktop version of Obsidian (not available on mobile)<br>
             • Initial embedding generation for your notes<br><br>
-            <strong>Privacy:</strong> Embeddings are stored locally in your vault and never sent to external services except for the initial generation.
+            <strong>Cross-Platform:</strong> Works on both Obsidian Desktop and Mobile devices.<br><br>
+            <strong>Privacy:</strong> Embeddings are stored locally using IndexedDB and never sent to external services except for the initial generation.
         `;
     }
 }

@@ -215,10 +215,10 @@ export function registerVectorStoreCommands(plugin: MyPlugin): void {
     registerCommand(plugin, {
         id: 'vector-store-stats',
         name: 'Vector Store Statistics',
-        callback: () => {
+        callback: async () => {
             try {
                 const semanticBuilder = new SemanticContextBuilder(plugin.app, plugin);
-                const stats = semanticBuilder.getStats();
+                const stats = await semanticBuilder.getStats();
                 
                 if (stats) {
                     new Notice(`Vector Store: ${stats.totalVectors} embeddings stored`);

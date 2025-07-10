@@ -371,16 +371,16 @@ var init_typeGuards = __esm({
 });
 
 // src/utils/fileUtils.ts
-function getFileOrFolderByPath(app, path4, debugMode) {
-  debugLog(debugMode, "debug", "[fileUtils] Attempting to get file or folder by path:", path4);
+function getFileOrFolderByPath(app, path3, debugMode) {
+  debugLog(debugMode, "debug", "[fileUtils] Attempting to get file or folder by path:", path3);
   let fileOrFolder = null;
-  if (path4 === "" || path4 === "/") {
+  if (path3 === "" || path3 === "/") {
     fileOrFolder = app.vault.getRoot();
   } else {
-    fileOrFolder = app.vault.getAbstractFileByPath(path4);
-    if (!fileOrFolder && path4.endsWith("/")) {
+    fileOrFolder = app.vault.getAbstractFileByPath(path3);
+    if (!fileOrFolder && path3.endsWith("/")) {
       const allFolders = app.vault.getAllLoadedFiles().filter((f) => f instanceof import_obsidian.TFolder);
-      const match = allFolders.find((f) => f.path.toLowerCase() === path4.toLowerCase());
+      const match = allFolders.find((f) => f.path.toLowerCase() === path3.toLowerCase());
       if (match) fileOrFolder = match;
     }
   }
@@ -388,23 +388,23 @@ function getFileOrFolderByPath(app, path4, debugMode) {
     debugLog(debugMode, "debug", "[fileUtils] Found file or folder:", fileOrFolder.path);
     return fileOrFolder;
   }
-  debugLog(debugMode, "warn", "[fileUtils] File or folder not found:", path4);
+  debugLog(debugMode, "warn", "[fileUtils] File or folder not found:", path3);
   return void 0;
 }
-function getTFileByPath(app, path4, debugMode) {
-  const fileOrFolder = getFileOrFolderByPath(app, path4, debugMode);
+function getTFileByPath(app, path3, debugMode) {
+  const fileOrFolder = getFileOrFolderByPath(app, path3, debugMode);
   if (fileOrFolder && isTFile(fileOrFolder)) {
     return fileOrFolder;
   }
-  debugLog(debugMode, "warn", "[fileUtils] Path does not point to a valid TFile:", path4);
+  debugLog(debugMode, "warn", "[fileUtils] Path does not point to a valid TFile:", path3);
   return void 0;
 }
-function getTFolderByPath(app, path4, debugMode) {
-  const fileOrFolder = getFileOrFolderByPath(app, path4, debugMode);
+function getTFolderByPath(app, path3, debugMode) {
+  const fileOrFolder = getFileOrFolderByPath(app, path3, debugMode);
   if (fileOrFolder && isTFolder(fileOrFolder)) {
     return fileOrFolder;
   }
-  debugLog(debugMode, "warn", "[fileUtils] Path does not point to a valid TFolder:", path4);
+  debugLog(debugMode, "warn", "[fileUtils] Path does not point to a valid TFolder:", path3);
   return void 0;
 }
 async function ensureFolderExists(app, folderPath, debugMode) {
@@ -762,7 +762,7 @@ var init_BackupManager = __esm({
         try {
           const backupData = await this.loadBackupData();
           return Object.keys(backupData.backups).filter(
-            (path4) => backupData.backups[path4] && backupData.backups[path4].length > 0
+            (path3) => backupData.backups[path3] && backupData.backups[path3].length > 0
           );
         } catch (error) {
           console.error("Failed to get backup files:", error);
@@ -1380,16 +1380,16 @@ var init_base = __esm({
           }
         }
       }
-      addToPath(path4, added, removed, oldPosInc, options) {
-        const last = path4.lastComponent;
+      addToPath(path3, added, removed, oldPosInc, options) {
+        const last = path3.lastComponent;
         if (last && !options.oneChangePerToken && last.added === added && last.removed === removed) {
           return {
-            oldPos: path4.oldPos + oldPosInc,
+            oldPos: path3.oldPos + oldPosInc,
             lastComponent: { count: last.count + 1, added, removed, previousComponent: last.previousComponent }
           };
         } else {
           return {
-            oldPos: path4.oldPos + oldPosInc,
+            oldPos: path3.oldPos + oldPosInc,
             lastComponent: { count: 1, added, removed, previousComponent: last }
           };
         }
@@ -2371,14 +2371,14 @@ var init_VaultTreeTool = __esm({
        */
       async execute(params, context) {
         const {
-          path: path4 = "",
+          path: path3 = "",
           maxDepth = 10,
           maxItems = 200,
           showFolders = true
         } = params;
         let startPath;
         try {
-          startPath = this.pathValidator.validateAndNormalizePath(path4);
+          startPath = this.pathValidator.validateAndNormalizePath(path3);
         } catch (error) {
           return {
             success: false,
@@ -3770,8 +3770,8 @@ var init_ToolRichDisplay = __esm({
         }
         if (this.options.command.action === "file_list" && data) {
           const count = data.count || (Array.isArray(data.files) ? data.files.length : 0);
-          const path4 = data.path || this.options.command.parameters.path;
-          return `<span class="tool-success">\u{1F4CB} Listed ${count} file${count !== 1 ? "s" : ""} in <strong>${path4}</strong></span>`;
+          const path3 = data.path || this.options.command.parameters.path;
+          return `<span class="tool-success">\u{1F4CB} Listed ${count} file${count !== 1 ? "s" : ""} in <strong>${path3}</strong></span>`;
         }
         if (this.options.command.action === "file_move" && data) {
           const from = this.options.command.parameters.sourcePath;
@@ -4065,8 +4065,8 @@ ${details}
         }
         if (command.action === "file_list" && data) {
           const count = data.count || (Array.isArray(data.files) ? data.files.length : 0);
-          const path4 = data.path || command.parameters.path;
-          return `<span class="tool-success">\u{1F4CB} Listed ${count} file${count !== 1 ? "s" : ""} in <strong>${path4}</strong></span>`;
+          const path3 = data.path || command.parameters.path;
+          return `<span class="tool-success">\u{1F4CB} Listed ${count} file${count !== 1 ? "s" : ""} in <strong>${path3}</strong></span>`;
         }
         if (command.action === "file_move" && data) {
           const from = command.parameters.sourcePath;
@@ -7914,12 +7914,12 @@ var init_streaming = __esm({
        * which can be turned back into a Stream with `Stream.fromReadableStream()`.
        */
       toReadableStream() {
-        const self = this;
+        const self2 = this;
         let iter;
         const encoder = new TextEncoder();
         return new ReadableStream2({
           async start() {
-            iter = self[Symbol.asyncIterator]();
+            iter = self2[Symbol.asyncIterator]();
           },
           async pull(ctrl) {
             try {
@@ -8263,29 +8263,29 @@ var init_core = __esm({
       defaultIdempotencyKey() {
         return `stainless-node-retry-${uuid4()}`;
       }
-      get(path4, opts) {
-        return this.methodRequest("get", path4, opts);
+      get(path3, opts) {
+        return this.methodRequest("get", path3, opts);
       }
-      post(path4, opts) {
-        return this.methodRequest("post", path4, opts);
+      post(path3, opts) {
+        return this.methodRequest("post", path3, opts);
       }
-      patch(path4, opts) {
-        return this.methodRequest("patch", path4, opts);
+      patch(path3, opts) {
+        return this.methodRequest("patch", path3, opts);
       }
-      put(path4, opts) {
-        return this.methodRequest("put", path4, opts);
+      put(path3, opts) {
+        return this.methodRequest("put", path3, opts);
       }
-      delete(path4, opts) {
-        return this.methodRequest("delete", path4, opts);
+      delete(path3, opts) {
+        return this.methodRequest("delete", path3, opts);
       }
-      methodRequest(method, path4, opts) {
+      methodRequest(method, path3, opts) {
         return this.request(Promise.resolve(opts).then(async (opts2) => {
           const body = opts2 && isBlobLike(opts2 == null ? void 0 : opts2.body) ? new DataView(await opts2.body.arrayBuffer()) : (opts2 == null ? void 0 : opts2.body) instanceof DataView ? opts2.body : (opts2 == null ? void 0 : opts2.body) instanceof ArrayBuffer ? new DataView(opts2.body) : opts2 && ArrayBuffer.isView(opts2 == null ? void 0 : opts2.body) ? new DataView(opts2.body.buffer) : opts2 == null ? void 0 : opts2.body;
-          return { method, path: path4, ...opts2, body };
+          return { method, path: path3, ...opts2, body };
         }));
       }
-      getAPIList(path4, Page2, opts) {
-        return this.requestAPIList(Page2, { method: "get", path: path4, ...opts });
+      getAPIList(path3, Page2, opts) {
+        return this.requestAPIList(Page2, { method: "get", path: path3, ...opts });
       }
       calculateContentLength(body) {
         if (typeof body === "string") {
@@ -8304,10 +8304,10 @@ var init_core = __esm({
       }
       buildRequest(options, { retryCount = 0 } = {}) {
         var _a2, _b, _c, _d, _e, _f;
-        const { method, path: path4, query, headers = {} } = options;
+        const { method, path: path3, query, headers = {} } = options;
         const body = ArrayBuffer.isView(options.body) || options.__binaryRequest && typeof options.body === "string" ? options.body : isMultipartBody(options.body) ? options.body.body : options.body ? JSON.stringify(options.body, null, 2) : null;
         const contentLength = this.calculateContentLength(body);
-        const url = this.buildURL(path4, query);
+        const url = this.buildURL(path3, query);
         if ("timeout" in options)
           validatePositiveInteger("timeout", options.timeout);
         const timeout = (_a2 = options.timeout) != null ? _a2 : this.timeout;
@@ -8421,8 +8421,8 @@ var init_core = __esm({
         const request = this.makeRequest(options, null);
         return new PagePromise(this, request, Page2);
       }
-      buildURL(path4, query) {
-        const url = isAbsoluteURL(path4) ? new URL(path4) : new URL(this.baseURL + (this.baseURL.endsWith("/") && path4.startsWith("/") ? path4.slice(1) : path4));
+      buildURL(path3, query) {
+        const url = isAbsoluteURL(path3) ? new URL(path3) : new URL(this.baseURL + (this.baseURL.endsWith("/") && path3.startsWith("/") ? path3.slice(1) : path3));
         const defaultQuery = this.defaultQuery();
         if (!isEmptyObj(defaultQuery)) {
           query = { ...defaultQuery, ...query };
@@ -14974,775 +14974,2096 @@ var init_clearAICallLogs = __esm({
   }
 });
 
-// node_modules/better-sqlite3/lib/util.js
-var require_util = __commonJS({
-  "node_modules/better-sqlite3/lib/util.js"(exports) {
-    "use strict";
-    exports.getBooleanOption = (options, key) => {
-      let value = false;
-      if (key in options && typeof (value = options[key]) !== "boolean") {
-        throw new TypeError(`Expected the "${key}" option to be a boolean`);
+// node_modules/sql.js/dist/sql-wasm.js
+var require_sql_wasm = __commonJS({
+  "node_modules/sql.js/dist/sql-wasm.js"(exports, module2) {
+    var initSqlJsPromise = void 0;
+    var initSqlJs2 = function(moduleConfig) {
+      if (initSqlJsPromise) {
+        return initSqlJsPromise;
       }
-      return value;
-    };
-    exports.cppdb = Symbol();
-    exports.inspect = Symbol.for("nodejs.util.inspect.custom");
-  }
-});
-
-// node_modules/better-sqlite3/lib/sqlite-error.js
-var require_sqlite_error = __commonJS({
-  "node_modules/better-sqlite3/lib/sqlite-error.js"(exports, module2) {
-    "use strict";
-    var descriptor = { value: "SqliteError", writable: true, enumerable: false, configurable: true };
-    function SqliteError(message, code) {
-      if (new.target !== SqliteError) {
-        return new SqliteError(message, code);
-      }
-      if (typeof code !== "string") {
-        throw new TypeError("Expected second argument to be a string");
-      }
-      Error.call(this, message);
-      descriptor.value = "" + message;
-      Object.defineProperty(this, "message", descriptor);
-      Error.captureStackTrace(this, SqliteError);
-      this.code = code;
-    }
-    Object.setPrototypeOf(SqliteError, Error);
-    Object.setPrototypeOf(SqliteError.prototype, Error.prototype);
-    Object.defineProperty(SqliteError.prototype, "name", descriptor);
-    module2.exports = SqliteError;
-  }
-});
-
-// node_modules/file-uri-to-path/index.js
-var require_file_uri_to_path = __commonJS({
-  "node_modules/file-uri-to-path/index.js"(exports, module2) {
-    var sep = require("path").sep || "/";
-    module2.exports = fileUriToPath;
-    function fileUriToPath(uri) {
-      if ("string" != typeof uri || uri.length <= 7 || "file://" != uri.substring(0, 7)) {
-        throw new TypeError("must pass in a file:// URI to convert to a file path");
-      }
-      var rest = decodeURI(uri.substring(7));
-      var firstSlash = rest.indexOf("/");
-      var host = rest.substring(0, firstSlash);
-      var path4 = rest.substring(firstSlash + 1);
-      if ("localhost" == host) host = "";
-      if (host) {
-        host = sep + sep + host;
-      }
-      path4 = path4.replace(/^(.+)\|/, "$1:");
-      if (sep == "\\") {
-        path4 = path4.replace(/\//g, "\\");
-      }
-      if (/^.+\:/.test(path4)) {
-      } else {
-        path4 = sep + path4;
-      }
-      return host + path4;
-    }
-  }
-});
-
-// node_modules/bindings/bindings.js
-var require_bindings = __commonJS({
-  "node_modules/bindings/bindings.js"(exports, module2) {
-    var fs3 = require("fs");
-    var path4 = require("path");
-    var fileURLToPath = require_file_uri_to_path();
-    var join5 = path4.join;
-    var dirname = path4.dirname;
-    var exists = fs3.accessSync && function(path5) {
-      try {
-        fs3.accessSync(path5);
-      } catch (e) {
-        return false;
-      }
-      return true;
-    } || fs3.existsSync || path4.existsSync;
-    var defaults = {
-      arrow: process.env.NODE_BINDINGS_ARROW || " \u2192 ",
-      compiled: process.env.NODE_BINDINGS_COMPILED_DIR || "compiled",
-      platform: process.platform,
-      arch: process.arch,
-      nodePreGyp: "node-v" + process.versions.modules + "-" + process.platform + "-" + process.arch,
-      version: process.versions.node,
-      bindings: "bindings.node",
-      try: [
-        // node-gyp's linked version in the "build" dir
-        ["module_root", "build", "bindings"],
-        // node-waf and gyp_addon (a.k.a node-gyp)
-        ["module_root", "build", "Debug", "bindings"],
-        ["module_root", "build", "Release", "bindings"],
-        // Debug files, for development (legacy behavior, remove for node v0.9)
-        ["module_root", "out", "Debug", "bindings"],
-        ["module_root", "Debug", "bindings"],
-        // Release files, but manually compiled (legacy behavior, remove for node v0.9)
-        ["module_root", "out", "Release", "bindings"],
-        ["module_root", "Release", "bindings"],
-        // Legacy from node-waf, node <= 0.4.x
-        ["module_root", "build", "default", "bindings"],
-        // Production "Release" buildtype binary (meh...)
-        ["module_root", "compiled", "version", "platform", "arch", "bindings"],
-        // node-qbs builds
-        ["module_root", "addon-build", "release", "install-root", "bindings"],
-        ["module_root", "addon-build", "debug", "install-root", "bindings"],
-        ["module_root", "addon-build", "default", "install-root", "bindings"],
-        // node-pre-gyp path ./lib/binding/{node_abi}-{platform}-{arch}
-        ["module_root", "lib", "binding", "nodePreGyp", "bindings"]
-      ]
-    };
-    function bindings(opts) {
-      if (typeof opts == "string") {
-        opts = { bindings: opts };
-      } else if (!opts) {
-        opts = {};
-      }
-      Object.keys(defaults).map(function(i2) {
-        if (!(i2 in opts)) opts[i2] = defaults[i2];
-      });
-      if (!opts.module_root) {
-        opts.module_root = exports.getRoot(exports.getFileName());
-      }
-      if (path4.extname(opts.bindings) != ".node") {
-        opts.bindings += ".node";
-      }
-      var requireFunc = typeof __webpack_require__ === "function" ? __non_webpack_require__ : require;
-      var tries = [], i = 0, l = opts.try.length, n, b, err;
-      for (; i < l; i++) {
-        n = join5.apply(
-          null,
-          opts.try[i].map(function(p) {
-            return opts[p] || p;
-          })
-        );
-        tries.push(n);
-        try {
-          b = opts.path ? requireFunc.resolve(n) : requireFunc(n);
-          if (!opts.path) {
-            b.path = n;
+      initSqlJsPromise = new Promise(function(resolveModule, reject) {
+        var Module = typeof moduleConfig !== "undefined" ? moduleConfig : {};
+        var originalOnAbortFunction = Module["onAbort"];
+        Module["onAbort"] = function(errorThatCausedAbort) {
+          reject(new Error(errorThatCausedAbort));
+          if (originalOnAbortFunction) {
+            originalOnAbortFunction(errorThatCausedAbort);
           }
-          return b;
-        } catch (e) {
-          if (e.code !== "MODULE_NOT_FOUND" && e.code !== "QUALIFIED_PATH_RESOLUTION_FAILED" && !/not find/i.test(e.message)) {
-            throw e;
+        };
+        Module["postRun"] = Module["postRun"] || [];
+        Module["postRun"].push(function() {
+          resolveModule(Module);
+        });
+        module2 = void 0;
+        var f;
+        f || (f = typeof Module != "undefined" ? Module : {});
+        var aa = "object" == typeof window, ba = "function" == typeof importScripts, ca = "object" == typeof process && "object" == typeof process.versions && "string" == typeof process.versions.node;
+        "use strict";
+        f.onRuntimeInitialized = function() {
+          function a(g, l) {
+            switch (typeof l) {
+              case "boolean":
+                fc(g, l ? 1 : 0);
+                break;
+              case "number":
+                gc(g, l);
+                break;
+              case "string":
+                hc(g, l, -1, -1);
+                break;
+              case "object":
+                if (null === l) ib(g);
+                else if (null != l.length) {
+                  var n = da(l, ea);
+                  ic(g, n, l.length, -1);
+                  fa(n);
+                } else xa(g, "Wrong API use : tried to return a value of an unknown type (" + l + ").", -1);
+                break;
+              default:
+                ib(g);
+            }
           }
-        }
-      }
-      err = new Error(
-        "Could not locate the bindings file. Tried:\n" + tries.map(function(a) {
-          return opts.arrow + a;
-        }).join("\n")
-      );
-      err.tries = tries;
-      throw err;
-    }
-    module2.exports = exports = bindings;
-    exports.getFileName = function getFileName(calling_file) {
-      var origPST = Error.prepareStackTrace, origSTL = Error.stackTraceLimit, dummy = {}, fileName;
-      Error.stackTraceLimit = 10;
-      Error.prepareStackTrace = function(e, st) {
-        for (var i = 0, l = st.length; i < l; i++) {
-          fileName = st[i].getFileName();
-          if (fileName !== __filename) {
-            if (calling_file) {
-              if (fileName !== calling_file) {
+          function b(g, l) {
+            for (var n = [], t = 0; t < g; t += 1) {
+              var w = m(l + 4 * t, "i32"), A = jc(w);
+              if (1 === A || 2 === A) w = kc(w);
+              else if (3 === A) w = lc(w);
+              else if (4 === A) {
+                A = w;
+                w = mc(A);
+                A = nc(A);
+                for (var N = new Uint8Array(w), M = 0; M < w; M += 1) N[M] = p[A + M];
+                w = N;
+              } else w = null;
+              n.push(w);
+            }
+            return n;
+          }
+          function c(g, l) {
+            this.Ka = g;
+            this.db = l;
+            this.Ia = 1;
+            this.eb = [];
+          }
+          function d(g, l) {
+            this.db = l;
+            l = ha(g) + 1;
+            this.Xa = ia(l);
+            if (null === this.Xa) throw Error("Unable to allocate memory for the SQL string");
+            q(g, u, this.Xa, l);
+            this.cb = this.Xa;
+            this.Ta = this.hb = null;
+          }
+          function e(g) {
+            this.filename = "dbfile_" + (4294967295 * Math.random() >>> 0);
+            if (null != g) {
+              var l = this.filename, n = "/", t = l;
+              n && (n = "string" == typeof n ? n : ja(n), t = l ? x(n + "/" + l) : n);
+              l = ka(true, true);
+              t = la(t, (void 0 !== l ? l : 438) & 4095 | 32768, 0);
+              if (g) {
+                if ("string" == typeof g) {
+                  n = Array(g.length);
+                  for (var w = 0, A = g.length; w < A; ++w) n[w] = g.charCodeAt(w);
+                  g = n;
+                }
+                ma(t, l | 146);
+                n = na(t, 577);
+                oa(n, g, 0, g.length, 0);
+                pa(n);
+                ma(t, l);
+              }
+            }
+            this.handleError(r(this.filename, h));
+            this.db = m(h, "i32");
+            lb(this.db);
+            this.Ya = {};
+            this.Ma = {};
+          }
+          var h = y(4), k = f.cwrap, r = k("sqlite3_open", "number", ["string", "number"]), z = k("sqlite3_close_v2", "number", ["number"]), v = k("sqlite3_exec", "number", ["number", "string", "number", "number", "number"]), E = k(
+            "sqlite3_changes",
+            "number",
+            ["number"]
+          ), H = k("sqlite3_prepare_v2", "number", ["number", "string", "number", "number", "number"]), mb = k("sqlite3_sql", "string", ["number"]), oc = k("sqlite3_normalized_sql", "string", ["number"]), nb = k("sqlite3_prepare_v2", "number", ["number", "number", "number", "number", "number"]), pc = k("sqlite3_bind_text", "number", ["number", "number", "number", "number", "number"]), ob = k("sqlite3_bind_blob", "number", ["number", "number", "number", "number", "number"]), qc = k("sqlite3_bind_double", "number", ["number", "number", "number"]), rc = k("sqlite3_bind_int", "number", ["number", "number", "number"]), sc = k("sqlite3_bind_parameter_index", "number", ["number", "string"]), tc = k("sqlite3_step", "number", ["number"]), uc = k("sqlite3_errmsg", "string", ["number"]), vc = k("sqlite3_column_count", "number", ["number"]), wc = k("sqlite3_data_count", "number", ["number"]), xc = k("sqlite3_column_double", "number", ["number", "number"]), pb = k("sqlite3_column_text", "string", ["number", "number"]), yc = k("sqlite3_column_blob", "number", ["number", "number"]), zc = k(
+            "sqlite3_column_bytes",
+            "number",
+            ["number", "number"]
+          ), Ac = k("sqlite3_column_type", "number", ["number", "number"]), Bc = k("sqlite3_column_name", "string", ["number", "number"]), Cc = k("sqlite3_reset", "number", ["number"]), Dc = k("sqlite3_clear_bindings", "number", ["number"]), Ec = k("sqlite3_finalize", "number", ["number"]), qb = k("sqlite3_create_function_v2", "number", "number string number number number number number number number".split(" ")), jc = k("sqlite3_value_type", "number", ["number"]), mc = k("sqlite3_value_bytes", "number", ["number"]), lc = k(
+            "sqlite3_value_text",
+            "string",
+            ["number"]
+          ), nc = k("sqlite3_value_blob", "number", ["number"]), kc = k("sqlite3_value_double", "number", ["number"]), gc = k("sqlite3_result_double", "", ["number", "number"]), ib = k("sqlite3_result_null", "", ["number"]), hc = k("sqlite3_result_text", "", ["number", "string", "number", "number"]), ic = k("sqlite3_result_blob", "", ["number", "number", "number", "number"]), fc = k("sqlite3_result_int", "", ["number", "number"]), xa = k("sqlite3_result_error", "", ["number", "string", "number"]), rb = k(
+            "sqlite3_aggregate_context",
+            "number",
+            ["number", "number"]
+          ), lb = k("RegisterExtensionFunctions", "number", ["number"]);
+          c.prototype.bind = function(g) {
+            if (!this.Ka) throw "Statement closed";
+            this.reset();
+            return Array.isArray(g) ? this.vb(g) : null != g && "object" === typeof g ? this.wb(g) : true;
+          };
+          c.prototype.step = function() {
+            if (!this.Ka) throw "Statement closed";
+            this.Ia = 1;
+            var g = tc(this.Ka);
+            switch (g) {
+              case 100:
+                return true;
+              case 101:
+                return false;
+              default:
+                throw this.db.handleError(g);
+            }
+          };
+          c.prototype.qb = function(g) {
+            null == g && (g = this.Ia, this.Ia += 1);
+            return xc(this.Ka, g);
+          };
+          c.prototype.zb = function(g) {
+            null == g && (g = this.Ia, this.Ia += 1);
+            g = pb(this.Ka, g);
+            if ("function" !== typeof BigInt) throw Error("BigInt is not supported");
+            return BigInt(g);
+          };
+          c.prototype.Ab = function(g) {
+            null == g && (g = this.Ia, this.Ia += 1);
+            return pb(this.Ka, g);
+          };
+          c.prototype.getBlob = function(g) {
+            null == g && (g = this.Ia, this.Ia += 1);
+            var l = zc(this.Ka, g);
+            g = yc(this.Ka, g);
+            for (var n = new Uint8Array(l), t = 0; t < l; t += 1) n[t] = p[g + t];
+            return n;
+          };
+          c.prototype.get = function(g, l) {
+            l = l || {};
+            null != g && this.bind(g) && this.step();
+            g = [];
+            for (var n = wc(this.Ka), t = 0; t < n; t += 1) switch (Ac(this.Ka, t)) {
+              case 1:
+                var w = l.useBigInt ? this.zb(t) : this.qb(t);
+                g.push(w);
+                break;
+              case 2:
+                g.push(this.qb(t));
+                break;
+              case 3:
+                g.push(this.Ab(t));
+                break;
+              case 4:
+                g.push(this.getBlob(t));
+                break;
+              default:
+                g.push(null);
+            }
+            return g;
+          };
+          c.prototype.getColumnNames = function() {
+            for (var g = [], l = vc(this.Ka), n = 0; n < l; n += 1) g.push(Bc(this.Ka, n));
+            return g;
+          };
+          c.prototype.getAsObject = function(g, l) {
+            g = this.get(g, l);
+            l = this.getColumnNames();
+            for (var n = {}, t = 0; t < l.length; t += 1) n[l[t]] = g[t];
+            return n;
+          };
+          c.prototype.getSQL = function() {
+            return mb(this.Ka);
+          };
+          c.prototype.getNormalizedSQL = function() {
+            return oc(this.Ka);
+          };
+          c.prototype.run = function(g) {
+            null != g && this.bind(g);
+            this.step();
+            return this.reset();
+          };
+          c.prototype.mb = function(g, l) {
+            null == l && (l = this.Ia, this.Ia += 1);
+            g = qa(g);
+            var n = da(g, ea);
+            this.eb.push(n);
+            this.db.handleError(pc(this.Ka, l, n, g.length - 1, 0));
+          };
+          c.prototype.ub = function(g, l) {
+            null == l && (l = this.Ia, this.Ia += 1);
+            var n = da(g, ea);
+            this.eb.push(n);
+            this.db.handleError(ob(this.Ka, l, n, g.length, 0));
+          };
+          c.prototype.lb = function(g, l) {
+            null == l && (l = this.Ia, this.Ia += 1);
+            this.db.handleError((g === (g | 0) ? rc : qc)(this.Ka, l, g));
+          };
+          c.prototype.xb = function(g) {
+            null == g && (g = this.Ia, this.Ia += 1);
+            ob(this.Ka, g, 0, 0, 0);
+          };
+          c.prototype.nb = function(g, l) {
+            null == l && (l = this.Ia, this.Ia += 1);
+            switch (typeof g) {
+              case "string":
+                this.mb(g, l);
+                return;
+              case "number":
+                this.lb(g, l);
+                return;
+              case "bigint":
+                this.mb(g.toString(), l);
+                return;
+              case "boolean":
+                this.lb(g + 0, l);
+                return;
+              case "object":
+                if (null === g) {
+                  this.xb(l);
+                  return;
+                }
+                if (null != g.length) {
+                  this.ub(g, l);
+                  return;
+                }
+            }
+            throw "Wrong API use : tried to bind a value of an unknown type (" + g + ").";
+          };
+          c.prototype.wb = function(g) {
+            var l = this;
+            Object.keys(g).forEach(function(n) {
+              var t = sc(l.Ka, n);
+              0 !== t && l.nb(g[n], t);
+            });
+            return true;
+          };
+          c.prototype.vb = function(g) {
+            for (var l = 0; l < g.length; l += 1) this.nb(g[l], l + 1);
+            return true;
+          };
+          c.prototype.reset = function() {
+            this.freemem();
+            return 0 === Dc(this.Ka) && 0 === Cc(this.Ka);
+          };
+          c.prototype.freemem = function() {
+            for (var g; void 0 !== (g = this.eb.pop()); ) fa(g);
+          };
+          c.prototype.free = function() {
+            this.freemem();
+            var g = 0 === Ec(this.Ka);
+            delete this.db.Ya[this.Ka];
+            this.Ka = 0;
+            return g;
+          };
+          d.prototype.next = function() {
+            if (null === this.Xa) return { done: true };
+            null !== this.Ta && (this.Ta.free(), this.Ta = null);
+            if (!this.db.db) throw this.fb(), Error("Database closed");
+            var g = ra(), l = y(4);
+            sa(h);
+            sa(l);
+            try {
+              this.db.handleError(nb(this.db.db, this.cb, -1, h, l));
+              this.cb = m(l, "i32");
+              var n = m(h, "i32");
+              if (0 === n) return this.fb(), { done: true };
+              this.Ta = new c(n, this.db);
+              this.db.Ya[n] = this.Ta;
+              return { value: this.Ta, done: false };
+            } catch (t) {
+              throw this.hb = ta(this.cb), this.fb(), t;
+            } finally {
+              ua(g);
+            }
+          };
+          d.prototype.fb = function() {
+            fa(this.Xa);
+            this.Xa = null;
+          };
+          d.prototype.getRemainingSQL = function() {
+            return null !== this.hb ? this.hb : ta(this.cb);
+          };
+          "function" === typeof Symbol && "symbol" === typeof Symbol.iterator && (d.prototype[Symbol.iterator] = function() {
+            return this;
+          });
+          e.prototype.run = function(g, l) {
+            if (!this.db) throw "Database closed";
+            if (l) {
+              g = this.prepare(g, l);
+              try {
+                g.step();
+              } finally {
+                g.free();
+              }
+            } else this.handleError(v(this.db, g, 0, 0, h));
+            return this;
+          };
+          e.prototype.exec = function(g, l, n) {
+            if (!this.db) throw "Database closed";
+            var t = ra(), w = null;
+            try {
+              var A = va(g), N = y(4);
+              for (g = []; 0 !== m(A, "i8"); ) {
+                sa(h);
+                sa(N);
+                this.handleError(nb(
+                  this.db,
+                  A,
+                  -1,
+                  h,
+                  N
+                ));
+                var M = m(h, "i32");
+                A = m(N, "i32");
+                if (0 !== M) {
+                  var K = null;
+                  w = new c(M, this);
+                  for (null != l && w.bind(l); w.step(); ) null === K && (K = { columns: w.getColumnNames(), values: [] }, g.push(K)), K.values.push(w.get(null, n));
+                  w.free();
+                }
+              }
+              return g;
+            } catch (O) {
+              throw w && w.free(), O;
+            } finally {
+              ua(t);
+            }
+          };
+          e.prototype.each = function(g, l, n, t, w) {
+            "function" === typeof l && (t = n, n = l, l = void 0);
+            g = this.prepare(g, l);
+            try {
+              for (; g.step(); ) n(g.getAsObject(null, w));
+            } finally {
+              g.free();
+            }
+            if ("function" === typeof t) return t();
+          };
+          e.prototype.prepare = function(g, l) {
+            sa(h);
+            this.handleError(H(this.db, g, -1, h, 0));
+            g = m(h, "i32");
+            if (0 === g) throw "Nothing to prepare";
+            var n = new c(g, this);
+            null != l && n.bind(l);
+            return this.Ya[g] = n;
+          };
+          e.prototype.iterateStatements = function(g) {
+            return new d(g, this);
+          };
+          e.prototype["export"] = function() {
+            Object.values(this.Ya).forEach(function(l) {
+              l.free();
+            });
+            Object.values(this.Ma).forEach(wa);
+            this.Ma = {};
+            this.handleError(z(this.db));
+            var g = ya(this.filename);
+            this.handleError(r(this.filename, h));
+            this.db = m(h, "i32");
+            lb(this.db);
+            return g;
+          };
+          e.prototype.close = function() {
+            null !== this.db && (Object.values(this.Ya).forEach(function(g) {
+              g.free();
+            }), Object.values(this.Ma).forEach(wa), this.Ma = {}, this.handleError(z(this.db)), za("/" + this.filename), this.db = null);
+          };
+          e.prototype.handleError = function(g) {
+            if (0 === g) return null;
+            g = uc(this.db);
+            throw Error(g);
+          };
+          e.prototype.getRowsModified = function() {
+            return E(this.db);
+          };
+          e.prototype.create_function = function(g, l) {
+            Object.prototype.hasOwnProperty.call(this.Ma, g) && (wa(this.Ma[g]), delete this.Ma[g]);
+            var n = Aa(function(t, w, A) {
+              w = b(w, A);
+              try {
+                var N = l.apply(
+                  null,
+                  w
+                );
+              } catch (M) {
+                xa(t, M, -1);
                 return;
               }
-            } else {
-              return;
-            }
-          }
-        }
-      };
-      Error.captureStackTrace(dummy);
-      dummy.stack;
-      Error.prepareStackTrace = origPST;
-      Error.stackTraceLimit = origSTL;
-      var fileSchema = "file://";
-      if (fileName.indexOf(fileSchema) === 0) {
-        fileName = fileURLToPath(fileName);
-      }
-      return fileName;
-    };
-    exports.getRoot = function getRoot(file) {
-      var dir = dirname(file), prev;
-      while (true) {
-        if (dir === ".") {
-          dir = process.cwd();
-        }
-        if (exists(join5(dir, "package.json")) || exists(join5(dir, "node_modules"))) {
-          return dir;
-        }
-        if (prev === dir) {
-          throw new Error(
-            'Could not find module root given file: "' + file + '". Do you have a `package.json` file? '
-          );
-        }
-        prev = dir;
-        dir = join5(dir, "..");
-      }
-    };
-  }
-});
-
-// node_modules/better-sqlite3/lib/methods/wrappers.js
-var require_wrappers = __commonJS({
-  "node_modules/better-sqlite3/lib/methods/wrappers.js"(exports) {
-    "use strict";
-    var { cppdb } = require_util();
-    exports.prepare = function prepare(sql) {
-      return this[cppdb].prepare(sql, this, false);
-    };
-    exports.exec = function exec(sql) {
-      this[cppdb].exec(sql);
-      return this;
-    };
-    exports.close = function close() {
-      this[cppdb].close();
-      return this;
-    };
-    exports.loadExtension = function loadExtension(...args) {
-      this[cppdb].loadExtension(...args);
-      return this;
-    };
-    exports.defaultSafeIntegers = function defaultSafeIntegers(...args) {
-      this[cppdb].defaultSafeIntegers(...args);
-      return this;
-    };
-    exports.unsafeMode = function unsafeMode(...args) {
-      this[cppdb].unsafeMode(...args);
-      return this;
-    };
-    exports.getters = {
-      name: {
-        get: function name() {
-          return this[cppdb].name;
-        },
-        enumerable: true
-      },
-      open: {
-        get: function open() {
-          return this[cppdb].open;
-        },
-        enumerable: true
-      },
-      inTransaction: {
-        get: function inTransaction() {
-          return this[cppdb].inTransaction;
-        },
-        enumerable: true
-      },
-      readonly: {
-        get: function readonly() {
-          return this[cppdb].readonly;
-        },
-        enumerable: true
-      },
-      memory: {
-        get: function memory() {
-          return this[cppdb].memory;
-        },
-        enumerable: true
-      }
-    };
-  }
-});
-
-// node_modules/better-sqlite3/lib/methods/transaction.js
-var require_transaction = __commonJS({
-  "node_modules/better-sqlite3/lib/methods/transaction.js"(exports, module2) {
-    "use strict";
-    var { cppdb } = require_util();
-    var controllers = /* @__PURE__ */ new WeakMap();
-    module2.exports = function transaction(fn) {
-      if (typeof fn !== "function") throw new TypeError("Expected first argument to be a function");
-      const db = this[cppdb];
-      const controller = getController(db, this);
-      const { apply } = Function.prototype;
-      const properties = {
-        default: { value: wrapTransaction(apply, fn, db, controller.default) },
-        deferred: { value: wrapTransaction(apply, fn, db, controller.deferred) },
-        immediate: { value: wrapTransaction(apply, fn, db, controller.immediate) },
-        exclusive: { value: wrapTransaction(apply, fn, db, controller.exclusive) },
-        database: { value: this, enumerable: true }
-      };
-      Object.defineProperties(properties.default.value, properties);
-      Object.defineProperties(properties.deferred.value, properties);
-      Object.defineProperties(properties.immediate.value, properties);
-      Object.defineProperties(properties.exclusive.value, properties);
-      return properties.default.value;
-    };
-    var getController = (db, self) => {
-      let controller = controllers.get(db);
-      if (!controller) {
-        const shared = {
-          commit: db.prepare("COMMIT", self, false),
-          rollback: db.prepare("ROLLBACK", self, false),
-          savepoint: db.prepare("SAVEPOINT `	_bs3.	`", self, false),
-          release: db.prepare("RELEASE `	_bs3.	`", self, false),
-          rollbackTo: db.prepare("ROLLBACK TO `	_bs3.	`", self, false)
-        };
-        controllers.set(db, controller = {
-          default: Object.assign({ begin: db.prepare("BEGIN", self, false) }, shared),
-          deferred: Object.assign({ begin: db.prepare("BEGIN DEFERRED", self, false) }, shared),
-          immediate: Object.assign({ begin: db.prepare("BEGIN IMMEDIATE", self, false) }, shared),
-          exclusive: Object.assign({ begin: db.prepare("BEGIN EXCLUSIVE", self, false) }, shared)
-        });
-      }
-      return controller;
-    };
-    var wrapTransaction = (apply, fn, db, { begin, commit, rollback, savepoint, release, rollbackTo }) => function sqliteTransaction() {
-      let before, after, undo;
-      if (db.inTransaction) {
-        before = savepoint;
-        after = release;
-        undo = rollbackTo;
-      } else {
-        before = begin;
-        after = commit;
-        undo = rollback;
-      }
-      before.run();
-      try {
-        const result = apply.call(fn, this, arguments);
-        if (result && typeof result.then === "function") {
-          throw new TypeError("Transaction function cannot return a promise");
-        }
-        after.run();
-        return result;
-      } catch (ex) {
-        if (db.inTransaction) {
-          undo.run();
-          if (undo !== rollback) after.run();
-        }
-        throw ex;
-      }
-    };
-  }
-});
-
-// node_modules/better-sqlite3/lib/methods/pragma.js
-var require_pragma = __commonJS({
-  "node_modules/better-sqlite3/lib/methods/pragma.js"(exports, module2) {
-    "use strict";
-    var { getBooleanOption, cppdb } = require_util();
-    module2.exports = function pragma(source, options) {
-      if (options == null) options = {};
-      if (typeof source !== "string") throw new TypeError("Expected first argument to be a string");
-      if (typeof options !== "object") throw new TypeError("Expected second argument to be an options object");
-      const simple = getBooleanOption(options, "simple");
-      const stmt = this[cppdb].prepare(`PRAGMA ${source}`, this, true);
-      return simple ? stmt.pluck().get() : stmt.all();
-    };
-  }
-});
-
-// node_modules/better-sqlite3/lib/methods/backup.js
-var require_backup = __commonJS({
-  "node_modules/better-sqlite3/lib/methods/backup.js"(exports, module2) {
-    "use strict";
-    var fs3 = require("fs");
-    var path4 = require("path");
-    var { promisify } = require("util");
-    var { cppdb } = require_util();
-    var fsAccess = promisify(fs3.access);
-    module2.exports = async function backup(filename, options) {
-      if (options == null) options = {};
-      if (typeof filename !== "string") throw new TypeError("Expected first argument to be a string");
-      if (typeof options !== "object") throw new TypeError("Expected second argument to be an options object");
-      filename = filename.trim();
-      const attachedName = "attached" in options ? options.attached : "main";
-      const handler = "progress" in options ? options.progress : null;
-      if (!filename) throw new TypeError("Backup filename cannot be an empty string");
-      if (filename === ":memory:") throw new TypeError('Invalid backup filename ":memory:"');
-      if (typeof attachedName !== "string") throw new TypeError('Expected the "attached" option to be a string');
-      if (!attachedName) throw new TypeError('The "attached" option cannot be an empty string');
-      if (handler != null && typeof handler !== "function") throw new TypeError('Expected the "progress" option to be a function');
-      await fsAccess(path4.dirname(filename)).catch(() => {
-        throw new TypeError("Cannot save backup because the directory does not exist");
-      });
-      const isNewFile = await fsAccess(filename).then(() => false, () => true);
-      return runBackup(this[cppdb].backup(this, attachedName, filename, isNewFile), handler || null);
-    };
-    var runBackup = (backup, handler) => {
-      let rate = 0;
-      let useDefault = true;
-      return new Promise((resolve, reject) => {
-        setImmediate(function step() {
-          try {
-            const progress = backup.transfer(rate);
-            if (!progress.remainingPages) {
-              backup.close();
-              resolve(progress);
-              return;
-            }
-            if (useDefault) {
-              useDefault = false;
-              rate = 100;
-            }
-            if (handler) {
-              const ret = handler(progress);
-              if (ret !== void 0) {
-                if (typeof ret === "number" && ret === ret) rate = Math.max(0, Math.min(2147483647, Math.round(ret)));
-                else throw new TypeError("Expected progress callback to return a number or undefined");
+              a(t, N);
+            }, "viii");
+            this.Ma[g] = n;
+            this.handleError(qb(this.db, g, l.length, 1, 0, n, 0, 0, 0));
+            return this;
+          };
+          e.prototype.create_aggregate = function(g, l) {
+            var n = l.init || function() {
+              return null;
+            }, t = l.finalize || function(K) {
+              return K;
+            }, w = l.step;
+            if (!w) throw "An aggregate function must have a step function in " + g;
+            var A = {};
+            Object.hasOwnProperty.call(this.Ma, g) && (wa(this.Ma[g]), delete this.Ma[g]);
+            l = g + "__finalize";
+            Object.hasOwnProperty.call(this.Ma, l) && (wa(this.Ma[l]), delete this.Ma[l]);
+            var N = Aa(function(K, O, Ra) {
+              var Y = rb(K, 1);
+              Object.hasOwnProperty.call(A, Y) || (A[Y] = n());
+              O = b(O, Ra);
+              O = [A[Y]].concat(O);
+              try {
+                A[Y] = w.apply(null, O);
+              } catch (Gc) {
+                delete A[Y], xa(K, Gc, -1);
               }
-            }
-            setImmediate(step);
-          } catch (err) {
-            backup.close();
-            reject(err);
-          }
-        });
-      });
-    };
-  }
-});
-
-// node_modules/better-sqlite3/lib/methods/serialize.js
-var require_serialize = __commonJS({
-  "node_modules/better-sqlite3/lib/methods/serialize.js"(exports, module2) {
-    "use strict";
-    var { cppdb } = require_util();
-    module2.exports = function serialize(options) {
-      if (options == null) options = {};
-      if (typeof options !== "object") throw new TypeError("Expected first argument to be an options object");
-      const attachedName = "attached" in options ? options.attached : "main";
-      if (typeof attachedName !== "string") throw new TypeError('Expected the "attached" option to be a string');
-      if (!attachedName) throw new TypeError('The "attached" option cannot be an empty string');
-      return this[cppdb].serialize(attachedName);
-    };
-  }
-});
-
-// node_modules/better-sqlite3/lib/methods/function.js
-var require_function = __commonJS({
-  "node_modules/better-sqlite3/lib/methods/function.js"(exports, module2) {
-    "use strict";
-    var { getBooleanOption, cppdb } = require_util();
-    module2.exports = function defineFunction(name, options, fn) {
-      if (options == null) options = {};
-      if (typeof options === "function") {
-        fn = options;
-        options = {};
-      }
-      if (typeof name !== "string") throw new TypeError("Expected first argument to be a string");
-      if (typeof fn !== "function") throw new TypeError("Expected last argument to be a function");
-      if (typeof options !== "object") throw new TypeError("Expected second argument to be an options object");
-      if (!name) throw new TypeError("User-defined function name cannot be an empty string");
-      const safeIntegers = "safeIntegers" in options ? +getBooleanOption(options, "safeIntegers") : 2;
-      const deterministic = getBooleanOption(options, "deterministic");
-      const directOnly = getBooleanOption(options, "directOnly");
-      const varargs = getBooleanOption(options, "varargs");
-      let argCount = -1;
-      if (!varargs) {
-        argCount = fn.length;
-        if (!Number.isInteger(argCount) || argCount < 0) throw new TypeError("Expected function.length to be a positive integer");
-        if (argCount > 100) throw new RangeError("User-defined functions cannot have more than 100 arguments");
-      }
-      this[cppdb].function(fn, name, argCount, safeIntegers, deterministic, directOnly);
-      return this;
-    };
-  }
-});
-
-// node_modules/better-sqlite3/lib/methods/aggregate.js
-var require_aggregate = __commonJS({
-  "node_modules/better-sqlite3/lib/methods/aggregate.js"(exports, module2) {
-    "use strict";
-    var { getBooleanOption, cppdb } = require_util();
-    module2.exports = function defineAggregate(name, options) {
-      if (typeof name !== "string") throw new TypeError("Expected first argument to be a string");
-      if (typeof options !== "object" || options === null) throw new TypeError("Expected second argument to be an options object");
-      if (!name) throw new TypeError("User-defined function name cannot be an empty string");
-      const start = "start" in options ? options.start : null;
-      const step = getFunctionOption(options, "step", true);
-      const inverse = getFunctionOption(options, "inverse", false);
-      const result = getFunctionOption(options, "result", false);
-      const safeIntegers = "safeIntegers" in options ? +getBooleanOption(options, "safeIntegers") : 2;
-      const deterministic = getBooleanOption(options, "deterministic");
-      const directOnly = getBooleanOption(options, "directOnly");
-      const varargs = getBooleanOption(options, "varargs");
-      let argCount = -1;
-      if (!varargs) {
-        argCount = Math.max(getLength(step), inverse ? getLength(inverse) : 0);
-        if (argCount > 0) argCount -= 1;
-        if (argCount > 100) throw new RangeError("User-defined functions cannot have more than 100 arguments");
-      }
-      this[cppdb].aggregate(start, step, inverse, result, name, argCount, safeIntegers, deterministic, directOnly);
-      return this;
-    };
-    var getFunctionOption = (options, key, required) => {
-      const value = key in options ? options[key] : null;
-      if (typeof value === "function") return value;
-      if (value != null) throw new TypeError(`Expected the "${key}" option to be a function`);
-      if (required) throw new TypeError(`Missing required option "${key}"`);
-      return null;
-    };
-    var getLength = ({ length }) => {
-      if (Number.isInteger(length) && length >= 0) return length;
-      throw new TypeError("Expected function.length to be a positive integer");
-    };
-  }
-});
-
-// node_modules/better-sqlite3/lib/methods/table.js
-var require_table = __commonJS({
-  "node_modules/better-sqlite3/lib/methods/table.js"(exports, module2) {
-    "use strict";
-    var { cppdb } = require_util();
-    module2.exports = function defineTable(name, factory) {
-      if (typeof name !== "string") throw new TypeError("Expected first argument to be a string");
-      if (!name) throw new TypeError("Virtual table module name cannot be an empty string");
-      let eponymous = false;
-      if (typeof factory === "object" && factory !== null) {
-        eponymous = true;
-        factory = defer(parseTableDefinition(factory, "used", name));
-      } else {
-        if (typeof factory !== "function") throw new TypeError("Expected second argument to be a function or a table definition object");
-        factory = wrapFactory(factory);
-      }
-      this[cppdb].table(factory, name, eponymous);
-      return this;
-    };
-    function wrapFactory(factory) {
-      return function virtualTableFactory(moduleName, databaseName, tableName, ...args) {
-        const thisObject = {
-          module: moduleName,
-          database: databaseName,
-          table: tableName
+            }, "viii"), M = Aa(function(K) {
+              var O = rb(K, 1);
+              try {
+                var Ra = t(A[O]);
+              } catch (Y) {
+                delete A[O];
+                xa(K, Y, -1);
+                return;
+              }
+              a(K, Ra);
+              delete A[O];
+            }, "vi");
+            this.Ma[g] = N;
+            this.Ma[l] = M;
+            this.handleError(qb(this.db, g, w.length - 1, 1, 0, 0, N, M, 0));
+            return this;
+          };
+          f.Database = e;
         };
-        const def = apply.call(factory, thisObject, args);
-        if (typeof def !== "object" || def === null) {
-          throw new TypeError(`Virtual table module "${moduleName}" did not return a table definition object`);
+        var Ba = Object.assign({}, f), Ca = "./this.program", B = "", Da, Ea;
+        if (ca) {
+          var fs3 = require("fs"), Fa = require("path");
+          B = __dirname + "/";
+          Ea = (a) => {
+            a = Ga(a) ? new URL(a) : Fa.normalize(a);
+            return fs3.readFileSync(a);
+          };
+          Da = (a) => {
+            a = Ga(a) ? new URL(a) : Fa.normalize(a);
+            return new Promise((b, c) => {
+              fs3.readFile(a, void 0, (d, e) => {
+                d ? c(d) : b(e.buffer);
+              });
+            });
+          };
+          !f.thisProgram && 1 < process.argv.length && (Ca = process.argv[1].replace(/\\/g, "/"));
+          process.argv.slice(2);
+          "undefined" != typeof module2 && (module2.exports = f);
+        } else if (aa || ba) ba ? B = self.location.href : "undefined" != typeof document && document.currentScript && (B = document.currentScript.src), B = B.startsWith("blob:") ? "" : B.substr(0, B.replace(/[?#].*/, "").lastIndexOf("/") + 1), ba && (Ea = (a) => {
+          var b = new XMLHttpRequest();
+          b.open("GET", a, false);
+          b.responseType = "arraybuffer";
+          b.send(null);
+          return new Uint8Array(b.response);
+        }), Da = (a) => Ga(a) ? new Promise((b, c) => {
+          var d = new XMLHttpRequest();
+          d.open("GET", a, true);
+          d.responseType = "arraybuffer";
+          d.onload = () => {
+            (200 == d.status || 0 == d.status && d.response) && c(d.response);
+            b(d.status);
+          };
+          d.onerror = b;
+          d.send(null);
+        }) : fetch(a, { credentials: "same-origin" }).then((b) => b.ok ? b.arrayBuffer() : Promise.reject(Error(b.status + " : " + b.url)));
+        var Ha = f.print || console.log.bind(console), C = f.printErr || console.error.bind(console);
+        Object.assign(f, Ba);
+        Ba = null;
+        f.thisProgram && (Ca = f.thisProgram);
+        var Ia;
+        f.wasmBinary && (Ia = f.wasmBinary);
+        var Ja, Ka = false, p, u, La, D, F, Ma, Na;
+        function Oa() {
+          var a = Ja.buffer;
+          f.HEAP8 = p = new Int8Array(a);
+          f.HEAP16 = La = new Int16Array(a);
+          f.HEAPU8 = u = new Uint8Array(a);
+          f.HEAPU16 = new Uint16Array(a);
+          f.HEAP32 = D = new Int32Array(a);
+          f.HEAPU32 = F = new Uint32Array(a);
+          f.HEAPF32 = Ma = new Float32Array(a);
+          f.HEAPF64 = Na = new Float64Array(a);
         }
-        return parseTableDefinition(def, "returned", moduleName);
-      };
-    }
-    function parseTableDefinition(def, verb, moduleName) {
-      if (!hasOwnProperty.call(def, "rows")) {
-        throw new TypeError(`Virtual table module "${moduleName}" ${verb} a table definition without a "rows" property`);
-      }
-      if (!hasOwnProperty.call(def, "columns")) {
-        throw new TypeError(`Virtual table module "${moduleName}" ${verb} a table definition without a "columns" property`);
-      }
-      const rows = def.rows;
-      if (typeof rows !== "function" || Object.getPrototypeOf(rows) !== GeneratorFunctionPrototype) {
-        throw new TypeError(`Virtual table module "${moduleName}" ${verb} a table definition with an invalid "rows" property (should be a generator function)`);
-      }
-      let columns = def.columns;
-      if (!Array.isArray(columns) || !(columns = [...columns]).every((x) => typeof x === "string")) {
-        throw new TypeError(`Virtual table module "${moduleName}" ${verb} a table definition with an invalid "columns" property (should be an array of strings)`);
-      }
-      if (columns.length !== new Set(columns).size) {
-        throw new TypeError(`Virtual table module "${moduleName}" ${verb} a table definition with duplicate column names`);
-      }
-      if (!columns.length) {
-        throw new RangeError(`Virtual table module "${moduleName}" ${verb} a table definition with zero columns`);
-      }
-      let parameters;
-      if (hasOwnProperty.call(def, "parameters")) {
-        parameters = def.parameters;
-        if (!Array.isArray(parameters) || !(parameters = [...parameters]).every((x) => typeof x === "string")) {
-          throw new TypeError(`Virtual table module "${moduleName}" ${verb} a table definition with an invalid "parameters" property (should be an array of strings)`);
+        var Pa = [], Qa = [], Sa = [];
+        function Ta() {
+          var a = f.preRun.shift();
+          Pa.unshift(a);
         }
-      } else {
-        parameters = inferParameters(rows);
-      }
-      if (parameters.length !== new Set(parameters).size) {
-        throw new TypeError(`Virtual table module "${moduleName}" ${verb} a table definition with duplicate parameter names`);
-      }
-      if (parameters.length > 32) {
-        throw new RangeError(`Virtual table module "${moduleName}" ${verb} a table definition with more than the maximum number of 32 parameters`);
-      }
-      for (const parameter of parameters) {
-        if (columns.includes(parameter)) {
-          throw new TypeError(`Virtual table module "${moduleName}" ${verb} a table definition with column "${parameter}" which was ambiguously defined as both a column and parameter`);
+        var Ua = 0, Va = null, Wa = null;
+        function G(a) {
+          var _a2;
+          (_a2 = f.onAbort) == null ? void 0 : _a2.call(f, a);
+          a = "Aborted(" + a + ")";
+          C(a);
+          Ka = true;
+          throw new WebAssembly.RuntimeError(a + ". Build with -sASSERTIONS for more info.");
         }
-      }
-      let safeIntegers = 2;
-      if (hasOwnProperty.call(def, "safeIntegers")) {
-        const bool2 = def.safeIntegers;
-        if (typeof bool2 !== "boolean") {
-          throw new TypeError(`Virtual table module "${moduleName}" ${verb} a table definition with an invalid "safeIntegers" property (should be a boolean)`);
+        var Xa = (a) => a.startsWith("data:application/octet-stream;base64,"), Ga = (a) => a.startsWith("file://"), Ya;
+        function Za(a) {
+          if (a == Ya && Ia) return new Uint8Array(Ia);
+          if (Ea) return Ea(a);
+          throw "both async and sync fetching of the wasm failed";
         }
-        safeIntegers = +bool2;
-      }
-      let directOnly = false;
-      if (hasOwnProperty.call(def, "directOnly")) {
-        directOnly = def.directOnly;
-        if (typeof directOnly !== "boolean") {
-          throw new TypeError(`Virtual table module "${moduleName}" ${verb} a table definition with an invalid "directOnly" property (should be a boolean)`);
+        function $a(a) {
+          return Ia ? Promise.resolve().then(() => Za(a)) : Da(a).then((b) => new Uint8Array(b), () => Za(a));
         }
-      }
-      const columnDefinitions = [
-        ...parameters.map(identifier).map((str2) => `${str2} HIDDEN`),
-        ...columns.map(identifier)
-      ];
-      return [
-        `CREATE TABLE x(${columnDefinitions.join(", ")});`,
-        wrapGenerator(rows, new Map(columns.map((x, i) => [x, parameters.length + i])), moduleName),
-        parameters,
-        safeIntegers,
-        directOnly
-      ];
-    }
-    function wrapGenerator(generator, columnMap, moduleName) {
-      return function* virtualTable(...args) {
-        const output = args.map((x) => Buffer.isBuffer(x) ? Buffer.from(x) : x);
-        for (let i = 0; i < columnMap.size; ++i) {
-          output.push(null);
+        function ab(a, b, c) {
+          return $a(a).then((d) => WebAssembly.instantiate(d, b)).then(c, (d) => {
+            C(`failed to asynchronously prepare wasm: ${d}`);
+            G(d);
+          });
         }
-        for (const row of generator(...args)) {
-          if (Array.isArray(row)) {
-            extractRowArray(row, output, columnMap.size, moduleName);
-            yield output;
-          } else if (typeof row === "object" && row !== null) {
-            extractRowObject(row, output, columnMap, moduleName);
-            yield output;
-          } else {
-            throw new TypeError(`Virtual table module "${moduleName}" yielded something that isn't a valid row object`);
+        function bb(a, b) {
+          var c = Ya;
+          Ia || "function" != typeof WebAssembly.instantiateStreaming || Xa(c) || Ga(c) || ca || "function" != typeof fetch ? ab(c, a, b) : fetch(c, { credentials: "same-origin" }).then((d) => WebAssembly.instantiateStreaming(d, a).then(b, function(e) {
+            C(`wasm streaming compile failed: ${e}`);
+            C("falling back to ArrayBuffer instantiation");
+            return ab(c, a, b);
+          }));
+        }
+        var I, J, cb = (a) => {
+          for (; 0 < a.length; ) a.shift()(f);
+        };
+        function m(a, b = "i8") {
+          b.endsWith("*") && (b = "*");
+          switch (b) {
+            case "i1":
+              return p[a];
+            case "i8":
+              return p[a];
+            case "i16":
+              return La[a >> 1];
+            case "i32":
+              return D[a >> 2];
+            case "i64":
+              G("to do getValue(i64) use WASM_BIGINT");
+            case "float":
+              return Ma[a >> 2];
+            case "double":
+              return Na[a >> 3];
+            case "*":
+              return F[a >> 2];
+            default:
+              G(`invalid type for getValue: ${b}`);
           }
         }
-      };
-    }
-    function extractRowArray(row, output, columnCount, moduleName) {
-      if (row.length !== columnCount) {
-        throw new TypeError(`Virtual table module "${moduleName}" yielded a row with an incorrect number of columns`);
-      }
-      const offset = output.length - columnCount;
-      for (let i = 0; i < columnCount; ++i) {
-        output[i + offset] = row[i];
-      }
-    }
-    function extractRowObject(row, output, columnMap, moduleName) {
-      let count = 0;
-      for (const key of Object.keys(row)) {
-        const index = columnMap.get(key);
-        if (index === void 0) {
-          throw new TypeError(`Virtual table module "${moduleName}" yielded a row with an undeclared column "${key}"`);
+        function sa(a) {
+          var b = "i32";
+          b.endsWith("*") && (b = "*");
+          switch (b) {
+            case "i1":
+              p[a] = 0;
+              break;
+            case "i8":
+              p[a] = 0;
+              break;
+            case "i16":
+              La[a >> 1] = 0;
+              break;
+            case "i32":
+              D[a >> 2] = 0;
+              break;
+            case "i64":
+              G("to do setValue(i64) use WASM_BIGINT");
+            case "float":
+              Ma[a >> 2] = 0;
+              break;
+            case "double":
+              Na[a >> 3] = 0;
+              break;
+            case "*":
+              F[a >> 2] = 0;
+              break;
+            default:
+              G(`invalid type for setValue: ${b}`);
+          }
         }
-        output[index] = row[key];
-        count += 1;
-      }
-      if (count !== columnMap.size) {
-        throw new TypeError(`Virtual table module "${moduleName}" yielded a row with missing columns`);
-      }
-    }
-    function inferParameters({ length }) {
-      if (!Number.isInteger(length) || length < 0) {
-        throw new TypeError("Expected function.length to be a positive integer");
-      }
-      const params = [];
-      for (let i = 0; i < length; ++i) {
-        params.push(`$${i + 1}`);
-      }
-      return params;
-    }
-    var { hasOwnProperty } = Object.prototype;
-    var { apply } = Function.prototype;
-    var GeneratorFunctionPrototype = Object.getPrototypeOf(function* () {
-    });
-    var identifier = (str2) => `"${str2.replace(/"/g, '""')}"`;
-    var defer = (x) => () => x;
-  }
-});
-
-// node_modules/better-sqlite3/lib/methods/inspect.js
-var require_inspect = __commonJS({
-  "node_modules/better-sqlite3/lib/methods/inspect.js"(exports, module2) {
-    "use strict";
-    var DatabaseInspection = function Database2() {
-    };
-    module2.exports = function inspect(depth, opts) {
-      return Object.assign(new DatabaseInspection(), this);
-    };
-  }
-});
-
-// node_modules/better-sqlite3/lib/database.js
-var require_database = __commonJS({
-  "node_modules/better-sqlite3/lib/database.js"(exports, module2) {
-    "use strict";
-    var fs3 = require("fs");
-    var path4 = require("path");
-    var util = require_util();
-    var SqliteError = require_sqlite_error();
-    var DEFAULT_ADDON;
-    function Database2(filenameGiven, options) {
-      if (new.target == null) {
-        return new Database2(filenameGiven, options);
-      }
-      let buffer;
-      if (Buffer.isBuffer(filenameGiven)) {
-        buffer = filenameGiven;
-        filenameGiven = ":memory:";
-      }
-      if (filenameGiven == null) filenameGiven = "";
-      if (options == null) options = {};
-      if (typeof filenameGiven !== "string") throw new TypeError("Expected first argument to be a string");
-      if (typeof options !== "object") throw new TypeError("Expected second argument to be an options object");
-      if ("readOnly" in options) throw new TypeError('Misspelled option "readOnly" should be "readonly"');
-      if ("memory" in options) throw new TypeError('Option "memory" was removed in v7.0.0 (use ":memory:" filename instead)');
-      const filename = filenameGiven.trim();
-      const anonymous = filename === "" || filename === ":memory:";
-      const readonly = util.getBooleanOption(options, "readonly");
-      const fileMustExist = util.getBooleanOption(options, "fileMustExist");
-      const timeout = "timeout" in options ? options.timeout : 5e3;
-      const verbose = "verbose" in options ? options.verbose : null;
-      const nativeBinding = "nativeBinding" in options ? options.nativeBinding : null;
-      if (readonly && anonymous && !buffer) throw new TypeError("In-memory/temporary databases cannot be readonly");
-      if (!Number.isInteger(timeout) || timeout < 0) throw new TypeError('Expected the "timeout" option to be a positive integer');
-      if (timeout > 2147483647) throw new RangeError('Option "timeout" cannot be greater than 2147483647');
-      if (verbose != null && typeof verbose !== "function") throw new TypeError('Expected the "verbose" option to be a function');
-      if (nativeBinding != null && typeof nativeBinding !== "string" && typeof nativeBinding !== "object") throw new TypeError('Expected the "nativeBinding" option to be a string or addon object');
-      let addon;
-      if (nativeBinding == null) {
-        addon = DEFAULT_ADDON || (DEFAULT_ADDON = require_bindings()("better_sqlite3.node"));
-      } else if (typeof nativeBinding === "string") {
-        const requireFunc = typeof __non_webpack_require__ === "function" ? __non_webpack_require__ : require;
-        addon = requireFunc(path4.resolve(nativeBinding).replace(/(\.node)?$/, ".node"));
-      } else {
-        addon = nativeBinding;
-      }
-      if (!addon.isInitialized) {
-        addon.setErrorConstructor(SqliteError);
-        addon.isInitialized = true;
-      }
-      if (!anonymous && !fs3.existsSync(path4.dirname(filename))) {
-        throw new TypeError("Cannot open database because the directory does not exist");
-      }
-      Object.defineProperties(this, {
-        [util.cppdb]: { value: new addon.Database(filename, filenameGiven, anonymous, readonly, fileMustExist, timeout, verbose || null, buffer || null) },
-        ...wrappers.getters
+        var db = "undefined" != typeof TextDecoder ? new TextDecoder() : void 0, L = (a, b, c) => {
+          var d = b + c;
+          for (c = b; a[c] && !(c >= d); ) ++c;
+          if (16 < c - b && a.buffer && db) return db.decode(a.subarray(b, c));
+          for (d = ""; b < c; ) {
+            var e = a[b++];
+            if (e & 128) {
+              var h = a[b++] & 63;
+              if (192 == (e & 224)) d += String.fromCharCode((e & 31) << 6 | h);
+              else {
+                var k = a[b++] & 63;
+                e = 224 == (e & 240) ? (e & 15) << 12 | h << 6 | k : (e & 7) << 18 | h << 12 | k << 6 | a[b++] & 63;
+                65536 > e ? d += String.fromCharCode(e) : (e -= 65536, d += String.fromCharCode(55296 | e >> 10, 56320 | e & 1023));
+              }
+            } else d += String.fromCharCode(e);
+          }
+          return d;
+        }, ta = (a, b) => a ? L(u, a, b) : "", eb = (a, b) => {
+          for (var c = 0, d = a.length - 1; 0 <= d; d--) {
+            var e = a[d];
+            "." === e ? a.splice(d, 1) : ".." === e ? (a.splice(d, 1), c++) : c && (a.splice(d, 1), c--);
+          }
+          if (b) for (; c; c--) a.unshift("..");
+          return a;
+        }, x = (a) => {
+          var b = "/" === a.charAt(0), c = "/" === a.substr(-1);
+          (a = eb(a.split("/").filter((d) => !!d), !b).join("/")) || b || (a = ".");
+          a && c && (a += "/");
+          return (b ? "/" : "") + a;
+        }, fb = (a) => {
+          var b = /^(\/?|)([\s\S]*?)((?:\.{1,2}|[^\/]+?|)(\.[^.\/]*|))(?:[\/]*)$/.exec(a).slice(1);
+          a = b[0];
+          b = b[1];
+          if (!a && !b) return ".";
+          b && (b = b.substr(0, b.length - 1));
+          return a + b;
+        }, gb = (a) => {
+          if ("/" === a) return "/";
+          a = x(a);
+          a = a.replace(/\/$/, "");
+          var b = a.lastIndexOf("/");
+          return -1 === b ? a : a.substr(b + 1);
+        }, hb = () => {
+          if ("object" == typeof crypto && "function" == typeof crypto.getRandomValues) return (c) => crypto.getRandomValues(c);
+          if (ca) try {
+            var a = require("crypto");
+            if (a.randomFillSync) return (c) => a.randomFillSync(c);
+            var b = a.randomBytes;
+            return (c) => (c.set(b(c.byteLength)), c);
+          } catch (c) {
+          }
+          G("initRandomDevice");
+        }, jb = (a) => (jb = hb())(a), kb = (...a) => {
+          for (var b = "", c = false, d = a.length - 1; -1 <= d && !c; d--) {
+            c = 0 <= d ? a[d] : "/";
+            if ("string" != typeof c) throw new TypeError("Arguments to path.resolve must be strings");
+            if (!c) return "";
+            b = c + "/" + b;
+            c = "/" === c.charAt(0);
+          }
+          b = eb(b.split("/").filter((e) => !!e), !c).join("/");
+          return (c ? "/" : "") + b || ".";
+        }, sb = [], ha = (a) => {
+          for (var b = 0, c = 0; c < a.length; ++c) {
+            var d = a.charCodeAt(c);
+            127 >= d ? b++ : 2047 >= d ? b += 2 : 55296 <= d && 57343 >= d ? (b += 4, ++c) : b += 3;
+          }
+          return b;
+        }, q = (a, b, c, d) => {
+          if (!(0 < d)) return 0;
+          var e = c;
+          d = c + d - 1;
+          for (var h = 0; h < a.length; ++h) {
+            var k = a.charCodeAt(h);
+            if (55296 <= k && 57343 >= k) {
+              var r = a.charCodeAt(++h);
+              k = 65536 + ((k & 1023) << 10) | r & 1023;
+            }
+            if (127 >= k) {
+              if (c >= d) break;
+              b[c++] = k;
+            } else {
+              if (2047 >= k) {
+                if (c + 1 >= d) break;
+                b[c++] = 192 | k >> 6;
+              } else {
+                if (65535 >= k) {
+                  if (c + 2 >= d) break;
+                  b[c++] = 224 | k >> 12;
+                } else {
+                  if (c + 3 >= d) break;
+                  b[c++] = 240 | k >> 18;
+                  b[c++] = 128 | k >> 12 & 63;
+                }
+                b[c++] = 128 | k >> 6 & 63;
+              }
+              b[c++] = 128 | k & 63;
+            }
+          }
+          b[c] = 0;
+          return c - e;
+        };
+        function qa(a, b) {
+          var c = Array(ha(a) + 1);
+          a = q(a, c, 0, c.length);
+          b && (c.length = a);
+          return c;
+        }
+        var tb = [];
+        function ub(a, b) {
+          tb[a] = { input: [], output: [], Wa: b };
+          vb(a, wb);
+        }
+        var wb = { open(a) {
+          var b = tb[a.node.rdev];
+          if (!b) throw new P(43);
+          a.tty = b;
+          a.seekable = false;
+        }, close(a) {
+          a.tty.Wa.fsync(a.tty);
+        }, fsync(a) {
+          a.tty.Wa.fsync(a.tty);
+        }, read(a, b, c, d) {
+          if (!a.tty || !a.tty.Wa.rb) throw new P(60);
+          for (var e = 0, h = 0; h < d; h++) {
+            try {
+              var k = a.tty.Wa.rb(a.tty);
+            } catch (r) {
+              throw new P(29);
+            }
+            if (void 0 === k && 0 === e) throw new P(6);
+            if (null === k || void 0 === k) break;
+            e++;
+            b[c + h] = k;
+          }
+          e && (a.node.timestamp = Date.now());
+          return e;
+        }, write(a, b, c, d) {
+          if (!a.tty || !a.tty.Wa.ib) throw new P(60);
+          try {
+            for (var e = 0; e < d; e++) a.tty.Wa.ib(a.tty, b[c + e]);
+          } catch (h) {
+            throw new P(29);
+          }
+          d && (a.node.timestamp = Date.now());
+          return e;
+        } }, xb = { rb() {
+          a: {
+            if (!sb.length) {
+              var a = null;
+              if (ca) {
+                var b = Buffer.alloc(256), c = 0, d = process.stdin.fd;
+                try {
+                  c = fs3.readSync(d, b, 0, 256);
+                } catch (e) {
+                  if (e.toString().includes("EOF")) c = 0;
+                  else throw e;
+                }
+                0 < c && (a = b.slice(0, c).toString("utf-8"));
+              } else "undefined" != typeof window && "function" == typeof window.prompt && (a = window.prompt("Input: "), null !== a && (a += "\n"));
+              if (!a) {
+                a = null;
+                break a;
+              }
+              sb = qa(a, true);
+            }
+            a = sb.shift();
+          }
+          return a;
+        }, ib(a, b) {
+          null === b || 10 === b ? (Ha(L(
+            a.output,
+            0
+          )), a.output = []) : 0 != b && a.output.push(b);
+        }, fsync(a) {
+          a.output && 0 < a.output.length && (Ha(L(a.output, 0)), a.output = []);
+        }, Lb() {
+          return { Gb: 25856, Ib: 5, Fb: 191, Hb: 35387, Eb: [3, 28, 127, 21, 4, 0, 1, 0, 17, 19, 26, 0, 18, 15, 23, 22, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] };
+        }, Mb() {
+          return 0;
+        }, Nb() {
+          return [24, 80];
+        } }, yb = { ib(a, b) {
+          null === b || 10 === b ? (C(L(a.output, 0)), a.output = []) : 0 != b && a.output.push(b);
+        }, fsync(a) {
+          a.output && 0 < a.output.length && (C(L(a.output, 0)), a.output = []);
+        } };
+        function zb(a, b) {
+          var c = a.Ha ? a.Ha.length : 0;
+          c >= b || (b = Math.max(b, c * (1048576 > c ? 2 : 1.125) >>> 0), 0 != c && (b = Math.max(b, 256)), c = a.Ha, a.Ha = new Uint8Array(b), 0 < a.La && a.Ha.set(c.subarray(0, a.La), 0));
+        }
+        var Q = {
+          Pa: null,
+          Qa() {
+            return Q.createNode(null, "/", 16895, 0);
+          },
+          createNode(a, b, c, d) {
+            if (24576 === (c & 61440) || 4096 === (c & 61440)) throw new P(63);
+            Q.Pa || (Q.Pa = { dir: { node: { Oa: Q.Fa.Oa, Na: Q.Fa.Na, lookup: Q.Fa.lookup, $a: Q.Fa.$a, rename: Q.Fa.rename, unlink: Q.Fa.unlink, rmdir: Q.Fa.rmdir, readdir: Q.Fa.readdir, symlink: Q.Fa.symlink }, stream: { Sa: Q.Ga.Sa } }, file: { node: { Oa: Q.Fa.Oa, Na: Q.Fa.Na }, stream: { Sa: Q.Ga.Sa, read: Q.Ga.read, write: Q.Ga.write, kb: Q.Ga.kb, ab: Q.Ga.ab, bb: Q.Ga.bb } }, link: {
+              node: { Oa: Q.Fa.Oa, Na: Q.Fa.Na, readlink: Q.Fa.readlink },
+              stream: {}
+            }, ob: { node: { Oa: Q.Fa.Oa, Na: Q.Fa.Na }, stream: Ab } });
+            c = Bb(a, b, c, d);
+            R(c.mode) ? (c.Fa = Q.Pa.dir.node, c.Ga = Q.Pa.dir.stream, c.Ha = {}) : 32768 === (c.mode & 61440) ? (c.Fa = Q.Pa.file.node, c.Ga = Q.Pa.file.stream, c.La = 0, c.Ha = null) : 40960 === (c.mode & 61440) ? (c.Fa = Q.Pa.link.node, c.Ga = Q.Pa.link.stream) : 8192 === (c.mode & 61440) && (c.Fa = Q.Pa.ob.node, c.Ga = Q.Pa.ob.stream);
+            c.timestamp = Date.now();
+            a && (a.Ha[b] = c, a.timestamp = c.timestamp);
+            return c;
+          },
+          Kb(a) {
+            return a.Ha ? a.Ha.subarray ? a.Ha.subarray(0, a.La) : new Uint8Array(a.Ha) : new Uint8Array(0);
+          },
+          Fa: { Oa(a) {
+            var b = {};
+            b.dev = 8192 === (a.mode & 61440) ? a.id : 1;
+            b.ino = a.id;
+            b.mode = a.mode;
+            b.nlink = 1;
+            b.uid = 0;
+            b.gid = 0;
+            b.rdev = a.rdev;
+            R(a.mode) ? b.size = 4096 : 32768 === (a.mode & 61440) ? b.size = a.La : 40960 === (a.mode & 61440) ? b.size = a.link.length : b.size = 0;
+            b.atime = new Date(a.timestamp);
+            b.mtime = new Date(a.timestamp);
+            b.ctime = new Date(a.timestamp);
+            b.yb = 4096;
+            b.blocks = Math.ceil(b.size / b.yb);
+            return b;
+          }, Na(a, b) {
+            void 0 !== b.mode && (a.mode = b.mode);
+            void 0 !== b.timestamp && (a.timestamp = b.timestamp);
+            if (void 0 !== b.size && (b = b.size, a.La != b)) if (0 == b) a.Ha = null, a.La = 0;
+            else {
+              var c = a.Ha;
+              a.Ha = new Uint8Array(b);
+              c && a.Ha.set(c.subarray(0, Math.min(b, a.La)));
+              a.La = b;
+            }
+          }, lookup() {
+            throw Cb[44];
+          }, $a(a, b, c, d) {
+            return Q.createNode(a, b, c, d);
+          }, rename(a, b, c) {
+            if (R(a.mode)) {
+              try {
+                var d = Db(b, c);
+              } catch (h) {
+              }
+              if (d) for (var e in d.Ha) throw new P(55);
+            }
+            delete a.parent.Ha[a.name];
+            a.parent.timestamp = Date.now();
+            a.name = c;
+            b.Ha[c] = a;
+            b.timestamp = a.parent.timestamp;
+          }, unlink(a, b) {
+            delete a.Ha[b];
+            a.timestamp = Date.now();
+          }, rmdir(a, b) {
+            var c = Db(a, b), d;
+            for (d in c.Ha) throw new P(55);
+            delete a.Ha[b];
+            a.timestamp = Date.now();
+          }, readdir(a) {
+            var b = [".", ".."], c;
+            for (c of Object.keys(a.Ha)) b.push(c);
+            return b;
+          }, symlink(a, b, c) {
+            a = Q.createNode(a, b, 41471, 0);
+            a.link = c;
+            return a;
+          }, readlink(a) {
+            if (40960 !== (a.mode & 61440)) throw new P(28);
+            return a.link;
+          } },
+          Ga: {
+            read(a, b, c, d, e) {
+              var h = a.node.Ha;
+              if (e >= a.node.La) return 0;
+              a = Math.min(a.node.La - e, d);
+              if (8 < a && h.subarray) b.set(h.subarray(e, e + a), c);
+              else for (d = 0; d < a; d++) b[c + d] = h[e + d];
+              return a;
+            },
+            write(a, b, c, d, e, h) {
+              b.buffer === p.buffer && (h = false);
+              if (!d) return 0;
+              a = a.node;
+              a.timestamp = Date.now();
+              if (b.subarray && (!a.Ha || a.Ha.subarray)) {
+                if (h) return a.Ha = b.subarray(c, c + d), a.La = d;
+                if (0 === a.La && 0 === e) return a.Ha = b.slice(c, c + d), a.La = d;
+                if (e + d <= a.La) return a.Ha.set(b.subarray(c, c + d), e), d;
+              }
+              zb(a, e + d);
+              if (a.Ha.subarray && b.subarray) a.Ha.set(b.subarray(c, c + d), e);
+              else for (h = 0; h < d; h++) a.Ha[e + h] = b[c + h];
+              a.La = Math.max(a.La, e + d);
+              return d;
+            },
+            Sa(a, b, c) {
+              1 === c ? b += a.position : 2 === c && 32768 === (a.node.mode & 61440) && (b += a.node.La);
+              if (0 > b) throw new P(28);
+              return b;
+            },
+            kb(a, b, c) {
+              zb(a.node, b + c);
+              a.node.La = Math.max(a.node.La, b + c);
+            },
+            ab(a, b, c, d, e) {
+              if (32768 !== (a.node.mode & 61440)) throw new P(43);
+              a = a.node.Ha;
+              if (e & 2 || a.buffer !== p.buffer) {
+                if (0 < c || c + b < a.length) a.subarray ? a = a.subarray(c, c + b) : a = Array.prototype.slice.call(a, c, c + b);
+                c = true;
+                b = 65536 * Math.ceil(b / 65536);
+                (e = Eb(65536, b)) ? (u.fill(0, e, e + b), b = e) : b = 0;
+                if (!b) throw new P(48);
+                p.set(a, b);
+              } else c = false, b = a.byteOffset;
+              return { Cb: b, tb: c };
+            },
+            bb(a, b, c, d) {
+              Q.Ga.write(a, b, 0, d, c, false);
+              return 0;
+            }
+          }
+        }, ka = (a, b) => {
+          var c = 0;
+          a && (c |= 365);
+          b && (c |= 146);
+          return c;
+        }, Fb = null, Gb = {}, Hb = [], Ib = 1, S = null, Jb = true, P = class {
+          constructor(a) {
+            this.name = "ErrnoError";
+            this.Ja = a;
+          }
+        }, Cb = {}, Kb = class {
+          constructor() {
+            this.Za = {};
+            this.node = null;
+          }
+          get flags() {
+            return this.Za.flags;
+          }
+          set flags(a) {
+            this.Za.flags = a;
+          }
+          get position() {
+            return this.Za.position;
+          }
+          set position(a) {
+            this.Za.position = a;
+          }
+        }, Lb = class {
+          constructor(a, b, c, d) {
+            a || (a = this);
+            this.parent = a;
+            this.Qa = a.Qa;
+            this.Ua = null;
+            this.id = Ib++;
+            this.name = b;
+            this.mode = c;
+            this.Fa = {};
+            this.Ga = {};
+            this.rdev = d;
+          }
+          get read() {
+            return 365 === (this.mode & 365);
+          }
+          set read(a) {
+            a ? this.mode |= 365 : this.mode &= -366;
+          }
+          get write() {
+            return 146 === (this.mode & 146);
+          }
+          set write(a) {
+            a ? this.mode |= 146 : this.mode &= -147;
+          }
+        };
+        function T(a, b = {}) {
+          a = kb(a);
+          if (!a) return { path: "", node: null };
+          b = Object.assign({ pb: true, jb: 0 }, b);
+          if (8 < b.jb) throw new P(32);
+          a = a.split("/").filter((k) => !!k);
+          for (var c = Fb, d = "/", e = 0; e < a.length; e++) {
+            var h = e === a.length - 1;
+            if (h && b.parent) break;
+            c = Db(c, a[e]);
+            d = x(d + "/" + a[e]);
+            c.Ua && (!h || h && b.pb) && (c = c.Ua.root);
+            if (!h || b.Ra) {
+              for (h = 0; 40960 === (c.mode & 61440); ) if (c = Mb(d), d = kb(fb(d), c), c = T(d, { jb: b.jb + 1 }).node, 40 < h++) throw new P(32);
+            }
+          }
+          return { path: d, node: c };
+        }
+        function ja(a) {
+          for (var b; ; ) {
+            if (a === a.parent) return a = a.Qa.sb, b ? "/" !== a[a.length - 1] ? `${a}/${b}` : a + b : a;
+            b = b ? `${a.name}/${b}` : a.name;
+            a = a.parent;
+          }
+        }
+        function Nb(a, b) {
+          for (var c = 0, d = 0; d < b.length; d++) c = (c << 5) - c + b.charCodeAt(d) | 0;
+          return (a + c >>> 0) % S.length;
+        }
+        function Ob(a) {
+          var b = Nb(a.parent.id, a.name);
+          if (S[b] === a) S[b] = a.Va;
+          else for (b = S[b]; b; ) {
+            if (b.Va === a) {
+              b.Va = a.Va;
+              break;
+            }
+            b = b.Va;
+          }
+        }
+        function Db(a, b) {
+          var c = R(a.mode) ? (c = Pb(a, "x")) ? c : a.Fa.lookup ? 0 : 2 : 54;
+          if (c) throw new P(c);
+          for (c = S[Nb(a.id, b)]; c; c = c.Va) {
+            var d = c.name;
+            if (c.parent.id === a.id && d === b) return c;
+          }
+          return a.Fa.lookup(a, b);
+        }
+        function Bb(a, b, c, d) {
+          a = new Lb(a, b, c, d);
+          b = Nb(a.parent.id, a.name);
+          a.Va = S[b];
+          return S[b] = a;
+        }
+        function R(a) {
+          return 16384 === (a & 61440);
+        }
+        function Qb(a) {
+          var b = ["r", "w", "rw"][a & 3];
+          a & 512 && (b += "w");
+          return b;
+        }
+        function Pb(a, b) {
+          if (Jb) return 0;
+          if (!b.includes("r") || a.mode & 292) {
+            if (b.includes("w") && !(a.mode & 146) || b.includes("x") && !(a.mode & 73)) return 2;
+          } else return 2;
+          return 0;
+        }
+        function Rb(a, b) {
+          try {
+            return Db(a, b), 20;
+          } catch (c) {
+          }
+          return Pb(a, "wx");
+        }
+        function Sb(a, b, c) {
+          try {
+            var d = Db(a, b);
+          } catch (e) {
+            return e.Ja;
+          }
+          if (a = Pb(a, "wx")) return a;
+          if (c) {
+            if (!R(d.mode)) return 54;
+            if (d === d.parent || "/" === ja(d)) return 10;
+          } else if (R(d.mode)) return 31;
+          return 0;
+        }
+        function U(a) {
+          a = Hb[a];
+          if (!a) throw new P(8);
+          return a;
+        }
+        function Tb(a, b = -1) {
+          a = Object.assign(new Kb(), a);
+          if (-1 == b) a: {
+            for (b = 0; 4096 >= b; b++) if (!Hb[b]) break a;
+            throw new P(33);
+          }
+          a.fd = b;
+          return Hb[b] = a;
+        }
+        function Ub(a, b = -1) {
+          var _a2, _b;
+          a = Tb(a, b);
+          (_b = (_a2 = a.Ga) == null ? void 0 : _a2.Jb) == null ? void 0 : _b.call(_a2, a);
+          return a;
+        }
+        var Ab = { open(a) {
+          var _a2, _b;
+          a.Ga = Gb[a.node.rdev].Ga;
+          (_b = (_a2 = a.Ga).open) == null ? void 0 : _b.call(_a2, a);
+        }, Sa() {
+          throw new P(70);
+        } };
+        function vb(a, b) {
+          Gb[a] = { Ga: b };
+        }
+        function Vb(a, b) {
+          var c = "/" === b;
+          if (c && Fb) throw new P(10);
+          if (!c && b) {
+            var d = T(b, { pb: false });
+            b = d.path;
+            d = d.node;
+            if (d.Ua) throw new P(10);
+            if (!R(d.mode)) throw new P(54);
+          }
+          b = { type: a, Ob: {}, sb: b, Bb: [] };
+          a = a.Qa(b);
+          a.Qa = b;
+          b.root = a;
+          c ? Fb = a : d && (d.Ua = b, d.Qa && d.Qa.Bb.push(b));
+        }
+        function la(a, b, c) {
+          var d = T(a, { parent: true }).node;
+          a = gb(a);
+          if (!a || "." === a || ".." === a) throw new P(28);
+          var e = Rb(d, a);
+          if (e) throw new P(e);
+          if (!d.Fa.$a) throw new P(63);
+          return d.Fa.$a(d, a, b, c);
+        }
+        function V(a, b) {
+          return la(a, (void 0 !== b ? b : 511) & 1023 | 16384, 0);
+        }
+        function Wb(a, b, c) {
+          "undefined" == typeof c && (c = b, b = 438);
+          la(a, b | 8192, c);
+        }
+        function Xb(a, b) {
+          if (!kb(a)) throw new P(44);
+          var c = T(b, { parent: true }).node;
+          if (!c) throw new P(44);
+          b = gb(b);
+          var d = Rb(c, b);
+          if (d) throw new P(d);
+          if (!c.Fa.symlink) throw new P(63);
+          c.Fa.symlink(c, b, a);
+        }
+        function Yb(a) {
+          var b = T(a, { parent: true }).node;
+          a = gb(a);
+          var c = Db(b, a), d = Sb(b, a, true);
+          if (d) throw new P(d);
+          if (!b.Fa.rmdir) throw new P(63);
+          if (c.Ua) throw new P(10);
+          b.Fa.rmdir(b, a);
+          Ob(c);
+        }
+        function za(a) {
+          var b = T(a, { parent: true }).node;
+          if (!b) throw new P(44);
+          a = gb(a);
+          var c = Db(b, a), d = Sb(b, a, false);
+          if (d) throw new P(d);
+          if (!b.Fa.unlink) throw new P(63);
+          if (c.Ua) throw new P(10);
+          b.Fa.unlink(b, a);
+          Ob(c);
+        }
+        function Mb(a) {
+          a = T(a).node;
+          if (!a) throw new P(44);
+          if (!a.Fa.readlink) throw new P(28);
+          return kb(ja(a.parent), a.Fa.readlink(a));
+        }
+        function Zb(a, b) {
+          a = T(a, { Ra: !b }).node;
+          if (!a) throw new P(44);
+          if (!a.Fa.Oa) throw new P(63);
+          return a.Fa.Oa(a);
+        }
+        function $b(a) {
+          return Zb(a, true);
+        }
+        function ma(a, b) {
+          a = "string" == typeof a ? T(a, { Ra: true }).node : a;
+          if (!a.Fa.Na) throw new P(63);
+          a.Fa.Na(a, { mode: b & 4095 | a.mode & -4096, timestamp: Date.now() });
+        }
+        function ac(a, b) {
+          if (0 > b) throw new P(28);
+          a = "string" == typeof a ? T(a, { Ra: true }).node : a;
+          if (!a.Fa.Na) throw new P(63);
+          if (R(a.mode)) throw new P(31);
+          if (32768 !== (a.mode & 61440)) throw new P(28);
+          var c = Pb(a, "w");
+          if (c) throw new P(c);
+          a.Fa.Na(a, { size: b, timestamp: Date.now() });
+        }
+        function na(a, b, c) {
+          if ("" === a) throw new P(44);
+          if ("string" == typeof b) {
+            var d = { r: 0, "r+": 2, w: 577, "w+": 578, a: 1089, "a+": 1090 }[b];
+            if ("undefined" == typeof d) throw Error(`Unknown file open mode: ${b}`);
+            b = d;
+          }
+          c = b & 64 ? ("undefined" == typeof c ? 438 : c) & 4095 | 32768 : 0;
+          if ("object" == typeof a) var e = a;
+          else {
+            a = x(a);
+            try {
+              e = T(a, { Ra: !(b & 131072) }).node;
+            } catch (h) {
+            }
+          }
+          d = false;
+          if (b & 64) if (e) {
+            if (b & 128) throw new P(20);
+          } else e = la(a, c, 0), d = true;
+          if (!e) throw new P(44);
+          8192 === (e.mode & 61440) && (b &= -513);
+          if (b & 65536 && !R(e.mode)) throw new P(54);
+          if (!d && (c = e ? 40960 === (e.mode & 61440) ? 32 : R(e.mode) && ("r" !== Qb(b) || b & 512) ? 31 : Pb(e, Qb(b)) : 44)) throw new P(c);
+          b & 512 && !d && ac(e, 0);
+          b &= -131713;
+          e = Tb({ node: e, path: ja(e), flags: b, seekable: true, position: 0, Ga: e.Ga, Db: [], error: false });
+          e.Ga.open && e.Ga.open(e);
+          !f.logReadFiles || b & 1 || (bc || (bc = {}), a in bc || (bc[a] = 1));
+          return e;
+        }
+        function pa(a) {
+          if (null === a.fd) throw new P(8);
+          a.gb && (a.gb = null);
+          try {
+            a.Ga.close && a.Ga.close(a);
+          } catch (b) {
+            throw b;
+          } finally {
+            Hb[a.fd] = null;
+          }
+          a.fd = null;
+        }
+        function cc(a, b, c) {
+          if (null === a.fd) throw new P(8);
+          if (!a.seekable || !a.Ga.Sa) throw new P(70);
+          if (0 != c && 1 != c && 2 != c) throw new P(28);
+          a.position = a.Ga.Sa(a, b, c);
+          a.Db = [];
+        }
+        function dc(a, b, c, d, e) {
+          if (0 > d || 0 > e) throw new P(28);
+          if (null === a.fd) throw new P(8);
+          if (1 === (a.flags & 2097155)) throw new P(8);
+          if (R(a.node.mode)) throw new P(31);
+          if (!a.Ga.read) throw new P(28);
+          var h = "undefined" != typeof e;
+          if (!h) e = a.position;
+          else if (!a.seekable) throw new P(70);
+          b = a.Ga.read(a, b, c, d, e);
+          h || (a.position += b);
+          return b;
+        }
+        function oa(a, b, c, d, e) {
+          if (0 > d || 0 > e) throw new P(28);
+          if (null === a.fd) throw new P(8);
+          if (0 === (a.flags & 2097155)) throw new P(8);
+          if (R(a.node.mode)) throw new P(31);
+          if (!a.Ga.write) throw new P(28);
+          a.seekable && a.flags & 1024 && cc(a, 0, 2);
+          var h = "undefined" != typeof e;
+          if (!h) e = a.position;
+          else if (!a.seekable) throw new P(70);
+          b = a.Ga.write(a, b, c, d, e, void 0);
+          h || (a.position += b);
+          return b;
+        }
+        function ya(a) {
+          var b = "binary";
+          if ("utf8" !== b && "binary" !== b) throw Error(`Invalid encoding type "${b}"`);
+          var c;
+          var d = na(a, d || 0);
+          a = Zb(a).size;
+          var e = new Uint8Array(a);
+          dc(d, e, 0, a, 0);
+          "utf8" === b ? c = L(e, 0) : "binary" === b && (c = e);
+          pa(d);
+          return c;
+        }
+        var ec;
+        function Fc(a, b, c) {
+          a = x("/dev/" + a);
+          var d = ka(!!b, !!c);
+          Hc || (Hc = 64);
+          var e = Hc++ << 8 | 0;
+          vb(e, { open(h) {
+            h.seekable = false;
+          }, close() {
+            var _a2;
+            ((_a2 = c == null ? void 0 : c.buffer) == null ? void 0 : _a2.length) && c(10);
+          }, read(h, k, r, z) {
+            for (var v = 0, E = 0; E < z; E++) {
+              try {
+                var H = b();
+              } catch (mb) {
+                throw new P(29);
+              }
+              if (void 0 === H && 0 === v) throw new P(6);
+              if (null === H || void 0 === H) break;
+              v++;
+              k[r + E] = H;
+            }
+            v && (h.node.timestamp = Date.now());
+            return v;
+          }, write(h, k, r, z) {
+            for (var v = 0; v < z; v++) try {
+              c(k[r + v]);
+            } catch (E) {
+              throw new P(29);
+            }
+            z && (h.node.timestamp = Date.now());
+            return v;
+          } });
+          Wb(a, d, e);
+        }
+        var Hc, W = {}, bc;
+        function Ic(a, b, c) {
+          if ("/" === b.charAt(0)) return b;
+          a = -100 === a ? "/" : U(a).path;
+          if (0 == b.length) {
+            if (!c) throw new P(44);
+            return a;
+          }
+          return x(a + "/" + b);
+        }
+        function Jc(a, b, c) {
+          a = a(b);
+          D[c >> 2] = a.dev;
+          D[c + 4 >> 2] = a.mode;
+          F[c + 8 >> 2] = a.nlink;
+          D[c + 12 >> 2] = a.uid;
+          D[c + 16 >> 2] = a.gid;
+          D[c + 20 >> 2] = a.rdev;
+          J = [a.size >>> 0, (I = a.size, 1 <= +Math.abs(I) ? 0 < I ? +Math.floor(I / 4294967296) >>> 0 : ~~+Math.ceil((I - +(~~I >>> 0)) / 4294967296) >>> 0 : 0)];
+          D[c + 24 >> 2] = J[0];
+          D[c + 28 >> 2] = J[1];
+          D[c + 32 >> 2] = 4096;
+          D[c + 36 >> 2] = a.blocks;
+          b = a.atime.getTime();
+          var d = a.mtime.getTime(), e = a.ctime.getTime();
+          J = [Math.floor(b / 1e3) >>> 0, (I = Math.floor(b / 1e3), 1 <= +Math.abs(I) ? 0 < I ? +Math.floor(I / 4294967296) >>> 0 : ~~+Math.ceil((I - +(~~I >>> 0)) / 4294967296) >>> 0 : 0)];
+          D[c + 40 >> 2] = J[0];
+          D[c + 44 >> 2] = J[1];
+          F[c + 48 >> 2] = b % 1e3 * 1e3;
+          J = [Math.floor(d / 1e3) >>> 0, (I = Math.floor(d / 1e3), 1 <= +Math.abs(I) ? 0 < I ? +Math.floor(I / 4294967296) >>> 0 : ~~+Math.ceil((I - +(~~I >>> 0)) / 4294967296) >>> 0 : 0)];
+          D[c + 56 >> 2] = J[0];
+          D[c + 60 >> 2] = J[1];
+          F[c + 64 >> 2] = d % 1e3 * 1e3;
+          J = [Math.floor(e / 1e3) >>> 0, (I = Math.floor(e / 1e3), 1 <= +Math.abs(I) ? 0 < I ? +Math.floor(I / 4294967296) >>> 0 : ~~+Math.ceil((I - +(~~I >>> 0)) / 4294967296) >>> 0 : 0)];
+          D[c + 72 >> 2] = J[0];
+          D[c + 76 >> 2] = J[1];
+          F[c + 80 >> 2] = e % 1e3 * 1e3;
+          J = [a.ino >>> 0, (I = a.ino, 1 <= +Math.abs(I) ? 0 < I ? +Math.floor(I / 4294967296) >>> 0 : ~~+Math.ceil((I - +(~~I >>> 0)) / 4294967296) >>> 0 : 0)];
+          D[c + 88 >> 2] = J[0];
+          D[c + 92 >> 2] = J[1];
+          return 0;
+        }
+        var Kc = void 0;
+        function Lc() {
+          var a = D[+Kc >> 2];
+          Kc += 4;
+          return a;
+        }
+        var Mc = (a, b) => b + 2097152 >>> 0 < 4194305 - !!a ? (a >>> 0) + 4294967296 * b : NaN, Nc = [0, 31, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335], Oc = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334], Pc = {}, Rc = () => {
+          if (!Qc) {
+            var a = { USER: "web_user", LOGNAME: "web_user", PATH: "/", PWD: "/", HOME: "/home/web_user", LANG: ("object" == typeof navigator && navigator.languages && navigator.languages[0] || "C").replace("-", "_") + ".UTF-8", _: Ca || "./this.program" }, b;
+            for (b in Pc) void 0 === Pc[b] ? delete a[b] : a[b] = Pc[b];
+            var c = [];
+            for (b in a) c.push(`${b}=${a[b]}`);
+            Qc = c;
+          }
+          return Qc;
+        }, Qc, va = (a) => {
+          var b = ha(a) + 1, c = y(b);
+          q(a, u, c, b);
+          return c;
+        }, Sc = (a, b, c, d) => {
+          var e = { string: (v) => {
+            var E = 0;
+            null !== v && void 0 !== v && 0 !== v && (E = va(v));
+            return E;
+          }, array: (v) => {
+            var E = y(v.length);
+            p.set(v, E);
+            return E;
+          } };
+          a = f["_" + a];
+          var h = [], k = 0;
+          if (d) for (var r = 0; r < d.length; r++) {
+            var z = e[c[r]];
+            z ? (0 === k && (k = ra()), h[r] = z(d[r])) : h[r] = d[r];
+          }
+          c = a(...h);
+          return c = function(v) {
+            0 !== k && ua(k);
+            return "string" === b ? v ? L(u, v) : "" : "boolean" === b ? !!v : v;
+          }(c);
+        }, ea = 0, da = (a, b) => {
+          b = 1 == b ? y(a.length) : ia(a.length);
+          a.subarray || a.slice || (a = new Uint8Array(a));
+          u.set(
+            a,
+            b
+          );
+          return b;
+        }, Tc, Uc = [], X, wa = (a) => {
+          Tc.delete(X.get(a));
+          X.set(a, null);
+          Uc.push(a);
+        }, Aa = (a, b) => {
+          if (!Tc) {
+            Tc = /* @__PURE__ */ new WeakMap();
+            var c = X.length;
+            if (Tc) for (var d = 0; d < 0 + c; d++) {
+              var e = X.get(d);
+              e && Tc.set(e, d);
+            }
+          }
+          if (c = Tc.get(a) || 0) return c;
+          if (Uc.length) c = Uc.pop();
+          else {
+            try {
+              X.grow(1);
+            } catch (r) {
+              if (!(r instanceof RangeError)) throw r;
+              throw "Unable to grow wasm table. Set ALLOW_TABLE_GROWTH.";
+            }
+            c = X.length - 1;
+          }
+          try {
+            X.set(c, a);
+          } catch (r) {
+            if (!(r instanceof TypeError)) throw r;
+            if ("function" == typeof WebAssembly.Function) {
+              d = WebAssembly.Function;
+              e = { i: "i32", j: "i64", f: "f32", d: "f64", e: "externref", p: "i32" };
+              for (var h = { parameters: [], results: "v" == b[0] ? [] : [e[b[0]]] }, k = 1; k < b.length; ++k) h.parameters.push(e[b[k]]);
+              b = new d(h, a);
+            } else {
+              d = [1];
+              e = b.slice(0, 1);
+              b = b.slice(1);
+              h = { i: 127, p: 127, j: 126, f: 125, d: 124, e: 111 };
+              d.push(96);
+              k = b.length;
+              128 > k ? d.push(k) : d.push(k % 128 | 128, k >> 7);
+              for (k = 0; k < b.length; ++k) d.push(h[b[k]]);
+              "v" == e ? d.push(0) : d.push(1, h[e]);
+              b = [0, 97, 115, 109, 1, 0, 0, 0, 1];
+              e = d.length;
+              128 > e ? b.push(e) : b.push(e % 128 | 128, e >> 7);
+              b.push(...d);
+              b.push(
+                2,
+                7,
+                1,
+                1,
+                101,
+                1,
+                102,
+                0,
+                0,
+                7,
+                5,
+                1,
+                1,
+                102,
+                0,
+                0
+              );
+              b = new WebAssembly.Module(new Uint8Array(b));
+              b = new WebAssembly.Instance(b, { e: { f: a } }).exports.f;
+            }
+            X.set(c, b);
+          }
+          Tc.set(a, c);
+          return c;
+        };
+        [44].forEach((a) => {
+          Cb[a] = new P(a);
+          Cb[a].stack = "<generic error, no stack>";
+        });
+        S = Array(4096);
+        Vb(Q, "/");
+        V("/tmp");
+        V("/home");
+        V("/home/web_user");
+        (function() {
+          V("/dev");
+          vb(259, { read: () => 0, write: (d, e, h, k) => k });
+          Wb("/dev/null", 259);
+          ub(1280, xb);
+          ub(1536, yb);
+          Wb("/dev/tty", 1280);
+          Wb("/dev/tty1", 1536);
+          var a = new Uint8Array(1024), b = 0, c = () => {
+            0 === b && (b = jb(a).byteLength);
+            return a[--b];
+          };
+          Fc("random", c);
+          Fc("urandom", c);
+          V("/dev/shm");
+          V("/dev/shm/tmp");
+        })();
+        (function() {
+          V("/proc");
+          var a = V("/proc/self");
+          V("/proc/self/fd");
+          Vb({ Qa() {
+            var b = Bb(a, "fd", 16895, 73);
+            b.Fa = { lookup(c, d) {
+              var e = U(+d);
+              c = { parent: null, Qa: { sb: "fake" }, Fa: { readlink: () => e.path } };
+              return c.parent = c;
+            } };
+            return b;
+          } }, "/proc/self/fd");
+        })();
+        var Vc = {
+          a: (a, b, c, d) => {
+            G(`Assertion failed: ${a ? L(u, a) : ""}, at: ` + [b ? b ? L(u, b) : "" : "unknown filename", c, d ? d ? L(u, d) : "" : "unknown function"]);
+          },
+          h: function(a, b) {
+            try {
+              return a = a ? L(u, a) : "", ma(a, b), 0;
+            } catch (c) {
+              if ("undefined" == typeof W || "ErrnoError" !== c.name) throw c;
+              return -c.Ja;
+            }
+          },
+          H: function(a, b, c) {
+            try {
+              b = b ? L(u, b) : "";
+              b = Ic(a, b);
+              if (c & -8) return -28;
+              var d = T(b, { Ra: true }).node;
+              if (!d) return -44;
+              a = "";
+              c & 4 && (a += "r");
+              c & 2 && (a += "w");
+              c & 1 && (a += "x");
+              return a && Pb(d, a) ? -2 : 0;
+            } catch (e) {
+              if ("undefined" == typeof W || "ErrnoError" !== e.name) throw e;
+              return -e.Ja;
+            }
+          },
+          i: function(a, b) {
+            try {
+              var c = U(a);
+              ma(c.node, b);
+              return 0;
+            } catch (d) {
+              if ("undefined" == typeof W || "ErrnoError" !== d.name) throw d;
+              return -d.Ja;
+            }
+          },
+          g: function(a) {
+            try {
+              var b = U(a).node;
+              var c = "string" == typeof b ? T(b, { Ra: true }).node : b;
+              if (!c.Fa.Na) throw new P(63);
+              c.Fa.Na(c, { timestamp: Date.now() });
+              return 0;
+            } catch (d) {
+              if ("undefined" == typeof W || "ErrnoError" !== d.name) throw d;
+              return -d.Ja;
+            }
+          },
+          b: function(a, b, c) {
+            Kc = c;
+            try {
+              var d = U(a);
+              switch (b) {
+                case 0:
+                  var e = Lc();
+                  if (0 > e) break;
+                  for (; Hb[e]; ) e++;
+                  return Ub(d, e).fd;
+                case 1:
+                case 2:
+                  return 0;
+                case 3:
+                  return d.flags;
+                case 4:
+                  return e = Lc(), d.flags |= e, 0;
+                case 12:
+                  return e = Lc(), La[e + 0 >> 1] = 2, 0;
+                case 13:
+                case 14:
+                  return 0;
+              }
+              return -28;
+            } catch (h) {
+              if ("undefined" == typeof W || "ErrnoError" !== h.name) throw h;
+              return -h.Ja;
+            }
+          },
+          f: function(a, b) {
+            try {
+              var c = U(a);
+              return Jc(Zb, c.path, b);
+            } catch (d) {
+              if ("undefined" == typeof W || "ErrnoError" !== d.name) throw d;
+              return -d.Ja;
+            }
+          },
+          n: function(a, b, c) {
+            b = Mc(b, c);
+            try {
+              if (isNaN(b)) return 61;
+              var d = U(a);
+              if (0 === (d.flags & 2097155)) throw new P(28);
+              ac(d.node, b);
+              return 0;
+            } catch (e) {
+              if ("undefined" == typeof W || "ErrnoError" !== e.name) throw e;
+              return -e.Ja;
+            }
+          },
+          C: function(a, b) {
+            try {
+              if (0 === b) return -28;
+              var c = ha("/") + 1;
+              if (b < c) return -68;
+              q("/", u, a, b);
+              return c;
+            } catch (d) {
+              if ("undefined" == typeof W || "ErrnoError" !== d.name) throw d;
+              return -d.Ja;
+            }
+          },
+          F: function(a, b) {
+            try {
+              return a = a ? L(u, a) : "", Jc($b, a, b);
+            } catch (c) {
+              if ("undefined" == typeof W || "ErrnoError" !== c.name) throw c;
+              return -c.Ja;
+            }
+          },
+          z: function(a, b, c) {
+            try {
+              return b = b ? L(u, b) : "", b = Ic(a, b), b = x(b), "/" === b[b.length - 1] && (b = b.substr(0, b.length - 1)), V(b, c), 0;
+            } catch (d) {
+              if ("undefined" == typeof W || "ErrnoError" !== d.name) throw d;
+              return -d.Ja;
+            }
+          },
+          E: function(a, b, c, d) {
+            try {
+              b = b ? L(u, b) : "";
+              var e = d & 256;
+              b = Ic(a, b, d & 4096);
+              return Jc(e ? $b : Zb, b, c);
+            } catch (h) {
+              if ("undefined" == typeof W || "ErrnoError" !== h.name) throw h;
+              return -h.Ja;
+            }
+          },
+          x: function(a, b, c, d) {
+            Kc = d;
+            try {
+              b = b ? L(u, b) : "";
+              b = Ic(a, b);
+              var e = d ? Lc() : 0;
+              return na(b, c, e).fd;
+            } catch (h) {
+              if ("undefined" == typeof W || "ErrnoError" !== h.name) throw h;
+              return -h.Ja;
+            }
+          },
+          v: function(a, b, c, d) {
+            try {
+              b = b ? L(u, b) : "";
+              b = Ic(a, b);
+              if (0 >= d) return -28;
+              var e = Mb(b), h = Math.min(d, ha(e)), k = p[c + h];
+              q(e, u, c, d + 1);
+              p[c + h] = k;
+              return h;
+            } catch (r) {
+              if ("undefined" == typeof W || "ErrnoError" !== r.name) throw r;
+              return -r.Ja;
+            }
+          },
+          u: function(a) {
+            try {
+              return a = a ? L(u, a) : "", Yb(a), 0;
+            } catch (b) {
+              if ("undefined" == typeof W || "ErrnoError" !== b.name) throw b;
+              return -b.Ja;
+            }
+          },
+          G: function(a, b) {
+            try {
+              return a = a ? L(u, a) : "", Jc(Zb, a, b);
+            } catch (c) {
+              if ("undefined" == typeof W || "ErrnoError" !== c.name) throw c;
+              return -c.Ja;
+            }
+          },
+          r: function(a, b, c) {
+            try {
+              return b = b ? L(u, b) : "", b = Ic(a, b), 0 === c ? za(b) : 512 === c ? Yb(b) : G("Invalid flags passed to unlinkat"), 0;
+            } catch (d) {
+              if ("undefined" == typeof W || "ErrnoError" !== d.name) throw d;
+              return -d.Ja;
+            }
+          },
+          q: function(a, b, c) {
+            try {
+              b = b ? L(u, b) : "";
+              b = Ic(a, b, true);
+              if (c) {
+                var d = F[c >> 2] + 4294967296 * D[c + 4 >> 2], e = D[c + 8 >> 2];
+                h = 1e3 * d + e / 1e6;
+                c += 16;
+                d = F[c >> 2] + 4294967296 * D[c + 4 >> 2];
+                e = D[c + 8 >> 2];
+                k = 1e3 * d + e / 1e6;
+              } else var h = Date.now(), k = h;
+              a = h;
+              var r = T(b, { Ra: true }).node;
+              r.Fa.Na(r, { timestamp: Math.max(a, k) });
+              return 0;
+            } catch (z) {
+              if ("undefined" == typeof W || "ErrnoError" !== z.name) throw z;
+              return -z.Ja;
+            }
+          },
+          l: function(a, b, c) {
+            a = new Date(1e3 * Mc(a, b));
+            D[c >> 2] = a.getSeconds();
+            D[c + 4 >> 2] = a.getMinutes();
+            D[c + 8 >> 2] = a.getHours();
+            D[c + 12 >> 2] = a.getDate();
+            D[c + 16 >> 2] = a.getMonth();
+            D[c + 20 >> 2] = a.getFullYear() - 1900;
+            D[c + 24 >> 2] = a.getDay();
+            b = a.getFullYear();
+            D[c + 28 >> 2] = (0 !== b % 4 || 0 === b % 100 && 0 !== b % 400 ? Oc : Nc)[a.getMonth()] + a.getDate() - 1 | 0;
+            D[c + 36 >> 2] = -(60 * a.getTimezoneOffset());
+            b = new Date(a.getFullYear(), 6, 1).getTimezoneOffset();
+            var d = new Date(a.getFullYear(), 0, 1).getTimezoneOffset();
+            D[c + 32 >> 2] = (b != d && a.getTimezoneOffset() == Math.min(d, b)) | 0;
+          },
+          j: function(a, b, c, d, e, h, k, r) {
+            e = Mc(e, h);
+            try {
+              if (isNaN(e)) return 61;
+              var z = U(d);
+              if (0 !== (b & 2) && 0 === (c & 2) && 2 !== (z.flags & 2097155)) throw new P(2);
+              if (1 === (z.flags & 2097155)) throw new P(2);
+              if (!z.Ga.ab) throw new P(43);
+              var v = z.Ga.ab(z, a, e, b, c);
+              var E = v.Cb;
+              D[k >> 2] = v.tb;
+              F[r >> 2] = E;
+              return 0;
+            } catch (H) {
+              if ("undefined" == typeof W || "ErrnoError" !== H.name) throw H;
+              return -H.Ja;
+            }
+          },
+          k: function(a, b, c, d, e, h, k) {
+            h = Mc(h, k);
+            try {
+              var r = U(e);
+              if (c & 2) {
+                if (32768 !== (r.node.mode & 61440)) throw new P(43);
+                if (!(d & 2)) {
+                  var z = u.slice(a, a + b);
+                  r.Ga.bb && r.Ga.bb(r, z, h, b, d);
+                }
+              }
+            } catch (v) {
+              if ("undefined" == typeof W || "ErrnoError" !== v.name) throw v;
+              return -v.Ja;
+            }
+          },
+          y: (a, b, c, d) => {
+            var e = (/* @__PURE__ */ new Date()).getFullYear(), h = new Date(e, 0, 1).getTimezoneOffset();
+            e = new Date(e, 6, 1).getTimezoneOffset();
+            F[a >> 2] = 60 * Math.max(h, e);
+            D[b >> 2] = Number(h != e);
+            b = (k) => {
+              var r = Math.abs(k);
+              return `UTC${0 <= k ? "-" : "+"}${String(Math.floor(r / 60)).padStart(2, "0")}${String(r % 60).padStart(2, "0")}`;
+            };
+            a = b(h);
+            b = b(e);
+            e < h ? (q(a, u, c, 17), q(b, u, d, 17)) : (q(a, u, d, 17), q(b, u, c, 17));
+          },
+          d: () => Date.now(),
+          s: () => 2147483648,
+          c: () => performance.now(),
+          o: (a) => {
+            var b = u.length;
+            a >>>= 0;
+            if (2147483648 < a) return false;
+            for (var c = 1; 4 >= c; c *= 2) {
+              var d = b * (1 + 0.2 / c);
+              d = Math.min(d, a + 100663296);
+              var e = Math;
+              d = Math.max(a, d);
+              a: {
+                e = (e.min.call(e, 2147483648, d + (65536 - d % 65536) % 65536) - Ja.buffer.byteLength + 65535) / 65536;
+                try {
+                  Ja.grow(e);
+                  Oa();
+                  var h = 1;
+                  break a;
+                } catch (k) {
+                }
+                h = void 0;
+              }
+              if (h) return true;
+            }
+            return false;
+          },
+          A: (a, b) => {
+            var c = 0;
+            Rc().forEach((d, e) => {
+              var h = b + c;
+              e = F[a + 4 * e >> 2] = h;
+              for (h = 0; h < d.length; ++h) p[e++] = d.charCodeAt(h);
+              p[e] = 0;
+              c += d.length + 1;
+            });
+            return 0;
+          },
+          B: (a, b) => {
+            var c = Rc();
+            F[a >> 2] = c.length;
+            var d = 0;
+            c.forEach((e) => d += e.length + 1);
+            F[b >> 2] = d;
+            return 0;
+          },
+          e: function(a) {
+            try {
+              var b = U(a);
+              pa(b);
+              return 0;
+            } catch (c) {
+              if ("undefined" == typeof W || "ErrnoError" !== c.name) throw c;
+              return c.Ja;
+            }
+          },
+          p: function(a, b) {
+            try {
+              var c = U(a);
+              p[b] = c.tty ? 2 : R(c.mode) ? 3 : 40960 === (c.mode & 61440) ? 7 : 4;
+              La[b + 2 >> 1] = 0;
+              J = [0, (I = 0, 1 <= +Math.abs(I) ? 0 < I ? +Math.floor(I / 4294967296) >>> 0 : ~~+Math.ceil((I - +(~~I >>> 0)) / 4294967296) >>> 0 : 0)];
+              D[b + 8 >> 2] = J[0];
+              D[b + 12 >> 2] = J[1];
+              J = [0, (I = 0, 1 <= +Math.abs(I) ? 0 < I ? +Math.floor(I / 4294967296) >>> 0 : ~~+Math.ceil((I - +(~~I >>> 0)) / 4294967296) >>> 0 : 0)];
+              D[b + 16 >> 2] = J[0];
+              D[b + 20 >> 2] = J[1];
+              return 0;
+            } catch (d) {
+              if ("undefined" == typeof W || "ErrnoError" !== d.name) throw d;
+              return d.Ja;
+            }
+          },
+          w: function(a, b, c, d) {
+            try {
+              a: {
+                var e = U(a);
+                a = b;
+                for (var h, k = b = 0; k < c; k++) {
+                  var r = F[a >> 2], z = F[a + 4 >> 2];
+                  a += 8;
+                  var v = dc(e, p, r, z, h);
+                  if (0 > v) {
+                    var E = -1;
+                    break a;
+                  }
+                  b += v;
+                  if (v < z) break;
+                  "undefined" != typeof h && (h += v);
+                }
+                E = b;
+              }
+              F[d >> 2] = E;
+              return 0;
+            } catch (H) {
+              if ("undefined" == typeof W || "ErrnoError" !== H.name) throw H;
+              return H.Ja;
+            }
+          },
+          m: function(a, b, c, d, e) {
+            b = Mc(b, c);
+            try {
+              if (isNaN(b)) return 61;
+              var h = U(a);
+              cc(h, b, d);
+              J = [h.position >>> 0, (I = h.position, 1 <= +Math.abs(I) ? 0 < I ? +Math.floor(I / 4294967296) >>> 0 : ~~+Math.ceil((I - +(~~I >>> 0)) / 4294967296) >>> 0 : 0)];
+              D[e >> 2] = J[0];
+              D[e + 4 >> 2] = J[1];
+              h.gb && 0 === b && 0 === d && (h.gb = null);
+              return 0;
+            } catch (k) {
+              if ("undefined" == typeof W || "ErrnoError" !== k.name) throw k;
+              return k.Ja;
+            }
+          },
+          D: function(a) {
+            var _a2;
+            try {
+              var b = U(a);
+              return ((_a2 = b.Ga) == null ? void 0 : _a2.fsync) ? b.Ga.fsync(b) : 0;
+            } catch (c) {
+              if ("undefined" == typeof W || "ErrnoError" !== c.name) throw c;
+              return c.Ja;
+            }
+          },
+          t: function(a, b, c, d) {
+            try {
+              a: {
+                var e = U(a);
+                a = b;
+                for (var h, k = b = 0; k < c; k++) {
+                  var r = F[a >> 2], z = F[a + 4 >> 2];
+                  a += 8;
+                  var v = oa(e, p, r, z, h);
+                  if (0 > v) {
+                    var E = -1;
+                    break a;
+                  }
+                  b += v;
+                  "undefined" != typeof h && (h += v);
+                }
+                E = b;
+              }
+              F[d >> 2] = E;
+              return 0;
+            } catch (H) {
+              if ("undefined" == typeof W || "ErrnoError" !== H.name) throw H;
+              return H.Ja;
+            }
+          }
+        }, Z = function() {
+          var _a2;
+          function a(c) {
+            var _a3;
+            Z = c.exports;
+            Ja = Z.I;
+            Oa();
+            X = Z.K;
+            Qa.unshift(Z.J);
+            Ua--;
+            (_a3 = f.monitorRunDependencies) == null ? void 0 : _a3.call(f, Ua);
+            0 == Ua && (null !== Va && (clearInterval(Va), Va = null), Wa && (c = Wa, Wa = null, c()));
+            return Z;
+          }
+          var b = { a: Vc };
+          Ua++;
+          (_a2 = f.monitorRunDependencies) == null ? void 0 : _a2.call(f, Ua);
+          if (f.instantiateWasm) try {
+            return f.instantiateWasm(b, a);
+          } catch (c) {
+            return C(`Module.instantiateWasm callback failed with error: ${c}`), false;
+          }
+          Ya || (Ya = Xa("sql-wasm.wasm") ? "sql-wasm.wasm" : f.locateFile ? f.locateFile(
+            "sql-wasm.wasm",
+            B
+          ) : B + "sql-wasm.wasm");
+          bb(b, function(c) {
+            a(c.instance);
+          });
+          return {};
+        }();
+        f._sqlite3_free = (a) => (f._sqlite3_free = Z.L)(a);
+        f._sqlite3_value_text = (a) => (f._sqlite3_value_text = Z.M)(a);
+        f._sqlite3_prepare_v2 = (a, b, c, d, e) => (f._sqlite3_prepare_v2 = Z.N)(a, b, c, d, e);
+        f._sqlite3_step = (a) => (f._sqlite3_step = Z.O)(a);
+        f._sqlite3_reset = (a) => (f._sqlite3_reset = Z.P)(a);
+        f._sqlite3_exec = (a, b, c, d, e) => (f._sqlite3_exec = Z.Q)(a, b, c, d, e);
+        f._sqlite3_finalize = (a) => (f._sqlite3_finalize = Z.R)(a);
+        f._sqlite3_column_name = (a, b) => (f._sqlite3_column_name = Z.S)(a, b);
+        f._sqlite3_column_text = (a, b) => (f._sqlite3_column_text = Z.T)(a, b);
+        f._sqlite3_column_type = (a, b) => (f._sqlite3_column_type = Z.U)(a, b);
+        f._sqlite3_errmsg = (a) => (f._sqlite3_errmsg = Z.V)(a);
+        f._sqlite3_clear_bindings = (a) => (f._sqlite3_clear_bindings = Z.W)(a);
+        f._sqlite3_value_blob = (a) => (f._sqlite3_value_blob = Z.X)(a);
+        f._sqlite3_value_bytes = (a) => (f._sqlite3_value_bytes = Z.Y)(a);
+        f._sqlite3_value_double = (a) => (f._sqlite3_value_double = Z.Z)(a);
+        f._sqlite3_value_int = (a) => (f._sqlite3_value_int = Z._)(a);
+        f._sqlite3_value_type = (a) => (f._sqlite3_value_type = Z.$)(a);
+        f._sqlite3_result_blob = (a, b, c, d) => (f._sqlite3_result_blob = Z.aa)(a, b, c, d);
+        f._sqlite3_result_double = (a, b) => (f._sqlite3_result_double = Z.ba)(a, b);
+        f._sqlite3_result_error = (a, b, c) => (f._sqlite3_result_error = Z.ca)(a, b, c);
+        f._sqlite3_result_int = (a, b) => (f._sqlite3_result_int = Z.da)(a, b);
+        f._sqlite3_result_int64 = (a, b, c) => (f._sqlite3_result_int64 = Z.ea)(a, b, c);
+        f._sqlite3_result_null = (a) => (f._sqlite3_result_null = Z.fa)(a);
+        f._sqlite3_result_text = (a, b, c, d) => (f._sqlite3_result_text = Z.ga)(a, b, c, d);
+        f._sqlite3_aggregate_context = (a, b) => (f._sqlite3_aggregate_context = Z.ha)(a, b);
+        f._sqlite3_column_count = (a) => (f._sqlite3_column_count = Z.ia)(a);
+        f._sqlite3_data_count = (a) => (f._sqlite3_data_count = Z.ja)(a);
+        f._sqlite3_column_blob = (a, b) => (f._sqlite3_column_blob = Z.ka)(a, b);
+        f._sqlite3_column_bytes = (a, b) => (f._sqlite3_column_bytes = Z.la)(a, b);
+        f._sqlite3_column_double = (a, b) => (f._sqlite3_column_double = Z.ma)(a, b);
+        f._sqlite3_bind_blob = (a, b, c, d, e) => (f._sqlite3_bind_blob = Z.na)(a, b, c, d, e);
+        f._sqlite3_bind_double = (a, b, c) => (f._sqlite3_bind_double = Z.oa)(a, b, c);
+        f._sqlite3_bind_int = (a, b, c) => (f._sqlite3_bind_int = Z.pa)(a, b, c);
+        f._sqlite3_bind_text = (a, b, c, d, e) => (f._sqlite3_bind_text = Z.qa)(a, b, c, d, e);
+        f._sqlite3_bind_parameter_index = (a, b) => (f._sqlite3_bind_parameter_index = Z.ra)(a, b);
+        f._sqlite3_sql = (a) => (f._sqlite3_sql = Z.sa)(a);
+        f._sqlite3_normalized_sql = (a) => (f._sqlite3_normalized_sql = Z.ta)(a);
+        f._sqlite3_changes = (a) => (f._sqlite3_changes = Z.ua)(a);
+        f._sqlite3_close_v2 = (a) => (f._sqlite3_close_v2 = Z.va)(a);
+        f._sqlite3_create_function_v2 = (a, b, c, d, e, h, k, r, z) => (f._sqlite3_create_function_v2 = Z.wa)(a, b, c, d, e, h, k, r, z);
+        f._sqlite3_open = (a, b) => (f._sqlite3_open = Z.xa)(a, b);
+        var ia = f._malloc = (a) => (ia = f._malloc = Z.ya)(a), fa = f._free = (a) => (fa = f._free = Z.za)(a);
+        f._RegisterExtensionFunctions = (a) => (f._RegisterExtensionFunctions = Z.Aa)(a);
+        var Eb = (a, b) => (Eb = Z.Ba)(a, b), ua = (a) => (ua = Z.Ca)(a), y = (a) => (y = Z.Da)(a), ra = () => (ra = Z.Ea)();
+        f.stackSave = () => ra();
+        f.stackRestore = (a) => ua(a);
+        f.stackAlloc = (a) => y(a);
+        f.cwrap = (a, b, c, d) => {
+          var e = !c || c.every((h) => "number" === h || "boolean" === h);
+          return "string" !== b && e && !d ? f["_" + a] : (...h) => Sc(a, b, c, h);
+        };
+        f.addFunction = Aa;
+        f.removeFunction = wa;
+        f.UTF8ToString = ta;
+        f.ALLOC_NORMAL = ea;
+        f.allocate = da;
+        f.allocateUTF8OnStack = va;
+        var Wc;
+        Wa = function Xc() {
+          Wc || Yc();
+          Wc || (Wa = Xc);
+        };
+        function Yc() {
+          function a() {
+            var _a2;
+            if (!Wc && (Wc = true, f.calledRun = true, !Ka)) {
+              f.noFSInit || ec || (ec = true, f.stdin = f.stdin, f.stdout = f.stdout, f.stderr = f.stderr, f.stdin ? Fc("stdin", f.stdin) : Xb("/dev/tty", "/dev/stdin"), f.stdout ? Fc("stdout", null, f.stdout) : Xb("/dev/tty", "/dev/stdout"), f.stderr ? Fc("stderr", null, f.stderr) : Xb("/dev/tty1", "/dev/stderr"), na("/dev/stdin", 0), na("/dev/stdout", 1), na("/dev/stderr", 1));
+              Jb = false;
+              cb(Qa);
+              (_a2 = f.onRuntimeInitialized) == null ? void 0 : _a2.call(f);
+              if (f.postRun) for ("function" == typeof f.postRun && (f.postRun = [f.postRun]); f.postRun.length; ) {
+                var b = f.postRun.shift();
+                Sa.unshift(b);
+              }
+              cb(Sa);
+            }
+          }
+          if (!(0 < Ua)) {
+            if (f.preRun) for ("function" == typeof f.preRun && (f.preRun = [f.preRun]); f.preRun.length; ) Ta();
+            cb(Pa);
+            0 < Ua || (f.setStatus ? (f.setStatus("Running..."), setTimeout(function() {
+              setTimeout(function() {
+                f.setStatus("");
+              }, 1);
+              a();
+            }, 1)) : a());
+          }
+        }
+        if (f.preInit) for ("function" == typeof f.preInit && (f.preInit = [f.preInit]); 0 < f.preInit.length; ) f.preInit.pop()();
+        Yc();
+        return Module;
       });
+      return initSqlJsPromise;
+    };
+    if (typeof exports === "object" && typeof module2 === "object") {
+      module2.exports = initSqlJs2;
+      module2.exports.default = initSqlJs2;
+    } else if (typeof define === "function" && define["amd"]) {
+      define([], function() {
+        return initSqlJs2;
+      });
+    } else if (typeof exports === "object") {
+      exports["Module"] = initSqlJs2;
     }
-    var wrappers = require_wrappers();
-    Database2.prototype.prepare = wrappers.prepare;
-    Database2.prototype.transaction = require_transaction();
-    Database2.prototype.pragma = require_pragma();
-    Database2.prototype.backup = require_backup();
-    Database2.prototype.serialize = require_serialize();
-    Database2.prototype.function = require_function();
-    Database2.prototype.aggregate = require_aggregate();
-    Database2.prototype.table = require_table();
-    Database2.prototype.loadExtension = wrappers.loadExtension;
-    Database2.prototype.exec = wrappers.exec;
-    Database2.prototype.close = wrappers.close;
-    Database2.prototype.defaultSafeIntegers = wrappers.defaultSafeIntegers;
-    Database2.prototype.unsafeMode = wrappers.unsafeMode;
-    Database2.prototype[util.inspect] = require_inspect();
-    module2.exports = Database2;
-  }
-});
-
-// node_modules/better-sqlite3/lib/index.js
-var require_lib = __commonJS({
-  "node_modules/better-sqlite3/lib/index.js"(exports, module2) {
-    "use strict";
-    module2.exports = require_database();
-    module2.exports.SqliteError = require_sqlite_error();
   }
 });
 
@@ -16338,42 +17659,42 @@ var init_stateManager = __esm({
       /**
        * Set a value in the state
        */
-      setState(path4, value, options = {}) {
+      setState(path3, value, options = {}) {
         if (this.isDisposed) {
           throw new Error("Cannot set state on disposed StateManager");
         }
         try {
-          const transformer = options.transformer || this.transformers.get(path4);
-          const transformedValue = transformer ? transformer(value, path4) : value;
-          const validator = options.validator || this.validators.get(path4);
+          const transformer = options.transformer || this.transformers.get(path3);
+          const transformedValue = transformer ? transformer(value, path3) : value;
+          const validator = options.validator || this.validators.get(path3);
           if (validator) {
-            const validationResult = validator(transformedValue, path4);
+            const validationResult = validator(transformedValue, path3);
             if (validationResult !== true) {
-              const errorMessage = typeof validationResult === "string" ? validationResult : `Invalid value for state path: ${path4}`;
+              const errorMessage = typeof validationResult === "string" ? validationResult : `Invalid value for state path: ${path3}`;
               throw new Error(errorMessage);
             }
           }
-          const oldValue = this.getState(path4);
-          this.setNestedValue(this.state, path4, transformedValue);
+          const oldValue = this.getState(path3);
+          this.setNestedValue(this.state, path3, transformedValue);
           this.version++;
           if (options.persistent) {
-            this.persistentKeys.add(path4);
+            this.persistentKeys.add(path3);
           }
           this.createSnapshot();
           const debounceMs = options.debounceMs || 0;
           if (debounceMs > 0) {
-            this.debouncedNotify(path4, transformedValue, oldValue, debounceMs);
+            this.debouncedNotify(path3, transformedValue, oldValue, debounceMs);
           } else {
-            this.notifyListeners(path4, transformedValue, oldValue);
+            this.notifyListeners(path3, transformedValue, oldValue);
           }
-          if (this.persistentKeys.has(path4)) {
+          if (this.persistentKeys.has(path3)) {
             this.persistState();
           }
         } catch (error) {
           errorHandler.handleError(error, {
             component: "StateManager",
             operation: "setState",
-            metadata: { path: path4, valueType: typeof value }
+            metadata: { path: path3, valueType: typeof value }
           });
           throw error;
         }
@@ -16381,18 +17702,18 @@ var init_stateManager = __esm({
       /**
        * Get a value from the state
        */
-      getState(path4, defaultValue) {
+      getState(path3, defaultValue) {
         if (this.isDisposed) {
           throw new Error("Cannot get state from disposed StateManager");
         }
         try {
-          const value = this.getNestedValue(this.state, path4);
+          const value = this.getNestedValue(this.state, path3);
           return value !== void 0 ? value : defaultValue;
         } catch (error) {
           errorHandler.handleError(error, {
             component: "StateManager",
             operation: "getState",
-            metadata: { path: path4 }
+            metadata: { path: path3 }
           });
           return defaultValue;
         }
@@ -16400,38 +17721,38 @@ var init_stateManager = __esm({
       /**
        * Check if a state path exists
        */
-      hasState(path4) {
-        return this.getNestedValue(this.state, path4) !== void 0;
+      hasState(path3) {
+        return this.getNestedValue(this.state, path3) !== void 0;
       }
       /**
        * Delete a state path
        */
-      deleteState(path4) {
+      deleteState(path3) {
         if (this.isDisposed) {
           throw new Error("Cannot delete state from disposed StateManager");
         }
-        const oldValue = this.getState(path4);
-        this.deleteNestedValue(this.state, path4);
+        const oldValue = this.getState(path3);
+        this.deleteNestedValue(this.state, path3);
         this.version++;
-        this.persistentKeys.delete(path4);
-        this.notifyListeners(path4, void 0, oldValue);
+        this.persistentKeys.delete(path3);
+        this.notifyListeners(path3, void 0, oldValue);
         this.createSnapshot();
         this.persistState();
       }
       /**
        * Subscribe to state changes for a specific path
        */
-      subscribe(path4, listener) {
-        if (!this.stateListeners.has(path4)) {
-          this.stateListeners.set(path4, /* @__PURE__ */ new Set());
+      subscribe(path3, listener) {
+        if (!this.stateListeners.has(path3)) {
+          this.stateListeners.set(path3, /* @__PURE__ */ new Set());
         }
-        this.stateListeners.get(path4).add(listener);
+        this.stateListeners.get(path3).add(listener);
         return () => {
-          const pathListeners = this.stateListeners.get(path4);
+          const pathListeners = this.stateListeners.get(path3);
           if (pathListeners) {
             pathListeners.delete(listener);
             if (pathListeners.size === 0) {
-              this.stateListeners.delete(path4);
+              this.stateListeners.delete(path3);
             }
           }
         };
@@ -16446,14 +17767,14 @@ var init_stateManager = __esm({
       /**
        * Register a validator for a state path
        */
-      registerValidator(path4, validator) {
-        this.validators.set(path4, validator);
+      registerValidator(path3, validator) {
+        this.validators.set(path3, validator);
       }
       /**
        * Register a transformer for a state path
        */
-      registerTransformer(path4, transformer) {
-        this.transformers.set(path4, transformer);
+      registerTransformer(path3, transformer) {
+        this.transformers.set(path3, transformer);
       }
       /**
        * Get the entire state object (read-only)
@@ -16540,8 +17861,8 @@ var init_stateManager = __esm({
           }
           this.persistState();
         } catch (error) {
-          for (const [path4, oldValue] of oldStates) {
-            this.setNestedValue(this.state, path4, oldValue);
+          for (const [path3, oldValue] of oldStates) {
+            this.setNestedValue(this.state, path3, oldValue);
           }
           throw error;
         }
@@ -16553,8 +17874,8 @@ var init_stateManager = __esm({
         const unsubscribers = [];
         const changes = [];
         let debounceTimer = null;
-        for (const path4 of paths) {
-          const unsubscribe = this.subscribe(path4, (newValue, oldValue, changePath) => {
+        for (const path3 of paths) {
+          const unsubscribe = this.subscribe(path3, (newValue, oldValue, changePath) => {
             changes.push({ path: changePath, newValue, oldValue });
             if (debounceTimer) {
               clearTimeout(debounceTimer);
@@ -16607,8 +17928,8 @@ var init_stateManager = __esm({
         this.snapshots.destroy();
         this.isDisposed = true;
       }
-      setNestedValue(obj, path4, value) {
-        const keys = path4.split(".");
+      setNestedValue(obj, path3, value) {
+        const keys = path3.split(".");
         let current = obj;
         for (let i = 0; i < keys.length - 1; i++) {
           const key = keys[i];
@@ -16619,8 +17940,8 @@ var init_stateManager = __esm({
         }
         current[keys[keys.length - 1]] = value;
       }
-      getNestedValue(obj, path4) {
-        const keys = path4.split(".");
+      getNestedValue(obj, path3) {
+        const keys = path3.split(".");
         let current = obj;
         for (const key of keys) {
           if (current === null || current === void 0 || !(key in current)) {
@@ -16630,8 +17951,8 @@ var init_stateManager = __esm({
         }
         return current;
       }
-      deleteNestedValue(obj, path4) {
-        const keys = path4.split(".");
+      deleteNestedValue(obj, path3) {
+        const keys = path3.split(".");
         let current = obj;
         for (let i = 0; i < keys.length - 1; i++) {
           const key = keys[i];
@@ -16642,33 +17963,33 @@ var init_stateManager = __esm({
         }
         delete current[keys[keys.length - 1]];
       }
-      notifyListeners(path4, newValue, oldValue) {
-        const pathListeners = this.stateListeners.get(path4);
+      notifyListeners(path3, newValue, oldValue) {
+        const pathListeners = this.stateListeners.get(path3);
         if (pathListeners) {
           for (const listener of pathListeners) {
             try {
-              listener(newValue, oldValue, path4);
+              listener(newValue, oldValue, path3);
             } catch (error) {
               errorHandler.handleError(error, {
                 component: "StateManager",
                 operation: "notifyListeners",
-                metadata: { path: path4 }
+                metadata: { path: path3 }
               });
             }
           }
         }
-        this.emit("stateChange", newValue, oldValue, path4);
+        this.emit("stateChange", newValue, oldValue, path3);
       }
-      debouncedNotify(path4, newValue, oldValue, debounceMs) {
-        const existingTimer = this.debounceTimers.get(path4);
+      debouncedNotify(path3, newValue, oldValue, debounceMs) {
+        const existingTimer = this.debounceTimers.get(path3);
         if (existingTimer) {
           clearTimeout(existingTimer);
         }
         const timer = setTimeout(() => {
-          this.notifyListeners(path4, newValue, oldValue);
-          this.debounceTimers.delete(path4);
+          this.notifyListeners(path3, newValue, oldValue);
+          this.debounceTimers.delete(path3);
         }, debounceMs);
-        this.debounceTimers.set(path4, timer);
+        this.debounceTimers.set(path3, timer);
       }
       loadPersistedState() {
         try {
@@ -16750,10 +18071,10 @@ var init_stateManager = __esm({
        */
       static createSlice(stateManager, prefix) {
         return {
-          get: (path4, defaultValue) => stateManager.getState(`${prefix}.${path4}`, defaultValue),
-          set: (path4, value, options) => stateManager.setState(`${prefix}.${path4}`, value, options),
-          subscribe: (path4, listener) => stateManager.subscribe(`${prefix}.${path4}`, listener),
-          delete: (path4) => stateManager.deleteState(`${prefix}.${path4}`)
+          get: (path3, defaultValue) => stateManager.getState(`${prefix}.${path3}`, defaultValue),
+          set: (path3, value, options) => stateManager.setState(`${prefix}.${path3}`, value, options),
+          subscribe: (path3, listener) => stateManager.subscribe(`${prefix}.${path3}`, listener),
+          delete: (path3) => stateManager.deleteState(`${prefix}.${path3}`)
         };
       }
     };
@@ -23092,25 +24413,64 @@ init_logger();
 var import_obsidian31 = require("obsidian");
 
 // src/components/agent/memory-handling/vectorStore.ts
-var import_better_sqlite3 = __toESM(require_lib());
-var path3 = __toESM(require("path"));
+var import_sql = __toESM(require_sql_wasm());
 var VectorStore = class {
   /**
    * Constructs a new VectorStore instance.
-   * @param plugin - The Obsidian plugin instance (used to determine the data directory).
+   * @param plugin - The Obsidian plugin instance (used for naming the database).
    */
   constructor(plugin) {
-    // The underlying SQLite database connection
-    __publicField(this, "db");
-    const dataDir = plugin.app.vault.adapter instanceof Object && "basePath" in plugin.app.vault.adapter ? plugin.app.vault.adapter.basePath : "";
-    const dbPath = path3.join(
-      dataDir,
-      ".obsidian",
-      "plugins",
-      "ai-assistant-for-obsidian",
-      "ai-assistant-vectorstore.sqlite"
-    );
-    this.db = new import_better_sqlite3.default(dbPath);
+    __publicField(this, "db", null);
+    __publicField(this, "SQL", null);
+    __publicField(this, "dbName");
+    __publicField(this, "isInitialized", false);
+    this.dbName = "ai-assistant-vectorstore.sqlite";
+  }
+  /**
+   * Initializes the VectorStore by loading sql.js and setting up the database.
+   * Must be called before using any other methods.
+   */
+  async initialize() {
+    if (this.isInitialized) {
+      return;
+    }
+    try {
+      const config = {
+        locateFile: (file) => {
+          if (file.endsWith(".wasm")) {
+            return `./node_modules/sql.js/dist/${file}`;
+          }
+          return file;
+        }
+      };
+      let sqlJs;
+      try {
+        sqlJs = await (0, import_sql.default)(config);
+      } catch (wasmError) {
+        console.warn("Failed to load sql.js with custom WASM path, trying default:", wasmError);
+        sqlJs = await (0, import_sql.default)();
+      }
+      this.SQL = sqlJs;
+      const existingDb = await this.loadFromIndexedDB();
+      if (existingDb) {
+        this.db = new this.SQL.Database(existingDb);
+      } else {
+        this.db = new this.SQL.Database();
+      }
+      await this.createTables();
+      this.isInitialized = true;
+    } catch (error) {
+      console.error("Failed to initialize VectorStore:", error);
+      throw new Error(`VectorStore initialization failed: ${error.message}`);
+    }
+  }
+  /**
+   * Creates the necessary tables if they don't exist.
+   */
+  async createTables() {
+    if (!this.db) {
+      throw new Error("Database not initialized");
+    }
     const createVectorsTable = `
       CREATE TABLE IF NOT EXISTS vectors (
         id TEXT PRIMARY KEY,
@@ -23119,7 +24479,81 @@ var VectorStore = class {
         metadata TEXT
       );
     `;
-    this.db.exec(createVectorsTable);
+    try {
+      this.db.run(createVectorsTable);
+      await this.saveToIndexedDB();
+    } catch (error) {
+      console.error("Failed to create tables:", error);
+      throw error;
+    }
+  }
+  /**
+   * Loads database from IndexedDB.
+   * @returns Uint8Array database content or null if not found.
+   */
+  async loadFromIndexedDB() {
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open("VectorStoreDB", 1);
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => {
+        const db = request.result;
+        const transaction = db.transaction(["databases"], "readonly");
+        const store = transaction.objectStore("databases");
+        const getRequest = store.get(this.dbName);
+        getRequest.onsuccess = () => {
+          resolve(getRequest.result ? getRequest.result.data : null);
+        };
+        getRequest.onerror = () => reject(getRequest.error);
+      };
+      request.onupgradeneeded = () => {
+        const db = request.result;
+        if (!db.objectStoreNames.contains("databases")) {
+          db.createObjectStore("databases");
+        }
+      };
+    });
+  }
+  /**
+   * Saves database to IndexedDB.
+   */
+  async saveToIndexedDB() {
+    if (!this.db) {
+      throw new Error("Database not initialized");
+    }
+    const data = this.db.export();
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open("VectorStoreDB", 1);
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => {
+        const db = request.result;
+        const transaction = db.transaction(["databases"], "readwrite");
+        const store = transaction.objectStore("databases");
+        const putRequest = store.put({ data }, this.dbName);
+        putRequest.onsuccess = () => resolve();
+        putRequest.onerror = () => reject(putRequest.error);
+      };
+      request.onupgradeneeded = () => {
+        const db = request.result;
+        if (!db.objectStoreNames.contains("databases")) {
+          db.createObjectStore("databases");
+        }
+      };
+    });
+  }
+  /**
+   * Ensures the database is initialized before operations.
+   */
+  ensureInitialized() {
+    if (!this.isInitialized || !this.db) {
+      throw new Error("VectorStore not initialized. Call initialize() first.");
+    }
+  }
+  /**
+   * Checks if the VectorStore is initialized and ready for use.
+   * @returns True if initialized, false otherwise.
+   */
+  get initialized() {
+    return this.isInitialized && this.db !== null;
   }
   /**
    * Adds or updates a vector in the database.
@@ -23128,42 +24562,96 @@ var VectorStore = class {
    * @param embedding - The embedding vector (as Buffer or number[]).
    * @param metadata - Optional metadata object (will be JSON-stringified).
    */
-  addVector(id, text, embedding, metadata = null) {
-    const stmt = this.db.prepare(
-      "INSERT OR REPLACE INTO vectors (id, text, embedding, metadata) VALUES (?, ?, ?, ?);"
-    );
-    const embeddingBuffer = Buffer.isBuffer(embedding) ? embedding : Buffer.from(new Float32Array(embedding).buffer);
-    stmt.run(id, text, embeddingBuffer, metadata ? JSON.stringify(metadata) : null);
+  async addVector(id, text, embedding, metadata = null) {
+    this.ensureInitialized();
+    try {
+      const embeddingArray = Buffer.isBuffer(embedding) ? new Uint8Array(embedding) : new Uint8Array(new Float32Array(embedding).buffer);
+      const stmt = this.db.prepare(
+        "INSERT OR REPLACE INTO vectors (id, text, embedding, metadata) VALUES (?, ?, ?, ?);"
+      );
+      stmt.run([id, text, embeddingArray, metadata ? JSON.stringify(metadata) : null]);
+      stmt.free();
+      await this.saveToIndexedDB();
+    } catch (error) {
+      console.error("Failed to add vector:", error);
+      throw error;
+    }
   }
   /**
    * Retrieves a specific vector by its ID.
    * @param id - The unique identifier of the vector to retrieve.
    * @returns The vector object or null if not found.
    */
-  getVector(id) {
-    const stmt = this.db.prepare("SELECT * FROM vectors WHERE id = ?;");
-    const result = stmt.get(id);
-    return result || null;
+  async getVector(id) {
+    this.ensureInitialized();
+    try {
+      const stmt = this.db.prepare("SELECT * FROM vectors WHERE id = ?;");
+      stmt.bind([id]);
+      if (stmt.step()) {
+        const row = stmt.getAsObject();
+        stmt.free();
+        return {
+          id: row.id,
+          text: row.text,
+          embedding: new Uint8Array(row.embedding),
+          metadata: row.metadata
+        };
+      }
+      stmt.free();
+      return null;
+    } catch (error) {
+      console.error("Failed to get vector:", error);
+      throw error;
+    }
   }
   /**
    * Deletes a vector by its ID.
    * @param id - The unique identifier of the vector to delete.
    * @returns True if a vector was deleted, false if not found.
    */
-  deleteVector(id) {
-    const stmt = this.db.prepare("DELETE FROM vectors WHERE id = ?;");
-    const result = stmt.run(id);
-    return result.changes > 0;
+  async deleteVector(id) {
+    this.ensureInitialized();
+    try {
+      const stmt = this.db.prepare("DELETE FROM vectors WHERE id = ?;");
+      stmt.run([id]);
+      stmt.free();
+      const changes = this.db.getRowsModified();
+      if (changes > 0) {
+        await this.saveToIndexedDB();
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error("Failed to delete vector:", error);
+      throw error;
+    }
   }
   /**
    * Retrieves all vectors stored in the database.
    * @returns Array of objects: { id, text, embedding, metadata }
-   *   - embedding is a Buffer containing the binary vector data.
+   *   - embedding is a Uint8Array containing the binary vector data.
    *   - metadata is a JSON string or null.
    */
-  getAllVectors() {
-    const stmt = this.db.prepare("SELECT * FROM vectors;");
-    return stmt.all();
+  async getAllVectors() {
+    this.ensureInitialized();
+    try {
+      const stmt = this.db.prepare("SELECT * FROM vectors;");
+      const results = [];
+      while (stmt.step()) {
+        const row = stmt.getAsObject();
+        results.push({
+          id: row.id,
+          text: row.text,
+          embedding: new Uint8Array(row.embedding),
+          metadata: row.metadata
+        });
+      }
+      stmt.free();
+      return results;
+    } catch (error) {
+      console.error("Failed to get all vectors:", error);
+      throw error;
+    }
   }
   /**
    * Calculates cosine similarity between two vectors.
@@ -23189,12 +24677,12 @@ var VectorStore = class {
     return dotProduct / (Math.sqrt(norm1) * Math.sqrt(norm2));
   }
   /**
-   * Converts a Buffer containing Float32Array data back to a Float32Array.
-   * @param buffer - Buffer containing the binary vector data.
+   * Converts a Uint8Array containing Float32Array data back to a Float32Array.
+   * @param uint8Array - Uint8Array containing the binary vector data.
    * @returns Float32Array representation of the vector.
    */
-  bufferToFloat32Array(buffer) {
-    return new Float32Array(buffer.buffer, buffer.byteOffset, buffer.byteLength / 4);
+  uint8ArrayToFloat32Array(uint8Array) {
+    return new Float32Array(uint8Array.buffer, uint8Array.byteOffset, uint8Array.byteLength / 4);
   }
   /**
    * Finds the most similar vectors to a query embedding using cosine similarity.
@@ -23203,19 +24691,25 @@ var VectorStore = class {
    * @param minSimilarity - Minimum similarity threshold (default: 0, returns all).
    * @returns Array of similar vectors with similarity scores, sorted by similarity (highest first).
    */
-  findSimilarVectors(queryEmbedding, topK = 5, minSimilarity = 0) {
-    const allVectors = this.getAllVectors();
-    const similarities = allVectors.map((vector) => {
-      const vectorData = this.bufferToFloat32Array(vector.embedding);
-      const similarity = this.cosineSimilarity(queryEmbedding, vectorData);
-      return {
-        id: vector.id,
-        text: vector.text,
-        similarity,
-        metadata: vector.metadata ? JSON.parse(vector.metadata) : null
-      };
-    });
-    return similarities.filter((item) => item.similarity >= minSimilarity).sort((a, b) => b.similarity - a.similarity).slice(0, topK);
+  async findSimilarVectors(queryEmbedding, topK = 5, minSimilarity = 0) {
+    this.ensureInitialized();
+    try {
+      const allVectors = await this.getAllVectors();
+      const similarities = allVectors.map((vector) => {
+        const vectorData = this.uint8ArrayToFloat32Array(vector.embedding);
+        const similarity = this.cosineSimilarity(queryEmbedding, vectorData);
+        return {
+          id: vector.id,
+          text: vector.text,
+          similarity,
+          metadata: vector.metadata ? JSON.parse(vector.metadata) : null
+        };
+      });
+      return similarities.filter((item) => item.similarity >= minSimilarity).sort((a, b) => b.similarity - a.similarity).slice(0, topK);
+    } catch (error) {
+      console.error("Failed to find similar vectors:", error);
+      throw error;
+    }
   }
   /**
    * Searches for vectors containing specific text (case-insensitive).
@@ -23223,31 +24717,64 @@ var VectorStore = class {
    * @param limit - Maximum number of results to return (default: 10).
    * @returns Array of matching vectors.
    */
-  searchByText(searchText, limit = 10) {
-    const stmt = this.db.prepare("SELECT * FROM vectors WHERE text LIKE ? LIMIT ?;");
-    const results = stmt.all(`%${searchText}%`, limit);
-    return results.map((result) => ({
-      ...result,
-      metadata: result.metadata ? JSON.parse(result.metadata) : null
-    }));
+  async searchByText(searchText, limit = 10) {
+    this.ensureInitialized();
+    try {
+      const stmt = this.db.prepare("SELECT * FROM vectors WHERE text LIKE ? LIMIT ?;");
+      stmt.bind([`%${searchText}%`, limit]);
+      const results = [];
+      while (stmt.step()) {
+        const row = stmt.getAsObject();
+        results.push({
+          id: row.id,
+          text: row.text,
+          embedding: new Uint8Array(row.embedding),
+          metadata: row.metadata ? JSON.parse(row.metadata) : null
+        });
+      }
+      stmt.free();
+      return results;
+    } catch (error) {
+      console.error("Failed to search by text:", error);
+      throw error;
+    }
   }
   /**
    * Gets the total count of vectors in the database.
    * @returns Number of vectors stored.
    */
-  getVectorCount() {
-    const stmt = this.db.prepare("SELECT COUNT(*) as count FROM vectors;");
-    const result = stmt.get();
-    return result.count;
+  async getVectorCount() {
+    this.ensureInitialized();
+    try {
+      const stmt = this.db.prepare("SELECT COUNT(*) as count FROM vectors;");
+      stmt.step();
+      const result = stmt.getAsObject();
+      stmt.free();
+      return result.count;
+    } catch (error) {
+      console.error("Failed to get vector count:", error);
+      throw error;
+    }
   }
   /**
    * Clears all vectors from the database.
    * @returns Number of vectors that were deleted.
    */
-  clearAllVectors() {
-    const stmt = this.db.prepare("DELETE FROM vectors;");
-    const result = stmt.run();
-    return result.changes;
+  async clearAllVectors() {
+    this.ensureInitialized();
+    try {
+      const stmt = this.db.prepare("DELETE FROM vectors;");
+      stmt.run();
+      stmt.free();
+      const changes = this.db.getRowsModified();
+      if (changes > 0) {
+        await this.saveToIndexedDB();
+      }
+      return changes;
+    } catch (error) {
+      console.error("Failed to clear all vectors:", error);
+      throw error;
+    }
   }
   /**
    * Gets vectors by their metadata properties.
@@ -23255,43 +24782,92 @@ var VectorStore = class {
    * @param limit - Maximum number of results (default: 10).
    * @returns Array of matching vectors.
    */
-  getVectorsByMetadata(metadataQuery, limit = 10) {
-    const allVectors = this.getAllVectors();
-    const matches = allVectors.filter((vector) => {
-      if (!vector.metadata) return false;
-      try {
-        const metadata = JSON.parse(vector.metadata);
-        return Object.entries(metadataQuery).every(([key, value]) => metadata[key] === value);
-      } catch (e) {
-        return false;
-      }
-    }).slice(0, limit);
-    return matches.map((result) => ({
-      ...result,
-      metadata: result.metadata ? JSON.parse(result.metadata) : null
-    }));
+  async getVectorsByMetadata(metadataQuery, limit = 10) {
+    this.ensureInitialized();
+    try {
+      const allVectors = await this.getAllVectors();
+      const matches = allVectors.filter((vector) => {
+        if (!vector.metadata) return false;
+        try {
+          const metadata = JSON.parse(vector.metadata);
+          return Object.entries(metadataQuery).every(([key, value]) => metadata[key] === value);
+        } catch (e) {
+          return false;
+        }
+      }).slice(0, limit);
+      return matches.map((result) => ({
+        ...result,
+        metadata: result.metadata ? JSON.parse(result.metadata) : null
+      }));
+    } catch (error) {
+      console.error("Failed to get vectors by metadata:", error);
+      throw error;
+    }
   }
   /**
-   * Closes the database connection.
+   * Closes the database connection and cleans up resources.
    * Should be called when the vector store is no longer needed.
    */
-  close() {
-    this.db.close();
+  async close() {
+    if (this.db) {
+      try {
+        await this.saveToIndexedDB();
+        this.db.close();
+        this.db = null;
+        this.isInitialized = false;
+      } catch (error) {
+        console.error("Failed to close database:", error);
+        throw error;
+      }
+    }
   }
 };
 
 // src/components/agent/memory-handling/EmbeddingService.ts
 init_providers();
 init_logger();
-var crypto = __toESM(require("crypto"));
+var crypto2 = __toESM(require("crypto"));
 var EmbeddingService = class {
   constructor(plugin, settings) {
     __publicField(this, "vectorStore");
     __publicField(this, "plugin");
     __publicField(this, "settings");
+    __publicField(this, "isInitialized", false);
     this.plugin = plugin;
     this.settings = settings;
     this.vectorStore = new VectorStore(plugin);
+  }
+  /**
+   * Initialize the EmbeddingService by setting up the VectorStore.
+   * Must be called before using any other methods.
+   */
+  async initialize() {
+    var _a2, _b;
+    if (this.isInitialized) {
+      return;
+    }
+    try {
+      await this.vectorStore.initialize();
+      this.isInitialized = true;
+      debugLog((_a2 = this.settings.debugMode) != null ? _a2 : false, "info", "EmbeddingService initialized successfully");
+    } catch (error) {
+      debugLog((_b = this.settings.debugMode) != null ? _b : false, "error", "Failed to initialize EmbeddingService:", error);
+      throw error;
+    }
+  }
+  /**
+   * Checks if the service is initialized and ready for use.
+   */
+  get initialized() {
+    return this.isInitialized && this.vectorStore.initialized;
+  }
+  /**
+   * Ensures the service is initialized before operations.
+   */
+  ensureInitialized() {
+    if (!this.initialized) {
+      throw new Error("EmbeddingService not initialized. Call initialize() first.");
+    }
   }
   /**
    * Generates embeddings for text using the configured AI provider.
@@ -23365,7 +24941,7 @@ var EmbeddingService = class {
    */
   generateId(text, metadata = {}) {
     const content = text + JSON.stringify(metadata);
-    return crypto.createHash("sha256").update(content).digest("hex");
+    return crypto2.createHash("sha256").update(content).digest("hex");
   }
   /**
    * Embeds a single note file.
@@ -23374,6 +24950,7 @@ var EmbeddingService = class {
    */
   async embedNote(file, options = {}) {
     var _a2, _b;
+    this.ensureInitialized();
     try {
       const content = await this.plugin.app.vault.read(file);
       await this.embedText(content, {
@@ -23399,6 +24976,7 @@ var EmbeddingService = class {
    */
   async embedText(text, options = {}) {
     var _a2, _b;
+    this.ensureInitialized();
     try {
       const chunks = this.splitIntoChunks(text, options);
       for (let i = 0; i < chunks.length; i++) {
@@ -23411,7 +24989,7 @@ var EmbeddingService = class {
           ...options.customMetadata
         };
         const id = this.generateId(chunk, metadata);
-        this.vectorStore.addVector(id, chunk, embedding, metadata);
+        await this.vectorStore.addVector(id, chunk, embedding, metadata);
       }
       debugLog((_a2 = this.settings.debugMode) != null ? _a2 : false, "info", `Embedded ${chunks.length} chunks`);
     } catch (error) {
@@ -23426,6 +25004,7 @@ var EmbeddingService = class {
    */
   async embedConversation(messages, sessionId) {
     var _a2, _b;
+    this.ensureInitialized();
     try {
       for (let i = 0; i < messages.length; i++) {
         const message = messages[i];
@@ -23440,7 +25019,7 @@ var EmbeddingService = class {
           type: "conversation"
         };
         const id = this.generateId(text, metadata);
-        this.vectorStore.addVector(id, text, embedding, metadata);
+        await this.vectorStore.addVector(id, text, embedding, metadata);
       }
       debugLog((_a2 = this.settings.debugMode) != null ? _a2 : false, "info", `Embedded conversation with ${messages.length} messages`);
     } catch (error) {
@@ -23456,11 +25035,12 @@ var EmbeddingService = class {
    */
   async semanticSearch(query, options = {}) {
     var _a2;
+    this.ensureInitialized();
     try {
       const queryEmbedding = await this.generateEmbedding(query);
       const topK = options.topK || 5;
       const minSimilarity = options.minSimilarity || 0.7;
-      let results = this.vectorStore.findSimilarVectors(queryEmbedding, topK * 2, minSimilarity);
+      let results = await this.vectorStore.findSimilarVectors(queryEmbedding, topK * 2, minSimilarity);
       if (options.filterMetadata) {
         results = results.filter((result) => {
           if (!result.metadata) return false;
@@ -23515,6 +25095,7 @@ var EmbeddingService = class {
    */
   async embedAllNotes(options = {}) {
     var _a2;
+    this.ensureInitialized();
     const notice = new import_obsidian31.Notice("Embedding all notes...", 0);
     try {
       const files = this.plugin.app.vault.getMarkdownFiles();
@@ -23541,23 +25122,25 @@ var EmbeddingService = class {
    */
   async clearAllEmbeddings() {
     var _a2;
-    const count = this.vectorStore.clearAllVectors();
+    this.ensureInitialized();
+    const count = await this.vectorStore.clearAllVectors();
     showNotice(`Cleared ${count} embeddings from memory.`);
     debugLog((_a2 = this.settings.debugMode) != null ? _a2 : false, "info", `Cleared ${count} embeddings`);
   }
   /**
    * Gets statistics about the vector store.
    */
-  getStats() {
+  async getStats() {
+    this.ensureInitialized();
     return {
-      totalVectors: this.vectorStore.getVectorCount()
+      totalVectors: await this.vectorStore.getVectorCount()
     };
   }
   /**
    * Closes the embedding service and cleans up resources.
    */
-  close() {
-    this.vectorStore.close();
+  async close() {
+    await this.vectorStore.close();
   }
 };
 
@@ -23567,14 +25150,38 @@ var SemanticContextBuilder = class {
     this.app = app;
     this.plugin = plugin;
     __publicField(this, "embeddingService", null);
+    __publicField(this, "isInitialized", false);
     var _a2;
-    if (this.app.isMobile === false) {
-      try {
-        this.embeddingService = new EmbeddingService(plugin, plugin.settings);
-      } catch (error) {
-        debugLog((_a2 = plugin.settings.debugMode) != null ? _a2 : false, "warn", "EmbeddingService unavailable:", error);
-      }
+    try {
+      this.embeddingService = new EmbeddingService(plugin, plugin.settings);
+    } catch (error) {
+      debugLog((_a2 = plugin.settings.debugMode) != null ? _a2 : false, "warn", "EmbeddingService unavailable:", error);
     }
+  }
+  /**
+   * Initialize the SemanticContextBuilder by setting up the EmbeddingService.
+   * Should be called before using other methods.
+   */
+  async initialize() {
+    var _a2, _b;
+    if (this.isInitialized || !this.embeddingService) {
+      return;
+    }
+    try {
+      await this.embeddingService.initialize();
+      this.isInitialized = true;
+      debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", "SemanticContextBuilder initialized successfully");
+    } catch (error) {
+      debugLog((_b = this.plugin.settings.debugMode) != null ? _b : false, "error", "Failed to initialize SemanticContextBuilder:", error);
+      throw error;
+    }
+  }
+  /**
+   * Checks if the SemanticContextBuilder is ready for use.
+   */
+  get initialized() {
+    var _a2;
+    return this.isInitialized && ((_a2 = this.embeddingService) == null ? void 0 : _a2.initialized) === true;
   }
   /**
    * Builds semantic context messages for AI completions.
@@ -23586,7 +25193,10 @@ var SemanticContextBuilder = class {
     var _a2, _b, _c;
     const contextMessages = [];
     try {
-      if (!this.embeddingService) {
+      if (!this.initialized) {
+        await this.initialize();
+      }
+      if (!this.embeddingService || !this.initialized) {
         debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", "Embedding service not available, skipping semantic context");
         return contextMessages;
       }
@@ -23655,7 +25265,7 @@ ${relevantContext.join("\n\n")}`
   /**
    * Gets embedding service statistics.
    */
-  getStats() {
+  async getStats() {
     var _a2;
     return ((_a2 = this.embeddingService) == null ? void 0 : _a2.getStats()) || null;
   }
@@ -23685,9 +25295,9 @@ ${relevantContext.join("\n\n")}`
   /**
    * Closes the semantic context builder and cleans up resources.
    */
-  close() {
+  async close() {
     if (this.embeddingService) {
-      this.embeddingService.close();
+      await this.embeddingService.close();
     }
   }
 };
@@ -23709,14 +25319,20 @@ var VectorStoreSettingsSection = class {
    */
   render(containerEl) {
     new import_obsidian32.Setting(containerEl).setName("Vector Store Status").setDesc("Current status of the semantic memory system").addText((text) => {
-      var _a2;
-      const stats = (_a2 = this.semanticContextBuilder) == null ? void 0 : _a2.getStats();
-      if (stats) {
-        text.setValue(`${stats.totalVectors} embeddings stored`);
-        text.setDisabled(true);
+      text.setValue("Loading...");
+      text.setDisabled(true);
+      if (this.semanticContextBuilder) {
+        this.semanticContextBuilder.getStats().then((stats) => {
+          if (stats) {
+            text.setValue(`${stats.totalVectors} embeddings stored`);
+          } else {
+            text.setValue("Vector store unavailable");
+          }
+        }).catch(() => {
+          text.setValue("Error loading stats");
+        });
       } else {
-        text.setValue("Vector store unavailable (Desktop only)");
-        text.setDisabled(true);
+        text.setValue("Vector store unavailable");
       }
     });
     new import_obsidian32.Setting(containerEl).setName("Enable Semantic Context").setDesc("Use semantic search to find relevant context for AI completions. Requires embeddings to be generated first.").addToggle((toggle) => {
@@ -23823,9 +25439,9 @@ var VectorStoreSettingsSection = class {
             This allows the AI to find and include relevant context even when the exact keywords don't match.<br><br>
             <strong>Requirements:</strong><br>
             \u2022 OpenAI API key for embedding generation<br>
-            \u2022 Desktop version of Obsidian (not available on mobile)<br>
             \u2022 Initial embedding generation for your notes<br><br>
-            <strong>Privacy:</strong> Embeddings are stored locally in your vault and never sent to external services except for the initial generation.
+            <strong>Cross-Platform:</strong> Works on both Obsidian Desktop and Mobile devices.<br><br>
+            <strong>Privacy:</strong> Embeddings are stored locally using IndexedDB and never sent to external services except for the initial generation.
         `;
   }
 };
@@ -24651,11 +26267,11 @@ function registerVectorStoreCommands(plugin) {
   registerCommand(plugin, {
     id: "vector-store-stats",
     name: "Vector Store Statistics",
-    callback: () => {
+    callback: async () => {
       var _a2;
       try {
         const semanticBuilder = new SemanticContextBuilder(plugin.app, plugin);
-        const stats = semanticBuilder.getStats();
+        const stats = await semanticBuilder.getStats();
         if (stats) {
           new import_obsidian36.Notice(`Vector Store: ${stats.totalVectors} embeddings stored`);
         } else {
@@ -24833,9 +26449,9 @@ var Priority3IntegrationManager = class {
           this.handleHighMemoryUsage();
         }
       }),
-      globalStateManager.subscribeAll((newValue, oldValue, path4) => {
+      globalStateManager.subscribeAll((newValue, oldValue, path3) => {
         if (true) {
-          console.log(`State changed: ${path4}`, { oldValue, newValue });
+          console.log(`State changed: ${path3}`, { oldValue, newValue });
         }
       })
     );
