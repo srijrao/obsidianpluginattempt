@@ -1,6 +1,7 @@
 import { App, Setting } from 'obsidian';
 import MyPlugin from '../../main';
 import { SettingCreators } from '../components/SettingCreators';
+import { CollapsibleSectionRenderer } from '../../utils/CollapsibleSection';
 
 /**
  * GeneralSettingsSection is responsible for rendering general plugin settings.
@@ -24,67 +25,92 @@ export class GeneralSettingsSection {
      * @param containerEl The HTML element to render the sections into.
      */
     async render(containerEl: HTMLElement): Promise<void> {
-        // Plugin Behavior Section Header
-        containerEl.createEl('h3', { text: 'Plugin Behavior' });
-        
-        // Auto-Open Model Settings Toggle
-        this.settingCreators.createToggleSetting(
-            containerEl, 
-            'Auto-Open Model Settings', 
-            'Automatically open the AI model settings panel when the plugin loads.',
-            () => this.plugin.settings.autoOpenModelSettings,
-            async (value) => { 
-                this.plugin.settings.autoOpenModelSettings = value; 
-                await this.plugin.saveSettings(); 
-            }
+        // Plugin Behavior Section
+        CollapsibleSectionRenderer.createCollapsibleSection(
+            containerEl,
+            'Plugin Behavior',
+            (sectionEl: HTMLElement) => {
+                // Auto-Open Model Settings Toggle
+                this.settingCreators.createToggleSetting(
+                    sectionEl, 
+                    'Auto-Open Model Settings', 
+                    'Automatically open the AI model settings panel when the plugin loads.',
+                    () => this.plugin.settings.autoOpenModelSettings,
+                    async (value) => { 
+                        this.plugin.settings.autoOpenModelSettings = value; 
+                        await this.plugin.saveSettings(); 
+                    }
+                );
+            },
+            this.plugin,
+            'generalSectionsExpanded'
         );
 
-        // Date & Time Settings Section Header
-        containerEl.createEl('h3', { text: 'Date & Time Settings' });
-
-        // Include Time with System Message Toggle
-        this.settingCreators.createToggleSetting(
+        // Date & Time Settings Section
+        CollapsibleSectionRenderer.createCollapsibleSection(
             containerEl,
-            'Include Time with System Message',
-            'Add the current time along with the date to the system message',
-            () => this.plugin.settings.includeTimeWithSystemMessage,
-            async (value) => {
-                this.plugin.settings.includeTimeWithSystemMessage = value;
-                await this.plugin.saveSettings();
-            }
+            'Date & Time Settings',
+            (sectionEl: HTMLElement) => {
+                // Include Time with System Message Toggle
+                this.settingCreators.createToggleSetting(
+                    sectionEl,
+                    'Include Time with System Message',
+                    'Add the current time along with the date to the system message',
+                    () => this.plugin.settings.includeTimeWithSystemMessage,
+                    async (value) => {
+                        this.plugin.settings.includeTimeWithSystemMessage = value;
+                        await this.plugin.saveSettings();
+                    }
+                );
+            },
+            this.plugin,
+            'generalSectionsExpanded'
         );
 
-        // Debug Settings Section Header
-        containerEl.createEl('h3', { text: 'Debug Settings' });
-        
-        // Debug Mode Toggle
-        this.settingCreators.createToggleSetting(
+        // Debug Settings Section
+        CollapsibleSectionRenderer.createCollapsibleSection(
             containerEl,
-            'Debug Mode',
-            'Enable verbose logging and debug UI features',
-            () => this.plugin.settings.debugMode ?? false,
-            async (value) => {
-                this.plugin.settings.debugMode = value;
-                await this.plugin.saveSettings();
-            }
+            'Debug Settings',
+            (sectionEl: HTMLElement) => {
+                // Debug Mode Toggle
+                this.settingCreators.createToggleSetting(
+                    sectionEl,
+                    'Debug Mode',
+                    'Enable verbose logging and debug UI features',
+                    () => this.plugin.settings.debugMode ?? false,
+                    async (value) => {
+                        this.plugin.settings.debugMode = value;
+                        await this.plugin.saveSettings();
+                    }
+                );
+            },
+            this.plugin,
+            'generalSectionsExpanded'
         );
 
         // AI Call Log Management Section
-        containerEl.createEl('h3', { text: 'AI Call Log Management' });
-        new Setting(containerEl)
-            .setName('Clear AI Call Logs')
-            .setDesc('Delete all AI call log files from the plugin\'s ai-calls folder.')
-            .addButton(btn => {
-                btn.setButtonText('Clear Logs')
-                    .setCta()
-                    .onClick(async () => {
-                        const { clearAICallLogs } = await import('../../utils/clearAICallLogs');
-                        const pluginFolder = __dirname;
-                        const deleted = await clearAICallLogs(pluginFolder, 'ai-calls');
-                        // @ts-ignore
-                        // eslint-disable-next-line no-new
-                        new (window as any).Notice(`Cleared ${deleted} AI call log file(s).`);
+        CollapsibleSectionRenderer.createCollapsibleSection(
+            containerEl,
+            'AI Call Log Management',
+            (sectionEl: HTMLElement) => {
+                new Setting(sectionEl)
+                    .setName('Clear AI Call Logs')
+                    .setDesc('Delete all AI call log files from the plugin\'s ai-calls folder.')
+                    .addButton(btn => {
+                        btn.setButtonText('Clear Logs')
+                            .setCta()
+                            .onClick(async () => {
+                                const { clearAICallLogs } = await import('../../utils/clearAICallLogs');
+                                const pluginFolder = __dirname;
+                                const deleted = await clearAICallLogs(pluginFolder, 'ai-calls');
+                                // @ts-ignore
+                                // eslint-disable-next-line no-new
+                                new (window as any).Notice(`Cleared ${deleted} AI call log file(s).`);
+                            });
                     });
-            });
+            },
+            this.plugin,
+            'generalSectionsExpanded'
+        );
     }
 }

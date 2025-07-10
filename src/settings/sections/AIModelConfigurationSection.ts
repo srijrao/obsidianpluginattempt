@@ -28,26 +28,28 @@ export class AIModelConfigurationSection {
      */
     async render(containerEl: HTMLElement): Promise<void> {
         // Section for API Keys & Providers
-        containerEl.createEl('h3', { text: 'API Keys & Providers' });
-        
-        // OpenAI Configuration Section
         CollapsibleSectionRenderer.createCollapsibleSection(
             containerEl,
-            'OpenAI Configuration',
+            'API Keys & Providers',
             async (sectionEl: HTMLElement) => {
-                this.settingCreators.createTextSetting(
-                    sectionEl, 
-                    'OpenAI API Key', 
-                    'Enter your OpenAI API key', 
-                    'Enter your API key',
-                    () => this.plugin.settings.openaiSettings.apiKey,
-                    async (value) => {
-                        if (value && !isValidOpenAIApiKey(value)) {
-                            new Notice('Invalid OpenAI API Key format. Please check your key.');
-                            return;
-                        }
-                        this.plugin.settings.openaiSettings.apiKey = value ?? '';
-                        await this.plugin.saveSettings();
+                // OpenAI Configuration Section
+                CollapsibleSectionRenderer.createCollapsibleSection(
+                    sectionEl,
+                    'OpenAI Configuration',
+                    async (subSectionEl: HTMLElement) => {
+                        this.settingCreators.createTextSetting(
+                            subSectionEl, 
+                            'OpenAI API Key', 
+                            'Enter your OpenAI API key', 
+                            'Enter your API key',
+                            () => this.plugin.settings.openaiSettings.apiKey,
+                            async (value) => {
+                                if (value && !isValidOpenAIApiKey(value)) {
+                                    new Notice('Invalid OpenAI API Key format. Please check your key.');
+                                    return;
+                                }
+                                this.plugin.settings.openaiSettings.apiKey = value ?? '';
+                                await this.plugin.saveSettings();
                     }
                 );
                 
@@ -155,27 +157,43 @@ export class AIModelConfigurationSection {
                 steps.createEl('li', { text: 'Pull models using "ollama pull model-name"' });
                 steps.createEl('li', { text: 'Test connection to see available models' });
                 
-                this.renderProviderTestSection(sectionEl, 'ollama', 'Ollama');
+                        this.renderProviderTestSection(sectionEl, 'ollama', 'Ollama');
+                    },
+                    this.plugin,
+                    'providerConfigExpanded'
+                );
             },
             this.plugin,
             'providerConfigExpanded'
         );
 
         // Default AI Model Settings Section
-        containerEl.createEl('h3', { text: 'Default AI Model Settings' });
-        
-        await this.renderAIModelSettings(containerEl);
+        CollapsibleSectionRenderer.createCollapsibleSection(
+            containerEl,
+            'Default AI Model Settings',
+            async (sectionEl: HTMLElement) => {
+                await this.renderAIModelSettings(sectionEl);
+            },
+            this.plugin,
+            'generalSectionsExpanded'
+        );
         
         // Model Management Section
-        containerEl.createEl('h3', { text: 'Model Management' });
-        
-        // Available Models Subsection
-        containerEl.createEl('h4', { text: 'Available Models' });
-        await this.renderAvailableModelsSection(containerEl);
-        
-        // Model Setting Presets Subsection
-        containerEl.createEl('h4', { text: 'Model Setting Presets' });
-        this.renderModelSettingPresets(containerEl);
+        CollapsibleSectionRenderer.createCollapsibleSection(
+            containerEl,
+            'Model Management',
+            async (sectionEl: HTMLElement) => {
+                // Available Models Subsection
+                sectionEl.createEl('h4', { text: 'Available Models' });
+                await this.renderAvailableModelsSection(sectionEl);
+                
+                // Model Setting Presets Subsection
+                sectionEl.createEl('h4', { text: 'Model Setting Presets' });
+                this.renderModelSettingPresets(sectionEl);
+            },
+            this.plugin,
+            'generalSectionsExpanded'
+        );
     }
 
     /**

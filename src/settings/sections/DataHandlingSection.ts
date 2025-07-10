@@ -65,90 +65,97 @@ export class DataHandlingSection {
      * @param containerEl The HTML element to append the section to.
      */
     private renderYamlAttributeGenerators(containerEl: HTMLElement): void {
-        containerEl.createEl('h3', { text: 'YAML Attribute Generators' });
-        const descDiv = containerEl.createEl('div', { text: 'Configure custom YAML attribute generators. Each entry will create a command to generate and insert/update a YAML field in your notes.' });
-        descDiv.style.marginBottom = '1em';
+        CollapsibleSectionRenderer.createCollapsibleSection(
+            containerEl,
+            'YAML Attribute Generators',
+            (sectionEl: HTMLElement) => {
+                const descDiv = sectionEl.createEl('div', { text: 'Configure custom YAML attribute generators. Each entry will create a command to generate and insert/update a YAML field in your notes.' });
+                descDiv.style.marginBottom = '1em';
 
-        // Add button at the top for better discoverability
-        new Setting(containerEl)
-            .addButton(btn => {
-                btn.setButtonText('Add YAML Attribute Generator')
-                    .setCta()
-                    .onClick(async () => {
-                        if (!this.plugin.settings.yamlAttributeGenerators) this.plugin.settings.yamlAttributeGenerators = [];
-                        this.plugin.settings.yamlAttributeGenerators.push({
-                            attributeName: '',
-                            prompt: '',
-                            outputMode: 'metadata',
-                            commandName: 'New YAML Generator'
-                        });
-                        await this.plugin.saveSettings();
+                // Add button at the top for better discoverability
+                new Setting(sectionEl)
+                    .addButton(btn => {
+                        btn.setButtonText('Add YAML Attribute Generator')
+                            .setCta()
+                            .onClick(async () => {
+                                if (!this.plugin.settings.yamlAttributeGenerators) this.plugin.settings.yamlAttributeGenerators = [];
+                                this.plugin.settings.yamlAttributeGenerators.push({
+                                    attributeName: '',
+                                    prompt: '',
+                                    outputMode: 'metadata',
+                                    commandName: 'New YAML Generator'
+                                });
+                                await this.plugin.saveSettings();
+                            });
                     });
-            });
 
-        const yamlGens = this.plugin.settings.yamlAttributeGenerators ?? [];
-        yamlGens.forEach((gen, idx) => {
-            const autoCommandName = gen.attributeName ? `Generate YAML: ${gen.attributeName}` : `YAML Generator #${idx + 1}`;
-            const setting = new Setting(containerEl)
-                .setName(autoCommandName)
-                .setDesc(`YAML field: ${gen.attributeName}`);
+                const yamlGens = this.plugin.settings.yamlAttributeGenerators ?? [];
+                yamlGens.forEach((gen, idx) => {
+                    const autoCommandName = gen.attributeName ? `Generate YAML: ${gen.attributeName}` : `YAML Generator #${idx + 1}`;
+                    const setting = new Setting(sectionEl)
+                        .setName(autoCommandName)
+                        .setDesc(`YAML field: ${gen.attributeName}`);
 
-            // YAML Attribute Name
-            setting.addText(text => this.settingCreators.createTextSetting(
-                containerEl,
-                'YAML Attribute Name',
-                '',
-                'YAML Attribute Name',
-                () => gen.attributeName,
-                async (value) => {
-                    if (this.plugin.settings.yamlAttributeGenerators) {
-                        this.plugin.settings.yamlAttributeGenerators[idx].attributeName = value ?? '';
-                        this.plugin.settings.yamlAttributeGenerators[idx].commandName = value ? `Generate YAML: ${value}` : '';
-                        await this.plugin.saveSettings();
-                    }
-                }
-            ));
-
-            // Output Mode Dropdown
-            setting.addDropdown(drop => {
-                drop.addOption('clipboard', 'Copy to clipboard');
-                drop.addOption('metadata', 'Insert into metadata');
-                drop.setValue(gen.outputMode);
-                drop.onChange(async (value) => {
-                    if (this.plugin.settings.yamlAttributeGenerators) {
-                        this.plugin.settings.yamlAttributeGenerators[idx].outputMode = value as any;
-                        await this.plugin.saveSettings();
-                    }
-                });
-            });
-
-            // Prompt for LLM
-            setting.addTextArea(text => this.settingCreators.createTextSetting(
-                containerEl,
-                'Prompt for LLM',
-                '',
-                'Prompt for LLM',
-                () => gen.prompt,
-                async (value) => {
-                    if (this.plugin.settings.yamlAttributeGenerators) {
-                        this.plugin.settings.yamlAttributeGenerators[idx].prompt = value ?? '';
-                        await this.plugin.saveSettings();
-                    }
-                },
-                { isTextArea: true }
-            ));
-
-            // Delete button
-            setting.addExtraButton(btn => {
-                btn.setIcon('cross')
-                    .setTooltip('Delete')
-                    .onClick(async () => {
-                        if (this.plugin.settings.yamlAttributeGenerators) {
-                            this.plugin.settings.yamlAttributeGenerators.splice(idx, 1);
-                            await this.plugin.saveSettings();
+                    // YAML Attribute Name
+                    setting.addText(text => this.settingCreators.createTextSetting(
+                        sectionEl,
+                        'YAML Attribute Name',
+                        '',
+                        'YAML Attribute Name',
+                        () => gen.attributeName,
+                        async (value) => {
+                            if (this.plugin.settings.yamlAttributeGenerators) {
+                                this.plugin.settings.yamlAttributeGenerators[idx].attributeName = value ?? '';
+                                this.plugin.settings.yamlAttributeGenerators[idx].commandName = value ? `Generate YAML: ${value}` : '';
+                                await this.plugin.saveSettings();
+                            }
                         }
+                    ));
+
+                    // Output Mode Dropdown
+                    setting.addDropdown(drop => {
+                        drop.addOption('clipboard', 'Copy to clipboard');
+                        drop.addOption('metadata', 'Insert into metadata');
+                        drop.setValue(gen.outputMode);
+                        drop.onChange(async (value) => {
+                            if (this.plugin.settings.yamlAttributeGenerators) {
+                                this.plugin.settings.yamlAttributeGenerators[idx].outputMode = value as any;
+                                await this.plugin.saveSettings();
+                            }
+                        });
                     });
-            });
-        });
+
+                    // Prompt for LLM
+                    setting.addTextArea(text => this.settingCreators.createTextSetting(
+                        sectionEl,
+                        'Prompt for LLM',
+                        '',
+                        'Prompt for LLM',
+                        () => gen.prompt,
+                        async (value) => {
+                            if (this.plugin.settings.yamlAttributeGenerators) {
+                                this.plugin.settings.yamlAttributeGenerators[idx].prompt = value ?? '';
+                                await this.plugin.saveSettings();
+                            }
+                        },
+                        { isTextArea: true }
+                    ));
+
+                    // Delete button
+                    setting.addExtraButton(btn => {
+                        btn.setIcon('cross')
+                            .setTooltip('Delete')
+                            .onClick(async () => {
+                                if (this.plugin.settings.yamlAttributeGenerators) {
+                                    this.plugin.settings.yamlAttributeGenerators.splice(idx, 1);
+                                    await this.plugin.saveSettings();
+                                }
+                            });
+                    });
+                });
+            },
+            this.plugin,
+            'generalSectionsExpanded'
+        );
     }
 }

@@ -22871,51 +22871,79 @@ var GeneralSettingsSection = class {
    * @param containerEl The HTML element to render the sections into.
    */
   async render(containerEl) {
-    containerEl.createEl("h3", { text: "Plugin Behavior" });
-    this.settingCreators.createToggleSetting(
+    CollapsibleSectionRenderer.createCollapsibleSection(
       containerEl,
-      "Auto-Open Model Settings",
-      "Automatically open the AI model settings panel when the plugin loads.",
-      () => this.plugin.settings.autoOpenModelSettings,
-      async (value) => {
-        this.plugin.settings.autoOpenModelSettings = value;
-        await this.plugin.saveSettings();
-      }
-    );
-    containerEl.createEl("h3", { text: "Date & Time Settings" });
-    this.settingCreators.createToggleSetting(
-      containerEl,
-      "Include Time with System Message",
-      "Add the current time along with the date to the system message",
-      () => this.plugin.settings.includeTimeWithSystemMessage,
-      async (value) => {
-        this.plugin.settings.includeTimeWithSystemMessage = value;
-        await this.plugin.saveSettings();
-      }
-    );
-    containerEl.createEl("h3", { text: "Debug Settings" });
-    this.settingCreators.createToggleSetting(
-      containerEl,
-      "Debug Mode",
-      "Enable verbose logging and debug UI features",
-      () => {
-        var _a2;
-        return (_a2 = this.plugin.settings.debugMode) != null ? _a2 : false;
+      "Plugin Behavior",
+      (sectionEl) => {
+        this.settingCreators.createToggleSetting(
+          sectionEl,
+          "Auto-Open Model Settings",
+          "Automatically open the AI model settings panel when the plugin loads.",
+          () => this.plugin.settings.autoOpenModelSettings,
+          async (value) => {
+            this.plugin.settings.autoOpenModelSettings = value;
+            await this.plugin.saveSettings();
+          }
+        );
       },
-      async (value) => {
-        this.plugin.settings.debugMode = value;
-        await this.plugin.saveSettings();
-      }
+      this.plugin,
+      "generalSectionsExpanded"
     );
-    containerEl.createEl("h3", { text: "AI Call Log Management" });
-    new import_obsidian27.Setting(containerEl).setName("Clear AI Call Logs").setDesc("Delete all AI call log files from the plugin's ai-calls folder.").addButton((btn) => {
-      btn.setButtonText("Clear Logs").setCta().onClick(async () => {
-        const { clearAICallLogs: clearAICallLogs2 } = await Promise.resolve().then(() => (init_clearAICallLogs(), clearAICallLogs_exports));
-        const pluginFolder = __dirname;
-        const deleted = await clearAICallLogs2(pluginFolder, "ai-calls");
-        new window.Notice(`Cleared ${deleted} AI call log file(s).`);
-      });
-    });
+    CollapsibleSectionRenderer.createCollapsibleSection(
+      containerEl,
+      "Date & Time Settings",
+      (sectionEl) => {
+        this.settingCreators.createToggleSetting(
+          sectionEl,
+          "Include Time with System Message",
+          "Add the current time along with the date to the system message",
+          () => this.plugin.settings.includeTimeWithSystemMessage,
+          async (value) => {
+            this.plugin.settings.includeTimeWithSystemMessage = value;
+            await this.plugin.saveSettings();
+          }
+        );
+      },
+      this.plugin,
+      "generalSectionsExpanded"
+    );
+    CollapsibleSectionRenderer.createCollapsibleSection(
+      containerEl,
+      "Debug Settings",
+      (sectionEl) => {
+        this.settingCreators.createToggleSetting(
+          sectionEl,
+          "Debug Mode",
+          "Enable verbose logging and debug UI features",
+          () => {
+            var _a2;
+            return (_a2 = this.plugin.settings.debugMode) != null ? _a2 : false;
+          },
+          async (value) => {
+            this.plugin.settings.debugMode = value;
+            await this.plugin.saveSettings();
+          }
+        );
+      },
+      this.plugin,
+      "generalSectionsExpanded"
+    );
+    CollapsibleSectionRenderer.createCollapsibleSection(
+      containerEl,
+      "AI Call Log Management",
+      (sectionEl) => {
+        new import_obsidian27.Setting(sectionEl).setName("Clear AI Call Logs").setDesc("Delete all AI call log files from the plugin's ai-calls folder.").addButton((btn) => {
+          btn.setButtonText("Clear Logs").setCta().onClick(async () => {
+            const { clearAICallLogs: clearAICallLogs2 } = await Promise.resolve().then(() => (init_clearAICallLogs(), clearAICallLogs_exports));
+            const pluginFolder = __dirname;
+            const deleted = await clearAICallLogs2(pluginFolder, "ai-calls");
+            new window.Notice(`Cleared ${deleted} AI call log file(s).`);
+          });
+        });
+      },
+      this.plugin,
+      "generalSectionsExpanded"
+    );
   }
 };
 
@@ -22939,131 +22967,152 @@ var AIModelConfigurationSection = class {
    * @param containerEl The HTML element to render the section into.
    */
   async render(containerEl) {
-    containerEl.createEl("h3", { text: "API Keys & Providers" });
     CollapsibleSectionRenderer.createCollapsibleSection(
       containerEl,
-      "OpenAI Configuration",
+      "API Keys & Providers",
       async (sectionEl) => {
-        this.settingCreators.createTextSetting(
+        CollapsibleSectionRenderer.createCollapsibleSection(
           sectionEl,
-          "OpenAI API Key",
-          "Enter your OpenAI API key",
-          "Enter your API key",
-          () => this.plugin.settings.openaiSettings.apiKey,
-          async (value) => {
-            if (value && !isValidOpenAIApiKey(value)) {
-              new import_obsidian28.Notice("Invalid OpenAI API Key format. Please check your key.");
-              return;
-            }
-            this.plugin.settings.openaiSettings.apiKey = value != null ? value : "";
-            await this.plugin.saveSettings();
-          }
-        );
-        this.settingCreators.createTextSetting(
-          sectionEl,
-          "OpenAI Base URL",
-          "Custom base URL for OpenAI API (optional, leave empty for default)",
-          "https://api.openai.com/v1",
-          () => this.plugin.settings.openaiSettings.baseUrl || "",
-          async (value) => {
-            this.plugin.settings.openaiSettings.baseUrl = value;
-            await this.plugin.saveSettings();
+          "OpenAI Configuration",
+          async (subSectionEl) => {
+            this.settingCreators.createTextSetting(
+              subSectionEl,
+              "OpenAI API Key",
+              "Enter your OpenAI API key",
+              "Enter your API key",
+              () => this.plugin.settings.openaiSettings.apiKey,
+              async (value) => {
+                if (value && !isValidOpenAIApiKey(value)) {
+                  new import_obsidian28.Notice("Invalid OpenAI API Key format. Please check your key.");
+                  return;
+                }
+                this.plugin.settings.openaiSettings.apiKey = value != null ? value : "";
+                await this.plugin.saveSettings();
+              }
+            );
+            this.settingCreators.createTextSetting(
+              sectionEl,
+              "OpenAI Base URL",
+              "Custom base URL for OpenAI API (optional, leave empty for default)",
+              "https://api.openai.com/v1",
+              () => this.plugin.settings.openaiSettings.baseUrl || "",
+              async (value) => {
+                this.plugin.settings.openaiSettings.baseUrl = value;
+                await this.plugin.saveSettings();
+              },
+              { trim: true, undefinedIfEmpty: true }
+            );
+            this.renderProviderTestSection(sectionEl, "openai", "OpenAI");
           },
-          { trim: true, undefinedIfEmpty: true }
+          this.plugin,
+          "providerConfigExpanded"
         );
-        this.renderProviderTestSection(sectionEl, "openai", "OpenAI");
+        CollapsibleSectionRenderer.createCollapsibleSection(
+          containerEl,
+          "Anthropic Configuration",
+          async (sectionEl2) => {
+            this.settingCreators.createTextSetting(
+              sectionEl2,
+              "Anthropic API Key",
+              "Enter your Anthropic API key",
+              "Enter your API key",
+              () => this.plugin.settings.anthropicSettings.apiKey,
+              async (value) => {
+                if (value && !isValidAnthropicApiKey(value)) {
+                  new import_obsidian28.Notice("Invalid Anthropic API Key format. Please check your key.");
+                  return;
+                }
+                this.plugin.settings.anthropicSettings.apiKey = value != null ? value : "";
+                await this.plugin.saveSettings();
+              }
+            );
+            this.renderProviderTestSection(sectionEl2, "anthropic", "Anthropic");
+          },
+          this.plugin,
+          "providerConfigExpanded"
+        );
+        CollapsibleSectionRenderer.createCollapsibleSection(
+          containerEl,
+          "Google Gemini Configuration",
+          async (sectionEl2) => {
+            this.settingCreators.createTextSetting(
+              sectionEl2,
+              "Google API Key",
+              "Enter your Google API key",
+              "Enter your API key",
+              () => this.plugin.settings.geminiSettings.apiKey,
+              async (value) => {
+                if (value && !isValidGoogleApiKey(value)) {
+                  new import_obsidian28.Notice("Invalid Google API Key format. Please check your key.");
+                  return;
+                }
+                this.plugin.settings.geminiSettings.apiKey = value != null ? value : "";
+                await this.plugin.saveSettings();
+              }
+            );
+            this.renderProviderTestSection(sectionEl2, "gemini", "Google Gemini");
+          },
+          this.plugin,
+          "providerConfigExpanded"
+        );
+        CollapsibleSectionRenderer.createCollapsibleSection(
+          containerEl,
+          "Ollama Configuration",
+          async (sectionEl2) => {
+            this.settingCreators.createTextSetting(
+              sectionEl2,
+              "Ollama Server URL",
+              "Enter your Ollama server URL (default: http://localhost:11434)",
+              "http://localhost:11434",
+              () => this.plugin.settings.ollamaSettings.serverUrl,
+              async (value) => {
+                if (value && !isValidUrl(value)) {
+                  new import_obsidian28.Notice("Invalid Ollama Server URL format. Please enter a valid URL.");
+                  return;
+                }
+                this.plugin.settings.ollamaSettings.serverUrl = value != null ? value : "";
+                await this.plugin.saveSettings();
+              }
+            );
+            sectionEl2.createEl("div", {
+              cls: "setting-item-description",
+              text: "To use Ollama:"
+            });
+            const steps = sectionEl2.createEl("ol");
+            steps.createEl("li", { text: "Install Ollama from https://ollama.ai" });
+            steps.createEl("li", { text: "Start the Ollama server" });
+            steps.createEl("li", { text: 'Pull models using "ollama pull model-name"' });
+            steps.createEl("li", { text: "Test connection to see available models" });
+            this.renderProviderTestSection(sectionEl2, "ollama", "Ollama");
+          },
+          this.plugin,
+          "providerConfigExpanded"
+        );
       },
       this.plugin,
       "providerConfigExpanded"
     );
     CollapsibleSectionRenderer.createCollapsibleSection(
       containerEl,
-      "Anthropic Configuration",
+      "Default AI Model Settings",
       async (sectionEl) => {
-        this.settingCreators.createTextSetting(
-          sectionEl,
-          "Anthropic API Key",
-          "Enter your Anthropic API key",
-          "Enter your API key",
-          () => this.plugin.settings.anthropicSettings.apiKey,
-          async (value) => {
-            if (value && !isValidAnthropicApiKey(value)) {
-              new import_obsidian28.Notice("Invalid Anthropic API Key format. Please check your key.");
-              return;
-            }
-            this.plugin.settings.anthropicSettings.apiKey = value != null ? value : "";
-            await this.plugin.saveSettings();
-          }
-        );
-        this.renderProviderTestSection(sectionEl, "anthropic", "Anthropic");
+        await this.renderAIModelSettings(sectionEl);
       },
       this.plugin,
-      "providerConfigExpanded"
+      "generalSectionsExpanded"
     );
     CollapsibleSectionRenderer.createCollapsibleSection(
       containerEl,
-      "Google Gemini Configuration",
+      "Model Management",
       async (sectionEl) => {
-        this.settingCreators.createTextSetting(
-          sectionEl,
-          "Google API Key",
-          "Enter your Google API key",
-          "Enter your API key",
-          () => this.plugin.settings.geminiSettings.apiKey,
-          async (value) => {
-            if (value && !isValidGoogleApiKey(value)) {
-              new import_obsidian28.Notice("Invalid Google API Key format. Please check your key.");
-              return;
-            }
-            this.plugin.settings.geminiSettings.apiKey = value != null ? value : "";
-            await this.plugin.saveSettings();
-          }
-        );
-        this.renderProviderTestSection(sectionEl, "gemini", "Google Gemini");
+        sectionEl.createEl("h4", { text: "Available Models" });
+        await this.renderAvailableModelsSection(sectionEl);
+        sectionEl.createEl("h4", { text: "Model Setting Presets" });
+        this.renderModelSettingPresets(sectionEl);
       },
       this.plugin,
-      "providerConfigExpanded"
+      "generalSectionsExpanded"
     );
-    CollapsibleSectionRenderer.createCollapsibleSection(
-      containerEl,
-      "Ollama Configuration",
-      async (sectionEl) => {
-        this.settingCreators.createTextSetting(
-          sectionEl,
-          "Ollama Server URL",
-          "Enter your Ollama server URL (default: http://localhost:11434)",
-          "http://localhost:11434",
-          () => this.plugin.settings.ollamaSettings.serverUrl,
-          async (value) => {
-            if (value && !isValidUrl(value)) {
-              new import_obsidian28.Notice("Invalid Ollama Server URL format. Please enter a valid URL.");
-              return;
-            }
-            this.plugin.settings.ollamaSettings.serverUrl = value != null ? value : "";
-            await this.plugin.saveSettings();
-          }
-        );
-        sectionEl.createEl("div", {
-          cls: "setting-item-description",
-          text: "To use Ollama:"
-        });
-        const steps = sectionEl.createEl("ol");
-        steps.createEl("li", { text: "Install Ollama from https://ollama.ai" });
-        steps.createEl("li", { text: "Start the Ollama server" });
-        steps.createEl("li", { text: 'Pull models using "ollama pull model-name"' });
-        steps.createEl("li", { text: "Test connection to see available models" });
-        this.renderProviderTestSection(sectionEl, "ollama", "Ollama");
-      },
-      this.plugin,
-      "providerConfigExpanded"
-    );
-    containerEl.createEl("h3", { text: "Default AI Model Settings" });
-    await this.renderAIModelSettings(containerEl);
-    containerEl.createEl("h3", { text: "Model Management" });
-    containerEl.createEl("h4", { text: "Available Models" });
-    await this.renderAvailableModelsSection(containerEl);
-    containerEl.createEl("h4", { text: "Model Setting Presets" });
-    this.renderModelSettingPresets(containerEl);
   }
   /**
    * Renders the provider connection test section.
@@ -23403,127 +23452,148 @@ var AgentSettingsSection = class {
     if (this.plugin && typeof this.plugin.debugLog === "function") {
       this.plugin.debugLog("info", "[AgentSettingsSection] render called");
     }
-    containerEl.createEl("h3", { text: "Agent Mode Settings" });
-    containerEl.createEl("div", {
-      text: "Agent Mode allows the AI to use tools like file creation, reading, and modification. Configure the limits and behavior for tool usage.",
-      cls: "setting-item-description",
-      attr: { style: "margin-bottom: 1em;" }
-    });
-    this.settingCreators.createToggleSetting(
+    CollapsibleSectionRenderer.createCollapsibleSection(
       containerEl,
-      "Enable Agent Mode by Default",
-      "Start new conversations with Agent Mode enabled.",
-      () => {
-        var _a2, _b;
-        return (_b = (_a2 = this.plugin.settings.agentMode) == null ? void 0 : _a2.enabled) != null ? _b : false;
+      "Agent Mode Settings",
+      (sectionEl) => {
+        sectionEl.createEl("div", {
+          text: "Agent Mode allows the AI to use tools like file creation, reading, and modification. Configure the limits and behavior for tool usage.",
+          cls: "setting-item-description",
+          attr: { style: "margin-bottom: 1em;" }
+        });
+        this.settingCreators.createToggleSetting(
+          sectionEl,
+          "Enable Agent Mode by Default",
+          "Start new conversations with Agent Mode enabled.",
+          () => {
+            var _a2, _b;
+            return (_b = (_a2 = this.plugin.settings.agentMode) == null ? void 0 : _a2.enabled) != null ? _b : false;
+          },
+          async (value) => {
+            if (!this.plugin.settings.agentMode) {
+              this.plugin.settings.agentMode = { enabled: false, maxToolCalls: 10, timeoutMs: 3e4, maxIterations: 10 };
+            }
+            this.plugin.settings.agentMode.enabled = value;
+            await this.plugin.saveSettings();
+          }
+        );
+        this.settingCreators.createSliderSetting(
+          sectionEl,
+          "Max Tool Calls per Conversation",
+          "Maximum number of tools the AI can use in a single conversation to prevent runaway execution.",
+          { min: 1, max: 50, step: 1 },
+          () => {
+            var _a2, _b;
+            return (_b = (_a2 = this.plugin.settings.agentMode) == null ? void 0 : _a2.maxToolCalls) != null ? _b : 10;
+          },
+          async (value) => {
+            if (!this.plugin.settings.agentMode) {
+              this.plugin.settings.agentMode = { enabled: false, maxToolCalls: 10, timeoutMs: 3e4, maxIterations: 10 };
+            }
+            this.plugin.settings.agentMode.maxToolCalls = value;
+            await this.plugin.saveSettings();
+          }
+        );
+        this.settingCreators.createSliderSetting(
+          sectionEl,
+          "Tool Execution Timeout (seconds)",
+          "Maximum time to wait for each tool to complete before timing out.",
+          { min: 5, max: 300, step: 5 },
+          () => {
+            var _a2, _b;
+            return ((_b = (_a2 = this.plugin.settings.agentMode) == null ? void 0 : _a2.timeoutMs) != null ? _b : 3e4) / 1e3;
+          },
+          async (value) => {
+            if (!this.plugin.settings.agentMode) {
+              this.plugin.settings.agentMode = { enabled: false, maxToolCalls: 10, timeoutMs: 3e4, maxIterations: 10 };
+            }
+            this.plugin.settings.agentMode.timeoutMs = value * 1e3;
+            await this.plugin.saveSettings();
+          }
+        );
+        this.settingCreators.createSliderSetting(
+          sectionEl,
+          "Max Iterations per Task Continuation",
+          "Maximum number of times the agent can iterate in a single task continuation to prevent infinite loops.",
+          { min: 1, max: 20, step: 1 },
+          () => {
+            var _a2, _b;
+            return (_b = (_a2 = this.plugin.settings.agentMode) == null ? void 0 : _a2.maxIterations) != null ? _b : 10;
+          },
+          async (value) => {
+            if (!this.plugin.settings.agentMode) {
+              this.plugin.settings.agentMode = { enabled: false, maxToolCalls: 10, timeoutMs: 3e4, maxIterations: 10 };
+            }
+            this.plugin.settings.agentMode.maxIterations = value;
+            await this.plugin.saveSettings();
+          }
+        );
       },
-      async (value) => {
-        if (!this.plugin.settings.agentMode) {
-          this.plugin.settings.agentMode = { enabled: false, maxToolCalls: 10, timeoutMs: 3e4, maxIterations: 10 };
-        }
-        this.plugin.settings.agentMode.enabled = value;
-        await this.plugin.saveSettings();
-      }
+      this.plugin,
+      "generalSectionsExpanded"
     );
-    this.settingCreators.createSliderSetting(
+    CollapsibleSectionRenderer.createCollapsibleSection(
       containerEl,
-      "Max Tool Calls per Conversation",
-      "Maximum number of tools the AI can use in a single conversation to prevent runaway execution.",
-      { min: 1, max: 50, step: 1 },
-      () => {
-        var _a2, _b;
-        return (_b = (_a2 = this.plugin.settings.agentMode) == null ? void 0 : _a2.maxToolCalls) != null ? _b : 10;
+      "Agent System Message",
+      (sectionEl) => {
+        sectionEl.createEl("div", {
+          text: "Customize the system message used when Agent Mode is enabled. Use {{TOOL_DESCRIPTIONS}} to include the available tools list.",
+          cls: "setting-item-description",
+          attr: { style: "margin-bottom: 0.5em;" }
+        });
+        const agentMessageContainer = sectionEl.createDiv("agent-message-container");
+        agentMessageContainer.style.display = "flex";
+        agentMessageContainer.style.gap = "0.5em";
+        agentMessageContainer.style.alignItems = "flex-start";
+        agentMessageContainer.style.marginBottom = "1em";
+        const textareaContainer = agentMessageContainer.createDiv();
+        textareaContainer.style.flex = "1";
+        const textarea = textareaContainer.createEl("textarea");
+        textarea.rows = 8;
+        textarea.style.width = "100%";
+        textarea.style.minHeight = "120px";
+        textarea.style.fontFamily = "monospace";
+        textarea.style.fontSize = "0.9em";
+        textarea.placeholder = "Enter custom agent system message template...";
+        textarea.value = this.plugin.settings.customAgentSystemMessage || "";
+        const buttonContainer = agentMessageContainer.createDiv();
+        buttonContainer.style.display = "flex";
+        buttonContainer.style.flexDirection = "column";
+        buttonContainer.style.gap = "0.25em";
+        const resetButton = buttonContainer.createEl("button", { text: "Reset to Default" });
+        resetButton.style.padding = "0.25em 0.5em";
+        resetButton.style.fontSize = "0.8em";
+        resetButton.addEventListener("click", async () => {
+          textarea.value = AGENT_SYSTEM_PROMPT_TEMPLATE;
+          this.plugin.settings.customAgentSystemMessage = AGENT_SYSTEM_PROMPT_TEMPLATE;
+          await this.plugin.saveSettings();
+        });
+        const clearButton = buttonContainer.createEl("button", { text: "Use Default" });
+        clearButton.style.padding = "0.25em 0.5em";
+        clearButton.style.fontSize = "0.8em";
+        clearButton.addEventListener("click", async () => {
+          textarea.value = "";
+          this.plugin.settings.customAgentSystemMessage = void 0;
+          await this.plugin.saveSettings();
+        });
+        textarea.addEventListener("input", async () => {
+          const value = textarea.value.trim();
+          this.plugin.settings.customAgentSystemMessage = value || void 0;
+          await this.plugin.saveSettings();
+        });
       },
-      async (value) => {
-        if (!this.plugin.settings.agentMode) {
-          this.plugin.settings.agentMode = { enabled: false, maxToolCalls: 10, timeoutMs: 3e4, maxIterations: 10 };
-        }
-        this.plugin.settings.agentMode.maxToolCalls = value;
-        await this.plugin.saveSettings();
-      }
+      this.plugin,
+      "generalSectionsExpanded"
     );
-    this.settingCreators.createSliderSetting(
+    CollapsibleSectionRenderer.createCollapsibleSection(
       containerEl,
-      "Tool Execution Timeout (seconds)",
-      "Maximum time to wait for each tool to complete before timing out.",
-      { min: 5, max: 300, step: 5 },
-      () => {
-        var _a2, _b;
-        return ((_b = (_a2 = this.plugin.settings.agentMode) == null ? void 0 : _a2.timeoutMs) != null ? _b : 3e4) / 1e3;
+      "Agent Tools",
+      (sectionEl) => {
+        this.renderToolToggles(sectionEl);
       },
-      async (value) => {
-        if (!this.plugin.settings.agentMode) {
-          this.plugin.settings.agentMode = { enabled: false, maxToolCalls: 10, timeoutMs: 3e4, maxIterations: 10 };
-        }
-        this.plugin.settings.agentMode.timeoutMs = value * 1e3;
-        await this.plugin.saveSettings();
-      }
+      this.plugin,
+      "generalSectionsExpanded"
     );
-    this.settingCreators.createSliderSetting(
-      containerEl,
-      "Max Iterations per Task Continuation",
-      "Maximum number of times the agent can iterate in a single task continuation to prevent infinite loops.",
-      { min: 1, max: 20, step: 1 },
-      () => {
-        var _a2, _b;
-        return (_b = (_a2 = this.plugin.settings.agentMode) == null ? void 0 : _a2.maxIterations) != null ? _b : 10;
-      },
-      async (value) => {
-        if (!this.plugin.settings.agentMode) {
-          this.plugin.settings.agentMode = { enabled: false, maxToolCalls: 10, timeoutMs: 3e4, maxIterations: 10 };
-        }
-        this.plugin.settings.agentMode.maxIterations = value;
-        await this.plugin.saveSettings();
-      }
-    );
-    containerEl.createEl("h3", { text: "Agent System Message" });
-    containerEl.createEl("div", {
-      text: "Customize the system message used when Agent Mode is enabled. Use {{TOOL_DESCRIPTIONS}} to include the available tools list.",
-      cls: "setting-item-description",
-      attr: { style: "margin-bottom: 0.5em;" }
-    });
-    const agentMessageContainer = containerEl.createDiv("agent-message-container");
-    agentMessageContainer.style.display = "flex";
-    agentMessageContainer.style.gap = "0.5em";
-    agentMessageContainer.style.alignItems = "flex-start";
-    agentMessageContainer.style.marginBottom = "1em";
-    const textareaContainer = agentMessageContainer.createDiv();
-    textareaContainer.style.flex = "1";
-    const textarea = textareaContainer.createEl("textarea");
-    textarea.rows = 8;
-    textarea.style.width = "100%";
-    textarea.style.minHeight = "120px";
-    textarea.style.fontFamily = "monospace";
-    textarea.style.fontSize = "0.9em";
-    textarea.placeholder = "Enter custom agent system message template...";
-    textarea.value = this.plugin.settings.customAgentSystemMessage || "";
-    const buttonContainer = agentMessageContainer.createDiv();
-    buttonContainer.style.display = "flex";
-    buttonContainer.style.flexDirection = "column";
-    buttonContainer.style.gap = "0.25em";
-    const resetButton = buttonContainer.createEl("button", { text: "Reset to Default" });
-    resetButton.style.padding = "0.25em 0.5em";
-    resetButton.style.fontSize = "0.8em";
-    resetButton.addEventListener("click", async () => {
-      textarea.value = AGENT_SYSTEM_PROMPT_TEMPLATE;
-      this.plugin.settings.customAgentSystemMessage = AGENT_SYSTEM_PROMPT_TEMPLATE;
-      await this.plugin.saveSettings();
-    });
-    const clearButton = buttonContainer.createEl("button", { text: "Use Default" });
-    clearButton.style.padding = "0.25em 0.5em";
-    clearButton.style.fontSize = "0.8em";
-    clearButton.addEventListener("click", async () => {
-      textarea.value = "";
-      this.plugin.settings.customAgentSystemMessage = void 0;
-      await this.plugin.saveSettings();
-    });
-    textarea.addEventListener("input", async () => {
-      const value = textarea.value.trim();
-      this.plugin.settings.customAgentSystemMessage = value || void 0;
-      await this.plugin.saveSettings();
-    });
-    containerEl.createEl("h3", { text: "Agent Tools" });
-    this.renderToolToggles(containerEl);
   }
   /**
    * Renders the Tool Enable/Disable section.
@@ -23601,169 +23671,197 @@ var ContentNoteHandlingSection = class {
    * @param containerEl The HTML element to render the sections into.
    */
   async render(containerEl) {
-    containerEl.createEl("h3", { text: "Chat Customization" });
-    this.settingCreators.createTextSetting(
+    CollapsibleSectionRenderer.createCollapsibleSection(
       containerEl,
-      "Chat Separator",
-      "The string used to separate chat messages.",
-      "----",
-      () => {
-        var _a2;
-        return (_a2 = this.plugin.settings.chatSeparator) != null ? _a2 : "";
+      "Chat Customization",
+      (sectionEl) => {
+        this.settingCreators.createTextSetting(
+          sectionEl,
+          "Chat Separator",
+          "The string used to separate chat messages.",
+          "----",
+          () => {
+            var _a2;
+            return (_a2 = this.plugin.settings.chatSeparator) != null ? _a2 : "";
+          },
+          async (value) => {
+            this.plugin.settings.chatSeparator = value != null ? value : "";
+            await this.plugin.saveSettings();
+          }
+        );
+        this.settingCreators.createTextSetting(
+          sectionEl,
+          "Chat Start String",
+          "The string that indicates where to start taking the note for context.",
+          "===START===",
+          () => {
+            var _a2;
+            return (_a2 = this.plugin.settings.chatStartString) != null ? _a2 : "";
+          },
+          async (value) => {
+            this.plugin.settings.chatStartString = value != null ? value : "";
+            await this.plugin.saveSettings();
+          }
+        );
+        this.settingCreators.createTextSetting(
+          sectionEl,
+          "Chat End String",
+          "The string that indicates where to end taking the note for context.",
+          "===END===",
+          () => {
+            var _a2;
+            return (_a2 = this.plugin.settings.chatEndString) != null ? _a2 : "";
+          },
+          async (value) => {
+            this.plugin.settings.chatEndString = value != null ? value : "";
+            await this.plugin.saveSettings();
+          }
+        );
+        this.settingCreators.createTextSetting(
+          sectionEl,
+          "Title Prompt",
+          "The prompt used for generating note titles.",
+          "You are a title generator...",
+          () => this.plugin.settings.titlePrompt,
+          async (value) => {
+            this.plugin.settings.titlePrompt = value != null ? value : "";
+            await this.plugin.saveSettings();
+          },
+          { isTextArea: true }
+        );
+        this.settingCreators.createDropdownSetting(
+          sectionEl,
+          "Title Output Mode",
+          "Choose what to do with the generated note title.",
+          { "clipboard": "Copy to clipboard", "replace-filename": "Replace note filename", "metadata": "Insert into metadata" },
+          () => {
+            var _a2;
+            return (_a2 = this.plugin.settings.titleOutputMode) != null ? _a2 : "clipboard";
+          },
+          async (value) => {
+            this.plugin.settings.titleOutputMode = value;
+            await this.plugin.saveSettings();
+          }
+        );
+        this.settingCreators.createDropdownSetting(
+          sectionEl,
+          "Summary Output Mode",
+          "Choose what to do with the generated note summary.",
+          { "clipboard": "Copy to clipboard", "metadata": "Insert into metadata" },
+          () => {
+            var _a2;
+            return (_a2 = this.plugin.settings.summaryOutputMode) != null ? _a2 : "clipboard";
+          },
+          async (value) => {
+            this.plugin.settings.summaryOutputMode = value;
+            await this.plugin.saveSettings();
+          }
+        );
       },
-      async (value) => {
-        this.plugin.settings.chatSeparator = value != null ? value : "";
-        await this.plugin.saveSettings();
-      }
+      this.plugin,
+      "generalSectionsExpanded"
     );
-    this.settingCreators.createTextSetting(
+    CollapsibleSectionRenderer.createCollapsibleSection(
       containerEl,
-      "Chat Start String",
-      "The string that indicates where to start taking the note for context.",
-      "===START===",
-      () => {
-        var _a2;
-        return (_a2 = this.plugin.settings.chatStartString) != null ? _a2 : "";
+      "Note Reference Settings",
+      (sectionEl) => {
+        this.settingCreators.createToggleSetting(
+          sectionEl,
+          "Enable Obsidian Links",
+          "Read Obsidian links in messages using [[filename]] syntax",
+          () => this.plugin.settings.enableObsidianLinks,
+          async (value) => {
+            this.plugin.settings.enableObsidianLinks = value;
+            await this.plugin.saveSettings();
+          }
+        );
+        this.settingCreators.createToggleSetting(
+          sectionEl,
+          "Enable Context Notes",
+          "Attach specified note content to chat messages",
+          () => this.plugin.settings.enableContextNotes,
+          async (value) => {
+            this.plugin.settings.enableContextNotes = value;
+            await this.plugin.saveSettings();
+          }
+        );
+        const contextNotesContainer = sectionEl.createDiv("context-notes-container");
+        contextNotesContainer.style.marginBottom = "24px";
+        new import_obsidian29.Setting(contextNotesContainer).setName("Context Notes").setDesc("Notes to attach as context (supports [[filename]] and [[another note#header]] syntax)").addTextArea((text) => {
+          text.setPlaceholder("[[Note Name]]\n[[Another Note#Header]]").setValue(this.plugin.settings.contextNotes || "").onChange((value) => {
+            this.plugin.settings.contextNotes = value;
+          });
+          text.inputEl.addEventListener("blur", async () => {
+            await this.plugin.saveSettings();
+          });
+          text.inputEl.rows = 4;
+          text.inputEl.style.width = "100%";
+        });
       },
-      async (value) => {
-        this.plugin.settings.chatStartString = value != null ? value : "";
-        await this.plugin.saveSettings();
-      }
+      this.plugin,
+      "generalSectionsExpanded"
     );
-    this.settingCreators.createTextSetting(
+    CollapsibleSectionRenderer.createCollapsibleSection(
       containerEl,
-      "Chat End String",
-      "The string that indicates where to end taking the note for context.",
-      "===END===",
-      () => {
-        var _a2;
-        return (_a2 = this.plugin.settings.chatEndString) != null ? _a2 : "";
-      },
-      async (value) => {
-        this.plugin.settings.chatEndString = value != null ? value : "";
-        await this.plugin.saveSettings();
-      }
-    );
-    this.settingCreators.createTextSetting(
-      containerEl,
-      "Title Prompt",
-      "The prompt used for generating note titles.",
-      "You are a title generator...",
-      () => this.plugin.settings.titlePrompt,
-      async (value) => {
-        this.plugin.settings.titlePrompt = value != null ? value : "";
-        await this.plugin.saveSettings();
-      },
-      { isTextArea: true }
-    );
-    this.settingCreators.createDropdownSetting(
-      containerEl,
-      "Title Output Mode",
-      "Choose what to do with the generated note title.",
-      { "clipboard": "Copy to clipboard", "replace-filename": "Replace note filename", "metadata": "Insert into metadata" },
-      () => {
-        var _a2;
-        return (_a2 = this.plugin.settings.titleOutputMode) != null ? _a2 : "clipboard";
-      },
-      async (value) => {
-        this.plugin.settings.titleOutputMode = value;
-        await this.plugin.saveSettings();
-      }
-    );
-    this.settingCreators.createDropdownSetting(
-      containerEl,
-      "Summary Output Mode",
-      "Choose what to do with the generated note summary.",
-      { "clipboard": "Copy to clipboard", "metadata": "Insert into metadata" },
-      () => {
-        var _a2;
-        return (_a2 = this.plugin.settings.summaryOutputMode) != null ? _a2 : "clipboard";
-      },
-      async (value) => {
-        this.plugin.settings.summaryOutputMode = value;
-        await this.plugin.saveSettings();
-      }
-    );
-    containerEl.createEl("h3", { text: "Note Reference Settings" });
-    this.settingCreators.createToggleSetting(
-      containerEl,
-      "Enable Obsidian Links",
-      "Read Obsidian links in messages using [[filename]] syntax",
-      () => this.plugin.settings.enableObsidianLinks,
-      async (value) => {
-        this.plugin.settings.enableObsidianLinks = value;
-        await this.plugin.saveSettings();
-      }
-    );
-    this.settingCreators.createToggleSetting(
-      containerEl,
-      "Enable Context Notes",
-      "Attach specified note content to chat messages",
-      () => this.plugin.settings.enableContextNotes,
-      async (value) => {
-        this.plugin.settings.enableContextNotes = value;
-        await this.plugin.saveSettings();
-      }
-    );
-    const contextNotesContainer = containerEl.createDiv("context-notes-container");
-    contextNotesContainer.style.marginBottom = "24px";
-    new import_obsidian29.Setting(contextNotesContainer).setName("Context Notes").setDesc("Notes to attach as context (supports [[filename]] and [[another note#header]] syntax)").addTextArea((text) => {
-      text.setPlaceholder("[[Note Name]]\n[[Another Note#Header]]").setValue(this.plugin.settings.contextNotes || "").onChange((value) => {
-        this.plugin.settings.contextNotes = value;
-      });
-      text.inputEl.addEventListener("blur", async () => {
-        await this.plugin.saveSettings();
-      });
-      text.inputEl.rows = 4;
-      text.inputEl.style.width = "100%";
-    });
-    containerEl.createEl("h3", { text: "Data Handling" });
-    this.settingCreators.createToggleSetting(
-      containerEl,
-      "Expand Linked Notes Recursively",
-      "If enabled, when fetching a note, also fetch and expand links within that note recursively (prevents infinite loops).",
-      () => {
-        var _a2;
-        return (_a2 = this.plugin.settings.expandLinkedNotesRecursively) != null ? _a2 : false;
-      },
-      async (value) => {
-        this.plugin.settings.expandLinkedNotesRecursively = value;
-        await this.plugin.saveSettings();
-      }
-    );
-    if (this.plugin.settings.expandLinkedNotesRecursively) {
-      this.settingCreators.createSliderSetting(
-        containerEl,
-        "Max Link Expansion Depth",
-        "Maximum depth for recursively expanding linked notes (1-3).",
-        { min: 1, max: 3, step: 1 },
-        () => {
-          var _a2;
-          return (_a2 = this.plugin.settings.maxLinkExpansionDepth) != null ? _a2 : 2;
-        },
-        async (value) => {
-          this.plugin.settings.maxLinkExpansionDepth = value;
-          await this.plugin.saveSettings();
+      "Data Handling",
+      (sectionEl) => {
+        this.settingCreators.createToggleSetting(
+          sectionEl,
+          "Expand Linked Notes Recursively",
+          "If enabled, when fetching a note, also fetch and expand links within that note recursively (prevents infinite loops).",
+          () => {
+            var _a2;
+            return (_a2 = this.plugin.settings.expandLinkedNotesRecursively) != null ? _a2 : false;
+          },
+          async (value) => {
+            this.plugin.settings.expandLinkedNotesRecursively = value;
+            await this.plugin.saveSettings();
+          }
+        );
+        if (this.plugin.settings.expandLinkedNotesRecursively) {
+          this.settingCreators.createSliderSetting(
+            sectionEl,
+            "Max Link Expansion Depth",
+            "Maximum depth for recursively expanding linked notes (1-3).",
+            { min: 1, max: 3, step: 1 },
+            () => {
+              var _a2;
+              return (_a2 = this.plugin.settings.maxLinkExpansionDepth) != null ? _a2 : 2;
+            },
+            async (value) => {
+              this.plugin.settings.maxLinkExpansionDepth = value;
+              await this.plugin.saveSettings();
+            }
+          );
         }
-      );
-    }
-    this.settingCreators.createTextSetting(
-      containerEl,
-      "Chat Note Folder",
-      "Folder to save exported chat notes (relative to vault root, leave blank for root)",
-      "e.g. AI Chats",
-      () => {
-        var _a2;
-        return (_a2 = this.plugin.settings.chatNoteFolder) != null ? _a2 : "";
+        this.settingCreators.createTextSetting(
+          sectionEl,
+          "Chat Note Folder",
+          "Folder to save exported chat notes (relative to vault root, leave blank for root)",
+          "e.g. AI Chats",
+          () => {
+            var _a2;
+            return (_a2 = this.plugin.settings.chatNoteFolder) != null ? _a2 : "";
+          },
+          async (value) => {
+            this.plugin.settings.chatNoteFolder = value != null ? value : "";
+            await this.plugin.saveSettings();
+          },
+          { trim: true }
+        );
       },
-      async (value) => {
-        this.plugin.settings.chatNoteFolder = value != null ? value : "";
-        await this.plugin.saveSettings();
-      },
-      { trim: true }
+      this.plugin,
+      "generalSectionsExpanded"
     );
-    containerEl.createEl("h3", { text: "YAML Attribute Generators" });
-    this.renderYamlAttributeGenerators(containerEl);
+    CollapsibleSectionRenderer.createCollapsibleSection(
+      containerEl,
+      "YAML Attribute Generators",
+      (sectionEl) => {
+        this.renderYamlAttributeGenerators(sectionEl);
+      },
+      this.plugin,
+      "generalSectionsExpanded"
+    );
   }
   /**
    * Renders the YAML Attribute Generators section.
@@ -23911,64 +24009,77 @@ var BackupManagementSection = class {
     this.renderSectionHeader(
       containerEl,
       "Backup Management",
-      "Manage backups created when files are modified by AI tools. Backups are stored in the plugin data folder, not in your vault."
-    );
-    const backupManager = this.plugin.backupManager;
-    const [totalBackups, totalSize, backupFiles] = await Promise.all([
-      backupManager.getTotalBackupCount(),
-      backupManager.getTotalBackupSize(),
-      backupManager.getAllBackupFiles()
-    ]);
-    const sizeInKB = Math.round(totalSize / 1024);
-    containerEl.createEl("div", {
-      text: `Total backups: ${totalBackups} (${sizeInKB} KB)`,
-      cls: "setting-item-description",
-      attr: { style: "margin-bottom: 1em; font-weight: bold;" }
-    });
-    this.renderBackupActions(containerEl, backupFiles.length > 0, async () => {
-      await this.renderBackupManagement(containerEl.parentElement);
-    }, async () => {
-      const confirmed = await DialogHelpers.showConfirmationDialog(
-        "Delete All Backups",
-        `Are you sure you want to delete ALL ${totalBackups} backups for ALL files? This action cannot be undone and will permanently remove all backup data.`
-      );
-      if (confirmed) {
-        try {
-          await backupManager.deleteAllBackups();
-          new import_obsidian30.Notice("Deleted all backups successfully");
-          await this.renderBackupManagement(containerEl.parentElement);
-        } catch (error) {
-          new import_obsidian30.Notice(`Error deleting all backups: ${error.message}`);
+      "Manage backups created when files are modified by AI tools. Backups are stored in the plugin data folder, not in your vault.",
+      async (sectionEl) => {
+        const backupManager = this.plugin.backupManager;
+        const [totalBackups, totalSize, backupFiles] = await Promise.all([
+          backupManager.getTotalBackupCount(),
+          backupManager.getTotalBackupSize(),
+          backupManager.getAllBackupFiles()
+        ]);
+        const sizeInKB = Math.round(totalSize / 1024);
+        sectionEl.createEl("div", {
+          text: `Total backups: ${totalBackups} (${sizeInKB} KB)`,
+          cls: "setting-item-description",
+          attr: { style: "margin-bottom: 1em; font-weight: bold;" }
+        });
+        this.renderBackupActions(sectionEl, backupFiles.length > 0, async () => {
+          await this.renderBackupManagement(containerEl);
+        }, async () => {
+          const confirmed = await DialogHelpers.showConfirmationDialog(
+            "Delete All Backups",
+            `Are you sure you want to delete ALL ${totalBackups} backups for ALL files? This action cannot be undone and will permanently remove all backup data.`
+          );
+          if (confirmed) {
+            try {
+              await backupManager.deleteAllBackups();
+              new import_obsidian30.Notice("Deleted all backups successfully");
+              await this.renderBackupManagement(containerEl);
+            } catch (error) {
+              new import_obsidian30.Notice(`Error deleting all backups: ${error.message}`);
+            }
+          }
+        });
+        if (backupFiles.length === 0) {
+          sectionEl.createEl("div", {
+            text: "No backups found.",
+            cls: "setting-item-description"
+          });
+          return;
         }
+        CollapsibleSectionRenderer.createCollapsibleSection(
+          containerEl,
+          "Backup Files List",
+          (backupListEl) => {
+            this.renderBackupFilesList(backupListEl, backupFiles, backupManager);
+          },
+          this.plugin,
+          "backupManagementExpanded"
+        );
       }
-    });
-    if (backupFiles.length === 0) {
-      containerEl.createEl("div", {
-        text: "No backups found.",
-        cls: "setting-item-description"
-      });
-      return;
-    }
-    CollapsibleSectionRenderer.createCollapsibleSection(
-      containerEl,
-      "Backup Files List",
-      (backupListEl) => {
-        this.renderBackupFilesList(backupListEl, backupFiles, backupManager);
-      },
-      this.plugin,
-      "backupManagementExpanded"
     );
   }
   /**
-   * Render header and description for a section
+   * Render header and description for a section using CollapsibleSectionRenderer
    */
-  renderSectionHeader(containerEl, title, description) {
-    containerEl.createEl("h3", { text: title });
-    containerEl.createEl("div", {
-      text: description,
-      cls: "setting-item-description",
-      attr: { style: "margin-bottom: 1em;" }
-    });
+  renderSectionHeader(containerEl, title, description, contentCallback) {
+    CollapsibleSectionRenderer.createCollapsibleSection(
+      containerEl,
+      title,
+      (sectionEl) => {
+        sectionEl.createEl("div", {
+          text: description,
+          cls: "setting-item-description",
+          attr: { style: "margin-bottom: 1em;" }
+        });
+        const result = contentCallback(sectionEl);
+        if (result instanceof Promise) {
+          result.catch((error) => console.error("Error in collapsible section:", error));
+        }
+      },
+      this.plugin,
+      "generalSectionsExpanded"
+    );
   }
   /**
    * Render action buttons for backup management
@@ -24115,89 +24226,91 @@ Stored at: ${backup.backupFilePath || "Unknown location"}`, 5e3);
     this.renderSectionHeader(
       containerEl,
       "Trash Management",
-      "Manage files and folders moved to the .trash folder. Files in trash can be restored or permanently deleted."
-    );
-    const trashPath = ".trash";
-    let trashFolder = this.plugin.app.vault.getAbstractFileByPath(trashPath);
-    let trashItems = [];
-    let fallbackUsed = false;
-    if (!trashFolder) {
-      fallbackUsed = true;
-      try {
-        const adapter = this.plugin.app.vault.adapter;
-        if (await adapter.exists(trashPath)) {
-          const files = await adapter.list(trashPath);
-          trashItems = [
-            ...files.files.map((f) => ({ name: f.substring(f.lastIndexOf("/") + 1), isFolder: false })),
-            ...files.folders.map((f) => ({ name: f.substring(f.lastIndexOf("/") + 1), isFolder: true }))
-          ];
+      "Manage files and folders moved to the .trash folder. Files in trash can be restored or permanently deleted.",
+      async (sectionEl) => {
+        const trashPath = ".trash";
+        let trashFolder = this.plugin.app.vault.getAbstractFileByPath(trashPath);
+        let trashItems = [];
+        let fallbackUsed = false;
+        if (!trashFolder) {
+          fallbackUsed = true;
+          try {
+            const adapter = this.plugin.app.vault.adapter;
+            if (await adapter.exists(trashPath)) {
+              const files = await adapter.list(trashPath);
+              trashItems = [
+                ...files.files.map((f) => ({ name: f.substring(f.lastIndexOf("/") + 1), isFolder: false })),
+                ...files.folders.map((f) => ({ name: f.substring(f.lastIndexOf("/") + 1), isFolder: true }))
+              ];
+            } else {
+              sectionEl.createEl("div", {
+                text: "No trash folder found. Trash folder will be created automatically when files are deleted with soft delete.",
+                cls: "setting-item-description"
+              });
+              return;
+            }
+          } catch (e) {
+            sectionEl.createEl("div", {
+              text: "Error reading trash folder from file system.",
+              cls: "setting-item-description"
+            });
+            return;
+          }
+        } else if (trashFolder instanceof import_obsidian30.TFolder) {
+          trashItems = trashFolder.children.map((item) => ({
+            name: item.name,
+            isFolder: item instanceof import_obsidian30.TFolder,
+            size: isTFile(item) && item.stat ? item.stat.size : void 0
+          }));
         } else {
-          containerEl.createEl("div", {
-            text: "No trash folder found. Trash folder will be created automatically when files are deleted with soft delete.",
+          sectionEl.createEl("div", {
+            text: "Error: .trash exists but is not a folder.",
             cls: "setting-item-description"
           });
           return;
         }
-      } catch (e) {
-        containerEl.createEl("div", {
-          text: "Error reading trash folder from file system.",
-          cls: "setting-item-description"
+        const fileCount = trashItems.filter((item) => !item.isFolder).length;
+        const folderCount = trashItems.filter((item) => item.isFolder).length;
+        sectionEl.createEl("div", {
+          text: `Trash contains: ${fileCount} files, ${folderCount} folders${fallbackUsed ? " (filesystem fallback)" : ""}`,
+          cls: "setting-item-description",
+          attr: { style: "margin-bottom: 1em; font-weight: bold;" }
         });
-        return;
-      }
-    } else if (trashFolder instanceof import_obsidian30.TFolder) {
-      trashItems = trashFolder.children.map((item) => ({
-        name: item.name,
-        isFolder: item instanceof import_obsidian30.TFolder,
-        size: isTFile(item) && item.stat ? item.stat.size : void 0
-      }));
-    } else {
-      containerEl.createEl("div", {
-        text: "Error: .trash exists but is not a folder.",
-        cls: "setting-item-description"
-      });
-      return;
-    }
-    const fileCount = trashItems.filter((item) => !item.isFolder).length;
-    const folderCount = trashItems.filter((item) => item.isFolder).length;
-    containerEl.createEl("div", {
-      text: `Trash contains: ${fileCount} files, ${folderCount} folders${fallbackUsed ? " (filesystem fallback)" : ""}`,
-      cls: "setting-item-description",
-      attr: { style: "margin-bottom: 1em; font-weight: bold;" }
-    });
-    this.renderTrashActions(containerEl, trashItems.length > 0, async () => {
-      await this.renderTrashManagement(containerEl.parentElement);
-    }, async () => {
-      const confirmed = await DialogHelpers.showConfirmationDialog(
-        "Empty Trash",
-        `Are you sure you want to permanently delete all ${trashItems.length} items in trash? This cannot be undone.`
-      );
-      if (confirmed) {
-        try {
-          const adapter = this.plugin.app.vault.adapter;
-          for (const item of trashItems) {
-            const fullPath = `${trashPath}/${item.name}`;
-            if (item.isFolder) {
-              await adapter.rmdir(fullPath, true);
-            } else {
-              await adapter.remove(fullPath);
+        this.renderTrashActions(sectionEl, trashItems.length > 0, async () => {
+          await this.renderTrashManagement(containerEl);
+        }, async () => {
+          const confirmed = await DialogHelpers.showConfirmationDialog(
+            "Empty Trash",
+            `Are you sure you want to permanently delete all ${trashItems.length} items in trash? This cannot be undone.`
+          );
+          if (confirmed) {
+            try {
+              const adapter = this.plugin.app.vault.adapter;
+              for (const item of trashItems) {
+                const fullPath = `${trashPath}/${item.name}`;
+                if (item.isFolder) {
+                  await adapter.rmdir(fullPath, true);
+                } else {
+                  await adapter.remove(fullPath);
+                }
+              }
+              new import_obsidian30.Notice(`Emptied trash - permanently deleted ${trashItems.length} items`);
+              await this.renderTrashManagement(containerEl);
+            } catch (error) {
+              new import_obsidian30.Notice(`Error emptying trash: ${error.message}`);
             }
           }
-          new import_obsidian30.Notice(`Emptied trash - permanently deleted ${trashItems.length} items`);
-          await this.renderTrashManagement(containerEl.parentElement);
-        } catch (error) {
-          new import_obsidian30.Notice(`Error emptying trash: ${error.message}`);
+        });
+        if (trashItems.length === 0) {
+          sectionEl.createEl("div", {
+            text: "Trash is empty.",
+            cls: "setting-item-description"
+          });
+          return;
         }
+        this.renderTrashList(sectionEl, trashItems, fallbackUsed);
       }
-    });
-    if (trashItems.length === 0) {
-      containerEl.createEl("div", {
-        text: "Trash is empty.",
-        cls: "setting-item-description"
-      });
-      return;
-    }
-    this.renderTrashList(containerEl, trashItems, fallbackUsed);
+    );
   }
   /**
    * Render action buttons for trash management
@@ -24329,76 +24442,90 @@ var ChatHistorySettingsSection = class {
    * @param containerEl The HTML element to render the sections into.
    */
   async render(containerEl) {
-    containerEl.createEl("h3", { text: "Chat History & Sessions" });
-    this.settingCreators.createSliderSetting(
+    CollapsibleSectionRenderer.createCollapsibleSection(
       containerEl,
-      "Max Chat Sessions",
-      "Maximum number of chat sessions to keep in history.",
-      { min: 1, max: 50, step: 1 },
-      () => this.plugin.settings.maxSessions,
-      async (value) => {
-        this.plugin.settings.maxSessions = value;
-        await this.plugin.saveSettings();
-      }
-    );
-    this.settingCreators.createToggleSetting(
-      containerEl,
-      "Auto-Save Sessions",
-      "Automatically save chat sessions as you use them.",
-      () => this.plugin.settings.autoSaveSessions,
-      async (value) => {
-        this.plugin.settings.autoSaveSessions = value;
-        await this.plugin.saveSettings();
-      }
-    );
-    containerEl.createEl("h3", { text: "UI Behavior" });
-    this.settingCreators.createToggleSetting(
-      containerEl,
-      "Collapse Old Reasoning",
-      "Automatically collapse reasoning sections in older messages to keep the UI clean",
-      () => {
-        var _a2, _b;
-        return (_b = (_a2 = this.plugin.settings.uiBehavior) == null ? void 0 : _a2.collapseOldReasoning) != null ? _b : true;
+      "Chat History & Sessions",
+      (sectionEl) => {
+        this.settingCreators.createSliderSetting(
+          sectionEl,
+          "Max Chat Sessions",
+          "Maximum number of chat sessions to keep in history.",
+          { min: 1, max: 50, step: 1 },
+          () => this.plugin.settings.maxSessions,
+          async (value) => {
+            this.plugin.settings.maxSessions = value;
+            await this.plugin.saveSettings();
+          }
+        );
+        this.settingCreators.createToggleSetting(
+          sectionEl,
+          "Auto-Save Sessions",
+          "Automatically save chat sessions as you use them.",
+          () => this.plugin.settings.autoSaveSessions,
+          async (value) => {
+            this.plugin.settings.autoSaveSessions = value;
+            await this.plugin.saveSettings();
+          }
+        );
       },
-      async (value) => {
-        if (!this.plugin.settings.uiBehavior) {
-          this.plugin.settings.uiBehavior = {};
-        }
-        this.plugin.settings.uiBehavior.collapseOldReasoning = value;
-        await this.plugin.saveSettings();
-      }
+      this.plugin,
+      "generalSectionsExpanded"
     );
-    this.settingCreators.createToggleSetting(
+    CollapsibleSectionRenderer.createCollapsibleSection(
       containerEl,
-      "Show Completion Notifications",
-      "Show notifications when AI responses are completed",
-      () => {
-        var _a2, _b;
-        return (_b = (_a2 = this.plugin.settings.uiBehavior) == null ? void 0 : _a2.showCompletionNotifications) != null ? _b : true;
+      "UI Behavior",
+      (sectionEl) => {
+        this.settingCreators.createToggleSetting(
+          sectionEl,
+          "Collapse Old Reasoning",
+          "Automatically collapse reasoning sections in older messages to keep the UI clean",
+          () => {
+            var _a2, _b;
+            return (_b = (_a2 = this.plugin.settings.uiBehavior) == null ? void 0 : _a2.collapseOldReasoning) != null ? _b : true;
+          },
+          async (value) => {
+            if (!this.plugin.settings.uiBehavior) {
+              this.plugin.settings.uiBehavior = {};
+            }
+            this.plugin.settings.uiBehavior.collapseOldReasoning = value;
+            await this.plugin.saveSettings();
+          }
+        );
+        this.settingCreators.createToggleSetting(
+          sectionEl,
+          "Show Completion Notifications",
+          "Show notifications when AI responses are completed",
+          () => {
+            var _a2, _b;
+            return (_b = (_a2 = this.plugin.settings.uiBehavior) == null ? void 0 : _a2.showCompletionNotifications) != null ? _b : true;
+          },
+          async (value) => {
+            if (!this.plugin.settings.uiBehavior) {
+              this.plugin.settings.uiBehavior = {};
+            }
+            this.plugin.settings.uiBehavior.showCompletionNotifications = value;
+            await this.plugin.saveSettings();
+          }
+        );
+        this.settingCreators.createToggleSetting(
+          sectionEl,
+          "Include Reasoning in Exports",
+          "Include reasoning sections when copying or exporting chat content",
+          () => {
+            var _a2, _b;
+            return (_b = (_a2 = this.plugin.settings.uiBehavior) == null ? void 0 : _a2.includeReasoningInExports) != null ? _b : true;
+          },
+          async (value) => {
+            if (!this.plugin.settings.uiBehavior) {
+              this.plugin.settings.uiBehavior = {};
+            }
+            this.plugin.settings.uiBehavior.includeReasoningInExports = value;
+            await this.plugin.saveSettings();
+          }
+        );
       },
-      async (value) => {
-        if (!this.plugin.settings.uiBehavior) {
-          this.plugin.settings.uiBehavior = {};
-        }
-        this.plugin.settings.uiBehavior.showCompletionNotifications = value;
-        await this.plugin.saveSettings();
-      }
-    );
-    this.settingCreators.createToggleSetting(
-      containerEl,
-      "Include Reasoning in Exports",
-      "Include reasoning sections when copying or exporting chat content",
-      () => {
-        var _a2, _b;
-        return (_b = (_a2 = this.plugin.settings.uiBehavior) == null ? void 0 : _a2.includeReasoningInExports) != null ? _b : true;
-      },
-      async (value) => {
-        if (!this.plugin.settings.uiBehavior) {
-          this.plugin.settings.uiBehavior = {};
-        }
-        this.plugin.settings.uiBehavior.includeReasoningInExports = value;
-        await this.plugin.saveSettings();
-      }
+      this.plugin,
+      "generalSectionsExpanded"
     );
   }
 };

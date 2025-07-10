@@ -32,42 +32,41 @@ export class BackupManagementSection {
      */
     private async renderBackupManagement(containerEl: HTMLElement): Promise<void> {
         this.renderSectionHeader(containerEl, 'Backup Management',
-            'Manage backups created when files are modified by AI tools. Backups are stored in the plugin data folder, not in your vault.'
-        );
+            'Manage backups created when files are modified by AI tools. Backups are stored in the plugin data folder, not in your vault.',
+            async (sectionEl: HTMLElement) => {
+                const backupManager = this.plugin.backupManager;
+                const [totalBackups, totalSize, backupFiles] = await Promise.all([
+                    backupManager.getTotalBackupCount(),
+                    backupManager.getTotalBackupSize(),
+                    backupManager.getAllBackupFiles()
+                ]);
+                const sizeInKB = Math.round(totalSize / 1024);
+                sectionEl.createEl('div', {
+                    text: `Total backups: ${totalBackups} (${sizeInKB} KB)`,
+                    cls: 'setting-item-description',
+                    attr: { style: 'margin-bottom: 1em; font-weight: bold;' }
+                });
 
-        const backupManager = this.plugin.backupManager;
-        const [totalBackups, totalSize, backupFiles] = await Promise.all([
-            backupManager.getTotalBackupCount(),
-            backupManager.getTotalBackupSize(),
-            backupManager.getAllBackupFiles()
-        ]);
-        const sizeInKB = Math.round(totalSize / 1024);
-        containerEl.createEl('div', {
-            text: `Total backups: ${totalBackups} (${sizeInKB} KB)`,
-            cls: 'setting-item-description',
-            attr: { style: 'margin-bottom: 1em; font-weight: bold;' }
-        });
+                this.renderBackupActions(sectionEl, backupFiles.length > 0, async () => {
+                    await this.renderBackupManagement(containerEl);
+                }, async () => {
+                    const confirmed = await DialogHelpers.showConfirmationDialog(
+                        'Delete All Backups',
+                        `Are you sure you want to delete ALL ${totalBackups} backups for ALL files? This action cannot be undone and will permanently remove all backup data.`
+                    );
+                    if (confirmed) {
+                        try {
+                            await backupManager.deleteAllBackups();
+                            new Notice('Deleted all backups successfully');
+                            await this.renderBackupManagement(containerEl);
+                        } catch (error) {
+                            new Notice(`Error deleting all backups: ${error.message}`);
+                        }
+                    }
+                });
 
-        this.renderBackupActions(containerEl, backupFiles.length > 0, async () => {
-            await this.renderBackupManagement(containerEl.parentElement!);
-        }, async () => {
-            const confirmed = await DialogHelpers.showConfirmationDialog(
-                'Delete All Backups',
-                `Are you sure you want to delete ALL ${totalBackups} backups for ALL files? This action cannot be undone and will permanently remove all backup data.`
-            );
-            if (confirmed) {
-                try {
-                    await backupManager.deleteAllBackups();
-                    new Notice('Deleted all backups successfully');
-                    await this.renderBackupManagement(containerEl.parentElement!);
-                } catch (error) {
-                    new Notice(`Error deleting all backups: ${error.message}`);
-                }
-            }
-        });
-
-        if (backupFiles.length === 0) {
-            containerEl.createEl('div', {
+                if (backupFiles.length === 0) {
+                    sectionEl.createEl('div', {
                 text: 'No backups found.',
                 cls: 'setting-item-description'
             });
@@ -83,24 +82,46 @@ export class BackupManagementSection {
             this.plugin,
             'backupManagementExpanded'
         );
+            });
     }
 
     /**
-     * Render header and description for a section
+     * Render header and description for a section using CollapsibleSectionRenderer
      */
-    private renderSectionHeader(containerEl: HTMLElement, title: string, description: string) {
-        containerEl.createEl('h3', { text: title });
-        containerEl.createEl('div', {
-            text: description,
-            cls: 'setting-item-description',
-            attr: { style: 'margin-bottom: 1em;' }
-        });
+    private renderSectionHeader(
+        containerEl: HTMLElement,
+        title: string,
+        description: string,
+        contentCallback: (sectionEl: HTMLElement) => void | Promise<void>
+    ): void {
+        CollapsibleSectionRenderer.createCollapsibleSection(
+            containerEl,
+            title,
+            (sectionEl: HTMLElement) => {
+                sectionEl.createEl('div', {
+                    text: description,
+                    cls: 'setting-item-description',
+                    attr: { style: 'margin-bottom: 1em;' }
+                });
+                const result = contentCallback(sectionEl);
+                if (result instanceof Promise) {
+                    result.catch(error => console.error('Error in collapsible section:', error));
+                }
+            },
+            this.plugin,
+            'generalSectionsExpanded'
+        );
     }
 
     /**
      * Render action buttons for backup management
      */
-    private renderBackupActions(containerEl: HTMLElement, hasBackups: boolean, onRefresh: () => void, onDeleteAll: () => void) {
+    private renderBackupActions(
+        containerEl: HTMLElement,
+        hasBackups: boolean,
+        onRefresh: () => void,
+        onDeleteAll: () => void
+    ): void {
         const actionsContainer = containerEl.createDiv({ attr: { style: 'margin-bottom: 1em;' } });
         const refreshButton = actionsContainer.createEl('button', {
             text: 'Refresh Backup List',
@@ -261,97 +282,98 @@ export class BackupManagementSection {
         // Section header
         containerEl.createEl('div', { attr: { style: 'margin-top: 2em; border-top: 1px solid var(--background-modifier-border); padding-top: 1em;' } });
         this.renderSectionHeader(containerEl, 'Trash Management',
-            'Manage files and folders moved to the .trash folder. Files in trash can be restored or permanently deleted.'
-        );
+            'Manage files and folders moved to the .trash folder. Files in trash can be restored or permanently deleted.',
+            async (sectionEl: HTMLElement) => {
+                const trashPath = '.trash';
+                let trashFolder = this.plugin.app.vault.getAbstractFileByPath(trashPath);
+                let trashItems: { name: string, isFolder: boolean, size?: number }[] = [];
+                let fallbackUsed = false;
 
-        const trashPath = '.trash';
-        let trashFolder = this.plugin.app.vault.getAbstractFileByPath(trashPath);
-        let trashItems: { name: string, isFolder: boolean, size?: number }[] = [];
-        let fallbackUsed = false;
-
-        // Try to get trash items
-        if (!trashFolder) {
-            fallbackUsed = true;
-            try {
-                const adapter = this.plugin.app.vault.adapter;
-                if (await adapter.exists(trashPath)) {
-                    const files = await adapter.list(trashPath);
-                    trashItems = [
-                        ...files.files.map(f => ({ name: f.substring(f.lastIndexOf('/') + 1), isFolder: false })),
-                        ...files.folders.map(f => ({ name: f.substring(f.lastIndexOf('/') + 1), isFolder: true }))
-                    ];
+                // Try to get trash items
+                if (!trashFolder) {
+                    fallbackUsed = true;
+                    try {
+                        const adapter = this.plugin.app.vault.adapter;
+                        if (await adapter.exists(trashPath)) {
+                            const files = await adapter.list(trashPath);
+                            trashItems = [
+                                ...files.files.map(f => ({ name: f.substring(f.lastIndexOf('/') + 1), isFolder: false })),
+                                ...files.folders.map(f => ({ name: f.substring(f.lastIndexOf('/') + 1), isFolder: true }))
+                            ];
+                        } else {
+                            sectionEl.createEl('div', {
+                                text: 'No trash folder found. Trash folder will be created automatically when files are deleted with soft delete.',
+                                cls: 'setting-item-description'
+                            });
+                            return;
+                        }
+                    } catch (e) {
+                        sectionEl.createEl('div', {
+                            text: 'Error reading trash folder from file system.',
+                            cls: 'setting-item-description'
+                        });
+                        return;
+                    }
+                } else if (trashFolder instanceof TFolder) {
+                    trashItems = (trashFolder as TFolder).children.map(item => ({
+                        name: item.name,
+                        isFolder: item instanceof TFolder,
+                        size: (isTFile(item) && item.stat) ? item.stat.size : undefined
+                    }));
                 } else {
-                    containerEl.createEl('div', {
-                        text: 'No trash folder found. Trash folder will be created automatically when files are deleted with soft delete.',
+                    sectionEl.createEl('div', {
+                        text: 'Error: .trash exists but is not a folder.',
                         cls: 'setting-item-description'
                     });
                     return;
                 }
-            } catch (e) {
-                containerEl.createEl('div', {
-                    text: 'Error reading trash folder from file system.',
-                    cls: 'setting-item-description'
+
+                // Trash summary
+                const fileCount = trashItems.filter((item) => !item.isFolder).length;
+                const folderCount = trashItems.filter((item) => item.isFolder).length;
+                sectionEl.createEl('div', {
+                    text: `Trash contains: ${fileCount} files, ${folderCount} folders${fallbackUsed ? ' (filesystem fallback)' : ''}`,
+                    cls: 'setting-item-description',
+                    attr: { style: 'margin-bottom: 1em; font-weight: bold;' }
                 });
-                return;
-            }
-        } else if (trashFolder instanceof TFolder) {
-            trashItems = (trashFolder as TFolder).children.map(item => ({
-                name: item.name,
-                isFolder: item instanceof TFolder,
-                size: (isTFile(item) && item.stat) ? item.stat.size : undefined
-            }));
-        } else {
-            containerEl.createEl('div', {
-                text: 'Error: .trash exists but is not a folder.',
-                cls: 'setting-item-description'
-            });
-            return;
-        }
 
-        // Trash summary
-        const fileCount = trashItems.filter((item) => !item.isFolder).length;
-        const folderCount = trashItems.filter((item) => item.isFolder).length;
-        containerEl.createEl('div', {
-            text: `Trash contains: ${fileCount} files, ${folderCount} folders${fallbackUsed ? ' (filesystem fallback)' : ''}`,
-            cls: 'setting-item-description',
-            attr: { style: 'margin-bottom: 1em; font-weight: bold;' }
-        });
-
-        this.renderTrashActions(containerEl, trashItems.length > 0, async () => {
-            await this.renderTrashManagement(containerEl.parentElement!);
-        }, async () => {
-            const confirmed = await DialogHelpers.showConfirmationDialog(
-                'Empty Trash',
-                `Are you sure you want to permanently delete all ${trashItems.length} items in trash? This cannot be undone.`
-            );
-            if (confirmed) {
-                try {
-                    const adapter = this.plugin.app.vault.adapter;
-                    for (const item of trashItems) {
-                        const fullPath = `${trashPath}/${item.name}`;
-                        if (item.isFolder) {
-                            await adapter.rmdir(fullPath, true);
-                        } else {
-                            await adapter.remove(fullPath);
+                this.renderTrashActions(sectionEl, trashItems.length > 0, async () => {
+                    await this.renderTrashManagement(containerEl);
+                }, async () => {
+                    const confirmed = await DialogHelpers.showConfirmationDialog(
+                        'Empty Trash',
+                        `Are you sure you want to permanently delete all ${trashItems.length} items in trash? This cannot be undone.`
+                    );
+                    if (confirmed) {
+                        try {
+                            const adapter = this.plugin.app.vault.adapter;
+                            for (const item of trashItems) {
+                                const fullPath = `${trashPath}/${item.name}`;
+                                if (item.isFolder) {
+                                    await adapter.rmdir(fullPath, true);
+                                } else {
+                                    await adapter.remove(fullPath);
+                                }
+                            }
+                            new Notice(`Emptied trash - permanently deleted ${trashItems.length} items`);
+                            await this.renderTrashManagement(containerEl);
+                        } catch (error) {
+                            new Notice(`Error emptying trash: ${error.message}`);
                         }
                     }
-                    new Notice(`Emptied trash - permanently deleted ${trashItems.length} items`);
-                    await this.renderTrashManagement(containerEl.parentElement!);
-                } catch (error) {
-                    new Notice(`Error emptying trash: ${error.message}`);
+                });
+
+                if (trashItems.length === 0) {
+                    sectionEl.createEl('div', {
+                        text: 'Trash is empty.',
+                        cls: 'setting-item-description'
+                    });
+                    return;
                 }
+
+                this.renderTrashList(sectionEl, trashItems, fallbackUsed);
             }
-        });
-
-        if (trashItems.length === 0) {
-            containerEl.createEl('div', {
-                text: 'Trash is empty.',
-                cls: 'setting-item-description'
-            });
-            return;
-        }
-
-        this.renderTrashList(containerEl, trashItems, fallbackUsed);
+        );
     }
 
     /**

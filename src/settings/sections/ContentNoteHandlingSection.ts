@@ -1,6 +1,7 @@
 import { App, Setting } from 'obsidian';
 import MyPlugin from '../../main';
 import { SettingCreators } from '../components/SettingCreators';
+import { CollapsibleSectionRenderer } from '../../utils/CollapsibleSection';
 
 /**
  * ContentNoteHandlingSection is responsible for rendering settings related to how the plugin handles note content
@@ -25,186 +26,211 @@ export class ContentNoteHandlingSection {
      * @param containerEl The HTML element to render the sections into.
      */
     async render(containerEl: HTMLElement): Promise<void> {
-        // Chat Customization Section Header
-        containerEl.createEl('h3', { text: 'Chat Customization' });
-        
-        // Chat Separator Setting
-        this.settingCreators.createTextSetting(
-            containerEl, 
-            'Chat Separator', 
-            'The string used to separate chat messages.', 
-            '----',
-            () => this.plugin.settings.chatSeparator ?? '',
-            async (value) => { 
-                this.plugin.settings.chatSeparator = value ?? ''; 
-                await this.plugin.saveSettings(); 
-            }
-        );
-        
-        // Chat Start String Setting
-        this.settingCreators.createTextSetting(
-            containerEl, 
-            'Chat Start String', 
-            'The string that indicates where to start taking the note for context.', 
-            '===START===',
-            () => this.plugin.settings.chatStartString ?? '',
-            async (value) => { 
-                this.plugin.settings.chatStartString = value ?? ''; 
-                await this.plugin.saveSettings(); 
-            }
-        );
-        
-        // Chat End String Setting
-        this.settingCreators.createTextSetting(
-            containerEl, 
-            'Chat End String', 
-            'The string that indicates where to end taking the note for context.', 
-            '===END===',
-            () => this.plugin.settings.chatEndString ?? '',
-            async (value) => { 
-                this.plugin.settings.chatEndString = value ?? ''; 
-                await this.plugin.saveSettings(); 
-            }
-        );
-        
-        // Title Prompt Setting
-        this.settingCreators.createTextSetting(
-            containerEl, 
-            'Title Prompt', 
-            'The prompt used for generating note titles.', 
-            'You are a title generator...',
-            () => this.plugin.settings.titlePrompt,
-            async (value) => { 
-                this.plugin.settings.titlePrompt = value ?? ''; 
-                await this.plugin.saveSettings(); 
+        // Chat Customization Section
+        CollapsibleSectionRenderer.createCollapsibleSection(
+            containerEl,
+            'Chat Customization',
+            (sectionEl: HTMLElement) => {
+                // Chat Separator Setting
+                this.settingCreators.createTextSetting(
+                    sectionEl, 
+                    'Chat Separator', 
+                    'The string used to separate chat messages.', 
+                    '----',
+                    () => this.plugin.settings.chatSeparator ?? '',
+                    async (value) => { 
+                        this.plugin.settings.chatSeparator = value ?? ''; 
+                        await this.plugin.saveSettings(); 
+                    }
+                );
+                
+                // Chat Start String Setting
+                this.settingCreators.createTextSetting(
+                    sectionEl, 
+                    'Chat Start String', 
+                    'The string that indicates where to start taking the note for context.', 
+                    '===START===',
+                    () => this.plugin.settings.chatStartString ?? '',
+                    async (value) => { 
+                        this.plugin.settings.chatStartString = value ?? ''; 
+                        await this.plugin.saveSettings(); 
+                    }
+                );
+                
+                // Chat End String Setting
+                this.settingCreators.createTextSetting(
+                    sectionEl, 
+                    'Chat End String', 
+                    'The string that indicates where to end taking the note for context.', 
+                    '===END===',
+                    () => this.plugin.settings.chatEndString ?? '',
+                    async (value) => { 
+                        this.plugin.settings.chatEndString = value ?? ''; 
+                        await this.plugin.saveSettings(); 
+                    }
+                );
+                
+                // Title Prompt Setting
+                this.settingCreators.createTextSetting(
+                    sectionEl, 
+                    'Title Prompt', 
+                    'The prompt used for generating note titles.', 
+                    'You are a title generator...',
+                    () => this.plugin.settings.titlePrompt,
+                    async (value) => { 
+                        this.plugin.settings.titlePrompt = value ?? ''; 
+                        await this.plugin.saveSettings(); 
+                    },
+                    { isTextArea: true }
+                );
+                
+                // Title Output Mode Dropdown
+                this.settingCreators.createDropdownSetting(
+                    sectionEl, 
+                    'Title Output Mode', 
+                    'Choose what to do with the generated note title.',
+                    { 'clipboard': 'Copy to clipboard', 'replace-filename': 'Replace note filename', 'metadata': 'Insert into metadata' },
+                    () => this.plugin.settings.titleOutputMode ?? 'clipboard',
+                    async (value) => { 
+                        this.plugin.settings.titleOutputMode = value as any; 
+                        await this.plugin.saveSettings(); 
+                    }
+                );
+                
+                // Summary Output Mode Dropdown
+                this.settingCreators.createDropdownSetting(
+                    sectionEl, 
+                    'Summary Output Mode', 
+                    'Choose what to do with the generated note summary.',
+                    { 'clipboard': 'Copy to clipboard', 'metadata': 'Insert into metadata' },
+                    () => this.plugin.settings.summaryOutputMode ?? 'clipboard',
+                    async (value) => { 
+                        this.plugin.settings.summaryOutputMode = value as any; 
+                        await this.plugin.saveSettings(); 
+                    }
+                );
             },
-            { isTextArea: true }
-        );
-        
-        // Title Output Mode Dropdown
-        this.settingCreators.createDropdownSetting(
-            containerEl, 
-            'Title Output Mode', 
-            'Choose what to do with the generated note title.',
-            { 'clipboard': 'Copy to clipboard', 'replace-filename': 'Replace note filename', 'metadata': 'Insert into metadata' },
-            () => this.plugin.settings.titleOutputMode ?? 'clipboard',
-            async (value) => { 
-                this.plugin.settings.titleOutputMode = value as any; 
-                await this.plugin.saveSettings(); 
-            }
-        );
-        
-        // Summary Output Mode Dropdown
-        this.settingCreators.createDropdownSetting(
-            containerEl, 
-            'Summary Output Mode', 
-            'Choose what to do with the generated note summary.',
-            { 'clipboard': 'Copy to clipboard', 'metadata': 'Insert into metadata' },
-            () => this.plugin.settings.summaryOutputMode ?? 'clipboard',
-            async (value) => { 
-                this.plugin.settings.summaryOutputMode = value as any; 
-                await this.plugin.saveSettings(); 
-            }
+            this.plugin,
+            'generalSectionsExpanded'
         );
 
-        // Note Reference Settings Section Header
-        containerEl.createEl('h3', { text: 'Note Reference Settings' });
-        
-        // Enable Obsidian Links Toggle
-        this.settingCreators.createToggleSetting(
+        // Note Reference Settings Section
+        CollapsibleSectionRenderer.createCollapsibleSection(
             containerEl,
-            'Enable Obsidian Links',
-            'Read Obsidian links in messages using [[filename]] syntax',
-            () => this.plugin.settings.enableObsidianLinks,
-            async (value) => {
-                this.plugin.settings.enableObsidianLinks = value;
-                await this.plugin.saveSettings();
-            }
-        );
+            'Note Reference Settings',
+            (sectionEl: HTMLElement) => {
+                // Enable Obsidian Links Toggle
+                this.settingCreators.createToggleSetting(
+                    sectionEl,
+                    'Enable Obsidian Links',
+                    'Read Obsidian links in messages using [[filename]] syntax',
+                    () => this.plugin.settings.enableObsidianLinks,
+                    async (value) => {
+                        this.plugin.settings.enableObsidianLinks = value;
+                        await this.plugin.saveSettings();
+                    }
+                );
 
-        // Enable Context Notes Toggle
-        this.settingCreators.createToggleSetting(
-            containerEl,
-            'Enable Context Notes',
-            'Attach specified note content to chat messages',
-            () => this.plugin.settings.enableContextNotes,
-            async (value) => {
-                this.plugin.settings.enableContextNotes = value;
-                await this.plugin.saveSettings();
-            }
-        );
+                // Enable Context Notes Toggle
+                this.settingCreators.createToggleSetting(
+                    sectionEl,
+                    'Enable Context Notes',
+                    'Attach specified note content to chat messages',
+                    () => this.plugin.settings.enableContextNotes,
+                    async (value) => {
+                        this.plugin.settings.enableContextNotes = value;
+                        await this.plugin.saveSettings();
+                    }
+                );
 
-        // Context Notes Text Area
-        const contextNotesContainer = containerEl.createDiv('context-notes-container');
-        contextNotesContainer.style.marginBottom = '24px';
+                // Context Notes Text Area
+                const contextNotesContainer = sectionEl.createDiv('context-notes-container');
+                contextNotesContainer.style.marginBottom = '24px';
 
-        new Setting(contextNotesContainer)
-            .setName('Context Notes')
-            .setDesc('Notes to attach as context (supports [[filename]] and [[another note#header]] syntax)')
-            .addTextArea(text => {
-                text.setPlaceholder('[[Note Name]]\n[[Another Note#Header]]')
-                    .setValue(this.plugin.settings.contextNotes || '')
-                    .onChange((value) => {
-                        // Update setting immediately on change
-                        this.plugin.settings.contextNotes = value;
+                new Setting(contextNotesContainer)
+                    .setName('Context Notes')
+                    .setDesc('Notes to attach as context (supports [[filename]] and [[another note#header]] syntax)')
+                    .addTextArea(text => {
+                        text.setPlaceholder('[[Note Name]]\n[[Another Note#Header]]')
+                            .setValue(this.plugin.settings.contextNotes || '')
+                            .onChange((value) => {
+                                // Update setting immediately on change
+                                this.plugin.settings.contextNotes = value;
+                            });
+                        
+                        // Save settings on blur
+                        text.inputEl.addEventListener('blur', async () => {
+                            await this.plugin.saveSettings();
+                        });
+                        
+                        text.inputEl.rows = 4;
+                        text.inputEl.style.width = '100%';
                     });
-                
-                // Save settings on blur
-                text.inputEl.addEventListener('blur', async () => {
-                    await this.plugin.saveSettings();
-                });
-                
-                text.inputEl.rows = 4;
-                text.inputEl.style.width = '100%';
-            });
-
-        // Data Handling Section Header
-        containerEl.createEl('h3', { text: 'Data Handling' });
-        
-        // Expand Linked Notes Recursively Toggle
-        this.settingCreators.createToggleSetting(
-            containerEl, 
-            'Expand Linked Notes Recursively', 
-            'If enabled, when fetching a note, also fetch and expand links within that note recursively (prevents infinite loops).',
-            () => this.plugin.settings.expandLinkedNotesRecursively ?? false,
-            async (value) => { 
-                this.plugin.settings.expandLinkedNotesRecursively = value; 
-                await this.plugin.saveSettings(); 
-            }
-        );
-
-        // Max Link Expansion Depth Slider (only visible if recursive expansion is enabled)
-        if (this.plugin.settings.expandLinkedNotesRecursively) {
-            this.settingCreators.createSliderSetting(
-                containerEl, 
-                'Max Link Expansion Depth', 
-                'Maximum depth for recursively expanding linked notes (1-3).',
-                { min: 1, max: 3, step: 1 },
-                () => this.plugin.settings.maxLinkExpansionDepth ?? 2,
-                async (value) => { 
-                    this.plugin.settings.maxLinkExpansionDepth = value; 
-                    await this.plugin.saveSettings(); 
-                }
-            );
-        }
-
-        // Chat Note Folder Text Setting
-        this.settingCreators.createTextSetting(
-            containerEl, 
-            'Chat Note Folder', 
-            'Folder to save exported chat notes (relative to vault root, leave blank for root)', 
-            'e.g. AI Chats',
-            () => this.plugin.settings.chatNoteFolder ?? '',
-            async (value) => { 
-                this.plugin.settings.chatNoteFolder = value ?? ''; 
-                await this.plugin.saveSettings(); 
             },
-            { trim: true }
+            this.plugin,
+            'generalSectionsExpanded'
         );
 
-        // YAML Attribute Generators Section Header
-        containerEl.createEl('h3', { text: 'YAML Attribute Generators' });
-        this.renderYamlAttributeGenerators(containerEl);
+        // Data Handling Section
+        CollapsibleSectionRenderer.createCollapsibleSection(
+            containerEl,
+            'Data Handling',
+            (sectionEl: HTMLElement) => {
+                // Expand Linked Notes Recursively Toggle
+                this.settingCreators.createToggleSetting(
+                    sectionEl, 
+                    'Expand Linked Notes Recursively', 
+                    'If enabled, when fetching a note, also fetch and expand links within that note recursively (prevents infinite loops).',
+                    () => this.plugin.settings.expandLinkedNotesRecursively ?? false,
+                    async (value) => { 
+                        this.plugin.settings.expandLinkedNotesRecursively = value; 
+                        await this.plugin.saveSettings(); 
+                    }
+                );
+
+                // Max Link Expansion Depth Slider (only visible if recursive expansion is enabled)
+                if (this.plugin.settings.expandLinkedNotesRecursively) {
+                    this.settingCreators.createSliderSetting(
+                        sectionEl, 
+                        'Max Link Expansion Depth', 
+                        'Maximum depth for recursively expanding linked notes (1-3).',
+                        { min: 1, max: 3, step: 1 },
+                        () => this.plugin.settings.maxLinkExpansionDepth ?? 2,
+                        async (value) => { 
+                            this.plugin.settings.maxLinkExpansionDepth = value; 
+                            await this.plugin.saveSettings(); 
+                        }
+                    );
+                }
+
+                // Chat Note Folder Text Setting
+                this.settingCreators.createTextSetting(
+                    sectionEl, 
+                    'Chat Note Folder', 
+                    'Folder to save exported chat notes (relative to vault root, leave blank for root)', 
+                    'e.g. AI Chats',
+                    () => this.plugin.settings.chatNoteFolder ?? '',
+                    async (value) => { 
+                        this.plugin.settings.chatNoteFolder = value ?? ''; 
+                        await this.plugin.saveSettings(); 
+                    },
+                    { trim: true }
+                );
+            },
+            this.plugin,
+            'generalSectionsExpanded'
+        );
+
+        // YAML Attribute Generators Section
+        CollapsibleSectionRenderer.createCollapsibleSection(
+            containerEl,
+            'YAML Attribute Generators',
+            (sectionEl: HTMLElement) => {
+                this.renderYamlAttributeGenerators(sectionEl);
+            },
+            this.plugin,
+            'generalSectionsExpanded'
+        );
     }
 
     /**
