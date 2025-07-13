@@ -14747,6 +14747,88 @@ var init_eventHandlers = __esm({
   }
 });
 
+// src/utils/generalUtils.ts
+function showNotice(message) {
+  new import_obsidian19.Notice(message);
+}
+async function copyToClipboard3(text, successMsg = "Copied to clipboard", failMsg = "Failed to copy to clipboard") {
+  try {
+    await navigator.clipboard.writeText(text);
+    showNotice(successMsg);
+  } catch (error) {
+    showNotice(failMsg);
+    debugLog(true, "error", "Clipboard error:", error);
+  }
+}
+function moveCursorAfterInsert(editor, startPos, insertText) {
+  const lines = insertText.split("\n");
+  if (lines.length === 1) {
+    editor.setCursor({
+      line: startPos.line,
+      ch: startPos.ch + insertText.length
+    });
+  } else {
+    editor.setCursor({
+      line: startPos.line + lines.length - 1,
+      ch: lines[lines.length - 1].length
+    });
+  }
+}
+function insertSeparator(editor, position, separator) {
+  var _a2;
+  const lineContent = (_a2 = editor.getLine(position.line)) != null ? _a2 : "";
+  const prefix = lineContent.trim() !== "" ? "\n" : "";
+  editor.replaceRange(`${prefix}
+${separator}
+`, position);
+  return position.line + (prefix ? 1 : 0) + 2;
+}
+function findFile(app, filePath) {
+  let file = app.vault.getAbstractFileByPath(filePath) || app.vault.getAbstractFileByPath(`${filePath}.md`);
+  if (!file) {
+    const allFiles = app.vault.getFiles();
+    file = allFiles.find(
+      (f) => f.name === filePath || f.name === `${filePath}.md` || f.basename.toLowerCase() === filePath.toLowerCase() || f.path === filePath || f.path === `${filePath}.md`
+    ) || null;
+  }
+  return file;
+}
+function extractContentUnderHeader(content, headerText) {
+  const lines = content.split("\n");
+  let foundHeader = false;
+  let extractedContent = [];
+  let headerLevel = 0;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const headerMatch = line.match(/^(#+)\s+(.*?)$/);
+    if (headerMatch) {
+      const currentHeaderLevel = headerMatch[1].length;
+      const currentHeaderText = headerMatch[2].trim();
+      if (foundHeader) {
+        if (currentHeaderLevel <= headerLevel) {
+          break;
+        }
+      } else if (currentHeaderText.toLowerCase() === headerText.toLowerCase()) {
+        foundHeader = true;
+        headerLevel = currentHeaderLevel;
+        extractedContent.push(line);
+        continue;
+      }
+    }
+    if (foundHeader) {
+      extractedContent.push(line);
+    }
+  }
+  return extractedContent.join("\n");
+}
+var import_obsidian19;
+var init_generalUtils = __esm({
+  "src/utils/generalUtils.ts"() {
+    import_obsidian19 = require("obsidian");
+    init_logger();
+  }
+});
+
 // src/components/chat/BotMessage.ts
 var BotMessage_exports = {};
 __export(BotMessage_exports, {
@@ -14974,11 +15056,2382 @@ var init_clearAICallLogs = __esm({
   }
 });
 
+// src/components/agent/memory-handling/vectorStore.ts
+var vectorStore_exports = {};
+__export(vectorStore_exports, {
+  VectorStore: () => VectorStore
+});
+var VectorStore;
+var init_vectorStore = __esm({
+  "src/components/agent/memory-handling/vectorStore.ts"() {
+    VectorStore = class _VectorStore {
+      /**
+       * Constructs a new VectorStore instance.
+       * @param plugin - The Obsidian plugin instance (used for naming the database).
+       */
+      constructor(plugin) {
+        __publicField(this, "db", null);
+        __publicField(this, "dbName");
+        __publicField(this, "isInitialized", false);
+        this.dbName = "ai-assistant-vectorstore";
+      }
+      /**
+       * Initializes the VectorStore by setting up the IndexedDB database.
+       * Must be called before using any other methods.
+       */
+      async initialize() {
+        if (this.isInitialized) {
+          return;
+        }
+        try {
+          console.log("Initializing VectorStore with IndexedDB (no SQL dependencies)");
+          this.db = await this.openIndexedDB();
+          this.isInitialized = true;
+          console.log("\u2705 VectorStore initialized successfully");
+        } catch (error) {
+          console.error("Failed to initialize VectorStore:", error);
+          throw new Error(`VectorStore initialization failed: ${error.message}`);
+        }
+      }
+      /**
+       * Opens or creates the IndexedDB database
+       */
+      openIndexedDB() {
+        return new Promise((resolve, reject) => {
+          const request = indexedDB.open(this.dbName, 1);
+          request.onerror = () => {
+            var _a2;
+            reject(new Error(`Failed to open IndexedDB: ${(_a2 = request.error) == null ? void 0 : _a2.message}`));
+          };
+          request.onsuccess = () => {
+            resolve(request.result);
+          };
+          request.onupgradeneeded = (event) => {
+            const db = event.target.result;
+            if (!db.objectStoreNames.contains("vectors")) {
+              const store = db.createObjectStore("vectors", { keyPath: "id" });
+              store.createIndex("timestamp", "timestamp", { unique: false });
+            }
+          };
+        });
+      }
+      /**
+       * Ensures the database is initialized before operations.
+       */
+      ensureInitialized() {
+        if (!this.isInitialized || !this.db) {
+          throw new Error("VectorStore not initialized. Call initialize() first.");
+        }
+      }
+      /**
+       * Checks if the VectorStore is initialized and ready for use.
+       * @returns True if initialized, false otherwise.
+       */
+      isReady() {
+        return this.isInitialized && this.db !== null;
+      }
+      /**
+       * Adds or updates a vector in the store.
+       * @param id - Unique identifier for the vector.
+       * @param text - The original text content.
+       * @param embedding - The vector embedding (array of numbers).
+       * @param metadata - Optional metadata to store with the vector.
+       */
+      async addVector(id, text, embedding, metadata) {
+        this.ensureInitialized();
+        const vectorData = {
+          id,
+          text,
+          embedding,
+          metadata,
+          timestamp: Date.now()
+        };
+        return new Promise((resolve, reject) => {
+          const transaction = this.db.transaction(["vectors"], "readwrite");
+          const store = transaction.objectStore("vectors");
+          const request = store.put(vectorData);
+          request.onsuccess = () => resolve();
+          request.onerror = () => {
+            var _a2;
+            return reject(new Error(`Failed to add vector: ${(_a2 = request.error) == null ? void 0 : _a2.message}`));
+          };
+        });
+      }
+      /**
+       * Retrieves a vector by its ID.
+       * @param id - The unique identifier for the vector.
+       * @returns The vector data or null if not found.
+       */
+      async getVector(id) {
+        this.ensureInitialized();
+        return new Promise((resolve, reject) => {
+          const transaction = this.db.transaction(["vectors"], "readonly");
+          const store = transaction.objectStore("vectors");
+          const request = store.get(id);
+          request.onsuccess = () => {
+            resolve(request.result || null);
+          };
+          request.onerror = () => {
+            var _a2;
+            return reject(new Error(`Failed to get vector: ${(_a2 = request.error) == null ? void 0 : _a2.message}`));
+          };
+        });
+      }
+      /**
+       * Removes a vector from the store.
+       * @param id - The unique identifier for the vector to remove.
+       * @returns True if the vector was removed, false if it didn't exist.
+       */
+      async removeVector(id) {
+        this.ensureInitialized();
+        return new Promise((resolve, reject) => {
+          const transaction = this.db.transaction(["vectors"], "readwrite");
+          const store = transaction.objectStore("vectors");
+          const getRequest = store.get(id);
+          getRequest.onsuccess = () => {
+            if (getRequest.result) {
+              const deleteRequest = store.delete(id);
+              deleteRequest.onsuccess = () => resolve(true);
+              deleteRequest.onerror = () => {
+                var _a2;
+                return reject(new Error(`Failed to delete vector: ${(_a2 = deleteRequest.error) == null ? void 0 : _a2.message}`));
+              };
+            } else {
+              resolve(false);
+            }
+          };
+          getRequest.onerror = () => {
+            var _a2;
+            return reject(new Error(`Failed to check vector existence: ${(_a2 = getRequest.error) == null ? void 0 : _a2.message}`));
+          };
+        });
+      }
+      /**
+       * Gets all vectors from the store.
+       * @returns Array of all stored vectors.
+       */
+      async getAllVectors() {
+        this.ensureInitialized();
+        return new Promise((resolve, reject) => {
+          const transaction = this.db.transaction(["vectors"], "readonly");
+          const store = transaction.objectStore("vectors");
+          const request = store.getAll();
+          request.onsuccess = () => resolve(request.result);
+          request.onerror = () => {
+            var _a2;
+            return reject(new Error(`Failed to get all vectors: ${(_a2 = request.error) == null ? void 0 : _a2.message}`));
+          };
+        });
+      }
+      /**
+       * Finds vectors containing the specified text (simple text search).
+       * @param searchText - The text to search for.
+       * @param limit - Maximum number of results to return (default: 10).
+       * @returns Array of matching vectors.
+       */
+      async findVectorsByText(searchText, limit = 10) {
+        this.ensureInitialized();
+        const allVectors = await this.getAllVectors();
+        const searchLower = searchText.toLowerCase();
+        return allVectors.filter((vector) => vector.text.toLowerCase().includes(searchLower)).slice(0, limit);
+      }
+      /**
+       * Searches for vectors containing specific text (alias for findVectorsByText for backward compatibility).
+       * @param searchText - Text to search for in vector text content.
+       * @param limit - Maximum number of results to return (default: 10).
+       * @returns Array of matching vectors.
+       */
+      async searchByText(searchText, limit = 10) {
+        return this.findVectorsByText(searchText, limit);
+      }
+      /**
+       * Gets vectors by their metadata properties.
+       * @param metadataQuery - Key-value pairs to match in metadata.
+       * @param limit - Maximum number of results (default: 10).
+       * @returns Array of matching vectors.
+       */
+      async getVectorsByMetadata(metadataQuery, limit = 10) {
+        this.ensureInitialized();
+        const allVectors = await this.getAllVectors();
+        const matches = allVectors.filter((vector) => {
+          if (!vector.metadata) return false;
+          try {
+            return Object.entries(metadataQuery).every(([key, value]) => vector.metadata[key] === value);
+          } catch (e) {
+            return false;
+          }
+        }).slice(0, limit);
+        return matches;
+      }
+      /**
+       * Gets the total number of vectors in the store.
+       * @returns The count of vectors.
+       */
+      async getVectorCount() {
+        this.ensureInitialized();
+        return new Promise((resolve, reject) => {
+          const transaction = this.db.transaction(["vectors"], "readonly");
+          const store = transaction.objectStore("vectors");
+          const request = store.count();
+          request.onsuccess = () => resolve(request.result);
+          request.onerror = () => {
+            var _a2;
+            return reject(new Error(`Failed to count vectors: ${(_a2 = request.error) == null ? void 0 : _a2.message}`));
+          };
+        });
+      }
+      /**
+       * Clears all vectors from the store.
+       * @returns The number of vectors that were removed.
+       */
+      async clearAllVectors() {
+        this.ensureInitialized();
+        const count = await this.getVectorCount();
+        return new Promise((resolve, reject) => {
+          const transaction = this.db.transaction(["vectors"], "readwrite");
+          const store = transaction.objectStore("vectors");
+          const request = store.clear();
+          request.onsuccess = () => resolve(count);
+          request.onerror = () => {
+            var _a2;
+            return reject(new Error(`Failed to clear vectors: ${(_a2 = request.error) == null ? void 0 : _a2.message}`));
+          };
+        });
+      }
+      /**
+       * Calculates cosine similarity between two embedding vectors.
+       * @param vec1 - First embedding vector.
+       * @param vec2 - Second embedding vector.
+       * @returns Cosine similarity score (0-1, where 1 is most similar).
+       */
+      static cosineSimilarity(vec1, vec2) {
+        if (vec1.length !== vec2.length) {
+          throw new Error("Vectors must have the same length for similarity calculation");
+        }
+        let dotProduct = 0;
+        let norm1 = 0;
+        let norm2 = 0;
+        for (let i = 0; i < vec1.length; i++) {
+          dotProduct += vec1[i] * vec2[i];
+          norm1 += vec1[i] * vec1[i];
+          norm2 += vec2[i] * vec2[i];
+        }
+        const magnitude = Math.sqrt(norm1) * Math.sqrt(norm2);
+        return magnitude === 0 ? 0 : dotProduct / magnitude;
+      }
+      /**
+       * Finds vectors most similar to a given embedding.
+       * @param queryEmbedding - The embedding to find similarities for.
+       * @param limit - Maximum number of results to return (default: 5).
+       * @param minSimilarity - Minimum similarity threshold (default: 0.0).
+       * @returns Array of vectors with similarity scores, sorted by similarity (highest first).
+       */
+      async findSimilarVectors(queryEmbedding, limit = 5, minSimilarity = 0) {
+        this.ensureInitialized();
+        const allVectors = await this.getAllVectors();
+        const similarities = allVectors.map((vector) => ({
+          ...vector,
+          similarity: _VectorStore.cosineSimilarity(queryEmbedding, vector.embedding)
+        }));
+        return similarities.filter((item) => item.similarity >= minSimilarity).sort((a, b) => b.similarity - a.similarity).slice(0, limit);
+      }
+      /**
+       * Deletes a vector by its ID (alias for removeVector for backward compatibility).
+       * @param id - The unique identifier of the vector to delete.
+       * @returns True if a vector was deleted, false if not found.
+       */
+      async deleteVector(id) {
+        return this.removeVector(id);
+      }
+      /**
+       * Closes the database connection.
+       */
+      async close() {
+        if (this.db) {
+          this.db.close();
+          this.db = null;
+          this.isInitialized = false;
+        }
+      }
+    };
+  }
+});
+
+// src/components/agent/memory-handling/EmbeddingService.ts
+var EmbeddingService_exports = {};
+__export(EmbeddingService_exports, {
+  EmbeddingService: () => EmbeddingService
+});
+var import_obsidian31, crypto2, EmbeddingService;
+var init_EmbeddingService = __esm({
+  "src/components/agent/memory-handling/EmbeddingService.ts"() {
+    import_obsidian31 = require("obsidian");
+    init_vectorStore();
+    init_logger();
+    init_generalUtils();
+    crypto2 = __toESM(require("crypto"));
+    EmbeddingService = class {
+      constructor(plugin, settings) {
+        __publicField(this, "vectorStore");
+        __publicField(this, "plugin");
+        __publicField(this, "settings");
+        __publicField(this, "isInitialized", false);
+        this.plugin = plugin;
+        this.settings = settings;
+        this.vectorStore = new VectorStore(plugin);
+      }
+      /**
+       * Initialize the EmbeddingService by setting up the VectorStore.
+       * Must be called before using any other methods.
+       */
+      async initialize() {
+        var _a2, _b;
+        if (this.isInitialized) {
+          return;
+        }
+        try {
+          await this.vectorStore.initialize();
+          this.isInitialized = true;
+          debugLog((_a2 = this.settings.debugMode) != null ? _a2 : false, "info", "EmbeddingService initialized successfully");
+        } catch (error) {
+          debugLog((_b = this.settings.debugMode) != null ? _b : false, "error", "Failed to initialize EmbeddingService:", error);
+          throw error;
+        }
+      }
+      /**
+       * Checks if the service is initialized and ready for use.
+       */
+      get initialized() {
+        return this.isInitialized && this.vectorStore.isReady();
+      }
+      /**
+       * Ensures the service is initialized before operations.
+       */
+      ensureInitialized() {
+        if (!this.initialized) {
+          throw new Error("EmbeddingService not initialized. Call initialize() first.");
+        }
+      }
+      /**
+       * Generates embeddings for text using the configured AI provider.
+       * @param text - Text to embed
+       * @returns Promise<number[]> - The embedding vector
+       */
+      /**
+       * Always uses OpenAI for embedding generation, regardless of provider settings.
+       */
+      async generateEmbedding(text) {
+        var _a2;
+        try {
+          const response = await fetch("https://api.openai.com/v1/embeddings", {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${this.settings.openaiSettings.apiKey}`,
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              input: text,
+              model: "text-embedding-3-small"
+            })
+          });
+          if (!response.ok) {
+            throw new Error(`Embedding API error: ${response.status}`);
+          }
+          const data = await response.json();
+          return data.data[0].embedding;
+        } catch (error) {
+          debugLog((_a2 = this.settings.debugMode) != null ? _a2 : false, "error", "Embedding generation failed:", error);
+          throw new Error(`Failed to generate embedding: ${error.message}`);
+        }
+      }
+      /**
+       * Splits a long text into smaller chunks for embedding.
+       * This helps keep each chunk within the model's context window.
+       * Tries to split at sentence or line boundaries for better semantic meaning.
+       *
+       * @param text - The text to split into chunks
+       * @param options - Options for chunk size and overlap
+       * @returns Array of text chunks
+       */
+      splitIntoChunks(text, options = {}) {
+        const chunkSize = options.chunkSize || 1e3;
+        const overlap = options.chunkOverlap || 100;
+        const chunks = [];
+        let start = 0;
+        while (start < text.length) {
+          const end = Math.min(start + chunkSize, text.length);
+          const chunk = text.slice(start, end);
+          if (end < text.length) {
+            const lastSentence = chunk.lastIndexOf(".");
+            const lastNewline = chunk.lastIndexOf("\n");
+            const breakPoint = Math.max(lastSentence, lastNewline);
+            if (breakPoint > start + chunkSize / 2) {
+              chunks.push(text.slice(start, breakPoint + 1).trim());
+              start = breakPoint + 1 - overlap;
+            } else {
+              chunks.push(chunk.trim());
+              start = end - overlap;
+            }
+          } else {
+            chunks.push(chunk.trim());
+            break;
+          }
+          start = Math.max(start, 0);
+        }
+        return chunks.filter((chunk) => chunk.length > 0);
+      }
+      /**
+       * Generates a unique ID for a text chunk.
+       * @param text - Text content
+       * @param metadata - Associated metadata
+       * @returns Unique identifier
+       */
+      generateId(text, metadata = {}) {
+        const content = text + JSON.stringify(metadata);
+        return crypto2.createHash("sha256").update(content).digest("hex");
+      }
+      /**
+       * Embeds a single note file.
+       * @param file - The note file to embed
+       * @param options - Embedding options
+       */
+      async embedNote(file, options = {}) {
+        var _a2, _b;
+        this.ensureInitialized();
+        try {
+          const content = await this.plugin.app.vault.read(file);
+          await this.embedText(content, {
+            ...options,
+            customMetadata: {
+              filePath: file.path,
+              fileName: file.name,
+              type: "note",
+              lastModified: file.stat.mtime,
+              ...options.customMetadata
+            }
+          });
+          debugLog((_a2 = this.settings.debugMode) != null ? _a2 : false, "info", `Embedded note: ${file.path}`);
+        } catch (error) {
+          debugLog((_b = this.settings.debugMode) != null ? _b : false, "error", `Failed to embed note ${file.path}:`, error);
+          throw error;
+        }
+      }
+      /**
+       * Embeds arbitrary text content.
+       * @param text - Text to embed
+       * @param options - Embedding options
+       */
+      async embedText(text, options = {}) {
+        var _a2, _b;
+        this.ensureInitialized();
+        try {
+          const chunks = this.splitIntoChunks(text, options);
+          for (let i = 0; i < chunks.length; i++) {
+            const chunk = chunks[i];
+            const embedding = await this.generateEmbedding(chunk);
+            const metadata = {
+              chunkIndex: i,
+              totalChunks: chunks.length,
+              timestamp: Date.now(),
+              ...options.customMetadata
+            };
+            const id = this.generateId(chunk, metadata);
+            await this.vectorStore.addVector(id, chunk, embedding, metadata);
+          }
+          debugLog((_a2 = this.settings.debugMode) != null ? _a2 : false, "info", `Embedded ${chunks.length} chunks`);
+        } catch (error) {
+          debugLog((_b = this.settings.debugMode) != null ? _b : false, "error", "Failed to embed text:", error);
+          throw error;
+        }
+      }
+      /**
+       * Embeds a conversation or chat history.
+       * @param messages - Array of messages to embed
+       * @param sessionId - Optional session identifier
+       */
+      async embedConversation(messages, sessionId) {
+        var _a2, _b;
+        this.ensureInitialized();
+        try {
+          for (let i = 0; i < messages.length; i++) {
+            const message = messages[i];
+            const text = typeof message.content === "string" ? message.content : JSON.stringify(message.content);
+            if (text.trim().length === 0) continue;
+            const embedding = await this.generateEmbedding(text);
+            const metadata = {
+              role: message.role,
+              messageIndex: i,
+              sessionId: sessionId || "unknown",
+              timestamp: Date.now(),
+              type: "conversation"
+            };
+            const id = this.generateId(text, metadata);
+            await this.vectorStore.addVector(id, text, embedding, metadata);
+          }
+          debugLog((_a2 = this.settings.debugMode) != null ? _a2 : false, "info", `Embedded conversation with ${messages.length} messages`);
+        } catch (error) {
+          debugLog((_b = this.settings.debugMode) != null ? _b : false, "error", "Failed to embed conversation:", error);
+          throw error;
+        }
+      }
+      /**
+       * Performs semantic search to find relevant content.
+       * @param query - Search query
+       * @param options - Search options
+       * @returns Array of search results
+       */
+      async semanticSearch(query, options = {}) {
+        var _a2;
+        this.ensureInitialized();
+        try {
+          const queryEmbedding = await this.generateEmbedding(query);
+          const topK = options.topK || 5;
+          const minSimilarity = options.minSimilarity || 0.7;
+          let results = await this.vectorStore.findSimilarVectors(queryEmbedding, topK * 2, minSimilarity);
+          if (options.filterMetadata) {
+            results = results.filter((result) => {
+              if (!result.metadata) return false;
+              return Object.entries(options.filterMetadata).every(
+                ([key, value]) => result.metadata[key] === value
+              );
+            });
+          }
+          if (options.includeTypes) {
+            results = results.filter(
+              (result) => result.metadata && options.includeTypes.includes(result.metadata.type)
+            );
+          }
+          return results.slice(0, topK).map((result) => {
+            var _a3;
+            return {
+              text: result.text,
+              filePath: (_a3 = result.metadata) == null ? void 0 : _a3.filePath,
+              similarity: result.similarity,
+              metadata: result.metadata,
+              id: result.id
+            };
+          });
+        } catch (error) {
+          debugLog((_a2 = this.settings.debugMode) != null ? _a2 : false, "error", "Semantic search failed:", error);
+          throw error;
+        }
+      }
+      /**
+       * Gets contextually relevant content for AI completions.
+       * @param query - The current query or conversation context
+       * @param options - Context retrieval options
+       * @returns Array of relevant content chunks
+       */
+      async getRelevantContext(query, options = {}) {
+        const includeTypes = [];
+        if (options.includeNotes !== false) includeTypes.push("note");
+        if (options.includeConversations !== false) includeTypes.push("conversation");
+        const results = await this.semanticSearch(query, {
+          topK: options.maxChunks || 3,
+          minSimilarity: options.minSimilarity || 0.7,
+          includeTypes
+        });
+        return results.map((result) => {
+          const source = result.filePath ? `[${result.filePath}]` : "[Memory]";
+          return `${source}: ${result.text}`;
+        });
+      }
+      /**
+       * Embeds all notes in the vault.
+       * @param options - Embedding options
+       */
+      async embedAllNotes(options = {}) {
+        var _a2;
+        this.ensureInitialized();
+        const notice = new import_obsidian31.Notice("Embedding all notes...", 0);
+        try {
+          const files = this.plugin.app.vault.getMarkdownFiles();
+          let processed = 0;
+          for (const file of files) {
+            try {
+              await this.embedNote(file, options);
+              processed++;
+              notice.setMessage(`Embedded ${processed}/${files.length} notes...`);
+            } catch (error) {
+              debugLog((_a2 = this.settings.debugMode) != null ? _a2 : false, "warn", `Skipped ${file.path}:`, error);
+            }
+          }
+          notice.hide();
+          showNotice(`Successfully embedded ${processed} notes!`);
+        } catch (error) {
+          notice.hide();
+          showNotice(`Error embedding notes: ${error.message}`);
+          throw error;
+        }
+      }
+      /**
+       * Clears all embeddings from the vector store.
+       */
+      async clearAllEmbeddings() {
+        var _a2;
+        this.ensureInitialized();
+        const count = await this.vectorStore.clearAllVectors();
+        showNotice(`Cleared ${count} embeddings from memory.`);
+        debugLog((_a2 = this.settings.debugMode) != null ? _a2 : false, "info", `Cleared ${count} embeddings`);
+      }
+      /**
+       * Gets statistics about the vector store.
+       */
+      async getStats() {
+        this.ensureInitialized();
+        return {
+          totalVectors: await this.vectorStore.getVectorCount()
+        };
+      }
+      /**
+       * Closes the embedding service and cleans up resources.
+       */
+      async close() {
+        await this.vectorStore.close();
+      }
+      /**
+       * Embeds the currently active note in the editor.
+       * @param options - Embedding options
+       */
+      async embedActiveNote(options = {}) {
+        var _a2, _b;
+        this.ensureInitialized();
+        const activeFile = (_b = (_a2 = this.plugin.app.workspace).getActiveFile) == null ? void 0 : _b.call(_a2);
+        if (!activeFile) {
+          showNotice("No active note found to embed.");
+          return;
+        }
+        await this.embedNote(activeFile, options);
+        showNotice(`Embedded active note: ${activeFile.path}`);
+      }
+    };
+  }
+});
+
+// src/components/agent/memory-handling/SemanticContextBuilder.ts
+var SemanticContextBuilder_exports = {};
+__export(SemanticContextBuilder_exports, {
+  SemanticContextBuilder: () => SemanticContextBuilder
+});
+var SemanticContextBuilder;
+var init_SemanticContextBuilder = __esm({
+  "src/components/agent/memory-handling/SemanticContextBuilder.ts"() {
+    init_logger();
+    init_EmbeddingService();
+    SemanticContextBuilder = class {
+      constructor(app, plugin) {
+        this.app = app;
+        this.plugin = plugin;
+        __publicField(this, "embeddingService", null);
+        __publicField(this, "isInitialized", false);
+        var _a2;
+        try {
+          this.embeddingService = new EmbeddingService(plugin, plugin.settings);
+        } catch (error) {
+          debugLog((_a2 = plugin.settings.debugMode) != null ? _a2 : false, "warn", "EmbeddingService unavailable:", error);
+        }
+      }
+      /**
+       * Initialize the SemanticContextBuilder by setting up the EmbeddingService.
+       * Should be called before using other methods.
+       */
+      async initialize() {
+        var _a2, _b;
+        if (this.isInitialized || !this.embeddingService) {
+          return;
+        }
+        try {
+          await this.embeddingService.initialize();
+          this.isInitialized = true;
+          debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", "SemanticContextBuilder initialized successfully");
+        } catch (error) {
+          debugLog((_b = this.plugin.settings.debugMode) != null ? _b : false, "error", "Failed to initialize SemanticContextBuilder:", error);
+          throw error;
+        }
+      }
+      /**
+       * Checks if the SemanticContextBuilder is ready for use.
+       */
+      get initialized() {
+        var _a2;
+        return this.isInitialized && ((_a2 = this.embeddingService) == null ? void 0 : _a2.initialized) === true;
+      }
+      /**
+       * Builds semantic context messages for AI completions.
+       * @param options - Context building options
+       * @param query - The current query for semantic search
+       * @returns Array of context messages
+       */
+      async buildSemanticContext(options = {}, query) {
+        var _a2, _b, _c;
+        const contextMessages = [];
+        try {
+          if (!this.initialized) {
+            await this.initialize();
+          }
+          if (!this.embeddingService || !this.initialized) {
+            debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", "Embedding service not available, skipping semantic context");
+            return contextMessages;
+          }
+          const activeFile = this.app.workspace.getActiveFile();
+          let currentContent = "";
+          if (activeFile && options.includeCurrentNote && !options.forceNoCurrentNote) {
+            currentContent = await this.app.vault.read(activeFile);
+          }
+          let searchQuery = query || "";
+          if (!searchQuery && currentContent) {
+            searchQuery = currentContent.split("\n").slice(0, 5).join(" ").slice(0, 500);
+          }
+          if (searchQuery && options.includeSemanticContext) {
+            const relevantContext = await this.embeddingService.getRelevantContext(searchQuery, {
+              maxChunks: options.maxContextChunks || 3,
+              includeNotes: true,
+              includeConversations: options.includeConversationHistory !== false,
+              minSimilarity: options.minSimilarity || 0.7
+            });
+            if (relevantContext.length > 0) {
+              contextMessages.push({
+                role: "user",
+                content: `Relevant context from your knowledge base:
+
+${relevantContext.join("\n\n")}`
+              });
+            }
+          }
+          debugLog((_b = this.plugin.settings.debugMode) != null ? _b : false, "info", `Built semantic context with ${contextMessages.length} messages`);
+        } catch (error) {
+          debugLog((_c = this.plugin.settings.debugMode) != null ? _c : false, "error", "Failed to build semantic context:", error);
+        }
+        return contextMessages;
+      }
+      /**
+       * Embeds the current note if embedding service is available.
+       * @param file - File to embed (optional, uses active file if not provided)
+       */
+      async embedCurrentNote(file) {
+        var _a2, _b;
+        if (!this.embeddingService) return;
+        const targetFile = file || this.app.workspace.getActiveFile();
+        if (!targetFile) return;
+        try {
+          await this.embeddingService.embedNote(targetFile);
+          debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", `Embedded current note: ${targetFile.path}`);
+        } catch (error) {
+          debugLog((_b = this.plugin.settings.debugMode) != null ? _b : false, "error", "Failed to embed current note:", error);
+        }
+      }
+      /**
+       * Embeds a conversation when it's saved or completed.
+       * @param messages - Conversation messages
+       * @param sessionId - Session identifier
+       */
+      async embedConversation(messages, sessionId) {
+        var _a2, _b;
+        if (!this.embeddingService) return;
+        try {
+          await this.embeddingService.embedConversation(messages, sessionId);
+          debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", `Embedded conversation with ${messages.length} messages`);
+        } catch (error) {
+          debugLog((_b = this.plugin.settings.debugMode) != null ? _b : false, "error", "Failed to embed conversation:", error);
+        }
+      }
+      /**
+       * Gets embedding service statistics.
+       */
+      async getStats() {
+        var _a2;
+        return ((_a2 = this.embeddingService) == null ? void 0 : _a2.getStats()) || null;
+      }
+      /**
+       * Performs a semantic search directly.
+       * @param query - Search query
+       * @param options - Search options
+       */
+      async semanticSearch(query, options = {}) {
+        if (!this.embeddingService) return [];
+        return await this.embeddingService.semanticSearch(query, options);
+      }
+      /**
+       * Clears all embeddings.
+       */
+      async clearAllEmbeddings() {
+        if (!this.embeddingService) return;
+        await this.embeddingService.clearAllEmbeddings();
+      }
+      /**
+       * Embeds all notes in the vault.
+       */
+      async embedAllNotes() {
+        if (!this.embeddingService) return;
+        await this.embeddingService.embedAllNotes();
+      }
+      /**
+       * Closes the semantic context builder and cleans up resources.
+       */
+      async close() {
+        if (this.embeddingService) {
+          await this.embeddingService.close();
+        }
+      }
+    };
+  }
+});
+
+// src/YAMLHandler.ts
+var YAMLHandler_exports = {};
+__export(YAMLHandler_exports, {
+  generateNoteTitle: () => generateNoteTitle,
+  generateYamlAttribute: () => generateYamlAttribute,
+  registerYamlAttributeCommands: () => registerYamlAttributeCommands,
+  upsertYamlField: () => upsertYamlField
+});
+function generateTableOfContents(noteContent) {
+  const headerLines = noteContent.split("\n").filter((line) => /^#{1,6}\s+.+/.test(line));
+  if (headerLines.length === 0) return "";
+  return headerLines.map((line) => {
+    const match = line.match(/^(#{1,6})\s+(.+)/);
+    if (!match) return "";
+    const level = match[1].length;
+    const title = match[2].trim();
+    return `${"  ".repeat(level - 1)}- ${title}`;
+  }).join("\n");
+}
+async function generateNoteTitle(app, settings, processMessages2, dispatcher) {
+  var _a2, _b;
+  debugLog(DEBUG, "debug", "Starting generateNoteTitle");
+  const activeFile = app.workspace.getActiveFile();
+  if (!activeFile) {
+    new import_obsidian35.Notice("No active note found.");
+    return;
+  }
+  let noteContent = await app.vault.cachedRead(activeFile);
+  noteContent = noteContent.slice(0, 15e3);
+  const toc = generateTableOfContents(noteContent);
+  const prompt = DEFAULT_TITLE_PROMPT;
+  const userContent = (toc && toc.trim().length > 0 ? "Table of Contents:\n" + toc + "\n\n" : "") + noteContent;
+  try {
+    debugLog(DEBUG, "debug", "Provider:", settings.provider);
+    const aiDispatcher = dispatcher != null ? dispatcher : new AIDispatcher(app.vault, { settings, saveSettings: async () => {
+    } });
+    const messages = [
+      { role: "system", content: prompt },
+      { role: "user", content: userContent }
+    ];
+    debugLog(DEBUG, "debug", "Original messages:", JSON.stringify(messages));
+    const originalEnableContextNotes = settings.enableContextNotes;
+    debugLog(DEBUG, "debug", "Original enableContextNotes:", originalEnableContextNotes);
+    settings.enableContextNotes = false;
+    try {
+      const processedMessages = await processMessages2(messages);
+      debugLog(DEBUG, "debug", "Processed messages:", JSON.stringify(processedMessages));
+      settings.enableContextNotes = originalEnableContextNotes;
+      if (!processedMessages || processedMessages.length === 0) {
+        debugLog(DEBUG, "debug", "No processed messages!");
+        new import_obsidian35.Notice("No valid messages to send to the model. Please check your note content.");
+        return;
+      }
+      debugLog(DEBUG, "debug", "Calling dispatcher.getCompletion");
+      let resultBuffer = "";
+      await aiDispatcher.getCompletion(processedMessages, {
+        temperature: 0,
+        streamCallback: (chunk) => {
+          resultBuffer += chunk;
+        }
+      });
+      debugLog(DEBUG, "debug", "Result from dispatcher (buffered):", resultBuffer);
+      let title = resultBuffer.trim();
+      debugLog(DEBUG, "debug", "Extracted title before sanitization:", title);
+      title = title.replace(/[\\/:]/g, "").trim();
+      debugLog(DEBUG, "debug", "Sanitized title:", title);
+      if (title && typeof title === "string" && title.length > 0) {
+        const outputMode = (_a2 = settings.titleOutputMode) != null ? _a2 : "clipboard";
+        debugLog(DEBUG, "debug", "Output mode:", outputMode);
+        if (outputMode === "replace-filename") {
+          const file = app.workspace.getActiveFile();
+          if (file) {
+            const ext = file.extension ? "." + file.extension : "";
+            const sanitized = title;
+            const parentPath = file.parent ? file.parent.path : "";
+            const newPath = parentPath ? parentPath + "/" + sanitized + ext : sanitized + ext;
+            if (file.path !== newPath) {
+              await app.fileManager.renameFile(file, newPath);
+              new import_obsidian35.Notice(`Note renamed to: ${sanitized}${ext}`);
+            } else {
+              new import_obsidian35.Notice(`Note title is already: ${sanitized}${ext}`);
+            }
+          }
+        } else if (outputMode === "metadata") {
+          const file = app.workspace.getActiveFile();
+          if (file) {
+            await upsertYamlField(app, file, "title", title);
+            new import_obsidian35.Notice(`Inserted title into metadata: ${title}`);
+          }
+        } else {
+          try {
+            await navigator.clipboard.writeText(title);
+            new import_obsidian35.Notice(`Generated title (copied): ${title}`);
+          } catch (e) {
+            new import_obsidian35.Notice(`Generated title: ${title}`);
+          }
+        }
+      } else {
+        debugLog(DEBUG, "debug", "No title generated after sanitization.");
+        new import_obsidian35.Notice("No title generated.");
+      }
+    } catch (processError) {
+      debugLog(DEBUG, "debug", "Error in processMessages or provider.getCompletion:", processError);
+      settings.enableContextNotes = originalEnableContextNotes;
+      throw processError;
+    }
+  } catch (err) {
+    new import_obsidian35.Notice("Error generating title: " + ((_b = err == null ? void 0 : err.message) != null ? _b : err));
+  }
+}
+async function generateYamlAttribute(app, settings, processMessages2, attributeName, prompt, outputMode = "metadata", dispatcher) {
+  debugLog(DEBUG, "debug", `Starting generateYamlAttribute for ${attributeName}`);
+  const activeFile = app.workspace.getActiveFile();
+  if (!activeFile) {
+    new import_obsidian35.Notice("No active note found.");
+    return;
+  }
+  let noteContent = await app.vault.cachedRead(activeFile);
+  noteContent = noteContent.slice(0, 15e3);
+  const messages = [
+    { role: "system", content: DEFAULT_YAML_SYSTEM_MESSAGE },
+    { role: "user", content: prompt + "\n\n" + noteContent }
+  ];
+  debugLog(DEBUG, "debug", "Original messages:", JSON.stringify(messages));
+  const originalEnableContextNotes = settings.enableContextNotes;
+  debugLog(DEBUG, "debug", "Original enableContextNotes:", originalEnableContextNotes);
+  settings.enableContextNotes = false;
+  try {
+    const processedMessages = await processMessages2(messages);
+    debugLog(DEBUG, "debug", "Processed messages:", JSON.stringify(processedMessages));
+    settings.enableContextNotes = originalEnableContextNotes;
+    if (!processedMessages || processedMessages.length === 0) {
+      debugLog(DEBUG, "debug", "No processed messages!");
+      new import_obsidian35.Notice("No valid messages to send to the model. Please check your note content.");
+      return;
+    }
+    debugLog(DEBUG, "debug", "Calling dispatcher.getCompletion");
+    const aiDispatcher = dispatcher != null ? dispatcher : new AIDispatcher(app.vault, { settings, saveSettings: async () => {
+    } });
+    let resultBuffer = "";
+    await aiDispatcher.getCompletion(processedMessages, {
+      temperature: 0,
+      // Always use temperature 0 for predictable YAML output
+      streamCallback: (chunk) => {
+        resultBuffer += chunk;
+      }
+    });
+    debugLog(DEBUG, "debug", "Result from dispatcher (buffered):", resultBuffer);
+    let value = resultBuffer.trim();
+    debugLog(DEBUG, "debug", "Extracted value before sanitization:", value);
+    value = value.replace(/[\\/]/g, "").trim();
+    debugLog(DEBUG, "debug", "Sanitized value:", value);
+    if (value && typeof value === "string" && value.length > 0) {
+      debugLog(DEBUG, "debug", "Output mode:", outputMode);
+      if (outputMode === "metadata") {
+        await upsertYamlField(app, activeFile, attributeName, value);
+        new import_obsidian35.Notice(`Inserted ${attributeName} into metadata: ${value}`);
+      } else {
+        try {
+          await navigator.clipboard.writeText(value);
+          new import_obsidian35.Notice(`Generated ${attributeName} (copied): ${value}`);
+        } catch (e) {
+          new import_obsidian35.Notice(`Generated ${attributeName}: ${value}`);
+        }
+      }
+    } else {
+      debugLog(DEBUG, "debug", `No value generated for ${attributeName} after sanitization.`);
+      new import_obsidian35.Notice(`No value generated for ${attributeName}.`);
+    }
+  } catch (processError) {
+    debugLog(DEBUG, "debug", "Error in processMessages or provider.getCompletion:", processError);
+    settings.enableContextNotes = originalEnableContextNotes;
+    throw processError;
+  }
+}
+async function upsertYamlField(app, file, field, value) {
+  let content = await app.vault.read(file);
+  let newContent = content;
+  const frontmatterRegex = /^---\n([\s\S]*?)\n---/;
+  const match = content.match(frontmatterRegex);
+  if (match) {
+    let yamlObj = {};
+    try {
+      yamlObj = load(match[1]) || {};
+    } catch (e) {
+      yamlObj = {};
+    }
+    yamlObj[field] = value;
+    const newYaml = dump(yamlObj, { lineWidth: -1 }).trim();
+    newContent = content.replace(frontmatterRegex, `---
+${newYaml}
+---`);
+  } else {
+    const newYaml = dump({ [field]: value }, { lineWidth: -1 }).trim();
+    newContent = `---
+${newYaml}
+---
+` + content;
+  }
+  await app.vault.modify(file, newContent);
+}
+function registerYamlAttributeCommands(plugin, settings, processMessages2, yamlAttributeCommandIds, debugLog2) {
+  debugLog2("debug", "[YAMLHandler.ts] registerYamlAttributeCommands called");
+  if (yamlAttributeCommandIds && yamlAttributeCommandIds.length > 0) {
+    for (const id of yamlAttributeCommandIds) {
+      plugin.app.commands.removeCommand(id);
+      debugLog2("debug", "[YAMLHandler.ts] Removed previous YAML command", { id });
+    }
+  }
+  const newCommandIds = [];
+  if (settings.yamlAttributeGenerators && Array.isArray(settings.yamlAttributeGenerators)) {
+    for (const gen of settings.yamlAttributeGenerators) {
+      if (!gen.attributeName || !gen.prompt || !gen.commandName) continue;
+      const id = `generate-yaml-attribute-${gen.attributeName}`;
+      debugLog2("debug", "[YAMLHandler.ts] Registering YAML attribute command", { id, gen });
+      registerCommand(plugin, {
+        id,
+        name: gen.commandName,
+        callback: async () => {
+          await generateYamlAttribute(
+            plugin.app,
+            settings,
+            processMessages2,
+            gen.attributeName,
+            gen.prompt,
+            gen.outputMode
+          );
+        }
+      });
+      newCommandIds.push(id);
+    }
+  }
+  return newCommandIds;
+}
+var import_obsidian35, DEBUG;
+var init_YAMLHandler = __esm({
+  "src/YAMLHandler.ts"() {
+    import_obsidian35 = require("obsidian");
+    init_aiDispatcher();
+    init_promptConstants();
+    init_pluginUtils();
+    init_js_yaml();
+    init_logger();
+    DEBUG = true;
+  }
+});
+
+// src/utils/dependencyInjection.ts
+var dependencyInjection_exports = {};
+__export(dependencyInjection_exports, {
+  DIContainer: () => DIContainer,
+  DIContainerFactory: () => DIContainerFactory,
+  Injectable: () => Injectable,
+  ServiceLocator: () => ServiceLocator
+});
+function Injectable(name, lifecycle = "singleton") {
+  return function(constructor) {
+    const container = ServiceLocator.getContainer();
+    container.register(name, () => new constructor(), lifecycle);
+    return constructor;
+  };
+}
+var DIContainer, _ServiceLocator, ServiceLocator, DIContainerFactory;
+var init_dependencyInjection = __esm({
+  "src/utils/dependencyInjection.ts"() {
+    init_aiDispatcher();
+    init_errorHandler();
+    DIContainer = class {
+      constructor() {
+        __publicField(this, "services", /* @__PURE__ */ new Map());
+        __publicField(this, "instances", /* @__PURE__ */ new Map());
+        __publicField(this, "metadata", /* @__PURE__ */ new Map());
+        __publicField(this, "scopes", /* @__PURE__ */ new Map());
+        __publicField(this, "currentScope", null);
+        __publicField(this, "isDisposed", false);
+        this.registerCoreServices();
+      }
+      /**
+       * Register a service with the container
+       */
+      register(name, factory, lifecycle = "singleton", dependencies = []) {
+        if (this.isDisposed) {
+          throw new Error("Cannot register services on disposed container");
+        }
+        this.services.set(name, {
+          factory,
+          lifecycle,
+          dependencies
+        });
+        this.metadata.set(name, {
+          name,
+          lifecycle,
+          dependencies,
+          createdAt: Date.now(),
+          lastAccessed: 0,
+          accessCount: 0
+        });
+      }
+      /**
+       * Register a singleton service
+       */
+      registerSingleton(name, factory, dependencies = []) {
+        this.register(name, factory, "singleton", dependencies);
+      }
+      /**
+       * Register a transient service (new instance every time)
+       */
+      registerTransient(name, factory, dependencies = []) {
+        this.register(name, factory, "transient", dependencies);
+      }
+      /**
+       * Register a scoped service (one instance per scope)
+       */
+      registerScoped(name, factory, dependencies = []) {
+        this.register(name, factory, "scoped", dependencies);
+      }
+      /**
+       * Resolve a service by name
+       */
+      resolve(name) {
+        if (this.isDisposed) {
+          throw new Error("Cannot resolve services from disposed container");
+        }
+        const service = this.services.get(name);
+        if (!service) {
+          throw new Error(`Service '${name}' not registered`);
+        }
+        const meta = this.metadata.get(name);
+        meta.lastAccessed = Date.now();
+        meta.accessCount++;
+        this.checkCircularDependencies(name, /* @__PURE__ */ new Set());
+        switch (service.lifecycle) {
+          case "singleton":
+            return this.resolveSingleton(name, service);
+          case "transient":
+            return this.resolveTransient(name, service);
+          case "scoped":
+            return this.resolveScoped(name, service);
+          default:
+            throw new Error(`Unknown lifecycle: ${service.lifecycle}`);
+        }
+      }
+      /**
+       * Check if a service is registered
+       */
+      isRegistered(name) {
+        return this.services.has(name);
+      }
+      /**
+       * Get all registered service names
+       */
+      getRegisteredServices() {
+        return Array.from(this.services.keys());
+      }
+      /**
+       * Get service metadata
+       */
+      getServiceMetadata(name) {
+        return this.metadata.get(name);
+      }
+      /**
+       * Get all service metadata
+       */
+      getAllServiceMetadata() {
+        return Array.from(this.metadata.values());
+      }
+      /**
+       * Create a new scope
+       */
+      createScope(scopeId) {
+        if (this.scopes.has(scopeId)) {
+          throw new Error(`Scope '${scopeId}' already exists`);
+        }
+        this.scopes.set(scopeId, /* @__PURE__ */ new Map());
+      }
+      /**
+       * Enter a scope
+       */
+      enterScope(scopeId) {
+        if (!this.scopes.has(scopeId)) {
+          this.createScope(scopeId);
+        }
+        this.currentScope = scopeId;
+      }
+      /**
+       * Exit current scope
+       */
+      exitScope() {
+        this.currentScope = null;
+      }
+      /**
+       * Dispose a scope and all its instances
+       */
+      disposeScope(scopeId) {
+        const scope = this.scopes.get(scopeId);
+        if (scope) {
+          for (const [, instance] of scope) {
+            this.disposeInstance(instance);
+          }
+          this.scopes.delete(scopeId);
+        }
+        if (this.currentScope === scopeId) {
+          this.currentScope = null;
+        }
+      }
+      /**
+       * Dispose the entire container
+       */
+      dispose() {
+        if (this.isDisposed) return;
+        for (const scopeId of this.scopes.keys()) {
+          this.disposeScope(scopeId);
+        }
+        for (const [, instance] of this.instances) {
+          this.disposeInstance(instance);
+        }
+        this.services.clear();
+        this.instances.clear();
+        this.metadata.clear();
+        this.scopes.clear();
+        this.currentScope = null;
+        this.isDisposed = true;
+      }
+      /**
+       * Get container statistics
+       */
+      getStats() {
+        const totalResolutions = Array.from(this.metadata.values()).reduce((sum, meta) => sum + meta.accessCount, 0);
+        return {
+          totalServices: this.services.size,
+          singletonInstances: this.instances.size,
+          activeScopes: this.scopes.size,
+          totalResolutions,
+          memoryUsage: this.estimateMemoryUsage()
+        };
+      }
+      registerCoreServices() {
+        this.registerSingleton("errorHandler", () => ErrorHandler.getInstance());
+      }
+      resolveSingleton(name, service) {
+        if (this.instances.has(name)) {
+          return this.instances.get(name);
+        }
+        const instance = this.createInstance(name, service);
+        this.instances.set(name, instance);
+        return instance;
+      }
+      resolveTransient(name, service) {
+        return this.createInstance(name, service);
+      }
+      resolveScoped(name, service) {
+        if (!this.currentScope) {
+          throw new Error(`Cannot resolve scoped service '${name}' outside of a scope`);
+        }
+        const scope = this.scopes.get(this.currentScope);
+        if (scope.has(name)) {
+          return scope.get(name);
+        }
+        const instance = this.createInstance(name, service);
+        scope.set(name, instance);
+        return instance;
+      }
+      createInstance(name, service) {
+        const dependencies = service.dependencies || [];
+        const resolvedDependencies = dependencies.map((dep) => this.resolve(dep));
+        try {
+          return service.factory(this);
+        } catch (error) {
+          throw new Error(`Failed to create instance of '${name}': ${error.message}`);
+        }
+      }
+      checkCircularDependencies(name, visited) {
+        if (visited.has(name)) {
+          throw new Error(`Circular dependency detected: ${Array.from(visited).join(" -> ")} -> ${name}`);
+        }
+        visited.add(name);
+        const service = this.services.get(name);
+        if (service && service.dependencies) {
+          for (const dep of service.dependencies) {
+            this.checkCircularDependencies(dep, new Set(visited));
+          }
+        }
+        visited.delete(name);
+      }
+      disposeInstance(instance) {
+        if (instance && typeof instance.dispose === "function") {
+          try {
+            instance.dispose();
+          } catch (error) {
+            console.warn("Error disposing instance:", error);
+          }
+        }
+      }
+      estimateMemoryUsage() {
+        let size = 0;
+        size += this.services.size * 100;
+        size += this.instances.size * 500;
+        size += this.metadata.size * 200;
+        return size;
+      }
+    };
+    _ServiceLocator = class _ServiceLocator {
+      static initialize(container) {
+        _ServiceLocator.container = container;
+      }
+      static getContainer() {
+        if (!_ServiceLocator.container) {
+          throw new Error("ServiceLocator not initialized. Call initialize() first.");
+        }
+        return _ServiceLocator.container;
+      }
+      static resolve(name) {
+        return _ServiceLocator.getContainer().resolve(name);
+      }
+      static isInitialized() {
+        return _ServiceLocator.container !== null;
+      }
+      static dispose() {
+        if (_ServiceLocator.container) {
+          _ServiceLocator.container.dispose();
+          _ServiceLocator.container = null;
+        }
+      }
+    };
+    __publicField(_ServiceLocator, "container", null);
+    ServiceLocator = _ServiceLocator;
+    DIContainerFactory = class {
+      /**
+       * Create a container for the AI Assistant plugin
+       */
+      static createPluginContainer(app, plugin) {
+        const container = new DIContainer();
+        container.registerSingleton("app", () => app);
+        container.registerSingleton("plugin", () => plugin);
+        container.registerSingleton("vault", () => app.vault);
+        container.registerSingleton("workspace", () => app.workspace);
+        container.registerSingleton("aiDispatcher", (c) => {
+          const vault = c.resolve("vault");
+          const pluginInstance = c.resolve("plugin");
+          return new AIDispatcher(vault, pluginInstance);
+        }, ["vault", "plugin"]);
+        container.registerSingleton("errorHandler", () => ErrorHandler.getInstance());
+        return container;
+      }
+      /**
+       * Create a container for testing
+       */
+      static createTestContainer() {
+        const container = new DIContainer();
+        container.registerSingleton("mockService", () => ({ test: true }));
+        return container;
+      }
+    };
+  }
+});
+
+// src/utils/stateManager.ts
+var stateManager_exports = {};
+__export(stateManager_exports, {
+  StateManager: () => StateManager,
+  StateUtils: () => StateUtils,
+  globalStateManager: () => globalStateManager
+});
+var import_events, StateManager, globalStateManager, StateUtils;
+var init_stateManager = __esm({
+  "src/utils/stateManager.ts"() {
+    import_events = require("events");
+    init_lruCache();
+    init_errorHandler();
+    StateManager = class extends import_events.EventEmitter {
+      constructor(storageKey = "ai-assistant-state") {
+        super();
+        this.storageKey = storageKey;
+        __publicField(this, "state", {});
+        __publicField(this, "stateListeners", /* @__PURE__ */ new Map());
+        __publicField(this, "validators", /* @__PURE__ */ new Map());
+        __publicField(this, "transformers", /* @__PURE__ */ new Map());
+        __publicField(this, "persistentKeys", /* @__PURE__ */ new Set());
+        __publicField(this, "debounceTimers", /* @__PURE__ */ new Map());
+        __publicField(this, "snapshots");
+        __publicField(this, "version", 0);
+        __publicField(this, "isDisposed", false);
+        this.snapshots = new LRUCache({
+          maxSize: 50,
+          defaultTTL: 60 * 60 * 1e3
+          // 1 hour
+        });
+        this.loadPersistedState();
+      }
+      /**
+       * Set a value in the state
+       */
+      setState(path3, value, options = {}) {
+        if (this.isDisposed) {
+          throw new Error("Cannot set state on disposed StateManager");
+        }
+        try {
+          const transformer = options.transformer || this.transformers.get(path3);
+          const transformedValue = transformer ? transformer(value, path3) : value;
+          const validator = options.validator || this.validators.get(path3);
+          if (validator) {
+            const validationResult = validator(transformedValue, path3);
+            if (validationResult !== true) {
+              const errorMessage = typeof validationResult === "string" ? validationResult : `Invalid value for state path: ${path3}`;
+              throw new Error(errorMessage);
+            }
+          }
+          const oldValue = this.getState(path3);
+          this.setNestedValue(this.state, path3, transformedValue);
+          this.version++;
+          if (options.persistent) {
+            this.persistentKeys.add(path3);
+          }
+          this.createSnapshot();
+          const debounceMs = options.debounceMs || 0;
+          if (debounceMs > 0) {
+            this.debouncedNotify(path3, transformedValue, oldValue, debounceMs);
+          } else {
+            this.notifyListeners(path3, transformedValue, oldValue);
+          }
+          if (this.persistentKeys.has(path3)) {
+            this.persistState();
+          }
+        } catch (error) {
+          errorHandler.handleError(error, {
+            component: "StateManager",
+            operation: "setState",
+            metadata: { path: path3, valueType: typeof value }
+          });
+          throw error;
+        }
+      }
+      /**
+       * Get a value from the state
+       */
+      getState(path3, defaultValue) {
+        if (this.isDisposed) {
+          throw new Error("Cannot get state from disposed StateManager");
+        }
+        try {
+          const value = this.getNestedValue(this.state, path3);
+          return value !== void 0 ? value : defaultValue;
+        } catch (error) {
+          errorHandler.handleError(error, {
+            component: "StateManager",
+            operation: "getState",
+            metadata: { path: path3 }
+          });
+          return defaultValue;
+        }
+      }
+      /**
+       * Check if a state path exists
+       */
+      hasState(path3) {
+        return this.getNestedValue(this.state, path3) !== void 0;
+      }
+      /**
+       * Delete a state path
+       */
+      deleteState(path3) {
+        if (this.isDisposed) {
+          throw new Error("Cannot delete state from disposed StateManager");
+        }
+        const oldValue = this.getState(path3);
+        this.deleteNestedValue(this.state, path3);
+        this.version++;
+        this.persistentKeys.delete(path3);
+        this.notifyListeners(path3, void 0, oldValue);
+        this.createSnapshot();
+        this.persistState();
+      }
+      /**
+       * Subscribe to state changes for a specific path
+       */
+      subscribe(path3, listener) {
+        if (!this.stateListeners.has(path3)) {
+          this.stateListeners.set(path3, /* @__PURE__ */ new Set());
+        }
+        this.stateListeners.get(path3).add(listener);
+        return () => {
+          const pathListeners = this.stateListeners.get(path3);
+          if (pathListeners) {
+            pathListeners.delete(listener);
+            if (pathListeners.size === 0) {
+              this.stateListeners.delete(path3);
+            }
+          }
+        };
+      }
+      /**
+       * Subscribe to all state changes
+       */
+      subscribeAll(listener) {
+        this.on("stateChange", listener);
+        return () => this.off("stateChange", listener);
+      }
+      /**
+       * Register a validator for a state path
+       */
+      registerValidator(path3, validator) {
+        this.validators.set(path3, validator);
+      }
+      /**
+       * Register a transformer for a state path
+       */
+      registerTransformer(path3, transformer) {
+        this.transformers.set(path3, transformer);
+      }
+      /**
+       * Get the entire state object (read-only)
+       */
+      getFullState() {
+        return Object.freeze(JSON.parse(JSON.stringify(this.state)));
+      }
+      /**
+       * Reset the entire state
+       */
+      resetState(newState = {}) {
+        if (this.isDisposed) {
+          throw new Error("Cannot reset state on disposed StateManager");
+        }
+        const oldState = this.getFullState();
+        this.state = { ...newState };
+        this.version++;
+        this.createSnapshot();
+        this.emit("stateReset", this.state, oldState);
+        this.persistState();
+      }
+      /**
+       * Create a snapshot of the current state
+       */
+      createSnapshot() {
+        const snapshot = {
+          timestamp: Date.now(),
+          state: JSON.parse(JSON.stringify(this.state)),
+          version: this.version
+        };
+        this.snapshots.set(`snapshot-${this.version}`, snapshot);
+      }
+      /**
+       * Restore state from a snapshot
+       */
+      restoreSnapshot(version) {
+        const snapshot = this.snapshots.get(`snapshot-${version}`);
+        if (!snapshot) {
+          return false;
+        }
+        const oldState = this.getFullState();
+        this.state = JSON.parse(JSON.stringify(snapshot.state));
+        this.version = snapshot.version;
+        this.emit("stateRestored", this.state, oldState, snapshot);
+        this.persistState();
+        return true;
+      }
+      /**
+       * Get available snapshots
+       */
+      getSnapshots() {
+        return this.snapshots.values().sort((a, b) => b.timestamp - a.timestamp);
+      }
+      /**
+       * Get current state version
+       */
+      getVersion() {
+        return this.version;
+      }
+      /**
+       * Batch multiple state updates
+       */
+      batch(updates) {
+        var _a2;
+        if (this.isDisposed) {
+          throw new Error("Cannot batch updates on disposed StateManager");
+        }
+        const oldStates = /* @__PURE__ */ new Map();
+        try {
+          for (const update of updates) {
+            oldStates.set(update.path, this.getState(update.path));
+          }
+          for (const update of updates) {
+            this.setNestedValue(this.state, update.path, update.value);
+            if ((_a2 = update.options) == null ? void 0 : _a2.persistent) {
+              this.persistentKeys.add(update.path);
+            }
+          }
+          this.version++;
+          this.createSnapshot();
+          for (const update of updates) {
+            const oldValue = oldStates.get(update.path);
+            this.notifyListeners(update.path, update.value, oldValue);
+          }
+          this.persistState();
+        } catch (error) {
+          for (const [path3, oldValue] of oldStates) {
+            this.setNestedValue(this.state, path3, oldValue);
+          }
+          throw error;
+        }
+      }
+      /**
+       * Watch for changes to multiple paths
+       */
+      watch(paths, listener) {
+        const unsubscribers = [];
+        const changes = [];
+        let debounceTimer = null;
+        for (const path3 of paths) {
+          const unsubscribe = this.subscribe(path3, (newValue, oldValue, changePath) => {
+            changes.push({ path: changePath, newValue, oldValue });
+            if (debounceTimer) {
+              clearTimeout(debounceTimer);
+            }
+            debounceTimer = setTimeout(() => {
+              if (changes.length > 0) {
+                listener([...changes]);
+                changes.length = 0;
+              }
+            }, 10);
+          });
+          unsubscribers.push(unsubscribe);
+        }
+        return () => {
+          unsubscribers.forEach((unsub) => unsub());
+          if (debounceTimer) {
+            clearTimeout(debounceTimer);
+          }
+        };
+      }
+      /**
+       * Get state statistics
+       */
+      getStats() {
+        const totalListeners = Array.from(this.stateListeners.values()).reduce((sum, set2) => sum + set2.size, 0);
+        return {
+          totalKeys: this.countKeys(this.state),
+          persistentKeys: this.persistentKeys.size,
+          listeners: totalListeners,
+          snapshots: this.snapshots.size(),
+          version: this.version,
+          memoryUsage: this.estimateMemoryUsage()
+        };
+      }
+      /**
+       * Dispose the state manager
+       */
+      dispose() {
+        if (this.isDisposed) return;
+        for (const timer of this.debounceTimers.values()) {
+          clearTimeout(timer);
+        }
+        this.debounceTimers.clear();
+        this.stateListeners.clear();
+        this.removeAllListeners();
+        this.state = {};
+        this.validators.clear();
+        this.transformers.clear();
+        this.persistentKeys.clear();
+        this.snapshots.destroy();
+        this.isDisposed = true;
+      }
+      setNestedValue(obj, path3, value) {
+        const keys = path3.split(".");
+        let current = obj;
+        for (let i = 0; i < keys.length - 1; i++) {
+          const key = keys[i];
+          if (!(key in current) || typeof current[key] !== "object") {
+            current[key] = {};
+          }
+          current = current[key];
+        }
+        current[keys[keys.length - 1]] = value;
+      }
+      getNestedValue(obj, path3) {
+        const keys = path3.split(".");
+        let current = obj;
+        for (const key of keys) {
+          if (current === null || current === void 0 || !(key in current)) {
+            return void 0;
+          }
+          current = current[key];
+        }
+        return current;
+      }
+      deleteNestedValue(obj, path3) {
+        const keys = path3.split(".");
+        let current = obj;
+        for (let i = 0; i < keys.length - 1; i++) {
+          const key = keys[i];
+          if (!(key in current) || typeof current[key] !== "object") {
+            return;
+          }
+          current = current[key];
+        }
+        delete current[keys[keys.length - 1]];
+      }
+      notifyListeners(path3, newValue, oldValue) {
+        const pathListeners = this.stateListeners.get(path3);
+        if (pathListeners) {
+          for (const listener of pathListeners) {
+            try {
+              listener(newValue, oldValue, path3);
+            } catch (error) {
+              errorHandler.handleError(error, {
+                component: "StateManager",
+                operation: "notifyListeners",
+                metadata: { path: path3 }
+              });
+            }
+          }
+        }
+        this.emit("stateChange", newValue, oldValue, path3);
+      }
+      debouncedNotify(path3, newValue, oldValue, debounceMs) {
+        const existingTimer = this.debounceTimers.get(path3);
+        if (existingTimer) {
+          clearTimeout(existingTimer);
+        }
+        const timer = setTimeout(() => {
+          this.notifyListeners(path3, newValue, oldValue);
+          this.debounceTimers.delete(path3);
+        }, debounceMs);
+        this.debounceTimers.set(path3, timer);
+      }
+      loadPersistedState() {
+        try {
+          const stored = localStorage.getItem(this.storageKey);
+          if (stored) {
+            const parsed = JSON.parse(stored);
+            this.state = parsed.state || {};
+            this.persistentKeys = new Set(parsed.persistentKeys || []);
+            this.version = parsed.version || 0;
+          }
+        } catch (error) {
+          errorHandler.handleError(error, {
+            component: "StateManager",
+            operation: "loadPersistedState"
+          });
+        }
+      }
+      persistState() {
+        try {
+          const persistentState = {};
+          for (const key of this.persistentKeys) {
+            const value = this.getState(key);
+            if (value !== void 0) {
+              this.setNestedValue(persistentState, key, value);
+            }
+          }
+          const toStore = {
+            state: persistentState,
+            persistentKeys: Array.from(this.persistentKeys),
+            version: this.version,
+            timestamp: Date.now()
+          };
+          localStorage.setItem(this.storageKey, JSON.stringify(toStore));
+        } catch (error) {
+          errorHandler.handleError(error, {
+            component: "StateManager",
+            operation: "persistState"
+          });
+        }
+      }
+      countKeys(obj, depth = 0) {
+        if (depth > 10 || typeof obj !== "object" || obj === null) {
+          return 0;
+        }
+        let count = 0;
+        for (const key in obj) {
+          count++;
+          if (typeof obj[key] === "object" && obj[key] !== null) {
+            count += this.countKeys(obj[key], depth + 1);
+          }
+        }
+        return count;
+      }
+      estimateMemoryUsage() {
+        try {
+          return JSON.stringify(this.state).length * 2;
+        } catch (e) {
+          return 0;
+        }
+      }
+    };
+    globalStateManager = new StateManager();
+    StateUtils = class {
+      /**
+       * Create a computed state that updates when dependencies change
+       */
+      static createComputed(stateManager, dependencies, computeFn, targetPath) {
+        const updateComputed = () => {
+          const values = dependencies.map((dep) => stateManager.getState(dep));
+          const computed = computeFn(values);
+          stateManager.setState(targetPath, computed);
+        };
+        updateComputed();
+        const unsubscribe = stateManager.watch(dependencies, updateComputed);
+        return unsubscribe;
+      }
+      /**
+       * Create a state slice with a specific prefix
+       */
+      static createSlice(stateManager, prefix) {
+        return {
+          get: (path3, defaultValue) => stateManager.getState(`${prefix}.${path3}`, defaultValue),
+          set: (path3, value, options) => stateManager.setState(`${prefix}.${path3}`, value, options),
+          subscribe: (path3, listener) => stateManager.subscribe(`${prefix}.${path3}`, listener),
+          delete: (path3) => stateManager.deleteState(`${prefix}.${path3}`)
+        };
+      }
+    };
+  }
+});
+
+// src/utils/streamManager.ts
+var streamManager_exports = {};
+__export(streamManager_exports, {
+  ManagedStream: () => ManagedStream,
+  StreamManager: () => StreamManager,
+  StreamUtils: () => StreamUtils,
+  globalStreamManager: () => globalStreamManager
+});
+var import_events2, StreamManager, ManagedStream, globalStreamManager, StreamUtils;
+var init_streamManager = __esm({
+  "src/utils/streamManager.ts"() {
+    import_events2 = require("events");
+    init_errorHandler();
+    init_lruCache();
+    StreamManager = class extends import_events2.EventEmitter {
+      constructor(options = {}) {
+        super();
+        __publicField(this, "streams", /* @__PURE__ */ new Map());
+        __publicField(this, "transformers", /* @__PURE__ */ new Map());
+        __publicField(this, "filters", /* @__PURE__ */ new Map());
+        __publicField(this, "streamCache");
+        __publicField(this, "activeStreams", /* @__PURE__ */ new Set());
+        __publicField(this, "pausedStreams", /* @__PURE__ */ new Set());
+        __publicField(this, "streamPool", []);
+        __publicField(this, "maxConcurrentStreams");
+        __publicField(this, "defaultTimeout");
+        __publicField(this, "isDisposed", false);
+        this.maxConcurrentStreams = options.maxConcurrentStreams || 10;
+        this.defaultTimeout = options.defaultTimeout || 3e4;
+        this.streamCache = new LRUCache({
+          maxSize: options.cacheSize || 50,
+          defaultTTL: 5 * 60 * 1e3,
+          // 5 minutes
+          onEvict: (key, stream) => this.destroyStream(key)
+        });
+        this.setupCleanupInterval();
+      }
+      /**
+       * Create a new managed stream
+       */
+      createStream(id, source, options = {}) {
+        if (this.isDisposed) {
+          throw new Error("Cannot create stream on disposed StreamManager");
+        }
+        if (this.streams.has(id)) {
+          throw new Error(`Stream with id '${id}' already exists`);
+        }
+        if (this.activeStreams.size >= this.maxConcurrentStreams) {
+          throw new Error(`Maximum concurrent streams (${this.maxConcurrentStreams}) reached`);
+        }
+        const streamState = {
+          id,
+          status: "idle",
+          metrics: {
+            bytesRead: 0,
+            bytesWritten: 0,
+            chunksProcessed: 0,
+            errors: 0,
+            startTime: Date.now()
+          },
+          options: {
+            timeout: this.defaultTimeout,
+            retryAttempts: 3,
+            backpressureThreshold: 16384,
+            // 16KB
+            ...options
+          },
+          createdAt: Date.now(),
+          lastActivity: Date.now()
+        };
+        this.streams.set(id, streamState);
+        const actualSource = typeof source === "function" ? source() : source;
+        const managedStream = new ManagedStream(id, actualSource, this, streamState);
+        this.streamCache.set(id, actualSource);
+        this.emit("streamCreated", id, streamState);
+        return managedStream;
+      }
+      /**
+       * Get a stream by ID
+       */
+      getStream(id) {
+        const state = this.streams.get(id);
+        const source = this.streamCache.get(id);
+        if (!state || !source) {
+          return null;
+        }
+        return new ManagedStream(id, source, this, state);
+      }
+      /**
+       * Pause a stream
+       */
+      pauseStream(id) {
+        const state = this.streams.get(id);
+        if (!state || state.status !== "active") {
+          return false;
+        }
+        state.status = "paused";
+        state.lastActivity = Date.now();
+        this.activeStreams.delete(id);
+        this.pausedStreams.add(id);
+        this.emit("streamPaused", id);
+        return true;
+      }
+      /**
+       * Resume a paused stream
+       */
+      resumeStream(id) {
+        const state = this.streams.get(id);
+        if (!state || state.status !== "paused") {
+          return false;
+        }
+        if (this.activeStreams.size >= this.maxConcurrentStreams) {
+          return false;
+        }
+        state.status = "active";
+        state.lastActivity = Date.now();
+        this.pausedStreams.delete(id);
+        this.activeStreams.add(id);
+        this.emit("streamResumed", id);
+        return true;
+      }
+      /**
+       * Destroy a stream
+       */
+      destroyStream(id) {
+        const state = this.streams.get(id);
+        if (!state) {
+          return false;
+        }
+        try {
+          state.status = "destroyed";
+          state.metrics.endTime = Date.now();
+          state.metrics.duration = state.metrics.endTime - state.metrics.startTime;
+          this.activeStreams.delete(id);
+          this.pausedStreams.delete(id);
+          this.streams.delete(id);
+          this.streamCache.delete(id);
+          this.emit("streamDestroyed", id, state);
+          return true;
+        } catch (error) {
+          errorHandler.handleError(error, {
+            component: "StreamManager",
+            operation: "destroyStream",
+            metadata: { streamId: id }
+          });
+          return false;
+        }
+      }
+      /**
+       * Register a transformer for streams
+       */
+      registerTransformer(name, transformer) {
+        this.transformers.set(name, transformer);
+      }
+      /**
+       * Register a filter for streams
+       */
+      registerFilter(name, filter) {
+        this.filters.set(name, filter);
+      }
+      /**
+       * Get transformer by name
+       */
+      getTransformer(name) {
+        return this.transformers.get(name);
+      }
+      /**
+       * Get filter by name
+       */
+      getFilter(name) {
+        return this.filters.get(name);
+      }
+      /**
+       * Get all stream states
+       */
+      getAllStreams() {
+        return Array.from(this.streams.values());
+      }
+      /**
+       * Get active streams
+       */
+      getActiveStreams() {
+        return Array.from(this.activeStreams).map((id) => this.streams.get(id));
+      }
+      /**
+       * Get stream statistics
+       */
+      getStats() {
+        const states = Array.from(this.streams.values());
+        const totalBytesProcessed = states.reduce((sum, state) => sum + state.metrics.bytesRead + state.metrics.bytesWritten, 0);
+        const completedStreams = states.filter((s) => s.status === "completed");
+        const averageThroughput = completedStreams.length > 0 ? completedStreams.reduce((sum, s) => sum + (s.metrics.throughput || 0), 0) / completedStreams.length : 0;
+        return {
+          totalStreams: this.streams.size,
+          activeStreams: this.activeStreams.size,
+          pausedStreams: this.pausedStreams.size,
+          completedStreams: states.filter((s) => s.status === "completed").length,
+          errorStreams: states.filter((s) => s.status === "error").length,
+          totalBytesProcessed,
+          averageThroughput,
+          cacheHitRate: this.streamCache.getStats().hitRate || 0
+        };
+      }
+      /**
+       * Cleanup inactive streams
+       */
+      cleanup(maxAge = 6e4) {
+        const now = Date.now();
+        let cleaned = 0;
+        for (const [id, state] of this.streams) {
+          if (now - state.lastActivity > maxAge && (state.status === "completed" || state.status === "error")) {
+            this.destroyStream(id);
+            cleaned++;
+          }
+        }
+        return cleaned;
+      }
+      /**
+       * Dispose the stream manager
+       */
+      dispose() {
+        if (this.isDisposed) return;
+        for (const id of this.streams.keys()) {
+          this.destroyStream(id);
+        }
+        this.streams.clear();
+        this.transformers.clear();
+        this.filters.clear();
+        this.activeStreams.clear();
+        this.pausedStreams.clear();
+        this.streamPool.length = 0;
+        this.streamCache.destroy();
+        this.removeAllListeners();
+        this.isDisposed = true;
+      }
+      setupCleanupInterval() {
+        setInterval(() => {
+          if (!this.isDisposed) {
+            this.cleanup();
+          }
+        }, 6e4);
+      }
+      updateStreamMetrics(id, metrics) {
+        const state = this.streams.get(id);
+        if (state) {
+          Object.assign(state.metrics, metrics);
+          state.lastActivity = Date.now();
+          if (state.metrics.duration && state.metrics.duration > 0) {
+            const totalBytes = state.metrics.bytesRead + state.metrics.bytesWritten;
+            state.metrics.throughput = totalBytes / (state.metrics.duration / 1e3);
+          }
+        }
+      }
+      updateStreamStatus(id, status) {
+        const state = this.streams.get(id);
+        if (state) {
+          const oldStatus = state.status;
+          state.status = status;
+          state.lastActivity = Date.now();
+          if (status === "active" && oldStatus !== "active") {
+            this.activeStreams.add(id);
+            this.pausedStreams.delete(id);
+          } else if (status === "paused" && oldStatus !== "paused") {
+            this.activeStreams.delete(id);
+            this.pausedStreams.add(id);
+          } else if (status === "completed" || status === "error" || status === "destroyed") {
+            this.activeStreams.delete(id);
+            this.pausedStreams.delete(id);
+            if (status === "completed") {
+              state.metrics.endTime = Date.now();
+              state.metrics.duration = state.metrics.endTime - state.metrics.startTime;
+            }
+          }
+          this.emit("streamStatusChanged", id, status, oldStatus);
+        }
+      }
+    };
+    ManagedStream = class extends import_events2.EventEmitter {
+      constructor(id, source, manager, state) {
+        super();
+        this.id = id;
+        this.source = source;
+        this.manager = manager;
+        this.state = state;
+        __publicField(this, "reader", null);
+        __publicField(this, "isReading", false);
+        __publicField(this, "backpressureActive", false);
+        this.setupTimeout();
+      }
+      /**
+       * Start reading from the stream
+       */
+      async start() {
+        if (this.isReading) {
+          throw new Error("Stream is already reading");
+        }
+        try {
+          this.manager.updateStreamStatus(this.id, "active");
+          this.reader = this.source.getReader();
+          this.isReading = true;
+          await this.readLoop();
+        } catch (error) {
+          this.handleError(error);
+        }
+      }
+      /**
+       * Transform stream data
+       */
+      transform(transformer) {
+        const actualTransformer = typeof transformer === "string" ? this.manager.getTransformer(transformer) : transformer;
+        if (!actualTransformer) {
+          throw new Error(`Transformer not found: ${transformer}`);
+        }
+        const transformedSource = new ReadableStream({
+          start: (controller) => {
+            this.on("data", async (chunk) => {
+              try {
+                const transformed = await actualTransformer(chunk);
+                controller.enqueue(transformed);
+              } catch (error) {
+                controller.error(error);
+              }
+            });
+            this.on("end", () => controller.close());
+            this.on("error", (error) => controller.error(error));
+          }
+        });
+        return this.manager.createStream(`${this.id}-transformed`, transformedSource, this.state.options);
+      }
+      /**
+       * Filter stream data
+       */
+      filter(filter) {
+        const actualFilter = typeof filter === "string" ? this.manager.getFilter(filter) : filter;
+        if (!actualFilter) {
+          throw new Error(`Filter not found: ${filter}`);
+        }
+        const filteredSource = new ReadableStream({
+          start: (controller) => {
+            this.on("data", async (chunk) => {
+              try {
+                const shouldInclude = await actualFilter(chunk);
+                if (shouldInclude) {
+                  controller.enqueue(chunk);
+                }
+              } catch (error) {
+                controller.error(error);
+              }
+            });
+            this.on("end", () => controller.close());
+            this.on("error", (error) => controller.error(error));
+          }
+        });
+        return this.manager.createStream(`${this.id}-filtered`, filteredSource, this.state.options);
+      }
+      /**
+       * Pause the stream
+       */
+      pause() {
+        return this.manager.pauseStream(this.id);
+      }
+      /**
+       * Resume the stream
+       */
+      resume() {
+        return this.manager.resumeStream(this.id);
+      }
+      /**
+       * Destroy the stream
+       */
+      destroy() {
+        if (this.reader) {
+          this.reader.releaseLock();
+          this.reader = null;
+        }
+        this.isReading = false;
+        return this.manager.destroyStream(this.id);
+      }
+      /**
+       * Get stream metrics
+       */
+      getMetrics() {
+        return { ...this.state.metrics };
+      }
+      /**
+       * Get stream status
+       */
+      getStatus() {
+        return this.state.status;
+      }
+      async readLoop() {
+        if (!this.reader) return;
+        try {
+          while (this.isReading && this.state.status === "active") {
+            const { done, value } = await this.reader.read();
+            if (done) {
+              this.manager.updateStreamStatus(this.id, "completed");
+              this.emit("end");
+              break;
+            }
+            this.state.metrics.chunksProcessed++;
+            if (typeof value === "string") {
+              this.state.metrics.bytesRead += value.length;
+            } else if (value instanceof Uint8Array) {
+              this.state.metrics.bytesRead += value.length;
+            }
+            this.manager.updateStreamMetrics(this.id, this.state.metrics);
+            if (this.state.options.backpressureThreshold && this.state.metrics.bytesRead > this.state.options.backpressureThreshold && !this.backpressureActive) {
+              this.backpressureActive = true;
+              this.emit("backpressure");
+              await this.handleBackpressure();
+            }
+            this.emit("data", value);
+            await new Promise((resolve) => setImmediate(resolve));
+          }
+        } catch (error) {
+          this.handleError(error);
+        } finally {
+          if (this.reader) {
+            this.reader.releaseLock();
+            this.reader = null;
+          }
+          this.isReading = false;
+        }
+      }
+      async handleBackpressure() {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        this.backpressureActive = false;
+      }
+      handleError(error) {
+        this.state.metrics.errors++;
+        this.manager.updateStreamStatus(this.id, "error");
+        this.manager.updateStreamMetrics(this.id, this.state.metrics);
+        errorHandler.handleError(error, {
+          component: "ManagedStream",
+          operation: "readLoop",
+          metadata: { streamId: this.id }
+        });
+        this.emit("error", error);
+      }
+      setupTimeout() {
+        if (this.state.options.timeout) {
+          setTimeout(() => {
+            if (this.state.status === "active" || this.state.status === "idle") {
+              this.handleError(new Error(`Stream timeout after ${this.state.options.timeout}ms`));
+            }
+          }, this.state.options.timeout);
+        }
+      }
+    };
+    globalStreamManager = new StreamManager();
+    StreamUtils = class {
+      /**
+       * Create a stream from an array
+       */
+      static fromArray(items) {
+        let index = 0;
+        return new ReadableStream({
+          pull(controller) {
+            if (index < items.length) {
+              controller.enqueue(items[index++]);
+            } else {
+              controller.close();
+            }
+          }
+        });
+      }
+      /**
+       * Create a stream from a generator
+       */
+      static fromGenerator(generator) {
+        return new ReadableStream({
+          pull(controller) {
+            const { done, value } = generator.next();
+            if (done) {
+              controller.close();
+            } else {
+              controller.enqueue(value);
+            }
+          }
+        });
+      }
+      /**
+       * Merge multiple streams
+       */
+      static merge(...streams) {
+        return new ReadableStream({
+          start(controller) {
+            let activeStreams = streams.length;
+            streams.forEach((stream) => {
+              const reader = stream.getReader();
+              const pump = async () => {
+                try {
+                  while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) {
+                      activeStreams--;
+                      if (activeStreams === 0) {
+                        controller.close();
+                      }
+                      break;
+                    }
+                    controller.enqueue(value);
+                  }
+                } catch (error) {
+                  controller.error(error);
+                } finally {
+                  reader.releaseLock();
+                }
+              };
+              pump();
+            });
+          }
+        });
+      }
+      /**
+       * Convert stream to array
+       */
+      static async toArray(stream) {
+        const reader = stream.getReader();
+        const chunks = [];
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            chunks.push(value);
+          }
+        } finally {
+          reader.releaseLock();
+        }
+        return chunks;
+      }
+    };
+  }
+});
+
 // node_modules/sql.js/dist/sql-wasm.js
 var require_sql_wasm = __commonJS({
   "node_modules/sql.js/dist/sql-wasm.js"(exports, module2) {
     var initSqlJsPromise = void 0;
-    var initSqlJs2 = function(moduleConfig) {
+    var initSqlJs = function(moduleConfig) {
       if (initSqlJsPromise) {
         return initSqlJsPromise;
       }
@@ -17055,1565 +19508,308 @@ var require_sql_wasm = __commonJS({
       return initSqlJsPromise;
     };
     if (typeof exports === "object" && typeof module2 === "object") {
-      module2.exports = initSqlJs2;
-      module2.exports.default = initSqlJs2;
+      module2.exports = initSqlJs;
+      module2.exports.default = initSqlJs;
     } else if (typeof define === "function" && define["amd"]) {
       define([], function() {
-        return initSqlJs2;
+        return initSqlJs;
       });
     } else if (typeof exports === "object") {
-      exports["Module"] = initSqlJs2;
+      exports["Module"] = initSqlJs;
     }
   }
 });
 
-// src/YAMLHandler.ts
-var YAMLHandler_exports = {};
-__export(YAMLHandler_exports, {
-  generateNoteTitle: () => generateNoteTitle,
-  generateYamlAttribute: () => generateYamlAttribute,
-  registerYamlAttributeCommands: () => registerYamlAttributeCommands,
-  upsertYamlField: () => upsertYamlField
+// tests/testRunner.ts
+var testRunner_exports = {};
+__export(testRunner_exports, {
+  registerTestCommands: () => registerTestCommands
 });
-function generateTableOfContents(noteContent) {
-  const headerLines = noteContent.split("\n").filter((line) => /^#{1,6}\s+.+/.test(line));
-  if (headerLines.length === 0) return "";
-  return headerLines.map((line) => {
-    const match = line.match(/^(#{1,6})\s+(.+)/);
-    if (!match) return "";
-    const level = match[1].length;
-    const title = match[2].trim();
-    return `${"  ".repeat(level - 1)}- ${title}`;
-  }).join("\n");
-}
-async function generateNoteTitle(app, settings, processMessages2, dispatcher) {
-  var _a2, _b;
-  debugLog(DEBUG, "debug", "Starting generateNoteTitle");
-  const activeFile = app.workspace.getActiveFile();
-  if (!activeFile) {
-    new import_obsidian35.Notice("No active note found.");
-    return;
-  }
-  let noteContent = await app.vault.cachedRead(activeFile);
-  noteContent = noteContent.slice(0, 15e3);
-  const toc = generateTableOfContents(noteContent);
-  const prompt = DEFAULT_TITLE_PROMPT;
-  const userContent = (toc && toc.trim().length > 0 ? "Table of Contents:\n" + toc + "\n\n" : "") + noteContent;
-  try {
-    debugLog(DEBUG, "debug", "Provider:", settings.provider);
-    const aiDispatcher = dispatcher != null ? dispatcher : new AIDispatcher(app.vault, { settings, saveSettings: async () => {
-    } });
-    const messages = [
-      { role: "system", content: prompt },
-      { role: "user", content: userContent }
-    ];
-    debugLog(DEBUG, "debug", "Original messages:", JSON.stringify(messages));
-    const originalEnableContextNotes = settings.enableContextNotes;
-    debugLog(DEBUG, "debug", "Original enableContextNotes:", originalEnableContextNotes);
-    settings.enableContextNotes = false;
-    try {
-      const processedMessages = await processMessages2(messages);
-      debugLog(DEBUG, "debug", "Processed messages:", JSON.stringify(processedMessages));
-      settings.enableContextNotes = originalEnableContextNotes;
-      if (!processedMessages || processedMessages.length === 0) {
-        debugLog(DEBUG, "debug", "No processed messages!");
-        new import_obsidian35.Notice("No valid messages to send to the model. Please check your note content.");
-        return;
-      }
-      debugLog(DEBUG, "debug", "Calling dispatcher.getCompletion");
-      let resultBuffer = "";
-      await aiDispatcher.getCompletion(processedMessages, {
-        temperature: 0,
-        streamCallback: (chunk) => {
-          resultBuffer += chunk;
-        }
-      });
-      debugLog(DEBUG, "debug", "Result from dispatcher (buffered):", resultBuffer);
-      let title = resultBuffer.trim();
-      debugLog(DEBUG, "debug", "Extracted title before sanitization:", title);
-      title = title.replace(/[\\/:]/g, "").trim();
-      debugLog(DEBUG, "debug", "Sanitized title:", title);
-      if (title && typeof title === "string" && title.length > 0) {
-        const outputMode = (_a2 = settings.titleOutputMode) != null ? _a2 : "clipboard";
-        debugLog(DEBUG, "debug", "Output mode:", outputMode);
-        if (outputMode === "replace-filename") {
-          const file = app.workspace.getActiveFile();
-          if (file) {
-            const ext = file.extension ? "." + file.extension : "";
-            const sanitized = title;
-            const parentPath = file.parent ? file.parent.path : "";
-            const newPath = parentPath ? parentPath + "/" + sanitized + ext : sanitized + ext;
-            if (file.path !== newPath) {
-              await app.fileManager.renameFile(file, newPath);
-              new import_obsidian35.Notice(`Note renamed to: ${sanitized}${ext}`);
-            } else {
-              new import_obsidian35.Notice(`Note title is already: ${sanitized}${ext}`);
-            }
-          }
-        } else if (outputMode === "metadata") {
-          const file = app.workspace.getActiveFile();
-          if (file) {
-            await upsertYamlField(app, file, "title", title);
-            new import_obsidian35.Notice(`Inserted title into metadata: ${title}`);
-          }
+function registerTestCommands(plugin) {
+  plugin.addCommand({
+    id: "test-vector-store-init",
+    name: "Test: Vector Store Initialization",
+    callback: async () => {
+      try {
+        const { VectorStore: VectorStore2 } = await Promise.resolve().then(() => (init_vectorStore(), vectorStore_exports));
+        const vectorStore = new VectorStore2(plugin);
+        new import_obsidian38.Notice("Initializing VectorStore...");
+        await vectorStore.initialize();
+        if (vectorStore.isReady()) {
+          new import_obsidian38.Notice("\u2705 VectorStore initialized successfully!");
+          console.log("VectorStore test: SUCCESS");
         } else {
-          try {
-            await navigator.clipboard.writeText(title);
-            new import_obsidian35.Notice(`Generated title (copied): ${title}`);
-          } catch (e) {
-            new import_obsidian35.Notice(`Generated title: ${title}`);
-          }
+          new import_obsidian38.Notice("\u274C VectorStore initialization failed");
+          console.log("VectorStore test: FAILED - not initialized");
         }
-      } else {
-        debugLog(DEBUG, "debug", "No title generated after sanitization.");
-        new import_obsidian35.Notice("No title generated.");
+        await vectorStore.close();
+      } catch (error) {
+        new import_obsidian38.Notice(`\u274C VectorStore test failed: ${error.message}`);
+        console.error("VectorStore test: ERROR", error);
       }
-    } catch (processError) {
-      debugLog(DEBUG, "debug", "Error in processMessages or provider.getCompletion:", processError);
-      settings.enableContextNotes = originalEnableContextNotes;
-      throw processError;
     }
-  } catch (err) {
-    new import_obsidian35.Notice("Error generating title: " + ((_b = err == null ? void 0 : err.message) != null ? _b : err));
-  }
-}
-async function generateYamlAttribute(app, settings, processMessages2, attributeName, prompt, outputMode = "metadata", dispatcher) {
-  debugLog(DEBUG, "debug", `Starting generateYamlAttribute for ${attributeName}`);
-  const activeFile = app.workspace.getActiveFile();
-  if (!activeFile) {
-    new import_obsidian35.Notice("No active note found.");
-    return;
-  }
-  let noteContent = await app.vault.cachedRead(activeFile);
-  noteContent = noteContent.slice(0, 15e3);
-  const messages = [
-    { role: "system", content: DEFAULT_YAML_SYSTEM_MESSAGE },
-    { role: "user", content: prompt + "\n\n" + noteContent }
-  ];
-  debugLog(DEBUG, "debug", "Original messages:", JSON.stringify(messages));
-  const originalEnableContextNotes = settings.enableContextNotes;
-  debugLog(DEBUG, "debug", "Original enableContextNotes:", originalEnableContextNotes);
-  settings.enableContextNotes = false;
-  try {
-    const processedMessages = await processMessages2(messages);
-    debugLog(DEBUG, "debug", "Processed messages:", JSON.stringify(processedMessages));
-    settings.enableContextNotes = originalEnableContextNotes;
-    if (!processedMessages || processedMessages.length === 0) {
-      debugLog(DEBUG, "debug", "No processed messages!");
-      new import_obsidian35.Notice("No valid messages to send to the model. Please check your note content.");
-      return;
-    }
-    debugLog(DEBUG, "debug", "Calling dispatcher.getCompletion");
-    const aiDispatcher = dispatcher != null ? dispatcher : new AIDispatcher(app.vault, { settings, saveSettings: async () => {
-    } });
-    let resultBuffer = "";
-    await aiDispatcher.getCompletion(processedMessages, {
-      temperature: 0,
-      // Always use temperature 0 for predictable YAML output
-      streamCallback: (chunk) => {
-        resultBuffer += chunk;
-      }
-    });
-    debugLog(DEBUG, "debug", "Result from dispatcher (buffered):", resultBuffer);
-    let value = resultBuffer.trim();
-    debugLog(DEBUG, "debug", "Extracted value before sanitization:", value);
-    value = value.replace(/[\\/]/g, "").trim();
-    debugLog(DEBUG, "debug", "Sanitized value:", value);
-    if (value && typeof value === "string" && value.length > 0) {
-      debugLog(DEBUG, "debug", "Output mode:", outputMode);
-      if (outputMode === "metadata") {
-        await upsertYamlField(app, activeFile, attributeName, value);
-        new import_obsidian35.Notice(`Inserted ${attributeName} into metadata: ${value}`);
-      } else {
-        try {
-          await navigator.clipboard.writeText(value);
-          new import_obsidian35.Notice(`Generated ${attributeName} (copied): ${value}`);
-        } catch (e) {
-          new import_obsidian35.Notice(`Generated ${attributeName}: ${value}`);
+  });
+  plugin.addCommand({
+    id: "test-embedding-service-init",
+    name: "Test: Embedding Service Initialization",
+    callback: async () => {
+      try {
+        const { EmbeddingService: EmbeddingService2 } = await Promise.resolve().then(() => (init_EmbeddingService(), EmbeddingService_exports));
+        const embeddingService = new EmbeddingService2(plugin, plugin.settings);
+        new import_obsidian38.Notice("Initializing EmbeddingService...");
+        await embeddingService.initialize();
+        if (embeddingService.initialized) {
+          const stats = await embeddingService.getStats();
+          new import_obsidian38.Notice(`\u2705 EmbeddingService initialized! ${stats.totalVectors} vectors stored`);
+          console.log("EmbeddingService test: SUCCESS", stats);
+        } else {
+          new import_obsidian38.Notice("\u274C EmbeddingService initialization failed");
+          console.log("EmbeddingService test: FAILED - not initialized");
         }
+        await embeddingService.close();
+      } catch (error) {
+        new import_obsidian38.Notice(`\u274C EmbeddingService test failed: ${error.message}`);
+        console.error("EmbeddingService test: ERROR", error);
       }
-    } else {
-      debugLog(DEBUG, "debug", `No value generated for ${attributeName} after sanitization.`);
-      new import_obsidian35.Notice(`No value generated for ${attributeName}.`);
     }
-  } catch (processError) {
-    debugLog(DEBUG, "debug", "Error in processMessages or provider.getCompletion:", processError);
-    settings.enableContextNotes = originalEnableContextNotes;
-    throw processError;
-  }
-}
-async function upsertYamlField(app, file, field, value) {
-  let content = await app.vault.read(file);
-  let newContent = content;
-  const frontmatterRegex = /^---\n([\s\S]*?)\n---/;
-  const match = content.match(frontmatterRegex);
-  if (match) {
-    let yamlObj = {};
+  });
+  plugin.addCommand({
+    id: "test-semantic-builder-init",
+    name: "Test: Semantic Context Builder Initialization",
+    callback: async () => {
+      try {
+        const { SemanticContextBuilder: SemanticContextBuilder2 } = await Promise.resolve().then(() => (init_SemanticContextBuilder(), SemanticContextBuilder_exports));
+        const semanticBuilder = new SemanticContextBuilder2(plugin.app, plugin);
+        new import_obsidian38.Notice("Initializing SemanticContextBuilder...");
+        await semanticBuilder.initialize();
+        if (semanticBuilder.initialized) {
+          const stats = await semanticBuilder.getStats();
+          new import_obsidian38.Notice(`\u2705 SemanticContextBuilder initialized! ${(stats == null ? void 0 : stats.totalVectors) || 0} vectors available`);
+          console.log("SemanticContextBuilder test: SUCCESS", stats);
+        } else {
+          new import_obsidian38.Notice("\u274C SemanticContextBuilder initialization failed");
+          console.log("SemanticContextBuilder test: FAILED - not initialized");
+        }
+      } catch (error) {
+        new import_obsidian38.Notice(`\u274C SemanticContextBuilder test failed: ${error.message}`);
+        console.error("SemanticContextBuilder test: ERROR", error);
+      }
+    }
+  });
+  plugin.addCommand({
+    id: "test-semantic-search-workflow",
+    name: "Test: Complete Semantic Search Workflow",
+    callback: async () => {
+      try {
+        new import_obsidian38.Notice("Testing complete semantic search workflow...");
+        const { EmbeddingService: EmbeddingService2 } = await Promise.resolve().then(() => (init_EmbeddingService(), EmbeddingService_exports));
+        const embeddingService = new EmbeddingService2(plugin, plugin.settings);
+        await embeddingService.initialize();
+        if (!embeddingService.initialized) {
+          throw new Error("EmbeddingService failed to initialize");
+        }
+        const initialStats = await embeddingService.getStats();
+        console.log("Initial stats:", initialStats);
+        const activeFile = plugin.app.workspace.getActiveFile();
+        if (activeFile) {
+          console.log("Embedding active file:", activeFile.path);
+          await embeddingService.embedNote(activeFile);
+          const finalStats = await embeddingService.getStats();
+          console.log("Final stats:", finalStats);
+          const results = await embeddingService.semanticSearch("test content", {
+            topK: 3,
+            minSimilarity: 0.1
+          });
+          new import_obsidian38.Notice(`\u2705 Workflow complete! Embedded ${activeFile.name}, found ${results.length} similar vectors`);
+          console.log("Semantic search workflow: SUCCESS", {
+            embedded: activeFile.path,
+            searchResults: results.length,
+            finalStats
+          });
+        } else {
+          new import_obsidian38.Notice("\u274C No active file to embed");
+          console.log("Semantic search workflow: SKIPPED - no active file");
+        }
+        await embeddingService.close();
+      } catch (error) {
+        new import_obsidian38.Notice(`\u274C Semantic search workflow failed: ${error.message}`);
+        console.error("Semantic search workflow: ERROR", error);
+      }
+    }
+  });
+  plugin.addCommand({
+    id: "test-sql-js-basic",
+    name: "Test: Basic SQL.js Functionality",
+    callback: async () => {
+      try {
+        new import_obsidian38.Notice("Testing basic SQL.js functionality...");
+        const initSqlJs = (await Promise.resolve().then(() => __toESM(require_sql_wasm()))).default;
+        const SQL = await initSqlJs();
+        const db = new SQL.Database();
+        db.run("CREATE TABLE test (id INTEGER, name TEXT);");
+        db.run("INSERT INTO test (id, name) VALUES (1, 'Hello'), (2, 'World');");
+        const stmt = db.prepare("SELECT * FROM test WHERE id = ?");
+        const result = stmt.get([1]);
+        stmt.free();
+        db.close();
+        new import_obsidian38.Notice(`\u2705 SQL.js basic test passed! Result: ${JSON.stringify(result)}`);
+        console.log("SQL.js basic test: SUCCESS", result);
+      } catch (error) {
+        new import_obsidian38.Notice(`\u274C SQL.js basic test failed: ${error.message}`);
+        console.error("SQL.js basic test: ERROR", error);
+      }
+    }
+  });
+  plugin.addCommand({
+    id: "test-run-all-semantic-tests",
+    name: "Test: Run All Semantic Search Tests",
+    callback: async () => {
+      new import_obsidian38.Notice("Running all semantic search tests...");
+      console.log("=".repeat(50));
+      console.log("RUNNING ALL SEMANTIC SEARCH TESTS");
+      console.log("=".repeat(50));
+      try {
+        console.log("\n--- Running: Basic IndexedDB Test ---");
+        await runBasicIndexedDBTest();
+        await new Promise((resolve) => setTimeout(resolve, 1e3));
+        console.log("\n--- Running: VectorStore Initialization ---");
+        await runVectorStoreTest();
+        await new Promise((resolve) => setTimeout(resolve, 1e3));
+        console.log("\n--- Running: EmbeddingService Initialization ---");
+        await runEmbeddingServiceTest();
+        await new Promise((resolve) => setTimeout(resolve, 1e3));
+        console.log("\n--- Running: SemanticContextBuilder Initialization ---");
+        await runSemanticBuilderTest();
+        await new Promise((resolve) => setTimeout(resolve, 1e3));
+        console.log("\n--- Running: Complete Workflow Test ---");
+        await runWorkflowTest();
+      } catch (error) {
+        console.error("Error during test execution:", error);
+      }
+      console.log("\n" + "=".repeat(50));
+      console.log("ALL TESTS COMPLETED");
+      console.log("=".repeat(50));
+      new import_obsidian38.Notice("All semantic search tests completed! Check console for details.");
+    }
+  });
+  async function runBasicIndexedDBTest() {
     try {
-      yamlObj = load(match[1]) || {};
-    } catch (e) {
-      yamlObj = {};
-    }
-    yamlObj[field] = value;
-    const newYaml = dump(yamlObj, { lineWidth: -1 }).trim();
-    newContent = content.replace(frontmatterRegex, `---
-${newYaml}
----`);
-  } else {
-    const newYaml = dump({ [field]: value }, { lineWidth: -1 }).trim();
-    newContent = `---
-${newYaml}
----
-` + content;
-  }
-  await app.vault.modify(file, newContent);
-}
-function registerYamlAttributeCommands(plugin, settings, processMessages2, yamlAttributeCommandIds, debugLog2) {
-  debugLog2("debug", "[YAMLHandler.ts] registerYamlAttributeCommands called");
-  if (yamlAttributeCommandIds && yamlAttributeCommandIds.length > 0) {
-    for (const id of yamlAttributeCommandIds) {
-      plugin.app.commands.removeCommand(id);
-      debugLog2("debug", "[YAMLHandler.ts] Removed previous YAML command", { id });
-    }
-  }
-  const newCommandIds = [];
-  if (settings.yamlAttributeGenerators && Array.isArray(settings.yamlAttributeGenerators)) {
-    for (const gen of settings.yamlAttributeGenerators) {
-      if (!gen.attributeName || !gen.prompt || !gen.commandName) continue;
-      const id = `generate-yaml-attribute-${gen.attributeName}`;
-      debugLog2("debug", "[YAMLHandler.ts] Registering YAML attribute command", { id, gen });
-      registerCommand(plugin, {
-        id,
-        name: gen.commandName,
-        callback: async () => {
-          await generateYamlAttribute(
-            plugin.app,
-            settings,
-            processMessages2,
-            gen.attributeName,
-            gen.prompt,
-            gen.outputMode
-          );
-        }
+      const dbName = "test-db-" + Date.now();
+      const db = await new Promise((resolve, reject) => {
+        const request = indexedDB.open(dbName, 1);
+        request.onerror = () => reject(new Error("Failed to open test database"));
+        request.onsuccess = () => resolve(request.result);
+        request.onupgradeneeded = (event) => {
+          const db2 = event.target.result;
+          const store = db2.createObjectStore("test", { keyPath: "id" });
+        };
       });
-      newCommandIds.push(id);
+      await new Promise((resolve, reject) => {
+        const transaction = db.transaction(["test"], "readwrite");
+        const store = transaction.objectStore("test");
+        const request = store.put({ id: 1, name: "Hello IndexedDB" });
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(new Error("Failed to write test data"));
+      });
+      const result = await new Promise((resolve, reject) => {
+        const transaction = db.transaction(["test"], "readonly");
+        const store = transaction.objectStore("test");
+        const request = store.get(1);
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(new Error("Failed to read test data"));
+      });
+      db.close();
+      indexedDB.deleteDatabase(dbName);
+      console.log("\u2705 IndexedDB basic test: SUCCESS", result);
+    } catch (error) {
+      console.error("\u274C IndexedDB basic test: ERROR", error);
     }
   }
-  return newCommandIds;
+  async function runVectorStoreTest() {
+    try {
+      const { VectorStore: VectorStore2 } = await Promise.resolve().then(() => (init_vectorStore(), vectorStore_exports));
+      const vectorStore = new VectorStore2(plugin);
+      await vectorStore.initialize();
+      if (vectorStore.isReady()) {
+        console.log("\u2705 VectorStore test: SUCCESS");
+      } else {
+        console.log("\u274C VectorStore test: FAILED - not initialized");
+      }
+      await vectorStore.close();
+    } catch (error) {
+      console.error("\u274C VectorStore test: ERROR", error);
+    }
+  }
+  async function runEmbeddingServiceTest() {
+    try {
+      const { EmbeddingService: EmbeddingService2 } = await Promise.resolve().then(() => (init_EmbeddingService(), EmbeddingService_exports));
+      const embeddingService = new EmbeddingService2(plugin, plugin.settings);
+      await embeddingService.initialize();
+      if (embeddingService.initialized) {
+        const stats = await embeddingService.getStats();
+        console.log("\u2705 EmbeddingService test: SUCCESS", stats);
+      } else {
+        console.log("\u274C EmbeddingService test: FAILED - not initialized");
+      }
+      await embeddingService.close();
+    } catch (error) {
+      console.error("\u274C EmbeddingService test: ERROR", error);
+    }
+  }
+  async function runSemanticBuilderTest() {
+    try {
+      const { SemanticContextBuilder: SemanticContextBuilder2 } = await Promise.resolve().then(() => (init_SemanticContextBuilder(), SemanticContextBuilder_exports));
+      const semanticBuilder = new SemanticContextBuilder2(plugin.app, plugin);
+      await semanticBuilder.initialize();
+      if (semanticBuilder.initialized) {
+        const stats = await semanticBuilder.getStats();
+        console.log("\u2705 SemanticContextBuilder test: SUCCESS", stats);
+      } else {
+        console.log("\u274C SemanticContextBuilder test: FAILED - not initialized");
+      }
+    } catch (error) {
+      console.error("\u274C SemanticContextBuilder test: ERROR", error);
+    }
+  }
+  async function runWorkflowTest() {
+    try {
+      const { EmbeddingService: EmbeddingService2 } = await Promise.resolve().then(() => (init_EmbeddingService(), EmbeddingService_exports));
+      const embeddingService = new EmbeddingService2(plugin, plugin.settings);
+      await embeddingService.initialize();
+      if (!embeddingService.initialized) {
+        throw new Error("EmbeddingService failed to initialize");
+      }
+      const initialStats = await embeddingService.getStats();
+      console.log("Initial stats:", initialStats);
+      const activeFile = plugin.app.workspace.getActiveFile();
+      if (activeFile) {
+        console.log("Embedding active file:", activeFile.path);
+        await embeddingService.embedNote(activeFile);
+        const finalStats = await embeddingService.getStats();
+        console.log("Final stats:", finalStats);
+        const results = await embeddingService.semanticSearch("test content", {
+          topK: 3,
+          minSimilarity: 0.1
+        });
+        console.log("\u2705 Semantic search workflow: SUCCESS", {
+          embedded: activeFile.path,
+          searchResults: results.length,
+          finalStats
+        });
+      } else {
+        console.log("\u26A0\uFE0F Semantic search workflow: SKIPPED - no active file");
+      }
+      await embeddingService.close();
+    } catch (error) {
+      console.error("\u274C Semantic search workflow: ERROR", error);
+    }
+  }
+  console.log("Test commands registered for semantic search debugging");
 }
-var import_obsidian35, DEBUG;
-var init_YAMLHandler = __esm({
-  "src/YAMLHandler.ts"() {
-    import_obsidian35 = require("obsidian");
-    init_aiDispatcher();
-    init_promptConstants();
-    init_pluginUtils();
-    init_js_yaml();
-    init_logger();
-    DEBUG = true;
-  }
-});
-
-// src/utils/dependencyInjection.ts
-var dependencyInjection_exports = {};
-__export(dependencyInjection_exports, {
-  DIContainer: () => DIContainer,
-  DIContainerFactory: () => DIContainerFactory,
-  Injectable: () => Injectable,
-  ServiceLocator: () => ServiceLocator
-});
-function Injectable(name, lifecycle = "singleton") {
-  return function(constructor) {
-    const container = ServiceLocator.getContainer();
-    container.register(name, () => new constructor(), lifecycle);
-    return constructor;
-  };
-}
-var DIContainer, _ServiceLocator, ServiceLocator, DIContainerFactory;
-var init_dependencyInjection = __esm({
-  "src/utils/dependencyInjection.ts"() {
-    init_aiDispatcher();
-    init_errorHandler();
-    DIContainer = class {
-      constructor() {
-        __publicField(this, "services", /* @__PURE__ */ new Map());
-        __publicField(this, "instances", /* @__PURE__ */ new Map());
-        __publicField(this, "metadata", /* @__PURE__ */ new Map());
-        __publicField(this, "scopes", /* @__PURE__ */ new Map());
-        __publicField(this, "currentScope", null);
-        __publicField(this, "isDisposed", false);
-        this.registerCoreServices();
-      }
-      /**
-       * Register a service with the container
-       */
-      register(name, factory, lifecycle = "singleton", dependencies = []) {
-        if (this.isDisposed) {
-          throw new Error("Cannot register services on disposed container");
-        }
-        this.services.set(name, {
-          factory,
-          lifecycle,
-          dependencies
-        });
-        this.metadata.set(name, {
-          name,
-          lifecycle,
-          dependencies,
-          createdAt: Date.now(),
-          lastAccessed: 0,
-          accessCount: 0
-        });
-      }
-      /**
-       * Register a singleton service
-       */
-      registerSingleton(name, factory, dependencies = []) {
-        this.register(name, factory, "singleton", dependencies);
-      }
-      /**
-       * Register a transient service (new instance every time)
-       */
-      registerTransient(name, factory, dependencies = []) {
-        this.register(name, factory, "transient", dependencies);
-      }
-      /**
-       * Register a scoped service (one instance per scope)
-       */
-      registerScoped(name, factory, dependencies = []) {
-        this.register(name, factory, "scoped", dependencies);
-      }
-      /**
-       * Resolve a service by name
-       */
-      resolve(name) {
-        if (this.isDisposed) {
-          throw new Error("Cannot resolve services from disposed container");
-        }
-        const service = this.services.get(name);
-        if (!service) {
-          throw new Error(`Service '${name}' not registered`);
-        }
-        const meta = this.metadata.get(name);
-        meta.lastAccessed = Date.now();
-        meta.accessCount++;
-        this.checkCircularDependencies(name, /* @__PURE__ */ new Set());
-        switch (service.lifecycle) {
-          case "singleton":
-            return this.resolveSingleton(name, service);
-          case "transient":
-            return this.resolveTransient(name, service);
-          case "scoped":
-            return this.resolveScoped(name, service);
-          default:
-            throw new Error(`Unknown lifecycle: ${service.lifecycle}`);
-        }
-      }
-      /**
-       * Check if a service is registered
-       */
-      isRegistered(name) {
-        return this.services.has(name);
-      }
-      /**
-       * Get all registered service names
-       */
-      getRegisteredServices() {
-        return Array.from(this.services.keys());
-      }
-      /**
-       * Get service metadata
-       */
-      getServiceMetadata(name) {
-        return this.metadata.get(name);
-      }
-      /**
-       * Get all service metadata
-       */
-      getAllServiceMetadata() {
-        return Array.from(this.metadata.values());
-      }
-      /**
-       * Create a new scope
-       */
-      createScope(scopeId) {
-        if (this.scopes.has(scopeId)) {
-          throw new Error(`Scope '${scopeId}' already exists`);
-        }
-        this.scopes.set(scopeId, /* @__PURE__ */ new Map());
-      }
-      /**
-       * Enter a scope
-       */
-      enterScope(scopeId) {
-        if (!this.scopes.has(scopeId)) {
-          this.createScope(scopeId);
-        }
-        this.currentScope = scopeId;
-      }
-      /**
-       * Exit current scope
-       */
-      exitScope() {
-        this.currentScope = null;
-      }
-      /**
-       * Dispose a scope and all its instances
-       */
-      disposeScope(scopeId) {
-        const scope = this.scopes.get(scopeId);
-        if (scope) {
-          for (const [, instance] of scope) {
-            this.disposeInstance(instance);
-          }
-          this.scopes.delete(scopeId);
-        }
-        if (this.currentScope === scopeId) {
-          this.currentScope = null;
-        }
-      }
-      /**
-       * Dispose the entire container
-       */
-      dispose() {
-        if (this.isDisposed) return;
-        for (const scopeId of this.scopes.keys()) {
-          this.disposeScope(scopeId);
-        }
-        for (const [, instance] of this.instances) {
-          this.disposeInstance(instance);
-        }
-        this.services.clear();
-        this.instances.clear();
-        this.metadata.clear();
-        this.scopes.clear();
-        this.currentScope = null;
-        this.isDisposed = true;
-      }
-      /**
-       * Get container statistics
-       */
-      getStats() {
-        const totalResolutions = Array.from(this.metadata.values()).reduce((sum, meta) => sum + meta.accessCount, 0);
-        return {
-          totalServices: this.services.size,
-          singletonInstances: this.instances.size,
-          activeScopes: this.scopes.size,
-          totalResolutions,
-          memoryUsage: this.estimateMemoryUsage()
-        };
-      }
-      registerCoreServices() {
-        this.registerSingleton("errorHandler", () => ErrorHandler.getInstance());
-      }
-      resolveSingleton(name, service) {
-        if (this.instances.has(name)) {
-          return this.instances.get(name);
-        }
-        const instance = this.createInstance(name, service);
-        this.instances.set(name, instance);
-        return instance;
-      }
-      resolveTransient(name, service) {
-        return this.createInstance(name, service);
-      }
-      resolveScoped(name, service) {
-        if (!this.currentScope) {
-          throw new Error(`Cannot resolve scoped service '${name}' outside of a scope`);
-        }
-        const scope = this.scopes.get(this.currentScope);
-        if (scope.has(name)) {
-          return scope.get(name);
-        }
-        const instance = this.createInstance(name, service);
-        scope.set(name, instance);
-        return instance;
-      }
-      createInstance(name, service) {
-        const dependencies = service.dependencies || [];
-        const resolvedDependencies = dependencies.map((dep) => this.resolve(dep));
-        try {
-          return service.factory(this);
-        } catch (error) {
-          throw new Error(`Failed to create instance of '${name}': ${error.message}`);
-        }
-      }
-      checkCircularDependencies(name, visited) {
-        if (visited.has(name)) {
-          throw new Error(`Circular dependency detected: ${Array.from(visited).join(" -> ")} -> ${name}`);
-        }
-        visited.add(name);
-        const service = this.services.get(name);
-        if (service && service.dependencies) {
-          for (const dep of service.dependencies) {
-            this.checkCircularDependencies(dep, new Set(visited));
-          }
-        }
-        visited.delete(name);
-      }
-      disposeInstance(instance) {
-        if (instance && typeof instance.dispose === "function") {
-          try {
-            instance.dispose();
-          } catch (error) {
-            console.warn("Error disposing instance:", error);
-          }
-        }
-      }
-      estimateMemoryUsage() {
-        let size = 0;
-        size += this.services.size * 100;
-        size += this.instances.size * 500;
-        size += this.metadata.size * 200;
-        return size;
-      }
-    };
-    _ServiceLocator = class _ServiceLocator {
-      static initialize(container) {
-        _ServiceLocator.container = container;
-      }
-      static getContainer() {
-        if (!_ServiceLocator.container) {
-          throw new Error("ServiceLocator not initialized. Call initialize() first.");
-        }
-        return _ServiceLocator.container;
-      }
-      static resolve(name) {
-        return _ServiceLocator.getContainer().resolve(name);
-      }
-      static isInitialized() {
-        return _ServiceLocator.container !== null;
-      }
-      static dispose() {
-        if (_ServiceLocator.container) {
-          _ServiceLocator.container.dispose();
-          _ServiceLocator.container = null;
-        }
-      }
-    };
-    __publicField(_ServiceLocator, "container", null);
-    ServiceLocator = _ServiceLocator;
-    DIContainerFactory = class {
-      /**
-       * Create a container for the AI Assistant plugin
-       */
-      static createPluginContainer(app, plugin) {
-        const container = new DIContainer();
-        container.registerSingleton("app", () => app);
-        container.registerSingleton("plugin", () => plugin);
-        container.registerSingleton("vault", () => app.vault);
-        container.registerSingleton("workspace", () => app.workspace);
-        container.registerSingleton("aiDispatcher", (c) => {
-          const vault = c.resolve("vault");
-          const pluginInstance = c.resolve("plugin");
-          return new AIDispatcher(vault, pluginInstance);
-        }, ["vault", "plugin"]);
-        container.registerSingleton("errorHandler", () => ErrorHandler.getInstance());
-        return container;
-      }
-      /**
-       * Create a container for testing
-       */
-      static createTestContainer() {
-        const container = new DIContainer();
-        container.registerSingleton("mockService", () => ({ test: true }));
-        return container;
-      }
-    };
-  }
-});
-
-// src/utils/stateManager.ts
-var stateManager_exports = {};
-__export(stateManager_exports, {
-  StateManager: () => StateManager,
-  StateUtils: () => StateUtils,
-  globalStateManager: () => globalStateManager
-});
-var import_events, StateManager, globalStateManager, StateUtils;
-var init_stateManager = __esm({
-  "src/utils/stateManager.ts"() {
-    import_events = require("events");
-    init_lruCache();
-    init_errorHandler();
-    StateManager = class extends import_events.EventEmitter {
-      constructor(storageKey = "ai-assistant-state") {
-        super();
-        this.storageKey = storageKey;
-        __publicField(this, "state", {});
-        __publicField(this, "stateListeners", /* @__PURE__ */ new Map());
-        __publicField(this, "validators", /* @__PURE__ */ new Map());
-        __publicField(this, "transformers", /* @__PURE__ */ new Map());
-        __publicField(this, "persistentKeys", /* @__PURE__ */ new Set());
-        __publicField(this, "debounceTimers", /* @__PURE__ */ new Map());
-        __publicField(this, "snapshots");
-        __publicField(this, "version", 0);
-        __publicField(this, "isDisposed", false);
-        this.snapshots = new LRUCache({
-          maxSize: 50,
-          defaultTTL: 60 * 60 * 1e3
-          // 1 hour
-        });
-        this.loadPersistedState();
-      }
-      /**
-       * Set a value in the state
-       */
-      setState(path3, value, options = {}) {
-        if (this.isDisposed) {
-          throw new Error("Cannot set state on disposed StateManager");
-        }
-        try {
-          const transformer = options.transformer || this.transformers.get(path3);
-          const transformedValue = transformer ? transformer(value, path3) : value;
-          const validator = options.validator || this.validators.get(path3);
-          if (validator) {
-            const validationResult = validator(transformedValue, path3);
-            if (validationResult !== true) {
-              const errorMessage = typeof validationResult === "string" ? validationResult : `Invalid value for state path: ${path3}`;
-              throw new Error(errorMessage);
-            }
-          }
-          const oldValue = this.getState(path3);
-          this.setNestedValue(this.state, path3, transformedValue);
-          this.version++;
-          if (options.persistent) {
-            this.persistentKeys.add(path3);
-          }
-          this.createSnapshot();
-          const debounceMs = options.debounceMs || 0;
-          if (debounceMs > 0) {
-            this.debouncedNotify(path3, transformedValue, oldValue, debounceMs);
-          } else {
-            this.notifyListeners(path3, transformedValue, oldValue);
-          }
-          if (this.persistentKeys.has(path3)) {
-            this.persistState();
-          }
-        } catch (error) {
-          errorHandler.handleError(error, {
-            component: "StateManager",
-            operation: "setState",
-            metadata: { path: path3, valueType: typeof value }
-          });
-          throw error;
-        }
-      }
-      /**
-       * Get a value from the state
-       */
-      getState(path3, defaultValue) {
-        if (this.isDisposed) {
-          throw new Error("Cannot get state from disposed StateManager");
-        }
-        try {
-          const value = this.getNestedValue(this.state, path3);
-          return value !== void 0 ? value : defaultValue;
-        } catch (error) {
-          errorHandler.handleError(error, {
-            component: "StateManager",
-            operation: "getState",
-            metadata: { path: path3 }
-          });
-          return defaultValue;
-        }
-      }
-      /**
-       * Check if a state path exists
-       */
-      hasState(path3) {
-        return this.getNestedValue(this.state, path3) !== void 0;
-      }
-      /**
-       * Delete a state path
-       */
-      deleteState(path3) {
-        if (this.isDisposed) {
-          throw new Error("Cannot delete state from disposed StateManager");
-        }
-        const oldValue = this.getState(path3);
-        this.deleteNestedValue(this.state, path3);
-        this.version++;
-        this.persistentKeys.delete(path3);
-        this.notifyListeners(path3, void 0, oldValue);
-        this.createSnapshot();
-        this.persistState();
-      }
-      /**
-       * Subscribe to state changes for a specific path
-       */
-      subscribe(path3, listener) {
-        if (!this.stateListeners.has(path3)) {
-          this.stateListeners.set(path3, /* @__PURE__ */ new Set());
-        }
-        this.stateListeners.get(path3).add(listener);
-        return () => {
-          const pathListeners = this.stateListeners.get(path3);
-          if (pathListeners) {
-            pathListeners.delete(listener);
-            if (pathListeners.size === 0) {
-              this.stateListeners.delete(path3);
-            }
-          }
-        };
-      }
-      /**
-       * Subscribe to all state changes
-       */
-      subscribeAll(listener) {
-        this.on("stateChange", listener);
-        return () => this.off("stateChange", listener);
-      }
-      /**
-       * Register a validator for a state path
-       */
-      registerValidator(path3, validator) {
-        this.validators.set(path3, validator);
-      }
-      /**
-       * Register a transformer for a state path
-       */
-      registerTransformer(path3, transformer) {
-        this.transformers.set(path3, transformer);
-      }
-      /**
-       * Get the entire state object (read-only)
-       */
-      getFullState() {
-        return Object.freeze(JSON.parse(JSON.stringify(this.state)));
-      }
-      /**
-       * Reset the entire state
-       */
-      resetState(newState = {}) {
-        if (this.isDisposed) {
-          throw new Error("Cannot reset state on disposed StateManager");
-        }
-        const oldState = this.getFullState();
-        this.state = { ...newState };
-        this.version++;
-        this.createSnapshot();
-        this.emit("stateReset", this.state, oldState);
-        this.persistState();
-      }
-      /**
-       * Create a snapshot of the current state
-       */
-      createSnapshot() {
-        const snapshot = {
-          timestamp: Date.now(),
-          state: JSON.parse(JSON.stringify(this.state)),
-          version: this.version
-        };
-        this.snapshots.set(`snapshot-${this.version}`, snapshot);
-      }
-      /**
-       * Restore state from a snapshot
-       */
-      restoreSnapshot(version) {
-        const snapshot = this.snapshots.get(`snapshot-${version}`);
-        if (!snapshot) {
-          return false;
-        }
-        const oldState = this.getFullState();
-        this.state = JSON.parse(JSON.stringify(snapshot.state));
-        this.version = snapshot.version;
-        this.emit("stateRestored", this.state, oldState, snapshot);
-        this.persistState();
-        return true;
-      }
-      /**
-       * Get available snapshots
-       */
-      getSnapshots() {
-        return this.snapshots.values().sort((a, b) => b.timestamp - a.timestamp);
-      }
-      /**
-       * Get current state version
-       */
-      getVersion() {
-        return this.version;
-      }
-      /**
-       * Batch multiple state updates
-       */
-      batch(updates) {
-        var _a2;
-        if (this.isDisposed) {
-          throw new Error("Cannot batch updates on disposed StateManager");
-        }
-        const oldStates = /* @__PURE__ */ new Map();
-        try {
-          for (const update of updates) {
-            oldStates.set(update.path, this.getState(update.path));
-          }
-          for (const update of updates) {
-            this.setNestedValue(this.state, update.path, update.value);
-            if ((_a2 = update.options) == null ? void 0 : _a2.persistent) {
-              this.persistentKeys.add(update.path);
-            }
-          }
-          this.version++;
-          this.createSnapshot();
-          for (const update of updates) {
-            const oldValue = oldStates.get(update.path);
-            this.notifyListeners(update.path, update.value, oldValue);
-          }
-          this.persistState();
-        } catch (error) {
-          for (const [path3, oldValue] of oldStates) {
-            this.setNestedValue(this.state, path3, oldValue);
-          }
-          throw error;
-        }
-      }
-      /**
-       * Watch for changes to multiple paths
-       */
-      watch(paths, listener) {
-        const unsubscribers = [];
-        const changes = [];
-        let debounceTimer = null;
-        for (const path3 of paths) {
-          const unsubscribe = this.subscribe(path3, (newValue, oldValue, changePath) => {
-            changes.push({ path: changePath, newValue, oldValue });
-            if (debounceTimer) {
-              clearTimeout(debounceTimer);
-            }
-            debounceTimer = setTimeout(() => {
-              if (changes.length > 0) {
-                listener([...changes]);
-                changes.length = 0;
-              }
-            }, 10);
-          });
-          unsubscribers.push(unsubscribe);
-        }
-        return () => {
-          unsubscribers.forEach((unsub) => unsub());
-          if (debounceTimer) {
-            clearTimeout(debounceTimer);
-          }
-        };
-      }
-      /**
-       * Get state statistics
-       */
-      getStats() {
-        const totalListeners = Array.from(this.stateListeners.values()).reduce((sum, set2) => sum + set2.size, 0);
-        return {
-          totalKeys: this.countKeys(this.state),
-          persistentKeys: this.persistentKeys.size,
-          listeners: totalListeners,
-          snapshots: this.snapshots.size(),
-          version: this.version,
-          memoryUsage: this.estimateMemoryUsage()
-        };
-      }
-      /**
-       * Dispose the state manager
-       */
-      dispose() {
-        if (this.isDisposed) return;
-        for (const timer of this.debounceTimers.values()) {
-          clearTimeout(timer);
-        }
-        this.debounceTimers.clear();
-        this.stateListeners.clear();
-        this.removeAllListeners();
-        this.state = {};
-        this.validators.clear();
-        this.transformers.clear();
-        this.persistentKeys.clear();
-        this.snapshots.destroy();
-        this.isDisposed = true;
-      }
-      setNestedValue(obj, path3, value) {
-        const keys = path3.split(".");
-        let current = obj;
-        for (let i = 0; i < keys.length - 1; i++) {
-          const key = keys[i];
-          if (!(key in current) || typeof current[key] !== "object") {
-            current[key] = {};
-          }
-          current = current[key];
-        }
-        current[keys[keys.length - 1]] = value;
-      }
-      getNestedValue(obj, path3) {
-        const keys = path3.split(".");
-        let current = obj;
-        for (const key of keys) {
-          if (current === null || current === void 0 || !(key in current)) {
-            return void 0;
-          }
-          current = current[key];
-        }
-        return current;
-      }
-      deleteNestedValue(obj, path3) {
-        const keys = path3.split(".");
-        let current = obj;
-        for (let i = 0; i < keys.length - 1; i++) {
-          const key = keys[i];
-          if (!(key in current) || typeof current[key] !== "object") {
-            return;
-          }
-          current = current[key];
-        }
-        delete current[keys[keys.length - 1]];
-      }
-      notifyListeners(path3, newValue, oldValue) {
-        const pathListeners = this.stateListeners.get(path3);
-        if (pathListeners) {
-          for (const listener of pathListeners) {
-            try {
-              listener(newValue, oldValue, path3);
-            } catch (error) {
-              errorHandler.handleError(error, {
-                component: "StateManager",
-                operation: "notifyListeners",
-                metadata: { path: path3 }
-              });
-            }
-          }
-        }
-        this.emit("stateChange", newValue, oldValue, path3);
-      }
-      debouncedNotify(path3, newValue, oldValue, debounceMs) {
-        const existingTimer = this.debounceTimers.get(path3);
-        if (existingTimer) {
-          clearTimeout(existingTimer);
-        }
-        const timer = setTimeout(() => {
-          this.notifyListeners(path3, newValue, oldValue);
-          this.debounceTimers.delete(path3);
-        }, debounceMs);
-        this.debounceTimers.set(path3, timer);
-      }
-      loadPersistedState() {
-        try {
-          const stored = localStorage.getItem(this.storageKey);
-          if (stored) {
-            const parsed = JSON.parse(stored);
-            this.state = parsed.state || {};
-            this.persistentKeys = new Set(parsed.persistentKeys || []);
-            this.version = parsed.version || 0;
-          }
-        } catch (error) {
-          errorHandler.handleError(error, {
-            component: "StateManager",
-            operation: "loadPersistedState"
-          });
-        }
-      }
-      persistState() {
-        try {
-          const persistentState = {};
-          for (const key of this.persistentKeys) {
-            const value = this.getState(key);
-            if (value !== void 0) {
-              this.setNestedValue(persistentState, key, value);
-            }
-          }
-          const toStore = {
-            state: persistentState,
-            persistentKeys: Array.from(this.persistentKeys),
-            version: this.version,
-            timestamp: Date.now()
-          };
-          localStorage.setItem(this.storageKey, JSON.stringify(toStore));
-        } catch (error) {
-          errorHandler.handleError(error, {
-            component: "StateManager",
-            operation: "persistState"
-          });
-        }
-      }
-      countKeys(obj, depth = 0) {
-        if (depth > 10 || typeof obj !== "object" || obj === null) {
-          return 0;
-        }
-        let count = 0;
-        for (const key in obj) {
-          count++;
-          if (typeof obj[key] === "object" && obj[key] !== null) {
-            count += this.countKeys(obj[key], depth + 1);
-          }
-        }
-        return count;
-      }
-      estimateMemoryUsage() {
-        try {
-          return JSON.stringify(this.state).length * 2;
-        } catch (e) {
-          return 0;
-        }
-      }
-    };
-    globalStateManager = new StateManager();
-    StateUtils = class {
-      /**
-       * Create a computed state that updates when dependencies change
-       */
-      static createComputed(stateManager, dependencies, computeFn, targetPath) {
-        const updateComputed = () => {
-          const values = dependencies.map((dep) => stateManager.getState(dep));
-          const computed = computeFn(values);
-          stateManager.setState(targetPath, computed);
-        };
-        updateComputed();
-        const unsubscribe = stateManager.watch(dependencies, updateComputed);
-        return unsubscribe;
-      }
-      /**
-       * Create a state slice with a specific prefix
-       */
-      static createSlice(stateManager, prefix) {
-        return {
-          get: (path3, defaultValue) => stateManager.getState(`${prefix}.${path3}`, defaultValue),
-          set: (path3, value, options) => stateManager.setState(`${prefix}.${path3}`, value, options),
-          subscribe: (path3, listener) => stateManager.subscribe(`${prefix}.${path3}`, listener),
-          delete: (path3) => stateManager.deleteState(`${prefix}.${path3}`)
-        };
-      }
-    };
-  }
-});
-
-// src/utils/streamManager.ts
-var streamManager_exports = {};
-__export(streamManager_exports, {
-  ManagedStream: () => ManagedStream,
-  StreamManager: () => StreamManager,
-  StreamUtils: () => StreamUtils,
-  globalStreamManager: () => globalStreamManager
-});
-var import_events2, StreamManager, ManagedStream, globalStreamManager, StreamUtils;
-var init_streamManager = __esm({
-  "src/utils/streamManager.ts"() {
-    import_events2 = require("events");
-    init_errorHandler();
-    init_lruCache();
-    StreamManager = class extends import_events2.EventEmitter {
-      constructor(options = {}) {
-        super();
-        __publicField(this, "streams", /* @__PURE__ */ new Map());
-        __publicField(this, "transformers", /* @__PURE__ */ new Map());
-        __publicField(this, "filters", /* @__PURE__ */ new Map());
-        __publicField(this, "streamCache");
-        __publicField(this, "activeStreams", /* @__PURE__ */ new Set());
-        __publicField(this, "pausedStreams", /* @__PURE__ */ new Set());
-        __publicField(this, "streamPool", []);
-        __publicField(this, "maxConcurrentStreams");
-        __publicField(this, "defaultTimeout");
-        __publicField(this, "isDisposed", false);
-        this.maxConcurrentStreams = options.maxConcurrentStreams || 10;
-        this.defaultTimeout = options.defaultTimeout || 3e4;
-        this.streamCache = new LRUCache({
-          maxSize: options.cacheSize || 50,
-          defaultTTL: 5 * 60 * 1e3,
-          // 5 minutes
-          onEvict: (key, stream) => this.destroyStream(key)
-        });
-        this.setupCleanupInterval();
-      }
-      /**
-       * Create a new managed stream
-       */
-      createStream(id, source, options = {}) {
-        if (this.isDisposed) {
-          throw new Error("Cannot create stream on disposed StreamManager");
-        }
-        if (this.streams.has(id)) {
-          throw new Error(`Stream with id '${id}' already exists`);
-        }
-        if (this.activeStreams.size >= this.maxConcurrentStreams) {
-          throw new Error(`Maximum concurrent streams (${this.maxConcurrentStreams}) reached`);
-        }
-        const streamState = {
-          id,
-          status: "idle",
-          metrics: {
-            bytesRead: 0,
-            bytesWritten: 0,
-            chunksProcessed: 0,
-            errors: 0,
-            startTime: Date.now()
-          },
-          options: {
-            timeout: this.defaultTimeout,
-            retryAttempts: 3,
-            backpressureThreshold: 16384,
-            // 16KB
-            ...options
-          },
-          createdAt: Date.now(),
-          lastActivity: Date.now()
-        };
-        this.streams.set(id, streamState);
-        const actualSource = typeof source === "function" ? source() : source;
-        const managedStream = new ManagedStream(id, actualSource, this, streamState);
-        this.streamCache.set(id, actualSource);
-        this.emit("streamCreated", id, streamState);
-        return managedStream;
-      }
-      /**
-       * Get a stream by ID
-       */
-      getStream(id) {
-        const state = this.streams.get(id);
-        const source = this.streamCache.get(id);
-        if (!state || !source) {
-          return null;
-        }
-        return new ManagedStream(id, source, this, state);
-      }
-      /**
-       * Pause a stream
-       */
-      pauseStream(id) {
-        const state = this.streams.get(id);
-        if (!state || state.status !== "active") {
-          return false;
-        }
-        state.status = "paused";
-        state.lastActivity = Date.now();
-        this.activeStreams.delete(id);
-        this.pausedStreams.add(id);
-        this.emit("streamPaused", id);
-        return true;
-      }
-      /**
-       * Resume a paused stream
-       */
-      resumeStream(id) {
-        const state = this.streams.get(id);
-        if (!state || state.status !== "paused") {
-          return false;
-        }
-        if (this.activeStreams.size >= this.maxConcurrentStreams) {
-          return false;
-        }
-        state.status = "active";
-        state.lastActivity = Date.now();
-        this.pausedStreams.delete(id);
-        this.activeStreams.add(id);
-        this.emit("streamResumed", id);
-        return true;
-      }
-      /**
-       * Destroy a stream
-       */
-      destroyStream(id) {
-        const state = this.streams.get(id);
-        if (!state) {
-          return false;
-        }
-        try {
-          state.status = "destroyed";
-          state.metrics.endTime = Date.now();
-          state.metrics.duration = state.metrics.endTime - state.metrics.startTime;
-          this.activeStreams.delete(id);
-          this.pausedStreams.delete(id);
-          this.streams.delete(id);
-          this.streamCache.delete(id);
-          this.emit("streamDestroyed", id, state);
-          return true;
-        } catch (error) {
-          errorHandler.handleError(error, {
-            component: "StreamManager",
-            operation: "destroyStream",
-            metadata: { streamId: id }
-          });
-          return false;
-        }
-      }
-      /**
-       * Register a transformer for streams
-       */
-      registerTransformer(name, transformer) {
-        this.transformers.set(name, transformer);
-      }
-      /**
-       * Register a filter for streams
-       */
-      registerFilter(name, filter) {
-        this.filters.set(name, filter);
-      }
-      /**
-       * Get transformer by name
-       */
-      getTransformer(name) {
-        return this.transformers.get(name);
-      }
-      /**
-       * Get filter by name
-       */
-      getFilter(name) {
-        return this.filters.get(name);
-      }
-      /**
-       * Get all stream states
-       */
-      getAllStreams() {
-        return Array.from(this.streams.values());
-      }
-      /**
-       * Get active streams
-       */
-      getActiveStreams() {
-        return Array.from(this.activeStreams).map((id) => this.streams.get(id));
-      }
-      /**
-       * Get stream statistics
-       */
-      getStats() {
-        const states = Array.from(this.streams.values());
-        const totalBytesProcessed = states.reduce((sum, state) => sum + state.metrics.bytesRead + state.metrics.bytesWritten, 0);
-        const completedStreams = states.filter((s) => s.status === "completed");
-        const averageThroughput = completedStreams.length > 0 ? completedStreams.reduce((sum, s) => sum + (s.metrics.throughput || 0), 0) / completedStreams.length : 0;
-        return {
-          totalStreams: this.streams.size,
-          activeStreams: this.activeStreams.size,
-          pausedStreams: this.pausedStreams.size,
-          completedStreams: states.filter((s) => s.status === "completed").length,
-          errorStreams: states.filter((s) => s.status === "error").length,
-          totalBytesProcessed,
-          averageThroughput,
-          cacheHitRate: this.streamCache.getStats().hitRate || 0
-        };
-      }
-      /**
-       * Cleanup inactive streams
-       */
-      cleanup(maxAge = 6e4) {
-        const now = Date.now();
-        let cleaned = 0;
-        for (const [id, state] of this.streams) {
-          if (now - state.lastActivity > maxAge && (state.status === "completed" || state.status === "error")) {
-            this.destroyStream(id);
-            cleaned++;
-          }
-        }
-        return cleaned;
-      }
-      /**
-       * Dispose the stream manager
-       */
-      dispose() {
-        if (this.isDisposed) return;
-        for (const id of this.streams.keys()) {
-          this.destroyStream(id);
-        }
-        this.streams.clear();
-        this.transformers.clear();
-        this.filters.clear();
-        this.activeStreams.clear();
-        this.pausedStreams.clear();
-        this.streamPool.length = 0;
-        this.streamCache.destroy();
-        this.removeAllListeners();
-        this.isDisposed = true;
-      }
-      setupCleanupInterval() {
-        setInterval(() => {
-          if (!this.isDisposed) {
-            this.cleanup();
-          }
-        }, 6e4);
-      }
-      updateStreamMetrics(id, metrics) {
-        const state = this.streams.get(id);
-        if (state) {
-          Object.assign(state.metrics, metrics);
-          state.lastActivity = Date.now();
-          if (state.metrics.duration && state.metrics.duration > 0) {
-            const totalBytes = state.metrics.bytesRead + state.metrics.bytesWritten;
-            state.metrics.throughput = totalBytes / (state.metrics.duration / 1e3);
-          }
-        }
-      }
-      updateStreamStatus(id, status) {
-        const state = this.streams.get(id);
-        if (state) {
-          const oldStatus = state.status;
-          state.status = status;
-          state.lastActivity = Date.now();
-          if (status === "active" && oldStatus !== "active") {
-            this.activeStreams.add(id);
-            this.pausedStreams.delete(id);
-          } else if (status === "paused" && oldStatus !== "paused") {
-            this.activeStreams.delete(id);
-            this.pausedStreams.add(id);
-          } else if (status === "completed" || status === "error" || status === "destroyed") {
-            this.activeStreams.delete(id);
-            this.pausedStreams.delete(id);
-            if (status === "completed") {
-              state.metrics.endTime = Date.now();
-              state.metrics.duration = state.metrics.endTime - state.metrics.startTime;
-            }
-          }
-          this.emit("streamStatusChanged", id, status, oldStatus);
-        }
-      }
-    };
-    ManagedStream = class extends import_events2.EventEmitter {
-      constructor(id, source, manager, state) {
-        super();
-        this.id = id;
-        this.source = source;
-        this.manager = manager;
-        this.state = state;
-        __publicField(this, "reader", null);
-        __publicField(this, "isReading", false);
-        __publicField(this, "backpressureActive", false);
-        this.setupTimeout();
-      }
-      /**
-       * Start reading from the stream
-       */
-      async start() {
-        if (this.isReading) {
-          throw new Error("Stream is already reading");
-        }
-        try {
-          this.manager.updateStreamStatus(this.id, "active");
-          this.reader = this.source.getReader();
-          this.isReading = true;
-          await this.readLoop();
-        } catch (error) {
-          this.handleError(error);
-        }
-      }
-      /**
-       * Transform stream data
-       */
-      transform(transformer) {
-        const actualTransformer = typeof transformer === "string" ? this.manager.getTransformer(transformer) : transformer;
-        if (!actualTransformer) {
-          throw new Error(`Transformer not found: ${transformer}`);
-        }
-        const transformedSource = new ReadableStream({
-          start: (controller) => {
-            this.on("data", async (chunk) => {
-              try {
-                const transformed = await actualTransformer(chunk);
-                controller.enqueue(transformed);
-              } catch (error) {
-                controller.error(error);
-              }
-            });
-            this.on("end", () => controller.close());
-            this.on("error", (error) => controller.error(error));
-          }
-        });
-        return this.manager.createStream(`${this.id}-transformed`, transformedSource, this.state.options);
-      }
-      /**
-       * Filter stream data
-       */
-      filter(filter) {
-        const actualFilter = typeof filter === "string" ? this.manager.getFilter(filter) : filter;
-        if (!actualFilter) {
-          throw new Error(`Filter not found: ${filter}`);
-        }
-        const filteredSource = new ReadableStream({
-          start: (controller) => {
-            this.on("data", async (chunk) => {
-              try {
-                const shouldInclude = await actualFilter(chunk);
-                if (shouldInclude) {
-                  controller.enqueue(chunk);
-                }
-              } catch (error) {
-                controller.error(error);
-              }
-            });
-            this.on("end", () => controller.close());
-            this.on("error", (error) => controller.error(error));
-          }
-        });
-        return this.manager.createStream(`${this.id}-filtered`, filteredSource, this.state.options);
-      }
-      /**
-       * Pause the stream
-       */
-      pause() {
-        return this.manager.pauseStream(this.id);
-      }
-      /**
-       * Resume the stream
-       */
-      resume() {
-        return this.manager.resumeStream(this.id);
-      }
-      /**
-       * Destroy the stream
-       */
-      destroy() {
-        if (this.reader) {
-          this.reader.releaseLock();
-          this.reader = null;
-        }
-        this.isReading = false;
-        return this.manager.destroyStream(this.id);
-      }
-      /**
-       * Get stream metrics
-       */
-      getMetrics() {
-        return { ...this.state.metrics };
-      }
-      /**
-       * Get stream status
-       */
-      getStatus() {
-        return this.state.status;
-      }
-      async readLoop() {
-        if (!this.reader) return;
-        try {
-          while (this.isReading && this.state.status === "active") {
-            const { done, value } = await this.reader.read();
-            if (done) {
-              this.manager.updateStreamStatus(this.id, "completed");
-              this.emit("end");
-              break;
-            }
-            this.state.metrics.chunksProcessed++;
-            if (typeof value === "string") {
-              this.state.metrics.bytesRead += value.length;
-            } else if (value instanceof Uint8Array) {
-              this.state.metrics.bytesRead += value.length;
-            }
-            this.manager.updateStreamMetrics(this.id, this.state.metrics);
-            if (this.state.options.backpressureThreshold && this.state.metrics.bytesRead > this.state.options.backpressureThreshold && !this.backpressureActive) {
-              this.backpressureActive = true;
-              this.emit("backpressure");
-              await this.handleBackpressure();
-            }
-            this.emit("data", value);
-            await new Promise((resolve) => setImmediate(resolve));
-          }
-        } catch (error) {
-          this.handleError(error);
-        } finally {
-          if (this.reader) {
-            this.reader.releaseLock();
-            this.reader = null;
-          }
-          this.isReading = false;
-        }
-      }
-      async handleBackpressure() {
-        await new Promise((resolve) => setTimeout(resolve, 100));
-        this.backpressureActive = false;
-      }
-      handleError(error) {
-        this.state.metrics.errors++;
-        this.manager.updateStreamStatus(this.id, "error");
-        this.manager.updateStreamMetrics(this.id, this.state.metrics);
-        errorHandler.handleError(error, {
-          component: "ManagedStream",
-          operation: "readLoop",
-          metadata: { streamId: this.id }
-        });
-        this.emit("error", error);
-      }
-      setupTimeout() {
-        if (this.state.options.timeout) {
-          setTimeout(() => {
-            if (this.state.status === "active" || this.state.status === "idle") {
-              this.handleError(new Error(`Stream timeout after ${this.state.options.timeout}ms`));
-            }
-          }, this.state.options.timeout);
-        }
-      }
-    };
-    globalStreamManager = new StreamManager();
-    StreamUtils = class {
-      /**
-       * Create a stream from an array
-       */
-      static fromArray(items) {
-        let index = 0;
-        return new ReadableStream({
-          pull(controller) {
-            if (index < items.length) {
-              controller.enqueue(items[index++]);
-            } else {
-              controller.close();
-            }
-          }
-        });
-      }
-      /**
-       * Create a stream from a generator
-       */
-      static fromGenerator(generator) {
-        return new ReadableStream({
-          pull(controller) {
-            const { done, value } = generator.next();
-            if (done) {
-              controller.close();
-            } else {
-              controller.enqueue(value);
-            }
-          }
-        });
-      }
-      /**
-       * Merge multiple streams
-       */
-      static merge(...streams) {
-        return new ReadableStream({
-          start(controller) {
-            let activeStreams = streams.length;
-            streams.forEach((stream) => {
-              const reader = stream.getReader();
-              const pump = async () => {
-                try {
-                  while (true) {
-                    const { done, value } = await reader.read();
-                    if (done) {
-                      activeStreams--;
-                      if (activeStreams === 0) {
-                        controller.close();
-                      }
-                      break;
-                    }
-                    controller.enqueue(value);
-                  }
-                } catch (error) {
-                  controller.error(error);
-                } finally {
-                  reader.releaseLock();
-                }
-              };
-              pump();
-            });
-          }
-        });
-      }
-      /**
-       * Convert stream to array
-       */
-      static async toArray(stream) {
-        const reader = stream.getReader();
-        const chunks = [];
-        try {
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            chunks.push(value);
-          }
-        } finally {
-          reader.releaseLock();
-        }
-        return chunks;
-      }
-    };
+var import_obsidian38;
+var init_testRunner = __esm({
+  "tests/testRunner.ts"() {
+    import_obsidian38 = require("obsidian");
   }
 });
 
@@ -18623,7 +19819,7 @@ __export(main_exports, {
   default: () => MyPlugin
 });
 module.exports = __toCommonJS(main_exports);
-var import_obsidian38 = require("obsidian");
+var import_obsidian39 = require("obsidian");
 init_types();
 
 // src/settings/SettingTab.ts
@@ -20700,85 +21896,7 @@ The current time is ${currentDate} ${currentTime} ${timeZoneString}.`;
 
 // src/utils/noteUtils.ts
 var import_obsidian20 = require("obsidian");
-
-// src/utils/generalUtils.ts
-var import_obsidian19 = require("obsidian");
-init_logger();
-function showNotice(message) {
-  new import_obsidian19.Notice(message);
-}
-async function copyToClipboard3(text, successMsg = "Copied to clipboard", failMsg = "Failed to copy to clipboard") {
-  try {
-    await navigator.clipboard.writeText(text);
-    showNotice(successMsg);
-  } catch (error) {
-    showNotice(failMsg);
-    debugLog(true, "error", "Clipboard error:", error);
-  }
-}
-function moveCursorAfterInsert(editor, startPos, insertText) {
-  const lines = insertText.split("\n");
-  if (lines.length === 1) {
-    editor.setCursor({
-      line: startPos.line,
-      ch: startPos.ch + insertText.length
-    });
-  } else {
-    editor.setCursor({
-      line: startPos.line + lines.length - 1,
-      ch: lines[lines.length - 1].length
-    });
-  }
-}
-function insertSeparator(editor, position, separator) {
-  var _a2;
-  const lineContent = (_a2 = editor.getLine(position.line)) != null ? _a2 : "";
-  const prefix = lineContent.trim() !== "" ? "\n" : "";
-  editor.replaceRange(`${prefix}
-${separator}
-`, position);
-  return position.line + (prefix ? 1 : 0) + 2;
-}
-function findFile(app, filePath) {
-  let file = app.vault.getAbstractFileByPath(filePath) || app.vault.getAbstractFileByPath(`${filePath}.md`);
-  if (!file) {
-    const allFiles = app.vault.getFiles();
-    file = allFiles.find(
-      (f) => f.name === filePath || f.name === `${filePath}.md` || f.basename.toLowerCase() === filePath.toLowerCase() || f.path === filePath || f.path === `${filePath}.md`
-    ) || null;
-  }
-  return file;
-}
-function extractContentUnderHeader(content, headerText) {
-  const lines = content.split("\n");
-  let foundHeader = false;
-  let extractedContent = [];
-  let headerLevel = 0;
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    const headerMatch = line.match(/^(#+)\s+(.*?)$/);
-    if (headerMatch) {
-      const currentHeaderLevel = headerMatch[1].length;
-      const currentHeaderText = headerMatch[2].trim();
-      if (foundHeader) {
-        if (currentHeaderLevel <= headerLevel) {
-          break;
-        }
-      } else if (currentHeaderText.toLowerCase() === headerText.toLowerCase()) {
-        foundHeader = true;
-        headerLevel = currentHeaderLevel;
-        extractedContent.push(line);
-        continue;
-      }
-    }
-    if (foundHeader) {
-      extractedContent.push(line);
-    }
-  }
-  return extractedContent.join("\n");
-}
-
-// src/utils/noteUtils.ts
+init_generalUtils();
 init_typeGuards();
 async function processObsidianLinks(content, app, settings, visitedNotes = /* @__PURE__ */ new Set(), currentDepth = 0) {
   var _a2;
@@ -24532,904 +25650,8 @@ var ChatHistorySettingsSection = class {
 
 // src/settings/sections/VectorStoreSettingsSection.ts
 var import_obsidian32 = require("obsidian");
-
-// src/components/agent/memory-handling/SemanticContextBuilder.ts
-init_logger();
-
-// src/components/agent/memory-handling/EmbeddingService.ts
-var import_obsidian31 = require("obsidian");
-
-// src/components/agent/memory-handling/vectorStore.ts
-var import_sql = __toESM(require_sql_wasm());
-var VectorStore = class {
-  /**
-   * Constructs a new VectorStore instance.
-   * @param plugin - The Obsidian plugin instance (used for naming the database).
-   */
-  constructor(plugin) {
-    __publicField(this, "db", null);
-    __publicField(this, "SQL", null);
-    __publicField(this, "dbName");
-    __publicField(this, "isInitialized", false);
-    this.dbName = "ai-assistant-vectorstore.sqlite";
-  }
-  /**
-   * Initializes the VectorStore by loading sql.js and setting up the database.
-   * Must be called before using any other methods.
-   */
-  async initialize() {
-    if (this.isInitialized) {
-      return;
-    }
-    try {
-      const config = {
-        locateFile: (file) => {
-          if (file.endsWith(".wasm")) {
-            return `./node_modules/sql.js/dist/${file}`;
-          }
-          return file;
-        }
-      };
-      let sqlJs;
-      try {
-        sqlJs = await (0, import_sql.default)(config);
-      } catch (wasmError) {
-        console.warn("Failed to load sql.js with custom WASM path, trying default:", wasmError);
-        sqlJs = await (0, import_sql.default)();
-      }
-      this.SQL = sqlJs;
-      const existingDb = await this.loadFromIndexedDB();
-      if (existingDb) {
-        this.db = new this.SQL.Database(existingDb);
-      } else {
-        this.db = new this.SQL.Database();
-      }
-      await this.createTables();
-      this.isInitialized = true;
-    } catch (error) {
-      console.error("Failed to initialize VectorStore:", error);
-      throw new Error(`VectorStore initialization failed: ${error.message}`);
-    }
-  }
-  /**
-   * Creates the necessary tables if they don't exist.
-   */
-  async createTables() {
-    if (!this.db) {
-      throw new Error("Database not initialized");
-    }
-    const createVectorsTable = `
-      CREATE TABLE IF NOT EXISTS vectors (
-        id TEXT PRIMARY KEY,
-        text TEXT NOT NULL,
-        embedding BLOB NOT NULL,
-        metadata TEXT
-      );
-    `;
-    try {
-      this.db.run(createVectorsTable);
-      await this.saveToIndexedDB();
-    } catch (error) {
-      console.error("Failed to create tables:", error);
-      throw error;
-    }
-  }
-  /**
-   * Loads database from IndexedDB.
-   * @returns Uint8Array database content or null if not found.
-   */
-  async loadFromIndexedDB() {
-    return new Promise((resolve, reject) => {
-      const request = indexedDB.open("VectorStoreDB", 1);
-      request.onerror = () => reject(request.error);
-      request.onsuccess = () => {
-        const db = request.result;
-        const transaction = db.transaction(["databases"], "readonly");
-        const store = transaction.objectStore("databases");
-        const getRequest = store.get(this.dbName);
-        getRequest.onsuccess = () => {
-          resolve(getRequest.result ? getRequest.result.data : null);
-        };
-        getRequest.onerror = () => reject(getRequest.error);
-      };
-      request.onupgradeneeded = () => {
-        const db = request.result;
-        if (!db.objectStoreNames.contains("databases")) {
-          db.createObjectStore("databases");
-        }
-      };
-    });
-  }
-  /**
-   * Saves database to IndexedDB.
-   */
-  async saveToIndexedDB() {
-    if (!this.db) {
-      throw new Error("Database not initialized");
-    }
-    const data = this.db.export();
-    return new Promise((resolve, reject) => {
-      const request = indexedDB.open("VectorStoreDB", 1);
-      request.onerror = () => reject(request.error);
-      request.onsuccess = () => {
-        const db = request.result;
-        const transaction = db.transaction(["databases"], "readwrite");
-        const store = transaction.objectStore("databases");
-        const putRequest = store.put({ data }, this.dbName);
-        putRequest.onsuccess = () => resolve();
-        putRequest.onerror = () => reject(putRequest.error);
-      };
-      request.onupgradeneeded = () => {
-        const db = request.result;
-        if (!db.objectStoreNames.contains("databases")) {
-          db.createObjectStore("databases");
-        }
-      };
-    });
-  }
-  /**
-   * Ensures the database is initialized before operations.
-   */
-  ensureInitialized() {
-    if (!this.isInitialized || !this.db) {
-      throw new Error("VectorStore not initialized. Call initialize() first.");
-    }
-  }
-  /**
-   * Checks if the VectorStore is initialized and ready for use.
-   * @returns True if initialized, false otherwise.
-   */
-  get initialized() {
-    return this.isInitialized && this.db !== null;
-  }
-  /**
-   * Adds or updates a vector in the database.
-   * @param id - Unique identifier for the vector (e.g., hash or UUID).
-   * @param text - The original text that was embedded.
-   * @param embedding - The embedding vector (as Buffer or number[]).
-   * @param metadata - Optional metadata object (will be JSON-stringified).
-   */
-  async addVector(id, text, embedding, metadata = null) {
-    this.ensureInitialized();
-    try {
-      const embeddingArray = Buffer.isBuffer(embedding) ? new Uint8Array(embedding) : new Uint8Array(new Float32Array(embedding).buffer);
-      const stmt = this.db.prepare(
-        "INSERT OR REPLACE INTO vectors (id, text, embedding, metadata) VALUES (?, ?, ?, ?);"
-      );
-      stmt.run([id, text, embeddingArray, metadata ? JSON.stringify(metadata) : null]);
-      stmt.free();
-      await this.saveToIndexedDB();
-    } catch (error) {
-      console.error("Failed to add vector:", error);
-      throw error;
-    }
-  }
-  /**
-   * Retrieves a specific vector by its ID.
-   * @param id - The unique identifier of the vector to retrieve.
-   * @returns The vector object or null if not found.
-   */
-  async getVector(id) {
-    this.ensureInitialized();
-    try {
-      const stmt = this.db.prepare("SELECT * FROM vectors WHERE id = ?;");
-      stmt.bind([id]);
-      if (stmt.step()) {
-        const row = stmt.getAsObject();
-        stmt.free();
-        return {
-          id: row.id,
-          text: row.text,
-          embedding: new Uint8Array(row.embedding),
-          metadata: row.metadata
-        };
-      }
-      stmt.free();
-      return null;
-    } catch (error) {
-      console.error("Failed to get vector:", error);
-      throw error;
-    }
-  }
-  /**
-   * Deletes a vector by its ID.
-   * @param id - The unique identifier of the vector to delete.
-   * @returns True if a vector was deleted, false if not found.
-   */
-  async deleteVector(id) {
-    this.ensureInitialized();
-    try {
-      const stmt = this.db.prepare("DELETE FROM vectors WHERE id = ?;");
-      stmt.run([id]);
-      stmt.free();
-      const changes = this.db.getRowsModified();
-      if (changes > 0) {
-        await this.saveToIndexedDB();
-        return true;
-      }
-      return false;
-    } catch (error) {
-      console.error("Failed to delete vector:", error);
-      throw error;
-    }
-  }
-  /**
-   * Retrieves all vectors stored in the database.
-   * @returns Array of objects: { id, text, embedding, metadata }
-   *   - embedding is a Uint8Array containing the binary vector data.
-   *   - metadata is a JSON string or null.
-   */
-  async getAllVectors() {
-    this.ensureInitialized();
-    try {
-      const stmt = this.db.prepare("SELECT * FROM vectors;");
-      const results = [];
-      while (stmt.step()) {
-        const row = stmt.getAsObject();
-        results.push({
-          id: row.id,
-          text: row.text,
-          embedding: new Uint8Array(row.embedding),
-          metadata: row.metadata
-        });
-      }
-      stmt.free();
-      return results;
-    } catch (error) {
-      console.error("Failed to get all vectors:", error);
-      throw error;
-    }
-  }
-  /**
-   * Calculates cosine similarity between two vectors.
-   * @param vec1 - First vector as Float32Array or number array.
-   * @param vec2 - Second vector as Float32Array or number array.
-   * @returns Cosine similarity score between -1 and 1.
-   */
-  cosineSimilarity(vec1, vec2) {
-    if (vec1.length !== vec2.length) {
-      throw new Error("Vectors must have the same length for similarity calculation");
-    }
-    let dotProduct = 0;
-    let norm1 = 0;
-    let norm2 = 0;
-    for (let i = 0; i < vec1.length; i++) {
-      dotProduct += vec1[i] * vec2[i];
-      norm1 += vec1[i] * vec1[i];
-      norm2 += vec2[i] * vec2[i];
-    }
-    if (norm1 === 0 || norm2 === 0) {
-      return 0;
-    }
-    return dotProduct / (Math.sqrt(norm1) * Math.sqrt(norm2));
-  }
-  /**
-   * Converts a Uint8Array containing Float32Array data back to a Float32Array.
-   * @param uint8Array - Uint8Array containing the binary vector data.
-   * @returns Float32Array representation of the vector.
-   */
-  uint8ArrayToFloat32Array(uint8Array) {
-    return new Float32Array(uint8Array.buffer, uint8Array.byteOffset, uint8Array.byteLength / 4);
-  }
-  /**
-   * Finds the most similar vectors to a query embedding using cosine similarity.
-   * @param queryEmbedding - The query vector to compare against (as number array).
-   * @param topK - Number of most similar vectors to return (default: 5).
-   * @param minSimilarity - Minimum similarity threshold (default: 0, returns all).
-   * @returns Array of similar vectors with similarity scores, sorted by similarity (highest first).
-   */
-  async findSimilarVectors(queryEmbedding, topK = 5, minSimilarity = 0) {
-    this.ensureInitialized();
-    try {
-      const allVectors = await this.getAllVectors();
-      const similarities = allVectors.map((vector) => {
-        const vectorData = this.uint8ArrayToFloat32Array(vector.embedding);
-        const similarity = this.cosineSimilarity(queryEmbedding, vectorData);
-        return {
-          id: vector.id,
-          text: vector.text,
-          similarity,
-          metadata: vector.metadata ? JSON.parse(vector.metadata) : null
-        };
-      });
-      return similarities.filter((item) => item.similarity >= minSimilarity).sort((a, b) => b.similarity - a.similarity).slice(0, topK);
-    } catch (error) {
-      console.error("Failed to find similar vectors:", error);
-      throw error;
-    }
-  }
-  /**
-   * Searches for vectors containing specific text (case-insensitive).
-   * @param searchText - Text to search for in vector text content.
-   * @param limit - Maximum number of results to return (default: 10).
-   * @returns Array of matching vectors.
-   */
-  async searchByText(searchText, limit = 10) {
-    this.ensureInitialized();
-    try {
-      const stmt = this.db.prepare("SELECT * FROM vectors WHERE text LIKE ? LIMIT ?;");
-      stmt.bind([`%${searchText}%`, limit]);
-      const results = [];
-      while (stmt.step()) {
-        const row = stmt.getAsObject();
-        results.push({
-          id: row.id,
-          text: row.text,
-          embedding: new Uint8Array(row.embedding),
-          metadata: row.metadata ? JSON.parse(row.metadata) : null
-        });
-      }
-      stmt.free();
-      return results;
-    } catch (error) {
-      console.error("Failed to search by text:", error);
-      throw error;
-    }
-  }
-  /**
-   * Gets the total count of vectors in the database.
-   * @returns Number of vectors stored.
-   */
-  async getVectorCount() {
-    this.ensureInitialized();
-    try {
-      const stmt = this.db.prepare("SELECT COUNT(*) as count FROM vectors;");
-      stmt.step();
-      const result = stmt.getAsObject();
-      stmt.free();
-      return result.count;
-    } catch (error) {
-      console.error("Failed to get vector count:", error);
-      throw error;
-    }
-  }
-  /**
-   * Clears all vectors from the database.
-   * @returns Number of vectors that were deleted.
-   */
-  async clearAllVectors() {
-    this.ensureInitialized();
-    try {
-      const stmt = this.db.prepare("DELETE FROM vectors;");
-      stmt.run();
-      stmt.free();
-      const changes = this.db.getRowsModified();
-      if (changes > 0) {
-        await this.saveToIndexedDB();
-      }
-      return changes;
-    } catch (error) {
-      console.error("Failed to clear all vectors:", error);
-      throw error;
-    }
-  }
-  /**
-   * Gets vectors by their metadata properties.
-   * @param metadataQuery - Key-value pairs to match in metadata.
-   * @param limit - Maximum number of results (default: 10).
-   * @returns Array of matching vectors.
-   */
-  async getVectorsByMetadata(metadataQuery, limit = 10) {
-    this.ensureInitialized();
-    try {
-      const allVectors = await this.getAllVectors();
-      const matches = allVectors.filter((vector) => {
-        if (!vector.metadata) return false;
-        try {
-          const metadata = JSON.parse(vector.metadata);
-          return Object.entries(metadataQuery).every(([key, value]) => metadata[key] === value);
-        } catch (e) {
-          return false;
-        }
-      }).slice(0, limit);
-      return matches.map((result) => ({
-        ...result,
-        metadata: result.metadata ? JSON.parse(result.metadata) : null
-      }));
-    } catch (error) {
-      console.error("Failed to get vectors by metadata:", error);
-      throw error;
-    }
-  }
-  /**
-   * Closes the database connection and cleans up resources.
-   * Should be called when the vector store is no longer needed.
-   */
-  async close() {
-    if (this.db) {
-      try {
-        await this.saveToIndexedDB();
-        this.db.close();
-        this.db = null;
-        this.isInitialized = false;
-      } catch (error) {
-        console.error("Failed to close database:", error);
-        throw error;
-      }
-    }
-  }
-};
-
-// src/components/agent/memory-handling/EmbeddingService.ts
-init_logger();
-var crypto2 = __toESM(require("crypto"));
-var EmbeddingService = class {
-  constructor(plugin, settings) {
-    __publicField(this, "vectorStore");
-    __publicField(this, "plugin");
-    __publicField(this, "settings");
-    __publicField(this, "isInitialized", false);
-    this.plugin = plugin;
-    this.settings = settings;
-    this.vectorStore = new VectorStore(plugin);
-  }
-  /**
-   * Initialize the EmbeddingService by setting up the VectorStore.
-   * Must be called before using any other methods.
-   */
-  async initialize() {
-    var _a2, _b;
-    if (this.isInitialized) {
-      return;
-    }
-    try {
-      await this.vectorStore.initialize();
-      this.isInitialized = true;
-      debugLog((_a2 = this.settings.debugMode) != null ? _a2 : false, "info", "EmbeddingService initialized successfully");
-    } catch (error) {
-      debugLog((_b = this.settings.debugMode) != null ? _b : false, "error", "Failed to initialize EmbeddingService:", error);
-      throw error;
-    }
-  }
-  /**
-   * Checks if the service is initialized and ready for use.
-   */
-  get initialized() {
-    return this.isInitialized && this.vectorStore.initialized;
-  }
-  /**
-   * Ensures the service is initialized before operations.
-   */
-  ensureInitialized() {
-    if (!this.initialized) {
-      throw new Error("EmbeddingService not initialized. Call initialize() first.");
-    }
-  }
-  /**
-   * Generates embeddings for text using the configured AI provider.
-   * @param text - Text to embed
-   * @returns Promise<number[]> - The embedding vector
-   */
-  /**
-   * Always uses OpenAI for embedding generation, regardless of provider settings.
-   */
-  async generateEmbedding(text) {
-    var _a2;
-    try {
-      const response = await fetch("https://api.openai.com/v1/embeddings", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${this.settings.openaiSettings.apiKey}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          input: text,
-          model: "text-embedding-3-small"
-        })
-      });
-      if (!response.ok) {
-        throw new Error(`Embedding API error: ${response.status}`);
-      }
-      const data = await response.json();
-      return data.data[0].embedding;
-    } catch (error) {
-      debugLog((_a2 = this.settings.debugMode) != null ? _a2 : false, "error", "Embedding generation failed:", error);
-      throw new Error(`Failed to generate embedding: ${error.message}`);
-    }
-  }
-  /**
-   * Splits text into chunks for embedding.
-   * @param text - Text to split
-   * @param options - Chunking options
-   * @returns Array of text chunks
-   */
-  splitIntoChunks(text, options = {}) {
-    const chunkSize = options.chunkSize || 1e3;
-    const overlap = options.chunkOverlap || 100;
-    const chunks = [];
-    let start = 0;
-    while (start < text.length) {
-      const end = Math.min(start + chunkSize, text.length);
-      const chunk = text.slice(start, end);
-      if (end < text.length) {
-        const lastSentence = chunk.lastIndexOf(".");
-        const lastNewline = chunk.lastIndexOf("\n");
-        const breakPoint = Math.max(lastSentence, lastNewline);
-        if (breakPoint > start + chunkSize / 2) {
-          chunks.push(text.slice(start, breakPoint + 1).trim());
-          start = breakPoint + 1 - overlap;
-        } else {
-          chunks.push(chunk.trim());
-          start = end - overlap;
-        }
-      } else {
-        chunks.push(chunk.trim());
-        break;
-      }
-      start = Math.max(start, 0);
-    }
-    return chunks.filter((chunk) => chunk.length > 0);
-  }
-  /**
-   * Generates a unique ID for a text chunk.
-   * @param text - Text content
-   * @param metadata - Associated metadata
-   * @returns Unique identifier
-   */
-  generateId(text, metadata = {}) {
-    const content = text + JSON.stringify(metadata);
-    return crypto2.createHash("sha256").update(content).digest("hex");
-  }
-  /**
-   * Embeds a single note file.
-   * @param file - The note file to embed
-   * @param options - Embedding options
-   */
-  async embedNote(file, options = {}) {
-    var _a2, _b;
-    this.ensureInitialized();
-    try {
-      const content = await this.plugin.app.vault.read(file);
-      await this.embedText(content, {
-        ...options,
-        customMetadata: {
-          filePath: file.path,
-          fileName: file.name,
-          type: "note",
-          lastModified: file.stat.mtime,
-          ...options.customMetadata
-        }
-      });
-      debugLog((_a2 = this.settings.debugMode) != null ? _a2 : false, "info", `Embedded note: ${file.path}`);
-    } catch (error) {
-      debugLog((_b = this.settings.debugMode) != null ? _b : false, "error", `Failed to embed note ${file.path}:`, error);
-      throw error;
-    }
-  }
-  /**
-   * Embeds arbitrary text content.
-   * @param text - Text to embed
-   * @param options - Embedding options
-   */
-  async embedText(text, options = {}) {
-    var _a2, _b;
-    this.ensureInitialized();
-    try {
-      const chunks = this.splitIntoChunks(text, options);
-      for (let i = 0; i < chunks.length; i++) {
-        const chunk = chunks[i];
-        const embedding = await this.generateEmbedding(chunk);
-        const metadata = {
-          chunkIndex: i,
-          totalChunks: chunks.length,
-          timestamp: Date.now(),
-          ...options.customMetadata
-        };
-        const id = this.generateId(chunk, metadata);
-        await this.vectorStore.addVector(id, chunk, embedding, metadata);
-      }
-      debugLog((_a2 = this.settings.debugMode) != null ? _a2 : false, "info", `Embedded ${chunks.length} chunks`);
-    } catch (error) {
-      debugLog((_b = this.settings.debugMode) != null ? _b : false, "error", "Failed to embed text:", error);
-      throw error;
-    }
-  }
-  /**
-   * Embeds a conversation or chat history.
-   * @param messages - Array of messages to embed
-   * @param sessionId - Optional session identifier
-   */
-  async embedConversation(messages, sessionId) {
-    var _a2, _b;
-    this.ensureInitialized();
-    try {
-      for (let i = 0; i < messages.length; i++) {
-        const message = messages[i];
-        const text = typeof message.content === "string" ? message.content : JSON.stringify(message.content);
-        if (text.trim().length === 0) continue;
-        const embedding = await this.generateEmbedding(text);
-        const metadata = {
-          role: message.role,
-          messageIndex: i,
-          sessionId: sessionId || "unknown",
-          timestamp: Date.now(),
-          type: "conversation"
-        };
-        const id = this.generateId(text, metadata);
-        await this.vectorStore.addVector(id, text, embedding, metadata);
-      }
-      debugLog((_a2 = this.settings.debugMode) != null ? _a2 : false, "info", `Embedded conversation with ${messages.length} messages`);
-    } catch (error) {
-      debugLog((_b = this.settings.debugMode) != null ? _b : false, "error", "Failed to embed conversation:", error);
-      throw error;
-    }
-  }
-  /**
-   * Performs semantic search to find relevant content.
-   * @param query - Search query
-   * @param options - Search options
-   * @returns Array of search results
-   */
-  async semanticSearch(query, options = {}) {
-    var _a2;
-    this.ensureInitialized();
-    try {
-      const queryEmbedding = await this.generateEmbedding(query);
-      const topK = options.topK || 5;
-      const minSimilarity = options.minSimilarity || 0.7;
-      let results = await this.vectorStore.findSimilarVectors(queryEmbedding, topK * 2, minSimilarity);
-      if (options.filterMetadata) {
-        results = results.filter((result) => {
-          if (!result.metadata) return false;
-          return Object.entries(options.filterMetadata).every(
-            ([key, value]) => result.metadata[key] === value
-          );
-        });
-      }
-      if (options.includeTypes) {
-        results = results.filter(
-          (result) => result.metadata && options.includeTypes.includes(result.metadata.type)
-        );
-      }
-      return results.slice(0, topK).map((result) => {
-        var _a3;
-        return {
-          text: result.text,
-          filePath: (_a3 = result.metadata) == null ? void 0 : _a3.filePath,
-          similarity: result.similarity,
-          metadata: result.metadata,
-          id: result.id
-        };
-      });
-    } catch (error) {
-      debugLog((_a2 = this.settings.debugMode) != null ? _a2 : false, "error", "Semantic search failed:", error);
-      throw error;
-    }
-  }
-  /**
-   * Gets contextually relevant content for AI completions.
-   * @param query - The current query or conversation context
-   * @param options - Context retrieval options
-   * @returns Array of relevant content chunks
-   */
-  async getRelevantContext(query, options = {}) {
-    const includeTypes = [];
-    if (options.includeNotes !== false) includeTypes.push("note");
-    if (options.includeConversations !== false) includeTypes.push("conversation");
-    const results = await this.semanticSearch(query, {
-      topK: options.maxChunks || 3,
-      minSimilarity: options.minSimilarity || 0.7,
-      includeTypes
-    });
-    return results.map((result) => {
-      const source = result.filePath ? `[${result.filePath}]` : "[Memory]";
-      return `${source}: ${result.text}`;
-    });
-  }
-  /**
-   * Embeds all notes in the vault.
-   * @param options - Embedding options
-   */
-  async embedAllNotes(options = {}) {
-    var _a2;
-    this.ensureInitialized();
-    const notice = new import_obsidian31.Notice("Embedding all notes...", 0);
-    try {
-      const files = this.plugin.app.vault.getMarkdownFiles();
-      let processed = 0;
-      for (const file of files) {
-        try {
-          await this.embedNote(file, options);
-          processed++;
-          notice.setMessage(`Embedded ${processed}/${files.length} notes...`);
-        } catch (error) {
-          debugLog((_a2 = this.settings.debugMode) != null ? _a2 : false, "warn", `Skipped ${file.path}:`, error);
-        }
-      }
-      notice.hide();
-      showNotice(`Successfully embedded ${processed} notes!`);
-    } catch (error) {
-      notice.hide();
-      showNotice(`Error embedding notes: ${error.message}`);
-      throw error;
-    }
-  }
-  /**
-   * Clears all embeddings from the vector store.
-   */
-  async clearAllEmbeddings() {
-    var _a2;
-    this.ensureInitialized();
-    const count = await this.vectorStore.clearAllVectors();
-    showNotice(`Cleared ${count} embeddings from memory.`);
-    debugLog((_a2 = this.settings.debugMode) != null ? _a2 : false, "info", `Cleared ${count} embeddings`);
-  }
-  /**
-   * Gets statistics about the vector store.
-   */
-  async getStats() {
-    this.ensureInitialized();
-    return {
-      totalVectors: await this.vectorStore.getVectorCount()
-    };
-  }
-  /**
-   * Closes the embedding service and cleans up resources.
-   */
-  async close() {
-    await this.vectorStore.close();
-  }
-};
-
-// src/components/agent/memory-handling/SemanticContextBuilder.ts
-var SemanticContextBuilder = class {
-  constructor(app, plugin) {
-    this.app = app;
-    this.plugin = plugin;
-    __publicField(this, "embeddingService", null);
-    __publicField(this, "isInitialized", false);
-    var _a2;
-    try {
-      this.embeddingService = new EmbeddingService(plugin, plugin.settings);
-    } catch (error) {
-      debugLog((_a2 = plugin.settings.debugMode) != null ? _a2 : false, "warn", "EmbeddingService unavailable:", error);
-    }
-  }
-  /**
-   * Initialize the SemanticContextBuilder by setting up the EmbeddingService.
-   * Should be called before using other methods.
-   */
-  async initialize() {
-    var _a2, _b;
-    if (this.isInitialized || !this.embeddingService) {
-      return;
-    }
-    try {
-      await this.embeddingService.initialize();
-      this.isInitialized = true;
-      debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", "SemanticContextBuilder initialized successfully");
-    } catch (error) {
-      debugLog((_b = this.plugin.settings.debugMode) != null ? _b : false, "error", "Failed to initialize SemanticContextBuilder:", error);
-      throw error;
-    }
-  }
-  /**
-   * Checks if the SemanticContextBuilder is ready for use.
-   */
-  get initialized() {
-    var _a2;
-    return this.isInitialized && ((_a2 = this.embeddingService) == null ? void 0 : _a2.initialized) === true;
-  }
-  /**
-   * Builds semantic context messages for AI completions.
-   * @param options - Context building options
-   * @param query - The current query for semantic search
-   * @returns Array of context messages
-   */
-  async buildSemanticContext(options = {}, query) {
-    var _a2, _b, _c;
-    const contextMessages = [];
-    try {
-      if (!this.initialized) {
-        await this.initialize();
-      }
-      if (!this.embeddingService || !this.initialized) {
-        debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", "Embedding service not available, skipping semantic context");
-        return contextMessages;
-      }
-      const activeFile = this.app.workspace.getActiveFile();
-      let currentContent = "";
-      if (activeFile && options.includeCurrentNote && !options.forceNoCurrentNote) {
-        currentContent = await this.app.vault.read(activeFile);
-      }
-      let searchQuery = query || "";
-      if (!searchQuery && currentContent) {
-        searchQuery = currentContent.split("\n").slice(0, 5).join(" ").slice(0, 500);
-      }
-      if (searchQuery && options.includeSemanticContext) {
-        const relevantContext = await this.embeddingService.getRelevantContext(searchQuery, {
-          maxChunks: options.maxContextChunks || 3,
-          includeNotes: true,
-          includeConversations: options.includeConversationHistory !== false,
-          minSimilarity: options.minSimilarity || 0.7
-        });
-        if (relevantContext.length > 0) {
-          contextMessages.push({
-            role: "user",
-            content: `Relevant context from your knowledge base:
-
-${relevantContext.join("\n\n")}`
-          });
-        }
-      }
-      debugLog((_b = this.plugin.settings.debugMode) != null ? _b : false, "info", `Built semantic context with ${contextMessages.length} messages`);
-    } catch (error) {
-      debugLog((_c = this.plugin.settings.debugMode) != null ? _c : false, "error", "Failed to build semantic context:", error);
-    }
-    return contextMessages;
-  }
-  /**
-   * Embeds the current note if embedding service is available.
-   * @param file - File to embed (optional, uses active file if not provided)
-   */
-  async embedCurrentNote(file) {
-    var _a2, _b;
-    if (!this.embeddingService) return;
-    const targetFile = file || this.app.workspace.getActiveFile();
-    if (!targetFile) return;
-    try {
-      await this.embeddingService.embedNote(targetFile);
-      debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", `Embedded current note: ${targetFile.path}`);
-    } catch (error) {
-      debugLog((_b = this.plugin.settings.debugMode) != null ? _b : false, "error", "Failed to embed current note:", error);
-    }
-  }
-  /**
-   * Embeds a conversation when it's saved or completed.
-   * @param messages - Conversation messages
-   * @param sessionId - Session identifier
-   */
-  async embedConversation(messages, sessionId) {
-    var _a2, _b;
-    if (!this.embeddingService) return;
-    try {
-      await this.embeddingService.embedConversation(messages, sessionId);
-      debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", `Embedded conversation with ${messages.length} messages`);
-    } catch (error) {
-      debugLog((_b = this.plugin.settings.debugMode) != null ? _b : false, "error", "Failed to embed conversation:", error);
-    }
-  }
-  /**
-   * Gets embedding service statistics.
-   */
-  async getStats() {
-    var _a2;
-    return ((_a2 = this.embeddingService) == null ? void 0 : _a2.getStats()) || null;
-  }
-  /**
-   * Performs a semantic search directly.
-   * @param query - Search query
-   * @param options - Search options
-   */
-  async semanticSearch(query, options = {}) {
-    if (!this.embeddingService) return [];
-    return await this.embeddingService.semanticSearch(query, options);
-  }
-  /**
-   * Clears all embeddings.
-   */
-  async clearAllEmbeddings() {
-    if (!this.embeddingService) return;
-    await this.embeddingService.clearAllEmbeddings();
-  }
-  /**
-   * Embeds all notes in the vault.
-   */
-  async embedAllNotes() {
-    if (!this.embeddingService) return;
-    await this.embeddingService.embedAllNotes();
-  }
-  /**
-   * Closes the semantic context builder and cleans up resources.
-   */
-  async close() {
-    if (this.embeddingService) {
-      await this.embeddingService.close();
-    }
-  }
-};
-
-// src/settings/sections/VectorStoreSettingsSection.ts
+init_SemanticContextBuilder();
+init_generalUtils();
 var VectorStoreSettingsSection = class {
   constructor(plugin, settingCreators) {
     this.plugin = plugin;
@@ -25753,6 +25975,7 @@ var ModelSettingsView = class extends import_obsidian34.ItemView {
 };
 
 // src/main.ts
+init_generalUtils();
 init_logger();
 
 // src/components/agent/agentModeManager.ts
@@ -25854,8 +26077,10 @@ function parseSelection(selection, chatSeparator, chatBoundaryString) {
 }
 
 // src/utils/aiCompletionHandler.ts
+init_generalUtils();
 init_logger();
 init_aiDispatcher();
+init_SemanticContextBuilder();
 async function handleAICompletion(editor, settings, processMessages2, vault, plugin, activeStream, setActiveStream, app) {
   var _a2, _b, _c, _d, _e;
   let text;
@@ -25965,6 +26190,7 @@ ${settings.chatSeparator}
 }
 
 // src/components/commands/aiStreamCommands.ts
+init_generalUtils();
 function registerAIStreamCommands(plugin, settings, processMessages2, activeStream, setActiveStream) {
   registerCommand(
     plugin,
@@ -26045,6 +26271,7 @@ function registerAIStreamCommands(plugin, settings, processMessages2, activeStre
 
 // src/components/commands/noteCommands.ts
 init_pluginUtils();
+init_generalUtils();
 function registerNoteCommands(plugin, settings, activateChatViewAndLoadMessages) {
   registerCommand(
     plugin,
@@ -26125,6 +26352,7 @@ function registerGenerateNoteTitleCommand(plugin, settings, processMessages2) {
 
 // src/components/commands/contextCommands.ts
 init_pluginUtils();
+init_generalUtils();
 function registerContextCommands(plugin, settings) {
   registerCommand(
     plugin,
@@ -26190,6 +26418,7 @@ ${wikiLink}`;
 
 // src/components/commands/toggleCommands.ts
 init_pluginUtils();
+init_generalUtils();
 function registerToggleCommands(plugin, settings) {
   registerCommand(
     plugin,
@@ -26219,11 +26448,9 @@ function registerToggleCommands(plugin, settings) {
   );
 }
 
-// src/components/commands/commandRegistry.ts
-init_YAMLHandler();
-
 // src/components/commands/vectorStoreCommands.ts
 var import_obsidian36 = require("obsidian");
+init_SemanticContextBuilder();
 init_pluginUtils();
 init_logger();
 var SemanticSearchModal = class extends import_obsidian36.Modal {
@@ -26322,6 +26549,21 @@ var SemanticSearchInputModal = class extends import_obsidian36.Modal {
   }
 };
 function registerVectorStoreCommands(plugin) {
+  registerCommand(plugin, {
+    id: "embed-currently-open-note",
+    name: "Embed Currently Open Note",
+    callback: async () => {
+      var _a2;
+      try {
+        const semanticBuilder = new SemanticContextBuilder(plugin.app, plugin);
+        await semanticBuilder.embedCurrentNote();
+        new import_obsidian36.Notice("Successfully embedded currently open note");
+      } catch (error) {
+        debugLog((_a2 = plugin.settings.debugMode) != null ? _a2 : false, "error", "Failed to embed currently open note:", error);
+        new import_obsidian36.Notice(`Error: ${error.message}`);
+      }
+    }
+  });
   registerCommand(plugin, {
     id: "embed-current-note",
     name: "Embed Current Note",
@@ -26437,6 +26679,7 @@ function registerVectorStoreCommands(plugin) {
 }
 
 // src/components/commands/commandRegistry.ts
+init_YAMLHandler();
 init_logger();
 function registerAllCommands(plugin, settings, processMessages2, activateChatViewAndLoadMessages, activeStream, setActiveStream, yamlAttributeCommandIds) {
   registerViewCommands(plugin);
@@ -26774,7 +27017,112 @@ var Priority3IntegrationManager = class {
 
 // src/main.ts
 init_typeGuards();
-var _MyPlugin = class _MyPlugin extends import_obsidian38.Plugin {
+
+// src/components/codeblocks/SemanticSearchCodeblock.ts
+init_SemanticContextBuilder();
+init_logger();
+function registerSemanticSearchCodeblock(plugin) {
+  plugin.registerMarkdownCodeBlockProcessor("semantic-search", async (source, el, ctx) => {
+    await processSemanticSearchCodeblock(source, el, ctx, plugin);
+  });
+}
+async function processSemanticSearchCodeblock(source, el, ctx, plugin) {
+  var _a2;
+  el.empty();
+  const query = source.trim();
+  if (!query) {
+    el.createEl("div", {
+      text: "Enter a search query in the codeblock",
+      cls: "semantic-search-empty"
+    });
+    return;
+  }
+  el.addClass("semantic-search-container");
+  const loadingEl = el.createEl("div", {
+    text: "Searching...",
+    cls: "semantic-search-loading"
+  });
+  try {
+    const semanticBuilder = new SemanticContextBuilder(plugin.app, plugin);
+    if (!semanticBuilder.initialized) {
+      await semanticBuilder.initialize();
+    }
+    const results = await semanticBuilder.semanticSearch(query, {
+      topK: 5,
+      minSimilarity: plugin.settings.semanticSimilarityThreshold || 0.7
+    });
+    loadingEl.remove();
+    renderSemanticSearchResults(el, results, query, plugin);
+  } catch (error) {
+    loadingEl.remove();
+    debugLog((_a2 = plugin.settings.debugMode) != null ? _a2 : false, "error", "Semantic search codeblock failed:", error);
+    el.createEl("div", {
+      text: `Error: ${error.message}`,
+      cls: "semantic-search-error"
+    });
+  }
+}
+function renderSemanticSearchResults(el, results, query, plugin) {
+  el.addClass("semantic-search-container");
+  const headerEl = el.createEl("div", { cls: "semantic-search-header" });
+  headerEl.createEl("h4", {
+    text: `Semantic Search: "${query}"`,
+    cls: "semantic-search-title"
+  });
+  headerEl.createEl("span", {
+    text: `${results.length} results`,
+    cls: "semantic-search-count"
+  });
+  if (results.length === 0) {
+    el.createEl("div", {
+      text: "No similar content found.",
+      cls: "semantic-search-no-results"
+    });
+    return;
+  }
+  const resultsContainer = el.createEl("div", { cls: "semantic-search-results" });
+  results.forEach((result, index) => {
+    const resultEl = resultsContainer.createEl("div", {
+      cls: "semantic-search-result"
+    });
+    const resultHeader = resultEl.createEl("div", { cls: "semantic-search-result-header" });
+    const scoreEl = resultHeader.createEl("span", {
+      cls: "semantic-search-score",
+      text: `${(result.similarity * 100).toFixed(1)}%`
+    });
+    if (result.filePath) {
+      const linkEl = resultHeader.createEl("a", {
+        cls: "semantic-search-file-link",
+        text: result.filePath,
+        href: result.filePath
+      });
+      linkEl.addEventListener("click", (e) => {
+        e.preventDefault();
+        const file = plugin.app.vault.getAbstractFileByPath(result.filePath);
+        if (file) {
+          plugin.app.workspace.openLinkText(result.filePath, "", false);
+        }
+      });
+    }
+    const contentEl = resultEl.createEl("div", {
+      cls: "semantic-search-content"
+    });
+    const highlightedContent = highlightQueryTerms(result.text, query);
+    contentEl.innerHTML = highlightedContent;
+  });
+}
+function highlightQueryTerms(text, query) {
+  const queryWords = query.toLowerCase().split(/\s+/).filter((word) => word.length > 2);
+  let highlightedText = text;
+  queryWords.forEach((word) => {
+    const regex = new RegExp(`(${word})`, "gi");
+    highlightedText = highlightedText.replace(regex, "<mark>$1</mark>");
+  });
+  return highlightedText;
+}
+
+// src/main.ts
+var _MyPlugin = class _MyPlugin extends import_obsidian39.Plugin {
   constructor() {
     super(...arguments);
     /**
@@ -26896,7 +27244,7 @@ var _MyPlugin = class _MyPlugin extends import_obsidian38.Plugin {
    * Handles initialization, settings, view registration, and command registration.
    */
   async onload() {
-    var _a2, _b, _c, _d;
+    var _a2, _b, _c, _d, _e, _f;
     await this.loadSettings();
     let vaultPath = "";
     try {
@@ -26952,7 +27300,17 @@ var _MyPlugin = class _MyPlugin extends import_obsidian38.Plugin {
     this.registerMarkdownCodeBlockProcessor("ai-tool-execution", (source, el, ctx) => {
       this.processToolExecutionCodeBlock(source, el, ctx);
     });
-    debugLog((_d = this.settings.debugMode) != null ? _d : false, "info", "AI Assistant Plugin loaded.");
+    registerSemanticSearchCodeblock(this);
+    if (this.settings.debugMode) {
+      try {
+        const { registerTestCommands: registerTestCommands2 } = await Promise.resolve().then(() => (init_testRunner(), testRunner_exports));
+        registerTestCommands2(this);
+        debugLog((_d = this.settings.debugMode) != null ? _d : false, "info", "Test commands registered");
+      } catch (error) {
+        debugLog((_e = this.settings.debugMode) != null ? _e : false, "warn", "Failed to register test commands:", error);
+      }
+    }
+    debugLog((_f = this.settings.debugMode) != null ? _f : false, "info", "AI Assistant Plugin loaded.");
   }
   /**
    * Enhanced debug logger for the plugin.

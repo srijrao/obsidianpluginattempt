@@ -97,21 +97,31 @@ describe('Semantic Search Integration', () => {
         jest.spyOn(embeddingService, 'initialize').mockResolvedValue();
         jest.spyOn(semanticBuilder, 'initialize').mockResolvedValue();
         
-        // Mock the initialized getters
-        Object.defineProperty(vectorStore, 'initialized', { get: () => true });
+        // Mock the ready/initialized getters
+        jest.spyOn(vectorStore, 'isReady').mockReturnValue(true);
         Object.defineProperty(embeddingService, 'initialized', { get: () => true });
         Object.defineProperty(semanticBuilder, 'initialized', { get: () => true });
         
-        // Mock VectorStore methods
+        // Mock VectorStore methods with correct signatures for IndexedDB implementation
         jest.spyOn(vectorStore, 'addVector').mockImplementation(async (id, text, embedding, metadata) => {
-            mockVectors.set(id, { id, text, embedding, metadata: JSON.stringify(metadata || {}) });
+            mockVectors.set(id, { 
+                id, 
+                text, 
+                embedding, 
+                metadata: metadata || {},
+                timestamp: Date.now()
+            });
         });
         
         jest.spyOn(vectorStore, 'getVector').mockImplementation(async (id) => {
             return mockVectors.get(id) || null;
         });
         
-        jest.spyOn(vectorStore, 'findSimilarVectors').mockImplementation(async (queryEmbedding, limit, threshold) => {
+        jest.spyOn(vectorStore, 'getAllVectors').mockImplementation(async () => {
+            return Array.from(mockVectors.values());
+        });
+        
+        jest.spyOn(vectorStore, 'findSimilarVectors').mockImplementation(async (queryEmbedding, limit = 5, threshold = 0.0) => {
             const results = Array.from(mockVectors.values()).map(vector => {
                 // Calculate a simple similarity based on the first few values
                 const similarity = queryEmbedding.length > 0 && vector.embedding.length > 0 
@@ -122,30 +132,36 @@ describe('Semantic Search Integration', () => {
                     ...vector,
                     similarity
                 };
-            }).sort((a, b) => b.similarity - a.similarity); // Sort by similarity descending
+            })
+            .filter(item => item.similarity >= threshold)
+            .sort((a, b) => b.similarity - a.similarity);
             
             return results.slice(0, limit);
         });
         
-        jest.spyOn(vectorStore, 'searchByText').mockImplementation(async (query, limit) => {
+        jest.spyOn(vectorStore, 'findVectorsByText').mockImplementation(async (query: string, limit: number = 10) => {
             return Array.from(mockVectors.values())
                 .filter(vector => vector.text.toLowerCase().includes(query.toLowerCase()))
                 .slice(0, limit);
         });
         
-        jest.spyOn(vectorStore, 'getVectorsByMetadata').mockImplementation(async (metadata, limit) => {
+        jest.spyOn(vectorStore, 'searchByText').mockImplementation(async (query: string, limit: number = 10) => {
+            return Array.from(mockVectors.values())
+                .filter(vector => vector.text.toLowerCase().includes(query.toLowerCase()))
+                .slice(0, limit);
+        });
+        
+        jest.spyOn(vectorStore, 'getVectorsByMetadata').mockImplementation(async (metadata: Record<string, any>, limit: number = 10) => {
             return Array.from(mockVectors.values())
                 .filter(vector => {
-                    const vectorMetadata = JSON.parse(vector.metadata || '{}');
+                    const vectorMetadata = vector.metadata || {};
                     return Object.keys(metadata).every(key => vectorMetadata[key] === metadata[key]);
                 })
-                .map(vector => ({
-                    id: vector.id,
-                    text: vector.text,
-                    embedding: vector.embedding,
-                    metadata: JSON.parse(vector.metadata || '{}')
-                }))
                 .slice(0, limit);
+        });
+        
+        jest.spyOn(vectorStore, 'getVectorCount').mockImplementation(async () => {
+            return mockVectors.size;
         });
         
         jest.spyOn(vectorStore, 'clearAllVectors').mockResolvedValue(0);
@@ -187,7 +203,7 @@ describe('Semantic Search Integration', () => {
                 id: vector.id,
                 text: vector.text,
                 similarity: Math.random() * 0.5 + 0.5,
-                metadata: JSON.parse(vector.metadata || '{}')
+                metadata: vector.metadata || {}
             })).slice(0, options?.topK || 5);
         });
         jest.spyOn(embeddingService, 'getRelevantContext').mockImplementation(async (query, options) => {
@@ -200,7 +216,7 @@ describe('Semantic Search Integration', () => {
                 id: vector.id,
                 text: vector.text,
                 similarity: Math.random() * 0.5 + 0.5,
-                metadata: JSON.parse(vector.metadata || '{}')
+                metadata: vector.metadata || {}
             })).slice(0, options?.topK || 5);
         });
         jest.spyOn(semanticBuilder, 'getStats').mockImplementation(async () => ({
@@ -225,7 +241,7 @@ describe('Semantic Search Integration', () => {
 
     describe('VectorStore Operations', () => {
         test('should initialize successfully', () => {
-            expect(vectorStore.initialized).toBe(true);
+            expect(vectorStore.isReady()).toBe(true);
         });
 
         test('should add and retrieve vectors', async () => {
@@ -243,7 +259,7 @@ describe('Semantic Search Integration', () => {
             expect(retrieved).toBeTruthy();
             expect(retrieved!.id).toBe(testId);
             expect(retrieved!.text).toBe(testText);
-            expect(JSON.parse(retrieved!.metadata!)).toEqual(testMetadata);
+            expect(retrieved!.metadata).toEqual(testMetadata);
         });
 
         test('should perform similarity search', async () => {
@@ -283,7 +299,7 @@ describe('Semantic Search Integration', () => {
                 { type: 'test' }
             );
 
-            const results = await vectorStore.searchByText('machine learning', 5);
+            const results = await vectorStore.findVectorsByText('machine learning', 5);
             
             expect(results).toHaveLength(1);
             expect(results[0].text).toContain('machine learning');

@@ -2,7 +2,7 @@
  * @file vectorStore.ts
  * @description
  *   This module provides the VectorStore class, which manages persistent storage of text embeddings (vectors)
- *   using sql.js (pure JavaScript SQLite) with IndexedDB for persistence.
+ *   using IndexedDB directly (no SQL dependencies for maximum Obsidian compatibility).
  *   This implementation is compatible with both Obsidian Desktop and Mobile environments.
  *
  *   The VectorStore allows you to:
@@ -10,29 +10,30 @@
  *     - Track recently accessed files and their last opened timestamps.
  *     - Work seamlessly across desktop and mobile platforms.
  *
- *   All database operations are asynchronous to support the sql.js + IndexedDB architecture.
+ *   All database operations are asynchronous using IndexedDB.
  */
 
-import initSqlJs from 'sql.js';
-import type { Database, Statement, SqlJs } from 'sql.js';
 import type { Plugin } from 'obsidian';
 
 /**
- * Interface for IndexedDB operations with sql.js
+ * Interface for stored vector data
  */
-interface SqlJsConfig {
-  locateFile: (file: string) => string;
+interface VectorData {
+  id: string;
+  text: string;
+  embedding: number[];
+  metadata?: any;
+  timestamp: number;
 }
 
 /**
  * VectorStore
  * -----------
- * Manages a SQLite database using sql.js with IndexedDB persistence for storing 
- * text embeddings (vectors). Compatible with both Obsidian Desktop and Mobile.
+ * Manages an IndexedDB database for storing text embeddings (vectors). 
+ * No SQL dependencies - uses pure IndexedDB for maximum Obsidian compatibility.
  */
 export class VectorStore {
-  private db: Database | null = null;
-  private SQL: SqlJs | null = null;
+  private db: IDBDatabase | null = null;
   private dbName: string;
   private isInitialized: boolean = false;
 
@@ -42,11 +43,11 @@ export class VectorStore {
    */
   constructor(plugin: Plugin) {
     // Use a consistent database name across platforms
-    this.dbName = 'ai-assistant-vectorstore.sqlite';
+    this.dbName = 'ai-assistant-vectorstore';
   }
 
   /**
-   * Initializes the VectorStore by loading sql.js and setting up the database.
+   * Initializes the VectorStore by setting up the IndexedDB database.
    * Must be called before using any other methods.
    */
   async initialize(): Promise<void> {
@@ -55,44 +56,11 @@ export class VectorStore {
     }
 
     try {
-      // Initialize sql.js with proper WASM file handling for Obsidian
-      const config: SqlJsConfig = {
-        locateFile: (file: string) => {
-          // For Obsidian plugins, we need to handle WASM files specially
-          if (file.endsWith('.wasm')) {
-            // Try multiple possible paths for the WASM file
-            // This may need adjustment based on how Obsidian handles plugin resources
-            return `./node_modules/sql.js/dist/${file}`;
-          }
-          return file;
-        }
-      };
-
-      let sqlJs: SqlJs;
-      try {
-        sqlJs = await initSqlJs(config);
-      } catch (wasmError) {
-        // Fallback: try without custom locateFile
-        console.warn('Failed to load sql.js with custom WASM path, trying default:', wasmError);
-        sqlJs = await initSqlJs();
-      }
-
-      this.SQL = sqlJs;
+      console.log('Initializing VectorStore with IndexedDB (no SQL dependencies)');
       
-      // Try to load existing database from IndexedDB
-      const existingDb = await this.loadFromIndexedDB();
-      
-      if (existingDb) {
-        this.db = new this.SQL.Database(existingDb);
-      } else {
-        // Create new database
-        this.db = new this.SQL.Database();
-      }
-
-      // Create tables if they don't exist
-      await this.createTables();
-      
+      this.db = await this.openIndexedDB();
       this.isInitialized = true;
+      console.log('✅ VectorStore initialized successfully');
     } catch (error) {
       console.error('Failed to initialize VectorStore:', error);
       throw new Error(`VectorStore initialization failed: ${error.message}`);
@@ -100,93 +68,27 @@ export class VectorStore {
   }
 
   /**
-   * Creates the necessary tables if they don't exist.
+   * Opens or creates the IndexedDB database
    */
-  private async createTables(): Promise<void> {
-    if (!this.db) {
-      throw new Error('Database not initialized');
-    }
-
-    const createVectorsTable = `
-      CREATE TABLE IF NOT EXISTS vectors (
-        id TEXT PRIMARY KEY,
-        text TEXT NOT NULL,
-        embedding BLOB NOT NULL,
-        metadata TEXT
-      );
-    `;
-
-    try {
-      this.db.run(createVectorsTable);
-      // Save to IndexedDB after schema changes
-      await this.saveToIndexedDB();
-    } catch (error) {
-      console.error('Failed to create tables:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Loads database from IndexedDB.
-   * @returns Uint8Array database content or null if not found.
-   */
-  private async loadFromIndexedDB(): Promise<Uint8Array | null> {
+  private openIndexedDB(): Promise<IDBDatabase> {
     return new Promise((resolve, reject) => {
-      const request = indexedDB.open('VectorStoreDB', 1);
+      const request = indexedDB.open(this.dbName, 1);
       
-      request.onerror = () => reject(request.error);
+      request.onerror = () => {
+        reject(new Error(`Failed to open IndexedDB: ${request.error?.message}`));
+      };
       
       request.onsuccess = () => {
-        const db = request.result;
-        const transaction = db.transaction(['databases'], 'readonly');
-        const store = transaction.objectStore('databases');
-        const getRequest = store.get(this.dbName);
-        
-        getRequest.onsuccess = () => {
-          resolve(getRequest.result ? getRequest.result.data : null);
-        };
-        
-        getRequest.onerror = () => reject(getRequest.error);
+        resolve(request.result);
       };
       
-      request.onupgradeneeded = () => {
-        const db = request.result;
-        if (!db.objectStoreNames.contains('databases')) {
-          db.createObjectStore('databases');
-        }
-      };
-    });
-  }
-
-  /**
-   * Saves database to IndexedDB.
-   */
-  private async saveToIndexedDB(): Promise<void> {
-    if (!this.db) {
-      throw new Error('Database not initialized');
-    }
-
-    const data = this.db.export();
-    
-    return new Promise((resolve, reject) => {
-      const request = indexedDB.open('VectorStoreDB', 1);
-      
-      request.onerror = () => reject(request.error);
-      
-      request.onsuccess = () => {
-        const db = request.result;
-        const transaction = db.transaction(['databases'], 'readwrite');
-        const store = transaction.objectStore('databases');
-        const putRequest = store.put({ data }, this.dbName);
+      request.onupgradeneeded = (event) => {
+        const db = (event.target as IDBOpenDBRequest).result;
         
-        putRequest.onsuccess = () => resolve();
-        putRequest.onerror = () => reject(putRequest.error);
-      };
-      
-      request.onupgradeneeded = () => {
-        const db = request.result;
-        if (!db.objectStoreNames.contains('databases')) {
-          db.createObjectStore('databases');
+        // Create vectors object store
+        if (!db.objectStoreNames.contains('vectors')) {
+          const store = db.createObjectStore('vectors', { keyPath: 'id' });
+          store.createIndex('timestamp', 'timestamp', { unique: false });
         }
       };
     });
@@ -205,145 +107,198 @@ export class VectorStore {
    * Checks if the VectorStore is initialized and ready for use.
    * @returns True if initialized, false otherwise.
    */
-  get initialized(): boolean {
+  isReady(): boolean {
     return this.isInitialized && this.db !== null;
   }
 
   /**
-   * Adds or updates a vector in the database.
-   * @param id - Unique identifier for the vector (e.g., hash or UUID).
-   * @param text - The original text that was embedded.
-   * @param embedding - The embedding vector (as Buffer or number[]).
-   * @param metadata - Optional metadata object (will be JSON-stringified).
+   * Adds or updates a vector in the store.
+   * @param id - Unique identifier for the vector.
+   * @param text - The original text content.
+   * @param embedding - The vector embedding (array of numbers).
+   * @param metadata - Optional metadata to store with the vector.
    */
-  async addVector(
-    id: string,
-    text: string,
-    embedding: Buffer | number[],
-    metadata: Record<string, any> | null = null
-  ): Promise<void> {
+  async addVector(id: string, text: string, embedding: number[], metadata?: any): Promise<void> {
     this.ensureInitialized();
 
-    try {
-      // Ensure embedding is stored as a Uint8Array (compatible with sql.js)
-      const embeddingArray = Buffer.isBuffer(embedding)
-        ? new Uint8Array(embedding)
-        : new Uint8Array(new Float32Array(embedding).buffer);
+    const vectorData: VectorData = {
+      id,
+      text,
+      embedding,
+      metadata,
+      timestamp: Date.now()
+    };
 
-      // Prepare and execute the statement
-      const stmt = this.db!.prepare(
-        'INSERT OR REPLACE INTO vectors (id, text, embedding, metadata) VALUES (?, ?, ?, ?);'
-      );
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction(['vectors'], 'readwrite');
+      const store = transaction.objectStore('vectors');
+      const request = store.put(vectorData);
 
-      stmt.run([id, text, embeddingArray, metadata ? JSON.stringify(metadata) : null]);
-      stmt.free();
-
-      // Save to IndexedDB after modification
-      await this.saveToIndexedDB();
-    } catch (error) {
-      console.error('Failed to add vector:', error);
-      throw error;
-    }
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(new Error(`Failed to add vector: ${request.error?.message}`));
+    });
   }
 
   /**
-   * Retrieves a specific vector by its ID.
-   * @param id - The unique identifier of the vector to retrieve.
-   * @returns The vector object or null if not found.
+   * Retrieves a vector by its ID.
+   * @param id - The unique identifier for the vector.
+   * @returns The vector data or null if not found.
    */
-  async getVector(id: string): Promise<{ id: string; text: string; embedding: Uint8Array; metadata: string | null } | null> {
+  async getVector(id: string): Promise<VectorData | null> {
     this.ensureInitialized();
 
-    try {
-      const stmt = this.db!.prepare('SELECT * FROM vectors WHERE id = ?;');
-      stmt.bind([id]);
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction(['vectors'], 'readonly');
+      const store = transaction.objectStore('vectors');
+      const request = store.get(id);
+
+      request.onsuccess = () => {
+        resolve(request.result || null);
+      };
+      request.onerror = () => reject(new Error(`Failed to get vector: ${request.error?.message}`));
+    });
+  }
+
+  /**
+   * Removes a vector from the store.
+   * @param id - The unique identifier for the vector to remove.
+   * @returns True if the vector was removed, false if it didn't exist.
+   */
+  async removeVector(id: string): Promise<boolean> {
+    this.ensureInitialized();
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction(['vectors'], 'readwrite');
+      const store = transaction.objectStore('vectors');
+      const getRequest = store.get(id);
+
+      getRequest.onsuccess = () => {
+        if (getRequest.result) {
+          const deleteRequest = store.delete(id);
+          deleteRequest.onsuccess = () => resolve(true);
+          deleteRequest.onerror = () => reject(new Error(`Failed to delete vector: ${deleteRequest.error?.message}`));
+        } else {
+          resolve(false);
+        }
+      };
+      getRequest.onerror = () => reject(new Error(`Failed to check vector existence: ${getRequest.error?.message}`));
+    });
+  }
+
+  /**
+   * Gets all vectors from the store.
+   * @returns Array of all stored vectors.
+   */
+  async getAllVectors(): Promise<VectorData[]> {
+    this.ensureInitialized();
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction(['vectors'], 'readonly');
+      const store = transaction.objectStore('vectors');
+      const request = store.getAll();
+
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(new Error(`Failed to get all vectors: ${request.error?.message}`));
+    });
+  }
+
+  /**
+   * Finds vectors containing the specified text (simple text search).
+   * @param searchText - The text to search for.
+   * @param limit - Maximum number of results to return (default: 10).
+   * @returns Array of matching vectors.
+   */
+  async findVectorsByText(searchText: string, limit: number = 10): Promise<VectorData[]> {
+    this.ensureInitialized();
+
+    const allVectors = await this.getAllVectors();
+    const searchLower = searchText.toLowerCase();
+    
+    return allVectors
+      .filter(vector => vector.text.toLowerCase().includes(searchLower))
+      .slice(0, limit);
+  }
+
+  /**
+   * Searches for vectors containing specific text (alias for findVectorsByText for backward compatibility).
+   * @param searchText - Text to search for in vector text content.
+   * @param limit - Maximum number of results to return (default: 10).
+   * @returns Array of matching vectors.
+   */
+  async searchByText(searchText: string, limit: number = 10): Promise<VectorData[]> {
+    return this.findVectorsByText(searchText, limit);
+  }
+
+  /**
+   * Gets vectors by their metadata properties.
+   * @param metadataQuery - Key-value pairs to match in metadata.
+   * @param limit - Maximum number of results (default: 10).
+   * @returns Array of matching vectors.
+   */
+  async getVectorsByMetadata(
+    metadataQuery: Record<string, any>,
+    limit: number = 10
+  ): Promise<VectorData[]> {
+    this.ensureInitialized();
+
+    const allVectors = await this.getAllVectors();
+    
+    const matches = allVectors.filter(vector => {
+      if (!vector.metadata) return false;
       
-      if (stmt.step()) {
-        const row = stmt.getAsObject();
-        stmt.free();
-        
-        return {
-          id: row.id as string,
-          text: row.text as string,
-          embedding: new Uint8Array(row.embedding as ArrayBuffer),
-          metadata: row.metadata as string | null
-        };
+      try {
+        return Object.entries(metadataQuery).every(([key, value]) => vector.metadata[key] === value);
+      } catch {
+        return false;
       }
-      
-      stmt.free();
-      return null;
-    } catch (error) {
-      console.error('Failed to get vector:', error);
-      throw error;
-    }
+    }).slice(0, limit);
+
+    return matches;
   }
 
   /**
-   * Deletes a vector by its ID.
-   * @param id - The unique identifier of the vector to delete.
-   * @returns True if a vector was deleted, false if not found.
+   * Gets the total number of vectors in the store.
+   * @returns The count of vectors.
    */
-  async deleteVector(id: string): Promise<boolean> {
+  async getVectorCount(): Promise<number> {
     this.ensureInitialized();
 
-    try {
-      const stmt = this.db!.prepare('DELETE FROM vectors WHERE id = ?;');
-      stmt.run([id]);
-      stmt.free();
-      
-      // Check if any rows were affected
-      const changes = this.db!.getRowsModified();
-      
-      if (changes > 0) {
-        await this.saveToIndexedDB();
-        return true;
-      }
-      
-      return false;
-    } catch (error) {
-      console.error('Failed to delete vector:', error);
-      throw error;
-    }
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction(['vectors'], 'readonly');
+      const store = transaction.objectStore('vectors');
+      const request = store.count();
+
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(new Error(`Failed to count vectors: ${request.error?.message}`));
+    });
   }
 
   /**
-   * Retrieves all vectors stored in the database.
-   * @returns Array of objects: { id, text, embedding, metadata }
-   *   - embedding is a Uint8Array containing the binary vector data.
-   *   - metadata is a JSON string or null.
+   * Clears all vectors from the store.
+   * @returns The number of vectors that were removed.
    */
-  async getAllVectors(): Promise<Array<{ id: string; text: string; embedding: Uint8Array; metadata: string | null }>> {
+  async clearAllVectors(): Promise<number> {
     this.ensureInitialized();
 
-    try {
-      const stmt = this.db!.prepare('SELECT * FROM vectors;');
-      const results: Array<{ id: string; text: string; embedding: Uint8Array; metadata: string | null }> = [];
-      
-      while (stmt.step()) {
-        const row = stmt.getAsObject();
-        results.push({
-          id: row.id as string,
-          text: row.text as string,
-          embedding: new Uint8Array(row.embedding as ArrayBuffer),
-          metadata: row.metadata as string | null
-        });
-      }
-      
-      stmt.free();
-      return results;
-    } catch (error) {
-      console.error('Failed to get all vectors:', error);
-      throw error;
-    }
+    const count = await this.getVectorCount();
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction(['vectors'], 'readwrite');
+      const store = transaction.objectStore('vectors');
+      const request = store.clear();
+
+      request.onsuccess = () => resolve(count);
+      request.onerror = () => reject(new Error(`Failed to clear vectors: ${request.error?.message}`));
+    });
   }
 
   /**
-   * Calculates cosine similarity between two vectors.
-   * @param vec1 - First vector as Float32Array or number array.
-   * @param vec2 - Second vector as Float32Array or number array.
-   * @returns Cosine similarity score between -1 and 1.
+   * Calculates cosine similarity between two embedding vectors.
+   * @param vec1 - First embedding vector.
+   * @param vec2 - Second embedding vector.
+   * @returns Cosine similarity score (0-1, where 1 is most similar).
    */
-  private cosineSimilarity(vec1: Float32Array | number[], vec2: Float32Array | number[]): number {
+  static cosineSimilarity(vec1: number[], vec2: number[]): number {
     if (vec1.length !== vec2.length) {
       throw new Error('Vectors must have the same length for similarity calculation');
     }
@@ -358,216 +313,53 @@ export class VectorStore {
       norm2 += vec2[i] * vec2[i];
     }
 
-    if (norm1 === 0 || norm2 === 0) {
-      return 0; // Handle zero vectors
-    }
-
-    return dotProduct / (Math.sqrt(norm1) * Math.sqrt(norm2));
+    const magnitude = Math.sqrt(norm1) * Math.sqrt(norm2);
+    return magnitude === 0 ? 0 : dotProduct / magnitude;
   }
 
   /**
-   * Converts a Uint8Array containing Float32Array data back to a Float32Array.
-   * @param uint8Array - Uint8Array containing the binary vector data.
-   * @returns Float32Array representation of the vector.
-   */
-  private uint8ArrayToFloat32Array(uint8Array: Uint8Array): Float32Array {
-    return new Float32Array(uint8Array.buffer, uint8Array.byteOffset, uint8Array.byteLength / 4);
-  }
-
-  /**
-   * Finds the most similar vectors to a query embedding using cosine similarity.
-   * @param queryEmbedding - The query vector to compare against (as number array).
-   * @param topK - Number of most similar vectors to return (default: 5).
-   * @param minSimilarity - Minimum similarity threshold (default: 0, returns all).
-   * @returns Array of similar vectors with similarity scores, sorted by similarity (highest first).
+   * Finds vectors most similar to a given embedding.
+   * @param queryEmbedding - The embedding to find similarities for.
+   * @param limit - Maximum number of results to return (default: 5).
+   * @param minSimilarity - Minimum similarity threshold (default: 0.0).
+   * @returns Array of vectors with similarity scores, sorted by similarity (highest first).
    */
   async findSimilarVectors(
-    queryEmbedding: number[],
-    topK: number = 5,
-    minSimilarity: number = 0
-  ): Promise<Array<{
-    id: string;
-    text: string;
-    similarity: number;
-    metadata: Record<string, any> | null;
-  }>> {
+    queryEmbedding: number[], 
+    limit: number = 5, 
+    minSimilarity: number = 0.0
+  ): Promise<Array<VectorData & { similarity: number }>> {
     this.ensureInitialized();
 
-    try {
-      // Get all vectors from database
-      const allVectors = await this.getAllVectors();
+    const allVectors = await this.getAllVectors();
+    const similarities = allVectors.map(vector => ({
+      ...vector,
+      similarity: VectorStore.cosineSimilarity(queryEmbedding, vector.embedding)
+    }));
 
-      // Calculate similarities
-      const similarities = allVectors.map((vector: { id: string; text: string; embedding: Uint8Array; metadata: string | null }) => {
-        const vectorData = this.uint8ArrayToFloat32Array(vector.embedding);
-        const similarity = this.cosineSimilarity(queryEmbedding, vectorData);
-        
-        return {
-          id: vector.id,
-          text: vector.text,
-          similarity,
-          metadata: vector.metadata ? JSON.parse(vector.metadata) : null
-        };
-      });
-
-      // Filter by minimum similarity and sort by similarity (descending)
-      return similarities
-        .filter((item: { id: string; text: string; similarity: number; metadata: Record<string, any> | null }) => item.similarity >= minSimilarity)
-        .sort((a: { similarity: number }, b: { similarity: number }) => b.similarity - a.similarity)
-        .slice(0, topK);
-    } catch (error) {
-      console.error('Failed to find similar vectors:', error);
-      throw error;
-    }
+    return similarities
+      .filter(item => item.similarity >= minSimilarity)
+      .sort((a, b) => b.similarity - a.similarity)
+      .slice(0, limit);
   }
 
   /**
-   * Searches for vectors containing specific text (case-insensitive).
-   * @param searchText - Text to search for in vector text content.
-   * @param limit - Maximum number of results to return (default: 10).
-   * @returns Array of matching vectors.
+   * Deletes a vector by its ID (alias for removeVector for backward compatibility).
+   * @param id - The unique identifier of the vector to delete.
+   * @returns True if a vector was deleted, false if not found.
    */
-  async searchByText(searchText: string, limit: number = 10): Promise<Array<{
-    id: string;
-    text: string;
-    embedding: Uint8Array;
-    metadata: Record<string, any> | null;
-  }>> {
-    this.ensureInitialized();
-
-    try {
-      const stmt = this.db!.prepare('SELECT * FROM vectors WHERE text LIKE ? LIMIT ?;');
-      stmt.bind([`%${searchText}%`, limit]);
-      
-      const results: Array<{
-        id: string;
-        text: string;
-        embedding: Uint8Array;
-        metadata: Record<string, any> | null;
-      }> = [];
-      
-      while (stmt.step()) {
-        const row = stmt.getAsObject();
-        results.push({
-          id: row.id as string,
-          text: row.text as string,
-          embedding: new Uint8Array(row.embedding as ArrayBuffer),
-          metadata: row.metadata ? JSON.parse(row.metadata as string) : null
-        });
-      }
-      
-      stmt.free();
-      return results;
-    } catch (error) {
-      console.error('Failed to search by text:', error);
-      throw error;
-    }
+  async deleteVector(id: string): Promise<boolean> {
+    return this.removeVector(id);
   }
 
   /**
-   * Gets the total count of vectors in the database.
-   * @returns Number of vectors stored.
-   */
-  async getVectorCount(): Promise<number> {
-    this.ensureInitialized();
-
-    try {
-      const stmt = this.db!.prepare('SELECT COUNT(*) as count FROM vectors;');
-      stmt.step();
-      const result = stmt.getAsObject();
-      stmt.free();
-      return result.count as number;
-    } catch (error) {
-      console.error('Failed to get vector count:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Clears all vectors from the database.
-   * @returns Number of vectors that were deleted.
-   */
-  async clearAllVectors(): Promise<number> {
-    this.ensureInitialized();
-
-    try {
-      const stmt = this.db!.prepare('DELETE FROM vectors;');
-      stmt.run();
-      stmt.free();
-      
-      const changes = this.db!.getRowsModified();
-      
-      if (changes > 0) {
-        await this.saveToIndexedDB();
-      }
-      
-      return changes;
-    } catch (error) {
-      console.error('Failed to clear all vectors:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Gets vectors by their metadata properties.
-   * @param metadataQuery - Key-value pairs to match in metadata.
-   * @param limit - Maximum number of results (default: 10).
-   * @returns Array of matching vectors.
-   */
-  async getVectorsByMetadata(
-    metadataQuery: Record<string, any>,
-    limit: number = 10
-  ): Promise<Array<{
-    id: string;
-    text: string;
-    embedding: Uint8Array;
-    metadata: Record<string, any> | null;
-  }>> {
-    this.ensureInitialized();
-
-    try {
-      // Get all vectors and filter by metadata in JavaScript
-      // Note: For better performance with large datasets, consider using JSON operators in SQLite
-      const allVectors = await this.getAllVectors();
-      
-      const matches = allVectors.filter((vector: { id: string; text: string; embedding: Uint8Array; metadata: string | null }) => {
-        if (!vector.metadata) return false;
-        
-        try {
-          const metadata = JSON.parse(vector.metadata);
-          return Object.entries(metadataQuery).every(([key, value]) => metadata[key] === value);
-        } catch {
-          return false;
-        }
-      }).slice(0, limit);
-
-      return matches.map((result: { id: string; text: string; embedding: Uint8Array; metadata: string | null }) => ({
-        ...result,
-        metadata: result.metadata ? JSON.parse(result.metadata) : null
-      }));
-    } catch (error) {
-      console.error('Failed to get vectors by metadata:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Closes the database connection and cleans up resources.
-   * Should be called when the vector store is no longer needed.
+   * Closes the database connection.
    */
   async close(): Promise<void> {
     if (this.db) {
-      try {
-        // Save final state to IndexedDB
-        await this.saveToIndexedDB();
-        // Close the database
-        this.db.close();
-        this.db = null;
-        this.isInitialized = false;
-      } catch (error) {
-        console.error('Failed to close database:', error);
-        throw error;
-      }
+      this.db.close();
+      this.db = null;
+      this.isInitialized = false;
     }
   }
 }

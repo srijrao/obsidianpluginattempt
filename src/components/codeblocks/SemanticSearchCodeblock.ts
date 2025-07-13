@@ -52,6 +52,12 @@ async function processSemanticSearchCodeblock(
     try {
         // Perform the semantic search
         const semanticBuilder = new SemanticContextBuilder(plugin.app, plugin);
+        
+        // Initialize the semantic builder if not already initialized
+        if (!semanticBuilder.initialized) {
+            await semanticBuilder.initialize();
+        }
+        
         const results = await semanticBuilder.semanticSearch(query, {
             topK: 5,
             minSimilarity: plugin.settings.semanticSimilarityThreshold || 0.7

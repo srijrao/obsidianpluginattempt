@@ -84,7 +84,7 @@ export class EmbeddingService {
    * Checks if the service is initialized and ready for use.
    */
   get initialized(): boolean {
-    return this.isInitialized && this.vectorStore.initialized;
+    return this.isInitialized && this.vectorStore.isReady();
   }
 
   /**
