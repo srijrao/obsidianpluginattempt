@@ -3,6 +3,26 @@
 // Mock Obsidian API
 global.require = jest.fn() as any;
 
+// Mock indexedDB for tests
+if (typeof indexedDB === 'undefined') {
+  (global as any).indexedDB = {
+    open: jest.fn(() => ({
+      onupgradeneeded: jest.fn(),
+      onsuccess: jest.fn(),
+      onerror: jest.fn(),
+      result: {},
+      addEventListener: jest.fn(),
+      removeEventListener: jest.fn(),
+      error: null,
+      readyState: 'done',
+      transaction: null,
+      source: null,
+    })),
+    deleteDatabase: jest.fn(),
+    cmp: jest.fn(),
+  };
+}
+
 // Mock DOM APIs that might be used
 Object.defineProperty(window, 'localStorage', {
   value: {

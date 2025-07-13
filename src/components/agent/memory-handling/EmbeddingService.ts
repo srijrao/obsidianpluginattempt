@@ -8,7 +8,6 @@
 
 import { Plugin, TFile, Notice } from 'obsidian';
 import { VectorStore } from './vectorStore';
-import { createProvider } from '../../../../providers';
 import { MyPluginSettings, Message, CompletionOptions } from '../../../types';
 import { debugLog } from '../../../utils/logger';
 import { showNotice } from '../../../utils/generalUtils';
@@ -436,5 +435,20 @@ export class EmbeddingService {
    */
   async close(): Promise<void> {
     await this.vectorStore.close();
+  }
+
+  /**
+   * Embeds the currently active note in the editor.
+   * @param options - Embedding options
+   */
+  async embedActiveNote(options: EmbeddingOptions = {}): Promise<void> {
+    this.ensureInitialized();
+    const activeFile = this.plugin.app.workspace.getActiveFile?.();
+    if (!activeFile) {
+      showNotice('No active note found to embed.');
+      return;
+    }
+    await this.embedNote(activeFile, options);
+    showNotice(`Embedded active note: ${activeFile.path}`);
   }
 }

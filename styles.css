@@ -1438,3 +1438,172 @@
     color: var(--text-success);
     font-weight: 500;
 }
+
+/* === SEMANTIC SEARCH CODEBLOCK STYLES ===
+   Styles for the semantic search codeblock feature
+   -------------------------------------------------------------------------- */
+
+.semantic-search-container {
+    font-family: var(--font-interface);
+    margin: var(--spacing-md) 0;
+}
+
+.semantic-search-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--spacing-lg);
+    padding-bottom: var(--spacing-md);
+    border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.semantic-search-title {
+    margin: 0;
+    font-size: 1.1em;
+    color: var(--text-normal);
+    font-weight: 600;
+}
+
+.semantic-search-count {
+    font-size: 0.9em;
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+.semantic-search-results {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-lg);
+}
+
+.semantic-search-result {
+    padding: var(--spacing-lg);
+    border: 1px solid var(--background-modifier-border);
+    border-radius: var(--border-radius);
+    background: var(--background-secondary);
+    transition: all 0.2s ease;
+}
+
+.semantic-search-result:hover {
+    border-color: var(--interactive-accent);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.semantic-search-result-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--spacing-md);
+    gap: var(--spacing-md);
+}
+
+.semantic-search-score {
+    background: var(--interactive-accent);
+    color: var(--text-on-accent);
+    padding: var(--spacing-xs) var(--spacing-md);
+    border-radius: 12px;
+    font-size: 0.8em;
+    font-weight: 600;
+    flex-shrink: 0;
+}
+
+.semantic-search-file-link {
+    color: var(--link-color);
+    text-decoration: none;
+    font-size: 0.9em;
+    cursor: pointer;
+    font-weight: 500;
+    transition: color 0.2s ease;
+    flex-grow: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.semantic-search-file-link:hover {
+    color: var(--link-color-hover);
+    text-decoration: underline;
+}
+
+.semantic-search-content {
+    line-height: 1.6;
+    color: var(--text-normal);
+    font-size: 0.9em;
+}
+
+.semantic-search-content mark {
+    background: var(--text-highlight-bg);
+    color: var(--text-normal);
+    padding: 1px 2px;
+    border-radius: 2px;
+    font-weight: 500;
+}
+
+.semantic-search-loading,
+.semantic-search-error,
+.semantic-search-empty,
+.semantic-search-no-results {
+    padding: var(--spacing-lg);
+    text-align: center;
+    color: var(--text-muted);
+    font-style: italic;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: var(--border-radius);
+    background: var(--background-secondary);
+}
+
+.semantic-search-error {
+    color: var(--text-error);
+    background: var(--background-modifier-error);
+    border-color: var(--text-error);
+}
+
+.semantic-search-loading {
+    color: var(--text-accent);
+    position: relative;
+}
+
+.semantic-search-loading::after {
+    content: '';
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border: 2px solid var(--text-accent);
+    border-radius: 50%;
+    border-top-color: transparent;
+    animation: spin 1s linear infinite;
+    margin-left: var(--spacing-md);
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Dark theme specific adjustments */
+.theme-dark .semantic-search-result {
+    border-color: var(--background-modifier-border-hover);
+}
+
+.theme-dark .semantic-search-result:hover {
+    background: var(--background-modifier-hover);
+}
+
+/* Mobile responsive adjustments */
+@media (max-width: 768px) {
+    .semantic-search-result-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--spacing-sm);
+    }
+    
+    .semantic-search-file-link {
+        font-size: 0.8em;
+        white-space: normal;
+    }
+    
+    .semantic-search-score {
+        align-self: flex-end;
+    }
+}

@@ -20,7 +20,7 @@ class SemanticSearchModal extends Modal {
     onOpen() {
         const { contentEl } = this;
         contentEl.createEl('h3', { text: 'Semantic Search Results' });
-        
+
         if (this.results.length === 0) {
             contentEl.createEl('p', { text: 'No results found.' });
             return;
@@ -32,19 +32,19 @@ class SemanticSearchModal extends Modal {
             resultEl.style.padding = '10px';
             resultEl.style.border = '1px solid var(--background-modifier-border)';
             resultEl.style.borderRadius = '5px';
-            
+
             const headerEl = resultEl.createDiv({ cls: 'result-header' });
             headerEl.style.marginBottom = '5px';
             headerEl.style.fontWeight = 'bold';
             headerEl.setText(`${index + 1}. Similarity: ${result.similarity.toFixed(3)}`);
-            
+
             if (result.filePath) {
                 const pathEl = resultEl.createDiv({ cls: 'result-path' });
                 pathEl.style.fontSize = '0.9em';
                 pathEl.style.color = 'var(--text-muted)';
                 pathEl.setText(`File: ${result.filePath}`);
             }
-            
+
             const resultContentEl = resultEl.createDiv({ cls: 'result-content' });
             resultContentEl.style.marginTop = '10px';
             resultContentEl.style.whiteSpace = 'pre-wrap';
@@ -71,7 +71,7 @@ class SemanticSearchInputModal extends Modal {
     onOpen() {
         const { contentEl } = this;
         contentEl.createEl('h3', { text: 'Semantic Search' });
-        
+
         const inputEl = contentEl.createEl('input', {
             type: 'text',
             placeholder: 'Enter your search query...'
@@ -79,26 +79,26 @@ class SemanticSearchInputModal extends Modal {
         inputEl.style.width = '100%';
         inputEl.style.marginBottom = '10px';
         inputEl.style.padding = '8px';
-        
+
         const buttonContainer = contentEl.createDiv();
-        
+
         const searchBtn = buttonContainer.createEl('button', { text: 'Search' });
         searchBtn.style.marginRight = '10px';
-        
+
         const cancelBtn = buttonContainer.createEl('button', { text: 'Cancel' });
-        
+
         searchBtn.addEventListener('click', () => {
             this.result = inputEl.value.trim();
             if (this.result) {
                 this.close();
             }
         });
-        
+
         cancelBtn.addEventListener('click', () => {
             this.result = null;
             this.close();
         });
-        
+
         inputEl.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
                 this.result = inputEl.value.trim();
@@ -110,7 +110,7 @@ class SemanticSearchInputModal extends Modal {
                 this.close();
             }
         });
-        
+
         inputEl.focus();
     }
 
@@ -134,6 +134,21 @@ class SemanticSearchInputModal extends Modal {
  * Registers vector store and semantic search commands.
  */
 export function registerVectorStoreCommands(plugin: MyPlugin): void {
+    // Embed currently open note command
+    registerCommand(plugin, {
+        id: 'embed-currently-open-note',
+        name: 'Embed Currently Open Note',
+        callback: async () => {
+            try {
+                const semanticBuilder = new SemanticContextBuilder(plugin.app, plugin);
+                await semanticBuilder.embedCurrentNote();
+                new Notice('Successfully embedded currently open note');
+            } catch (error) {
+                debugLog(plugin.settings.debugMode ?? false, 'error', 'Failed to embed currently open note:', error);
+                new Notice(`Error: ${error.message}`);
+            }
+        }
+    });
     // Embed current note command
     registerCommand(plugin, {
         id: 'embed-current-note',
@@ -178,7 +193,7 @@ export function registerVectorStoreCommands(plugin: MyPlugin): void {
             try {
                 const modal = new SemanticSearchInputModal(plugin.app);
                 const query = await modal.getSearchQuery();
-                
+
                 if (!query) return;
 
                 const semanticBuilder = new SemanticContextBuilder(plugin.app, plugin);
@@ -219,7 +234,7 @@ export function registerVectorStoreCommands(plugin: MyPlugin): void {
             try {
                 const semanticBuilder = new SemanticContextBuilder(plugin.app, plugin);
                 const stats = await semanticBuilder.getStats();
-                
+
                 if (stats) {
                     new Notice(`Vector Store: ${stats.totalVectors} embeddings stored`);
                 } else {

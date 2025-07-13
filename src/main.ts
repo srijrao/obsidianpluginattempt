@@ -19,6 +19,7 @@ import { Priority3IntegrationManager } from './integration/priority3Integration'
 import { parseToolDataFromContent, cleanContentFromToolData } from './utils/messageContentParser';
 import { isVaultAdapterWithBasePath, validatePluginSettings } from './utils/typeGuards';
 import { RecentlyOpenedFilesManager } from './utils/recently-opened-files';
+import { registerSemanticSearchCodeblock } from './components/codeblocks/SemanticSearchCodeblock';
 
 /**
  * AI Assistant Plugin
@@ -244,6 +245,20 @@ export default class MyPlugin extends Plugin {
         this.registerMarkdownCodeBlockProcessor("ai-tool-execution", (source, el, ctx) => {
             this.processToolExecutionCodeBlock(source, el, ctx);
         });
+
+        // Register semantic search codeblock processor
+        registerSemanticSearchCodeblock(this);
+
+        // Register test commands (only in debug mode)
+        if (this.settings.debugMode) {
+            try {
+                const { registerTestCommands } = await import('../tests/testRunner');
+                registerTestCommands(this);
+                debugLog(this.settings.debugMode ?? false, 'info', 'Test commands registered');
+            } catch (error) {
+                debugLog(this.settings.debugMode ?? false, 'warn', 'Failed to register test commands:', error);
+            }
+        }
 
         debugLog(this.settings.debugMode ?? false, 'info', 'AI Assistant Plugin loaded.'); // Changed from log to debugLog
     }
