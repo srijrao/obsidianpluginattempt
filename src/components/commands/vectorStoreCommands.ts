@@ -141,25 +141,11 @@ export function registerVectorStoreCommands(plugin: MyPlugin): void {
         callback: async () => {
             try {
                 const semanticBuilder = new SemanticContextBuilder(plugin.app, plugin);
+                await semanticBuilder.initialize();
                 await semanticBuilder.embedCurrentNote();
                 new Notice('Successfully embedded currently open note');
             } catch (error) {
                 debugLog(plugin.settings.debugMode ?? false, 'error', 'Failed to embed currently open note:', error);
-                new Notice(`Error: ${error.message}`);
-            }
-        }
-    });
-    // Embed current note command
-    registerCommand(plugin, {
-        id: 'embed-current-note',
-        name: 'Embed Current Note',
-        callback: async () => {
-            try {
-                const semanticBuilder = new SemanticContextBuilder(plugin.app, plugin);
-                await semanticBuilder.embedCurrentNote();
-                new Notice('Successfully embedded current note');
-            } catch (error) {
-                debugLog(plugin.settings.debugMode ?? false, 'error', 'Failed to embed current note:', error);
                 new Notice(`Error: ${error.message}`);
             }
         }
@@ -177,6 +163,7 @@ export function registerVectorStoreCommands(plugin: MyPlugin): void {
 
             try {
                 const semanticBuilder = new SemanticContextBuilder(plugin.app, plugin);
+                await semanticBuilder.initialize();
                 await semanticBuilder.embedAllNotes();
             } catch (error) {
                 debugLog(plugin.settings.debugMode ?? false, 'error', 'Failed to embed notes:', error);

@@ -26556,25 +26556,11 @@ function registerVectorStoreCommands(plugin) {
       var _a2;
       try {
         const semanticBuilder = new SemanticContextBuilder(plugin.app, plugin);
+        await semanticBuilder.initialize();
         await semanticBuilder.embedCurrentNote();
         new import_obsidian36.Notice("Successfully embedded currently open note");
       } catch (error) {
         debugLog((_a2 = plugin.settings.debugMode) != null ? _a2 : false, "error", "Failed to embed currently open note:", error);
-        new import_obsidian36.Notice(`Error: ${error.message}`);
-      }
-    }
-  });
-  registerCommand(plugin, {
-    id: "embed-current-note",
-    name: "Embed Current Note",
-    callback: async () => {
-      var _a2;
-      try {
-        const semanticBuilder = new SemanticContextBuilder(plugin.app, plugin);
-        await semanticBuilder.embedCurrentNote();
-        new import_obsidian36.Notice("Successfully embedded current note");
-      } catch (error) {
-        debugLog((_a2 = plugin.settings.debugMode) != null ? _a2 : false, "error", "Failed to embed current note:", error);
         new import_obsidian36.Notice(`Error: ${error.message}`);
       }
     }
@@ -26590,6 +26576,7 @@ function registerVectorStoreCommands(plugin) {
       }
       try {
         const semanticBuilder = new SemanticContextBuilder(plugin.app, plugin);
+        await semanticBuilder.initialize();
         await semanticBuilder.embedAllNotes();
       } catch (error) {
         debugLog((_a2 = plugin.settings.debugMode) != null ? _a2 : false, "error", "Failed to embed notes:", error);
