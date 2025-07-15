@@ -2,6 +2,33 @@ import { DEFAULT_TITLE_PROMPT, DEFAULT_SUMMARY_PROMPT, DEFAULT_YAML_SYSTEM_MESSA
 import { AgentModeSettings, UnifiedModel, ChatSession } from "../types";
 
 /**
+ * Represents a folder path rule for embedding filtering.
+ */
+export interface FolderFilterRule {
+    /** The folder path (supports glob patterns). */
+    path: string;
+    /** Whether to include subdirectories recursively. */
+    recursive: boolean;
+    /** Human-readable description of the rule. */
+    description?: string;
+}
+
+/**
+ * Settings for controlling which folders/notes are included or excluded from embedding.
+ */
+export interface EmbeddingFolderFilter {
+    /** 
+     * Filter mode: 
+     * - 'include': Only embed files in specified folders (whitelist mode)
+     * - 'exclude': Embed all files except those in specified folders (blacklist mode)
+     * - 'off': No filtering (embed all files)
+     */
+    mode: 'include' | 'exclude' | 'off';
+    /** List of folder rules for inclusion or exclusion. */
+    rules: FolderFilterRule[];
+}
+
+/**
  * Represents a YAML attribute generator for the settings UI.
  * This interface defines the structure for generating YAML attributes dynamically.
  */
@@ -265,6 +292,8 @@ export interface MyPluginSettings {
     maxSemanticContextChunks?: number;
     /** Minimum similarity threshold for including semantic context (0.0 to 1.0). */
     semanticSimilarityThreshold?: number;
+    /** Embedding folder filter settings. */
+    embeddingFolderFilter?: EmbeddingFolderFilter;
 
     
 }
@@ -444,4 +473,9 @@ export const DEFAULT_SETTINGS: MyPluginSettings = {
     maxSemanticContextChunks: 3,
     /** @inheritdoc */
     semanticSimilarityThreshold: 0.7,
+    /** @inheritdoc */
+    embeddingFolderFilter: {
+        mode: 'off',
+        rules: []
+    },
 };

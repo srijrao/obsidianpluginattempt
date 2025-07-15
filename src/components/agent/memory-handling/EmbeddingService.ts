@@ -11,6 +11,7 @@ import { VectorStore } from './vectorStore';
 import { MyPluginSettings, Message, CompletionOptions } from '../../../types';
 import { debugLog } from '../../../utils/logger';
 import { showNotice } from '../../../utils/generalUtils';
+import { filterFilesForEmbedding, getFilterDescription } from '../../../utils/embeddingFilterUtils';
 import * as crypto from 'crypto';
 
 /**
@@ -25,6 +26,8 @@ interface EmbeddingOptions {
   includeMetadata?: boolean;
   /** Custom metadata to add */
   customMetadata?: Record<string, any>;
+  /** Progress callback for embedding operations */
+  onProgress?: (processed: number, total: number) => void;
 }
 
 /**
@@ -54,6 +57,7 @@ export class EmbeddingService {
   private plugin: Plugin;
   private settings: MyPluginSettings;
   private isInitialized: boolean = false;
+  private abortController: AbortController | null = null;
 
   constructor(plugin: Plugin, settings: MyPluginSettings) {
     this.plugin = plugin;
@@ -380,33 +384,125 @@ export class EmbeddingService {
   }
 
   /**
+   * Cancels the current embedding operation if one is running.
+   */
+  cancelEmbedding(): void {
+    if (this.abortController) {
+      this.abortController.abort();
+      debugLog(this.settings.debugMode ?? false, 'info', 'Embedding operation cancelled by user');
+    }
+  }
+
+  /**
+   * Checks if an embedding operation is currently running.
+   */
+  isEmbeddingInProgress(): boolean {
+    return this.abortController !== null && !this.abortController.signal.aborted;
+  }
+
+  /**
+   * Checks if the current operation should be cancelled.
+   */
+  private shouldCancel(): boolean {
+    return this.abortController?.signal.aborted ?? false;
+  }
+
+  /**
    * Embeds all notes in the vault.
    * @param options - Embedding options
    */
   async embedAllNotes(options: EmbeddingOptions = {}): Promise<void> {
     this.ensureInitialized();
-    const notice = new Notice('Embedding all notes...', 0);
+    
+    // Create new abort controller for this operation
+    this.abortController = new AbortController();
+    
+    const notice = new Notice('Embedding all notes... (Click to cancel)', 0);
+    
+    // Add click handler to cancel
+    const noticeEl = (notice as any).noticeEl;
+    if (noticeEl) {
+      noticeEl.style.cursor = 'pointer';
+      noticeEl.addEventListener('click', () => {
+        this.cancelEmbedding();
+      });
+    }
 
     try {
-      const files = this.plugin.app.vault.getMarkdownFiles();
+      const allFiles = this.plugin.app.vault.getMarkdownFiles();
+      
+      // Apply folder filtering
+      const filterSettings = this.settings.embeddingFolderFilter;
+      const files = filterFilesForEmbedding(allFiles, filterSettings || { mode: 'off', rules: [] });
+      
+      if (files.length === 0) {
+        notice.hide();
+        const filterDesc = getFilterDescription(filterSettings || { mode: 'off', rules: [] });
+        showNotice(`No files to embed after applying filters. ${filterDesc}`);
+        return;
+      }
+      
+      // Show filtering information if filters are active
+      if (filterSettings?.mode !== 'off' && filterSettings?.rules && filterSettings.rules.length > 0) {
+        const skippedCount = allFiles.length - files.length;
+        notice.setMessage(`Embedding ${files.length} notes (${skippedCount} filtered out)... (Click to cancel)`);
+      }
+      
       let processed = 0;
+      let cancelled = false;
 
       for (const file of files) {
+        // Check for cancellation before processing each file
+        if (this.shouldCancel()) {
+          cancelled = true;
+          break;
+        }
+
         try {
           await this.embedNote(file, options);
           processed++;
-          notice.setMessage(`Embedded ${processed}/${files.length} notes...`);
+          
+          // Check for cancellation after processing each file
+          if (this.shouldCancel()) {
+            cancelled = true;
+            break;
+          }
+          
+          // Call progress callback if provided
+          if (options.onProgress) {
+            options.onProgress(processed, files.length);
+          }
+          
+          notice.setMessage(`Embedded ${processed}/${files.length} notes... (Click to cancel)`);
         } catch (error) {
           debugLog(this.settings.debugMode ?? false, 'warn', `Skipped ${file.path}:`, error);
         }
       }
 
       notice.hide();
-      showNotice(`Successfully embedded ${processed} notes!`);
+      
+      if (cancelled) {
+        showNotice(`Embedding cancelled. Successfully processed ${processed} out of ${files.length} notes.`);
+      } else {
+        // Get final stats to show total embedded count
+        const finalStats = await this.getStats();
+        const totalEmbeddings = finalStats.totalVectors;
+        
+        showNotice(
+          `Successfully embedded ${processed} notes! Total embeddings in database: ${totalEmbeddings}`
+        );
+      }
     } catch (error) {
       notice.hide();
-      showNotice(`Error embedding notes: ${error.message}`);
-      throw error;
+      if (this.shouldCancel()) {
+        showNotice(`Embedding cancelled: ${error.message}`);
+      } else {
+        showNotice(`Error embedding notes: ${error.message}`);
+        throw error;
+      }
+    } finally {
+      // Clean up abort controller
+      this.abortController = null;
     }
   }
 

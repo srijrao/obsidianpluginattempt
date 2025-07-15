@@ -209,10 +209,27 @@ export class SemanticContextBuilder {
 
   /**
    * Embeds all notes in the vault.
+   * @param options - Embedding options including progress callback
    */
-  async embedAllNotes(): Promise<void> {
+  async embedAllNotes(options?: { onProgress?: (processed: number, total: number) => void }): Promise<void> {
     if (!this.embeddingService) return;
-    await this.embeddingService.embedAllNotes();
+    await this.embeddingService.embedAllNotes(options);
+  }
+
+  /**
+   * Cancels the current embedding operation if one is running.
+   */
+  cancelEmbedding(): void {
+    if (this.embeddingService) {
+      this.embeddingService.cancelEmbedding();
+    }
+  }
+
+  /**
+   * Checks if an embedding operation is currently running.
+   */
+  isEmbeddingInProgress(): boolean {
+    return this.embeddingService?.isEmbeddingInProgress() ?? false;
   }
 
   /**

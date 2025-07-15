@@ -3,11 +3,13 @@
  * @description Settings section for configuring vector store and semantic search functionality.
  */
 
-import { Setting, Notice, Modal } from 'obsidian';
+import { Setting, Notice, Modal, TextComponent, DropdownComponent } from 'obsidian';
 import MyPlugin from '../../main';
 import { SettingCreators } from '../components/SettingCreators';
 import { SemanticContextBuilder } from '../../components/agent/memory-handling/SemanticContextBuilder';
 import { showNotice } from '../../utils/generalUtils';
+import { FolderFilterRule } from '../../types/settings';
+import { validateFilterRule, normalizeFolderPath, getFilterDescription } from '../../utils/embeddingFilterUtils';
 
 /**
  * VectorStoreSettingsSection
@@ -95,13 +97,168 @@ export class VectorStoreSettingsSection {
                     }));
         }
 
+        // Folder Filtering Settings
+        const filterSettings = this.plugin.settings.embeddingFolderFilter || { mode: 'off', rules: [] };
+        
+        new Setting(containerEl)
+            .setName('Folder Filtering')
+            .setDesc('Control which folders are included or excluded from embedding')
+            .addDropdown(dropdown => dropdown
+                .addOption('off', 'No filtering (all files)')
+                .addOption('include', 'Include only (whitelist)')
+                .addOption('exclude', 'Exclude (blacklist)')
+                .setValue(filterSettings.mode)
+                .onChange(async (value: 'off' | 'include' | 'exclude') => {
+                    if (!this.plugin.settings.embeddingFolderFilter) {
+                        this.plugin.settings.embeddingFolderFilter = { mode: 'off', rules: [] };
+                    }
+                    this.plugin.settings.embeddingFolderFilter.mode = value;
+                    await this.plugin.saveSettings();
+                    // Refresh the section to show/hide rule controls
+                    containerEl.empty();
+                    this.render(containerEl);
+                }));
+
+        // Show filter status
+        const filterDesc = getFilterDescription(filterSettings);
+        const statusEl = containerEl.createDiv({
+            text: filterDesc,
+            cls: 'setting-item-description'
+        });
+        statusEl.style.marginBottom = '10px';
+        statusEl.style.fontStyle = 'italic';
+
+        // Show folder rules if filtering is enabled
+        if (filterSettings.mode !== 'off') {
+            // Rules header
+            const rulesHeader = containerEl.createEl('h4', { text: 'Folder Rules' });
+            rulesHeader.style.marginTop = '20px';
+            rulesHeader.style.marginBottom = '10px';
+
+            // Rules list
+            const rulesContainer = containerEl.createDiv({ cls: 'folder-rules-container' });
+            rulesContainer.style.marginBottom = '15px';
+
+            const renderRules = () => {
+                rulesContainer.empty();
+                
+                const rules = this.plugin.settings.embeddingFolderFilter?.rules || [];
+                
+                rules.forEach((rule, index) => {
+                    const ruleEl = rulesContainer.createDiv({ cls: 'folder-rule-item' });
+                    ruleEl.style.border = '1px solid var(--background-modifier-border)';
+                    ruleEl.style.borderRadius = '5px';
+                    ruleEl.style.padding = '10px';
+                    ruleEl.style.marginBottom = '10px';
+                    ruleEl.style.backgroundColor = 'var(--background-secondary)';
+
+                    // Rule path input
+                    const pathSetting = new Setting(ruleEl)
+                        .setName(`Folder Path ${index + 1}`)
+                        .setDesc('Folder path (supports * and ** wildcards)')
+                        .addText(text => text
+                            .setPlaceholder('e.g., Notes/**, Templates/*, Archive')
+                            .setValue(rule.path)
+                            .onChange(async (value) => {
+                                if (this.plugin.settings.embeddingFolderFilter?.rules) {
+                                    this.plugin.settings.embeddingFolderFilter.rules[index].path = normalizeFolderPath(value);
+                                    await this.plugin.saveSettings();
+                                }
+                            }));
+
+                    // Recursive toggle
+                    new Setting(ruleEl)
+                        .setName('Recursive')
+                        .setDesc('Include subdirectories')
+                        .addToggle(toggle => toggle
+                            .setValue(rule.recursive)
+                            .onChange(async (value) => {
+                                if (this.plugin.settings.embeddingFolderFilter?.rules) {
+                                    this.plugin.settings.embeddingFolderFilter.rules[index].recursive = value;
+                                    await this.plugin.saveSettings();
+                                }
+                            }));
+
+                    // Description input
+                    new Setting(ruleEl)
+                        .setName('Description')
+                        .setDesc('Optional description for this rule')
+                        .addText(text => text
+                            .setPlaceholder('e.g., Project notes, Templates')
+                            .setValue(rule.description || '')
+                            .onChange(async (value) => {
+                                if (this.plugin.settings.embeddingFolderFilter?.rules) {
+                                    this.plugin.settings.embeddingFolderFilter.rules[index].description = value;
+                                    await this.plugin.saveSettings();
+                                }
+                            }));
+
+                    // Delete rule button
+                    new Setting(ruleEl)
+                        .addButton(button => button
+                            .setButtonText('Delete Rule')
+                            .setWarning()
+                            .onClick(async () => {
+                                if (this.plugin.settings.embeddingFolderFilter?.rules) {
+                                    this.plugin.settings.embeddingFolderFilter.rules.splice(index, 1);
+                                    await this.plugin.saveSettings();
+                                    renderRules();
+                                }
+                            }));
+                });
+
+                // Add new rule button
+                const addRuleButton = rulesContainer.createDiv();
+                new Setting(addRuleButton)
+                    .setName('Add Folder Rule')
+                    .setDesc('Add a new folder path to the filter')
+                    .addButton(button => button
+                        .setButtonText('Add Rule')
+                        .setCta()
+                        .onClick(async () => {
+                            if (!this.plugin.settings.embeddingFolderFilter) {
+                                this.plugin.settings.embeddingFolderFilter = { mode: 'include', rules: [] };
+                            }
+                            
+                            const newRule: FolderFilterRule = {
+                                path: '',
+                                recursive: true,
+                                description: ''
+                            };
+                            
+                            this.plugin.settings.embeddingFolderFilter.rules.push(newRule);
+                            await this.plugin.saveSettings();
+                            renderRules();
+                        }));
+
+                // Help text
+                const helpEl = rulesContainer.createDiv({
+                    cls: 'setting-item-description'
+                });
+                helpEl.innerHTML = `
+                    <strong>Pattern Examples:</strong><br>
+                    • <code>Notes</code> - Files directly in Notes folder<br>
+                    • <code>Notes/**</code> - All files in Notes and subdirectories<br>
+                    • <code>**/Templates</code> - Any Templates folder anywhere<br>
+                    • <code>Archive/*</code> - Files directly in Archive folder<br>
+                    • <code>*.md</code> - All markdown files (not recommended for folders)
+                `;
+                helpEl.style.marginTop = '15px';
+                helpEl.style.padding = '10px';
+                helpEl.style.backgroundColor = 'var(--background-primary-alt)';
+                helpEl.style.borderRadius = '5px';
+            };
+
+            renderRules();
+        }
+
         // Embedding Management Actions
         const actionsContainer = containerEl.createDiv({ cls: 'vector-store-actions' });
         
         // Embed All Notes
         new Setting(actionsContainer)
             .setName('Embed All Notes')
-            .setDesc('Generate embeddings for all notes in your vault. This may take several minutes and requires an API key.')
+            .setDesc('Generate embeddings for notes in your vault. Respects folder filtering settings above.')
             .addButton(button => button
                 .setButtonText('Embed All Notes')
                 .setCta()

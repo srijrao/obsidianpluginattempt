@@ -3423,7 +3423,12 @@ var init_settings = __esm({
       /** @inheritdoc */
       maxSemanticContextChunks: 3,
       /** @inheritdoc */
-      semanticSimilarityThreshold: 0.7
+      semanticSimilarityThreshold: 0.7,
+      /** @inheritdoc */
+      embeddingFolderFilter: {
+        mode: "off",
+        rules: []
+      }
     };
   }
 });
@@ -15357,6 +15362,83 @@ var init_vectorStore = __esm({
   }
 });
 
+// src/utils/embeddingFilterUtils.ts
+function matchesPattern(pattern, path3) {
+  const normalizedPattern = pattern.replace(/\\/g, "/");
+  const normalizedPath = path3.replace(/\\/g, "/");
+  if (normalizedPattern === normalizedPath) {
+    return true;
+  }
+  let pat = normalizedPattern;
+  let regexStr = "^";
+  if (pat.startsWith("**/")) {
+    regexStr += "(?:.*/)?";
+    pat = pat.slice(3);
+  }
+  const escaped = pat.replace(/([.+?^${}()|[\]\\])/g, "\\$1");
+  const body = escaped.replace(/\*\*/g, "\xA7RECURSIVE\xA7").replace(/\*/g, "[^/]*").replace(/§RECURSIVE§/g, ".*");
+  regexStr += body + "$";
+  try {
+    const regex = new RegExp(regexStr);
+    return regex.test(normalizedPath);
+  } catch (error) {
+    console.warn("Invalid pattern:", pattern, error);
+    return false;
+  }
+}
+function matchesAnyRule(filePath, rules) {
+  if (!rules || rules.length === 0) {
+    return false;
+  }
+  return rules.some((rule) => {
+    const normalizedRulePath = rule.path.replace(/\\/g, "/");
+    const normalizedFilePath = filePath.replace(/\\/g, "/");
+    if (rule.recursive) {
+      if (matchesPattern(normalizedRulePath, normalizedFilePath)) {
+        return true;
+      }
+      const recursivePattern = normalizedRulePath.endsWith("/**") ? normalizedRulePath : `${normalizedRulePath}/**`;
+      return matchesPattern(recursivePattern, normalizedFilePath);
+    } else {
+      if (matchesPattern(normalizedRulePath, normalizedFilePath)) {
+        return true;
+      }
+      const directPattern = normalizedRulePath.endsWith("/*") ? normalizedRulePath : `${normalizedRulePath}/*`;
+      return matchesPattern(directPattern, normalizedFilePath);
+    }
+  });
+}
+function filterFilesForEmbedding(files, filterSettings) {
+  if (!filterSettings || filterSettings.mode === "off" || !filterSettings.rules || filterSettings.rules.length === 0) {
+    return files;
+  }
+  return files.filter((file) => {
+    const filePath = file.path;
+    const matchesRules = matchesAnyRule(filePath, filterSettings.rules);
+    if (filterSettings.mode === "include") {
+      return matchesRules;
+    } else if (filterSettings.mode === "exclude") {
+      return !matchesRules;
+    }
+    return true;
+  });
+}
+function getFilterDescription(filterSettings) {
+  if (!filterSettings || filterSettings.mode === "off" || !filterSettings.rules || filterSettings.rules.length === 0) {
+    return "No filtering (all files will be embedded)";
+  }
+  const ruleCount = filterSettings.rules.length;
+  const modeText = filterSettings.mode === "include" ? "including only" : "excluding";
+  return `Active filtering: ${modeText} files from ${ruleCount} folder rule${ruleCount !== 1 ? "s" : ""}`;
+}
+function normalizeFolderPath(path3) {
+  return path3.replace(/\\/g, "/").replace(/\/+/g, "/").replace(/^\//, "").replace(/\/$/, "");
+}
+var init_embeddingFilterUtils = __esm({
+  "src/utils/embeddingFilterUtils.ts"() {
+  }
+});
+
 // src/components/agent/memory-handling/EmbeddingService.ts
 var EmbeddingService_exports = {};
 __export(EmbeddingService_exports, {
@@ -15369,6 +15451,7 @@ var init_EmbeddingService = __esm({
     init_vectorStore();
     init_logger();
     init_generalUtils();
+    init_embeddingFilterUtils();
     crypto2 = __toESM(require("crypto"));
     EmbeddingService = class {
       constructor(plugin, settings) {
@@ -15376,6 +15459,7 @@ var init_EmbeddingService = __esm({
         __publicField(this, "plugin");
         __publicField(this, "settings");
         __publicField(this, "isInitialized", false);
+        __publicField(this, "abortController", null);
         this.plugin = plugin;
         this.settings = settings;
         this.vectorStore = new VectorStore(plugin);
@@ -15637,31 +15721,100 @@ var init_EmbeddingService = __esm({
         });
       }
       /**
+       * Cancels the current embedding operation if one is running.
+       */
+      cancelEmbedding() {
+        var _a2;
+        if (this.abortController) {
+          this.abortController.abort();
+          debugLog((_a2 = this.settings.debugMode) != null ? _a2 : false, "info", "Embedding operation cancelled by user");
+        }
+      }
+      /**
+       * Checks if an embedding operation is currently running.
+       */
+      isEmbeddingInProgress() {
+        return this.abortController !== null && !this.abortController.signal.aborted;
+      }
+      /**
+       * Checks if the current operation should be cancelled.
+       */
+      shouldCancel() {
+        var _a2, _b;
+        return (_b = (_a2 = this.abortController) == null ? void 0 : _a2.signal.aborted) != null ? _b : false;
+      }
+      /**
        * Embeds all notes in the vault.
        * @param options - Embedding options
        */
       async embedAllNotes(options = {}) {
         var _a2;
         this.ensureInitialized();
-        const notice = new import_obsidian31.Notice("Embedding all notes...", 0);
+        this.abortController = new AbortController();
+        const notice = new import_obsidian31.Notice("Embedding all notes... (Click to cancel)", 0);
+        const noticeEl = notice.noticeEl;
+        if (noticeEl) {
+          noticeEl.style.cursor = "pointer";
+          noticeEl.addEventListener("click", () => {
+            this.cancelEmbedding();
+          });
+        }
         try {
-          const files = this.plugin.app.vault.getMarkdownFiles();
+          const allFiles = this.plugin.app.vault.getMarkdownFiles();
+          const filterSettings = this.settings.embeddingFolderFilter;
+          const files = filterFilesForEmbedding(allFiles, filterSettings || { mode: "off", rules: [] });
+          if (files.length === 0) {
+            notice.hide();
+            const filterDesc = getFilterDescription(filterSettings || { mode: "off", rules: [] });
+            showNotice(`No files to embed after applying filters. ${filterDesc}`);
+            return;
+          }
+          if ((filterSettings == null ? void 0 : filterSettings.mode) !== "off" && (filterSettings == null ? void 0 : filterSettings.rules) && filterSettings.rules.length > 0) {
+            const skippedCount = allFiles.length - files.length;
+            notice.setMessage(`Embedding ${files.length} notes (${skippedCount} filtered out)... (Click to cancel)`);
+          }
           let processed = 0;
+          let cancelled = false;
           for (const file of files) {
+            if (this.shouldCancel()) {
+              cancelled = true;
+              break;
+            }
             try {
               await this.embedNote(file, options);
               processed++;
-              notice.setMessage(`Embedded ${processed}/${files.length} notes...`);
+              if (this.shouldCancel()) {
+                cancelled = true;
+                break;
+              }
+              if (options.onProgress) {
+                options.onProgress(processed, files.length);
+              }
+              notice.setMessage(`Embedded ${processed}/${files.length} notes... (Click to cancel)`);
             } catch (error) {
               debugLog((_a2 = this.settings.debugMode) != null ? _a2 : false, "warn", `Skipped ${file.path}:`, error);
             }
           }
           notice.hide();
-          showNotice(`Successfully embedded ${processed} notes!`);
+          if (cancelled) {
+            showNotice(`Embedding cancelled. Successfully processed ${processed} out of ${files.length} notes.`);
+          } else {
+            const finalStats = await this.getStats();
+            const totalEmbeddings = finalStats.totalVectors;
+            showNotice(
+              `Successfully embedded ${processed} notes! Total embeddings in database: ${totalEmbeddings}`
+            );
+          }
         } catch (error) {
           notice.hide();
-          showNotice(`Error embedding notes: ${error.message}`);
-          throw error;
+          if (this.shouldCancel()) {
+            showNotice(`Embedding cancelled: ${error.message}`);
+          } else {
+            showNotice(`Error embedding notes: ${error.message}`);
+            throw error;
+          }
+        } finally {
+          this.abortController = null;
         }
       }
       /**
@@ -15860,10 +16013,26 @@ ${relevantContext.join("\n\n")}`
       }
       /**
        * Embeds all notes in the vault.
+       * @param options - Embedding options including progress callback
        */
-      async embedAllNotes() {
+      async embedAllNotes(options) {
         if (!this.embeddingService) return;
-        await this.embeddingService.embedAllNotes();
+        await this.embeddingService.embedAllNotes(options);
+      }
+      /**
+       * Cancels the current embedding operation if one is running.
+       */
+      cancelEmbedding() {
+        if (this.embeddingService) {
+          this.embeddingService.cancelEmbedding();
+        }
+      }
+      /**
+       * Checks if an embedding operation is currently running.
+       */
+      isEmbeddingInProgress() {
+        var _a2, _b;
+        return (_b = (_a2 = this.embeddingService) == null ? void 0 : _a2.isEmbeddingInProgress()) != null ? _b : false;
       }
       /**
        * Closes the semantic context builder and cleans up resources.
@@ -25652,6 +25821,7 @@ var ChatHistorySettingsSection = class {
 var import_obsidian32 = require("obsidian");
 init_SemanticContextBuilder();
 init_generalUtils();
+init_embeddingFilterUtils();
 var VectorStoreSettingsSection = class {
   constructor(plugin, settingCreators) {
     this.plugin = plugin;
@@ -25707,8 +25877,104 @@ var VectorStoreSettingsSection = class {
         });
       });
     }
+    const filterSettings = this.plugin.settings.embeddingFolderFilter || { mode: "off", rules: [] };
+    new import_obsidian32.Setting(containerEl).setName("Folder Filtering").setDesc("Control which folders are included or excluded from embedding").addDropdown((dropdown) => dropdown.addOption("off", "No filtering (all files)").addOption("include", "Include only (whitelist)").addOption("exclude", "Exclude (blacklist)").setValue(filterSettings.mode).onChange(async (value) => {
+      if (!this.plugin.settings.embeddingFolderFilter) {
+        this.plugin.settings.embeddingFolderFilter = { mode: "off", rules: [] };
+      }
+      this.plugin.settings.embeddingFolderFilter.mode = value;
+      await this.plugin.saveSettings();
+      containerEl.empty();
+      this.render(containerEl);
+    }));
+    const filterDesc = getFilterDescription(filterSettings);
+    const statusEl = containerEl.createDiv({
+      text: filterDesc,
+      cls: "setting-item-description"
+    });
+    statusEl.style.marginBottom = "10px";
+    statusEl.style.fontStyle = "italic";
+    if (filterSettings.mode !== "off") {
+      const rulesHeader = containerEl.createEl("h4", { text: "Folder Rules" });
+      rulesHeader.style.marginTop = "20px";
+      rulesHeader.style.marginBottom = "10px";
+      const rulesContainer = containerEl.createDiv({ cls: "folder-rules-container" });
+      rulesContainer.style.marginBottom = "15px";
+      const renderRules = () => {
+        var _a2;
+        rulesContainer.empty();
+        const rules = ((_a2 = this.plugin.settings.embeddingFolderFilter) == null ? void 0 : _a2.rules) || [];
+        rules.forEach((rule, index) => {
+          const ruleEl = rulesContainer.createDiv({ cls: "folder-rule-item" });
+          ruleEl.style.border = "1px solid var(--background-modifier-border)";
+          ruleEl.style.borderRadius = "5px";
+          ruleEl.style.padding = "10px";
+          ruleEl.style.marginBottom = "10px";
+          ruleEl.style.backgroundColor = "var(--background-secondary)";
+          const pathSetting = new import_obsidian32.Setting(ruleEl).setName(`Folder Path ${index + 1}`).setDesc("Folder path (supports * and ** wildcards)").addText((text) => text.setPlaceholder("e.g., Notes/**, Templates/*, Archive").setValue(rule.path).onChange(async (value) => {
+            var _a3;
+            if ((_a3 = this.plugin.settings.embeddingFolderFilter) == null ? void 0 : _a3.rules) {
+              this.plugin.settings.embeddingFolderFilter.rules[index].path = normalizeFolderPath(value);
+              await this.plugin.saveSettings();
+            }
+          }));
+          new import_obsidian32.Setting(ruleEl).setName("Recursive").setDesc("Include subdirectories").addToggle((toggle) => toggle.setValue(rule.recursive).onChange(async (value) => {
+            var _a3;
+            if ((_a3 = this.plugin.settings.embeddingFolderFilter) == null ? void 0 : _a3.rules) {
+              this.plugin.settings.embeddingFolderFilter.rules[index].recursive = value;
+              await this.plugin.saveSettings();
+            }
+          }));
+          new import_obsidian32.Setting(ruleEl).setName("Description").setDesc("Optional description for this rule").addText((text) => text.setPlaceholder("e.g., Project notes, Templates").setValue(rule.description || "").onChange(async (value) => {
+            var _a3;
+            if ((_a3 = this.plugin.settings.embeddingFolderFilter) == null ? void 0 : _a3.rules) {
+              this.plugin.settings.embeddingFolderFilter.rules[index].description = value;
+              await this.plugin.saveSettings();
+            }
+          }));
+          new import_obsidian32.Setting(ruleEl).addButton((button) => button.setButtonText("Delete Rule").setWarning().onClick(async () => {
+            var _a3;
+            if ((_a3 = this.plugin.settings.embeddingFolderFilter) == null ? void 0 : _a3.rules) {
+              this.plugin.settings.embeddingFolderFilter.rules.splice(index, 1);
+              await this.plugin.saveSettings();
+              renderRules();
+            }
+          }));
+        });
+        const addRuleButton = rulesContainer.createDiv();
+        new import_obsidian32.Setting(addRuleButton).setName("Add Folder Rule").setDesc("Add a new folder path to the filter").addButton((button) => button.setButtonText("Add Rule").setCta().onClick(async () => {
+          if (!this.plugin.settings.embeddingFolderFilter) {
+            this.plugin.settings.embeddingFolderFilter = { mode: "include", rules: [] };
+          }
+          const newRule = {
+            path: "",
+            recursive: true,
+            description: ""
+          };
+          this.plugin.settings.embeddingFolderFilter.rules.push(newRule);
+          await this.plugin.saveSettings();
+          renderRules();
+        }));
+        const helpEl = rulesContainer.createDiv({
+          cls: "setting-item-description"
+        });
+        helpEl.innerHTML = `
+                    <strong>Pattern Examples:</strong><br>
+                    \u2022 <code>Notes</code> - Files directly in Notes folder<br>
+                    \u2022 <code>Notes/**</code> - All files in Notes and subdirectories<br>
+                    \u2022 <code>**/Templates</code> - Any Templates folder anywhere<br>
+                    \u2022 <code>Archive/*</code> - Files directly in Archive folder<br>
+                    \u2022 <code>*.md</code> - All markdown files (not recommended for folders)
+                `;
+        helpEl.style.marginTop = "15px";
+        helpEl.style.padding = "10px";
+        helpEl.style.backgroundColor = "var(--background-primary-alt)";
+        helpEl.style.borderRadius = "5px";
+      };
+      renderRules();
+    }
     const actionsContainer = containerEl.createDiv({ cls: "vector-store-actions" });
-    new import_obsidian32.Setting(actionsContainer).setName("Embed All Notes").setDesc("Generate embeddings for all notes in your vault. This may take several minutes and requires an API key.").addButton((button) => button.setButtonText("Embed All Notes").setCta().onClick(async () => {
+    new import_obsidian32.Setting(actionsContainer).setName("Embed All Notes").setDesc("Generate embeddings for notes in your vault. Respects folder filtering settings above.").addButton((button) => button.setButtonText("Embed All Notes").setCta().onClick(async () => {
       if (!this.semanticContextBuilder) {
         showNotice("Vector store not available on this platform");
         return;
@@ -26454,13 +26720,22 @@ init_SemanticContextBuilder();
 init_pluginUtils();
 init_logger();
 var SemanticSearchModal = class extends import_obsidian36.Modal {
-  constructor(app, results) {
+  constructor(app, results, totalEmbeddings) {
     super(app);
     this.results = results;
+    this.totalEmbeddings = totalEmbeddings;
   }
   onOpen() {
     const { contentEl } = this;
-    contentEl.createEl("h3", { text: "Semantic Search Results" });
+    const headerContainer = contentEl.createDiv({ cls: "semantic-search-header" });
+    headerContainer.createEl("h3", { text: "Semantic Search Results" });
+    if (this.totalEmbeddings !== void 0) {
+      const statsEl = headerContainer.createDiv({ cls: "search-stats" });
+      statsEl.style.fontSize = "0.9em";
+      statsEl.style.color = "var(--text-muted)";
+      statsEl.style.marginBottom = "10px";
+      statsEl.setText(`Found ${this.results.length} results from ${this.totalEmbeddings} total embeddings`);
+    }
     if (this.results.length === 0) {
       contentEl.createEl("p", { text: "No results found." });
       return;
@@ -26548,6 +26823,67 @@ var SemanticSearchInputModal = class extends import_obsidian36.Modal {
     });
   }
 };
+var EmbeddingProgressModal = class extends import_obsidian36.Modal {
+  constructor(app, semanticBuilder, onCancel) {
+    super(app);
+    __publicField(this, "progressEl");
+    __publicField(this, "statusEl");
+    __publicField(this, "cancelBtn");
+    __publicField(this, "semanticBuilder");
+    __publicField(this, "onCancel");
+    __publicField(this, "progressCallback");
+    this.semanticBuilder = semanticBuilder;
+    this.onCancel = onCancel;
+    this.progressCallback = (processed, total) => {
+      this.updateProgress(processed, total);
+    };
+  }
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.createEl("h3", { text: "Embedding Notes Progress" });
+    this.statusEl = contentEl.createDiv({ cls: "embedding-status" });
+    this.statusEl.style.marginBottom = "15px";
+    this.statusEl.setText("Starting embedding process...");
+    this.progressEl = contentEl.createDiv({ cls: "embedding-progress" });
+    this.progressEl.style.width = "100%";
+    this.progressEl.style.height = "20px";
+    this.progressEl.style.backgroundColor = "var(--background-modifier-border)";
+    this.progressEl.style.borderRadius = "10px";
+    this.progressEl.style.overflow = "hidden";
+    this.progressEl.style.marginBottom = "15px";
+    const progressBar = this.progressEl.createDiv({ cls: "progress-bar" });
+    progressBar.style.width = "0%";
+    progressBar.style.height = "100%";
+    progressBar.style.backgroundColor = "var(--interactive-accent)";
+    progressBar.style.transition = "width 0.3s ease";
+    const buttonContainer = contentEl.createDiv({ cls: "button-container" });
+    buttonContainer.style.textAlign = "center";
+    this.cancelBtn = buttonContainer.createEl("button", { text: "Cancel Embedding" });
+    this.cancelBtn.style.padding = "8px 16px";
+    this.cancelBtn.addEventListener("click", () => {
+      this.onCancel();
+      this.close();
+    });
+  }
+  updateProgress(current, total, currentFile) {
+    const percentage = total > 0 ? Math.round(current / total * 100) : 0;
+    this.statusEl.setText(
+      `Embedded ${current}/${total} notes (${percentage}%)` + (currentFile ? `
+Processing: ${currentFile}` : "")
+    );
+    const progressBar = this.progressEl.querySelector(".progress-bar");
+    if (progressBar) {
+      progressBar.style.width = `${percentage}%`;
+    }
+  }
+  getProgressCallback() {
+    return this.progressCallback;
+  }
+  onClose() {
+    const { contentEl } = this;
+    contentEl.empty();
+  }
+};
 function registerVectorStoreCommands(plugin) {
   registerCommand(plugin, {
     id: "embed-currently-open-note",
@@ -26558,7 +26894,9 @@ function registerVectorStoreCommands(plugin) {
         const semanticBuilder = new SemanticContextBuilder(plugin.app, plugin);
         await semanticBuilder.initialize();
         await semanticBuilder.embedCurrentNote();
-        new import_obsidian36.Notice("Successfully embedded currently open note");
+        const stats = await semanticBuilder.getStats();
+        const totalCount = stats ? stats.totalVectors : 0;
+        new import_obsidian36.Notice(`Successfully embedded currently open note! Total embedded notes: ${totalCount}`);
       } catch (error) {
         debugLog((_a2 = plugin.settings.debugMode) != null ? _a2 : false, "error", "Failed to embed currently open note:", error);
         new import_obsidian36.Notice(`Error: ${error.message}`);
@@ -26577,9 +26915,46 @@ function registerVectorStoreCommands(plugin) {
       try {
         const semanticBuilder = new SemanticContextBuilder(plugin.app, plugin);
         await semanticBuilder.initialize();
-        await semanticBuilder.embedAllNotes();
+        if (semanticBuilder.isEmbeddingInProgress()) {
+          new import_obsidian36.Notice('Embedding is already in progress. Use "Cancel Embedding" to stop it.');
+          return;
+        }
+        const initialStats = await semanticBuilder.getStats();
+        const initialCount = initialStats ? initialStats.totalVectors : 0;
+        const totalNotes = plugin.app.vault.getMarkdownFiles().length;
+        new import_obsidian36.Notice(`Starting embedding process... Currently have ${initialCount} embeddings for ${totalNotes} notes`);
+        const progressModal = new EmbeddingProgressModal(plugin.app, semanticBuilder, () => {
+          semanticBuilder.cancelEmbedding();
+        });
+        progressModal.open();
+        await semanticBuilder.embedAllNotes({
+          onProgress: progressModal.getProgressCallback()
+        });
+        progressModal.close();
+        const finalStats = await semanticBuilder.getStats();
+        const finalCount = finalStats ? finalStats.totalVectors : 0;
+        new import_obsidian36.Notice(`Embedding process completed. Total embedded notes: ${finalCount}`);
       } catch (error) {
         debugLog((_a2 = plugin.settings.debugMode) != null ? _a2 : false, "error", "Failed to embed notes:", error);
+        new import_obsidian36.Notice(`Error: ${error.message}`);
+      }
+    }
+  });
+  registerCommand(plugin, {
+    id: "cancel-embedding",
+    name: "Cancel Embedding Process",
+    callback: async () => {
+      var _a2;
+      try {
+        const semanticBuilder = new SemanticContextBuilder(plugin.app, plugin);
+        if (semanticBuilder.isEmbeddingInProgress()) {
+          semanticBuilder.cancelEmbedding();
+          new import_obsidian36.Notice("Embedding process cancellation requested...");
+        } else {
+          new import_obsidian36.Notice("No embedding process is currently running.");
+        }
+      } catch (error) {
+        debugLog((_a2 = plugin.settings.debugMode) != null ? _a2 : false, "error", "Failed to cancel embedding:", error);
         new import_obsidian36.Notice(`Error: ${error.message}`);
       }
     }
@@ -26594,11 +26969,13 @@ function registerVectorStoreCommands(plugin) {
         const query = await modal.getSearchQuery();
         if (!query) return;
         const semanticBuilder = new SemanticContextBuilder(plugin.app, plugin);
+        const stats = await semanticBuilder.getStats();
+        const totalEmbeddings = stats ? stats.totalVectors : 0;
         const results = await semanticBuilder.semanticSearch(query, {
           topK: 10,
           minSimilarity: plugin.settings.semanticSimilarityThreshold || 0.7
         });
-        const resultsModal = new SemanticSearchModal(plugin.app, results);
+        const resultsModal = new SemanticSearchModal(plugin.app, results, totalEmbeddings);
         resultsModal.open();
       } catch (error) {
         debugLog((_a2 = plugin.settings.debugMode) != null ? _a2 : false, "error", "Semantic search failed:", error);
@@ -26613,7 +26990,10 @@ function registerVectorStoreCommands(plugin) {
       var _a2;
       try {
         const semanticBuilder = new SemanticContextBuilder(plugin.app, plugin);
+        const statsBefore = await semanticBuilder.getStats();
+        const countBefore = statsBefore ? statsBefore.totalVectors : 0;
         await semanticBuilder.clearAllEmbeddings();
+        new import_obsidian36.Notice(`Successfully cleared ${countBefore} embeddings from vector store`);
       } catch (error) {
         debugLog((_a2 = plugin.settings.debugMode) != null ? _a2 : false, "error", "Failed to clear embeddings:", error);
         new import_obsidian36.Notice(`Error: ${error.message}`);
@@ -26629,12 +27009,44 @@ function registerVectorStoreCommands(plugin) {
         const semanticBuilder = new SemanticContextBuilder(plugin.app, plugin);
         const stats = await semanticBuilder.getStats();
         if (stats) {
-          new import_obsidian36.Notice(`Vector Store: ${stats.totalVectors} embeddings stored`);
+          const totalNotes = plugin.app.vault.getMarkdownFiles().length;
+          const embeddedCount = stats.totalVectors;
+          const percentage = totalNotes > 0 ? Math.round(embeddedCount / totalNotes * 100) : 0;
+          const statusSuffix = semanticBuilder.isEmbeddingInProgress() ? " (\u23F3 Embedding in progress...)" : "";
+          new import_obsidian36.Notice(
+            `Vector Store: ${embeddedCount} embeddings stored (${percentage}% of ${totalNotes} notes)${statusSuffix}`
+          );
         } else {
           new import_obsidian36.Notice("Vector store not available on this platform");
         }
       } catch (error) {
         debugLog((_a2 = plugin.settings.debugMode) != null ? _a2 : false, "error", "Failed to get stats:", error);
+        new import_obsidian36.Notice(`Error: ${error.message}`);
+      }
+    }
+  });
+  registerCommand(plugin, {
+    id: "vector-store-detailed-info",
+    name: "Detailed Vector Store Information",
+    callback: async () => {
+      var _a2;
+      try {
+        const semanticBuilder = new SemanticContextBuilder(plugin.app, plugin);
+        const stats = await semanticBuilder.getStats();
+        if (stats) {
+          const totalNotes = plugin.app.vault.getMarkdownFiles().length;
+          const embeddedCount = stats.totalVectors;
+          const notEmbedded = totalNotes - embeddedCount;
+          const percentage = totalNotes > 0 ? Math.round(embeddedCount / totalNotes * 100) : 0;
+          const recommendation = percentage < 50 ? "Consider embedding more notes for better semantic search!" : percentage < 80 ? "Good coverage! You may want to embed a few more notes." : "Excellent coverage! Your semantic search should work very well.";
+          new import_obsidian36.Notice(
+            `\u{1F4CA} Vector Store Info: ${embeddedCount}/${totalNotes} notes embedded (${percentage}%). ${recommendation}`
+          );
+        } else {
+          new import_obsidian36.Notice("Vector store not available on this platform");
+        }
+      } catch (error) {
+        debugLog((_a2 = plugin.settings.debugMode) != null ? _a2 : false, "error", "Failed to get detailed info:", error);
         new import_obsidian36.Notice(`Error: ${error.message}`);
       }
     }
@@ -26651,14 +27063,49 @@ function registerVectorStoreCommands(plugin) {
           return;
         }
         const semanticBuilder = new SemanticContextBuilder(plugin.app, plugin);
+        const stats = await semanticBuilder.getStats();
+        const totalEmbeddings = stats ? stats.totalVectors : 0;
         const results = await semanticBuilder.semanticSearch(selection, {
           topK: 5,
           minSimilarity: plugin.settings.semanticSimilarityThreshold || 0.7
         });
-        const resultsModal = new SemanticSearchModal(plugin.app, results);
+        const resultsModal = new SemanticSearchModal(plugin.app, results, totalEmbeddings);
         resultsModal.open();
       } catch (error) {
         debugLog((_a2 = plugin.settings.debugMode) != null ? _a2 : false, "error", "Semantic search failed:", error);
+        new import_obsidian36.Notice(`Error: ${error.message}`);
+      }
+    }
+  });
+  registerCommand(plugin, {
+    id: "show-missing-embeddings",
+    name: "Show Notes Missing Embeddings",
+    callback: async () => {
+      var _a2;
+      try {
+        const semanticBuilder = new SemanticContextBuilder(plugin.app, plugin);
+        await semanticBuilder.initialize();
+        if (!semanticBuilder.initialized) {
+          new import_obsidian36.Notice("Vector store not available on this platform");
+          return;
+        }
+        const allFiles = plugin.app.vault.getMarkdownFiles();
+        const stats = await semanticBuilder.getStats();
+        const embeddedCount = stats ? stats.totalVectors : 0;
+        if (embeddedCount === 0) {
+          new import_obsidian36.Notice('No notes have been embedded yet. Use "Embed All Notes" to get started!');
+          return;
+        }
+        const missingCount = allFiles.length - embeddedCount;
+        if (missingCount === 0) {
+          new import_obsidian36.Notice("\u{1F389} All notes are embedded! Your semantic search is fully ready.");
+        } else if (missingCount <= 5) {
+          new import_obsidian36.Notice(`${missingCount} notes still need embedding. Consider running "Embed All Notes" to complete coverage.`);
+        } else {
+          new import_obsidian36.Notice(`${missingCount} out of ${allFiles.length} notes still need embedding (${Math.round(embeddedCount / allFiles.length * 100)}% complete).`);
+        }
+      } catch (error) {
+        debugLog((_a2 = plugin.settings.debugMode) != null ? _a2 : false, "error", "Failed to check missing embeddings:", error);
         new import_obsidian36.Notice(`Error: ${error.message}`);
       }
     }

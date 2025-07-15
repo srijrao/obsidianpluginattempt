@@ -13,13 +13,24 @@ import { debugLog } from '../../utils/logger';
  * Modal for semantic search results display
  */
 class SemanticSearchModal extends Modal {
-    constructor(app: App, private results: any[]) {
+    constructor(app: App, private results: any[], private totalEmbeddings?: number) {
         super(app);
     }
 
     onOpen() {
         const { contentEl } = this;
-        contentEl.createEl('h3', { text: 'Semantic Search Results' });
+        
+        // Create header with stats
+        const headerContainer = contentEl.createDiv({ cls: 'semantic-search-header' });
+        headerContainer.createEl('h3', { text: 'Semantic Search Results' });
+        
+        if (this.totalEmbeddings !== undefined) {
+            const statsEl = headerContainer.createDiv({ cls: 'search-stats' });
+            statsEl.style.fontSize = '0.9em';
+            statsEl.style.color = 'var(--text-muted)';
+            statsEl.style.marginBottom = '10px';
+            statsEl.setText(`Found ${this.results.length} results from ${this.totalEmbeddings} total embeddings`);
+        }
 
         if (this.results.length === 0) {
             contentEl.createEl('p', { text: 'No results found.' });
@@ -131,6 +142,85 @@ class SemanticSearchInputModal extends Modal {
 }
 
 /**
+ * Modal for showing embedding progress with cancel option
+ */
+class EmbeddingProgressModal extends Modal {
+    private progressEl: HTMLElement;
+    private statusEl: HTMLElement;
+    private cancelBtn: HTMLButtonElement;
+    private semanticBuilder: SemanticContextBuilder;
+    private onCancel: () => void;
+    private progressCallback: (processed: number, total: number) => void;
+
+    constructor(app: App, semanticBuilder: SemanticContextBuilder, onCancel: () => void) {
+        super(app);
+        this.semanticBuilder = semanticBuilder;
+        this.onCancel = onCancel;
+        
+        // Create the progress callback
+        this.progressCallback = (processed: number, total: number) => {
+            this.updateProgress(processed, total);
+        };
+    }
+
+    onOpen() {
+        const { contentEl } = this;
+        contentEl.createEl('h3', { text: 'Embedding Notes Progress' });
+
+        this.statusEl = contentEl.createDiv({ cls: 'embedding-status' });
+        this.statusEl.style.marginBottom = '15px';
+        this.statusEl.setText('Starting embedding process...');
+
+        this.progressEl = contentEl.createDiv({ cls: 'embedding-progress' });
+        this.progressEl.style.width = '100%';
+        this.progressEl.style.height = '20px';
+        this.progressEl.style.backgroundColor = 'var(--background-modifier-border)';
+        this.progressEl.style.borderRadius = '10px';
+        this.progressEl.style.overflow = 'hidden';
+        this.progressEl.style.marginBottom = '15px';
+
+        const progressBar = this.progressEl.createDiv({ cls: 'progress-bar' });
+        progressBar.style.width = '0%';
+        progressBar.style.height = '100%';
+        progressBar.style.backgroundColor = 'var(--interactive-accent)';
+        progressBar.style.transition = 'width 0.3s ease';
+
+        const buttonContainer = contentEl.createDiv({ cls: 'button-container' });
+        buttonContainer.style.textAlign = 'center';
+
+        this.cancelBtn = buttonContainer.createEl('button', { text: 'Cancel Embedding' });
+        this.cancelBtn.style.padding = '8px 16px';
+        this.cancelBtn.addEventListener('click', () => {
+            this.onCancel();
+            this.close();
+        });
+    }
+
+    updateProgress(current: number, total: number, currentFile?: string) {
+        const percentage = total > 0 ? Math.round((current / total) * 100) : 0;
+        
+        this.statusEl.setText(
+            `Embedded ${current}/${total} notes (${percentage}%)` +
+            (currentFile ? `\nProcessing: ${currentFile}` : '')
+        );
+
+        const progressBar = this.progressEl.querySelector('.progress-bar') as HTMLElement;
+        if (progressBar) {
+            progressBar.style.width = `${percentage}%`;
+        }
+    }
+    
+    getProgressCallback() {
+        return this.progressCallback;
+    }
+
+    onClose() {
+        const { contentEl } = this;
+        contentEl.empty();
+    }
+}
+
+/**
  * Registers vector store and semantic search commands.
  */
 export function registerVectorStoreCommands(plugin: MyPlugin): void {
@@ -143,7 +233,11 @@ export function registerVectorStoreCommands(plugin: MyPlugin): void {
                 const semanticBuilder = new SemanticContextBuilder(plugin.app, plugin);
                 await semanticBuilder.initialize();
                 await semanticBuilder.embedCurrentNote();
-                new Notice('Successfully embedded currently open note');
+                
+                // Get updated stats to show total count
+                const stats = await semanticBuilder.getStats();
+                const totalCount = stats ? stats.totalVectors : 0;
+                new Notice(`Successfully embedded currently open note! Total embedded notes: ${totalCount}`);
             } catch (error) {
                 debugLog(plugin.settings.debugMode ?? false, 'error', 'Failed to embed currently open note:', error);
                 new Notice(`Error: ${error.message}`);
@@ -164,9 +258,59 @@ export function registerVectorStoreCommands(plugin: MyPlugin): void {
             try {
                 const semanticBuilder = new SemanticContextBuilder(plugin.app, plugin);
                 await semanticBuilder.initialize();
-                await semanticBuilder.embedAllNotes();
+                
+                // Check if embedding is already in progress
+                if (semanticBuilder.isEmbeddingInProgress()) {
+                    new Notice('Embedding is already in progress. Use "Cancel Embedding" to stop it.');
+                    return;
+                }
+                
+                // Show initial count
+                const initialStats = await semanticBuilder.getStats();
+                const initialCount = initialStats ? initialStats.totalVectors : 0;
+                const totalNotes = plugin.app.vault.getMarkdownFiles().length;
+                
+                new Notice(`Starting embedding process... Currently have ${initialCount} embeddings for ${totalNotes} notes`);
+                
+                // Show progress modal
+                const progressModal = new EmbeddingProgressModal(plugin.app, semanticBuilder, () => {
+                    semanticBuilder.cancelEmbedding();
+                });
+                progressModal.open();
+                
+                await semanticBuilder.embedAllNotes({
+                    onProgress: progressModal.getProgressCallback()
+                });
+                
+                progressModal.close();
+                
+                // Final stats update
+                const finalStats = await semanticBuilder.getStats();
+                const finalCount = finalStats ? finalStats.totalVectors : 0;
+                new Notice(`Embedding process completed. Total embedded notes: ${finalCount}`);
             } catch (error) {
                 debugLog(plugin.settings.debugMode ?? false, 'error', 'Failed to embed notes:', error);
+                new Notice(`Error: ${error.message}`);
+            }
+        }
+    });
+
+    // Cancel embedding command
+    registerCommand(plugin, {
+        id: 'cancel-embedding',
+        name: 'Cancel Embedding Process',
+        callback: async () => {
+            try {
+                const semanticBuilder = new SemanticContextBuilder(plugin.app, plugin);
+                
+                if (semanticBuilder.isEmbeddingInProgress()) {
+                    semanticBuilder.cancelEmbedding();
+                    new Notice('Embedding process cancellation requested...');
+                } else {
+                    new Notice('No embedding process is currently running.');
+                }
+            } catch (error) {
+                debugLog(plugin.settings.debugMode ?? false, 'error', 'Failed to cancel embedding:', error);
                 new Notice(`Error: ${error.message}`);
             }
         }
@@ -184,12 +328,17 @@ export function registerVectorStoreCommands(plugin: MyPlugin): void {
                 if (!query) return;
 
                 const semanticBuilder = new SemanticContextBuilder(plugin.app, plugin);
+                
+                // Get total embedding count for context
+                const stats = await semanticBuilder.getStats();
+                const totalEmbeddings = stats ? stats.totalVectors : 0;
+                
                 const results = await semanticBuilder.semanticSearch(query, {
                     topK: 10,
                     minSimilarity: plugin.settings.semanticSimilarityThreshold || 0.7
                 });
 
-                const resultsModal = new SemanticSearchModal(plugin.app, results);
+                const resultsModal = new SemanticSearchModal(plugin.app, results, totalEmbeddings);
                 resultsModal.open();
             } catch (error) {
                 debugLog(plugin.settings.debugMode ?? false, 'error', 'Semantic search failed:', error);
@@ -205,7 +354,14 @@ export function registerVectorStoreCommands(plugin: MyPlugin): void {
         callback: async () => {
             try {
                 const semanticBuilder = new SemanticContextBuilder(plugin.app, plugin);
+                
+                // Get stats before clearing to show what was removed
+                const statsBefore = await semanticBuilder.getStats();
+                const countBefore = statsBefore ? statsBefore.totalVectors : 0;
+                
                 await semanticBuilder.clearAllEmbeddings();
+                
+                new Notice(`Successfully cleared ${countBefore} embeddings from vector store`);
             } catch (error) {
                 debugLog(plugin.settings.debugMode ?? false, 'error', 'Failed to clear embeddings:', error);
                 new Notice(`Error: ${error.message}`);
@@ -223,12 +379,52 @@ export function registerVectorStoreCommands(plugin: MyPlugin): void {
                 const stats = await semanticBuilder.getStats();
 
                 if (stats) {
-                    new Notice(`Vector Store: ${stats.totalVectors} embeddings stored`);
+                    const totalNotes = plugin.app.vault.getMarkdownFiles().length;
+                    const embeddedCount = stats.totalVectors;
+                    const percentage = totalNotes > 0 ? Math.round((embeddedCount / totalNotes) * 100) : 0;
+                    
+                    const statusSuffix = semanticBuilder.isEmbeddingInProgress() ? ' (⏳ Embedding in progress...)' : '';
+                    
+                    new Notice(
+                        `Vector Store: ${embeddedCount} embeddings stored (${percentage}% of ${totalNotes} notes)${statusSuffix}`
+                    );
                 } else {
                     new Notice('Vector store not available on this platform');
                 }
             } catch (error) {
                 debugLog(plugin.settings.debugMode ?? false, 'error', 'Failed to get stats:', error);
+                new Notice(`Error: ${error.message}`);
+            }
+        }
+    });
+
+    // Detailed vector store info command  
+    registerCommand(plugin, {
+        id: 'vector-store-detailed-info',
+        name: 'Detailed Vector Store Information',
+        callback: async () => {
+            try {
+                const semanticBuilder = new SemanticContextBuilder(plugin.app, plugin);
+                const stats = await semanticBuilder.getStats();
+
+                if (stats) {
+                    const totalNotes = plugin.app.vault.getMarkdownFiles().length;
+                    const embeddedCount = stats.totalVectors;
+                    const notEmbedded = totalNotes - embeddedCount;
+                    const percentage = totalNotes > 0 ? Math.round((embeddedCount / totalNotes) * 100) : 0;
+                    
+                    const recommendation = percentage < 50 ? 'Consider embedding more notes for better semantic search!' : 
+                                           percentage < 80 ? 'Good coverage! You may want to embed a few more notes.' :
+                                           'Excellent coverage! Your semantic search should work very well.';
+                    
+                    new Notice(
+                        `📊 Vector Store Info: ${embeddedCount}/${totalNotes} notes embedded (${percentage}%). ${recommendation}`
+                    );
+                } else {
+                    new Notice('Vector store not available on this platform');
+                }
+            } catch (error) {
+                debugLog(plugin.settings.debugMode ?? false, 'error', 'Failed to get detailed info:', error);
                 new Notice(`Error: ${error.message}`);
             }
         }
@@ -247,12 +443,17 @@ export function registerVectorStoreCommands(plugin: MyPlugin): void {
                 }
 
                 const semanticBuilder = new SemanticContextBuilder(plugin.app, plugin);
+                
+                // Get total embedding count for context
+                const stats = await semanticBuilder.getStats();
+                const totalEmbeddings = stats ? stats.totalVectors : 0;
+                
                 const results = await semanticBuilder.semanticSearch(selection, {
                     topK: 5,
                     minSimilarity: plugin.settings.semanticSimilarityThreshold || 0.7
                 });
 
-                const resultsModal = new SemanticSearchModal(plugin.app, results);
+                const resultsModal = new SemanticSearchModal(plugin.app, results, totalEmbeddings);
                 resultsModal.open();
             } catch (error) {
                 debugLog(plugin.settings.debugMode ?? false, 'error', 'Semantic search failed:', error);
@@ -260,4 +461,45 @@ export function registerVectorStoreCommands(plugin: MyPlugin): void {
             }
         }
     });
+
+    // Show notes missing embeddings command
+    registerCommand(plugin, {
+        id: 'show-missing-embeddings',
+        name: 'Show Notes Missing Embeddings',
+        callback: async () => {
+            try {
+                const semanticBuilder = new SemanticContextBuilder(plugin.app, plugin);
+                await semanticBuilder.initialize();
+                
+                if (!semanticBuilder.initialized) {
+                    new Notice('Vector store not available on this platform');
+                    return;
+                }
+
+                // Get all files and check which ones have embeddings
+                const allFiles = plugin.app.vault.getMarkdownFiles();
+                const stats = await semanticBuilder.getStats();
+                const embeddedCount = stats ? stats.totalVectors : 0;
+                
+                if (embeddedCount === 0) {
+                    new Notice('No notes have been embedded yet. Use "Embed All Notes" to get started!');
+                    return;
+                }
+                
+                const missingCount = allFiles.length - embeddedCount;
+                
+                if (missingCount === 0) {
+                    new Notice('🎉 All notes are embedded! Your semantic search is fully ready.');
+                } else if (missingCount <= 5) {
+                    new Notice(`${missingCount} notes still need embedding. Consider running "Embed All Notes" to complete coverage.`);
+                } else {
+                    new Notice(`${missingCount} out of ${allFiles.length} notes still need embedding (${Math.round((embeddedCount / allFiles.length) * 100)}% complete).`);
+                }
+            } catch (error) {
+                debugLog(plugin.settings.debugMode ?? false, 'error', 'Failed to check missing embeddings:', error);
+                new Notice(`Error: ${error.message}`);
+            }
+        }
+    });
+
 }
