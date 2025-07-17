@@ -152,40 +152,6 @@ export function registerTestCommands(plugin: MyPlugin) {
         }
     });
 
-    // Test basic SQL.js functionality without WASM
-    plugin.addCommand({
-        id: 'test-sql-js-basic',
-        name: 'Test: Basic SQL.js Functionality',
-        callback: async () => {
-            try {
-                new Notice('Testing basic SQL.js functionality...');
-                
-                // Import sql.js directly 
-                const initSqlJs = (await import('sql.js')).default;
-                
-                // Initialize in JavaScript-only mode
-                const SQL = await initSqlJs();
-                const db = new SQL.Database();
-                
-                // Test basic operations
-                db.run("CREATE TABLE test (id INTEGER, name TEXT);");
-                db.run("INSERT INTO test (id, name) VALUES (1, 'Hello'), (2, 'World');");
-                
-                const stmt = db.prepare("SELECT * FROM test WHERE id = ?");
-                const result = (stmt as any).get([1]);
-                stmt.free();
-                
-                db.close();
-                
-                new Notice(`✅ SQL.js basic test passed! Result: ${JSON.stringify(result)}`);
-                console.log('SQL.js basic test: SUCCESS', result);
-            } catch (error) {
-                new Notice(`❌ SQL.js basic test failed: ${error.message}`);
-                console.error('SQL.js basic test: ERROR', error);
-            }
-        }
-    });
-
     // Run all tests
     plugin.addCommand({
         id: 'test-run-all-semantic-tests',

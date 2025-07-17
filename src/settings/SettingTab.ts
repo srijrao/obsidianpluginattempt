@@ -48,6 +48,9 @@ export class MyPluginSettingTab extends PluginSettingTab {
 
     /** Listener for settings changes, used to refresh the UI when settings are updated elsewhere. */
     private settingsChangeListener: (() => void) | null = null;
+    
+    /** Flag to track if settings changes are coming from the UI to prevent unnecessary re-renders. */
+    private isUpdatingFromUI: boolean = false;
 
 
     /**
@@ -76,7 +79,8 @@ export class MyPluginSettingTab extends PluginSettingTab {
         // Listener to refresh the settings UI when settings are changed elsewhere
         this.settingsChangeListener = () => {
             // Only refresh if the settings tab is still attached to the DOM
-            if (this.containerEl.isConnected) {
+            // and the change is not coming from the UI itself
+            if (this.containerEl.isConnected && !this.isUpdatingFromUI) {
                 this.display();
             }
         };
@@ -201,5 +205,22 @@ export class MyPluginSettingTab extends PluginSettingTab {
                     }, 100);
                     new Notice('All settings (except API keys) reset to default.');
                 }));
+    }
+
+
+    /**
+     * Saves settings from the UI without triggering a re-render of the settings tab.
+     * This prevents the issue where typing in input fields causes focus loss due to UI refresh.
+     */
+    async saveSettingsFromUI(): Promise<void> {
+        this.isUpdatingFromUI = true;
+        try {
+            await this.plugin.saveSettings();
+        } finally {
+            // Reset the flag after a short delay to ensure all event handling is complete
+            setTimeout(() => {
+                this.isUpdatingFromUI = false;
+            }, 50);
+        }
     }
 }

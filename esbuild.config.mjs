@@ -38,37 +38,6 @@ const context = await esbuild.context({
 	sourcemap: prod ? false : "inline",
 	treeShaking: true,
 	outfile: "main.js",
-	// Handle sql.js WASM file
-	loader: {
-		'.wasm': 'file',
-	},
-	// Copy sql.js WASM files to output directory
-	plugins: [
-		{
-			name: 'copy-wasm-files',
-			setup(build) {
-				build.onEnd(async () => {
-					try {
-						// Copy WASM files from sql.js to the plugin directory
-						const fs = await import('fs');
-						const path = await import('path');
-						
-						const wasmSrc = path.join(process.cwd(), 'node_modules', 'sql.js', 'dist', 'sql-wasm.wasm');
-						const wasmDest = path.join(process.cwd(), 'sql-wasm.wasm');
-						
-						if (fs.existsSync(wasmSrc)) {
-							fs.copyFileSync(wasmSrc, wasmDest);
-							console.log('Copied sql.js WASM file to plugin directory');
-						} else {
-							console.warn('sql.js WASM file not found, plugin will fallback to JS-only mode');
-						}
-					} catch (error) {
-						console.warn('Failed to copy WASM files:', error.message);
-					}
-				});
-			}
-		}
-	]
 });
 
 if (prod) {

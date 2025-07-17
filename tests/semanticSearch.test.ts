@@ -8,25 +8,7 @@ import { EmbeddingService } from '../src/components/agent/memory-handling/Embedd
 import { SemanticContextBuilder } from '../src/components/agent/memory-handling/SemanticContextBuilder';
 import { MyPluginSettings, DEFAULT_SETTINGS } from '../src/types';
 
-// Mock sql.js and IndexedDB for testing
-jest.mock('sql.js', () => ({
-    __esModule: true,
-    default: jest.fn(() => Promise.resolve({
-        Database: jest.fn(() => ({
-            run: jest.fn(),
-            prepare: jest.fn(() => ({
-                run: jest.fn(),
-                get: jest.fn(),
-                all: jest.fn(() => []),
-                free: jest.fn()
-            })),
-            export: jest.fn(() => new Uint8Array()),
-            close: jest.fn()
-        }))
-    }))
-}));
-
-// Mock IndexedDB
+// Mock IndexedDB for testing
 Object.defineProperty(global, 'indexedDB', {
     value: {
         open: jest.fn(() => ({

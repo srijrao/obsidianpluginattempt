@@ -45,15 +45,24 @@ export class VectorStoreSettingsSection {
                 
                 // Load stats asynchronously
                 if (this.semanticContextBuilder) {
-                    this.semanticContextBuilder.getStats().then(stats => {
-                        if (stats) {
-                            text.setValue(`${stats.totalVectors} embeddings stored`);
-                        } else {
-                            text.setValue('Vector store unavailable');
+                    (async () => {
+                        try {
+                            // Ensure initialization first
+                            if (!this.semanticContextBuilder!.initialized) {
+                                text.setValue('Initializing...');
+                                await this.semanticContextBuilder!.initialize();
+                            }
+                            
+                            const stats = await this.semanticContextBuilder!.getStats();
+                            if (stats) {
+                                text.setValue(`${stats.totalVectors} embeddings stored`);
+                            } else {
+                                text.setValue('Vector store ready (no embeddings yet)');
+                            }
+                        } catch (error) {
+                            text.setValue(`Error: ${error.message}`);
                         }
-                    }).catch(() => {
-                        text.setValue('Error loading stats');
-                    });
+                    })();
                 } else {
                     text.setValue('Vector store unavailable');
                 }
@@ -156,15 +165,21 @@ export class VectorStoreSettingsSection {
                     const pathSetting = new Setting(ruleEl)
                         .setName(`Folder Path ${index + 1}`)
                         .setDesc('Folder path (supports * and ** wildcards)')
-                        .addText(text => text
-                            .setPlaceholder('e.g., Notes/**, Templates/*, Archive')
-                            .setValue(rule.path)
-                            .onChange(async (value) => {
-                                if (this.plugin.settings.embeddingFolderFilter?.rules) {
-                                    this.plugin.settings.embeddingFolderFilter.rules[index].path = normalizeFolderPath(value);
-                                    await this.plugin.saveSettings();
-                                }
-                            }));
+                        .addText(text => {
+                            text.setPlaceholder('e.g., Notes/**, Templates/*, Archive')
+                                .setValue(rule.path)
+                                .onChange((value) => {
+                                    // Update path immediately on change without saving
+                                    if (this.plugin.settings.embeddingFolderFilter?.rules) {
+                                        this.plugin.settings.embeddingFolderFilter.rules[index].path = normalizeFolderPath(value);
+                                    }
+                                });
+                            
+                            // Save settings on blur
+                            text.inputEl.addEventListener('blur', async () => {
+                                await this.plugin.saveSettings();
+                            });
+                        });
 
                     // Recursive toggle
                     new Setting(ruleEl)
@@ -183,15 +198,21 @@ export class VectorStoreSettingsSection {
                     new Setting(ruleEl)
                         .setName('Description')
                         .setDesc('Optional description for this rule')
-                        .addText(text => text
-                            .setPlaceholder('e.g., Project notes, Templates')
-                            .setValue(rule.description || '')
-                            .onChange(async (value) => {
-                                if (this.plugin.settings.embeddingFolderFilter?.rules) {
-                                    this.plugin.settings.embeddingFolderFilter.rules[index].description = value;
-                                    await this.plugin.saveSettings();
-                                }
-                            }));
+                        .addText(text => {
+                            text.setPlaceholder('e.g., Project notes, Templates')
+                                .setValue(rule.description || '')
+                                .onChange((value) => {
+                                    // Update description immediately on change without saving
+                                    if (this.plugin.settings.embeddingFolderFilter?.rules) {
+                                        this.plugin.settings.embeddingFolderFilter.rules[index].description = value;
+                                    }
+                                });
+                            
+                            // Save settings on blur
+                            text.inputEl.addEventListener('blur', async () => {
+                                await this.plugin.saveSettings();
+                            });
+                        });
 
                     // Delete rule button
                     new Setting(ruleEl)
@@ -274,6 +295,13 @@ export class VectorStoreSettingsSection {
                     }
 
                     try {
+                        // Ensure initialization
+                        if (!this.semanticContextBuilder.initialized) {
+                            button.setButtonText('Initializing...');
+                            button.setDisabled(true);
+                            await this.semanticContextBuilder.initialize();
+                        }
+
                         button.setButtonText('Embedding...');
                         button.setDisabled(true);
                         await this.semanticContextBuilder.embedAllNotes();
@@ -303,6 +331,11 @@ export class VectorStoreSettingsSection {
                     }
 
                     try {
+                        // Ensure initialization
+                        if (!this.semanticContextBuilder.initialized) {
+                            await this.semanticContextBuilder.initialize();
+                        }
+
                         await this.semanticContextBuilder.clearAllEmbeddings();
                         // Refresh the display to update stats
                         containerEl.empty();
@@ -336,13 +369,28 @@ export class VectorStoreSettingsSection {
                     }
 
                     try {
+                        // Ensure initialization
+                        if (!this.semanticContextBuilder.initialized) {
+                            button.setButtonText('Initializing...');
+                            button.setDisabled(true);
+                            await this.semanticContextBuilder.initialize();
+                            button.setButtonText('Search');
+                            button.setDisabled(false);
+                        }
+
+                        button.setButtonText('Searching...');
+                        button.setDisabled(true);
+
                         const results = await this.semanticContextBuilder.semanticSearch(searchQuery, {
                             topK: 3,
                             minSimilarity: this.plugin.settings.semanticSimilarityThreshold ?? 0.7
                         });
 
+                        button.setButtonText('Search');
+                        button.setDisabled(false);
+
                         if (results.length === 0) {
-                            showNotice('No similar content found');
+                            showNotice('No similar content found. Make sure you have generated embeddings first.');
                         } else {
                             const resultText = results.map((r, i) => 
                                 `${i + 1}. [${r.similarity.toFixed(3)}] ${r.text.slice(0, 100)}...`
@@ -355,6 +403,8 @@ export class VectorStoreSettingsSection {
                             modal.open();
                         }
                     } catch (error) {
+                        button.setButtonText('Search');
+                        button.setDisabled(false);
                         showNotice(`Search error: ${error.message}`);
                     }
                 }));
