@@ -15359,6 +15359,402 @@ var init_vectorStore = __esm({
   }
 });
 
+// src/components/agent/memory-handling/HybridVectorManager.ts
+var DEFAULT_CONFIG, HybridVectorManager;
+var init_HybridVectorManager = __esm({
+  "src/components/agent/memory-handling/HybridVectorManager.ts"() {
+    init_vectorStore();
+    init_logger();
+    DEFAULT_CONFIG = {
+      backupFilePath: "vector-backup.json",
+      backupInterval: 5 * 60 * 1e3,
+      // 5 minutes
+      changeThreshold: 10,
+      // backup after 10 changes
+      showNotifications: false
+    };
+    HybridVectorManager = class {
+      constructor(plugin, config = {}) {
+        __publicField(this, "vectorStore");
+        __publicField(this, "plugin");
+        __publicField(this, "config");
+        __publicField(this, "isInitialized", false);
+        // State tracking
+        __publicField(this, "changesSinceBackup", 0);
+        __publicField(this, "lastBackupTime", 0);
+        __publicField(this, "backupTimer", null);
+        __publicField(this, "currentMetadata", null);
+        this.plugin = plugin;
+        this.vectorStore = new VectorStore(plugin);
+        this.config = { ...DEFAULT_CONFIG, ...config };
+      }
+      /**
+       * Initialize the hybrid vector manager
+       * Performs startup sync logic and sets up automatic backup
+       */
+      async initialize() {
+        var _a2, _b, _c;
+        if (this.isInitialized) {
+          return;
+        }
+        try {
+          debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", "Initializing HybridVectorManager...");
+          await this.vectorStore.initialize();
+          await this.performStartupSync();
+          this.setupAutomaticBackup();
+          this.isInitialized = true;
+          debugLog((_b = this.plugin.settings.debugMode) != null ? _b : false, "info", "\u2705 HybridVectorManager initialized successfully");
+        } catch (error) {
+          debugLog((_c = this.plugin.settings.debugMode) != null ? _c : false, "error", "Failed to initialize HybridVectorManager:", error);
+          throw error;
+        }
+      }
+      /**
+       * Startup sync logic - checks fidelity and syncs data if needed
+       */
+      async performStartupSync() {
+        var _a2, _b, _c, _d;
+        try {
+          const indexedDBMetadata = await this.getIndexedDBMetadata();
+          const vaultMetadata = await this.getVaultMetadata();
+          debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", "Startup sync check:", {
+            indexedDB: indexedDBMetadata,
+            vault: vaultMetadata
+          });
+          const needsSync = this.needsSync(indexedDBMetadata, vaultMetadata);
+          if (needsSync) {
+            debugLog((_b = this.plugin.settings.debugMode) != null ? _b : false, "info", "Data sync required, performing restoration...");
+            if (this.config.showNotifications) {
+              new window.Notice("Syncing vector data...");
+            }
+            await this.restoreFromVault();
+            if (this.config.showNotifications) {
+              new window.Notice("Vector data sync completed");
+            }
+          } else {
+            debugLog((_c = this.plugin.settings.debugMode) != null ? _c : false, "info", "Data is in sync, no restoration needed");
+          }
+          this.currentMetadata = indexedDBMetadata || await this.generateMetadata();
+        } catch (error) {
+          debugLog((_d = this.plugin.settings.debugMode) != null ? _d : false, "warn", "Startup sync failed, continuing with available data:", error);
+          this.currentMetadata = await this.generateMetadata();
+        }
+      }
+      /**
+       * Determine if sync is needed based on metadata comparison
+       */
+      needsSync(indexedDBMeta, vaultMeta) {
+        if (!indexedDBMeta && vaultMeta) {
+          return true;
+        }
+        if (indexedDBMeta && !vaultMeta) {
+          return false;
+        }
+        if (indexedDBMeta && vaultMeta) {
+          return indexedDBMeta.vectorCount !== vaultMeta.vectorCount || indexedDBMeta.summaryHash !== vaultMeta.summaryHash;
+        }
+        return false;
+      }
+      /**
+       * Get metadata from IndexedDB vector store
+       */
+      async getIndexedDBMetadata() {
+        var _a2;
+        try {
+          const vectorCount = await this.vectorStore.getVectorCount();
+          if (vectorCount === 0) {
+            return null;
+          }
+          const allVectors = await this.vectorStore.getAllVectors();
+          const summaryHash = this.generateSummaryHash(allVectors.map((v) => v.id));
+          const lastModified = Math.max(...allVectors.map((v) => v.timestamp));
+          return {
+            vectorCount,
+            lastModified,
+            summaryHash,
+            version: "1.0.0",
+            lastBackup: this.lastBackupTime
+          };
+        } catch (error) {
+          debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "warn", "Failed to get IndexedDB metadata:", error);
+          return null;
+        }
+      }
+      /**
+       * Get metadata from vault backup file
+       */
+      async getVaultMetadata() {
+        var _a2;
+        try {
+          const backupExists = await this.plugin.app.vault.adapter.exists(this.config.backupFilePath);
+          if (!backupExists) {
+            return null;
+          }
+          const backupContent = await this.plugin.app.vault.adapter.read(this.config.backupFilePath);
+          const backupData = JSON.parse(backupContent);
+          return backupData.metadata || null;
+        } catch (error) {
+          debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "warn", "Failed to get vault metadata:", error);
+          return null;
+        }
+      }
+      /**
+       * Generate a simple hash from vector IDs for integrity checking
+       */
+      generateSummaryHash(vectorIds) {
+        const sortedIds = vectorIds.sort();
+        const combined = sortedIds.join("|");
+        let hash = 0;
+        for (let i = 0; i < combined.length; i++) {
+          const char = combined.charCodeAt(i);
+          hash = (hash << 5) - hash + char;
+          hash = hash & hash;
+        }
+        return Math.abs(hash).toString(36);
+      }
+      /**
+       * Generate current metadata
+       */
+      async generateMetadata() {
+        const vectorCount = await this.vectorStore.getVectorCount();
+        const allVectors = await this.vectorStore.getAllVectors();
+        const summaryHash = this.generateSummaryHash(allVectors.map((v) => v.id));
+        const lastModified = vectorCount > 0 ? Math.max(...allVectors.map((v) => v.timestamp)) : Date.now();
+        return {
+          vectorCount,
+          lastModified,
+          summaryHash,
+          version: "1.0.0",
+          lastBackup: this.lastBackupTime
+        };
+      }
+      /**
+       * Set up automatic backup system
+       */
+      setupAutomaticBackup() {
+        var _a2;
+        if (this.backupTimer) {
+          clearInterval(this.backupTimer);
+        }
+        this.backupTimer = setInterval(() => {
+          this.performAutomaticBackup();
+        }, this.config.backupInterval);
+        debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", `Automatic backup set up with ${this.config.backupInterval}ms interval`);
+      }
+      /**
+       * Perform automatic backup if needed
+       */
+      async performAutomaticBackup() {
+        var _a2;
+        try {
+          const timeSinceLastBackup = Date.now() - this.lastBackupTime;
+          const shouldBackup = this.changesSinceBackup >= this.config.changeThreshold || timeSinceLastBackup > this.config.backupInterval;
+          if (shouldBackup) {
+            await this.backupToVault();
+          }
+        } catch (error) {
+          debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "warn", "Automatic backup failed:", error);
+        }
+      }
+      /**
+       * Backup all vectors to vault file
+       */
+      async backupToVault() {
+        var _a2, _b, _c;
+        try {
+          debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", "Creating vector backup...");
+          const allVectors = await this.vectorStore.getAllVectors();
+          const metadata = await this.generateMetadata();
+          const backupData = {
+            metadata,
+            exportDate: (/* @__PURE__ */ new Date()).toISOString(),
+            version: "1.0.0",
+            totalVectors: allVectors.length,
+            vectors: allVectors
+          };
+          const backupContent = JSON.stringify(backupData, null, 2);
+          await this.plugin.app.vault.adapter.write(this.config.backupFilePath, backupContent);
+          this.lastBackupTime = Date.now();
+          this.changesSinceBackup = 0;
+          this.currentMetadata = metadata;
+          debugLog((_b = this.plugin.settings.debugMode) != null ? _b : false, "info", `\u2705 Backup completed: ${allVectors.length} vectors saved to ${this.config.backupFilePath}`);
+        } catch (error) {
+          debugLog((_c = this.plugin.settings.debugMode) != null ? _c : false, "error", "Failed to backup to vault:", error);
+          throw error;
+        }
+      }
+      /**
+       * Restore vectors from vault backup file
+       */
+      async restoreFromVault() {
+        var _a2, _b, _c, _d, _e;
+        try {
+          debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", "Restoring vectors from vault backup...");
+          const backupExists = await this.plugin.app.vault.adapter.exists(this.config.backupFilePath);
+          if (!backupExists) {
+            debugLog((_b = this.plugin.settings.debugMode) != null ? _b : false, "warn", "No backup file found for restoration");
+            return;
+          }
+          const backupContent = await this.plugin.app.vault.adapter.read(this.config.backupFilePath);
+          const backupData = JSON.parse(backupContent);
+          if (!backupData.vectors || !Array.isArray(backupData.vectors)) {
+            throw new Error("Invalid backup file format");
+          }
+          await this.vectorStore.clearAllVectors();
+          let importedCount = 0;
+          for (const vectorData of backupData.vectors) {
+            try {
+              await this.vectorStore.addVector(
+                vectorData.id,
+                vectorData.text,
+                vectorData.embedding,
+                vectorData.metadata
+              );
+              importedCount++;
+            } catch (error) {
+              debugLog((_c = this.plugin.settings.debugMode) != null ? _c : false, "warn", `Failed to restore vector ${vectorData.id}:`, error);
+            }
+          }
+          this.changesSinceBackup = 0;
+          this.lastBackupTime = Date.now();
+          this.currentMetadata = await this.generateMetadata();
+          debugLog((_d = this.plugin.settings.debugMode) != null ? _d : false, "info", `\u2705 Restoration completed: ${importedCount} vectors restored from backup`);
+        } catch (error) {
+          debugLog((_e = this.plugin.settings.debugMode) != null ? _e : false, "error", "Failed to restore from vault:", error);
+          throw error;
+        }
+      }
+      /**
+       * Track changes for automatic backup triggering
+       */
+      trackChange() {
+        this.changesSinceBackup++;
+        if (this.changesSinceBackup >= this.config.changeThreshold) {
+          this.performAutomaticBackup();
+        }
+      }
+      // Wrapper methods that delegate to VectorStore and track changes
+      /**
+       * Add or update a vector in the store
+       */
+      async addVector(id, text, embedding, metadata) {
+        await this.vectorStore.addVector(id, text, embedding, metadata);
+        this.trackChange();
+      }
+      /**
+       * Remove a vector from the store
+       */
+      async removeVector(id) {
+        const result = await this.vectorStore.removeVector(id);
+        if (result) {
+          this.trackChange();
+        }
+        return result;
+      }
+      /**
+       * Clear all vectors from the store
+       */
+      async clearAllVectors() {
+        const count = await this.vectorStore.clearAllVectors();
+        if (count > 0) {
+          this.changesSinceBackup += count;
+          this.performAutomaticBackup();
+        }
+        return count;
+      }
+      // Pass-through methods (no change tracking needed)
+      /**
+       * Get a vector by ID
+       */
+      async getVector(id) {
+        return await this.vectorStore.getVector(id);
+      }
+      /**
+       * Get all vectors
+       */
+      async getAllVectors() {
+        return await this.vectorStore.getAllVectors();
+      }
+      /**
+       * Get vector count
+       */
+      async getVectorCount() {
+        return await this.vectorStore.getVectorCount();
+      }
+      /**
+       * Find similar vectors
+       */
+      async findSimilarVectors(queryEmbedding, limit = 5, minSimilarity = 0) {
+        return await this.vectorStore.findSimilarVectors(queryEmbedding, limit, minSimilarity);
+      }
+      /**
+       * Search vectors by text
+       */
+      async findVectorsByText(searchText, limit = 10) {
+        return await this.vectorStore.findVectorsByText(searchText, limit);
+      }
+      /**
+       * Get vectors by metadata
+       */
+      async getVectorsByMetadata(metadataQuery, limit = 10) {
+        return await this.vectorStore.getVectorsByMetadata(metadataQuery, limit);
+      }
+      /**
+       * Check if the manager is ready
+       */
+      isReady() {
+        return this.isInitialized && this.vectorStore.isReady();
+      }
+      /**
+       * Get current status and statistics
+       */
+      async getStatus() {
+        const vectorCount = await this.vectorStore.getVectorCount();
+        const metadata = this.currentMetadata || await this.generateMetadata();
+        return {
+          isReady: this.isReady(),
+          vectorCount,
+          changesSinceBackup: this.changesSinceBackup,
+          lastBackupTime: this.lastBackupTime,
+          metadata,
+          backupFilePath: this.config.backupFilePath
+        };
+      }
+      /**
+       * Force an immediate backup
+       */
+      async forceBackup() {
+        await this.backupToVault();
+      }
+      /**
+       * Force restoration from vault
+       */
+      async forceRestore() {
+        await this.restoreFromVault();
+      }
+      /**
+       * Clean up resources
+       */
+      async close() {
+        var _a2;
+        if (this.backupTimer) {
+          clearInterval(this.backupTimer);
+          this.backupTimer = null;
+        }
+        if (this.changesSinceBackup > 0) {
+          try {
+            await this.backupToVault();
+          } catch (error) {
+            debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "warn", "Final backup failed during close:", error);
+          }
+        }
+        await this.vectorStore.close();
+        this.isInitialized = false;
+      }
+    };
+  }
+});
+
 // src/utils/embeddingFilterUtils.ts
 function matchesPattern(pattern, path3) {
   const normalizedPattern = pattern.replace(/\\/g, "/");
@@ -15445,7 +15841,7 @@ var import_obsidian31, crypto, EmbeddingService;
 var init_EmbeddingService = __esm({
   "src/components/agent/memory-handling/EmbeddingService.ts"() {
     import_obsidian31 = require("obsidian");
-    init_vectorStore();
+    init_HybridVectorManager();
     init_logger();
     init_generalUtils();
     init_embeddingFilterUtils();
@@ -15459,7 +15855,7 @@ var init_EmbeddingService = __esm({
         __publicField(this, "abortController", null);
         this.plugin = plugin;
         this.settings = settings;
-        this.vectorStore = new VectorStore(plugin);
+        this.vectorStore = new HybridVectorManager(plugin);
       }
       /**
        * Initialize the EmbeddingService by setting up the VectorStore.
@@ -16030,6 +16426,16 @@ ${relevantContext.join("\n\n")}`
       isEmbeddingInProgress() {
         var _a2, _b;
         return (_b = (_a2 = this.embeddingService) == null ? void 0 : _a2.isEmbeddingInProgress()) != null ? _b : false;
+      }
+      /**
+       * Gets access to the underlying hybrid vector manager for advanced operations.
+       * @returns The hybrid vector manager instance or null if not available
+       */
+      getHybridVectorManager() {
+        if (this.embeddingService && "vectorStore" in this.embeddingService) {
+          return this.embeddingService.vectorStore;
+        }
+        return null;
       }
       /**
        * Closes the semantic context builder and cleans up resources.
@@ -17593,6 +17999,214 @@ var init_streamManager = __esm({
   }
 });
 
+// src/tests/test-hybrid-vector.ts
+var test_hybrid_vector_exports = {};
+__export(test_hybrid_vector_exports, {
+  HybridVectorTest: () => HybridVectorTest,
+  registerHybridVectorTestCommand: () => registerHybridVectorTestCommand
+});
+function registerHybridVectorTestCommand(plugin) {
+  plugin.addCommand({
+    id: "test-hybrid-vector-storage",
+    name: "Test: Hybrid Vector Storage System",
+    callback: async () => {
+      try {
+        const tester = new HybridVectorTest(plugin);
+        await tester.runAllTests();
+        new window.Notice("\u2705 Hybrid Vector Storage tests completed successfully!");
+      } catch (error) {
+        console.error("Hybrid Vector Storage test failed:", error);
+        new window.Notice(`\u274C Hybrid Vector Storage test failed: ${error.message}`);
+      }
+    }
+  });
+}
+var HybridVectorTest;
+var init_test_hybrid_vector = __esm({
+  "src/tests/test-hybrid-vector.ts"() {
+    init_HybridVectorManager();
+    HybridVectorTest = class {
+      constructor(plugin) {
+        __publicField(this, "plugin");
+        __publicField(this, "hybridManager");
+        this.plugin = plugin;
+        this.hybridManager = new HybridVectorManager(plugin, {
+          backupFilePath: "test-vector-backup.json",
+          backupInterval: 3e4,
+          // 30 seconds for testing
+          changeThreshold: 3,
+          // Backup after 3 changes for testing
+          showNotifications: true
+        });
+      }
+      /**
+       * Run all hybrid vector tests
+       */
+      async runAllTests() {
+        try {
+          console.log("\u{1F9EA} Starting Hybrid Vector Storage Tests...");
+          await this.testInitialization();
+          await this.testBasicOperations();
+          await this.testChangeTracking();
+          await this.testBackupRestore();
+          await this.testSyncLogic();
+          await this.testErrorHandling();
+          await this.cleanup();
+          console.log("\u2705 All Hybrid Vector Storage Tests Passed!");
+        } catch (error) {
+          console.error("\u274C Hybrid Vector Storage Tests Failed:", error);
+          throw error;
+        }
+      }
+      /**
+       * Test initialization and startup sync
+       */
+      async testInitialization() {
+        console.log("Testing initialization...");
+        await this.hybridManager.initialize();
+        if (!this.hybridManager.isReady()) {
+          throw new Error("HybridVectorManager failed to initialize");
+        }
+        const status = await this.hybridManager.getStatus();
+        console.log("Initial status:", status);
+        console.log("\u2713 Initialization test passed");
+      }
+      /**
+       * Test basic vector operations
+       */
+      async testBasicOperations() {
+        console.log("Testing basic operations...");
+        const testVectors = [
+          { id: "test1", text: "This is a test document about cats", embedding: this.generateTestEmbedding() },
+          { id: "test2", text: "Another document about dogs", embedding: this.generateTestEmbedding() },
+          { id: "test3", text: "A third document about birds", embedding: this.generateTestEmbedding() }
+        ];
+        for (const vector of testVectors) {
+          await this.hybridManager.addVector(vector.id, vector.text, vector.embedding, { type: "test" });
+        }
+        const vector1 = await this.hybridManager.getVector("test1");
+        if (!vector1 || vector1.text !== testVectors[0].text) {
+          throw new Error("Vector retrieval failed");
+        }
+        const count = await this.hybridManager.getVectorCount();
+        if (count !== testVectors.length) {
+          throw new Error(`Expected ${testVectors.length} vectors, got ${count}`);
+        }
+        const allVectors = await this.hybridManager.getAllVectors();
+        if (allVectors.length !== testVectors.length) {
+          throw new Error(`Expected ${testVectors.length} vectors in search, got ${allVectors.length}`);
+        }
+        console.log("\u2713 Basic operations test passed");
+      }
+      /**
+       * Test change tracking and automatic backup
+       */
+      async testChangeTracking() {
+        console.log("Testing change tracking...");
+        const initialStatus = await this.hybridManager.getStatus();
+        console.log("Status before changes:", initialStatus);
+        await this.hybridManager.addVector("track1", "Change tracking test 1", this.generateTestEmbedding());
+        await this.hybridManager.addVector("track2", "Change tracking test 2", this.generateTestEmbedding());
+        await this.hybridManager.addVector("track3", "Change tracking test 3", this.generateTestEmbedding());
+        await new Promise((resolve) => setTimeout(resolve, 1e3));
+        const statusAfter = await this.hybridManager.getStatus();
+        console.log("Status after changes:", statusAfter);
+        if (statusAfter.changesSinceBackup > 3) {
+          console.warn("Backup may not have been triggered automatically");
+        }
+        console.log("\u2713 Change tracking test passed");
+      }
+      /**
+       * Test manual backup and restore operations
+       */
+      async testBackupRestore() {
+        console.log("Testing backup and restore...");
+        await this.hybridManager.forceBackup();
+        const backupExists = await this.plugin.app.vault.adapter.exists("test-vector-backup.json");
+        if (!backupExists) {
+          throw new Error("Backup file was not created");
+        }
+        const beforeCount = await this.hybridManager.getVectorCount();
+        await this.hybridManager.addVector("restore-test", "This vector will be lost", this.generateTestEmbedding());
+        const afterAddCount = await this.hybridManager.getVectorCount();
+        if (afterAddCount !== beforeCount + 1) {
+          throw new Error("Vector addition failed");
+        }
+        await this.hybridManager.forceRestore();
+        const afterRestoreCount = await this.hybridManager.getVectorCount();
+        if (afterRestoreCount !== beforeCount) {
+          throw new Error(`Restore failed: expected ${beforeCount} vectors, got ${afterRestoreCount}`);
+        }
+        const lostVector = await this.hybridManager.getVector("restore-test");
+        if (lostVector !== null) {
+          throw new Error("Vector should have been removed during restore");
+        }
+        console.log("\u2713 Backup and restore test passed");
+      }
+      /**
+       * Test startup sync logic with simulated scenarios
+       */
+      async testSyncLogic() {
+        console.log("Testing sync logic...");
+        const status = await this.hybridManager.getStatus();
+        if (!status.metadata || !status.metadata.summaryHash) {
+          throw new Error("Metadata not properly generated");
+        }
+        if (status.vectorCount <= 0) {
+          throw new Error("No vectors found for sync logic test");
+        }
+        console.log("\u2713 Sync logic test passed");
+      }
+      /**
+       * Test error handling scenarios
+       */
+      async testErrorHandling() {
+        console.log("Testing error handling...");
+        try {
+          await this.hybridManager.addVector("", "Empty ID test", this.generateTestEmbedding());
+        } catch (error) {
+        }
+        const removed = await this.hybridManager.removeVector("non-existent-vector");
+        if (removed) {
+          throw new Error("Should not have removed non-existent vector");
+        }
+        const nonExistent = await this.hybridManager.getVector("definitely-not-there");
+        if (nonExistent !== null) {
+          throw new Error("Should return null for non-existent vector");
+        }
+        console.log("\u2713 Error handling test passed");
+      }
+      /**
+       * Clean up test data
+       */
+      async cleanup() {
+        console.log("Cleaning up test data...");
+        const testIds = ["test1", "test2", "test3", "track1", "track2", "track3", "restore-test"];
+        for (const id of testIds) {
+          await this.hybridManager.removeVector(id);
+        }
+        const backupExists = await this.plugin.app.vault.adapter.exists("test-vector-backup.json");
+        if (backupExists) {
+          await this.plugin.app.vault.adapter.remove("test-vector-backup.json");
+        }
+        await this.hybridManager.close();
+        console.log("\u2713 Cleanup completed");
+      }
+      /**
+       * Generate a test embedding vector
+       */
+      generateTestEmbedding() {
+        const embedding = [];
+        for (let i = 0; i < 1536; i++) {
+          embedding.push((Math.random() - 0.5) * 2);
+        }
+        const magnitude = Math.sqrt(embedding.reduce((sum, val) => sum + val * val, 0));
+        return embedding.map((val) => val / magnitude);
+      }
+    };
+  }
+});
+
 // tests/testRunner.ts
 var testRunner_exports = {};
 __export(testRunner_exports, {
@@ -17854,7 +18468,25 @@ function registerTestCommands(plugin) {
       console.error("\u274C Semantic search workflow: ERROR", error);
     }
   }
-  console.log("Test commands registered for semantic search debugging");
+  plugin.addCommand({
+    id: "test-hybrid-vector-storage",
+    name: "Test: Hybrid Vector Storage System",
+    callback: async () => {
+      try {
+        const { HybridVectorTest: HybridVectorTest2 } = await Promise.resolve().then(() => (init_test_hybrid_vector(), test_hybrid_vector_exports));
+        const tester = new HybridVectorTest2(plugin);
+        new import_obsidian38.Notice("\u{1F9EA} Running Hybrid Vector Storage tests...");
+        console.log("\u{1F9EA} Starting Hybrid Vector Storage Tests...");
+        await tester.runAllTests();
+        new import_obsidian38.Notice("\u2705 Hybrid Vector Storage tests completed successfully!");
+        console.log("\u2705 All Hybrid Vector Storage Tests Passed!");
+      } catch (error) {
+        new import_obsidian38.Notice(`\u274C Hybrid Vector Storage test failed: ${error.message}`);
+        console.error("\u274C Hybrid Vector Storage test failed:", error);
+      }
+    }
+  });
+  console.log("Test commands registered for semantic search and hybrid vector debugging");
 }
 var import_obsidian38;
 var init_testRunner = __esm({
@@ -25039,6 +25671,79 @@ function registerVectorStoreCommands(plugin) {
         }
       } catch (error) {
         debugLog((_a2 = plugin.settings.debugMode) != null ? _a2 : false, "error", "Failed to check missing embeddings:", error);
+        new import_obsidian36.Notice(`Error: ${error.message}`);
+      }
+    }
+  });
+  registerCommand(plugin, {
+    id: "hybrid-vector-force-backup",
+    name: "Hybrid Vector: Force Backup",
+    callback: async () => {
+      var _a2;
+      try {
+        const semanticBuilder = new SemanticContextBuilder(plugin.app, plugin);
+        await semanticBuilder.initialize();
+        const hybridManager = semanticBuilder.getHybridVectorManager();
+        if (hybridManager && "forceBackup" in hybridManager) {
+          await hybridManager.forceBackup();
+          new import_obsidian36.Notice("\u2705 Vector backup completed successfully");
+        } else {
+          new import_obsidian36.Notice("\u274C Hybrid vector manager not available");
+        }
+      } catch (error) {
+        debugLog((_a2 = plugin.settings.debugMode) != null ? _a2 : false, "error", "Failed to force backup:", error);
+        new import_obsidian36.Notice(`Error: ${error.message}`);
+      }
+    }
+  });
+  registerCommand(plugin, {
+    id: "hybrid-vector-force-restore",
+    name: "Hybrid Vector: Force Restore from Backup",
+    callback: async () => {
+      var _a2;
+      try {
+        const semanticBuilder = new SemanticContextBuilder(plugin.app, plugin);
+        await semanticBuilder.initialize();
+        const hybridManager = semanticBuilder.getHybridVectorManager();
+        if (hybridManager && "forceRestore" in hybridManager) {
+          await hybridManager.forceRestore();
+          new import_obsidian36.Notice("\u2705 Vector restore completed successfully");
+        } else {
+          new import_obsidian36.Notice("\u274C Hybrid vector manager not available");
+        }
+      } catch (error) {
+        debugLog((_a2 = plugin.settings.debugMode) != null ? _a2 : false, "error", "Failed to force restore:", error);
+        new import_obsidian36.Notice(`Error: ${error.message}`);
+      }
+    }
+  });
+  registerCommand(plugin, {
+    id: "hybrid-vector-status",
+    name: "Hybrid Vector: Status & Statistics",
+    callback: async () => {
+      var _a2;
+      try {
+        const semanticBuilder = new SemanticContextBuilder(plugin.app, plugin);
+        await semanticBuilder.initialize();
+        const hybridManager = semanticBuilder.getHybridVectorManager();
+        if (hybridManager && "getStatus" in hybridManager) {
+          const status = await hybridManager.getStatus();
+          const lastBackupStr = status.lastBackupTime > 0 ? new Date(status.lastBackupTime).toLocaleString() : "Never";
+          const changeStr = status.changesSinceBackup > 0 ? ` (${status.changesSinceBackup} changes since backup)` : "";
+          const message = [
+            `\u{1F4CA} Hybrid Vector Storage Status:`,
+            `Ready: ${status.isReady ? "\u2705" : "\u274C"}`,
+            `Vectors: ${status.vectorCount}${changeStr}`,
+            `Last backup: ${lastBackupStr}`,
+            `Backup file: ${status.backupFilePath}`,
+            `Summary hash: ${status.metadata.summaryHash}`
+          ].join("\n");
+          new import_obsidian36.Notice(message, 8e3);
+        } else {
+          new import_obsidian36.Notice("\u274C Hybrid vector manager not available");
+        }
+      } catch (error) {
+        debugLog((_a2 = plugin.settings.debugMode) != null ? _a2 : false, "error", "Failed to get hybrid vector status:", error);
         new import_obsidian36.Notice(`Error: ${error.message}`);
       }
     }

@@ -233,6 +233,17 @@ export class SemanticContextBuilder {
   }
 
   /**
+   * Gets access to the underlying hybrid vector manager for advanced operations.
+   * @returns The hybrid vector manager instance or null if not available
+   */
+  getHybridVectorManager(): any {
+    if (this.embeddingService && 'vectorStore' in this.embeddingService) {
+      return (this.embeddingService as any).vectorStore;
+    }
+    return null;
+  }
+
+  /**
    * Closes the semantic context builder and cleans up resources.
    */
   async close(): Promise<void> {

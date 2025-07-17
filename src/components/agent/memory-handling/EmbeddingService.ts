@@ -7,11 +7,12 @@
  */
 
 import { Plugin, TFile, Notice } from 'obsidian';
-import { VectorStore } from './vectorStore';
+import { HybridVectorManager } from './HybridVectorManager';
 import { MyPluginSettings, Message, CompletionOptions } from '../../../types';
 import { debugLog } from '../../../utils/logger';
 import { showNotice } from '../../../utils/generalUtils';
 import { filterFilesForEmbedding, getFilterDescription } from '../../../utils/embeddingFilterUtils';
+import type MyPlugin from '../../../main';
 import * as crypto from 'crypto';
 
 /**
@@ -49,20 +50,20 @@ interface SemanticSearchResult {
 /**
  * EmbeddingService
  * ----------------
- * Handles text embedding generation and semantic search using AI providers and VectorStore.
+ * Handles text embedding generation and semantic search using AI providers and HybridVectorManager.
  * Provides the core semantic memory functionality for the AI assistant.
  */
 export class EmbeddingService {
-  private vectorStore: VectorStore;
-  private plugin: Plugin;
+  private vectorStore: HybridVectorManager;
+  private plugin: MyPlugin;
   private settings: MyPluginSettings;
   private isInitialized: boolean = false;
   private abortController: AbortController | null = null;
 
-  constructor(plugin: Plugin, settings: MyPluginSettings) {
+  constructor(plugin: MyPlugin, settings: MyPluginSettings) {
     this.plugin = plugin;
     this.settings = settings;
-    this.vectorStore = new VectorStore(plugin);
+    this.vectorStore = new HybridVectorManager(plugin);
   }
 
   /**

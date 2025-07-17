@@ -342,5 +342,28 @@ export function registerTestCommands(plugin: MyPlugin) {
         }
     }
 
-    console.log('Test commands registered for semantic search debugging');
+    // Test Hybrid Vector Storage System
+    plugin.addCommand({
+        id: 'test-hybrid-vector-storage',
+        name: 'Test: Hybrid Vector Storage System',
+        callback: async () => {
+            try {
+                const { HybridVectorTest } = await import('../src/tests/test-hybrid-vector');
+                const tester = new HybridVectorTest(plugin);
+                
+                new Notice('🧪 Running Hybrid Vector Storage tests...');
+                console.log('🧪 Starting Hybrid Vector Storage Tests...');
+                
+                await tester.runAllTests();
+                
+                new Notice('✅ Hybrid Vector Storage tests completed successfully!');
+                console.log('✅ All Hybrid Vector Storage Tests Passed!');
+            } catch (error) {
+                new Notice(`❌ Hybrid Vector Storage test failed: ${error.message}`);
+                console.error('❌ Hybrid Vector Storage test failed:', error);
+            }
+        }
+    });
+
+    console.log('Test commands registered for semantic search and hybrid vector debugging');
 }

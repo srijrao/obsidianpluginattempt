@@ -502,4 +502,93 @@ export function registerVectorStoreCommands(plugin: MyPlugin): void {
         }
     });
 
+    // Hybrid Vector Manager Commands
+    
+    // Force backup command
+    registerCommand(plugin, {
+        id: 'hybrid-vector-force-backup',
+        name: 'Hybrid Vector: Force Backup',
+        callback: async () => {
+            try {
+                const semanticBuilder = new SemanticContextBuilder(plugin.app, plugin);
+                await semanticBuilder.initialize();
+                
+                const hybridManager = semanticBuilder.getHybridVectorManager();
+                if (hybridManager && 'forceBackup' in hybridManager) {
+                    await hybridManager.forceBackup();
+                    new Notice('✅ Vector backup completed successfully');
+                } else {
+                    new Notice('❌ Hybrid vector manager not available');
+                }
+            } catch (error) {
+                debugLog(plugin.settings.debugMode ?? false, 'error', 'Failed to force backup:', error);
+                new Notice(`Error: ${error.message}`);
+            }
+        }
+    });
+
+    // Force restore command
+    registerCommand(plugin, {
+        id: 'hybrid-vector-force-restore',
+        name: 'Hybrid Vector: Force Restore from Backup',
+        callback: async () => {
+            try {
+                const semanticBuilder = new SemanticContextBuilder(plugin.app, plugin);
+                await semanticBuilder.initialize();
+                
+                const hybridManager = semanticBuilder.getHybridVectorManager();
+                if (hybridManager && 'forceRestore' in hybridManager) {
+                    await hybridManager.forceRestore();
+                    new Notice('✅ Vector restore completed successfully');
+                } else {
+                    new Notice('❌ Hybrid vector manager not available');
+                }
+            } catch (error) {
+                debugLog(plugin.settings.debugMode ?? false, 'error', 'Failed to force restore:', error);
+                new Notice(`Error: ${error.message}`);
+            }
+        }
+    });
+
+    // Hybrid vector status command
+    registerCommand(plugin, {
+        id: 'hybrid-vector-status',
+        name: 'Hybrid Vector: Status & Statistics',
+        callback: async () => {
+            try {
+                const semanticBuilder = new SemanticContextBuilder(plugin.app, plugin);
+                await semanticBuilder.initialize();
+                
+                const hybridManager = semanticBuilder.getHybridVectorManager();
+                if (hybridManager && 'getStatus' in hybridManager) {
+                    const status = await hybridManager.getStatus();
+                    
+                    const lastBackupStr = status.lastBackupTime > 0 
+                        ? new Date(status.lastBackupTime).toLocaleString()
+                        : 'Never';
+                    
+                    const changeStr = status.changesSinceBackup > 0 
+                        ? ` (${status.changesSinceBackup} changes since backup)`
+                        : '';
+                    
+                    const message = [
+                        `📊 Hybrid Vector Storage Status:`,
+                        `Ready: ${status.isReady ? '✅' : '❌'}`,
+                        `Vectors: ${status.vectorCount}${changeStr}`,
+                        `Last backup: ${lastBackupStr}`,
+                        `Backup file: ${status.backupFilePath}`,
+                        `Summary hash: ${status.metadata.summaryHash}`
+                    ].join('\n');
+                    
+                    new Notice(message, 8000);
+                } else {
+                    new Notice('❌ Hybrid vector manager not available');
+                }
+            } catch (error) {
+                debugLog(plugin.settings.debugMode ?? false, 'error', 'Failed to get hybrid vector status:', error);
+                new Notice(`Error: ${error.message}`);
+            }
+        }
+    });
+
 }
