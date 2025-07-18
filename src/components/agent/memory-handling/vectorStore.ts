@@ -1,3 +1,5 @@
+// ...existing code...
+  // ...existing code...
 /**
  * @file vectorStore.ts
  * @description
@@ -33,6 +35,122 @@ interface VectorData {
  * No SQL dependencies - uses pure IndexedDB for maximum Obsidian compatibility.
  */
 export class VectorStore {
+
+  /**
+   * Gets all vector IDs from the store (memory efficient).
+   * @returns Array of all vector IDs.
+   */
+  async getAllVectorIds(): Promise<string[]> {
+    this.ensureInitialized();
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction(['vectors'], 'readonly');
+      const store = transaction.objectStore('vectors');
+      const request = store.openCursor();
+      const ids: string[] = [];
+      request.onsuccess = (event) => {
+        const cursor = (event.target as IDBRequest).result;
+        if (cursor) {
+          ids.push(cursor.key);
+          cursor.continue();
+        } else {
+          resolve(ids);
+        }
+      };
+      request.onerror = () => reject(new Error(`Failed to get all vector IDs: ${request.error?.message}`));
+    });
+  }
+
+  /**
+   * Gets the latest timestamp from all vectors (memory efficient).
+   * @returns The latest timestamp.
+   */
+  async getLatestTimestamp(): Promise<number> {
+    this.ensureInitialized();
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction(['vectors'], 'readonly');
+      const store = transaction.objectStore('vectors');
+      const request = store.openCursor();
+      let maxTimestamp = 0;
+      request.onsuccess = (event) => {
+        const cursor = (event.target as IDBRequest).result;
+        if (cursor) {
+          const vector = cursor.value;
+          if (vector.timestamp && vector.timestamp > maxTimestamp) {
+            maxTimestamp = vector.timestamp;
+          }
+          cursor.continue();
+        } else {
+          resolve(maxTimestamp);
+        }
+      };
+      request.onerror = () => reject(new Error(`Failed to get latest timestamp: ${request.error?.message}`));
+    });
+  }
+
+  /**
+   * Gets a batch of vectors from the store.
+   * @param offset - The starting index.
+   * @param batchSize - The number of vectors to retrieve.
+   * @returns Array of vectors in the batch.
+   */
+  async getVectorsBatch(offset: number, batchSize: number): Promise<VectorData[]> {
+    this.ensureInitialized();
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction(['vectors'], 'readonly');
+      const store = transaction.objectStore('vectors');
+      const request = store.openCursor();
+      const batch: VectorData[] = [];
+      let skipped = 0;
+      request.onsuccess = (event) => {
+        const cursor = (event.target as IDBRequest).result;
+        if (cursor) {
+          if (skipped < offset) {
+            skipped++;
+            cursor.continue();
+          } else if (batch.length < batchSize) {
+            batch.push(cursor.value);
+            cursor.continue();
+          } else {
+            resolve(batch);
+          }
+        } else {
+          resolve(batch);
+        }
+      };
+      request.onerror = () => reject(new Error(`Failed to get vectors batch: ${request.error?.message}`));
+    });
+  }
+
+  /**
+   * Optimized streaming similarity calculation for large datasets.
+   */
+  async findSimilarVectors(
+    queryEmbedding: number[],
+    limit: number = 5,
+    minSimilarity: number = 0.0
+  ): Promise<Array<VectorData & { similarity: number }>> {
+    this.ensureInitialized();
+
+    const results: Array<VectorData & { similarity: number }> = [];
+    let minHeapSimilarity = minSimilarity;
+    const batchSize = 100;
+    const totalCount = await this.getVectorCount();
+    for (let offset = 0; offset < totalCount; offset += batchSize) {
+      const batch = await this.getVectorsBatch(offset, batchSize);
+      for (const vector of batch) {
+        const similarity = VectorStore.cosineSimilarity(queryEmbedding, vector.embedding);
+        if (similarity >= minHeapSimilarity) {
+          results.push({ ...vector, similarity });
+          if (results.length > limit) {
+            results.sort((a, b) => b.similarity - a.similarity);
+            results.splice(limit);
+            minHeapSimilarity = results[results.length - 1].similarity;
+          }
+        }
+      }
+    }
+    return results.sort((a, b) => b.similarity - a.similarity);
+  }
   private db: IDBDatabase | null = null;
   private dbName: string;
   private isInitialized: boolean = false;
@@ -317,31 +435,6 @@ export class VectorStore {
     return magnitude === 0 ? 0 : dotProduct / magnitude;
   }
 
-  /**
-   * Finds vectors most similar to a given embedding.
-   * @param queryEmbedding - The embedding to find similarities for.
-   * @param limit - Maximum number of results to return (default: 5).
-   * @param minSimilarity - Minimum similarity threshold (default: 0.0).
-   * @returns Array of vectors with similarity scores, sorted by similarity (highest first).
-   */
-  async findSimilarVectors(
-    queryEmbedding: number[], 
-    limit: number = 5, 
-    minSimilarity: number = 0.0
-  ): Promise<Array<VectorData & { similarity: number }>> {
-    this.ensureInitialized();
-
-    const allVectors = await this.getAllVectors();
-    const similarities = allVectors.map(vector => ({
-      ...vector,
-      similarity: VectorStore.cosineSimilarity(queryEmbedding, vector.embedding)
-    }));
-
-    return similarities
-      .filter(item => item.similarity >= minSimilarity)
-      .sort((a, b) => b.similarity - a.similarity)
-      .slice(0, limit);
-  }
 
   /**
    * Deletes a vector by its ID (alias for removeVector for backward compatibility).

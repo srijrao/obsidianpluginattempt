@@ -15078,6 +15078,122 @@ var init_vectorStore = __esm({
         this.dbName = "ai-assistant-vectorstore";
       }
       /**
+       * Gets all vector IDs from the store (memory efficient).
+       * @returns Array of all vector IDs.
+       */
+      async getAllVectorIds() {
+        this.ensureInitialized();
+        return new Promise((resolve, reject) => {
+          const transaction = this.db.transaction(["vectors"], "readonly");
+          const store = transaction.objectStore("vectors");
+          const request = store.openCursor();
+          const ids = [];
+          request.onsuccess = (event) => {
+            const cursor = event.target.result;
+            if (cursor) {
+              ids.push(cursor.key);
+              cursor.continue();
+            } else {
+              resolve(ids);
+            }
+          };
+          request.onerror = () => {
+            var _a2;
+            return reject(new Error(`Failed to get all vector IDs: ${(_a2 = request.error) == null ? void 0 : _a2.message}`));
+          };
+        });
+      }
+      /**
+       * Gets the latest timestamp from all vectors (memory efficient).
+       * @returns The latest timestamp.
+       */
+      async getLatestTimestamp() {
+        this.ensureInitialized();
+        return new Promise((resolve, reject) => {
+          const transaction = this.db.transaction(["vectors"], "readonly");
+          const store = transaction.objectStore("vectors");
+          const request = store.openCursor();
+          let maxTimestamp = 0;
+          request.onsuccess = (event) => {
+            const cursor = event.target.result;
+            if (cursor) {
+              const vector = cursor.value;
+              if (vector.timestamp && vector.timestamp > maxTimestamp) {
+                maxTimestamp = vector.timestamp;
+              }
+              cursor.continue();
+            } else {
+              resolve(maxTimestamp);
+            }
+          };
+          request.onerror = () => {
+            var _a2;
+            return reject(new Error(`Failed to get latest timestamp: ${(_a2 = request.error) == null ? void 0 : _a2.message}`));
+          };
+        });
+      }
+      /**
+       * Gets a batch of vectors from the store.
+       * @param offset - The starting index.
+       * @param batchSize - The number of vectors to retrieve.
+       * @returns Array of vectors in the batch.
+       */
+      async getVectorsBatch(offset, batchSize) {
+        this.ensureInitialized();
+        return new Promise((resolve, reject) => {
+          const transaction = this.db.transaction(["vectors"], "readonly");
+          const store = transaction.objectStore("vectors");
+          const request = store.openCursor();
+          const batch = [];
+          let skipped = 0;
+          request.onsuccess = (event) => {
+            const cursor = event.target.result;
+            if (cursor) {
+              if (skipped < offset) {
+                skipped++;
+                cursor.continue();
+              } else if (batch.length < batchSize) {
+                batch.push(cursor.value);
+                cursor.continue();
+              } else {
+                resolve(batch);
+              }
+            } else {
+              resolve(batch);
+            }
+          };
+          request.onerror = () => {
+            var _a2;
+            return reject(new Error(`Failed to get vectors batch: ${(_a2 = request.error) == null ? void 0 : _a2.message}`));
+          };
+        });
+      }
+      /**
+       * Optimized streaming similarity calculation for large datasets.
+       */
+      async findSimilarVectors(queryEmbedding, limit = 5, minSimilarity = 0) {
+        this.ensureInitialized();
+        const results = [];
+        let minHeapSimilarity = minSimilarity;
+        const batchSize = 100;
+        const totalCount = await this.getVectorCount();
+        for (let offset = 0; offset < totalCount; offset += batchSize) {
+          const batch = await this.getVectorsBatch(offset, batchSize);
+          for (const vector of batch) {
+            const similarity = _VectorStore.cosineSimilarity(queryEmbedding, vector.embedding);
+            if (similarity >= minHeapSimilarity) {
+              results.push({ ...vector, similarity });
+              if (results.length > limit) {
+                results.sort((a, b) => b.similarity - a.similarity);
+                results.splice(limit);
+                minHeapSimilarity = results[results.length - 1].similarity;
+              }
+            }
+          }
+        }
+        return results.sort((a, b) => b.similarity - a.similarity);
+      }
+      /**
        * Initializes the VectorStore by setting up the IndexedDB database.
        * Must be called before using any other methods.
        */
@@ -15322,22 +15438,6 @@ var init_vectorStore = __esm({
         return magnitude === 0 ? 0 : dotProduct / magnitude;
       }
       /**
-       * Finds vectors most similar to a given embedding.
-       * @param queryEmbedding - The embedding to find similarities for.
-       * @param limit - Maximum number of results to return (default: 5).
-       * @param minSimilarity - Minimum similarity threshold (default: 0.0).
-       * @returns Array of vectors with similarity scores, sorted by similarity (highest first).
-       */
-      async findSimilarVectors(queryEmbedding, limit = 5, minSimilarity = 0) {
-        this.ensureInitialized();
-        const allVectors = await this.getAllVectors();
-        const similarities = allVectors.map((vector) => ({
-          ...vector,
-          similarity: _VectorStore.cosineSimilarity(queryEmbedding, vector.embedding)
-        }));
-        return similarities.filter((item) => item.similarity >= minSimilarity).sort((a, b) => b.similarity - a.similarity).slice(0, limit);
-      }
-      /**
        * Deletes a vector by its ID (alias for removeVector for backward compatibility).
        * @param id - The unique identifier of the vector to delete.
        * @returns True if a vector was deleted, false if not found.
@@ -15374,6 +15474,7 @@ var init_HybridVectorManager = __esm({
       showNotifications: false
     };
     HybridVectorManager = class {
+      // Add backup state protection
       constructor(plugin, config = {}) {
         __publicField(this, "vectorStore");
         __publicField(this, "plugin");
@@ -15384,6 +15485,7 @@ var init_HybridVectorManager = __esm({
         __publicField(this, "lastBackupTime", 0);
         __publicField(this, "backupTimer", null);
         __publicField(this, "currentMetadata", null);
+        __publicField(this, "isBackupInProgress", false);
         this.plugin = plugin;
         this.vectorStore = new VectorStore(plugin);
         this.config = { ...DEFAULT_CONFIG, ...config };
@@ -15465,9 +15567,9 @@ var init_HybridVectorManager = __esm({
           if (vectorCount === 0) {
             return null;
           }
-          const allVectors = await this.vectorStore.getAllVectors();
-          const summaryHash = this.generateSummaryHash(allVectors.map((v) => v.id));
-          const lastModified = Math.max(...allVectors.map((v) => v.timestamp));
+          const vectorIds = await this.vectorStore.getAllVectorIds();
+          const summaryHash = this.generateSummaryHash(vectorIds);
+          const lastModified = await this.vectorStore.getLatestTimestamp();
           return {
             vectorCount,
             lastModified,
@@ -15484,42 +15586,57 @@ var init_HybridVectorManager = __esm({
        * Get metadata from vault backup file
        */
       async getVaultMetadata() {
-        var _a2;
+        var _a2, _b;
         try {
           const backupExists = await this.plugin.app.vault.adapter.exists(this.config.backupFilePath);
           if (!backupExists) {
             return null;
           }
           const backupContent = await this.plugin.app.vault.adapter.read(this.config.backupFilePath);
-          const backupData = JSON.parse(backupContent);
+          let backupData;
+          try {
+            backupData = JSON.parse(backupContent);
+          } catch (parseError) {
+            debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "error", "Failed to parse backup file JSON:", parseError);
+            return null;
+          }
           return backupData.metadata || null;
         } catch (error) {
-          debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "warn", "Failed to get vault metadata:", error);
+          debugLog((_b = this.plugin.settings.debugMode) != null ? _b : false, "warn", "Failed to get vault metadata:", error);
           return null;
         }
       }
       /**
-       * Generate a simple hash from vector IDs for integrity checking
+       * Generate a more robust hash from vector IDs for integrity checking
        */
       generateSummaryHash(vectorIds) {
         const sortedIds = vectorIds.sort();
         const combined = sortedIds.join("|");
-        let hash = 0;
+        let hash = 2166136261;
         for (let i = 0; i < combined.length; i++) {
-          const char = combined.charCodeAt(i);
-          hash = (hash << 5) - hash + char;
-          hash = hash & hash;
+          hash ^= combined.charCodeAt(i);
+          hash *= 16777619;
+          hash = hash >>> 0;
         }
-        return Math.abs(hash).toString(36);
+        return hash.toString(36);
       }
       /**
-       * Generate current metadata
+       * Generate current metadata efficiently
        */
       async generateMetadata() {
         const vectorCount = await this.vectorStore.getVectorCount();
-        const allVectors = await this.vectorStore.getAllVectors();
-        const summaryHash = this.generateSummaryHash(allVectors.map((v) => v.id));
-        const lastModified = vectorCount > 0 ? Math.max(...allVectors.map((v) => v.timestamp)) : Date.now();
+        if (vectorCount === 0) {
+          return {
+            vectorCount: 0,
+            lastModified: Date.now(),
+            summaryHash: "",
+            version: "1.0.0",
+            lastBackup: this.lastBackupTime
+          };
+        }
+        const vectorIds = await this.vectorStore.getAllVectorIds();
+        const summaryHash = this.generateSummaryHash(vectorIds);
+        const lastModified = await this.vectorStore.getLatestTimestamp();
         return {
           vectorCount,
           lastModified,
@@ -15545,15 +15662,22 @@ var init_HybridVectorManager = __esm({
        * Perform automatic backup if needed
        */
       async performAutomaticBackup() {
-        var _a2;
+        var _a2, _b;
+        if (this.isBackupInProgress) {
+          debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", "Backup already in progress, skipping");
+          return;
+        }
         try {
+          this.isBackupInProgress = true;
           const timeSinceLastBackup = Date.now() - this.lastBackupTime;
           const shouldBackup = this.changesSinceBackup >= this.config.changeThreshold || timeSinceLastBackup > this.config.backupInterval;
           if (shouldBackup) {
             await this.backupToVault();
           }
         } catch (error) {
-          debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "warn", "Automatic backup failed:", error);
+          debugLog((_b = this.plugin.settings.debugMode) != null ? _b : false, "warn", "Automatic backup failed:", error);
+        } finally {
+          this.isBackupInProgress = false;
         }
       }
       /**
@@ -15587,7 +15711,7 @@ var init_HybridVectorManager = __esm({
        * Restore vectors from vault backup file
        */
       async restoreFromVault() {
-        var _a2, _b, _c, _d, _e;
+        var _a2, _b, _c, _d, _e, _f;
         try {
           debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", "Restoring vectors from vault backup...");
           const backupExists = await this.plugin.app.vault.adapter.exists(this.config.backupFilePath);
@@ -15596,9 +15720,15 @@ var init_HybridVectorManager = __esm({
             return;
           }
           const backupContent = await this.plugin.app.vault.adapter.read(this.config.backupFilePath);
-          const backupData = JSON.parse(backupContent);
+          let backupData;
+          try {
+            backupData = JSON.parse(backupContent);
+          } catch (parseError) {
+            debugLog((_c = this.plugin.settings.debugMode) != null ? _c : false, "error", "Failed to parse backup file JSON:", parseError);
+            throw new Error("Invalid backup file format: JSON parse error");
+          }
           if (!backupData.vectors || !Array.isArray(backupData.vectors)) {
-            throw new Error("Invalid backup file format");
+            throw new Error("Invalid backup file format: missing or invalid vectors array");
           }
           await this.vectorStore.clearAllVectors();
           let importedCount = 0;
@@ -15612,15 +15742,15 @@ var init_HybridVectorManager = __esm({
               );
               importedCount++;
             } catch (error) {
-              debugLog((_c = this.plugin.settings.debugMode) != null ? _c : false, "warn", `Failed to restore vector ${vectorData.id}:`, error);
+              debugLog((_d = this.plugin.settings.debugMode) != null ? _d : false, "warn", `Failed to restore vector ${vectorData.id}:`, error);
             }
           }
           this.changesSinceBackup = 0;
           this.lastBackupTime = Date.now();
           this.currentMetadata = await this.generateMetadata();
-          debugLog((_d = this.plugin.settings.debugMode) != null ? _d : false, "info", `\u2705 Restoration completed: ${importedCount} vectors restored from backup`);
+          debugLog((_e = this.plugin.settings.debugMode) != null ? _e : false, "info", `\u2705 Restoration completed: ${importedCount} vectors restored from backup`);
         } catch (error) {
-          debugLog((_e = this.plugin.settings.debugMode) != null ? _e : false, "error", "Failed to restore from vault:", error);
+          debugLog((_f = this.plugin.settings.debugMode) != null ? _f : false, "error", "Failed to restore from vault:", error);
           throw error;
         }
       }
@@ -15630,7 +15760,12 @@ var init_HybridVectorManager = __esm({
       trackChange() {
         this.changesSinceBackup++;
         if (this.changesSinceBackup >= this.config.changeThreshold) {
-          this.performAutomaticBackup();
+          setTimeout(() => {
+            this.performAutomaticBackup().catch((error) => {
+              var _a2;
+              debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "warn", "Threshold-triggered backup failed:", error);
+            });
+          }, 0);
         }
       }
       // Wrapper methods that delegate to VectorStore and track changes
@@ -15658,7 +15793,7 @@ var init_HybridVectorManager = __esm({
         const count = await this.vectorStore.clearAllVectors();
         if (count > 0) {
           this.changesSinceBackup += count;
-          this.performAutomaticBackup();
+          await this.performAutomaticBackup();
         }
         return count;
       }

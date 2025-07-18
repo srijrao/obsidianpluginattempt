@@ -77,6 +77,7 @@ export class HybridVectorManager {
   private lastBackupTime = 0;
   private backupTimer: NodeJS.Timeout | null = null;
   private currentMetadata: VectorMetadata | null = null;
+  private isBackupInProgress = false; // Add backup state protection
 
   constructor(plugin: MyPlugin, config: Partial<HybridVectorConfig> = {}) {
     this.plugin = plugin;
@@ -195,9 +196,10 @@ export class HybridVectorManager {
         return null;
       }
 
-      const allVectors = await this.vectorStore.getAllVectors();
-      const summaryHash = this.generateSummaryHash(allVectors.map(v => v.id));
-      const lastModified = Math.max(...allVectors.map(v => v.timestamp));
+      // Use streaming methods for memory efficiency
+      const vectorIds = await this.vectorStore.getAllVectorIds();
+      const summaryHash = this.generateSummaryHash(vectorIds);
+      const lastModified = await this.vectorStore.getLatestTimestamp();
 
       return {
         vectorCount,
@@ -223,7 +225,15 @@ export class HybridVectorManager {
       }
 
       const backupContent = await this.plugin.app.vault.adapter.read(this.config.backupFilePath);
-      const backupData = JSON.parse(backupContent);
+      
+      // Parse JSON with error handling
+      let backupData;
+      try {
+        backupData = JSON.parse(backupContent);
+      } catch (parseError) {
+        debugLog(this.plugin.settings.debugMode ?? false, 'error', 'Failed to parse backup file JSON:', parseError);
+        return null;
+      }
 
       return backupData.metadata || null;
     } catch (error) {
@@ -233,31 +243,43 @@ export class HybridVectorManager {
   }
 
   /**
-   * Generate a simple hash from vector IDs for integrity checking
+   * Generate a more robust hash from vector IDs for integrity checking
    */
   private generateSummaryHash(vectorIds: string[]): string {
     const sortedIds = vectorIds.sort();
     const combined = sortedIds.join('|');
     
-    // Simple hash function
-    let hash = 0;
+    // More robust hash function (FNV-1a variant)
+    let hash = 2166136261; // FNV offset basis
     for (let i = 0; i < combined.length; i++) {
-      const char = combined.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
-      hash = hash & hash; // Convert to 32-bit integer
+      hash ^= combined.charCodeAt(i);
+      hash *= 16777619; // FNV prime
+      hash = hash >>> 0; // Convert to unsigned 32-bit integer
     }
     
-    return Math.abs(hash).toString(36);
+    return hash.toString(36);
   }
 
   /**
-   * Generate current metadata
+   * Generate current metadata efficiently
    */
   private async generateMetadata(): Promise<VectorMetadata> {
     const vectorCount = await this.vectorStore.getVectorCount();
-    const allVectors = await this.vectorStore.getAllVectors();
-    const summaryHash = this.generateSummaryHash(allVectors.map(v => v.id));
-    const lastModified = vectorCount > 0 ? Math.max(...allVectors.map(v => v.timestamp)) : Date.now();
+    
+    if (vectorCount === 0) {
+      return {
+        vectorCount: 0,
+        lastModified: Date.now(),
+        summaryHash: '',
+        version: '1.0.0',
+        lastBackup: this.lastBackupTime
+      };
+    }
+
+    // Optimized: only load IDs and timestamps
+    const vectorIds = await this.vectorStore.getAllVectorIds();
+    const summaryHash = this.generateSummaryHash(vectorIds);
+    const lastModified = await this.vectorStore.getLatestTimestamp();
 
     return {
       vectorCount,
@@ -289,7 +311,15 @@ export class HybridVectorManager {
    * Perform automatic backup if needed
    */
   private async performAutomaticBackup(): Promise<void> {
+    // Prevent concurrent backups
+    if (this.isBackupInProgress) {
+      debugLog(this.plugin.settings.debugMode ?? false, 'info', 'Backup already in progress, skipping');
+      return;
+    }
+
     try {
+      this.isBackupInProgress = true;
+      
       // Check if backup is needed
       const timeSinceLastBackup = Date.now() - this.lastBackupTime;
       const shouldBackup = (
@@ -302,6 +332,8 @@ export class HybridVectorManager {
       }
     } catch (error) {
       debugLog(this.plugin.settings.debugMode ?? false, 'warn', 'Automatic backup failed:', error);
+    } finally {
+      this.isBackupInProgress = false;
     }
   }
 
@@ -354,10 +386,18 @@ export class HybridVectorManager {
       }
 
       const backupContent = await this.plugin.app.vault.adapter.read(this.config.backupFilePath);
-      const backupData = JSON.parse(backupContent);
+      
+      // Parse JSON with error handling
+      let backupData;
+      try {
+        backupData = JSON.parse(backupContent);
+      } catch (parseError) {
+        debugLog(this.plugin.settings.debugMode ?? false, 'error', 'Failed to parse backup file JSON:', parseError);
+        throw new Error('Invalid backup file format: JSON parse error');
+      }
 
       if (!backupData.vectors || !Array.isArray(backupData.vectors)) {
-        throw new Error('Invalid backup file format');
+        throw new Error('Invalid backup file format: missing or invalid vectors array');
       }
 
       // Clear existing vectors
@@ -400,7 +440,12 @@ export class HybridVectorManager {
     
     // Trigger immediate backup if threshold reached
     if (this.changesSinceBackup >= this.config.changeThreshold) {
-      this.performAutomaticBackup();
+      // Use setTimeout to avoid blocking the current operation
+      setTimeout(() => {
+        this.performAutomaticBackup().catch(error => {
+          debugLog(this.plugin.settings.debugMode ?? false, 'warn', 'Threshold-triggered backup failed:', error);
+        });
+      }, 0);
     }
   }
 
@@ -432,7 +477,7 @@ export class HybridVectorManager {
     const count = await this.vectorStore.clearAllVectors();
     if (count > 0) {
       this.changesSinceBackup += count; // Track multiple changes
-      this.performAutomaticBackup(); // Immediate backup after clear
+      await this.performAutomaticBackup(); // Immediate backup after clear - await to ensure completion
     }
     return count;
   }
