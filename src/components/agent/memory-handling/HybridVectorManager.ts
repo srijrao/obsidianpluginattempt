@@ -299,12 +299,16 @@ export class HybridVectorManager {
       clearInterval(this.backupTimer);
     }
 
-    // Set up periodic backup
-    this.backupTimer = setInterval(() => {
-      this.performAutomaticBackup();
-    }, this.config.backupInterval);
+    // Only set up periodic backup if interval is greater than 0
+    if (this.config.backupInterval > 0) {
+      this.backupTimer = setInterval(() => {
+        this.performAutomaticBackup();
+      }, this.config.backupInterval);
 
-    debugLog(this.plugin.settings.debugMode ?? false, 'info', `Automatic backup set up with ${this.config.backupInterval}ms interval`);
+      debugLog(this.plugin.settings.debugMode ?? false, 'info', `Automatic backup set up with ${this.config.backupInterval}ms interval`);
+    } else {
+      debugLog(this.plugin.settings.debugMode ?? false, 'info', 'Automatic backup disabled (interval = 0)');
+    }
   }
 
   /**
@@ -376,37 +380,54 @@ export class HybridVectorManager {
    * Restore vectors from vault backup file
    */
   async restoreFromVault(): Promise<void> {
+    // Temporarily disable automatic backups during restoration
+    const wasBackupInProgress = this.isBackupInProgress;
+    this.isBackupInProgress = true;
+    
     try {
+      console.log('🔄 Starting restoreFromVault...');
       debugLog(this.plugin.settings.debugMode ?? false, 'info', 'Restoring vectors from vault backup...');
 
       const backupExists = await this.plugin.app.vault.adapter.exists(this.config.backupFilePath);
+      console.log('📁 Backup exists:', backupExists, 'Path:', this.config.backupFilePath);
       if (!backupExists) {
         debugLog(this.plugin.settings.debugMode ?? false, 'warn', 'No backup file found for restoration');
         return;
       }
 
       const backupContent = await this.plugin.app.vault.adapter.read(this.config.backupFilePath);
+      console.log('📄 Backup content length:', backupContent.length);
       
       // Parse JSON with error handling
       let backupData;
       try {
         backupData = JSON.parse(backupContent);
+        console.log('📊 Parsed backup data:', {
+          hasVectors: !!backupData.vectors,
+          vectorCount: backupData.vectors?.length,
+          totalVectors: backupData.totalVectors
+        });
       } catch (parseError) {
+        console.error('❌ JSON parse error:', parseError);
         debugLog(this.plugin.settings.debugMode ?? false, 'error', 'Failed to parse backup file JSON:', parseError);
         throw new Error('Invalid backup file format: JSON parse error');
       }
 
       if (!backupData.vectors || !Array.isArray(backupData.vectors)) {
+        console.error('❌ Invalid backup format - no vectors array');
         throw new Error('Invalid backup file format: missing or invalid vectors array');
       }
 
-      // Clear existing vectors
-      await this.vectorStore.clearAllVectors();
+      // Clear existing vectors (skip backup to avoid overwriting the backup we're restoring from)
+      console.log('🗑️ Clearing existing vectors...');
+      await this.clearAllVectors(true); // Skip backup during restoration
 
       // Import vectors from backup
       let importedCount = 0;
+      console.log(`📥 Starting to import ${backupData.vectors.length} vectors...`);
       for (const vectorData of backupData.vectors) {
         try {
+          console.log(`📥 Importing vector ${importedCount + 1}/${backupData.vectors.length}: ${vectorData.id}`);
           await this.vectorStore.addVector(
             vectorData.id,
             vectorData.text,
@@ -415,6 +436,7 @@ export class HybridVectorManager {
           );
           importedCount++;
         } catch (error) {
+          console.error(`❌ Failed to restore vector ${vectorData.id}:`, error);
           debugLog(this.plugin.settings.debugMode ?? false, 'warn', `Failed to restore vector ${vectorData.id}:`, error);
         }
       }
@@ -424,11 +446,16 @@ export class HybridVectorManager {
       this.lastBackupTime = Date.now();
       this.currentMetadata = await this.generateMetadata();
 
+      console.log(`✅ Restoration completed: ${importedCount} vectors restored from backup`);
       debugLog(this.plugin.settings.debugMode ?? false, 'info', `✅ Restoration completed: ${importedCount} vectors restored from backup`);
 
     } catch (error) {
+      console.error('❌ Failed to restore from vault:', error);
       debugLog(this.plugin.settings.debugMode ?? false, 'error', 'Failed to restore from vault:', error);
       throw error;
+    } finally {
+      // Restore the original backup state
+      this.isBackupInProgress = wasBackupInProgress;
     }
   }
 
@@ -473,9 +500,9 @@ export class HybridVectorManager {
   /**
    * Clear all vectors from the store
    */
-  async clearAllVectors(): Promise<number> {
+  async clearAllVectors(skipBackup: boolean = false): Promise<number> {
     const count = await this.vectorStore.clearAllVectors();
-    if (count > 0) {
+    if (count > 0 && !skipBackup) {
       this.changesSinceBackup += count; // Track multiple changes
       await this.performAutomaticBackup(); // Immediate backup after clear - await to ensure completion
     }

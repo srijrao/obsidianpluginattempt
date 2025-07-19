@@ -1,5 +1,3 @@
-// ...existing code...
-  // ...existing code...
 /**
  * @file vectorStore.ts
  * @description
@@ -31,10 +29,22 @@ interface VectorData {
 /**
  * VectorStore
  * -----------
- * Manages an IndexedDB database for storing text embeddings (vectors). 
+ * Manages an IndexedDB database for storing text embeddings (vectors).
  * No SQL dependencies - uses pure IndexedDB for maximum Obsidian compatibility.
  */
 export class VectorStore {
+  private db: IDBDatabase | null = null;
+  private dbName: string;
+  private isInitialized: boolean = false;
+
+  /**
+   * Constructs a new VectorStore instance.
+   * @param plugin - The Obsidian plugin instance (used for naming the database).
+   */
+  constructor(plugin: Plugin) {
+    // Use a consistent database name across platforms
+    this.dbName = 'ai-assistant-vectorstore';
+  }
 
   /**
    * Gets all vector IDs from the store (memory efficient).
@@ -151,18 +161,6 @@ export class VectorStore {
     }
     return results.sort((a, b) => b.similarity - a.similarity);
   }
-  private db: IDBDatabase | null = null;
-  private dbName: string;
-  private isInitialized: boolean = false;
-
-  /**
-   * Constructs a new VectorStore instance.
-   * @param plugin - The Obsidian plugin instance (used for naming the database).
-   */
-  constructor(plugin: Plugin) {
-    // Use a consistent database name across platforms
-    this.dbName = 'ai-assistant-vectorstore';
-  }
 
   /**
    * Initializes the VectorStore by setting up the IndexedDB database.
@@ -238,6 +236,23 @@ export class VectorStore {
    */
   async addVector(id: string, text: string, embedding: number[], metadata?: any): Promise<void> {
     this.ensureInitialized();
+
+    // Validate input parameters
+    if (!id || typeof id !== 'string') {
+      throw new Error('Vector ID must be a non-empty string');
+    }
+    if (typeof text !== 'string') {
+      throw new Error('Vector text must be a string');
+    }
+    if (!Array.isArray(embedding)) {
+      throw new Error('Vector embedding must be an array of numbers');
+    }
+    if (embedding.length === 0) {
+      throw new Error('Vector embedding cannot be empty');
+    }
+    if (!embedding.every(val => typeof val === 'number' && !isNaN(val))) {
+      throw new Error('Vector embedding must contain only valid numbers');
+    }
 
     const vectorData: VectorData = {
       id,

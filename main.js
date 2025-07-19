@@ -15257,6 +15257,21 @@ var init_vectorStore = __esm({
        */
       async addVector(id, text, embedding, metadata) {
         this.ensureInitialized();
+        if (!id || typeof id !== "string") {
+          throw new Error("Vector ID must be a non-empty string");
+        }
+        if (typeof text !== "string") {
+          throw new Error("Vector text must be a string");
+        }
+        if (!Array.isArray(embedding)) {
+          throw new Error("Vector embedding must be an array of numbers");
+        }
+        if (embedding.length === 0) {
+          throw new Error("Vector embedding cannot be empty");
+        }
+        if (!embedding.every((val) => typeof val === "number" && !isNaN(val))) {
+          throw new Error("Vector embedding must contain only valid numbers");
+        }
         const vectorData = {
           id,
           text,
@@ -15649,14 +15664,18 @@ var init_HybridVectorManager = __esm({
        * Set up automatic backup system
        */
       setupAutomaticBackup() {
-        var _a2;
+        var _a2, _b;
         if (this.backupTimer) {
           clearInterval(this.backupTimer);
         }
-        this.backupTimer = setInterval(() => {
-          this.performAutomaticBackup();
-        }, this.config.backupInterval);
-        debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", `Automatic backup set up with ${this.config.backupInterval}ms interval`);
+        if (this.config.backupInterval > 0) {
+          this.backupTimer = setInterval(() => {
+            this.performAutomaticBackup();
+          }, this.config.backupInterval);
+          debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", `Automatic backup set up with ${this.config.backupInterval}ms interval`);
+        } else {
+          debugLog((_b = this.plugin.settings.debugMode) != null ? _b : false, "info", "Automatic backup disabled (interval = 0)");
+        }
       }
       /**
        * Perform automatic backup if needed
@@ -15711,29 +15730,44 @@ var init_HybridVectorManager = __esm({
        * Restore vectors from vault backup file
        */
       async restoreFromVault() {
-        var _a2, _b, _c, _d, _e, _f;
+        var _a2, _b, _c, _d, _e, _f, _g;
+        const wasBackupInProgress = this.isBackupInProgress;
+        this.isBackupInProgress = true;
         try {
+          console.log("\u{1F504} Starting restoreFromVault...");
           debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", "Restoring vectors from vault backup...");
           const backupExists = await this.plugin.app.vault.adapter.exists(this.config.backupFilePath);
+          console.log("\u{1F4C1} Backup exists:", backupExists, "Path:", this.config.backupFilePath);
           if (!backupExists) {
             debugLog((_b = this.plugin.settings.debugMode) != null ? _b : false, "warn", "No backup file found for restoration");
             return;
           }
           const backupContent = await this.plugin.app.vault.adapter.read(this.config.backupFilePath);
+          console.log("\u{1F4C4} Backup content length:", backupContent.length);
           let backupData;
           try {
             backupData = JSON.parse(backupContent);
+            console.log("\u{1F4CA} Parsed backup data:", {
+              hasVectors: !!backupData.vectors,
+              vectorCount: (_c = backupData.vectors) == null ? void 0 : _c.length,
+              totalVectors: backupData.totalVectors
+            });
           } catch (parseError) {
-            debugLog((_c = this.plugin.settings.debugMode) != null ? _c : false, "error", "Failed to parse backup file JSON:", parseError);
+            console.error("\u274C JSON parse error:", parseError);
+            debugLog((_d = this.plugin.settings.debugMode) != null ? _d : false, "error", "Failed to parse backup file JSON:", parseError);
             throw new Error("Invalid backup file format: JSON parse error");
           }
           if (!backupData.vectors || !Array.isArray(backupData.vectors)) {
+            console.error("\u274C Invalid backup format - no vectors array");
             throw new Error("Invalid backup file format: missing or invalid vectors array");
           }
-          await this.vectorStore.clearAllVectors();
+          console.log("\u{1F5D1}\uFE0F Clearing existing vectors...");
+          await this.clearAllVectors(true);
           let importedCount = 0;
+          console.log(`\u{1F4E5} Starting to import ${backupData.vectors.length} vectors...`);
           for (const vectorData of backupData.vectors) {
             try {
+              console.log(`\u{1F4E5} Importing vector ${importedCount + 1}/${backupData.vectors.length}: ${vectorData.id}`);
               await this.vectorStore.addVector(
                 vectorData.id,
                 vectorData.text,
@@ -15742,16 +15776,21 @@ var init_HybridVectorManager = __esm({
               );
               importedCount++;
             } catch (error) {
-              debugLog((_d = this.plugin.settings.debugMode) != null ? _d : false, "warn", `Failed to restore vector ${vectorData.id}:`, error);
+              console.error(`\u274C Failed to restore vector ${vectorData.id}:`, error);
+              debugLog((_e = this.plugin.settings.debugMode) != null ? _e : false, "warn", `Failed to restore vector ${vectorData.id}:`, error);
             }
           }
           this.changesSinceBackup = 0;
           this.lastBackupTime = Date.now();
           this.currentMetadata = await this.generateMetadata();
-          debugLog((_e = this.plugin.settings.debugMode) != null ? _e : false, "info", `\u2705 Restoration completed: ${importedCount} vectors restored from backup`);
+          console.log(`\u2705 Restoration completed: ${importedCount} vectors restored from backup`);
+          debugLog((_f = this.plugin.settings.debugMode) != null ? _f : false, "info", `\u2705 Restoration completed: ${importedCount} vectors restored from backup`);
         } catch (error) {
-          debugLog((_f = this.plugin.settings.debugMode) != null ? _f : false, "error", "Failed to restore from vault:", error);
+          console.error("\u274C Failed to restore from vault:", error);
+          debugLog((_g = this.plugin.settings.debugMode) != null ? _g : false, "error", "Failed to restore from vault:", error);
           throw error;
+        } finally {
+          this.isBackupInProgress = wasBackupInProgress;
         }
       }
       /**
@@ -15789,9 +15828,9 @@ var init_HybridVectorManager = __esm({
       /**
        * Clear all vectors from the store
        */
-      async clearAllVectors() {
+      async clearAllVectors(skipBackup = false) {
         const count = await this.vectorStore.clearAllVectors();
-        if (count > 0) {
+        if (count > 0 && !skipBackup) {
           this.changesSinceBackup += count;
           await this.performAutomaticBackup();
         }

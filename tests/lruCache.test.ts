@@ -151,6 +151,7 @@ describe('LRUCache', () => {
     let cacheWithTTL: LRUCache<string>;
 
     beforeEach(() => {
+      jest.useFakeTimers();
       cacheWithTTL = new LRUCache<string>({
         maxSize: 5,
         defaultTTL: 100, // 100ms
@@ -160,6 +161,7 @@ describe('LRUCache', () => {
 
     afterEach(() => {
       cacheWithTTL.destroy();
+      jest.useRealTimers();
     });
 
     test('should expire items after TTL', () => {
@@ -259,6 +261,8 @@ describe('LRUCache', () => {
 
   describe('getStats', () => {
     test('should return cache statistics', () => {
+      jest.useFakeTimers();
+      
       const stats1 = cache.getStats();
       expect(stats1.size).toBe(0);
       expect(stats1.maxSize).toBe(3);
@@ -280,6 +284,8 @@ describe('LRUCache', () => {
       expect(stats2.oldestTimestamp).toBeGreaterThanOrEqual(time1);
       expect(stats2.newestTimestamp).toBeGreaterThanOrEqual(time2);
       expect(stats2.newestTimestamp).toBeGreaterThanOrEqual(stats2.oldestTimestamp!);
+      
+      jest.useRealTimers();
     });
   });
 

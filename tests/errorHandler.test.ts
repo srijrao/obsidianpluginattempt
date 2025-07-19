@@ -12,6 +12,9 @@ describe('ErrorHandler', () => {
   let mockDebugLog: jest.Mock;
 
   beforeEach(() => {
+    // Set up fake timers first
+    jest.useFakeTimers();
+    
     // Clear all mocks and reset singleton instance before each test
     jest.clearAllMocks();
     (Notice as jest.Mock).mockClear();
@@ -19,18 +22,19 @@ describe('ErrorHandler', () => {
     
     // Reset the singleton instance for consistent testing
     // @ts-ignore - Accessing private static property for testing purposes
-    ErrorHandler['instance'] = undefined; 
+    ErrorHandler['instance'] = undefined;
     handler = ErrorHandler.getInstance();
     handler.resetErrorCounts(); // Ensure no lingering error counts from previous tests
 
     mockNotice = Notice as jest.Mock;
     mockDebugLog = debugLog as jest.Mock;
-
-    jest.useFakeTimers(); // Use fake timers for cleanupOldErrors and Notice duration
   });
 
   afterEach(() => {
-    jest.runOnlyPendingTimers();
+    // Only run pending timers if fake timers are active
+    if (jest.isMockFunction(setTimeout)) {
+      jest.runOnlyPendingTimers();
+    }
     jest.useRealTimers();
   });
 
