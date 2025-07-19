@@ -3,8 +3,7 @@ import { Vault } from 'obsidian';
 import { Message, CompletionOptions, MyPluginSettings, UnifiedModel } from '../src/types';
 import { createProvider, createProviderFromUnifiedModel, getAllAvailableModels } from '../providers';
 import { saveAICallToFolder } from '../src/utils/saveAICalls';
-import { LRUCache, LRUCacheFactory } from '../src/utils/lruCache';
-import { MessageContextPool, PreAllocatedArrays } from '../src/utils/objectPool';
+import { SimpleCache, createSimpleCache } from '../src/utils/simpleCache';
 
 // Mock external dependencies
 jest.mock('obsidian', () => ({
@@ -25,48 +24,23 @@ jest.mock('../src/utils/saveAICalls', () => ({
 jest.mock('../src/utils/logger', () => ({
   debugLog: jest.fn(),
 }));
-jest.mock('../src/utils/lruCache', () => ({
-  LRUCache: jest.fn().mockImplementation(() => ({
+jest.mock('../src/utils/simpleCache', () => ({
+  SimpleCache: jest.fn().mockImplementation(() => ({
     get: jest.fn(),
     set: jest.fn(),
     has: jest.fn(),
     delete: jest.fn(),
     clear: jest.fn(),
-    cleanup: jest.fn(),
-    size: jest.fn(() => 0),
+    size: 0,
   })),
-  LRUCacheFactory: {
-    createResponseCache: jest.fn().mockImplementation(() => ({
-      get: jest.fn(),
-      set: jest.fn(),
-      has: jest.fn(),
-      delete: jest.fn(),
-      clear: jest.fn(),
-      cleanup: jest.fn(),
-      size: jest.fn(() => 0),
-    })),
-    createDOMCache: jest.fn(),
-    createAPICache: jest.fn(),
-    createComputedCache: jest.fn(),
-  },
-}));
-jest.mock('../src/utils/objectPool', () => ({
-  MessageContextPool: {
-    getInstance: jest.fn().mockImplementation(() => ({
-      acquireMessage: jest.fn(() => ({ role: '', content: '' })),
-      releaseMessage: jest.fn(),
-      acquireArray: jest.fn(() => []),
-      releaseArray: jest.fn(),
-      clear: jest.fn(),
-    })),
-  },
-  PreAllocatedArrays: {
-    getInstance: jest.fn().mockImplementation(() => ({
-      getArray: jest.fn((size: number) => new Array(size)),
-      returnArray: jest.fn(),
-      clear: jest.fn(),
-    })),
-  },
+  createSimpleCache: jest.fn().mockImplementation(() => ({
+    get: jest.fn(),
+    set: jest.fn(),
+    has: jest.fn(),
+    delete: jest.fn(),
+    clear: jest.fn(),
+    size: 0,
+  })),
 }));
 
 // Mock BaseProvider
@@ -196,19 +170,14 @@ describe('AIDispatcher', () => {
   });
 
   describe('constructor', () => {
-    test('should initialize caches, metrics, and circuit breakers', () => {
-      expect(LRUCacheFactory.createResponseCache).toHaveBeenCalledWith(200);
-      expect(LRUCache).toHaveBeenCalledTimes(3); // For modelCache, providerCache, pendingRequests
-      expect(MessageContextPool.getInstance).toHaveBeenCalledTimes(1);
-      expect(PreAllocatedArrays.getInstance).toHaveBeenCalledTimes(1);
-      
+    test('should initialize caches and circuit breakers', () => {
       // Check circuit breakers are initialized
       expect(dispatcher['circuitBreakers'].size).toBe(4);
       expect(dispatcher['circuitBreakers'].get('openai')).toBeDefined();
     });
 
-    test('should start queue processor and pending request cleanup', () => {
-      // These are started via setInterval in constructor
+    test('should start queue processor', () => {
+      // Queue processor is started via setInterval in constructor
       // We can't directly test if setInterval was called without mocking it globally
       // But we can assume it's called if the constructor runs without error
     });

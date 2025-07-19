@@ -11,8 +11,7 @@ import { DIContainer, ServiceLocator, DIContainerFactory } from '../utils/depend
 import { globalStateManager, StateUtils } from '../utils/stateManager';
 import { globalStreamManager, StreamUtils } from '../utils/streamManager';
 import { errorHandler } from '../utils/errorHandler';
-import { LRUCache } from '../utils/lruCache';
-import { AsyncOptimizerFactory } from '../utils/asyncOptimizer';
+import { SimpleCache } from '../utils/simpleCache';
 
 /**
  * Priority 3 Integration Manager
@@ -72,19 +71,17 @@ export class Priority3IntegrationManager {
         this.container.registerSingleton('stateManager', () => globalStateManager);
         this.container.registerSingleton('streamManager', () => globalStreamManager);
         this.container.registerSingleton('errorHandler', () => errorHandler);
-        this.container.registerSingleton('asyncOptimizerFactory', () => AsyncOptimizerFactory);
 
         // Register plugin-specific services
         this.container.registerSingleton('settingsCache', () => 
-            new LRUCache({ maxSize: 100, defaultTTL: 5 * 60 * 1000 })
+            new SimpleCache<any>(100)
         );
 
         this.container.registerTransient('httpClient', () => {
-            // Create HTTP client with optimizations
+            // Create HTTP client
             return {
                 async fetch(url: string, options?: RequestInit) {
-                    const throttler = AsyncOptimizerFactory.createAPIThrottler();
-                    return throttler.throttle(() => fetch(url, options));
+                    return fetch(url, options);
                 }
             };
         });
@@ -326,7 +323,7 @@ export class Priority3IntegrationManager {
         globalStreamManager.cleanup(60000); // 1 minute threshold
         
         // Clear non-essential caches
-        const settingsCache = ServiceLocator.resolve<LRUCache<any>>('settingsCache');
+        const settingsCache = ServiceLocator.resolve<SimpleCache<any>>('settingsCache');
         settingsCache.clear();
 
         // Create memory usage snapshot

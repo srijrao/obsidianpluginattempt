@@ -1,23 +1,14 @@
-import { LRUCache, LRUCacheFactory, LRUCacheOptions } from '../src/utils/lruCache';
+import { SimpleCache, createSimpleCache } from '../src/utils/simpleCache';
 
-describe('LRUCache', () => {
-  let cache: LRUCache<string>;
-  let onEvictSpy: jest.Mock;
+describe('SimpleCache', () => {
+  let cache: SimpleCache<string>;
 
   beforeEach(() => {
-    onEvictSpy = jest.fn();
-    cache = new LRUCache<string>({
-      maxSize: 3,
-      onEvict: onEvictSpy
-    });
-  });
-
-  afterEach(() => {
-    cache.destroy();
+    cache = new SimpleCache<string>(3);
   });
 
   describe('constructor', () => {
-    test('should initialize with provided options', () => {
+    test('should initialize with provided max size', () => {
       expect(cache.size()).toBe(0);
       expect(cache.maxCacheSize()).toBe(3);
     });

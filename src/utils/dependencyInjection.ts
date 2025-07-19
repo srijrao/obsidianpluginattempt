@@ -9,8 +9,7 @@ import { App } from 'obsidian';
 import type MyPlugin from '../main';
 import { AIDispatcher } from './aiDispatcher';
 import { ErrorHandler } from './errorHandler';
-import { LRUCache } from './lruCache';
-import { AsyncBatcher, ParallelExecutor } from './asyncOptimizer';
+import { SimpleCache } from './simpleCache';
 
 export type ServiceLifecycle = 'singleton' | 'transient' | 'scoped';
 

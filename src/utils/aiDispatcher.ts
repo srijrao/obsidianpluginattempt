@@ -5,11 +5,9 @@ import { createProvider, createProviderFromUnifiedModel, getAllAvailableModels }
 import { saveAICallToFolder } from './saveAICalls';
 import { debugLog } from './logger';
 import type { MyPluginSettings } from '../types';
-import { MessageContextPool, PreAllocatedArrays } from './objectPool';
-import { LRUCache, LRUCacheFactory } from './lruCache';
+import { SimpleCache, createSimpleCache } from './simpleCache';
 import { errorHandler, handleAIDispatcherError, withErrorHandling } from './errorHandler';
-import { AsyncBatcher, ParallelExecutor, AsyncOptimizerFactory } from './asyncOptimizer';
-import { performanceMonitor } from './performanceMonitor';
+import { simpleMetrics } from './simpleMetrics';
 import {
     isValidProviderName,
     ValidProviderName,
@@ -24,12 +22,6 @@ interface CacheEntry {
     response: string;
     timestamp: number;
     ttl: number;
-}
-
-interface BatchedRequest {
-    messages: Message[];
-    options: CompletionOptions;
-    providerOverride?: string;
 }
 
 interface RequestMetrics {
@@ -90,9 +82,9 @@ interface PendingRequest {
  */
 export class AIDispatcher {
     // Priority 2 Optimization: LRU Cache with size limits
-    private cache: LRUCache<string>;
-    private modelCache: LRUCache<UnifiedModel[]>;
-    private providerCache: LRUCache<string[]>;
+    private cache: SimpleCache<string>;
+    private modelCache: SimpleCache<UnifiedModel[]>;
+    private providerCache: SimpleCache<string[]>;
     
     private metrics: RequestMetrics = {
         totalRequests: 0,
@@ -113,17 +105,9 @@ export class AIDispatcher {
     private rateLimits = new Map<string, { requests: number; resetTime: number }>();
     private isProcessingQueue = false;
 
-    // Priority 1 Optimization: Request deduplication with LRU
-    private pendingRequests: LRUCache<Promise<void>>;
+    // Priority 1 Optimization: Request deduplication with simple cache
+    private pendingRequests: SimpleCache<Promise<void>>;
     private readonly DEDUP_TTL = 30 * 1000; // 30 seconds
-
-    // Memory optimization: Object pools
-    private messagePool: MessageContextPool;
-    private arrayManager: PreAllocatedArrays;
-
-    // Priority 2 Optimization: Async optimization
-    private requestBatcher: AsyncBatcher<BatchedRequest, void>;
-    private parallelExecutor: ParallelExecutor;
 
     // Configuration
     private readonly CACHE_TTL = 5 * 60 * 1000; // 5 minutes
@@ -137,8 +121,7 @@ export class AIDispatcher {
         private vault: Vault,
         private plugin: { settings: MyPluginSettings; saveSettings: () => Promise<void> }
     ) {
-        // Set debug mode for performance monitor
-        performanceMonitor.setDebugMode(this.plugin.settings.debugMode ?? false);
+        // Simple metrics - no debug mode configuration needed
 
         // Initialize circuit breakers
         ['openai', 'anthropic', 'gemini', 'ollama'].forEach(provider => {
@@ -150,60 +133,14 @@ export class AIDispatcher {
             });
         });
 
-        // Priority 2 Optimization: Initialize LRU caches
-        this.cache = LRUCacheFactory.createResponseCache(this.CACHE_MAX_SIZE);
-        this.modelCache = new LRUCache<UnifiedModel[]>({
-            maxSize: 10,
-            defaultTTL: 30 * 60 * 1000, // 30 minutes
-        });
-        this.providerCache = new LRUCache<string[]>({
-            maxSize: 20,
-            defaultTTL: 15 * 60 * 1000, // 15 minutes
-        });
-        this.pendingRequests = new LRUCache<Promise<void>>({
-            maxSize: 100,
-            defaultTTL: this.DEDUP_TTL,
-        });
-
-        // Initialize memory optimization components
-        this.messagePool = MessageContextPool.getInstance();
-        this.arrayManager = PreAllocatedArrays.getInstance();
-
-        // Priority 2 Optimization: Initialize async optimizers
-        this.requestBatcher = AsyncOptimizerFactory.createAPIBatcher(
-            async (requests: BatchedRequest[]) => {
-                const results: void[] = [];
-                for (const request of requests) {
-                    try {
-                        await this.executeWithRetry(request.messages, request.options,
-                            this.determineProvider(request.providerOverride),
-                            this.generateCacheKey(request.messages, request.options, request.providerOverride));
-                        results.push();
-                    } catch (error) {
-                        handleAIDispatcherError(error, 'batchedRequest', { requestCount: requests.length });
-                        results.push();
-                    }
-                }
-                return results;
-            }
-        );
-        this.parallelExecutor = AsyncOptimizerFactory.createIOExecutor();
+        // Initialize simple caches
+        this.cache = createSimpleCache<string>(this.CACHE_MAX_SIZE);
+        this.modelCache = new SimpleCache<UnifiedModel[]>(10);
+        this.providerCache = new SimpleCache<string[]>(20);
+        this.pendingRequests = new SimpleCache<Promise<void>>(100);
 
         // Start queue processor
         this.startQueueProcessor();
-        
-        // Priority 1 Optimization: Start cleanup for expired pending requests
-        this.startPendingRequestCleanup();
-    }
-
-    /**
-     * Priority 1 Optimization: Clean up expired pending requests
-     */
-    private startPendingRequestCleanup(): void {
-        setInterval(() => {
-            // LRU cache handles TTL automatically, just trigger cleanup
-            this.pendingRequests.cleanup();
-        }, this.DEDUP_TTL); // Clean up every 30 seconds
     }
 
     /**
@@ -234,7 +171,7 @@ export class AIDispatcher {
             const existingRequest = this.pendingRequests.get(cacheKey);
             if (existingRequest) {
                 this.metrics.deduplicatedRequests++;
-                performanceMonitor.recordMetric('deduplicated_requests', 1, 'count');
+                // Note: Deduplication is not tracked in simple metrics as it's an internal optimization
                 debugLog(this.plugin.settings.debugMode ?? false, 'info', '[AIDispatcher] Deduplicating request', { key: cacheKey });
                 return existingRequest;
             }
@@ -243,13 +180,13 @@ export class AIDispatcher {
             const cachedResponse = this.cache.get(cacheKey);
             if (cachedResponse && options.streamCallback) {
                 this.metrics.cacheHits++;
-                performanceMonitor.recordMetric('cache_hits', 1, 'count');
+                simpleMetrics.recordCacheHit();
                 debugLog(this.plugin.settings.debugMode ?? false, 'info', '[AIDispatcher] Cache hit', { key: cacheKey });
                 options.streamCallback(cachedResponse);
                 return Promise.resolve();
             } else {
                 this.metrics.cacheMisses++;
-                performanceMonitor.recordMetric('cache_misses', 1, 'count');
+                simpleMetrics.recordCacheMiss();
                 debugLog(this.plugin.settings.debugMode ?? false, 'info', '[AIDispatcher] Cache miss', { key: cacheKey });
             }
 
@@ -360,46 +297,30 @@ export class AIDispatcher {
     /**
      * Generates a cache key for the request.
      * Uses base64 encoding that supports Unicode (so it won't throw on non-Latin1 chars).
-     * Optimized to use object pooling for reduced memory allocations.
+     * Simplified to use direct object creation instead of pooling.
      */
     private generateCacheKey(messages: Message[], options: CompletionOptions, providerOverride?: string): string {
-        // Use pre-allocated array for message mapping to reduce allocations
-        const messageArray = this.arrayManager.getArray<{role: string, content: string}>(messages.length);
-        
-        try {
-            // Map messages using pooled objects
-            for (let i = 0; i < messages.length; i++) {
-                const pooledMsg = this.messagePool.acquireMessage();
-                pooledMsg.role = messages[i].role;
-                pooledMsg.content = messages[i].content;
-                messageArray[i] = pooledMsg;
-            }
+        // Create simple array of message objects
+        const messageArray = messages.map(msg => ({
+            role: msg.role,
+            content: msg.content
+        }));
 
-            const key = JSON.stringify({
-                messages: messageArray,
-                temperature: options.temperature,
-                provider: providerOverride || this.plugin.settings.selectedModel || this.plugin.settings.provider
-            });
+        const key = JSON.stringify({
+            messages: messageArray,
+            temperature: options.temperature,
+            provider: providerOverride || this.plugin.settings.selectedModel || this.plugin.settings.provider
+        });
 
-            // Use Unicode-safe base64 encoding
-            function btoaUnicode(str: string) {
-                // First encode to UTF-8, then to base64
-                return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, function(match, p1) {
-                    return String.fromCharCode(parseInt(p1, 16));
-                }));
-            }
-            
-            return btoaUnicode(key).substring(0, 32);
-        } finally {
-            // Return pooled objects
-            for (let i = 0; i < messageArray.length; i++) {
-                if (messageArray[i]) {
-                    this.messagePool.releaseMessage(messageArray[i]);
-                }
-            }
-            // Return array to pool
-            this.arrayManager.returnArray(messageArray);
+        // Use Unicode-safe base64 encoding
+        function btoaUnicode(str: string) {
+            // First encode to UTF-8, then to base64
+            return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, function(match, p1) {
+                return String.fromCharCode(parseInt(p1, 16));
+            }));
         }
+        
+        return btoaUnicode(key).substring(0, 32);
     }
 
     /**
@@ -417,7 +338,7 @@ export class AIDispatcher {
      * Stores response in cache.
      */
     private setCache(cacheKey: string, response: string, ttl: number = this.CACHE_TTL): void {
-        this.cache.set(cacheKey, response, ttl);
+        this.cache.set(cacheKey, response);
         debugLog(this.plugin.settings.debugMode ?? false, 'info', '[AIDispatcher] Response cached', { key: cacheKey });
     }
 
@@ -679,8 +600,7 @@ export class AIDispatcher {
             // Record success
             this.recordSuccess(providerName);
             this.updateMetrics(providerName, true, Date.now() - startTime, fullResponse.length);
-            performanceMonitor.recordMetric('api_response_time', Date.now() - startTime, 'time');
-            performanceMonitor.recordMetric('api_response_size', fullResponse.length, 'size');
+            simpleMetrics.recordAPICall(true);
 
             // Cache the response
             this.setCache(cacheKey, fullResponse);
@@ -718,6 +638,7 @@ export class AIDispatcher {
             // Record failure
             this.recordFailure(providerName);
             this.updateMetrics(providerName, false, Date.now() - startTime, 0);
+            simpleMetrics.recordAPICall(false);
 
             debugLog(this.plugin.settings.debugMode ?? false, 'error', '[AIDispatcher] AI request failed:', error);
 
@@ -822,7 +743,7 @@ export class AIDispatcher {
         this.cache.clear();
         this.modelCache.clear();
         this.providerCache.clear();
-        performanceMonitor.clearMetrics(); // Clear performance metrics as well
+        simpleMetrics.reset(); // Clear simple metrics as well
         debugLog(this.plugin.settings.debugMode ?? false, 'info', '[AIDispatcher] All caches cleared');
     }
 
@@ -830,7 +751,7 @@ export class AIDispatcher {
      * Logs current performance metrics.
      */
     logPerformanceMetrics(): void {
-        performanceMonitor.logMetrics();
+        simpleMetrics.logStats();
     }
 
     /**

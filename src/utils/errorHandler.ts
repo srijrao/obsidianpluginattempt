@@ -7,7 +7,7 @@
 
 import { Notice } from 'obsidian';
 import { debugLog } from './logger';
-import { performanceMonitor } from './performanceMonitor';
+import { simpleMetrics } from './simpleMetrics';
 import { isValidProviderName, ValidProviderName } from './typeGuards';
 
 export interface ErrorContext {
@@ -145,11 +145,8 @@ export class ErrorHandler {
     ): Promise<{ success: boolean; result?: any; fallbackProvider?: string; message?: string; userMessage?: string }> {
         const errorMessage = this.extractErrorMessage(error);
         
-        // Record provider-specific error
-        performanceMonitor.recordMetric('provider_error', 1, 'count', {
-            provider: currentProvider,
-            context: context.component
-        });
+        // Record provider-specific error as API failure
+        simpleMetrics.recordAPICall(false);
         
         debugLog(true, 'error', `[${context.component}] Provider ${currentProvider} failed: ${errorMessage}`);
         
@@ -161,20 +158,15 @@ export class ErrorHandler {
                         debugLog(true, 'info', `[${context.component}] Attempting fallback to provider: ${fallbackProvider}`);
                         const result = await retryFunction(fallbackProvider);
                         
-                        // Record successful fallback
-                        performanceMonitor.recordMetric('fallback_success', 1, 'count', {
-                            originalProvider: currentProvider,
-                            fallbackProvider
-                        });
+                        // Record successful fallback as successful API call
+                        simpleMetrics.recordAPICall(true);
                         
                         new Notice(`Switched to ${fallbackProvider} due to ${currentProvider} error`, 3000);
                         return { success: true, result, fallbackProvider };
                         
                     } catch (fallbackError) {
                         debugLog(true, 'warn', `[${context.component}] Fallback provider ${fallbackProvider} also failed:`, fallbackError);
-                        performanceMonitor.recordMetric('fallback_failed', 1, 'count', {
-                            provider: fallbackProvider
-                        });
+                        // Fallback failure already recorded above as API failure
                     }
                 }
             }
@@ -216,11 +208,8 @@ export class ErrorHandler {
                 const result = await operation();
                 
                 if (attempt > 0) {
-                    // Record successful retry
-                    performanceMonitor.recordMetric('retry_success', 1, 'count', {
-                        context: context.component,
-                        attempt: attempt.toString()
-                    });
+                    // Record successful retry as successful API call
+                    simpleMetrics.recordAPICall(true);
                     if (options.showNotice !== false) {
                         new Notice(`Operation succeeded after ${attempt} retries`, 2000);
                     }
@@ -231,11 +220,8 @@ export class ErrorHandler {
             } catch (error) {
                 lastError = this.enhanceError(error, context);
                 
-                // Record retry attempt
-                performanceMonitor.recordMetric('retry_attempt', 1, 'count', {
-                    context: context.component,
-                    attempt: attempt.toString()
-                });
+                // Record retry attempt as API failure
+                simpleMetrics.recordAPICall(false);
                 
                 debugLog(true, 'warn', `[${context.component}] Attempt ${attempt + 1}/${maxRetries + 1} failed:`, error);
                 
@@ -247,8 +233,7 @@ export class ErrorHandler {
             }
         }
         
-        // All retries failed
-        performanceMonitor.recordMetric('retry_exhausted', 1, 'count', { context: context.component });
+        // All retries failed - final failure already recorded above
         this.handleError(lastError!, context, options);
         throw lastError!;
     }

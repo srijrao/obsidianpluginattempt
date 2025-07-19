@@ -537,10 +537,19 @@ describe('HybridVectorManager', () => {
     });
 
     it('should handle backup read errors during restore', async () => {
-      mockPlugin.app.vault.adapter.exists.mockResolvedValue(true);
-      mockPlugin.app.vault.adapter.read.mockRejectedValue(new Error('Read failed'));
+      // Suppress console.error for this intentional error test
+      const originalConsoleError = console.error;
+      console.error = jest.fn();
+      
+      try {
+        mockPlugin.app.vault.adapter.exists.mockResolvedValue(true);
+        mockPlugin.app.vault.adapter.read.mockRejectedValue(new Error('Read failed'));
 
-      await expect(hybridManager.forceRestore()).rejects.toThrow();
+        await expect(hybridManager.forceRestore()).rejects.toThrow();
+      } finally {
+        // Restore console.error
+        console.error = originalConsoleError;
+      }
     });
 
     it('should continue operating after backup failures', async () => {

@@ -31,10 +31,9 @@ import { MessageRegenerator } from './components/chat/MessageRegenerator';
 import { ResponseStreamer } from './components/chat/ResponseStreamer';
 import { MessageRenderer } from './components/agent/MessageRenderer';
 import { ToolRichDisplay } from './components/agent/ToolRichDisplay';
-import { MessageContextPool, WeakCache, PreAllocatedArrays } from './utils/objectPool';
 import { DOMBatcher } from './utils/domBatcher';
 import { handleChatError, withErrorHandling } from './utils/errorHandler';
-import { AsyncDebouncer, AsyncOptimizerFactory } from './utils/asyncOptimizer';
+import { SimpleDebouncer } from './utils/simpleDebouncer';
 export const VIEW_TYPE_CHAT = 'chat-view';
 export class ChatView extends ItemView {
     private plugin: MyPlugin;
@@ -48,9 +47,6 @@ export class ChatView extends ItemView {
     private messageRegenerator: MessageRegenerator | null = null;
     private responseStreamer: ResponseStreamer | null = null;
     private messageRenderer: MessageRenderer;
-    private messagePool: MessageContextPool;
-    private domCache: WeakCache<HTMLElement, any>;
-    private arrayManager: PreAllocatedArrays;
     private cachedMessageElements: HTMLElement[] = [];
     private lastScrollHeight: number = 0;
     private domElementCache: {
@@ -74,21 +70,18 @@ export class ChatView extends ItemView {
     private domBatcher: DOMBatcher;
     
     // Priority 2 Optimization: Async optimization
-    private scrollDebouncer: AsyncDebouncer<void>;
-    private updateDebouncer: AsyncDebouncer<void>;
+    private scrollDebouncer: SimpleDebouncer;
+    private updateDebouncer: SimpleDebouncer;
     constructor(leaf: WorkspaceLeaf, plugin: MyPlugin) {
         super(leaf);
         this.plugin = plugin;
         this.chatHistoryManager = new ChatHistoryManager(this.app.vault, this.plugin.manifest.id, "chat-history.json");
         this.messageRenderer = new MessageRenderer(this.app);
-        this.messagePool = MessageContextPool.getInstance();
-        this.domCache = new WeakCache();
-        this.arrayManager = PreAllocatedArrays.getInstance();
         this.domBatcher = new DOMBatcher();
         
-        // Priority 2 Optimization: Initialize async optimizers
-        this.scrollDebouncer = AsyncOptimizerFactory.createInputDebouncer();
-        this.updateDebouncer = AsyncOptimizerFactory.createInputDebouncer();
+        // Simple debouncing for scroll and updates
+        this.scrollDebouncer = new SimpleDebouncer(100); // 100ms for scroll
+        this.updateDebouncer = new SimpleDebouncer(300); // 300ms for updates
     }
     private addEventListenerWithCleanup(element: HTMLElement, event: string, handler: EventListener): void {
         element.addEventListener(event, handler);
@@ -520,9 +513,7 @@ export class ChatView extends ItemView {
             const role = el.classList.contains('user') ? 'user' : 'assistant';
             const contentEl = el.querySelector('.message-content');
             const content = contentEl?.textContent || '';
-            const messageObj = this.messagePool.acquireMessage();
-            messageObj.role = role;
-            messageObj.content = content;
+            const messageObj = { role, content };
             messages.push(messageObj as Message);
         }
     }

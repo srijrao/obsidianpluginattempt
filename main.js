@@ -11815,131 +11815,34 @@ var init_saveAICalls = __esm({
   }
 });
 
-// src/utils/objectPool.ts
-var ObjectPool, _MessageContextPool, MessageContextPool, WeakCache, _PreAllocatedArrays, PreAllocatedArrays;
-var init_objectPool = __esm({
-  "src/utils/objectPool.ts"() {
-    ObjectPool = class {
-      constructor(createFn, resetFn, maxSize = 50) {
-        __publicField(this, "pool", []);
-        __publicField(this, "createFn");
-        __publicField(this, "resetFn");
-        __publicField(this, "maxSize");
-        this.createFn = createFn;
-        this.resetFn = resetFn;
+// src/utils/simpleCache.ts
+function createSimpleCache(maxSize = 100) {
+  return new SimpleCache(maxSize);
+}
+var SimpleCache;
+var init_simpleCache = __esm({
+  "src/utils/simpleCache.ts"() {
+    SimpleCache = class {
+      constructor(maxSize = 100) {
         this.maxSize = maxSize;
-      }
-      /**
-       * Get an object from the pool or create a new one
-       */
-      acquire() {
-        if (this.pool.length > 0) {
-          return this.pool.pop();
-        }
-        return this.createFn();
-      }
-      /**
-       * Return an object to the pool for reuse
-       */
-      release(obj) {
-        if (this.pool.length < this.maxSize) {
-          if (this.resetFn) {
-            this.resetFn(obj);
-          }
-          this.pool.push(obj);
-        }
-      }
-      /**
-       * Clear the pool
-       */
-      clear() {
-        this.pool.length = 0;
-      }
-      /**
-       * Get current pool size
-       */
-      size() {
-        return this.pool.length;
-      }
-    };
-    _MessageContextPool = class _MessageContextPool {
-      constructor() {
-        __publicField(this, "messagePool");
-        __publicField(this, "arrayPool");
-        __publicField(this, "acquiredMessages", 0);
-        __publicField(this, "releasedMessages", 0);
-        __publicField(this, "acquiredArrays", 0);
-        __publicField(this, "releasedArrays", 0);
-        this.messagePool = new ObjectPool(
-          () => ({ role: "", content: "" }),
-          (obj) => {
-            obj.role = "";
-            obj.content = "";
-          }
-        );
-        this.arrayPool = new ObjectPool(
-          () => [],
-          (arr) => {
-            arr.length = 0;
-          }
-        );
-      }
-      static getInstance() {
-        if (!_MessageContextPool.instance) {
-          _MessageContextPool.instance = new _MessageContextPool();
-        }
-        return _MessageContextPool.instance;
-      }
-      acquireMessage() {
-        this.acquiredMessages++;
-        return this.messagePool.acquire();
-      }
-      releaseMessage(msg) {
-        this.releasedMessages++;
-        this.messagePool.release(msg);
-      }
-      acquireArray() {
-        this.acquiredArrays++;
-        return this.arrayPool.acquire();
-      }
-      releaseArray(arr) {
-        this.releasedArrays++;
-        this.arrayPool.release(arr);
-      }
-      clear() {
-        this.messagePool.clear();
-        this.arrayPool.clear();
-        this.acquiredMessages = 0;
-        this.releasedMessages = 0;
-        this.acquiredArrays = 0;
-        this.releasedArrays = 0;
-      }
-      getStats() {
-        const messageSizeEstimate = 50;
-        const arraySizeEstimate = 24;
-        const messageSaved = (this.releasedMessages - this.messagePool.size()) * messageSizeEstimate;
-        const arraySaved = (this.releasedArrays - this.arrayPool.size()) * arraySizeEstimate;
-        return {
-          acquiredMessages: this.acquiredMessages,
-          releasedMessages: this.releasedMessages,
-          estimatedMessageMemorySaved: `${(messageSaved / 1024).toFixed(2)} KB`,
-          acquiredArrays: this.acquiredArrays,
-          releasedArrays: this.releasedArrays,
-          estimatedArrayMemorySaved: `${(arraySaved / 1024).toFixed(2)} KB`
-        };
-      }
-    };
-    __publicField(_MessageContextPool, "instance");
-    MessageContextPool = _MessageContextPool;
-    WeakCache = class {
-      constructor() {
-        __publicField(this, "cache", /* @__PURE__ */ new WeakMap());
-      }
-      set(key, value) {
-        this.cache.set(key, value);
+        __publicField(this, "cache", /* @__PURE__ */ new Map());
       }
       get(key) {
-        return this.cache.get(key);
+        const value = this.cache.get(key);
+        if (value !== void 0) {
+          this.cache.delete(key);
+          this.cache.set(key, value);
+        }
+        return value;
+      }
+      set(key, value) {
+        if (this.cache.has(key)) {
+          this.cache.delete(key);
+        } else if (this.cache.size >= this.maxSize) {
+          const firstKey = this.cache.keys().next().value;
+          this.cache.delete(firstKey);
+        }
+        this.cache.set(key, value);
       }
       has(key) {
         return this.cache.has(key);
@@ -11947,616 +11850,85 @@ var init_objectPool = __esm({
       delete(key) {
         return this.cache.delete(key);
       }
-    };
-    _PreAllocatedArrays = class _PreAllocatedArrays {
-      constructor() {
-        __publicField(this, "arrays", /* @__PURE__ */ new Map());
-        __publicField(this, "acquiredArraysCount", /* @__PURE__ */ new Map());
-        __publicField(this, "releasedArraysCount", /* @__PURE__ */ new Map());
-      }
-      static getInstance() {
-        if (!_PreAllocatedArrays.instance) {
-          _PreAllocatedArrays.instance = new _PreAllocatedArrays();
-        }
-        return _PreAllocatedArrays.instance;
-      }
-      /**
-       * Get a pre-allocated array of specified size
-       */
-      getArray(size) {
-        this.acquiredArraysCount.set(size, (this.acquiredArraysCount.get(size) || 0) + 1);
-        if (!this.arrays.has(size)) {
-          this.arrays.set(size, []);
-        }
-        const pool = this.arrays.get(size);
-        if (pool.length > 0) {
-          const arr = pool.pop();
-          arr.length = 0;
-          return arr;
-        }
-        return new Array(size);
-      }
-      /**
-       * Return array to pool for reuse
-       */
-      returnArray(arr) {
-        const size = arr.length;
-        this.releasedArraysCount.set(size, (this.releasedArraysCount.get(size) || 0) + 1);
-        if (!this.arrays.has(size)) {
-          this.arrays.set(size, []);
-        }
-        const pool = this.arrays.get(size);
-        if (pool.length < 10) {
-          arr.length = 0;
-          pool.push(arr);
-        }
-      }
-      /**
-       * Clear all pools
-       */
       clear() {
-        this.arrays.clear();
-        this.acquiredArraysCount.clear();
-        this.releasedArraysCount.clear();
-      }
-      getStats() {
-        let totalAcquired = 0;
-        let totalReleased = 0;
-        let estimatedSavedBytes = 0;
-        const arraysBySize = [];
-        for (const [size, pool] of this.arrays.entries()) {
-          const acquired = this.acquiredArraysCount.get(size) || 0;
-          const released = this.releasedArraysCount.get(size) || 0;
-          const inPool = pool.length;
-          totalAcquired += acquired;
-          totalReleased += released;
-          const arrayOverhead = 24;
-          const elementSize = 8;
-          const savedForSize = (released - inPool) * (arrayOverhead + size * elementSize);
-          estimatedSavedBytes += savedForSize;
-          arraysBySize.push({ size, acquired, released, inPool });
-        }
-        return {
-          totalAcquired,
-          totalReleased,
-          estimatedMemorySaved: `${(estimatedSavedBytes / 1024).toFixed(2)} KB`,
-          arraysBySize: arraysBySize.sort((a, b) => a.size - b.size)
-        };
-      }
-    };
-    __publicField(_PreAllocatedArrays, "instance");
-    PreAllocatedArrays = _PreAllocatedArrays;
-  }
-});
-
-// src/utils/lruCache.ts
-var LRUCache, LRUCacheFactory;
-var init_lruCache = __esm({
-  "src/utils/lruCache.ts"() {
-    LRUCache = class {
-      constructor(options) {
-        __publicField(this, "maxSize");
-        __publicField(this, "defaultTTL");
-        __publicField(this, "onEvict");
-        __publicField(this, "cache", /* @__PURE__ */ new Map());
-        __publicField(this, "head", null);
-        __publicField(this, "tail", null);
-        __publicField(this, "cleanupInterval", null);
-        this.maxSize = options.maxSize;
-        this.defaultTTL = options.defaultTTL;
-        this.onEvict = options.onEvict;
-        if (this.defaultTTL) {
-          this.startCleanupInterval();
-        }
-      }
-      /**
-       * Get a value from the cache
-       */
-      get(key) {
-        const node = this.cache.get(key);
-        if (!node) {
-          return void 0;
-        }
-        if (this.isExpired(node)) {
-          this.delete(key);
-          return void 0;
-        }
-        this.moveToHead(node);
-        return node.value;
-      }
-      /**
-       * Set a value in the cache
-       */
-      set(key, value, ttl) {
-        const existingNode = this.cache.get(key);
-        if (existingNode) {
-          existingNode.value = value;
-          existingNode.timestamp = Date.now();
-          existingNode.ttl = ttl != null ? ttl : this.defaultTTL;
-          this.moveToHead(existingNode);
-          return;
-        }
-        const newNode = {
-          key,
-          value,
-          timestamp: Date.now(),
-          ttl: ttl != null ? ttl : this.defaultTTL,
-          prev: null,
-          next: null
-        };
-        this.cache.set(key, newNode);
-        this.addToHead(newNode);
-        if (this.cache.size > this.maxSize) {
-          this.evictLRU();
-        }
-      }
-      /**
-       * Check if a key exists in the cache
-       */
-      has(key) {
-        const node = this.cache.get(key);
-        if (!node) {
-          return false;
-        }
-        if (this.isExpired(node)) {
-          this.delete(key);
-          return false;
-        }
-        return true;
-      }
-      /**
-       * Delete a key from the cache
-       */
-      delete(key) {
-        const node = this.cache.get(key);
-        if (!node) {
-          return false;
-        }
-        this.removeNode(node);
-        this.cache.delete(key);
-        if (this.onEvict) {
-          this.onEvict(key, node.value);
-        }
-        return true;
-      }
-      /**
-       * Clear all items from the cache
-       */
-      clear() {
-        if (this.onEvict) {
-          for (const [key, node] of this.cache) {
-            this.onEvict(key, node.value);
-          }
-        }
         this.cache.clear();
-        this.head = null;
-        this.tail = null;
       }
-      /**
-       * Get current cache size
-       */
-      size() {
+      get size() {
         return this.cache.size;
       }
-      /**
-       * Get maximum cache size
-       */
-      maxCacheSize() {
-        return this.maxSize;
-      }
-      /**
-       * Get all keys in the cache (ordered from most to least recently used)
-       */
-      keys() {
-        const keys = [];
-        let current = this.head;
-        while (current) {
-          keys.push(current.key);
-          current = current.next;
-        }
-        return keys;
-      }
-      /**
-       * Get all values in the cache (ordered from most to least recently used)
-       */
-      values() {
-        const values = [];
-        let current = this.head;
-        while (current) {
-          if (!this.isExpired(current)) {
-            values.push(current.value);
-          }
-          current = current.next;
-        }
-        return values;
-      }
-      /**
-       * Get cache statistics
-       */
-      getStats() {
-        let oldestTimestamp;
-        let newestTimestamp;
-        if (this.tail) {
-          oldestTimestamp = this.tail.timestamp;
-        }
-        if (this.head) {
-          newestTimestamp = this.head.timestamp;
-        }
-        return {
-          size: this.cache.size,
-          maxSize: this.maxSize,
-          oldestTimestamp,
-          newestTimestamp
-        };
-      }
-      /**
-       * Manually trigger cleanup of expired items
-       */
-      cleanup() {
-        let removedCount = 0;
-        const now = Date.now();
-        const keysToRemove = [];
-        for (const [key, node] of this.cache) {
-          if (this.isExpired(node, now)) {
-            keysToRemove.push(key);
-          }
-        }
-        for (const key of keysToRemove) {
-          this.delete(key);
-          removedCount++;
-        }
-        return removedCount;
-      }
-      /**
-       * Update the max size of the cache
-       */
-      setMaxSize(newMaxSize) {
-        this.maxSize = newMaxSize;
-        while (this.cache.size > this.maxSize) {
-          this.evictLRU();
-        }
-      }
-      /**
-       * Destroy the cache and cleanup resources
-       */
-      destroy() {
-        if (this.cleanupInterval) {
-          clearInterval(this.cleanupInterval);
-          this.cleanupInterval = null;
-        }
-        this.clear();
-      }
-      isExpired(node, now = Date.now()) {
-        if (!node.ttl) {
-          return false;
-        }
-        return now > node.timestamp + node.ttl;
-      }
-      moveToHead(node) {
-        this.removeNode(node);
-        this.addToHead(node);
-      }
-      addToHead(node) {
-        node.prev = null;
-        node.next = this.head;
-        if (this.head) {
-          this.head.prev = node;
-        }
-        this.head = node;
-        if (!this.tail) {
-          this.tail = node;
-        }
-      }
-      removeNode(node) {
-        if (node.prev) {
-          node.prev.next = node.next;
-        } else {
-          this.head = node.next;
-        }
-        if (node.next) {
-          node.next.prev = node.prev;
-        } else {
-          this.tail = node.prev;
-        }
-      }
-      evictLRU() {
-        if (!this.tail) {
-          return;
-        }
-        const lruNode = this.tail;
-        this.removeNode(lruNode);
-        this.cache.delete(lruNode.key);
-        if (this.onEvict) {
-          this.onEvict(lruNode.key, lruNode.value);
-        }
-      }
-      startCleanupInterval() {
-        this.cleanupInterval = setInterval(() => {
-          this.cleanup();
-        }, 5 * 60 * 1e3);
-      }
-    };
-    LRUCacheFactory = class {
-      /**
-       * Create a cache for AI responses
-       */
-      static createResponseCache(maxSize = 100) {
-        return new LRUCache({
-          maxSize,
-          defaultTTL: 5 * 60 * 1e3,
-          // 5 minutes
-          onEvict: (key, value) => {
-          }
-        });
-      }
-      /**
-       * Create a cache for DOM elements
-       */
-      static createDOMCache(maxSize = 50) {
-        return new LRUCache({
-          maxSize,
-          defaultTTL: 10 * 60 * 1e3,
-          // 10 minutes
-          onEvict: (key, element) => {
-            if (element.parentNode) {
-              element.parentNode.removeChild(element);
-            }
-          }
-        });
-      }
-      /**
-       * Create a cache for API data
-       */
-      static createAPICache(maxSize = 200) {
-        return new LRUCache({
-          maxSize,
-          defaultTTL: 15 * 60 * 1e3
-          // 15 minutes
-        });
-      }
-      /**
-       * Create a cache for computed values
-       */
-      static createComputedCache(maxSize = 500) {
-        return new LRUCache({
-          maxSize,
-          defaultTTL: 30 * 60 * 1e3
-          // 30 minutes
-        });
-      }
     };
   }
 });
 
-// src/utils/performanceMonitor.ts
-var PerformanceMonitor, performanceMonitor;
-var init_performanceMonitor = __esm({
-  "src/utils/performanceMonitor.ts"() {
-    PerformanceMonitor = class {
+// src/utils/simpleMetrics.ts
+var SimpleMetrics, simpleMetrics;
+var init_simpleMetrics = __esm({
+  "src/utils/simpleMetrics.ts"() {
+    SimpleMetrics = class {
       constructor() {
-        __publicField(this, "metrics", []);
-        __publicField(this, "aggregatedMetrics", /* @__PURE__ */ new Map());
-        __publicField(this, "debugMode", false);
-        __publicField(this, "MAX_METRICS_HISTORY", 1e3);
-        __publicField(this, "CLEANUP_INTERVAL", 5 * 60 * 1e3);
-        // 5 minutes
-        __publicField(this, "cleanupTimer");
-        this.startCleanupTimer();
+        __publicField(this, "stats", {
+          apiCalls: 0,
+          errors: 0,
+          cacheHits: 0,
+          cacheMisses: 0
+        });
       }
       /**
-       * Set debug mode for detailed logging
+       * Record an API call result
        */
-      setDebugMode(enabled) {
-        this.debugMode = enabled;
-      }
-      /**
-       * Record a performance metric
-       */
-      recordMetric(name, value, type2, tags) {
-        const metric = {
-          name,
-          value,
-          type: type2,
-          timestamp: Date.now(),
-          tags
-        };
-        this.metrics.push(metric);
-        if (!this.aggregatedMetrics.has(name)) {
-          this.aggregatedMetrics.set(name, []);
-        }
-        this.aggregatedMetrics.get(name).push(metric);
-        if (this.metrics.length > this.MAX_METRICS_HISTORY) {
-          this.cleanupOldMetrics();
-        }
-        if (this.debugMode) {
-          console.log(`[PerformanceMonitor] ${name}: ${value} ${type2}`, tags);
+      recordAPICall(success) {
+        this.stats.apiCalls++;
+        if (!success) {
+          this.stats.errors++;
         }
       }
       /**
-       * Get current performance metrics summary
+       * Record a cache hit
        */
-      getMetrics() {
-        const now = Date.now();
-        const oneMinuteAgo = now - 60 * 1e3;
-        const fiveMinutesAgo = now - 5 * 60 * 1e3;
-        const cacheHits = this.getMetricSum("cache_hits", fiveMinutesAgo);
-        const cacheMisses = this.getMetricSum("cache_misses", fiveMinutesAgo);
-        const cacheHitRate = cacheHits + cacheMisses > 0 ? cacheHits / (cacheHits + cacheMisses) * 100 : 0;
-        const responseTimes = this.getMetricValues("api_response_time", fiveMinutesAgo);
-        const averageResponseTime = responseTimes.length > 0 ? responseTimes.reduce((sum, time) => sum + time, 0) / responseTimes.length : 0;
-        const memoryMetrics = this.getMetricValues("memory_usage", fiveMinutesAgo);
-        const memoryUsage = memoryMetrics.length > 0 ? memoryMetrics[memoryMetrics.length - 1] : 0;
-        const totalRequests = this.getMetricSum("api_requests", fiveMinutesAgo);
-        const errors = this.getMetricSum("api_errors", fiveMinutesAgo);
-        const errorRate = totalRequests > 0 ? errors / totalRequests * 100 : 0;
-        const recentRequests = this.getMetricSum("api_requests", oneMinuteAgo);
-        const apiCallsPerMinute = recentRequests;
-        const streamingLatencies = this.getMetricValues("streaming_latency", fiveMinutesAgo);
-        const streamingLatency = streamingLatencies.length > 0 ? streamingLatencies.reduce((sum, latency) => sum + latency, 0) / streamingLatencies.length : 0;
-        const poolHits = this.getMetricSum("object_pool_hits", fiveMinutesAgo);
-        const poolMisses = this.getMetricSum("object_pool_misses", fiveMinutesAgo);
-        const objectPoolEfficiency = poolHits + poolMisses > 0 ? poolHits / (poolHits + poolMisses) * 100 : 0;
+      recordCacheHit() {
+        this.stats.cacheHits++;
+      }
+      /**
+       * Record a cache miss
+       */
+      recordCacheMiss() {
+        this.stats.cacheMisses++;
+      }
+      /**
+       * Get current statistics
+       */
+      getStats() {
+        const { apiCalls, errors, cacheHits, cacheMisses } = this.stats;
         return {
-          cacheHitRate,
-          averageResponseTime,
-          memoryUsage,
-          totalRequests,
-          errorRate,
-          apiCallsPerMinute,
-          streamingLatency,
-          objectPoolEfficiency
+          totalAPICalls: apiCalls,
+          errorRate: apiCalls > 0 ? errors / apiCalls : 0,
+          cacheHitRate: cacheHits + cacheMisses > 0 ? cacheHits / (cacheHits + cacheMisses) : 0
         };
       }
       /**
-       * Get metric values for a specific metric name since a timestamp
+       * Reset all statistics
        */
-      getMetricValues(name, since) {
-        const metrics = this.aggregatedMetrics.get(name) || [];
-        return metrics.filter((metric) => metric.timestamp >= since).map((metric) => metric.value);
-      }
-      /**
-       * Get sum of metric values for a specific metric name since a timestamp
-       */
-      getMetricSum(name, since) {
-        const values = this.getMetricValues(name, since);
-        return values.reduce((sum, value) => sum + value, 0);
-      }
-      /**
-       * Log current performance metrics to console
-       */
-      logMetrics() {
-        const metrics = this.getMetrics();
-        console.group("\u{1F680} Performance Metrics");
-        console.log(`Cache Hit Rate: ${metrics.cacheHitRate.toFixed(2)}%`);
-        console.log(`Average Response Time: ${metrics.averageResponseTime.toFixed(2)}ms`);
-        console.log(`Memory Usage: ${(metrics.memoryUsage / 1024 / 1024).toFixed(2)}MB`);
-        console.log(`Total Requests (5min): ${metrics.totalRequests}`);
-        console.log(`Error Rate: ${metrics.errorRate.toFixed(2)}%`);
-        console.log(`API Calls/min: ${metrics.apiCallsPerMinute}`);
-        console.log(`Streaming Latency: ${metrics.streamingLatency.toFixed(2)}ms`);
-        console.log(`Object Pool Efficiency: ${metrics.objectPoolEfficiency.toFixed(2)}%`);
-        console.groupEnd();
-      }
-      /**
-       * Clear all metrics
-       */
-      clearMetrics() {
-        this.metrics = [];
-        this.aggregatedMetrics.clear();
-        if (this.debugMode) {
-          console.log("[PerformanceMonitor] All metrics cleared");
-        }
-      }
-      /**
-       * Start a performance timer
-       */
-      startTimer(name) {
-        const startTime = performance.now();
-        return () => {
-          const duration = performance.now() - startTime;
-          this.recordMetric(name, duration, "time");
+      reset() {
+        this.stats = {
+          apiCalls: 0,
+          errors: 0,
+          cacheHits: 0,
+          cacheMisses: 0
         };
       }
       /**
-       * Measure memory usage
+       * Log current statistics to console
        */
-      measureMemory() {
-        if (typeof performance !== "undefined" && "memory" in performance) {
-          const memory = performance.memory;
-          this.recordMetric("memory_usage", memory.usedJSHeapSize, "size");
-          this.recordMetric("memory_total", memory.totalJSHeapSize, "size");
-          this.recordMetric("memory_limit", memory.jsHeapSizeLimit, "size");
-        }
-      }
-      /**
-       * Record API request metrics
-       */
-      recordAPIRequest(success, responseTime, provider) {
-        this.recordMetric("api_requests", 1, "count", { provider });
-        this.recordMetric("api_response_time", responseTime, "time", { provider });
-        if (success) {
-          this.recordMetric("api_success", 1, "count", { provider });
-        } else {
-          this.recordMetric("api_errors", 1, "count", { provider });
-        }
-      }
-      /**
-       * Record cache metrics
-       */
-      recordCacheMetrics(hits, misses) {
-        this.recordMetric("cache_hits", hits, "count");
-        this.recordMetric("cache_misses", misses, "count");
-      }
-      /**
-       * Record object pool metrics
-       */
-      recordObjectPoolMetrics(hits, misses) {
-        this.recordMetric("object_pool_hits", hits, "count");
-        this.recordMetric("object_pool_misses", misses, "count");
-      }
-      /**
-       * Record streaming metrics
-       */
-      recordStreamingMetrics(latency, chunkSize) {
-        this.recordMetric("streaming_latency", latency, "time");
-        this.recordMetric("streaming_chunk_size", chunkSize, "size");
-      }
-      /**
-       * Get performance report as string
-       */
-      getPerformanceReport() {
-        const metrics = this.getMetrics();
-        return `
-Performance Report:
-==================
-Cache Hit Rate: ${metrics.cacheHitRate.toFixed(2)}%
-Average Response Time: ${metrics.averageResponseTime.toFixed(2)}ms
-Memory Usage: ${(metrics.memoryUsage / 1024 / 1024).toFixed(2)}MB
-Total Requests (5min): ${metrics.totalRequests}
-Error Rate: ${metrics.errorRate.toFixed(2)}%
-API Calls/min: ${metrics.apiCallsPerMinute}
-Streaming Latency: ${metrics.streamingLatency.toFixed(2)}ms
-Object Pool Efficiency: ${metrics.objectPoolEfficiency.toFixed(2)}%
-        `.trim();
-      }
-      /**
-       * Start cleanup timer for old metrics
-       */
-      startCleanupTimer() {
-        this.cleanupTimer = setInterval(() => {
-          this.cleanupOldMetrics();
-        }, this.CLEANUP_INTERVAL);
-      }
-      /**
-       * Clean up old metrics to prevent memory leaks
-       */
-      cleanupOldMetrics() {
-        const cutoffTime = Date.now() - 10 * 60 * 1e3;
-        this.metrics = this.metrics.filter((metric) => metric.timestamp >= cutoffTime);
-        for (const [name, metrics] of this.aggregatedMetrics.entries()) {
-          const filteredMetrics = metrics.filter((metric) => metric.timestamp >= cutoffTime);
-          if (filteredMetrics.length === 0) {
-            this.aggregatedMetrics.delete(name);
-          } else {
-            this.aggregatedMetrics.set(name, filteredMetrics);
-          }
-        }
-        if (this.debugMode) {
-          console.log(`[PerformanceMonitor] Cleaned up old metrics. Current count: ${this.metrics.length}`);
-        }
-      }
-      /**
-       * Dispose of the performance monitor
-       */
-      dispose() {
-        if (this.cleanupTimer) {
-          clearInterval(this.cleanupTimer);
-          this.cleanupTimer = void 0;
-        }
-        this.clearMetrics();
+      logStats() {
+        const stats = this.getStats();
+        console.log("Simple Metrics:", {
+          "Total API Calls": stats.totalAPICalls,
+          "Error Rate": `${(stats.errorRate * 100).toFixed(2)}%`,
+          "Cache Hit Rate": `${(stats.cacheHitRate * 100).toFixed(2)}%`
+        });
       }
     };
-    performanceMonitor = new PerformanceMonitor();
+    simpleMetrics = new SimpleMetrics();
   }
 });
 
@@ -12564,13 +11936,6 @@ Object Pool Efficiency: ${metrics.objectPoolEfficiency.toFixed(2)}%
 function handleChatError(error, operation, metadata) {
   errorHandler.handleError(error, {
     component: "ChatView",
-    operation,
-    metadata
-  });
-}
-function handleAIDispatcherError(error, operation, metadata) {
-  errorHandler.handleError(error, {
-    component: "AIDispatcher",
     operation,
     metadata
   });
@@ -12586,7 +11951,7 @@ var init_errorHandler = __esm({
   "src/utils/errorHandler.ts"() {
     import_obsidian14 = require("obsidian");
     init_logger();
-    init_performanceMonitor();
+    init_simpleMetrics();
     init_typeGuards();
     _ErrorHandler = class _ErrorHandler {
       constructor() {
@@ -12671,10 +12036,7 @@ var init_errorHandler = __esm({
        */
       async handleWithFallback(error, context, currentProvider, availableProviders, retryFunction, options = {}) {
         const errorMessage = this.extractErrorMessage(error);
-        performanceMonitor.recordMetric("provider_error", 1, "count", {
-          provider: currentProvider,
-          context: context.component
-        });
+        simpleMetrics.recordAPICall(false);
         debugLog(true, "error", `[${context.component}] Provider ${currentProvider} failed: ${errorMessage}`);
         if (retryFunction && availableProviders.length > 0) {
           for (const fallbackProvider of availableProviders) {
@@ -12682,17 +12044,11 @@ var init_errorHandler = __esm({
               try {
                 debugLog(true, "info", `[${context.component}] Attempting fallback to provider: ${fallbackProvider}`);
                 const result = await retryFunction(fallbackProvider);
-                performanceMonitor.recordMetric("fallback_success", 1, "count", {
-                  originalProvider: currentProvider,
-                  fallbackProvider
-                });
+                simpleMetrics.recordAPICall(true);
                 new import_obsidian14.Notice(`Switched to ${fallbackProvider} due to ${currentProvider} error`, 3e3);
                 return { success: true, result, fallbackProvider };
               } catch (fallbackError) {
                 debugLog(true, "warn", `[${context.component}] Fallback provider ${fallbackProvider} also failed:`, fallbackError);
-                performanceMonitor.recordMetric("fallback_failed", 1, "count", {
-                  provider: fallbackProvider
-                });
               }
             }
           }
@@ -12721,10 +12077,7 @@ var init_errorHandler = __esm({
             }
             const result = await operation();
             if (attempt > 0) {
-              performanceMonitor.recordMetric("retry_success", 1, "count", {
-                context: context.component,
-                attempt: attempt.toString()
-              });
+              simpleMetrics.recordAPICall(true);
               if (options.showNotice !== false) {
                 new import_obsidian14.Notice(`Operation succeeded after ${attempt} retries`, 2e3);
               }
@@ -12732,10 +12085,7 @@ var init_errorHandler = __esm({
             return result;
           } catch (error) {
             lastError = this.enhanceError(error, context);
-            performanceMonitor.recordMetric("retry_attempt", 1, "count", {
-              context: context.component,
-              attempt: attempt.toString()
-            });
+            simpleMetrics.recordAPICall(false);
             debugLog(true, "warn", `[${context.component}] Attempt ${attempt + 1}/${maxRetries + 1} failed:`, error);
             if (this.isNonRetryableError(lastError)) {
               debugLog(true, "info", `[${context.component}] Non-retryable error, stopping retries`);
@@ -12743,7 +12093,6 @@ var init_errorHandler = __esm({
             }
           }
         }
-        performanceMonitor.recordMetric("retry_exhausted", 1, "count", { context: context.component });
         this.handleError(lastError, context, options);
         throw lastError;
       }
@@ -12889,316 +12238,6 @@ var init_errorHandler = __esm({
   }
 });
 
-// src/utils/asyncOptimizer.ts
-var AsyncBatcher, ParallelExecutor, AsyncDebouncer, AsyncThrottler, AsyncOptimizerFactory;
-var init_asyncOptimizer = __esm({
-  "src/utils/asyncOptimizer.ts"() {
-    AsyncBatcher = class {
-      constructor(processor, options) {
-        this.processor = processor;
-        this.options = options;
-        __publicField(this, "pendingItems", []);
-        __publicField(this, "batchTimer", null);
-        __publicField(this, "isProcessing", false);
-      }
-      /**
-       * Add an item to the batch for processing
-       */
-      async add(input) {
-        return new Promise((resolve, reject) => {
-          this.pendingItems.push({
-            input,
-            resolve,
-            reject,
-            timestamp: Date.now()
-          });
-          this.scheduleBatch();
-        });
-      }
-      /**
-       * Force process the current batch immediately
-       */
-      async flush() {
-        if (this.batchTimer) {
-          clearTimeout(this.batchTimer);
-          this.batchTimer = null;
-        }
-        await this.processBatch();
-      }
-      /**
-       * Get current batch size
-       */
-      getPendingCount() {
-        return this.pendingItems.length;
-      }
-      scheduleBatch() {
-        if (this.pendingItems.length >= this.options.batchSize) {
-          this.processBatch();
-          return;
-        }
-        if (!this.batchTimer && this.options.delayMs) {
-          this.batchTimer = setTimeout(() => {
-            this.batchTimer = null;
-            this.processBatch();
-          }, this.options.delayMs);
-        }
-        if (this.options.maxWaitMs) {
-          const oldestItem = this.pendingItems[0];
-          if (oldestItem && Date.now() - oldestItem.timestamp > this.options.maxWaitMs) {
-            this.processBatch();
-          }
-        }
-      }
-      async processBatch() {
-        if (this.isProcessing || this.pendingItems.length === 0) {
-          return;
-        }
-        this.isProcessing = true;
-        const currentBatch = this.pendingItems.splice(0, this.options.batchSize);
-        try {
-          const inputs = currentBatch.map((item) => item.input);
-          const outputs = await this.processor(inputs);
-          currentBatch.forEach((item, index) => {
-            if (index < outputs.length) {
-              item.resolve(outputs[index]);
-            } else {
-              item.reject(new Error("Batch processing failed: insufficient outputs"));
-            }
-          });
-        } catch (error) {
-          currentBatch.forEach((item) => {
-            item.reject(error instanceof Error ? error : new Error(String(error)));
-          });
-        } finally {
-          this.isProcessing = false;
-          if (this.pendingItems.length > 0) {
-            this.scheduleBatch();
-          }
-        }
-      }
-    };
-    ParallelExecutor = class {
-      constructor() {
-        __publicField(this, "activePromises", /* @__PURE__ */ new Set());
-      }
-      /**
-       * Execute tasks in parallel with concurrency limit
-       */
-      async executeParallel(tasks, options) {
-        const results = new Array(tasks.length);
-        const errors = [];
-        let completedCount = 0;
-        return new Promise((resolve, reject) => {
-          const executeTask = async (taskIndex, retryCount = 0) => {
-            if (taskIndex >= tasks.length) return;
-            const task = tasks[taskIndex];
-            const promise = this.executeWithRetry(task, options, retryCount);
-            this.activePromises.add(promise);
-            try {
-              const result = await promise;
-              results[taskIndex] = result;
-              completedCount++;
-              if (completedCount === tasks.length) {
-                if (errors.length > 0) {
-                  reject(new AggregateError(errors, "Some tasks failed"));
-                } else {
-                  resolve(results);
-                }
-              }
-            } catch (error) {
-              errors.push(error instanceof Error ? error : new Error(String(error)));
-              completedCount++;
-              if (completedCount === tasks.length) {
-                reject(new AggregateError(errors, "Some tasks failed"));
-              }
-            } finally {
-              this.activePromises.delete(promise);
-              const nextTaskIndex = taskIndex + options.concurrency;
-              if (nextTaskIndex < tasks.length) {
-                executeTask(nextTaskIndex);
-              }
-            }
-          };
-          const initialTasks = Math.min(options.concurrency, tasks.length);
-          for (let i = 0; i < initialTasks; i++) {
-            executeTask(i);
-          }
-        });
-      }
-      /**
-       * Execute tasks in batches
-       */
-      async executeBatched(tasks, batchSize, delayBetweenBatches = 0) {
-        const results = [];
-        for (let i = 0; i < tasks.length; i += batchSize) {
-          const batch = tasks.slice(i, i + batchSize);
-          const batchResults = await Promise.allSettled(
-            batch.map((task) => task())
-          );
-          for (const result of batchResults) {
-            if (result.status === "fulfilled") {
-              results.push(result.value);
-            } else {
-              throw result.reason;
-            }
-          }
-          if (delayBetweenBatches > 0 && i + batchSize < tasks.length) {
-            await new Promise((resolve) => setTimeout(resolve, delayBetweenBatches));
-          }
-        }
-        return results;
-      }
-      /**
-       * Get count of currently active promises
-       */
-      getActiveCount() {
-        return this.activePromises.size;
-      }
-      /**
-       * Cancel all active promises (if they support cancellation)
-       */
-      cancelAll() {
-        this.activePromises.clear();
-      }
-      async executeWithRetry(task, options, retryCount) {
-        try {
-          return await task();
-        } catch (error) {
-          const maxRetries = options.retryAttempts || 0;
-          if (retryCount < maxRetries) {
-            const delay = options.retryDelayMs || 1e3;
-            await new Promise((resolve) => setTimeout(resolve, delay * Math.pow(2, retryCount)));
-            return this.executeWithRetry(task, options, retryCount + 1);
-          }
-          throw error;
-        }
-      }
-    };
-    AsyncDebouncer = class {
-      constructor(delayMs) {
-        this.delayMs = delayMs;
-        __publicField(this, "timeoutId", null);
-        __publicField(this, "lastPromise", null);
-      }
-      /**
-       * Debounce an async operation
-       */
-      async debounce(operation) {
-        if (this.timeoutId) {
-          clearTimeout(this.timeoutId);
-        }
-        return new Promise((resolve, reject) => {
-          this.timeoutId = setTimeout(async () => {
-            try {
-              this.lastPromise = operation();
-              const result = await this.lastPromise;
-              resolve(result);
-            } catch (error) {
-              reject(error);
-            } finally {
-              this.timeoutId = null;
-              this.lastPromise = null;
-            }
-          }, this.delayMs);
-        });
-      }
-      /**
-       * Cancel pending debounced operation
-       */
-      cancel() {
-        if (this.timeoutId) {
-          clearTimeout(this.timeoutId);
-          this.timeoutId = null;
-        }
-      }
-      /**
-       * Check if operation is pending
-       */
-      isPending() {
-        return this.timeoutId !== null;
-      }
-    };
-    AsyncThrottler = class {
-      constructor(intervalMs) {
-        this.intervalMs = intervalMs;
-        __publicField(this, "lastExecution", 0);
-        __publicField(this, "pendingPromise", null);
-      }
-      /**
-       * Throttle an async operation
-       */
-      async throttle(operation) {
-        const now = Date.now();
-        const timeSinceLastExecution = now - this.lastExecution;
-        if (timeSinceLastExecution >= this.intervalMs) {
-          this.lastExecution = now;
-          this.pendingPromise = operation();
-          return this.pendingPromise;
-        }
-        if (this.pendingPromise) {
-          return this.pendingPromise;
-        }
-        const delay = this.intervalMs - timeSinceLastExecution;
-        return new Promise((resolve, reject) => {
-          setTimeout(async () => {
-            try {
-              this.lastExecution = Date.now();
-              this.pendingPromise = operation();
-              const result = await this.pendingPromise;
-              resolve(result);
-            } catch (error) {
-              reject(error);
-            } finally {
-              this.pendingPromise = null;
-            }
-          }, delay);
-        });
-      }
-    };
-    AsyncOptimizerFactory = class {
-      /**
-       * Create a batcher for DOM operations
-       */
-      static createDOMBatcher(processor) {
-        return new AsyncBatcher(processor, {
-          batchSize: 10,
-          delayMs: 16,
-          // ~60fps
-          maxWaitMs: 100
-        });
-      }
-      /**
-       * Create a batcher for API requests
-       */
-      static createAPIBatcher(processor) {
-        return new AsyncBatcher(processor, {
-          batchSize: 5,
-          delayMs: 50,
-          maxWaitMs: 500
-        });
-      }
-      /**
-       * Create a parallel executor for I/O operations
-       */
-      static createIOExecutor() {
-        return new ParallelExecutor();
-      }
-      /**
-       * Create a debouncer for user input
-       */
-      static createInputDebouncer() {
-        return new AsyncDebouncer(300);
-      }
-      /**
-       * Create a throttler for API calls
-       */
-      static createAPIThrottler() {
-        return new AsyncThrottler(1e3);
-      }
-    };
-  }
-});
-
 // src/utils/validationUtils.ts
 function isValidOpenAIApiKey(key) {
   if (typeof key !== "string") return false;
@@ -13248,11 +12287,9 @@ var init_aiDispatcher = __esm({
     init_providers();
     init_saveAICalls();
     init_logger();
-    init_objectPool();
-    init_lruCache();
+    init_simpleCache();
     init_errorHandler();
-    init_asyncOptimizer();
-    init_performanceMonitor();
+    init_simpleMetrics();
     init_typeGuards();
     init_validationUtils();
     AIDispatcher = class {
@@ -13282,16 +12319,10 @@ var init_aiDispatcher = __esm({
         __publicField(this, "activeStreams", /* @__PURE__ */ new Map());
         __publicField(this, "rateLimits", /* @__PURE__ */ new Map());
         __publicField(this, "isProcessingQueue", false);
-        // Priority 1 Optimization: Request deduplication with LRU
+        // Priority 1 Optimization: Request deduplication with simple cache
         __publicField(this, "pendingRequests");
         __publicField(this, "DEDUP_TTL", 30 * 1e3);
         // 30 seconds
-        // Memory optimization: Object pools
-        __publicField(this, "messagePool");
-        __publicField(this, "arrayManager");
-        // Priority 2 Optimization: Async optimization
-        __publicField(this, "requestBatcher");
-        __publicField(this, "parallelExecutor");
         // Configuration
         __publicField(this, "CACHE_TTL", 5 * 60 * 1e3);
         // 5 minutes
@@ -13302,8 +12333,6 @@ var init_aiDispatcher = __esm({
         // 1 minute
         __publicField(this, "MAX_QUEUE_SIZE", 100);
         __publicField(this, "CACHE_MAX_SIZE", 200);
-        var _a2;
-        performanceMonitor.setDebugMode((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false);
         ["openai", "anthropic", "gemini", "ollama"].forEach((provider) => {
           this.circuitBreakers.set(provider, {
             isOpen: false,
@@ -13312,54 +12341,11 @@ var init_aiDispatcher = __esm({
             nextRetryTime: 0
           });
         });
-        this.cache = LRUCacheFactory.createResponseCache(this.CACHE_MAX_SIZE);
-        this.modelCache = new LRUCache({
-          maxSize: 10,
-          defaultTTL: 30 * 60 * 1e3
-          // 30 minutes
-        });
-        this.providerCache = new LRUCache({
-          maxSize: 20,
-          defaultTTL: 15 * 60 * 1e3
-          // 15 minutes
-        });
-        this.pendingRequests = new LRUCache({
-          maxSize: 100,
-          defaultTTL: this.DEDUP_TTL
-        });
-        this.messagePool = MessageContextPool.getInstance();
-        this.arrayManager = PreAllocatedArrays.getInstance();
-        this.requestBatcher = AsyncOptimizerFactory.createAPIBatcher(
-          async (requests) => {
-            const results = [];
-            for (const request of requests) {
-              try {
-                await this.executeWithRetry(
-                  request.messages,
-                  request.options,
-                  this.determineProvider(request.providerOverride),
-                  this.generateCacheKey(request.messages, request.options, request.providerOverride)
-                );
-                results.push();
-              } catch (error) {
-                handleAIDispatcherError(error, "batchedRequest", { requestCount: requests.length });
-                results.push();
-              }
-            }
-            return results;
-          }
-        );
-        this.parallelExecutor = AsyncOptimizerFactory.createIOExecutor();
+        this.cache = createSimpleCache(this.CACHE_MAX_SIZE);
+        this.modelCache = new SimpleCache(10);
+        this.providerCache = new SimpleCache(20);
+        this.pendingRequests = new SimpleCache(100);
         this.startQueueProcessor();
-        this.startPendingRequestCleanup();
-      }
-      /**
-       * Priority 1 Optimization: Clean up expired pending requests
-       */
-      startPendingRequestCleanup() {
-        setInterval(() => {
-          this.pendingRequests.cleanup();
-        }, this.DEDUP_TTL);
       }
       /**
        * Makes an AI completion request through the appropriate provider.
@@ -13380,20 +12366,19 @@ var init_aiDispatcher = __esm({
           const existingRequest = this.pendingRequests.get(cacheKey);
           if (existingRequest) {
             this.metrics.deduplicatedRequests++;
-            performanceMonitor.recordMetric("deduplicated_requests", 1, "count");
             debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", "[AIDispatcher] Deduplicating request", { key: cacheKey });
             return existingRequest;
           }
           const cachedResponse = this.cache.get(cacheKey);
           if (cachedResponse && options.streamCallback) {
             this.metrics.cacheHits++;
-            performanceMonitor.recordMetric("cache_hits", 1, "count");
+            simpleMetrics.recordCacheHit();
             debugLog((_b = this.plugin.settings.debugMode) != null ? _b : false, "info", "[AIDispatcher] Cache hit", { key: cacheKey });
             options.streamCallback(cachedResponse);
             return Promise.resolve();
           } else {
             this.metrics.cacheMisses++;
-            performanceMonitor.recordMetric("cache_misses", 1, "count");
+            simpleMetrics.recordCacheMiss();
             debugLog((_c = this.plugin.settings.debugMode) != null ? _c : false, "info", "[AIDispatcher] Cache miss", { key: cacheKey });
           }
           const providerName = this.determineProvider(providerOverride);
@@ -13469,36 +12454,24 @@ var init_aiDispatcher = __esm({
       /**
        * Generates a cache key for the request.
        * Uses base64 encoding that supports Unicode (so it won't throw on non-Latin1 chars).
-       * Optimized to use object pooling for reduced memory allocations.
+       * Simplified to use direct object creation instead of pooling.
        */
       generateCacheKey(messages, options, providerOverride) {
-        const messageArray = this.arrayManager.getArray(messages.length);
-        try {
-          let btoaUnicode = function(str2) {
-            return btoa(encodeURIComponent(str2).replace(/%([0-9A-F]{2})/g, function(match, p1) {
-              return String.fromCharCode(parseInt(p1, 16));
-            }));
-          };
-          for (let i = 0; i < messages.length; i++) {
-            const pooledMsg = this.messagePool.acquireMessage();
-            pooledMsg.role = messages[i].role;
-            pooledMsg.content = messages[i].content;
-            messageArray[i] = pooledMsg;
-          }
-          const key = JSON.stringify({
-            messages: messageArray,
-            temperature: options.temperature,
-            provider: providerOverride || this.plugin.settings.selectedModel || this.plugin.settings.provider
-          });
-          return btoaUnicode(key).substring(0, 32);
-        } finally {
-          for (let i = 0; i < messageArray.length; i++) {
-            if (messageArray[i]) {
-              this.messagePool.releaseMessage(messageArray[i]);
-            }
-          }
-          this.arrayManager.returnArray(messageArray);
+        const messageArray = messages.map((msg) => ({
+          role: msg.role,
+          content: msg.content
+        }));
+        const key = JSON.stringify({
+          messages: messageArray,
+          temperature: options.temperature,
+          provider: providerOverride || this.plugin.settings.selectedModel || this.plugin.settings.provider
+        });
+        function btoaUnicode(str2) {
+          return btoa(encodeURIComponent(str2).replace(/%([0-9A-F]{2})/g, function(match, p1) {
+            return String.fromCharCode(parseInt(p1, 16));
+          }));
         }
+        return btoaUnicode(key).substring(0, 32);
       }
       /**
        * Gets response from cache if available and not expired.
@@ -13516,7 +12489,7 @@ var init_aiDispatcher = __esm({
        */
       setCache(cacheKey, response, ttl = this.CACHE_TTL) {
         var _a2;
-        this.cache.set(cacheKey, response, ttl);
+        this.cache.set(cacheKey, response);
         debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", "[AIDispatcher] Response cached", { key: cacheKey });
       }
       /**
@@ -13733,8 +12706,7 @@ var init_aiDispatcher = __esm({
           this.activeStreams.delete(streamId);
           this.recordSuccess(providerName);
           this.updateMetrics(providerName, true, Date.now() - startTime, fullResponse.length);
-          performanceMonitor.recordMetric("api_response_time", Date.now() - startTime, "time");
-          performanceMonitor.recordMetric("api_response_size", fullResponse.length, "size");
+          simpleMetrics.recordAPICall(true);
           this.setCache(cacheKey, fullResponse);
           const responseData = {
             content: fullResponse,
@@ -13761,6 +12733,7 @@ var init_aiDispatcher = __esm({
           });
           this.recordFailure(providerName);
           this.updateMetrics(providerName, false, Date.now() - startTime, 0);
+          simpleMetrics.recordAPICall(false);
           debugLog((_c = this.plugin.settings.debugMode) != null ? _c : false, "error", "[AIDispatcher] AI request failed:", error);
           const maxRetries = 3;
           if (retryCount < maxRetries && this.shouldRetry(error)) {
@@ -13852,14 +12825,14 @@ var init_aiDispatcher = __esm({
         this.cache.clear();
         this.modelCache.clear();
         this.providerCache.clear();
-        performanceMonitor.clearMetrics();
+        simpleMetrics.reset();
         debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", "[AIDispatcher] All caches cleared");
       }
       /**
        * Logs current performance metrics.
        */
       logPerformanceMetrics() {
-        performanceMonitor.logMetrics();
+        simpleMetrics.logStats();
       }
       /**
        * Aborts all active streams.
@@ -17174,6 +16147,256 @@ var init_dependencyInjection = __esm({
         const container = new DIContainer();
         container.registerSingleton("mockService", () => ({ test: true }));
         return container;
+      }
+    };
+  }
+});
+
+// src/utils/lruCache.ts
+var LRUCache;
+var init_lruCache = __esm({
+  "src/utils/lruCache.ts"() {
+    LRUCache = class {
+      constructor(options) {
+        __publicField(this, "maxSize");
+        __publicField(this, "defaultTTL");
+        __publicField(this, "onEvict");
+        __publicField(this, "cache", /* @__PURE__ */ new Map());
+        __publicField(this, "head", null);
+        __publicField(this, "tail", null);
+        __publicField(this, "cleanupInterval", null);
+        this.maxSize = options.maxSize;
+        this.defaultTTL = options.defaultTTL;
+        this.onEvict = options.onEvict;
+        if (this.defaultTTL) {
+          this.startCleanupInterval();
+        }
+      }
+      /**
+       * Get a value from the cache
+       */
+      get(key) {
+        const node = this.cache.get(key);
+        if (!node) {
+          return void 0;
+        }
+        if (this.isExpired(node)) {
+          this.delete(key);
+          return void 0;
+        }
+        this.moveToHead(node);
+        return node.value;
+      }
+      /**
+       * Set a value in the cache
+       */
+      set(key, value, ttl) {
+        const existingNode = this.cache.get(key);
+        if (existingNode) {
+          existingNode.value = value;
+          existingNode.timestamp = Date.now();
+          existingNode.ttl = ttl != null ? ttl : this.defaultTTL;
+          this.moveToHead(existingNode);
+          return;
+        }
+        const newNode = {
+          key,
+          value,
+          timestamp: Date.now(),
+          ttl: ttl != null ? ttl : this.defaultTTL,
+          prev: null,
+          next: null
+        };
+        this.cache.set(key, newNode);
+        this.addToHead(newNode);
+        if (this.cache.size > this.maxSize) {
+          this.evictLRU();
+        }
+      }
+      /**
+       * Check if a key exists in the cache
+       */
+      has(key) {
+        const node = this.cache.get(key);
+        if (!node) {
+          return false;
+        }
+        if (this.isExpired(node)) {
+          this.delete(key);
+          return false;
+        }
+        return true;
+      }
+      /**
+       * Delete a key from the cache
+       */
+      delete(key) {
+        const node = this.cache.get(key);
+        if (!node) {
+          return false;
+        }
+        this.removeNode(node);
+        this.cache.delete(key);
+        if (this.onEvict) {
+          this.onEvict(key, node.value);
+        }
+        return true;
+      }
+      /**
+       * Clear all items from the cache
+       */
+      clear() {
+        if (this.onEvict) {
+          for (const [key, node] of this.cache) {
+            this.onEvict(key, node.value);
+          }
+        }
+        this.cache.clear();
+        this.head = null;
+        this.tail = null;
+      }
+      /**
+       * Get current cache size
+       */
+      size() {
+        return this.cache.size;
+      }
+      /**
+       * Get maximum cache size
+       */
+      maxCacheSize() {
+        return this.maxSize;
+      }
+      /**
+       * Get all keys in the cache (ordered from most to least recently used)
+       */
+      keys() {
+        const keys = [];
+        let current = this.head;
+        while (current) {
+          keys.push(current.key);
+          current = current.next;
+        }
+        return keys;
+      }
+      /**
+       * Get all values in the cache (ordered from most to least recently used)
+       */
+      values() {
+        const values = [];
+        let current = this.head;
+        while (current) {
+          if (!this.isExpired(current)) {
+            values.push(current.value);
+          }
+          current = current.next;
+        }
+        return values;
+      }
+      /**
+       * Get cache statistics
+       */
+      getStats() {
+        let oldestTimestamp;
+        let newestTimestamp;
+        if (this.tail) {
+          oldestTimestamp = this.tail.timestamp;
+        }
+        if (this.head) {
+          newestTimestamp = this.head.timestamp;
+        }
+        return {
+          size: this.cache.size,
+          maxSize: this.maxSize,
+          oldestTimestamp,
+          newestTimestamp
+        };
+      }
+      /**
+       * Manually trigger cleanup of expired items
+       */
+      cleanup() {
+        let removedCount = 0;
+        const now = Date.now();
+        const keysToRemove = [];
+        for (const [key, node] of this.cache) {
+          if (this.isExpired(node, now)) {
+            keysToRemove.push(key);
+          }
+        }
+        for (const key of keysToRemove) {
+          this.delete(key);
+          removedCount++;
+        }
+        return removedCount;
+      }
+      /**
+       * Update the max size of the cache
+       */
+      setMaxSize(newMaxSize) {
+        this.maxSize = newMaxSize;
+        while (this.cache.size > this.maxSize) {
+          this.evictLRU();
+        }
+      }
+      /**
+       * Destroy the cache and cleanup resources
+       */
+      destroy() {
+        if (this.cleanupInterval) {
+          clearInterval(this.cleanupInterval);
+          this.cleanupInterval = null;
+        }
+        this.clear();
+      }
+      isExpired(node, now = Date.now()) {
+        if (!node.ttl) {
+          return false;
+        }
+        return now > node.timestamp + node.ttl;
+      }
+      moveToHead(node) {
+        this.removeNode(node);
+        this.addToHead(node);
+      }
+      addToHead(node) {
+        node.prev = null;
+        node.next = this.head;
+        if (this.head) {
+          this.head.prev = node;
+        }
+        this.head = node;
+        if (!this.tail) {
+          this.tail = node;
+        }
+      }
+      removeNode(node) {
+        if (node.prev) {
+          node.prev.next = node.next;
+        } else {
+          this.head = node.next;
+        }
+        if (node.next) {
+          node.next.prev = node.prev;
+        } else {
+          this.tail = node.prev;
+        }
+      }
+      evictLRU() {
+        if (!this.tail) {
+          return;
+        }
+        const lruNode = this.tail;
+        this.removeNode(lruNode);
+        this.cache.delete(lruNode.key);
+        if (this.onEvict) {
+          this.onEvict(lruNode.key, lruNode.value);
+        }
+      }
+      startCleanupInterval() {
+        this.cleanupInterval = setInterval(() => {
+          this.cleanup();
+        }, 5 * 60 * 1e3);
       }
     };
   }
@@ -21983,7 +21206,6 @@ var MessageRegenerator = class {
 
 // src/chat.ts
 init_MessageRenderer();
-init_objectPool();
 
 // src/utils/domBatcher.ts
 var DOMBatcher = class {
@@ -22075,7 +21297,37 @@ var globalDOMBatcher = new DOMBatcher();
 
 // src/chat.ts
 init_errorHandler();
-init_asyncOptimizer();
+
+// src/utils/simpleDebouncer.ts
+var SimpleDebouncer = class {
+  constructor(delay = 300) {
+    __publicField(this, "timer", null);
+    __publicField(this, "delay");
+    this.delay = delay;
+  }
+  /**
+   * Debounce a function call
+   */
+  debounce(fn) {
+    if (this.timer) {
+      clearTimeout(this.timer);
+    }
+    this.timer = setTimeout(() => {
+      fn();
+    }, this.delay);
+  }
+  /**
+   * Cancel any pending debounced function
+   */
+  cancel() {
+    if (this.timer) {
+      clearTimeout(this.timer);
+      this.timer = null;
+    }
+  }
+};
+
+// src/chat.ts
 var VIEW_TYPE_CHAT = "chat-view";
 var ChatView = class extends import_obsidian25.ItemView {
   constructor(leaf, plugin) {
@@ -22091,9 +21343,6 @@ var ChatView = class extends import_obsidian25.ItemView {
     __publicField(this, "messageRegenerator", null);
     __publicField(this, "responseStreamer", null);
     __publicField(this, "messageRenderer");
-    __publicField(this, "messagePool");
-    __publicField(this, "domCache");
-    __publicField(this, "arrayManager");
     __publicField(this, "cachedMessageElements", []);
     __publicField(this, "lastScrollHeight", 0);
     __publicField(this, "domElementCache", {});
@@ -22105,12 +21354,9 @@ var ChatView = class extends import_obsidian25.ItemView {
     this.plugin = plugin;
     this.chatHistoryManager = new ChatHistoryManager(this.app.vault, this.plugin.manifest.id, "chat-history.json");
     this.messageRenderer = new MessageRenderer(this.app);
-    this.messagePool = MessageContextPool.getInstance();
-    this.domCache = new WeakCache();
-    this.arrayManager = PreAllocatedArrays.getInstance();
     this.domBatcher = new DOMBatcher();
-    this.scrollDebouncer = AsyncOptimizerFactory.createInputDebouncer();
-    this.updateDebouncer = AsyncOptimizerFactory.createInputDebouncer();
+    this.scrollDebouncer = new SimpleDebouncer(100);
+    this.updateDebouncer = new SimpleDebouncer(300);
   }
   addEventListenerWithCleanup(element, event, handler) {
     element.addEventListener(event, handler);
@@ -22532,9 +21778,7 @@ var ChatView = class extends import_obsidian25.ItemView {
       const role = el.classList.contains("user") ? "user" : "assistant";
       const contentEl = el.querySelector(".message-content");
       const content = (contentEl == null ? void 0 : contentEl.textContent) || "";
-      const messageObj = this.messagePool.acquireMessage();
-      messageObj.role = role;
-      messageObj.content = content;
+      const messageObj = { role, content };
       messages.push(messageObj);
     }
   }
@@ -25950,7 +25194,6 @@ function registerAllCommands(plugin, settings, processMessages2, activateChatVie
 // src/main.ts
 init_YAMLHandler();
 init_aiDispatcher();
-init_objectPool();
 
 // src/integration/priority3Integration.ts
 var import_obsidian37 = require("obsidian");
@@ -25958,8 +25201,7 @@ init_dependencyInjection();
 init_stateManager();
 init_streamManager();
 init_errorHandler();
-init_lruCache();
-init_asyncOptimizer();
+init_simpleCache();
 var Priority3IntegrationManager = class {
   constructor(plugin) {
     this.plugin = plugin;
@@ -25999,16 +25241,14 @@ var Priority3IntegrationManager = class {
     this.container.registerSingleton("stateManager", () => globalStateManager);
     this.container.registerSingleton("streamManager", () => globalStreamManager);
     this.container.registerSingleton("errorHandler", () => errorHandler);
-    this.container.registerSingleton("asyncOptimizerFactory", () => AsyncOptimizerFactory);
     this.container.registerSingleton(
       "settingsCache",
-      () => new LRUCache({ maxSize: 100, defaultTTL: 5 * 60 * 1e3 })
+      () => new SimpleCache(100)
     );
     this.container.registerTransient("httpClient", () => {
       return {
         async fetch(url, options) {
-          const throttler = AsyncOptimizerFactory.createAPIThrottler();
-          return throttler.throttle(() => fetch(url, options));
+          return fetch(url, options);
         }
       };
     });
@@ -26627,8 +25867,6 @@ var _MyPlugin = class _MyPlugin extends import_obsidian39.Plugin {
     if (this.recentlyOpenedFilesManager) {
       this.recentlyOpenedFilesManager.destroy();
     }
-    MessageContextPool.getInstance().clear();
-    PreAllocatedArrays.getInstance().clear();
   }
   /**
    * Process ai-tool-execution code blocks specifically for Live Preview mode

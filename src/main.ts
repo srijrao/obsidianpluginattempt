@@ -14,7 +14,6 @@ import { registerAllCommands } from './components/commands/commandRegistry';
 import { VIEW_TYPE_MODEL_SETTINGS } from './components/commands/viewCommands';
 import { registerYamlAttributeCommands } from './YAMLHandler';
 import { AIDispatcher } from './utils/aiDispatcher';
-import { MessageContextPool, PreAllocatedArrays } from './utils/objectPool';
 import { Priority3IntegrationManager } from './integration/priority3Integration';
 import { parseToolDataFromContent, cleanContentFromToolData } from './utils/messageContentParser';
 import { isVaultAdapterWithBasePath, validatePluginSettings } from './utils/typeGuards';
@@ -339,9 +338,7 @@ export default class MyPlugin extends Plugin {
             this.recentlyOpenedFilesManager.destroy();
         }
         
-        // Clean up object pools to free memory
-        MessageContextPool.getInstance().clear();
-        PreAllocatedArrays.getInstance().clear();
+        // Object pools have been removed - no cleanup needed
     }
 
     /**
