@@ -266,6 +266,7 @@ export class ChatView extends ItemView {
                 () => this.chatHistoryManager.addMessage({
                     timestamp: userMessageEl.dataset.timestamp || new Date().toISOString(),
                     sender: 'user',
+                    role: 'user',
                     content: content
                 }),
                 'ChatView',
@@ -433,6 +434,7 @@ export class ChatView extends ItemView {
             () => this.chatHistoryManager.addMessage({
                 timestamp: uiTimestamp,
                 sender: role,
+                role: role,
                 content,
                 ...(enhancedData || {})
             }),

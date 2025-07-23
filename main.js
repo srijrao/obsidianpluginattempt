@@ -16929,13 +16929,205 @@ var init_YAMLHandler = __esm({
   }
 });
 
+// src/utils/eventBus.ts
+var EventBus, globalEventBus, TypedEventBus, chatEventBus;
+var init_eventBus = __esm({
+  "src/utils/eventBus.ts"() {
+    EventBus = class {
+      constructor() {
+        __publicField(this, "subscriptions", /* @__PURE__ */ new Map());
+        __publicField(this, "subscriptionIdCounter", 0);
+        __publicField(this, "isDisposed", false);
+      }
+      /**
+       * Publishes an event to all subscribers
+       */
+      async publish(event, data) {
+        if (this.isDisposed) {
+          console.warn(`[EventBus] Cannot publish to disposed event bus: ${event}`);
+          return;
+        }
+        const eventSubscriptions = this.subscriptions.get(event);
+        if (!eventSubscriptions || eventSubscriptions.length === 0) {
+          return;
+        }
+        const handlersToCall = [...eventSubscriptions];
+        const onceHandlers = [];
+        const promises = handlersToCall.map(async (subscription) => {
+          try {
+            const result = subscription.handler(data);
+            if (result instanceof Promise) {
+              await result;
+            }
+            if (subscription.once) {
+              onceHandlers.push(subscription.id);
+            }
+          } catch (error) {
+            console.error(`[EventBus] Error in event handler for '${event}':`, error);
+          }
+        });
+        await Promise.all(promises);
+        if (onceHandlers.length > 0) {
+          this.removeSubscriptionsByIds(event, onceHandlers);
+        }
+      }
+      /**
+       * Subscribes to an event
+       */
+      subscribe(event, handler) {
+        if (this.isDisposed) {
+          console.warn(`[EventBus] Cannot subscribe to disposed event bus: ${event}`);
+          return () => {
+          };
+        }
+        const subscription = {
+          event,
+          handler,
+          once: false,
+          id: `sub_${++this.subscriptionIdCounter}`
+        };
+        if (!this.subscriptions.has(event)) {
+          this.subscriptions.set(event, []);
+        }
+        this.subscriptions.get(event).push(subscription);
+        return () => {
+          this.removeSubscriptionById(event, subscription.id);
+        };
+      }
+      /**
+       * Subscribes to an event for one-time execution
+       */
+      subscribeOnce(event, handler) {
+        if (this.isDisposed) {
+          console.warn(`[EventBus] Cannot subscribe to disposed event bus: ${event}`);
+          return () => {
+          };
+        }
+        const subscription = {
+          event,
+          handler,
+          once: true,
+          id: `once_${++this.subscriptionIdCounter}`
+        };
+        if (!this.subscriptions.has(event)) {
+          this.subscriptions.set(event, []);
+        }
+        this.subscriptions.get(event).push(subscription);
+        return () => {
+          this.removeSubscriptionById(event, subscription.id);
+        };
+      }
+      /**
+       * Unsubscribes from an event
+       */
+      unsubscribe(event, handler) {
+        if (!this.subscriptions.has(event)) {
+          return;
+        }
+        if (handler) {
+          const subscriptions = this.subscriptions.get(event);
+          const filtered = subscriptions.filter((sub) => sub.handler !== handler);
+          if (filtered.length === 0) {
+            this.subscriptions.delete(event);
+          } else {
+            this.subscriptions.set(event, filtered);
+          }
+        } else {
+          this.subscriptions.delete(event);
+        }
+      }
+      /**
+       * Clears all subscriptions
+       */
+      clear() {
+        this.subscriptions.clear();
+        this.subscriptionIdCounter = 0;
+      }
+      /**
+       * Gets the number of subscriptions for an event or total
+       */
+      getSubscriptionCount(event) {
+        var _a2;
+        if (event) {
+          return ((_a2 = this.subscriptions.get(event)) == null ? void 0 : _a2.length) || 0;
+        }
+        let total = 0;
+        for (const subs of this.subscriptions.values()) {
+          total += subs.length;
+        }
+        return total;
+      }
+      /**
+       * Gets all registered event names
+       */
+      getRegisteredEvents() {
+        return Array.from(this.subscriptions.keys());
+      }
+      /**
+       * Disposes the event bus and clears all subscriptions
+       */
+      dispose() {
+        this.clear();
+        this.isDisposed = true;
+      }
+      /**
+       * Removes a subscription by ID
+       */
+      removeSubscriptionById(event, id) {
+        const subscriptions = this.subscriptions.get(event);
+        if (!subscriptions) return;
+        const filtered = subscriptions.filter((sub) => sub.id !== id);
+        if (filtered.length === 0) {
+          this.subscriptions.delete(event);
+        } else {
+          this.subscriptions.set(event, filtered);
+        }
+      }
+      /**
+       * Removes multiple subscriptions by IDs
+       */
+      removeSubscriptionsByIds(event, ids) {
+        const subscriptions = this.subscriptions.get(event);
+        if (!subscriptions) return;
+        const idsSet = new Set(ids);
+        const filtered = subscriptions.filter((sub) => !idsSet.has(sub.id));
+        if (filtered.length === 0) {
+          this.subscriptions.delete(event);
+        } else {
+          this.subscriptions.set(event, filtered);
+        }
+      }
+    };
+    globalEventBus = new EventBus();
+    TypedEventBus = class {
+      constructor(eventBus = globalEventBus) {
+        this.eventBus = eventBus;
+      }
+      publish(event, data) {
+        return this.eventBus.publish(event, data);
+      }
+      subscribe(event, handler) {
+        return this.eventBus.subscribe(event, handler);
+      }
+      subscribeOnce(event, handler) {
+        return this.eventBus.subscribeOnce(event, handler);
+      }
+      unsubscribe(event, handler) {
+        this.eventBus.unsubscribe(event, handler);
+      }
+    };
+    chatEventBus = new TypedEventBus();
+  }
+});
+
 // src/utils/dependencyInjection.ts
 var dependencyInjection_exports = {};
 __export(dependencyInjection_exports, {
   DIContainer: () => DIContainer,
   DIContainerFactory: () => DIContainerFactory,
   Injectable: () => Injectable,
-  ServiceLocator: () => ServiceLocator
+  ServiceLocator: () => ServiceLocator,
+  ServiceRegistry: () => ServiceRegistry
 });
 function Injectable(name, lifecycle = "singleton") {
   return function(constructor) {
@@ -16944,19 +17136,23 @@ function Injectable(name, lifecycle = "singleton") {
     return constructor;
   };
 }
-var DIContainer, _ServiceLocator, ServiceLocator, DIContainerFactory;
+var DIContainer, _ServiceLocator, ServiceLocator, DIContainerFactory, ServiceRegistry, ErrorBoundaryService, ConfigurationManagerService, ChatServiceImpl, ChatUIManagerImpl, StreamCoordinatorImpl, AgentServiceImpl, ToolExecutionEngineImpl, ExecutionLimitManagerImpl, ViewManagerImpl, CommandManagerImpl;
 var init_dependencyInjection = __esm({
   "src/utils/dependencyInjection.ts"() {
     init_aiDispatcher();
     init_errorHandler();
+    init_eventBus();
     DIContainer = class {
-      constructor() {
+      constructor(eventBus = globalEventBus) {
         __publicField(this, "services", /* @__PURE__ */ new Map());
         __publicField(this, "instances", /* @__PURE__ */ new Map());
         __publicField(this, "metadata", /* @__PURE__ */ new Map());
         __publicField(this, "scopes", /* @__PURE__ */ new Map());
         __publicField(this, "currentScope", null);
         __publicField(this, "isDisposed", false);
+        __publicField(this, "eventBus");
+        __publicField(this, "serviceInitializationOrder", []);
+        this.eventBus = eventBus;
         this.registerCoreServices();
       }
       /**
@@ -16979,6 +17175,26 @@ var init_dependencyInjection = __esm({
           lastAccessed: 0,
           accessCount: 0
         });
+      }
+      /**
+       * Register a service with interface validation
+       */
+      registerService(name, factory, lifecycle = "singleton", dependencies = [], interfaceValidator) {
+        const enhancedFactory = (container) => {
+          const instance = factory(container);
+          if (interfaceValidator && !interfaceValidator(instance)) {
+            throw new Error(`Service '${name}' does not implement required interface`);
+          }
+          this.eventBus.publish("service.registered", {
+            name,
+            lifecycle,
+            dependencies,
+            timestamp: Date.now()
+          });
+          return instance;
+        };
+        this.register(name, enhancedFactory, lifecycle, dependencies);
+        this.serviceInitializationOrder.push(name);
       }
       /**
        * Register a singleton service
@@ -17023,6 +17239,18 @@ var init_dependencyInjection = __esm({
           default:
             throw new Error(`Unknown lifecycle: ${service.lifecycle}`);
         }
+      }
+      /**
+       * Resolve with dependency validation and circular dependency detection
+       */
+      resolveWithValidation(name, expectedInterface) {
+        const instance = this.resolve(name);
+        this.eventBus.publish("service.resolved", {
+          name,
+          timestamp: Date.now(),
+          expectedInterface
+        });
+        return instance;
       }
       /**
        * Check if a service is registered
@@ -17118,8 +17346,74 @@ var init_dependencyInjection = __esm({
           memoryUsage: this.estimateMemoryUsage()
         };
       }
+      /**
+       * Initialize all services in dependency order
+       */
+      async initializeServices() {
+        const initOrder = this.calculateInitializationOrder();
+        for (const serviceName of initOrder) {
+          try {
+            const instance = this.resolve(serviceName);
+            if (instance && typeof instance.initialize === "function") {
+              await instance.initialize();
+            }
+            this.eventBus.publish("service.initialized", {
+              name: serviceName,
+              timestamp: Date.now()
+            });
+          } catch (error) {
+            this.eventBus.publish("service.initialization.failed", {
+              name: serviceName,
+              error: error.message,
+              timestamp: Date.now()
+            });
+            throw error;
+          }
+        }
+      }
+      /**
+       * Calculate service initialization order based on dependencies
+       */
+      calculateInitializationOrder() {
+        const visited = /* @__PURE__ */ new Set();
+        const visiting = /* @__PURE__ */ new Set();
+        const order = [];
+        const visit = (serviceName) => {
+          if (visiting.has(serviceName)) {
+            throw new Error(`Circular dependency detected involving service: ${serviceName}`);
+          }
+          if (visited.has(serviceName)) {
+            return;
+          }
+          visiting.add(serviceName);
+          const service = this.services.get(serviceName);
+          if (service && service.dependencies) {
+            for (const dep of service.dependencies) {
+              visit(dep);
+            }
+          }
+          visiting.delete(serviceName);
+          visited.add(serviceName);
+          order.push(serviceName);
+        };
+        for (const serviceName of this.services.keys()) {
+          visit(serviceName);
+        }
+        return order;
+      }
+      /**
+       * Get service dependency graph
+       */
+      getDependencyGraph() {
+        const graph = {};
+        for (const [name, service] of this.services) {
+          graph[name] = service.dependencies || [];
+        }
+        return graph;
+      }
       registerCoreServices() {
         this.registerSingleton("errorHandler", () => ErrorHandler.getInstance());
+        this.registerSingleton("eventBus", () => this.eventBus);
       }
       resolveSingleton(name, service) {
         if (this.instances.has(name)) {
@@ -17233,6 +17527,358 @@ var init_dependencyInjection = __esm({
         const container = new DIContainer();
         container.registerSingleton("mockService", () => ({ test: true }));
         return container;
+      }
+      /**
+       * Create a container with enhanced service registration
+       */
+      static createEnhancedPluginContainer(app, plugin) {
+        const container = new DIContainer();
+        container.registerSingleton("app", () => app);
+        container.registerSingleton("plugin", () => plugin);
+        container.registerSingleton("vault", () => app.vault);
+        container.registerSingleton("workspace", () => app.workspace);
+        container.registerService("aiService", (c) => {
+          const vault = c.resolve("vault");
+          const pluginInstance = c.resolve("plugin");
+          return new AIDispatcher(vault, pluginInstance);
+        }, "singleton", ["vault", "plugin"]);
+        container.registerSingleton("errorHandler", () => ErrorHandler.getInstance());
+        container.registerSingleton("eventBus", () => globalEventBus);
+        return container;
+      }
+    };
+    ServiceRegistry = class {
+      constructor(container) {
+        this.container = container;
+      }
+      registerCoreServices() {
+        this.container.registerService(
+          "eventBus",
+          () => globalEventBus,
+          "singleton"
+        );
+        this.container.registerService(
+          "errorBoundary",
+          (c) => new ErrorBoundaryService(c.resolve("eventBus")),
+          "singleton",
+          ["eventBus"]
+        );
+        this.container.registerService(
+          "configManager",
+          (c) => new ConfigurationManagerService(c.resolve("eventBus")),
+          "singleton",
+          ["eventBus"]
+        );
+      }
+      registerChatServices() {
+        this.container.registerService(
+          "chatService",
+          (c) => new ChatServiceImpl(
+            c.resolve("eventBus"),
+            c.resolve("aiService")
+          ),
+          "singleton",
+          ["eventBus", "aiService"]
+        );
+        this.container.registerService(
+          "chatUIManager",
+          (c) => new ChatUIManagerImpl(c.resolve("eventBus")),
+          "singleton",
+          ["eventBus"]
+        );
+        this.container.registerService(
+          "streamCoordinator",
+          (c) => new StreamCoordinatorImpl(
+            c.resolve("eventBus"),
+            c.resolve("aiService")
+          ),
+          "singleton",
+          ["eventBus", "aiService"]
+        );
+      }
+      registerAgentServices() {
+        this.container.registerService(
+          "agentService",
+          (c) => new AgentServiceImpl(
+            c.resolve("eventBus"),
+            c.resolve("toolExecutionEngine")
+          ),
+          "singleton",
+          ["eventBus", "toolExecutionEngine"]
+        );
+        this.container.registerService(
+          "toolExecutionEngine",
+          (c) => new ToolExecutionEngineImpl(c.resolve("eventBus")),
+          "singleton",
+          ["eventBus"]
+        );
+        this.container.registerService(
+          "executionLimitManager",
+          (c) => new ExecutionLimitManagerImpl(c.resolve("eventBus")),
+          "singleton",
+          ["eventBus"]
+        );
+      }
+      registerUIServices() {
+        this.container.registerService(
+          "viewManager",
+          (c) => new ViewManagerImpl(
+            c.resolve("app"),
+            c.resolve("eventBus")
+          ),
+          "singleton",
+          ["app", "eventBus"]
+        );
+        this.container.registerService(
+          "commandManager",
+          (c) => new CommandManagerImpl(
+            c.resolve("plugin"),
+            c.resolve("eventBus")
+          ),
+          "singleton",
+          ["plugin", "eventBus"]
+        );
+      }
+    };
+    ErrorBoundaryService = class {
+      constructor(eventBus) {
+        this.eventBus = eventBus;
+      }
+      async wrap(operation) {
+        return operation();
+      }
+      handleError(error, context) {
+      }
+      getErrorStats() {
+        return { totalErrors: 0, errorsByService: {}, errorsByType: {}, recentErrors: [] };
+      }
+      clearErrors() {
+      }
+    };
+    ConfigurationManagerService = class {
+      constructor(eventBus) {
+        this.eventBus = eventBus;
+      }
+      get(key) {
+        return void 0;
+      }
+      async set(key, value) {
+      }
+      subscribe(key, callback) {
+        return () => {
+        };
+      }
+      validate(config) {
+        return { isValid: true, errors: [], warnings: [] };
+      }
+      export() {
+        return "{}";
+      }
+      async import(config) {
+      }
+    };
+    ChatServiceImpl = class {
+      constructor(eventBus, aiService) {
+        this.eventBus = eventBus;
+        this.aiService = aiService;
+      }
+      async sendMessage(content) {
+      }
+      async regenerateMessage(messageId) {
+      }
+      async clearHistory() {
+      }
+      async getHistory() {
+        return [];
+      }
+      async addMessage(message) {
+      }
+      async updateMessage(timestamp2, role, oldContent, newContent, metadata) {
+      }
+    };
+    ChatUIManagerImpl = class {
+      constructor(eventBus) {
+        this.eventBus = eventBus;
+      }
+      createChatInterface() {
+        return document.createElement("div");
+      }
+      updateMessageDisplay(message) {
+      }
+      scrollToBottom() {
+      }
+      showTypingIndicator() {
+      }
+      hideTypingIndicator() {
+      }
+      updateModelDisplay(modelName) {
+      }
+      updateReferenceNoteIndicator(isEnabled, fileName) {
+      }
+    };
+    StreamCoordinatorImpl = class {
+      constructor(eventBus, aiService) {
+        this.eventBus = eventBus;
+        this.aiService = aiService;
+      }
+      async startStream(messages) {
+        return "";
+      }
+      stopStream() {
+      }
+      isStreaming() {
+        return false;
+      }
+      getActiveStreams() {
+        return [];
+      }
+      abortStream(streamId) {
+      }
+    };
+    AgentServiceImpl = class {
+      constructor(eventBus, toolEngine) {
+        this.eventBus = eventBus;
+        this.toolEngine = toolEngine;
+      }
+      async processResponse(response) {
+        return { processedText: response, toolResults: [], hasTools: false, taskStatus: {} };
+      }
+      async executeTools(commands) {
+        return [];
+      }
+      isLimitReached() {
+        return false;
+      }
+      resetExecutionCount() {
+      }
+      getExecutionStats() {
+        return {
+          executionCount: 0,
+          maxExecutions: 10,
+          remaining: 10,
+          averageExecutionTime: 0,
+          successfulExecutions: 0,
+          failedExecutions: 0,
+          totalExecutions: 0
+        };
+      }
+      isAgentModeEnabled() {
+        return false;
+      }
+      async setAgentModeEnabled(enabled) {
+      }
+    };
+    ToolExecutionEngineImpl = class {
+      constructor(eventBus) {
+        this.eventBus = eventBus;
+      }
+      async executeCommand(command) {
+        return { success: true };
+      }
+      canExecute(command) {
+        return true;
+      }
+      getExecutionStats() {
+        return {
+          executionCount: 0,
+          maxExecutions: 10,
+          remaining: 10,
+          averageExecutionTime: 0,
+          successfulExecutions: 0,
+          failedExecutions: 0,
+          totalExecutions: 0
+        };
+      }
+      registerTool(tool) {
+      }
+      unregisterTool(toolName) {
+      }
+    };
+    ExecutionLimitManagerImpl = class {
+      // 1 minute
+      constructor(eventBus) {
+        this.eventBus = eventBus;
+        __publicField(this, "currentCount", 0);
+        __publicField(this, "limit", 10);
+        __publicField(this, "lastResetTime", Date.now());
+        __publicField(this, "autoReset", false);
+        __publicField(this, "resetIntervalMs", 6e4);
+      }
+      isLimitReached() {
+        return this.currentCount >= this.limit;
+      }
+      canExecute(count) {
+        return this.currentCount + count <= this.limit;
+      }
+      addExecutions(count) {
+        this.currentCount += count;
+      }
+      resetLimit() {
+        this.currentCount = 0;
+        this.lastResetTime = Date.now();
+      }
+      getLimit() {
+        return this.limit;
+      }
+      setLimit(limit) {
+        this.limit = limit;
+      }
+      getCurrentCount() {
+        return this.currentCount;
+      }
+      getRemaining() {
+        return Math.max(0, this.limit - this.currentCount);
+      }
+      getUsagePercentage() {
+        return this.currentCount / this.limit * 100;
+      }
+      getStatus() {
+        return {
+          count: this.currentCount,
+          limit: this.limit,
+          remaining: this.getRemaining(),
+          percentage: this.getUsagePercentage(),
+          isLimitReached: this.isLimitReached(),
+          lastResetTime: this.lastResetTime,
+          autoReset: this.autoReset,
+          resetIntervalMs: this.resetIntervalMs
+        };
+      }
+      setAutoReset(enabled, intervalMs) {
+        this.autoReset = enabled;
+        if (intervalMs) this.resetIntervalMs = intervalMs;
+      }
+      destroy() {
+      }
+    };
+    ViewManagerImpl = class {
+      constructor(app, eventBus) {
+        this.app = app;
+        this.eventBus = eventBus;
+      }
+      registerViews() {
+      }
+      async activateView(type2) {
+      }
+      getActiveViews() {
+        return [];
+      }
+      async closeView(type2) {
+      }
+    };
+    CommandManagerImpl = class {
+      constructor(plugin, eventBus) {
+        this.plugin = plugin;
+        this.eventBus = eventBus;
+      }
+      registerCommands() {
+      }
+      unregisterCommands() {
+      }
+      async executeCommand(id, ...args) {
+      }
+      getRegisteredCommands() {
+        return [];
       }
     };
   }
@@ -22340,6 +22986,7 @@ var ChatView = class extends import_obsidian25.ItemView {
         () => this.chatHistoryManager.addMessage({
           timestamp: userMessageEl.dataset.timestamp || (/* @__PURE__ */ new Date()).toISOString(),
           sender: "user",
+          role: "user",
           content
         }),
         "ChatView",
@@ -22504,6 +23151,7 @@ var ChatView = class extends import_obsidian25.ItemView {
       () => this.chatHistoryManager.addMessage({
         timestamp: uiTimestamp,
         sender: role,
+        role,
         content,
         ...enhancedData || {}
       }),

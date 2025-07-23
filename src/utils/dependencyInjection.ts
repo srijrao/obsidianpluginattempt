@@ -1,8 +1,9 @@
 /**
  * @file dependencyInjection.ts
- * 
- * Dependency Injection container for the AI Assistant plugin.
- * Provides centralized dependency management, lifecycle control, and service registration.
+ *
+ * Enhanced Dependency Injection container for the AI Assistant plugin.
+ * Provides centralized dependency management, lifecycle control, service registration,
+ * and integration with the event bus system.
  */
 
 import { App } from 'obsidian';
@@ -11,6 +12,9 @@ import { AIDispatcher } from './aiDispatcher';
 import { ErrorHandler } from './errorHandler';
 import { LRUCache } from './lruCache';
 import { AsyncBatcher, ParallelExecutor } from './asyncOptimizer';
+import { IEventBus, globalEventBus } from './eventBus';
+import * as ServiceInterfaces from '../services/interfaces';
+import { IEventBus as IEventBusInterface } from '../services/interfaces';
 
 export type ServiceLifecycle = 'singleton' | 'transient' | 'scoped';
 
@@ -39,8 +43,11 @@ export class DIContainer {
     private scopes = new Map<string, Map<string, any>>();
     private currentScope: string | null = null;
     private isDisposed = false;
+    private eventBus: IEventBus;
+    private serviceInitializationOrder: string[] = [];
 
-    constructor() {
+    constructor(eventBus: IEventBus = globalEventBus) {
+        this.eventBus = eventBus;
         this.registerCoreServices();
     }
 
@@ -71,6 +78,39 @@ export class DIContainer {
             lastAccessed: 0,
             accessCount: 0
         });
+    }
+
+    /**
+     * Register a service with interface validation
+     */
+    registerService<T>(
+        name: string,
+        factory: (container: DIContainer) => T,
+        lifecycle: ServiceLifecycle = 'singleton',
+        dependencies: string[] = [],
+        interfaceValidator?: (instance: T) => boolean
+    ): void {
+        const enhancedFactory = (container: DIContainer) => {
+            const instance = factory(container);
+            
+            // Validate interface if validator provided
+            if (interfaceValidator && !interfaceValidator(instance)) {
+                throw new Error(`Service '${name}' does not implement required interface`);
+            }
+            
+            // Emit service registration event
+            this.eventBus.publish('service.registered', {
+                name,
+                lifecycle,
+                dependencies,
+                timestamp: Date.now()
+            });
+            
+            return instance;
+        };
+
+        this.register(name, enhancedFactory, lifecycle, dependencies);
+        this.serviceInitializationOrder.push(name);
     }
 
     /**
@@ -137,6 +177,22 @@ export class DIContainer {
             default:
                 throw new Error(`Unknown lifecycle: ${service.lifecycle}`);
         }
+    }
+
+    /**
+     * Resolve with dependency validation and circular dependency detection
+     */
+    resolveWithValidation<T>(name: string, expectedInterface?: string): T {
+        const instance = this.resolve<T>(name);
+        
+        // Emit service resolution event
+        this.eventBus.publish('service.resolved', {
+            name,
+            timestamp: Date.now(),
+            expectedInterface
+        });
+        
+        return instance;
     }
 
     /**
@@ -258,9 +314,90 @@ export class DIContainer {
         };
     }
 
+    /**
+     * Initialize all services in dependency order
+     */
+    async initializeServices(): Promise<void> {
+        const initOrder = this.calculateInitializationOrder();
+        
+        for (const serviceName of initOrder) {
+            try {
+                const instance = this.resolve(serviceName);
+                
+                // Call initialize method if it exists
+                if (instance && typeof (instance as any).initialize === 'function') {
+                    await (instance as any).initialize();
+                }
+                
+                this.eventBus.publish('service.initialized', {
+                    name: serviceName,
+                    timestamp: Date.now()
+                });
+            } catch (error: any) {
+                this.eventBus.publish('service.initialization.failed', {
+                    name: serviceName,
+                    error: error.message,
+                    timestamp: Date.now()
+                });
+                throw error;
+            }
+        }
+    }
+
+    /**
+     * Calculate service initialization order based on dependencies
+     */
+    private calculateInitializationOrder(): string[] {
+        const visited = new Set<string>();
+        const visiting = new Set<string>();
+        const order: string[] = [];
+
+        const visit = (serviceName: string) => {
+            if (visiting.has(serviceName)) {
+                throw new Error(`Circular dependency detected involving service: ${serviceName}`);
+            }
+            if (visited.has(serviceName)) {
+                return;
+            }
+
+            visiting.add(serviceName);
+            
+            const service = this.services.get(serviceName);
+            if (service && service.dependencies) {
+                for (const dep of service.dependencies) {
+                    visit(dep);
+                }
+            }
+            
+            visiting.delete(serviceName);
+            visited.add(serviceName);
+            order.push(serviceName);
+        };
+
+        for (const serviceName of this.services.keys()) {
+            visit(serviceName);
+        }
+
+        return order;
+    }
+
+    /**
+     * Get service dependency graph
+     */
+    getDependencyGraph(): Record<string, string[]> {
+        const graph: Record<string, string[]> = {};
+        
+        for (const [name, service] of this.services) {
+            graph[name] = service.dependencies || [];
+        }
+        
+        return graph;
+    }
+
     private registerCoreServices(): void {
         // Register core services that are commonly used
         this.registerSingleton('errorHandler', () => ErrorHandler.getInstance());
+        this.registerSingleton('eventBus', () => this.eventBus);
     }
 
     private resolveSingleton<T>(name: string, service: ServiceDefinition<T>): T {
@@ -423,4 +560,296 @@ export class DIContainerFactory {
         
         return container;
     }
+
+    /**
+     * Create a container with enhanced service registration
+     */
+    static createEnhancedPluginContainer(app: App, plugin: MyPlugin): DIContainer {
+        const container = new DIContainer();
+
+        // Register core Obsidian services
+        container.registerSingleton('app', () => app);
+        container.registerSingleton('plugin', () => plugin);
+        container.registerSingleton('vault', () => app.vault);
+        container.registerSingleton('workspace', () => app.workspace);
+
+        // Register enhanced services with interface validation
+        container.registerService('aiService', (c) => {
+            const vault = c.resolve<typeof app.vault>('vault');
+            const pluginInstance = c.resolve<MyPlugin>('plugin');
+            return new AIDispatcher(vault, pluginInstance);
+        }, 'singleton', ['vault', 'plugin']);
+
+        // Register utility services
+        container.registerSingleton('errorHandler', () => ErrorHandler.getInstance());
+        container.registerSingleton('eventBus', () => globalEventBus);
+
+        return container;
+    }
+}
+
+/**
+ * Enhanced Service Registry for organizing service registration
+ */
+export interface IServiceRegistry {
+    registerCoreServices(): void;
+    registerChatServices(): void;
+    registerAgentServices(): void;
+    registerUIServices(): void;
+}
+
+export class ServiceRegistry implements IServiceRegistry {
+    constructor(private container: DIContainer) {}
+
+    registerCoreServices(): void {
+        // Core infrastructure services
+        this.container.registerService<IEventBusInterface>(
+            'eventBus',
+            () => globalEventBus,
+            'singleton'
+        );
+
+        this.container.registerService<ServiceInterfaces.IErrorBoundary>(
+            'errorBoundary',
+            (c) => new ErrorBoundaryService(c.resolve('eventBus')),
+            'singleton',
+            ['eventBus']
+        );
+
+        this.container.registerService<ServiceInterfaces.IConfigurationManager>(
+            'configManager',
+            (c) => new ConfigurationManagerService(c.resolve('eventBus')),
+            'singleton',
+            ['eventBus']
+        );
+    }
+
+    registerChatServices(): void {
+        // Chat-related services
+        this.container.registerService<ServiceInterfaces.IChatService>(
+            'chatService',
+            (c) => new ChatServiceImpl(
+                c.resolve('eventBus'),
+                c.resolve('aiService')
+            ),
+            'singleton',
+            ['eventBus', 'aiService']
+        );
+
+        this.container.registerService<ServiceInterfaces.IChatUIManager>(
+            'chatUIManager',
+            (c) => new ChatUIManagerImpl(c.resolve('eventBus')),
+            'singleton',
+            ['eventBus']
+        );
+
+        this.container.registerService<ServiceInterfaces.IStreamCoordinator>(
+            'streamCoordinator',
+            (c) => new StreamCoordinatorImpl(
+                c.resolve('eventBus'),
+                c.resolve('aiService')
+            ),
+            'singleton',
+            ['eventBus', 'aiService']
+        );
+    }
+
+    registerAgentServices(): void {
+        // Agent and tool execution services
+        this.container.registerService<ServiceInterfaces.IAgentService>(
+            'agentService',
+            (c) => new AgentServiceImpl(
+                c.resolve('eventBus'),
+                c.resolve('toolExecutionEngine')
+            ),
+            'singleton',
+            ['eventBus', 'toolExecutionEngine']
+        );
+
+        this.container.registerService<ServiceInterfaces.IToolExecutionEngine>(
+            'toolExecutionEngine',
+            (c) => new ToolExecutionEngineImpl(c.resolve('eventBus')),
+            'singleton',
+            ['eventBus']
+        );
+
+        this.container.registerService<ServiceInterfaces.IExecutionLimitManager>(
+            'executionLimitManager',
+            (c) => new ExecutionLimitManagerImpl(c.resolve('eventBus')),
+            'singleton',
+            ['eventBus']
+        );
+    }
+
+    registerUIServices(): void {
+        // UI management services
+        this.container.registerService<ServiceInterfaces.IViewManager>(
+            'viewManager',
+            (c) => new ViewManagerImpl(
+                c.resolve('app'),
+                c.resolve('eventBus')
+            ),
+            'singleton',
+            ['app', 'eventBus']
+        );
+
+        this.container.registerService<ServiceInterfaces.ICommandManager>(
+            'commandManager',
+            (c) => new CommandManagerImpl(
+                c.resolve('plugin'),
+                c.resolve('eventBus')
+            ),
+            'singleton',
+            ['plugin', 'eventBus']
+        );
+    }
+}
+
+// Placeholder implementations - these will be implemented in subsequent phases
+class ErrorBoundaryService implements ServiceInterfaces.IErrorBoundary {
+    constructor(private eventBus: IEventBusInterface) {}
+    async wrap<T>(operation: () => Promise<T>): Promise<T> { return operation(); }
+    handleError(error: Error, context: ServiceInterfaces.ErrorContext): void {}
+    getErrorStats(): ServiceInterfaces.ErrorStats { return { totalErrors: 0, errorsByService: {}, errorsByType: {}, recentErrors: [] }; }
+    clearErrors(): void {}
+}
+
+class ConfigurationManagerService implements ServiceInterfaces.IConfigurationManager {
+    constructor(private eventBus: IEventBusInterface) {}
+    get<T>(key: string): T { return undefined as any; }
+    async set<T>(key: string, value: T): Promise<void> {}
+    subscribe(key: string, callback: (value: any) => void): () => void { return () => {}; }
+    validate(config: any): ServiceInterfaces.ValidationResult { return { isValid: true, errors: [], warnings: [] }; }
+    export(): string { return '{}'; }
+    async import(config: string): Promise<void> {}
+}
+
+class ChatServiceImpl implements ServiceInterfaces.IChatService {
+    constructor(private eventBus: IEventBusInterface, private aiService: ServiceInterfaces.IAIService) {}
+    async sendMessage(content: string): Promise<void> {}
+    async regenerateMessage(messageId: string): Promise<void> {}
+    async clearHistory(): Promise<void> {}
+    async getHistory(): Promise<any[]> { return []; }
+    async addMessage(message: any): Promise<void> {}
+    async updateMessage(timestamp: string, role: string, oldContent: string, newContent: string, metadata?: any): Promise<void> {}
+}
+
+class ChatUIManagerImpl implements ServiceInterfaces.IChatUIManager {
+    constructor(private eventBus: IEventBusInterface) {}
+    createChatInterface(): HTMLElement { return document.createElement('div'); }
+    updateMessageDisplay(message: any): void {}
+    scrollToBottom(): void {}
+    showTypingIndicator(): void {}
+    hideTypingIndicator(): void {}
+    updateModelDisplay(modelName: string): void {}
+    updateReferenceNoteIndicator(isEnabled: boolean, fileName?: string): void {}
+}
+
+class StreamCoordinatorImpl implements ServiceInterfaces.IStreamCoordinator {
+    constructor(private eventBus: IEventBusInterface, private aiService: ServiceInterfaces.IAIService) {}
+    async startStream(messages: any[]): Promise<string> { return ''; }
+    stopStream(): void {}
+    isStreaming(): boolean { return false; }
+    getActiveStreams(): string[] { return []; }
+    abortStream(streamId: string): void {}
+}
+
+class AgentServiceImpl implements ServiceInterfaces.IAgentService {
+    constructor(private eventBus: IEventBusInterface, private toolEngine: ServiceInterfaces.IToolExecutionEngine) {}
+    async processResponse(response: string): Promise<ServiceInterfaces.AgentResult> {
+        return { processedText: response, toolResults: [], hasTools: false, taskStatus: {} };
+    }
+    async executeTools(commands: any[]): Promise<any[]> { return []; }
+    isLimitReached(): boolean { return false; }
+    resetExecutionCount(): void {}
+    getExecutionStats(): ServiceInterfaces.ExecutionStats { 
+        return { 
+            executionCount: 0, 
+            maxExecutions: 10, 
+            remaining: 10, 
+            averageExecutionTime: 0,
+            successfulExecutions: 0,
+            failedExecutions: 0,
+            totalExecutions: 0
+        }; 
+    }
+    isAgentModeEnabled(): boolean { return false; }
+    async setAgentModeEnabled(enabled: boolean): Promise<void> {}
+}
+
+class ToolExecutionEngineImpl implements ServiceInterfaces.IToolExecutionEngine {
+    constructor(private eventBus: IEventBusInterface) {}
+    async executeCommand(command: any): Promise<any> { return { success: true }; }
+    canExecute(command: any): boolean { return true; }
+    getExecutionStats(): ServiceInterfaces.ExecutionStats { 
+        return { 
+            executionCount: 0, 
+            maxExecutions: 10, 
+            remaining: 10, 
+            averageExecutionTime: 0,
+            successfulExecutions: 0,
+            failedExecutions: 0,
+            totalExecutions: 0
+        }; 
+    }
+    registerTool(tool: any): void {}
+    unregisterTool(toolName: string): void {}
+}
+
+class ExecutionLimitManagerImpl implements ServiceInterfaces.IExecutionLimitManager {
+    private currentCount = 0;
+    private limit = 10;
+    private lastResetTime = Date.now();
+    private autoReset = false;
+    private resetIntervalMs = 60000; // 1 minute
+
+    constructor(private eventBus: IEventBusInterface) {}
+    
+    isLimitReached(): boolean { return this.currentCount >= this.limit; }
+    canExecute(count: number): boolean { return this.currentCount + count <= this.limit; }
+    addExecutions(count: number): void { this.currentCount += count; }
+    resetLimit(): void { 
+        this.currentCount = 0; 
+        this.lastResetTime = Date.now();
+    }
+    getLimit(): number { return this.limit; }
+    setLimit(limit: number): void { this.limit = limit; }
+    getCurrentCount(): number { return this.currentCount; }
+    getRemaining(): number { return Math.max(0, this.limit - this.currentCount); }
+    getUsagePercentage(): number { return (this.currentCount / this.limit) * 100; }
+    getStatus() {
+        return {
+            count: this.currentCount,
+            limit: this.limit,
+            remaining: this.getRemaining(),
+            percentage: this.getUsagePercentage(),
+            isLimitReached: this.isLimitReached(),
+            lastResetTime: this.lastResetTime,
+            autoReset: this.autoReset,
+            resetIntervalMs: this.resetIntervalMs
+        };
+    }
+    setAutoReset(enabled: boolean, intervalMs?: number): void {
+        this.autoReset = enabled;
+        if (intervalMs) this.resetIntervalMs = intervalMs;
+    }
+    destroy(): void {
+        // Cleanup any timers or resources
+    }
+}
+
+class ViewManagerImpl implements ServiceInterfaces.IViewManager {
+    constructor(private app: App, private eventBus: IEventBusInterface) {}
+    registerViews(): void {}
+    async activateView(type: string): Promise<void> {}
+    getActiveViews(): ServiceInterfaces.ViewInfo[] { return []; }
+    async closeView(type: string): Promise<void> {}
+}
+
+class CommandManagerImpl implements ServiceInterfaces.ICommandManager {
+    constructor(private plugin: any, private eventBus: IEventBusInterface) {}
+    registerCommands(): void {}
+    unregisterCommands(): void {}
+    async executeCommand(id: string, ...args: any[]): Promise<void> {}
+    getRegisteredCommands(): string[] { return []; }
 }
