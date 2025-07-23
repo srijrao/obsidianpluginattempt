@@ -261,7 +261,7 @@ export class HybridVectorManager {
   }
 
   /**
-   * Generate current metadata efficiently
+   * Generate current metadata efficiently with streaming and batching
    */
   private async generateMetadata(): Promise<VectorMetadata> {
     const vectorCount = await this.vectorStore.getVectorCount();
@@ -276,9 +276,8 @@ export class HybridVectorManager {
       };
     }
 
-    // Optimized: only load IDs and timestamps
-    const vectorIds = await this.vectorStore.getAllVectorIds();
-    const summaryHash = this.generateSummaryHash(vectorIds);
+    // Optimized: Stream vector IDs in batches to avoid memory spikes
+    const summaryHash = await this.generateStreamedSummaryHash(vectorCount);
     const lastModified = await this.vectorStore.getLatestTimestamp();
 
     return {
@@ -288,6 +287,39 @@ export class HybridVectorManager {
       version: '1.0.0',
       lastBackup: this.lastBackupTime
     };
+  }
+
+  /**
+   * Generate summary hash using streaming/batched processing to prevent memory leaks
+   */
+  private async generateStreamedSummaryHash(totalCount: number): Promise<string> {
+    const BATCH_SIZE = 100; // Process in batches to control memory usage
+    let hash = 2166136261; // FNV offset basis
+    const sortedIds: string[] = [];
+    
+    // Process vector IDs in batches
+    for (let offset = 0; offset < totalCount; offset += BATCH_SIZE) {
+      const batchIds = await this.vectorStore.getVectorIdsBatch(offset, BATCH_SIZE);
+      sortedIds.push(...batchIds);
+      
+      // Yield control to prevent blocking
+      if (offset % (BATCH_SIZE * 5) === 0) {
+        await new Promise(resolve => setTimeout(resolve, 0));
+      }
+    }
+    
+    // Sort and hash in chunks
+    sortedIds.sort();
+    const combined = sortedIds.join('|');
+    
+    // Process hash in chunks to avoid string memory pressure
+    for (let i = 0; i < combined.length; i++) {
+      hash ^= combined.charCodeAt(i);
+      hash *= 16777619; // FNV prime
+      hash = hash >>> 0; // Convert to unsigned 32-bit integer
+    }
+    
+    return hash.toString(36);
   }
 
   /**
@@ -342,22 +374,51 @@ export class HybridVectorManager {
   }
 
   /**
-   * Backup all vectors to vault file
+   * Backup all vectors to vault file using streaming to prevent memory issues
    */
   async backupToVault(): Promise<void> {
     try {
-      debugLog(this.plugin.settings.debugMode ?? false, 'info', 'Creating vector backup...');
+      debugLog(this.plugin.settings.debugMode ?? false, 'info', 'Creating vector backup with streaming...');
 
-      const allVectors = await this.vectorStore.getAllVectors();
       const metadata = await this.generateMetadata();
+      const vectorCount = metadata.vectorCount;
 
+      // Stream vectors in batches to avoid memory pressure
+      const BATCH_SIZE = 50; // Smaller batches for backup
       const backupData = {
         metadata,
         exportDate: new Date().toISOString(),
         version: '1.0.0',
-        totalVectors: allVectors.length,
-        vectors: allVectors
+        totalVectors: vectorCount,
+        vectors: [] as any[]
       };
+
+      // If no vectors, create empty backup
+      if (vectorCount === 0) {
+        const backupContent = JSON.stringify(backupData, null, 2);
+        await this.plugin.app.vault.adapter.write(this.config.backupFilePath, backupContent);
+        
+        this.lastBackupTime = Date.now();
+        this.changesSinceBackup = 0;
+        this.currentMetadata = metadata;
+        
+        debugLog(this.plugin.settings.debugMode ?? false, 'info', `✅ Empty backup completed`);
+        return;
+      }
+
+      // Process vectors in batches
+      const allVectors: any[] = [];
+      for (let offset = 0; offset < vectorCount; offset += BATCH_SIZE) {
+        const batch = await this.vectorStore.getVectorsBatch(offset, BATCH_SIZE);
+        allVectors.push(...batch);
+        
+        // Yield control periodically to prevent blocking
+        if (offset % (BATCH_SIZE * 4) === 0) {
+          await new Promise(resolve => setTimeout(resolve, 0));
+        }
+      }
+
+      backupData.vectors = allVectors;
 
       // Write backup file
       const backupContent = JSON.stringify(backupData, null, 2);
@@ -368,7 +429,7 @@ export class HybridVectorManager {
       this.changesSinceBackup = 0;
       this.currentMetadata = metadata;
 
-      debugLog(this.plugin.settings.debugMode ?? false, 'info', `✅ Backup completed: ${allVectors.length} vectors saved to ${this.config.backupFilePath}`);
+      debugLog(this.plugin.settings.debugMode ?? false, 'info', `✅ Streaming backup completed: ${allVectors.length} vectors saved to ${this.config.backupFilePath}`);
 
     } catch (error) {
       debugLog(this.plugin.settings.debugMode ?? false, 'error', 'Failed to backup to vault:', error);

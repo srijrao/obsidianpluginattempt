@@ -20,6 +20,7 @@ import { parseToolDataFromContent, cleanContentFromToolData } from './utils/mess
 import { isVaultAdapterWithBasePath, validatePluginSettings } from './utils/typeGuards';
 import { RecentlyOpenedFilesManager } from './utils/recently-opened-files';
 import { registerSemanticSearchCodeblock } from './components/codeblocks/SemanticSearchCodeblock';
+import { PerformanceDashboardModal } from './utils/PerformanceDashboard';
 
 /**
  * AI Assistant Plugin
@@ -248,6 +249,20 @@ export default class MyPlugin extends Plugin {
 
         // Register semantic search codeblock processor
         registerSemanticSearchCodeblock(this);
+
+        // Register performance dashboard command
+        this.addCommand({
+            id: 'open-performance-dashboard',
+            name: 'Open Performance Dashboard',
+            callback: () => {
+                new PerformanceDashboardModal(this).open();
+            }
+        });
+
+        // Add ribbon icon for performance dashboard
+        this.addRibbonIcon('activity', 'Performance Dashboard', () => {
+            new PerformanceDashboardModal(this).open();
+        });
 
         // Register test commands (only in debug mode)
         if (this.settings.debugMode) {

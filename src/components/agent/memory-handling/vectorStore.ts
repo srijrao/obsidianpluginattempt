@@ -132,6 +132,43 @@ export class VectorStore {
   }
 
   /**
+   * Gets a batch of vector IDs from the store (memory efficient for streaming).
+   * @param offset - The starting index.
+   * @param batchSize - Number of IDs to return.
+   * @returns Array of vector IDs for the batch.
+   */
+  async getVectorIdsBatch(offset: number, batchSize: number): Promise<string[]> {
+    this.ensureInitialized();
+    
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction(['vectors'], 'readonly');
+      const store = transaction.objectStore('vectors');
+      const request = store.openCursor();
+      const ids: string[] = [];
+      let skipped = 0;
+      
+      request.onsuccess = (event) => {
+        const cursor = (event.target as IDBRequest).result;
+        if (cursor) {
+          if (skipped < offset) {
+            skipped++;
+            cursor.continue();
+          } else if (ids.length < batchSize) {
+            ids.push(cursor.key as string);
+            cursor.continue();
+          } else {
+            resolve(ids);
+          }
+        } else {
+          resolve(ids);
+        }
+      };
+      
+      request.onerror = () => reject(new Error(`Failed to get vector IDs batch: ${request.error?.message}`));
+    });
+  }
+
+  /**
    * Optimized streaming similarity calculation for large datasets.
    */
   async findSimilarVectors(

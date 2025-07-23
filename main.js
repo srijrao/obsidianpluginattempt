@@ -13246,6 +13246,264 @@ var init_asyncOptimizer = __esm({
   }
 });
 
+// src/utils/APICircuitBreaker.ts
+var _APICircuitBreaker, APICircuitBreaker, apiCircuitBreaker;
+var init_APICircuitBreaker = __esm({
+  "src/utils/APICircuitBreaker.ts"() {
+    init_logger();
+    init_performanceMonitor();
+    _APICircuitBreaker = class _APICircuitBreaker {
+      constructor() {
+        __publicField(this, "breakers", /* @__PURE__ */ new Map());
+        __publicField(this, "configs", /* @__PURE__ */ new Map());
+        __publicField(this, "debugMode", false);
+        __publicField(this, "DEFAULT_CONFIG", {
+          failureThreshold: 5,
+          timeout: 3e4,
+          // 30 seconds
+          halfOpenMaxCalls: 3,
+          monitoringWindowMs: 5 * 60 * 1e3,
+          // 5 minutes
+          exponentialBackoff: true,
+          baseDelayMs: 1e3,
+          maxDelayMs: 6e4,
+          jitterFactor: 0.1
+        });
+        setInterval(() => this.cleanupOldFailures(), 6e4);
+      }
+      static getInstance() {
+        if (!_APICircuitBreaker.instance) {
+          _APICircuitBreaker.instance = new _APICircuitBreaker();
+        }
+        return _APICircuitBreaker.instance;
+      }
+      /**
+       * Set debug mode for detailed logging
+       */
+      setDebugMode(enabled) {
+        this.debugMode = enabled;
+      }
+      /**
+       * Configure circuit breaker for specific provider
+       */
+      configure(provider, config) {
+        this.configs.set(provider, { ...this.DEFAULT_CONFIG, ...config });
+        this.log(`Configured circuit breaker for ${provider}`, config);
+      }
+      /**
+       * Execute operation with circuit breaker protection
+       */
+      async execute(provider, operation) {
+        const state = this.getOrCreateState(provider);
+        const config = this.getConfig(provider);
+        if (this.isOpen(provider)) {
+          const waitTime = state.nextRetryTime - Date.now();
+          if (waitTime > 0) {
+            performanceMonitor.recordMetric("circuit_breaker_blocked", 1, "count", { provider });
+            throw new Error(`Circuit breaker is open for ${provider}. Retry in ${Math.ceil(waitTime / 1e3)}s`);
+          } else {
+            this.transitionToHalfOpen(provider);
+          }
+        }
+        const startTime = Date.now();
+        try {
+          const result = await operation();
+          this.onSuccess(provider, Date.now() - startTime);
+          return result;
+        } catch (error) {
+          this.onFailure(provider, error, Date.now() - startTime);
+          throw error;
+        }
+      }
+      /**
+       * Check if circuit breaker is open for provider
+       */
+      isOpen(provider) {
+        const state = this.getOrCreateState(provider);
+        return state.state === "OPEN" || state.state === "HALF_OPEN" && state.halfOpenCalls >= this.getConfig(provider).halfOpenMaxCalls;
+      }
+      /**
+       * Force reset circuit breaker
+       */
+      reset(provider) {
+        const state = this.getOrCreateState(provider);
+        state.state = "CLOSED";
+        state.failureCount = 0;
+        state.successCount = 0;
+        state.halfOpenCalls = 0;
+        state.recentFailures = [];
+        state.nextRetryTime = 0;
+        this.log(`Circuit breaker reset for ${provider}`);
+        performanceMonitor.recordMetric("circuit_breaker_reset", 1, "count", { provider });
+      }
+      /**
+       * Get metrics for provider
+       */
+      getMetrics(provider) {
+        const state = this.getOrCreateState(provider);
+        const config = this.getConfig(provider);
+        const now = Date.now();
+        const windowStart = now - config.monitoringWindowMs;
+        const recentFailures = state.recentFailures.filter((time) => time > windowStart);
+        const totalCalls = state.successCount + state.failureCount;
+        const failureRate = totalCalls > 0 ? recentFailures.length / totalCalls : 0;
+        return {
+          state: state.state,
+          failureCount: state.failureCount,
+          successCount: state.successCount,
+          totalCalls,
+          failureRate,
+          uptime: state.lastFailureTime > 0 ? now - state.lastFailureTime : now,
+          lastFailureTime: state.lastFailureTime,
+          nextRetryTime: state.nextRetryTime
+        };
+      }
+      /**
+       * Get all provider metrics
+       */
+      getAllMetrics() {
+        const metrics = {};
+        for (const provider of this.breakers.keys()) {
+          metrics[provider] = this.getMetrics(provider);
+        }
+        return metrics;
+      }
+      /**
+       * Handle successful operation
+       */
+      onSuccess(provider, duration) {
+        const state = this.getOrCreateState(provider);
+        const config = this.getConfig(provider);
+        state.successCount++;
+        if (state.state === "HALF_OPEN") {
+          state.halfOpenCalls++;
+          if (state.halfOpenCalls >= config.halfOpenMaxCalls) {
+            this.transitionToClosed(provider);
+          }
+        } else if (state.state === "CLOSED") {
+          state.failureCount = Math.max(0, state.failureCount - 1);
+        }
+        performanceMonitor.recordMetric("circuit_breaker_success", 1, "count", { provider });
+        performanceMonitor.recordMetric("api_call_duration", duration, "time", { provider });
+        this.log(`Success for ${provider} (${duration}ms) - State: ${state.state}`);
+      }
+      /**
+       * Handle failed operation
+       */
+      onFailure(provider, error, duration) {
+        const state = this.getOrCreateState(provider);
+        const config = this.getConfig(provider);
+        const now = Date.now();
+        state.failureCount++;
+        state.lastFailureTime = now;
+        state.recentFailures.push(now);
+        const windowStart = now - config.monitoringWindowMs;
+        state.recentFailures = state.recentFailures.filter((time) => time > windowStart);
+        performanceMonitor.recordMetric("circuit_breaker_failure", 1, "count", { provider });
+        performanceMonitor.recordMetric("api_call_duration", duration, "time", { provider, status: "failed" });
+        if (state.state === "CLOSED" && state.recentFailures.length >= config.failureThreshold) {
+          this.transitionToOpen(provider);
+        } else if (state.state === "HALF_OPEN") {
+          this.transitionToOpen(provider);
+        }
+        this.log(`Failure for ${provider} (${duration}ms) - State: ${state.state}, Recent failures: ${state.recentFailures.length}`);
+      }
+      /**
+       * Transition to OPEN state
+       */
+      transitionToOpen(provider) {
+        const state = this.getOrCreateState(provider);
+        const config = this.getConfig(provider);
+        state.state = "OPEN";
+        state.halfOpenCalls = 0;
+        let timeout = config.timeout;
+        if (config.exponentialBackoff) {
+          const exponentialDelay = Math.min(
+            config.baseDelayMs * Math.pow(2, Math.min(state.failureCount - 1, 10)),
+            config.maxDelayMs
+          );
+          timeout = Math.max(timeout, exponentialDelay);
+        }
+        const jitter = timeout * config.jitterFactor * Math.random();
+        state.nextRetryTime = Date.now() + timeout + jitter;
+        performanceMonitor.recordMetric("circuit_breaker_opened", 1, "count", { provider });
+        this.log(`Circuit breaker OPENED for ${provider}. Next retry: ${new Date(state.nextRetryTime).toISOString()}`);
+      }
+      /**
+       * Transition to HALF_OPEN state
+       */
+      transitionToHalfOpen(provider) {
+        const state = this.getOrCreateState(provider);
+        state.state = "HALF_OPEN";
+        state.halfOpenCalls = 0;
+        performanceMonitor.recordMetric("circuit_breaker_half_opened", 1, "count", { provider });
+        this.log(`Circuit breaker HALF_OPEN for ${provider}`);
+      }
+      /**
+       * Transition to CLOSED state
+       */
+      transitionToClosed(provider) {
+        const state = this.getOrCreateState(provider);
+        state.state = "CLOSED";
+        state.failureCount = 0;
+        state.halfOpenCalls = 0;
+        state.nextRetryTime = 0;
+        performanceMonitor.recordMetric("circuit_breaker_closed", 1, "count", { provider });
+        this.log(`Circuit breaker CLOSED for ${provider}`);
+      }
+      /**
+       * Get or create state for provider
+       */
+      getOrCreateState(provider) {
+        if (!this.breakers.has(provider)) {
+          this.breakers.set(provider, {
+            state: "CLOSED",
+            failureCount: 0,
+            successCount: 0,
+            lastFailureTime: 0,
+            nextRetryTime: 0,
+            halfOpenCalls: 0,
+            recentFailures: []
+          });
+        }
+        return this.breakers.get(provider);
+      }
+      /**
+       * Get configuration for provider
+       */
+      getConfig(provider) {
+        return this.configs.get(provider) || this.DEFAULT_CONFIG;
+      }
+      /**
+       * Clean up old failure records
+       */
+      cleanupOldFailures() {
+        const now = Date.now();
+        for (const [provider, state] of this.breakers.entries()) {
+          const config = this.getConfig(provider);
+          const windowStart = now - config.monitoringWindowMs;
+          const oldLength = state.recentFailures.length;
+          state.recentFailures = state.recentFailures.filter((time) => time > windowStart);
+          if (oldLength !== state.recentFailures.length) {
+            this.log(`Cleaned up ${oldLength - state.recentFailures.length} old failures for ${provider}`);
+          }
+        }
+      }
+      /**
+       * Log debug messages
+       */
+      log(message, data) {
+        if (this.debugMode) {
+          debugLog(true, "info", `[APICircuitBreaker] ${message}`, data);
+        }
+      }
+    };
+    __publicField(_APICircuitBreaker, "instance");
+    APICircuitBreaker = _APICircuitBreaker;
+    apiCircuitBreaker = APICircuitBreaker.getInstance();
+  }
+});
+
 // src/utils/validationUtils.ts
 function isValidOpenAIApiKey(key) {
   if (typeof key !== "string") return false;
@@ -13300,6 +13558,7 @@ var init_aiDispatcher = __esm({
     init_errorHandler();
     init_asyncOptimizer();
     init_performanceMonitor();
+    init_APICircuitBreaker();
     init_typeGuards();
     init_validationUtils();
     AIDispatcher = class {
@@ -13349,8 +13608,46 @@ var init_aiDispatcher = __esm({
         // 1 minute
         __publicField(this, "MAX_QUEUE_SIZE", 100);
         __publicField(this, "CACHE_MAX_SIZE", 200);
-        var _a2;
+        var _a2, _b;
         performanceMonitor.setDebugMode((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false);
+        apiCircuitBreaker.setDebugMode((_b = this.plugin.settings.debugMode) != null ? _b : false);
+        apiCircuitBreaker.configure("openai", {
+          failureThreshold: 5,
+          timeout: 3e4,
+          halfOpenMaxCalls: 3,
+          exponentialBackoff: true,
+          baseDelayMs: 2e3,
+          maxDelayMs: 12e4,
+          jitterFactor: 0.15
+        });
+        apiCircuitBreaker.configure("anthropic", {
+          failureThreshold: 3,
+          timeout: 45e3,
+          halfOpenMaxCalls: 2,
+          exponentialBackoff: true,
+          baseDelayMs: 3e3,
+          maxDelayMs: 18e4,
+          jitterFactor: 0.2
+        });
+        apiCircuitBreaker.configure("gemini", {
+          failureThreshold: 4,
+          timeout: 25e3,
+          halfOpenMaxCalls: 3,
+          exponentialBackoff: true,
+          baseDelayMs: 1500,
+          maxDelayMs: 9e4,
+          jitterFactor: 0.1
+        });
+        apiCircuitBreaker.configure("ollama", {
+          failureThreshold: 2,
+          timeout: 15e3,
+          halfOpenMaxCalls: 1,
+          exponentialBackoff: false,
+          // Local provider, faster recovery
+          baseDelayMs: 1e3,
+          maxDelayMs: 3e4,
+          jitterFactor: 0.05
+        });
         ["openai", "anthropic", "gemini", "ollama"].forEach((provider) => {
           this.circuitBreakers.set(provider, {
             isOpen: false,
@@ -13739,72 +14036,75 @@ var init_aiDispatcher = __esm({
         }
       }
       async executeWithRetry(messages, options, providerName, cacheKey, retryCount = 0) {
-        var _a2, _b, _c, _d, _e, _f;
+        var _a2, _b, _c;
         const startTime = Date.now();
         let provider;
         let fullResponse = "";
         let abortController;
         try {
-          if (this.plugin.settings.selectedModel) {
-            provider = createProviderFromUnifiedModel(this.plugin.settings, this.plugin.settings.selectedModel);
-          } else {
-            if (!isValidProviderName(providerName)) {
-              throw new Error(`Invalid provider name: ${providerName}`);
-            }
-            const tempSettings = { ...this.plugin.settings, provider: providerName };
-            provider = createProvider(tempSettings);
-          }
-          this.recordRequest(providerName);
-          const streamId = Math.random().toString(36).substr(2, 9);
-          abortController = new AbortController();
-          this.activeStreams.set(streamId, abortController);
-          const requestData = {
-            provider: providerName,
-            model: this.plugin.settings.selectedModel || "default",
-            messages,
-            options,
-            timestamp: (/* @__PURE__ */ new Date()).toISOString()
-          };
-          const originalStreamCallback = options.streamCallback;
-          const wrappedOptions = {
-            ...options,
-            streamCallback: (chunk) => {
-              fullResponse += chunk;
-              if (originalStreamCallback) {
-                originalStreamCallback(chunk);
-              }
-            },
-            abortController
-          };
-          await provider.getCompletion(messages, wrappedOptions);
-          this.activeStreams.delete(streamId);
-          this.recordSuccess(providerName);
-          this.updateMetrics(providerName, true, Date.now() - startTime, fullResponse.length);
-          performanceMonitor.recordMetric("api_response_time", Date.now() - startTime, "time");
-          performanceMonitor.recordMetric("api_response_size", fullResponse.length, "size");
-          this.setCache(cacheKey, fullResponse);
-          const responseData = {
-            content: fullResponse,
-            provider: providerName,
-            model: this.plugin.settings.selectedModel || "default",
-            timestamp: (/* @__PURE__ */ new Date()).toISOString(),
-            duration: Date.now() - startTime
-          };
-          debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", "[AIDispatcher] AI request completed", {
-            provider: providerName,
-            responseLength: fullResponse.length,
-            duration: responseData.duration
-          });
-          try {
-            const pluginApp = getPluginApp(this.plugin);
-            if (pluginApp) {
-              await saveAICallToFolder(requestData, responseData, { settings: this.plugin.settings, app: pluginApp });
+          await apiCircuitBreaker.execute(providerName, async () => {
+            var _a3, _b2, _c2;
+            if (this.plugin.settings.selectedModel) {
+              provider = createProviderFromUnifiedModel(this.plugin.settings, this.plugin.settings.selectedModel);
             } else {
-              debugLog((_b = this.plugin.settings.debugMode) != null ? _b : false, "warn", "[AIDispatcher] Plugin app not available for saving AI call");
+              if (!isValidProviderName(providerName)) {
+                throw new Error(`Invalid provider name: ${providerName}`);
+              }
+              const tempSettings = { ...this.plugin.settings, provider: providerName };
+              provider = createProvider(tempSettings);
             }
-          } catch (saveError) {
-            debugLog((_c = this.plugin.settings.debugMode) != null ? _c : false, "error", "[AIDispatcher] Failed to save AI call:", saveError);
-          }
+            this.recordRequest(providerName);
+            const streamId = Math.random().toString(36).substr(2, 9);
+            abortController = new AbortController();
+            this.activeStreams.set(streamId, abortController);
+            const requestData = {
+              provider: providerName,
+              model: this.plugin.settings.selectedModel || "default",
+              messages,
+              options,
+              timestamp: (/* @__PURE__ */ new Date()).toISOString()
+            };
+            const originalStreamCallback = options.streamCallback;
+            const wrappedOptions = {
+              ...options,
+              streamCallback: (chunk) => {
+                fullResponse += chunk;
+                if (originalStreamCallback) {
+                  originalStreamCallback(chunk);
+                }
+              },
+              abortController
+            };
+            await provider.getCompletion(messages, wrappedOptions);
+            this.activeStreams.delete(streamId);
+            this.recordSuccess(providerName);
+            this.updateMetrics(providerName, true, Date.now() - startTime, fullResponse.length);
+            performanceMonitor.recordMetric("api_response_time", Date.now() - startTime, "time");
+            performanceMonitor.recordMetric("api_response_size", fullResponse.length, "size");
+            this.setCache(cacheKey, fullResponse);
+            const responseData = {
+              content: fullResponse,
+              provider: providerName,
+              model: this.plugin.settings.selectedModel || "default",
+              timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+              duration: Date.now() - startTime
+            };
+            debugLog((_a3 = this.plugin.settings.debugMode) != null ? _a3 : false, "info", "[AIDispatcher] AI request completed", {
+              provider: providerName,
+              responseLength: fullResponse.length,
+              duration: responseData.duration
+            });
+            try {
+              const pluginApp = getPluginApp(this.plugin);
+              if (pluginApp) {
+                await saveAICallToFolder(requestData, responseData, { settings: this.plugin.settings, app: pluginApp });
+              } else {
+                debugLog((_b2 = this.plugin.settings.debugMode) != null ? _b2 : false, "warn", "[AIDispatcher] Plugin app not available for saving AI call");
+              }
+            } catch (saveError) {
+              debugLog((_c2 = this.plugin.settings.debugMode) != null ? _c2 : false, "error", "[AIDispatcher] Failed to save AI call:", saveError);
+            }
+          });
         } catch (error) {
           this.activeStreams.forEach((controller, id) => {
             if (controller === abortController) {
@@ -13813,11 +14113,11 @@ var init_aiDispatcher = __esm({
           });
           this.recordFailure(providerName);
           this.updateMetrics(providerName, false, Date.now() - startTime, 0);
-          debugLog((_d = this.plugin.settings.debugMode) != null ? _d : false, "error", "[AIDispatcher] AI request failed:", error);
+          debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "error", "[AIDispatcher] AI request failed:", error);
           const maxRetries = 3;
           if (retryCount < maxRetries && this.shouldRetry(error)) {
             const backoffDelay = Math.pow(2, retryCount) * 1e3;
-            debugLog((_e = this.plugin.settings.debugMode) != null ? _e : false, "info", "[AIDispatcher] Retrying request", {
+            debugLog((_b = this.plugin.settings.debugMode) != null ? _b : false, "info", "[AIDispatcher] Retrying request", {
               attempt: retryCount + 1,
               delay: backoffDelay
             });
@@ -13843,7 +14143,7 @@ var init_aiDispatcher = __esm({
               await saveAICallToFolder(requestData, errorResponseData, { settings: this.plugin.settings, app: pluginApp });
             }
           } catch (saveError) {
-            debugLog((_f = this.plugin.settings.debugMode) != null ? _f : false, "error", "[AIDispatcher] Failed to save error log:", saveError);
+            debugLog((_c = this.plugin.settings.debugMode) != null ? _c : false, "error", "[AIDispatcher] Failed to save error log:", saveError);
           }
           throw error;
         }
@@ -15226,6 +15526,42 @@ var init_vectorStore = __esm({
         });
       }
       /**
+       * Gets a batch of vector IDs from the store (memory efficient for streaming).
+       * @param offset - The starting index.
+       * @param batchSize - Number of IDs to return.
+       * @returns Array of vector IDs for the batch.
+       */
+      async getVectorIdsBatch(offset, batchSize) {
+        this.ensureInitialized();
+        return new Promise((resolve, reject) => {
+          const transaction = this.db.transaction(["vectors"], "readonly");
+          const store = transaction.objectStore("vectors");
+          const request = store.openCursor();
+          const ids = [];
+          let skipped = 0;
+          request.onsuccess = (event) => {
+            const cursor = event.target.result;
+            if (cursor) {
+              if (skipped < offset) {
+                skipped++;
+                cursor.continue();
+              } else if (ids.length < batchSize) {
+                ids.push(cursor.key);
+                cursor.continue();
+              } else {
+                resolve(ids);
+              }
+            } else {
+              resolve(ids);
+            }
+          };
+          request.onerror = () => {
+            var _a2;
+            return reject(new Error(`Failed to get vector IDs batch: ${(_a2 = request.error) == null ? void 0 : _a2.message}`));
+          };
+        });
+      }
+      /**
        * Optimized streaming similarity calculation for large datasets.
        */
       async findSimilarVectors(queryEmbedding, limit = 5, minSimilarity = 0) {
@@ -15693,7 +16029,7 @@ var init_HybridVectorManager = __esm({
         return hash.toString(36);
       }
       /**
-       * Generate current metadata efficiently
+       * Generate current metadata efficiently with streaming and batching
        */
       async generateMetadata() {
         const vectorCount = await this.vectorStore.getVectorCount();
@@ -15706,8 +16042,7 @@ var init_HybridVectorManager = __esm({
             lastBackup: this.lastBackupTime
           };
         }
-        const vectorIds = await this.vectorStore.getAllVectorIds();
-        const summaryHash = this.generateSummaryHash(vectorIds);
+        const summaryHash = await this.generateStreamedSummaryHash(vectorCount);
         const lastModified = await this.vectorStore.getLatestTimestamp();
         return {
           vectorCount,
@@ -15716,6 +16051,29 @@ var init_HybridVectorManager = __esm({
           version: "1.0.0",
           lastBackup: this.lastBackupTime
         };
+      }
+      /**
+       * Generate summary hash using streaming/batched processing to prevent memory leaks
+       */
+      async generateStreamedSummaryHash(totalCount) {
+        const BATCH_SIZE = 100;
+        let hash = 2166136261;
+        const sortedIds = [];
+        for (let offset = 0; offset < totalCount; offset += BATCH_SIZE) {
+          const batchIds = await this.vectorStore.getVectorIdsBatch(offset, BATCH_SIZE);
+          sortedIds.push(...batchIds);
+          if (offset % (BATCH_SIZE * 5) === 0) {
+            await new Promise((resolve) => setTimeout(resolve, 0));
+          }
+        }
+        sortedIds.sort();
+        const combined = sortedIds.join("|");
+        for (let i = 0; i < combined.length; i++) {
+          hash ^= combined.charCodeAt(i);
+          hash *= 16777619;
+          hash = hash >>> 0;
+        }
+        return hash.toString(36);
       }
       /**
        * Set up automatic backup system
@@ -15757,29 +16115,48 @@ var init_HybridVectorManager = __esm({
         }
       }
       /**
-       * Backup all vectors to vault file
+       * Backup all vectors to vault file using streaming to prevent memory issues
        */
       async backupToVault() {
-        var _a2, _b, _c;
+        var _a2, _b, _c, _d;
         try {
-          debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", "Creating vector backup...");
-          const allVectors = await this.vectorStore.getAllVectors();
+          debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", "Creating vector backup with streaming...");
           const metadata = await this.generateMetadata();
+          const vectorCount = metadata.vectorCount;
+          const BATCH_SIZE = 50;
           const backupData = {
             metadata,
             exportDate: (/* @__PURE__ */ new Date()).toISOString(),
             version: "1.0.0",
-            totalVectors: allVectors.length,
-            vectors: allVectors
+            totalVectors: vectorCount,
+            vectors: []
           };
+          if (vectorCount === 0) {
+            const backupContent2 = JSON.stringify(backupData, null, 2);
+            await this.plugin.app.vault.adapter.write(this.config.backupFilePath, backupContent2);
+            this.lastBackupTime = Date.now();
+            this.changesSinceBackup = 0;
+            this.currentMetadata = metadata;
+            debugLog((_b = this.plugin.settings.debugMode) != null ? _b : false, "info", `\u2705 Empty backup completed`);
+            return;
+          }
+          const allVectors = [];
+          for (let offset = 0; offset < vectorCount; offset += BATCH_SIZE) {
+            const batch = await this.vectorStore.getVectorsBatch(offset, BATCH_SIZE);
+            allVectors.push(...batch);
+            if (offset % (BATCH_SIZE * 4) === 0) {
+              await new Promise((resolve) => setTimeout(resolve, 0));
+            }
+          }
+          backupData.vectors = allVectors;
           const backupContent = JSON.stringify(backupData, null, 2);
           await this.plugin.app.vault.adapter.write(this.config.backupFilePath, backupContent);
           this.lastBackupTime = Date.now();
           this.changesSinceBackup = 0;
           this.currentMetadata = metadata;
-          debugLog((_b = this.plugin.settings.debugMode) != null ? _b : false, "info", `\u2705 Backup completed: ${allVectors.length} vectors saved to ${this.config.backupFilePath}`);
+          debugLog((_c = this.plugin.settings.debugMode) != null ? _c : false, "info", `\u2705 Streaming backup completed: ${allVectors.length} vectors saved to ${this.config.backupFilePath}`);
         } catch (error) {
-          debugLog((_c = this.plugin.settings.debugMode) != null ? _c : false, "error", "Failed to backup to vault:", error);
+          debugLog((_d = this.plugin.settings.debugMode) != null ? _d : false, "error", "Failed to backup to vault:", error);
           throw error;
         }
       }
@@ -19099,18 +19476,18 @@ function registerTestCommands(plugin) {
       try {
         const { VectorStore: VectorStore2 } = await Promise.resolve().then(() => (init_vectorStore(), vectorStore_exports));
         const vectorStore = new VectorStore2(plugin);
-        new import_obsidian38.Notice("Initializing VectorStore...");
+        new import_obsidian39.Notice("Initializing VectorStore...");
         await vectorStore.initialize();
         if (vectorStore.isReady()) {
-          new import_obsidian38.Notice("\u2705 VectorStore initialized successfully!");
+          new import_obsidian39.Notice("\u2705 VectorStore initialized successfully!");
           console.log("VectorStore test: SUCCESS");
         } else {
-          new import_obsidian38.Notice("\u274C VectorStore initialization failed");
+          new import_obsidian39.Notice("\u274C VectorStore initialization failed");
           console.log("VectorStore test: FAILED - not initialized");
         }
         await vectorStore.close();
       } catch (error) {
-        new import_obsidian38.Notice(`\u274C VectorStore test failed: ${error.message}`);
+        new import_obsidian39.Notice(`\u274C VectorStore test failed: ${error.message}`);
         console.error("VectorStore test: ERROR", error);
       }
     }
@@ -19122,19 +19499,19 @@ function registerTestCommands(plugin) {
       try {
         const { EmbeddingService: EmbeddingService2 } = await Promise.resolve().then(() => (init_EmbeddingService(), EmbeddingService_exports));
         const embeddingService = new EmbeddingService2(plugin, plugin.settings);
-        new import_obsidian38.Notice("Initializing EmbeddingService...");
+        new import_obsidian39.Notice("Initializing EmbeddingService...");
         await embeddingService.initialize();
         if (embeddingService.initialized) {
           const stats = await embeddingService.getStats();
-          new import_obsidian38.Notice(`\u2705 EmbeddingService initialized! ${stats.totalVectors} vectors stored`);
+          new import_obsidian39.Notice(`\u2705 EmbeddingService initialized! ${stats.totalVectors} vectors stored`);
           console.log("EmbeddingService test: SUCCESS", stats);
         } else {
-          new import_obsidian38.Notice("\u274C EmbeddingService initialization failed");
+          new import_obsidian39.Notice("\u274C EmbeddingService initialization failed");
           console.log("EmbeddingService test: FAILED - not initialized");
         }
         await embeddingService.close();
       } catch (error) {
-        new import_obsidian38.Notice(`\u274C EmbeddingService test failed: ${error.message}`);
+        new import_obsidian39.Notice(`\u274C EmbeddingService test failed: ${error.message}`);
         console.error("EmbeddingService test: ERROR", error);
       }
     }
@@ -19146,18 +19523,18 @@ function registerTestCommands(plugin) {
       try {
         const { SemanticContextBuilder: SemanticContextBuilder2 } = await Promise.resolve().then(() => (init_SemanticContextBuilder(), SemanticContextBuilder_exports));
         const semanticBuilder = new SemanticContextBuilder2(plugin.app, plugin);
-        new import_obsidian38.Notice("Initializing SemanticContextBuilder...");
+        new import_obsidian39.Notice("Initializing SemanticContextBuilder...");
         await semanticBuilder.initialize();
         if (semanticBuilder.initialized) {
           const stats = await semanticBuilder.getStats();
-          new import_obsidian38.Notice(`\u2705 SemanticContextBuilder initialized! ${(stats == null ? void 0 : stats.totalVectors) || 0} vectors available`);
+          new import_obsidian39.Notice(`\u2705 SemanticContextBuilder initialized! ${(stats == null ? void 0 : stats.totalVectors) || 0} vectors available`);
           console.log("SemanticContextBuilder test: SUCCESS", stats);
         } else {
-          new import_obsidian38.Notice("\u274C SemanticContextBuilder initialization failed");
+          new import_obsidian39.Notice("\u274C SemanticContextBuilder initialization failed");
           console.log("SemanticContextBuilder test: FAILED - not initialized");
         }
       } catch (error) {
-        new import_obsidian38.Notice(`\u274C SemanticContextBuilder test failed: ${error.message}`);
+        new import_obsidian39.Notice(`\u274C SemanticContextBuilder test failed: ${error.message}`);
         console.error("SemanticContextBuilder test: ERROR", error);
       }
     }
@@ -19167,7 +19544,7 @@ function registerTestCommands(plugin) {
     name: "Test: Complete Semantic Search Workflow",
     callback: async () => {
       try {
-        new import_obsidian38.Notice("Testing complete semantic search workflow...");
+        new import_obsidian39.Notice("Testing complete semantic search workflow...");
         const { EmbeddingService: EmbeddingService2 } = await Promise.resolve().then(() => (init_EmbeddingService(), EmbeddingService_exports));
         const embeddingService = new EmbeddingService2(plugin, plugin.settings);
         await embeddingService.initialize();
@@ -19186,19 +19563,19 @@ function registerTestCommands(plugin) {
             topK: 3,
             minSimilarity: 0.1
           });
-          new import_obsidian38.Notice(`\u2705 Workflow complete! Embedded ${activeFile.name}, found ${results.length} similar vectors`);
+          new import_obsidian39.Notice(`\u2705 Workflow complete! Embedded ${activeFile.name}, found ${results.length} similar vectors`);
           console.log("Semantic search workflow: SUCCESS", {
             embedded: activeFile.path,
             searchResults: results.length,
             finalStats
           });
         } else {
-          new import_obsidian38.Notice("\u274C No active file to embed");
+          new import_obsidian39.Notice("\u274C No active file to embed");
           console.log("Semantic search workflow: SKIPPED - no active file");
         }
         await embeddingService.close();
       } catch (error) {
-        new import_obsidian38.Notice(`\u274C Semantic search workflow failed: ${error.message}`);
+        new import_obsidian39.Notice(`\u274C Semantic search workflow failed: ${error.message}`);
         console.error("Semantic search workflow: ERROR", error);
       }
     }
@@ -19207,7 +19584,7 @@ function registerTestCommands(plugin) {
     id: "test-run-all-semantic-tests",
     name: "Test: Run All Semantic Search Tests",
     callback: async () => {
-      new import_obsidian38.Notice("Running all semantic search tests...");
+      new import_obsidian39.Notice("Running all semantic search tests...");
       console.log("=".repeat(50));
       console.log("RUNNING ALL SEMANTIC SEARCH TESTS");
       console.log("=".repeat(50));
@@ -19232,7 +19609,7 @@ function registerTestCommands(plugin) {
       console.log("\n" + "=".repeat(50));
       console.log("ALL TESTS COMPLETED");
       console.log("=".repeat(50));
-      new import_obsidian38.Notice("All semantic search tests completed! Check console for details.");
+      new import_obsidian39.Notice("All semantic search tests completed! Check console for details.");
     }
   });
   async function runBasicIndexedDBTest() {
@@ -19354,23 +19731,23 @@ function registerTestCommands(plugin) {
       try {
         const { HybridVectorTest: HybridVectorTest2 } = await Promise.resolve().then(() => (init_test_hybrid_vector(), test_hybrid_vector_exports));
         const tester = new HybridVectorTest2(plugin);
-        new import_obsidian38.Notice("\u{1F9EA} Running Hybrid Vector Storage tests...");
+        new import_obsidian39.Notice("\u{1F9EA} Running Hybrid Vector Storage tests...");
         console.log("\u{1F9EA} Starting Hybrid Vector Storage Tests...");
         await tester.runAllTests();
-        new import_obsidian38.Notice("\u2705 Hybrid Vector Storage tests completed successfully!");
+        new import_obsidian39.Notice("\u2705 Hybrid Vector Storage tests completed successfully!");
         console.log("\u2705 All Hybrid Vector Storage Tests Passed!");
       } catch (error) {
-        new import_obsidian38.Notice(`\u274C Hybrid Vector Storage test failed: ${error.message}`);
+        new import_obsidian39.Notice(`\u274C Hybrid Vector Storage test failed: ${error.message}`);
         console.error("\u274C Hybrid Vector Storage test failed:", error);
       }
     }
   });
   console.log("Test commands registered for semantic search and hybrid vector debugging");
 }
-var import_obsidian38;
+var import_obsidian39;
 var init_testRunner = __esm({
   "tests/testRunner.ts"() {
-    import_obsidian38 = require("obsidian");
+    import_obsidian39 = require("obsidian");
   }
 });
 
@@ -19380,7 +19757,7 @@ __export(main_exports, {
   default: () => MyPlugin
 });
 module.exports = __toCommonJS(main_exports);
-var import_obsidian39 = require("obsidian");
+var import_obsidian40 = require("obsidian");
 init_types();
 
 // src/settings/SettingTab.ts
@@ -27074,8 +27451,475 @@ function highlightQueryTerms(text, query) {
   return highlightedText;
 }
 
+// src/utils/PerformanceDashboard.ts
+var import_obsidian38 = require("obsidian");
+init_performanceMonitor();
+init_APICircuitBreaker();
+init_logger();
+var _PerformanceDashboard = class _PerformanceDashboard {
+  constructor() {
+    __publicField(this, "config");
+    __publicField(this, "alertRules", /* @__PURE__ */ new Map());
+    __publicField(this, "activeAlerts", /* @__PURE__ */ new Map());
+    __publicField(this, "historicalData", []);
+    __publicField(this, "refreshTimer");
+    __publicField(this, "isRunning", false);
+    __publicField(this, "DEFAULT_CONFIG", {
+      refreshInterval: 1e4,
+      // 10 seconds
+      alertThresholds: {
+        responseTime: 5e3,
+        // 5 seconds
+        errorRate: 10,
+        // 10%
+        memoryUsage: 100 * 1024 * 1024,
+        // 100MB
+        cacheHitRate: 50
+        // 50%
+      },
+      enableAlerts: true,
+      historicalDataPoints: 288
+      // 24 hours at 5-minute intervals
+    });
+    this.config = { ...this.DEFAULT_CONFIG };
+    this.initializeDefaultAlertRules();
+  }
+  static getInstance() {
+    if (!_PerformanceDashboard.instance) {
+      _PerformanceDashboard.instance = new _PerformanceDashboard();
+    }
+    return _PerformanceDashboard.instance;
+  }
+  /**
+   * Start the dashboard monitoring
+   */
+  start() {
+    if (this.isRunning) return;
+    this.isRunning = true;
+    this.refreshTimer = setInterval(() => {
+      this.collectMetrics();
+      this.checkAlerts();
+    }, this.config.refreshInterval);
+    debugLog(true, "info", "[PerformanceDashboard] Started monitoring");
+  }
+  /**
+   * Stop the dashboard monitoring
+   */
+  stop() {
+    if (!this.isRunning) return;
+    this.isRunning = false;
+    if (this.refreshTimer) {
+      clearInterval(this.refreshTimer);
+      this.refreshTimer = void 0;
+    }
+    debugLog(true, "info", "[PerformanceDashboard] Stopped monitoring");
+  }
+  /**
+   * Get current performance snapshot
+   */
+  getCurrentSnapshot() {
+    var _a2;
+    const metrics = performanceMonitor.getMetrics();
+    const circuitBreakerMetrics = apiCircuitBreaker.getAllMetrics();
+    return {
+      timestamp: Date.now(),
+      performance: metrics,
+      circuitBreakers: circuitBreakerMetrics,
+      alerts: {
+        total: this.activeAlerts.size,
+        critical: Array.from(this.activeAlerts.values()).filter((a) => a.rule.severity === "critical").length,
+        unacknowledged: Array.from(this.activeAlerts.values()).filter((a) => !a.acknowledged).length
+      },
+      system: {
+        uptime: Date.now() - (((_a2 = this.historicalData[0]) == null ? void 0 : _a2.timestamp) || Date.now()),
+        dataPoints: this.historicalData.length
+      }
+    };
+  }
+  /**
+   * Get historical performance data
+   */
+  getHistoricalData(hours = 24) {
+    const cutoff = Date.now() - hours * 60 * 60 * 1e3;
+    return this.historicalData.filter((data) => data.timestamp > cutoff);
+  }
+  /**
+   * Add custom alert rule
+   */
+  addAlertRule(rule) {
+    const id = `rule_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const alertRule = {
+      ...rule,
+      id,
+      lastTriggered: 0
+    };
+    this.alertRules.set(id, alertRule);
+    debugLog(true, "info", `[PerformanceDashboard] Added alert rule: ${rule.name}`);
+    return id;
+  }
+  /**
+   * Remove alert rule
+   */
+  removeAlertRule(id) {
+    return this.alertRules.delete(id);
+  }
+  /**
+   * Acknowledge alert
+   */
+  acknowledgeAlert(id) {
+    const alert = this.activeAlerts.get(id);
+    if (alert) {
+      alert.acknowledged = true;
+      return true;
+    }
+    return false;
+  }
+  /**
+   * Clear all acknowledged alerts
+   */
+  clearAcknowledgedAlerts() {
+    let cleared = 0;
+    for (const [id, alert] of this.activeAlerts.entries()) {
+      if (alert.acknowledged) {
+        this.activeAlerts.delete(id);
+        cleared++;
+      }
+    }
+    return cleared;
+  }
+  /**
+   * Generate performance report
+   */
+  generateReport(hours = 24) {
+    const snapshot = this.getCurrentSnapshot();
+    const historical = this.getHistoricalData(hours);
+    const oldData = historical[0];
+    const trends = oldData ? {
+      responseTime: this.calculateTrend(historical, "performance.averageResponseTime"),
+      errorRate: this.calculateTrend(historical, "performance.errorRate"),
+      cacheHitRate: this.calculateTrend(historical, "performance.cacheHitRate"),
+      memoryUsage: this.calculateTrend(historical, "performance.memoryUsage")
+    } : null;
+    return `
+# AI Assistant Performance Report
+Generated: ${(/* @__PURE__ */ new Date()).toISOString()}
+Period: ${hours} hours
+
+## Current Status
+- **Response Time**: ${snapshot.performance.averageResponseTime.toFixed(2)}ms
+- **Error Rate**: ${snapshot.performance.errorRate.toFixed(2)}%
+- **Cache Hit Rate**: ${snapshot.performance.cacheHitRate.toFixed(2)}%
+- **Memory Usage**: ${(snapshot.performance.memoryUsage / 1024 / 1024).toFixed(2)}MB
+- **API Calls/min**: ${snapshot.performance.apiCallsPerMinute}
+
+## Circuit Breakers
+${Object.entries(snapshot.circuitBreakers).map(
+      ([provider, metrics]) => `- **${provider}**: ${metrics.state} (${metrics.totalCalls} calls, ${metrics.failureRate.toFixed(2)}% failure rate)`
+    ).join("\n")}
+
+## Alerts
+- **Total Active**: ${snapshot.alerts.total}
+- **Critical**: ${snapshot.alerts.critical}
+- **Unacknowledged**: ${snapshot.alerts.unacknowledged}
+
+${trends ? `## Trends (${hours}h)
+- **Response Time**: ${trends.responseTime > 0 ? "\u{1F4C8}" : "\u{1F4C9}"} ${trends.responseTime.toFixed(2)}%
+- **Error Rate**: ${trends.errorRate > 0 ? "\u{1F4C8}" : "\u{1F4C9}"} ${trends.errorRate.toFixed(2)}%
+- **Cache Hit Rate**: ${trends.cacheHitRate > 0 ? "\u{1F4C8}" : "\u{1F4C9}"} ${trends.cacheHitRate.toFixed(2)}%
+- **Memory Usage**: ${trends.memoryUsage > 0 ? "\u{1F4C8}" : "\u{1F4C9}"} ${trends.memoryUsage.toFixed(2)}%` : ""}
+
+## Recent Alerts
+${Array.from(this.activeAlerts.values()).sort((a, b) => b.timestamp - a.timestamp).slice(0, 10).map((alert) => `- [${alert.rule.severity.toUpperCase()}] ${alert.message} (${new Date(alert.timestamp).toLocaleString()})`).join("\n") || "No recent alerts"}
+
+---
+*Report generated by AI Assistant Performance Dashboard*
+    `.trim();
+  }
+  /**
+   * Export dashboard data
+   */
+  exportData() {
+    return {
+      config: this.config,
+      alertRules: Array.from(this.alertRules.values()),
+      activeAlerts: Array.from(this.activeAlerts.values()),
+      historicalData: this.historicalData,
+      snapshot: this.getCurrentSnapshot()
+    };
+  }
+  /**
+   * Initialize default alert rules
+   */
+  initializeDefaultAlertRules() {
+    const defaultRules = [
+      {
+        name: "High Response Time",
+        metric: "averageResponseTime",
+        threshold: this.config.alertThresholds.responseTime,
+        operator: "gt",
+        severity: "high",
+        enabled: true,
+        cooldownMs: 3e5
+        // 5 minutes
+      },
+      {
+        name: "High Error Rate",
+        metric: "errorRate",
+        threshold: this.config.alertThresholds.errorRate,
+        operator: "gt",
+        severity: "critical",
+        enabled: true,
+        cooldownMs: 18e4
+        // 3 minutes
+      },
+      {
+        name: "Low Cache Hit Rate",
+        metric: "cacheHitRate",
+        threshold: this.config.alertThresholds.cacheHitRate,
+        operator: "lt",
+        severity: "medium",
+        enabled: true,
+        cooldownMs: 6e5
+        // 10 minutes
+      },
+      {
+        name: "High Memory Usage",
+        metric: "memoryUsage",
+        threshold: this.config.alertThresholds.memoryUsage,
+        operator: "gt",
+        severity: "high",
+        enabled: true,
+        cooldownMs: 3e5
+        // 5 minutes
+      }
+    ];
+    defaultRules.forEach((rule) => this.addAlertRule(rule));
+  }
+  /**
+   * Collect current metrics and store historically
+   */
+  collectMetrics() {
+    const snapshot = this.getCurrentSnapshot();
+    this.historicalData.push({
+      timestamp: snapshot.timestamp,
+      metrics: snapshot
+    });
+    if (this.historicalData.length > this.config.historicalDataPoints) {
+      this.historicalData = this.historicalData.slice(-this.config.historicalDataPoints);
+    }
+  }
+  /**
+   * Check alert rules and trigger alerts
+   */
+  checkAlerts() {
+    if (!this.config.enableAlerts) return;
+    const metrics = performanceMonitor.getMetrics();
+    const now = Date.now();
+    for (const rule of this.alertRules.values()) {
+      if (!rule.enabled) continue;
+      if (now - rule.lastTriggered < rule.cooldownMs) continue;
+      const value = this.getMetricValue(metrics, rule.metric);
+      if (value === void 0) continue;
+      let triggered = false;
+      switch (rule.operator) {
+        case "gt":
+          triggered = value > rule.threshold;
+          break;
+        case "lt":
+          triggered = value < rule.threshold;
+          break;
+        case "eq":
+          triggered = value === rule.threshold;
+          break;
+      }
+      if (triggered) {
+        this.triggerAlert(rule, value);
+      }
+    }
+  }
+  /**
+   * Trigger an alert
+   */
+  triggerAlert(rule, value) {
+    const alertId = `alert_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const alert = {
+      id: alertId,
+      rule,
+      value,
+      timestamp: Date.now(),
+      message: `${rule.name}: ${rule.metric} is ${value} (threshold: ${rule.threshold})`,
+      acknowledged: false
+    };
+    this.activeAlerts.set(alertId, alert);
+    rule.lastTriggered = Date.now();
+    debugLog(true, "warn", `[PerformanceDashboard] Alert triggered: ${alert.message}`);
+    if (this.activeAlerts.size > 100) {
+      const sorted = Array.from(this.activeAlerts.entries()).sort(([, a], [, b]) => b.timestamp - a.timestamp);
+      this.activeAlerts.clear();
+      sorted.slice(0, 100).forEach(([id, alert2]) => {
+        this.activeAlerts.set(id, alert2);
+      });
+    }
+  }
+  /**
+   * Get metric value by path
+   */
+  getMetricValue(metrics, path3) {
+    return path3.split(".").reduce((obj, key) => obj == null ? void 0 : obj[key], metrics);
+  }
+  /**
+   * Calculate trend percentage
+   */
+  calculateTrend(data, metricPath) {
+    if (data.length < 2) return 0;
+    const oldValue = this.getMetricValue(data[0].metrics, metricPath);
+    const newValue = this.getMetricValue(data[data.length - 1].metrics, metricPath);
+    if (oldValue === void 0 || newValue === void 0 || oldValue === 0) return 0;
+    return (newValue - oldValue) / oldValue * 100;
+  }
+};
+__publicField(_PerformanceDashboard, "instance");
+var PerformanceDashboard = _PerformanceDashboard;
+var PerformanceDashboardModal = class extends import_obsidian38.Modal {
+  constructor(plugin) {
+    super(plugin.app);
+    __publicField(this, "dashboard");
+    __publicField(this, "refreshTimer");
+    this.dashboard = PerformanceDashboard.getInstance();
+  }
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.createEl("h2", { text: "AI Assistant Performance Dashboard" });
+    this.renderDashboard();
+    this.refreshTimer = setInterval(() => {
+      this.renderDashboard();
+    }, 1e4);
+  }
+  onClose() {
+    if (this.refreshTimer) {
+      clearInterval(this.refreshTimer);
+    }
+  }
+  renderDashboard() {
+    const snapshot = this.dashboard.getCurrentSnapshot();
+    const { contentEl } = this;
+    const children = Array.from(contentEl.children);
+    children.slice(1).forEach((child) => child.remove());
+    const metricsSection = contentEl.createDiv("dashboard-metrics");
+    metricsSection.createEl("h3", { text: "Current Performance" });
+    const metricsGrid = metricsSection.createDiv("metrics-grid");
+    metricsGrid.style.display = "grid";
+    metricsGrid.style.gridTemplateColumns = "repeat(auto-fit, minmax(200px, 1fr))";
+    metricsGrid.style.gap = "16px";
+    this.createMetricCard(
+      metricsGrid,
+      "Response Time",
+      `${snapshot.performance.averageResponseTime.toFixed(2)}ms`,
+      snapshot.performance.averageResponseTime > 2e3 ? "warning" : "good"
+    );
+    this.createMetricCard(
+      metricsGrid,
+      "Error Rate",
+      `${snapshot.performance.errorRate.toFixed(2)}%`,
+      snapshot.performance.errorRate > 5 ? "danger" : "good"
+    );
+    this.createMetricCard(
+      metricsGrid,
+      "Cache Hit Rate",
+      `${snapshot.performance.cacheHitRate.toFixed(2)}%`,
+      snapshot.performance.cacheHitRate < 70 ? "warning" : "good"
+    );
+    this.createMetricCard(
+      metricsGrid,
+      "Memory Usage",
+      `${(snapshot.performance.memoryUsage / 1024 / 1024).toFixed(2)}MB`,
+      snapshot.performance.memoryUsage > 50 * 1024 * 1024 ? "warning" : "good"
+    );
+    const circuitSection = contentEl.createDiv("dashboard-circuits");
+    circuitSection.createEl("h3", { text: "Circuit Breakers" });
+    const circuitGrid = circuitSection.createDiv("circuit-grid");
+    circuitGrid.style.display = "grid";
+    circuitGrid.style.gridTemplateColumns = "repeat(auto-fit, minmax(150px, 1fr))";
+    circuitGrid.style.gap = "12px";
+    Object.entries(snapshot.circuitBreakers).forEach(([provider, metrics]) => {
+      const cbMetrics = metrics;
+      this.createCircuitCard(circuitGrid, provider, cbMetrics.state, cbMetrics.failureRate);
+    });
+    const alertsSection = contentEl.createDiv("dashboard-alerts");
+    alertsSection.createEl("h3", { text: "Active Alerts" });
+    if (snapshot.alerts.total === 0) {
+      alertsSection.createEl("p", { text: "No active alerts", cls: "alert-none" });
+    } else {
+      const alertsList = alertsSection.createDiv("alerts-list");
+      Array.from(this.dashboard["activeAlerts"].values()).sort((a, b) => b.timestamp - a.timestamp).slice(0, 5).forEach((alert) => {
+        this.createAlertItem(alertsList, alert);
+      });
+    }
+    const actionsSection = contentEl.createDiv("dashboard-actions");
+    actionsSection.style.marginTop = "20px";
+    actionsSection.style.display = "flex";
+    actionsSection.style.gap = "10px";
+    const exportBtn = actionsSection.createEl("button", { text: "Export Report" });
+    exportBtn.onclick = () => this.exportReport();
+    const clearAlertsBtn = actionsSection.createEl("button", { text: "Clear Alerts" });
+    clearAlertsBtn.onclick = () => {
+      const cleared = this.dashboard.clearAcknowledgedAlerts();
+      console.log(`Cleared ${cleared} acknowledged alerts`);
+      this.renderDashboard();
+    };
+  }
+  createMetricCard(parent, title, value, status) {
+    const card = parent.createDiv(`metric-card metric-${status}`);
+    card.style.padding = "16px";
+    card.style.border = "1px solid var(--background-modifier-border)";
+    card.style.borderRadius = "8px";
+    card.style.backgroundColor = status === "danger" ? "rgba(255,0,0,0.1)" : status === "warning" ? "rgba(255,165,0,0.1)" : "rgba(0,255,0,0.1)";
+    card.createEl("h4", { text: title, cls: "metric-title" });
+    card.createEl("div", { text: value, cls: "metric-value" });
+  }
+  createCircuitCard(parent, provider, state, failureRate) {
+    const card = parent.createDiv(`circuit-card circuit-${state.toLowerCase()}`);
+    card.style.padding = "12px";
+    card.style.border = "1px solid var(--background-modifier-border)";
+    card.style.borderRadius = "6px";
+    card.style.backgroundColor = state === "OPEN" ? "rgba(255,0,0,0.1)" : state === "HALF_OPEN" ? "rgba(255,165,0,0.1)" : "rgba(0,255,0,0.1)";
+    card.createEl("div", { text: provider.toUpperCase(), cls: "circuit-provider" });
+    card.createEl("div", { text: state, cls: "circuit-state" });
+    card.createEl("div", { text: `${failureRate.toFixed(1)}% fail`, cls: "circuit-rate" });
+  }
+  createAlertItem(parent, alert) {
+    const item = parent.createDiv(`alert-item alert-${alert.rule.severity}`);
+    item.style.padding = "8px";
+    item.style.marginBottom = "8px";
+    item.style.border = "1px solid var(--background-modifier-border)";
+    item.style.borderRadius = "4px";
+    item.style.backgroundColor = alert.rule.severity === "critical" ? "rgba(255,0,0,0.1)" : alert.rule.severity === "high" ? "rgba(255,165,0,0.1)" : "rgba(255,255,0,0.1)";
+    item.createEl("div", { text: alert.message, cls: "alert-message" });
+    item.createEl("div", { text: new Date(alert.timestamp).toLocaleString(), cls: "alert-time" });
+    if (!alert.acknowledged) {
+      const ackBtn = item.createEl("button", { text: "Acknowledge" });
+      ackBtn.onclick = () => {
+        this.dashboard.acknowledgeAlert(alert.id);
+        this.renderDashboard();
+      };
+    }
+  }
+  async exportReport() {
+    const report = this.dashboard.generateReport(24);
+    const fileName = `performance-report-${(/* @__PURE__ */ new Date()).toISOString().split("T")[0]}.md`;
+    try {
+      await this.app.vault.create(fileName, report);
+      console.log(`Performance report exported to ${fileName}`);
+    } catch (error) {
+      console.error("Failed to export report:", error);
+    }
+  }
+};
+var performanceDashboard = PerformanceDashboard.getInstance();
+
 // src/main.ts
-var _MyPlugin = class _MyPlugin extends import_obsidian39.Plugin {
+var _MyPlugin = class _MyPlugin extends import_obsidian40.Plugin {
   constructor() {
     super(...arguments);
     /**
@@ -27254,6 +28098,16 @@ var _MyPlugin = class _MyPlugin extends import_obsidian39.Plugin {
       this.processToolExecutionCodeBlock(source, el, ctx);
     });
     registerSemanticSearchCodeblock(this);
+    this.addCommand({
+      id: "open-performance-dashboard",
+      name: "Open Performance Dashboard",
+      callback: () => {
+        new PerformanceDashboardModal(this).open();
+      }
+    });
+    this.addRibbonIcon("activity", "Performance Dashboard", () => {
+      new PerformanceDashboardModal(this).open();
+    });
     if (this.settings.debugMode) {
       try {
         const { registerTestCommands: registerTestCommands2 } = await Promise.resolve().then(() => (init_testRunner(), testRunner_exports));

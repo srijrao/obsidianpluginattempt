@@ -10,6 +10,7 @@ import { LRUCache, LRUCacheFactory } from './lruCache';
 import { errorHandler, handleAIDispatcherError, withErrorHandling } from './errorHandler';
 import { AsyncBatcher, ParallelExecutor, AsyncOptimizerFactory } from './asyncOptimizer';
 import { performanceMonitor } from './performanceMonitor';
+import { apiCircuitBreaker } from './APICircuitBreaker';
 import {
     isValidProviderName,
     ValidProviderName,
@@ -139,10 +140,52 @@ export class AIDispatcher {
         private vault: Vault,
         private plugin: { settings: MyPluginSettings; saveSettings: () => Promise<void> }
     ) {
-        // Set debug mode for performance monitor
+        // Set debug mode for performance monitor and circuit breaker
         performanceMonitor.setDebugMode(this.plugin.settings.debugMode ?? false);
+        apiCircuitBreaker.setDebugMode(this.plugin.settings.debugMode ?? false);
 
-        // Initialize circuit breakers
+        // Configure advanced circuit breakers for different providers
+        apiCircuitBreaker.configure('openai', {
+            failureThreshold: 5,
+            timeout: 30000,
+            halfOpenMaxCalls: 3,
+            exponentialBackoff: true,
+            baseDelayMs: 2000,
+            maxDelayMs: 120000,
+            jitterFactor: 0.15
+        });
+
+        apiCircuitBreaker.configure('anthropic', {
+            failureThreshold: 3,
+            timeout: 45000,
+            halfOpenMaxCalls: 2,
+            exponentialBackoff: true,
+            baseDelayMs: 3000,
+            maxDelayMs: 180000,
+            jitterFactor: 0.2
+        });
+
+        apiCircuitBreaker.configure('gemini', {
+            failureThreshold: 4,
+            timeout: 25000,
+            halfOpenMaxCalls: 3,
+            exponentialBackoff: true,
+            baseDelayMs: 1500,
+            maxDelayMs: 90000,
+            jitterFactor: 0.1
+        });
+
+        apiCircuitBreaker.configure('ollama', {
+            failureThreshold: 2,
+            timeout: 15000,
+            halfOpenMaxCalls: 1,
+            exponentialBackoff: false, // Local provider, faster recovery
+            baseDelayMs: 1000,
+            maxDelayMs: 30000,
+            jitterFactor: 0.05
+        });
+
+        // Initialize legacy circuit breakers for backward compatibility
         ['openai', 'anthropic', 'gemini', 'ollama'].forEach(provider => {
             this.circuitBreakers.set(provider, {
                 isOpen: false,
@@ -631,30 +674,32 @@ export class AIDispatcher {
         let abortController: AbortController;
 
         try {
-            // Create provider
-            if (this.plugin.settings.selectedModel) {
-                provider = createProviderFromUnifiedModel(this.plugin.settings, this.plugin.settings.selectedModel);
-            } else {
-                if (!isValidProviderName(providerName)) {
-                    throw new Error(`Invalid provider name: ${providerName}`);
+            // Use advanced circuit breaker for API protection
+            await apiCircuitBreaker.execute(providerName, async () => {
+                // Create provider
+                if (this.plugin.settings.selectedModel) {
+                    provider = createProviderFromUnifiedModel(this.plugin.settings, this.plugin.settings.selectedModel);
+                } else {
+                    if (!isValidProviderName(providerName)) {
+                        throw new Error(`Invalid provider name: ${providerName}`);
+                    }
+                    const tempSettings = { ...this.plugin.settings, provider: providerName as ValidProviderName };
+                    provider = createProvider(tempSettings);
                 }
-                const tempSettings = { ...this.plugin.settings, provider: providerName as ValidProviderName };
-                provider = createProvider(tempSettings);
-            }
 
-            // Record request for rate limiting
-            this.recordRequest(providerName);
+                // Record request for rate limiting
+                this.recordRequest(providerName);
 
-            // Create abort controller for this request
-            const streamId = Math.random().toString(36).substr(2, 9);
-            abortController = new AbortController();
-            this.activeStreams.set(streamId, abortController);
+                // Create abort controller for this request
+                const streamId = Math.random().toString(36).substr(2, 9);
+                abortController = new AbortController();
+                this.activeStreams.set(streamId, abortController);
 
-            // Prepare request data for logging
-            const requestData = {
-                provider: providerName,
-                model: this.plugin.settings.selectedModel || 'default',
-                messages: messages,
+                // Prepare request data for logging
+                const requestData = {
+                    provider: providerName,
+                    model: this.plugin.settings.selectedModel || 'default',
+                    messages: messages,
                 options: options,
                 timestamp: new Date().toISOString()
             };
@@ -713,6 +758,8 @@ export class AIDispatcher {
             } catch (saveError) {
                 debugLog(this.plugin.settings.debugMode ?? false, 'error', '[AIDispatcher] Failed to save AI call:', saveError);
             }
+
+            }); // Close circuit breaker execution block
 
         } catch (error) {
             // Clean up stream controller
