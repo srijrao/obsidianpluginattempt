@@ -5,6 +5,7 @@ import { DEFAULT_TITLE_PROMPT, DEFAULT_SUMMARY_PROMPT, DEFAULT_YAML_SYSTEM_MESSA
 import { registerCommand } from "./utils/pluginUtils";
 import * as yaml from "js-yaml";
 import { debugLog } from "./utils/logger";
+import { withTemporarySetting } from "./utils/typeGuards";
 
 /**
  * Generates a Table of Contents from all headers in the note content.
@@ -67,7 +68,9 @@ export async function generateNoteTitle(
     // Define the prompt and user content for the AI model
     const prompt = DEFAULT_TITLE_PROMPT;
     // Include TOC in user content if it exists
-    const userContent = (toc && toc.trim().length > 0 ? "Table of Contents:\n" + toc + "\n\n" : "") + noteContent;    try {
+    const userContent = (toc && toc.trim().length > 0 ? "Table of Contents:\n" + toc + "\n\n" : "") + noteContent;
+    
+    try {
         debugLog(DEBUG, 'debug', "Provider:", settings.provider);
         
         // Use dispatcher for all completions
@@ -80,87 +83,82 @@ export async function generateNoteTitle(
         ];
 
         debugLog(DEBUG, 'debug', "Original messages:", JSON.stringify(messages));
+        
         // Temporarily disable context notes processing to ensure only the note content is used for title generation
-        const originalEnableContextNotes = settings.enableContextNotes;
-        debugLog(DEBUG, 'debug', "Original enableContextNotes:", originalEnableContextNotes);
-        (settings as any).enableContextNotes = false;
-
-        try {
-            // Process messages (e.g., apply templates, add context)
-            const processedMessages = await processMessages(messages);
-            debugLog(DEBUG, 'debug', "Processed messages:", JSON.stringify(processedMessages));
-            // Restore original context notes setting
-            (settings as any).enableContextNotes = originalEnableContextNotes;
-
-            if (!processedMessages || processedMessages.length === 0) {
-                debugLog(DEBUG, 'debug', "No processed messages!");
-                new Notice("No valid messages to send to the model. Please check your note content.");
-                return;
+        const processedMessages = await withTemporarySetting(
+            settings,
+            'enableContextNotes',
+            false,
+            async () => {
+                debugLog(DEBUG, 'debug', "Context notes temporarily disabled for title generation");
+                return await processMessages(messages);
             }
+        );
+        debugLog(DEBUG, 'debug', "Processed messages:", JSON.stringify(processedMessages));
 
-            debugLog(DEBUG, 'debug', "Calling dispatcher.getCompletion");
-            let resultBuffer = "";
-            // Use dispatcher to get completion, streaming the response
-            await aiDispatcher.getCompletion(processedMessages, {
-                temperature: 0,
-                streamCallback: (chunk: string) => {
-                    resultBuffer += chunk; // Accumulate streamed chunks
+        if (!processedMessages || processedMessages.length === 0) {
+            debugLog(DEBUG, 'debug', "No processed messages!");
+            new Notice("No valid messages to send to the model. Please check your note content.");
+            return;
+        }
+
+        debugLog(DEBUG, 'debug', "Calling dispatcher.getCompletion");
+        let resultBuffer = "";
+        // Use dispatcher to get completion, streaming the response
+        await aiDispatcher.getCompletion(processedMessages, {
+            temperature: 0,
+            streamCallback: (chunk: string) => {
+                resultBuffer += chunk; // Accumulate streamed chunks
+            }
+        });
+        debugLog(DEBUG, 'debug', "Result from dispatcher (buffered):", resultBuffer);
+
+        // Extract and trim the generated title
+        let title = resultBuffer.trim();
+        debugLog(DEBUG, 'debug', "Extracted title before sanitization:", title);
+
+        // Sanitize the title by removing characters invalid for filenames or YAML keys
+        title = title.replace(/[\\/:]/g, "").trim();
+        debugLog(DEBUG, 'debug', "Sanitized title:", title);
+
+        // Handle the generated title based on the configured output mode
+        if (title && typeof title === "string" && title.length > 0) {
+            const outputMode = settings.titleOutputMode ?? "clipboard";
+            debugLog(DEBUG, 'debug', "Output mode:", outputMode);
+            if (outputMode === "replace-filename") {
+                // Rename the note file
+                const file = app.workspace.getActiveFile();
+                if (file) {
+                    const ext = file.extension ? "." + file.extension : "";
+                    const sanitized = title;
+                    const parentPath = file.parent ? file.parent.path : "";
+                    const newPath = parentPath ? (parentPath + "/" + sanitized + ext) : (sanitized + ext);
+                    if (file.path !== newPath) {
+                        await app.fileManager.renameFile(file, newPath);
+                        new Notice(`Note renamed to: ${sanitized}${ext}`);
+                    } else {
+                        new Notice(`Note title is already: ${sanitized}${ext}`);
+                    }
                 }
-            });
-            debugLog(DEBUG, 'debug', "Result from dispatcher (buffered):", resultBuffer);
-
-            // Extract and trim the generated title
-            let title = resultBuffer.trim();
-            debugLog(DEBUG, 'debug', "Extracted title before sanitization:", title);
-
-            // Sanitize the title by removing characters invalid for filenames or YAML keys
-            title = title.replace(/[\\/:]/g, "").trim();
-            debugLog(DEBUG, 'debug', "Sanitized title:", title);
-
-            // Handle the generated title based on the configured output mode
-            if (title && typeof title === "string" && title.length > 0) {
-                const outputMode = settings.titleOutputMode ?? "clipboard";
-                debugLog(DEBUG, 'debug', "Output mode:", outputMode);
-                if (outputMode === "replace-filename") {
-                    // Rename the note file
-                    const file = app.workspace.getActiveFile();
-                    if (file) {
-                        const ext = file.extension ? "." + file.extension : "";
-                        const sanitized = title;
-                        const parentPath = file.parent ? file.parent.path : "";
-                        const newPath = parentPath ? (parentPath + "/" + sanitized + ext) : (sanitized + ext);
-                        if (file.path !== newPath) {
-                            await app.fileManager.renameFile(file, newPath);
-                            new Notice(`Note renamed to: ${sanitized}${ext}`);
-                        } else {
-                            new Notice(`Note title is already: ${sanitized}${ext}`);
-                        }
-                    }
-                } else if (outputMode === "metadata") {
-                    // Insert the title into the note's YAML frontmatter
-                    const file = app.workspace.getActiveFile();
-                    if (file) {
-                        await upsertYamlField(app, file, "title", title);
-                        new Notice(`Inserted title into metadata: ${title}`);
-                    }
-                } else {
-                    // Copy the title to the clipboard (default mode)
-                    try {
-                        await navigator.clipboard.writeText(title);
-                        new Notice(`Generated title (copied): ${title}`);
-                    } catch (e) {
-                        new Notice(`Generated title: ${title}`);
-                    }
+            } else if (outputMode === "metadata") {
+                // Insert the title into the note's YAML frontmatter
+                const file = app.workspace.getActiveFile();
+                if (file) {
+                    await upsertYamlField(app, file, "title", title);
+                    new Notice(`Inserted title into metadata: ${title}`);
                 }
             } else {
-                debugLog(DEBUG, 'debug', "No title generated after sanitization.");
-                new Notice("No title generated.");
+                // Copy the title to the clipboard (default mode)
+                try {
+                    await navigator.clipboard.writeText(title);
+                    new Notice(`Generated title (copied): ${title}`);
+                } catch (e) {
+                    new Notice(`Generated title: ${title}`);
+                }
             }
-        } catch (processError) {
-            debugLog(DEBUG, 'debug', "Error in processMessages or provider.getCompletion:", processError);
-            // Ensure original context notes setting is restored even on error
-            (settings as any).enableContextNotes = originalEnableContextNotes;
-            throw processError;
+        } else {
+            debugLog(DEBUG, 'debug', "No title generated after sanitization.");
+            new Notice("No title generated.");
         }
     } catch (err) {
         new Notice("Error generating title: " + (err?.message ?? err));
@@ -206,22 +204,25 @@ export async function generateYamlAttribute(
 
     // Temporarily disable context notes processing
     debugLog(DEBUG, 'debug', "Original messages:", JSON.stringify(messages));
-    const originalEnableContextNotes = settings.enableContextNotes;
-    debugLog(DEBUG, 'debug', "Original enableContextNotes:", originalEnableContextNotes);
-    (settings as any).enableContextNotes = false;
-
+    
     try {
-        // Process messages
-        const processedMessages = await processMessages(messages);
+        // Temporarily disable context notes processing to ensure only the note content is used
+        const processedMessages = await withTemporarySetting(
+            settings,
+            'enableContextNotes',
+            false,
+            async () => {
+                debugLog(DEBUG, 'debug', "Context notes temporarily disabled for YAML attribute generation");
+                return await processMessages(messages);
+            }
+        );
         debugLog(DEBUG, 'debug', "Processed messages:", JSON.stringify(processedMessages));
-        // Restore original context notes setting
-        (settings as any).enableContextNotes = originalEnableContextNotes;
 
         if (!processedMessages || processedMessages.length === 0) {
             debugLog(DEBUG, 'debug', "No processed messages!");
             new Notice("No valid messages to send to the model. Please check your note content.");
             return;
-        }        
+        }
         debugLog(DEBUG, 'debug', "Calling dispatcher.getCompletion");
         
         // Use dispatcher for all completions
@@ -240,7 +241,7 @@ export async function generateYamlAttribute(
         let value = resultBuffer.trim();
         debugLog(DEBUG, 'debug', "Extracted value before sanitization:", value);
         // Sanitize the value
-        value = value.replace(/[\\/]/g, "").trim(); 
+        value = value.replace(/[\\/]/g, "").trim();
         debugLog(DEBUG, 'debug', "Sanitized value:", value);
 
         // Handle the generated value based on the configured output mode
@@ -265,8 +266,6 @@ export async function generateYamlAttribute(
         }
     } catch (processError) {
         debugLog(DEBUG, 'debug', "Error in processMessages or provider.getCompletion:", processError);
-        // Ensure original context notes setting is restored even on error
-        (settings as any).enableContextNotes = originalEnableContextNotes;
         throw processError;
     }
 }

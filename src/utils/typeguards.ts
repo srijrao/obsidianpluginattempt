@@ -51,7 +51,63 @@ export function isVaultAdapterWithBasePath(value: unknown): value is { basePath:
         value !== null &&
         typeof value === 'object' &&
         'basePath' in value &&
-        typeof (value as any).basePath === 'string'
+        typeof (value as Record<string, unknown>).basePath === 'string'
+    );
+}
+
+/**
+ * Safely gets the vault base path from the app's vault adapter
+ * @param app - The Obsidian App instance
+ * @returns The base path string or empty string if not available
+ */
+export function getVaultBasePath(app: any): string {
+    try {
+        const adapter = app?.vault?.adapter;
+        if (isVaultAdapterWithBasePath(adapter)) {
+            return adapter.basePath;
+        }
+        console.warn('Vault adapter basePath not found or not a string. Using empty string as fallback.');
+        return '';
+    } catch (error) {
+        console.warn('Error accessing vault adapter:', error);
+        return '';
+    }
+}
+
+/**
+ * Type guard to check if a value has plugin-like structure
+ * @param value - The value to check
+ * @returns True if the value appears to be a plugin with app property
+ */
+export function isPluginWithApp(value: unknown): value is { app: any; settings: any; saveSettings: () => Promise<void> } {
+    return (
+        value !== null &&
+        typeof value === 'object' &&
+        'app' in value &&
+        'settings' in value &&
+        'saveSettings' in value &&
+        typeof (value as any).saveSettings === 'function'
+    );
+}
+
+/**
+ * Type guard to check if a value has provider settings structure
+ * @param value - The value to check
+ * @returns True if the value appears to be provider settings
+ */
+export function isProviderSettings(value: unknown): value is {
+    apiKey?: string;
+    serverUrl?: string;
+    availableModels?: string[];
+    lastTestResult?: any;
+} {
+    return (
+        value !== null &&
+        typeof value === 'object' &&
+        (
+            ('apiKey' in value && (typeof (value as any).apiKey === 'string' || (value as any).apiKey === undefined)) ||
+            ('serverUrl' in value && (typeof (value as any).serverUrl === 'string' || (value as any).serverUrl === undefined))
+        )
     );
 }
 
@@ -346,4 +402,77 @@ export function isTFolder(value: unknown): value is TFolder {
         'children' in value &&
         'isRoot' in value
     );
+}
+
+/**
+ * Safely modifies a settings property temporarily and restores it
+ * @param settings - The settings object to modify
+ * @param property - The property name to modify
+ * @param temporaryValue - The temporary value to set
+ * @param operation - The operation to perform while the setting is modified
+ * @returns The result of the operation
+ */
+export async function withTemporarySetting<T extends Record<string, any>, K extends keyof T, R>(
+    settings: T,
+    property: K,
+    temporaryValue: T[K],
+    operation: () => Promise<R>
+): Promise<R> {
+    if (!isObject(settings)) {
+        throw new Error('Settings must be an object');
+    }
+    
+    const originalValue = settings[property];
+    
+    try {
+        settings[property] = temporaryValue;
+        return await operation();
+    } finally {
+        settings[property] = originalValue;
+    }
+}
+
+/**
+ * Type guard to check if settings has enableContextNotes property
+ * @param settings - The settings object to check
+ * @returns True if settings has enableContextNotes property
+ */
+export function hasEnableContextNotes(settings: unknown): settings is { enableContextNotes: boolean } {
+    return (
+        isObject(settings) &&
+        'enableContextNotes' in settings &&
+        typeof settings.enableContextNotes === 'boolean'
+    );
+}
+
+/**
+ * Safely gets provider settings from plugin settings
+ * @param settings - The plugin settings object
+ * @param providerType - The provider type
+ * @returns The provider settings or undefined if not found
+ */
+export function getProviderSettings(settings: unknown, providerType: string): any {
+    if (!isObject(settings)) {
+        return undefined;
+    }
+    
+    const settingsKey = `${providerType}Settings`;
+    if (!(settingsKey in settings)) {
+        return undefined;
+    }
+    
+    const providerSettings = (settings as Record<string, unknown>)[settingsKey];
+    return isProviderSettings(providerSettings) ? providerSettings : undefined;
+}
+
+/**
+ * Safely gets the app property from a plugin-like object
+ * @param plugin - The plugin object to check
+ * @returns The app object or undefined if not found
+ */
+export function getPluginApp(plugin: unknown): any {
+    if (isPluginWithApp(plugin)) {
+        return plugin.app;
+    }
+    return undefined;
 }

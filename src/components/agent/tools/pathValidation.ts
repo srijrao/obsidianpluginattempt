@@ -1,5 +1,6 @@
 import { App } from 'obsidian';
 import { join, normalize, isAbsolute, relative } from 'path';
+import { getVaultBasePath } from '../../../utils/typeGuards';
 
 /**
  * Utility class for validating and normalizing file paths within the vault.
@@ -13,15 +14,8 @@ export class PathValidator {
      * @param app The Obsidian App instance.
      */
     constructor(private app: App) {
-        // The vault's absolute path on disk.
-        const adapter = this.app.vault.adapter as any; // Cast once to 'any' for easier access
-        if (adapter && typeof adapter.basePath === 'string') {
-            this.vaultPath = adapter.basePath;
-        } else {
-            // Fallback or error handling if basePath is not available or not a string
-            console.warn('Vault adapter basePath not found or not a string. Using empty string as fallback.');
-            this.vaultPath = '';
-        }
+        // The vault's absolute path on disk using type-safe helper
+        this.vaultPath = getVaultBasePath(this.app);
     }
 
     /**

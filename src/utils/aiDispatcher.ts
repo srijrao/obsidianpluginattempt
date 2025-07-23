@@ -15,7 +15,9 @@ import {
     ValidProviderName,
     isValidMessagesArray,
     isValidMessage,
-    isNonEmptyString
+    isNonEmptyString,
+    getProviderSettings,
+    getPluginApp
 } from './typeGuards';
 import { sanitizeInput, } from './validationUtils';
 
@@ -702,7 +704,12 @@ export class AIDispatcher {
 
             // Save the call to the vault
             try {
-                await saveAICallToFolder(requestData, responseData, { settings: this.plugin.settings, app: (this.plugin as any).app });
+                const pluginApp = getPluginApp(this.plugin);
+                if (pluginApp) {
+                    await saveAICallToFolder(requestData, responseData, { settings: this.plugin.settings, app: pluginApp });
+                } else {
+                    debugLog(this.plugin.settings.debugMode ?? false, 'warn', '[AIDispatcher] Plugin app not available for saving AI call');
+                }
             } catch (saveError) {
                 debugLog(this.plugin.settings.debugMode ?? false, 'error', '[AIDispatcher] Failed to save AI call:', saveError);
             }
@@ -749,7 +756,10 @@ export class AIDispatcher {
                     options: options,
                     timestamp: new Date().toISOString()
                 };
-                await saveAICallToFolder(requestData, errorResponseData, { settings: this.plugin.settings, app: (this.plugin as any).app });
+                const pluginApp = getPluginApp(this.plugin);
+                if (pluginApp) {
+                    await saveAICallToFolder(requestData, errorResponseData, { settings: this.plugin.settings, app: pluginApp });
+                }
             } catch (saveError) {
                 debugLog(this.plugin.settings.debugMode ?? false, 'error', '[AIDispatcher] Failed to save error log:', saveError);
             }
@@ -956,8 +966,7 @@ export class AIDispatcher {
             const models = await this.getAvailableModels(providerType);
             
             // Update the settings with the new models
-            const settingsKey = `${providerType}Settings` as keyof typeof this.plugin.settings;
-            const providerSettings = this.plugin.settings[settingsKey] as any;
+            const providerSettings = getProviderSettings(this.plugin.settings, providerType);
             
             if (providerSettings) {
                 providerSettings.availableModels = models;
@@ -983,8 +992,7 @@ export class AIDispatcher {
                 '[AIDispatcher] Failed to refresh models', { provider: providerType, error });
             
             // Update settings with error info
-            const settingsKey = `${providerType}Settings` as keyof typeof this.plugin.settings;
-            const providerSettings = this.plugin.settings[settingsKey] as any;
+            const providerSettings = getProviderSettings(this.plugin.settings, providerType);
             
             if (providerSettings) {
                 providerSettings.lastTestResult = {
@@ -1039,7 +1047,11 @@ export class AIDispatcher {
         
         // Update the provider setting based on the selected model
         const [providerType] = unifiedModelId.split(':', 2);
-        this.plugin.settings.provider = providerType as any;
+        if (isValidProviderName(providerType)) {
+            this.plugin.settings.provider = providerType;
+        } else {
+            debugLog(this.plugin.settings.debugMode ?? false, 'warn', '[AIDispatcher] Invalid provider type from model ID', { providerType, unifiedModelId });
+        }
         
         await this.plugin.saveSettings();
     }

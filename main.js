@@ -203,11 +203,97 @@ var init_FileSearchTool = __esm({
   }
 });
 
+// src/utils/typeGuards.ts
+function isValidProviderName(value) {
+  return typeof value === "string" && VALID_PROVIDER_NAMES.includes(value);
+}
+function isPluginSettings(value) {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+  const obj = value;
+  return (obj.provider === void 0 || isValidProviderName(obj.provider)) && (obj.debugMode === void 0 || typeof obj.debugMode === "boolean") && (obj.selectedModel === void 0 || typeof obj.selectedModel === "string");
+}
+function isVaultAdapterWithBasePath(value) {
+  return value !== null && typeof value === "object" && "basePath" in value && typeof value.basePath === "string";
+}
+function getVaultBasePath(app) {
+  var _a2;
+  try {
+    const adapter = (_a2 = app == null ? void 0 : app.vault) == null ? void 0 : _a2.adapter;
+    if (isVaultAdapterWithBasePath(adapter)) {
+      return adapter.basePath;
+    }
+    console.warn("Vault adapter basePath not found or not a string. Using empty string as fallback.");
+    return "";
+  } catch (error) {
+    console.warn("Error accessing vault adapter:", error);
+    return "";
+  }
+}
+function isPluginWithApp(value) {
+  return value !== null && typeof value === "object" && "app" in value && "settings" in value && "saveSettings" in value && typeof value.saveSettings === "function";
+}
+function isProviderSettings(value) {
+  return value !== null && typeof value === "object" && ("apiKey" in value && (typeof value.apiKey === "string" || value.apiKey === void 0) || "serverUrl" in value && (typeof value.serverUrl === "string" || value.serverUrl === void 0));
+}
+function isObject(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+function validatePluginSettings(value) {
+  if (!isPluginSettings(value)) {
+    throw new Error("Invalid plugin settings object");
+  }
+  return value;
+}
+function isTFile(value) {
+  return value !== null && typeof value === "object" && "stat" in value && "basename" in value && "extension" in value;
+}
+function isTFolder(value) {
+  return value !== null && typeof value === "object" && "children" in value && "isRoot" in value;
+}
+async function withTemporarySetting(settings, property, temporaryValue, operation) {
+  if (!isObject(settings)) {
+    throw new Error("Settings must be an object");
+  }
+  const originalValue = settings[property];
+  try {
+    settings[property] = temporaryValue;
+    return await operation();
+  } finally {
+    settings[property] = originalValue;
+  }
+}
+function getProviderSettings(settings, providerType) {
+  if (!isObject(settings)) {
+    return void 0;
+  }
+  const settingsKey = `${providerType}Settings`;
+  if (!(settingsKey in settings)) {
+    return void 0;
+  }
+  const providerSettings = settings[settingsKey];
+  return isProviderSettings(providerSettings) ? providerSettings : void 0;
+}
+function getPluginApp(plugin) {
+  if (isPluginWithApp(plugin)) {
+    return plugin.app;
+  }
+  return void 0;
+}
+var VALID_PROVIDER_NAMES;
+var init_typeGuards = __esm({
+  "src/utils/typeGuards.ts"() {
+    VALID_PROVIDER_NAMES = ["openai", "anthropic", "gemini", "ollama"];
+  }
+});
+
 // src/components/agent/tools/pathValidation.ts
 var import_path, PathValidator;
 var init_pathValidation = __esm({
   "src/components/agent/tools/pathValidation.ts"() {
     import_path = require("path");
+    init_typeGuards();
     PathValidator = class {
       /**
        * Constructs a PathValidator for the given Obsidian app.
@@ -216,13 +302,7 @@ var init_pathValidation = __esm({
       constructor(app) {
         this.app = app;
         __publicField(this, "vaultPath");
-        const adapter = this.app.vault.adapter;
-        if (adapter && typeof adapter.basePath === "string") {
-          this.vaultPath = adapter.basePath;
-        } else {
-          console.warn("Vault adapter basePath not found or not a string. Using empty string as fallback.");
-          this.vaultPath = "";
-        }
+        this.vaultPath = getVaultBasePath(this.app);
       }
       /**
        * Validates and normalizes a path to ensure it's within the vault.
@@ -331,39 +411,6 @@ function debugLog(debugMode, level = "debug", ...args) {
 }
 var init_logger = __esm({
   "src/utils/logger.ts"() {
-  }
-});
-
-// src/utils/typeGuards.ts
-function isValidProviderName(value) {
-  return typeof value === "string" && VALID_PROVIDER_NAMES.includes(value);
-}
-function isPluginSettings(value) {
-  if (!value || typeof value !== "object") {
-    return false;
-  }
-  const obj = value;
-  return (obj.provider === void 0 || isValidProviderName(obj.provider)) && (obj.debugMode === void 0 || typeof obj.debugMode === "boolean") && (obj.selectedModel === void 0 || typeof obj.selectedModel === "string");
-}
-function isVaultAdapterWithBasePath(value) {
-  return value !== null && typeof value === "object" && "basePath" in value && typeof value.basePath === "string";
-}
-function validatePluginSettings(value) {
-  if (!isPluginSettings(value)) {
-    throw new Error("Invalid plugin settings object");
-  }
-  return value;
-}
-function isTFile(value) {
-  return value !== null && typeof value === "object" && "stat" in value && "basename" in value && "extension" in value;
-}
-function isTFolder(value) {
-  return value !== null && typeof value === "object" && "children" in value && "isRoot" in value;
-}
-var VALID_PROVIDER_NAMES;
-var init_typeGuards = __esm({
-  "src/utils/typeGuards.ts"() {
-    VALID_PROVIDER_NAMES = ["openai", "anthropic", "gemini", "ollama"];
   }
 });
 
@@ -4662,7 +4709,7 @@ ${result.error}`;
 function isNothing(subject) {
   return typeof subject === "undefined" || subject === null;
 }
-function isObject(subject) {
+function isObject2(subject) {
   return typeof subject === "object" && subject !== null;
 }
 function toArray(sequence) {
@@ -6841,7 +6888,7 @@ var isNothing_1, isObject_1, toArray_1, repeat_1, isNegativeZero_1, extend_1, co
 var init_js_yaml = __esm({
   "node_modules/js-yaml/dist/js-yaml.mjs"() {
     isNothing_1 = isNothing;
-    isObject_1 = isObject;
+    isObject_1 = isObject2;
     toArray_1 = toArray;
     repeat_1 = repeat;
     isNegativeZero_1 = isNegativeZero;
@@ -13692,7 +13739,7 @@ var init_aiDispatcher = __esm({
         }
       }
       async executeWithRetry(messages, options, providerName, cacheKey, retryCount = 0) {
-        var _a2, _b, _c, _d, _e;
+        var _a2, _b, _c, _d, _e, _f;
         const startTime = Date.now();
         let provider;
         let fullResponse = "";
@@ -13749,9 +13796,14 @@ var init_aiDispatcher = __esm({
             duration: responseData.duration
           });
           try {
-            await saveAICallToFolder(requestData, responseData, { settings: this.plugin.settings, app: this.plugin.app });
+            const pluginApp = getPluginApp(this.plugin);
+            if (pluginApp) {
+              await saveAICallToFolder(requestData, responseData, { settings: this.plugin.settings, app: pluginApp });
+            } else {
+              debugLog((_b = this.plugin.settings.debugMode) != null ? _b : false, "warn", "[AIDispatcher] Plugin app not available for saving AI call");
+            }
           } catch (saveError) {
-            debugLog((_b = this.plugin.settings.debugMode) != null ? _b : false, "error", "[AIDispatcher] Failed to save AI call:", saveError);
+            debugLog((_c = this.plugin.settings.debugMode) != null ? _c : false, "error", "[AIDispatcher] Failed to save AI call:", saveError);
           }
         } catch (error) {
           this.activeStreams.forEach((controller, id) => {
@@ -13761,11 +13813,11 @@ var init_aiDispatcher = __esm({
           });
           this.recordFailure(providerName);
           this.updateMetrics(providerName, false, Date.now() - startTime, 0);
-          debugLog((_c = this.plugin.settings.debugMode) != null ? _c : false, "error", "[AIDispatcher] AI request failed:", error);
+          debugLog((_d = this.plugin.settings.debugMode) != null ? _d : false, "error", "[AIDispatcher] AI request failed:", error);
           const maxRetries = 3;
           if (retryCount < maxRetries && this.shouldRetry(error)) {
             const backoffDelay = Math.pow(2, retryCount) * 1e3;
-            debugLog((_d = this.plugin.settings.debugMode) != null ? _d : false, "info", "[AIDispatcher] Retrying request", {
+            debugLog((_e = this.plugin.settings.debugMode) != null ? _e : false, "info", "[AIDispatcher] Retrying request", {
               attempt: retryCount + 1,
               delay: backoffDelay
             });
@@ -13786,9 +13838,12 @@ var init_aiDispatcher = __esm({
               options,
               timestamp: (/* @__PURE__ */ new Date()).toISOString()
             };
-            await saveAICallToFolder(requestData, errorResponseData, { settings: this.plugin.settings, app: this.plugin.app });
+            const pluginApp = getPluginApp(this.plugin);
+            if (pluginApp) {
+              await saveAICallToFolder(requestData, errorResponseData, { settings: this.plugin.settings, app: pluginApp });
+            }
           } catch (saveError) {
-            debugLog((_e = this.plugin.settings.debugMode) != null ? _e : false, "error", "[AIDispatcher] Failed to save error log:", saveError);
+            debugLog((_f = this.plugin.settings.debugMode) != null ? _f : false, "error", "[AIDispatcher] Failed to save error log:", saveError);
           }
           throw error;
         }
@@ -13972,8 +14027,7 @@ var init_aiDispatcher = __esm({
         debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", "[AIDispatcher] Refreshing models for provider", { provider: providerType });
         try {
           const models = await this.getAvailableModels(providerType);
-          const settingsKey = `${providerType}Settings`;
-          const providerSettings = this.plugin.settings[settingsKey];
+          const providerSettings = getProviderSettings(this.plugin.settings, providerType);
           if (providerSettings) {
             providerSettings.availableModels = models;
             providerSettings.lastTestResult = {
@@ -14000,8 +14054,7 @@ var init_aiDispatcher = __esm({
             "[AIDispatcher] Failed to refresh models",
             { provider: providerType, error }
           );
-          const settingsKey = `${providerType}Settings`;
-          const providerSettings = this.plugin.settings[settingsKey];
+          const providerSettings = getProviderSettings(this.plugin.settings, providerType);
           if (providerSettings) {
             providerSettings.lastTestResult = {
               timestamp: Date.now(),
@@ -14046,11 +14099,15 @@ var init_aiDispatcher = __esm({
        * @param unifiedModelId - The unified model ID (e.g., "openai:gpt-4")
        */
       async setSelectedModel(unifiedModelId) {
-        var _a2;
+        var _a2, _b;
         debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", "[AIDispatcher] Setting selected model", { model: unifiedModelId });
         this.plugin.settings.selectedModel = unifiedModelId;
         const [providerType] = unifiedModelId.split(":", 2);
-        this.plugin.settings.provider = providerType;
+        if (isValidProviderName(providerType)) {
+          this.plugin.settings.provider = providerType;
+        } else {
+          debugLog((_b = this.plugin.settings.debugMode) != null ? _b : false, "warn", "[AIDispatcher] Invalid provider type from model ID", { providerType, unifiedModelId });
+        }
         await this.plugin.saveSettings();
       }
       /**
@@ -16664,70 +16721,68 @@ async function generateNoteTitle(app, settings, processMessages2, dispatcher) {
       { role: "user", content: userContent }
     ];
     debugLog(DEBUG, "debug", "Original messages:", JSON.stringify(messages));
-    const originalEnableContextNotes = settings.enableContextNotes;
-    debugLog(DEBUG, "debug", "Original enableContextNotes:", originalEnableContextNotes);
-    settings.enableContextNotes = false;
-    try {
-      const processedMessages = await processMessages2(messages);
-      debugLog(DEBUG, "debug", "Processed messages:", JSON.stringify(processedMessages));
-      settings.enableContextNotes = originalEnableContextNotes;
-      if (!processedMessages || processedMessages.length === 0) {
-        debugLog(DEBUG, "debug", "No processed messages!");
-        new import_obsidian35.Notice("No valid messages to send to the model. Please check your note content.");
-        return;
+    const processedMessages = await withTemporarySetting(
+      settings,
+      "enableContextNotes",
+      false,
+      async () => {
+        debugLog(DEBUG, "debug", "Context notes temporarily disabled for title generation");
+        return await processMessages2(messages);
       }
-      debugLog(DEBUG, "debug", "Calling dispatcher.getCompletion");
-      let resultBuffer = "";
-      await aiDispatcher.getCompletion(processedMessages, {
-        temperature: 0,
-        streamCallback: (chunk) => {
-          resultBuffer += chunk;
+    );
+    debugLog(DEBUG, "debug", "Processed messages:", JSON.stringify(processedMessages));
+    if (!processedMessages || processedMessages.length === 0) {
+      debugLog(DEBUG, "debug", "No processed messages!");
+      new import_obsidian35.Notice("No valid messages to send to the model. Please check your note content.");
+      return;
+    }
+    debugLog(DEBUG, "debug", "Calling dispatcher.getCompletion");
+    let resultBuffer = "";
+    await aiDispatcher.getCompletion(processedMessages, {
+      temperature: 0,
+      streamCallback: (chunk) => {
+        resultBuffer += chunk;
+      }
+    });
+    debugLog(DEBUG, "debug", "Result from dispatcher (buffered):", resultBuffer);
+    let title = resultBuffer.trim();
+    debugLog(DEBUG, "debug", "Extracted title before sanitization:", title);
+    title = title.replace(/[\\/:]/g, "").trim();
+    debugLog(DEBUG, "debug", "Sanitized title:", title);
+    if (title && typeof title === "string" && title.length > 0) {
+      const outputMode = (_a2 = settings.titleOutputMode) != null ? _a2 : "clipboard";
+      debugLog(DEBUG, "debug", "Output mode:", outputMode);
+      if (outputMode === "replace-filename") {
+        const file = app.workspace.getActiveFile();
+        if (file) {
+          const ext = file.extension ? "." + file.extension : "";
+          const sanitized = title;
+          const parentPath = file.parent ? file.parent.path : "";
+          const newPath = parentPath ? parentPath + "/" + sanitized + ext : sanitized + ext;
+          if (file.path !== newPath) {
+            await app.fileManager.renameFile(file, newPath);
+            new import_obsidian35.Notice(`Note renamed to: ${sanitized}${ext}`);
+          } else {
+            new import_obsidian35.Notice(`Note title is already: ${sanitized}${ext}`);
+          }
         }
-      });
-      debugLog(DEBUG, "debug", "Result from dispatcher (buffered):", resultBuffer);
-      let title = resultBuffer.trim();
-      debugLog(DEBUG, "debug", "Extracted title before sanitization:", title);
-      title = title.replace(/[\\/:]/g, "").trim();
-      debugLog(DEBUG, "debug", "Sanitized title:", title);
-      if (title && typeof title === "string" && title.length > 0) {
-        const outputMode = (_a2 = settings.titleOutputMode) != null ? _a2 : "clipboard";
-        debugLog(DEBUG, "debug", "Output mode:", outputMode);
-        if (outputMode === "replace-filename") {
-          const file = app.workspace.getActiveFile();
-          if (file) {
-            const ext = file.extension ? "." + file.extension : "";
-            const sanitized = title;
-            const parentPath = file.parent ? file.parent.path : "";
-            const newPath = parentPath ? parentPath + "/" + sanitized + ext : sanitized + ext;
-            if (file.path !== newPath) {
-              await app.fileManager.renameFile(file, newPath);
-              new import_obsidian35.Notice(`Note renamed to: ${sanitized}${ext}`);
-            } else {
-              new import_obsidian35.Notice(`Note title is already: ${sanitized}${ext}`);
-            }
-          }
-        } else if (outputMode === "metadata") {
-          const file = app.workspace.getActiveFile();
-          if (file) {
-            await upsertYamlField(app, file, "title", title);
-            new import_obsidian35.Notice(`Inserted title into metadata: ${title}`);
-          }
-        } else {
-          try {
-            await navigator.clipboard.writeText(title);
-            new import_obsidian35.Notice(`Generated title (copied): ${title}`);
-          } catch (e) {
-            new import_obsidian35.Notice(`Generated title: ${title}`);
-          }
+      } else if (outputMode === "metadata") {
+        const file = app.workspace.getActiveFile();
+        if (file) {
+          await upsertYamlField(app, file, "title", title);
+          new import_obsidian35.Notice(`Inserted title into metadata: ${title}`);
         }
       } else {
-        debugLog(DEBUG, "debug", "No title generated after sanitization.");
-        new import_obsidian35.Notice("No title generated.");
+        try {
+          await navigator.clipboard.writeText(title);
+          new import_obsidian35.Notice(`Generated title (copied): ${title}`);
+        } catch (e) {
+          new import_obsidian35.Notice(`Generated title: ${title}`);
+        }
       }
-    } catch (processError) {
-      debugLog(DEBUG, "debug", "Error in processMessages or provider.getCompletion:", processError);
-      settings.enableContextNotes = originalEnableContextNotes;
-      throw processError;
+    } else {
+      debugLog(DEBUG, "debug", "No title generated after sanitization.");
+      new import_obsidian35.Notice("No title generated.");
     }
   } catch (err) {
     new import_obsidian35.Notice("Error generating title: " + ((_b = err == null ? void 0 : err.message) != null ? _b : err));
@@ -16747,13 +16802,17 @@ async function generateYamlAttribute(app, settings, processMessages2, attributeN
     { role: "user", content: prompt + "\n\n" + noteContent }
   ];
   debugLog(DEBUG, "debug", "Original messages:", JSON.stringify(messages));
-  const originalEnableContextNotes = settings.enableContextNotes;
-  debugLog(DEBUG, "debug", "Original enableContextNotes:", originalEnableContextNotes);
-  settings.enableContextNotes = false;
   try {
-    const processedMessages = await processMessages2(messages);
+    const processedMessages = await withTemporarySetting(
+      settings,
+      "enableContextNotes",
+      false,
+      async () => {
+        debugLog(DEBUG, "debug", "Context notes temporarily disabled for YAML attribute generation");
+        return await processMessages2(messages);
+      }
+    );
     debugLog(DEBUG, "debug", "Processed messages:", JSON.stringify(processedMessages));
-    settings.enableContextNotes = originalEnableContextNotes;
     if (!processedMessages || processedMessages.length === 0) {
       debugLog(DEBUG, "debug", "No processed messages!");
       new import_obsidian35.Notice("No valid messages to send to the model. Please check your note content.");
@@ -16794,7 +16853,6 @@ async function generateYamlAttribute(app, settings, processMessages2, attributeN
     }
   } catch (processError) {
     debugLog(DEBUG, "debug", "Error in processMessages or provider.getCompletion:", processError);
-    settings.enableContextNotes = originalEnableContextNotes;
     throw processError;
   }
 }
@@ -16866,6 +16924,7 @@ var init_YAMLHandler = __esm({
     init_pluginUtils();
     init_js_yaml();
     init_logger();
+    init_typeGuards();
     DEBUG = true;
   }
 });
