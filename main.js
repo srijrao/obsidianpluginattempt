@@ -24750,6 +24750,7 @@ var SemanticSearchModal = class extends import_obsidian36.Modal {
     contentEl.empty();
   }
 };
+<<<<<<< Updated upstream
 var SemanticSearchInputModal = class extends import_obsidian36.Modal {
   constructor(app) {
     super(app);
@@ -26045,3 +26046,5 @@ var MyPlugin = _MyPlugin;
 js-yaml/dist/js-yaml.mjs:
   (*! js-yaml 4.1.0 https://github.com/nodeca/js-yaml @license MIT *)
 */
+=======
+>>>>>>> Stashed changes
