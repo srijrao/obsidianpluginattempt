@@ -290,8 +290,8 @@ export interface MyPluginSettings {
     enableSemanticContext?: boolean;
     /** Maximum number of semantic context chunks to include in AI queries. */
     maxSemanticContextChunks?: number;
-    /** Minimum similarity threshold for including semantic context (0.0 to 1.0). */
-    semanticSimilarityThreshold?: number;
+    /** Number of results to show in semantic search (1 to 100). */
+    semanticSearchResultCount?: number;
     /** Embedding folder filter settings. */
     embeddingFolderFilter?: EmbeddingFolderFilter;
 
@@ -472,7 +472,7 @@ export const DEFAULT_SETTINGS: MyPluginSettings = {
     /** @inheritdoc */
     maxSemanticContextChunks: 3,
     /** @inheritdoc */
-    semanticSimilarityThreshold: 0.7,
+    semanticSearchResultCount: 10,
     /** @inheritdoc */
     embeddingFolderFilter: {
         mode: 'off',

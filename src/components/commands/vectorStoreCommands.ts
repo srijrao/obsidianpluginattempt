@@ -334,8 +334,8 @@ export function registerVectorStoreCommands(plugin: MyPlugin): void {
                 const totalEmbeddings = stats ? stats.totalVectors : 0;
                 
                 const results = await semanticBuilder.semanticSearch(query, {
-                    topK: 10,
-                    minSimilarity: plugin.settings.semanticSimilarityThreshold || 0.7
+                    topK: plugin.settings.semanticSearchResultCount ?? 10,
+                    minSimilarity: 0.0
                 });
 
                 const resultsModal = new SemanticSearchModal(plugin.app, results, totalEmbeddings);
@@ -449,8 +449,8 @@ export function registerVectorStoreCommands(plugin: MyPlugin): void {
                 const totalEmbeddings = stats ? stats.totalVectors : 0;
                 
                 const results = await semanticBuilder.semanticSearch(selection, {
-                    topK: 5,
-                    minSimilarity: plugin.settings.semanticSimilarityThreshold || 0.7
+                    topK: plugin.settings.semanticSearchResultCount ?? 10,
+                    minSimilarity: 0.0
                 });
 
                 const resultsModal = new SemanticSearchModal(plugin.app, results, totalEmbeddings);

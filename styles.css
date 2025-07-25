@@ -1497,6 +1497,13 @@
     gap: var(--spacing-md);
 }
 
+.semantic-search-rank {
+    font-weight: bold;
+    color: var(--text-accent);
+    min-width: 30px;
+    font-size: 0.9em;
+}
+
 .semantic-search-score {
     background: var(--interactive-accent);
     color: var(--text-on-accent);

@@ -94,15 +94,17 @@ export class VectorStoreSettingsSection {
                     }));
 
             new Setting(containerEl)
-                .setName('Similarity Threshold')
-                .setDesc('Minimum similarity score for including context (0.0 to 1.0)')
-                .addSlider(slider => slider
-                    .setLimits(0.0, 1.0, 0.1)
-                    .setValue(this.plugin.settings.semanticSimilarityThreshold ?? 0.7)
-                    .setDynamicTooltip()
+                .setName('Search Result Count')
+                .setDesc('Number of results to show in semantic search (1 to 100)')
+                .addText(text => text
+                    .setPlaceholder('10')
+                    .setValue(String(this.plugin.settings.semanticSearchResultCount ?? 10))
                     .onChange(async (value) => {
-                        this.plugin.settings.semanticSimilarityThreshold = value;
-                        await this.plugin.saveSettings();
+                        const count = parseInt(value);
+                        if (!isNaN(count) && count >= 1 && count <= 100) {
+                            this.plugin.settings.semanticSearchResultCount = count;
+                            await this.plugin.saveSettings();
+                        }
                     }));
         }
 
@@ -382,8 +384,8 @@ export class VectorStoreSettingsSection {
                         button.setDisabled(true);
 
                         const results = await this.semanticContextBuilder.semanticSearch(searchQuery, {
-                            topK: 3,
-                            minSimilarity: this.plugin.settings.semanticSimilarityThreshold ?? 0.7
+                            topK: this.plugin.settings.semanticSearchResultCount ?? 10,
+                            minSimilarity: 0.0
                         });
 
                         button.setButtonText('Search');

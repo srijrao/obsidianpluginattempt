@@ -101,7 +101,7 @@ export async function handleAICompletion(
                 semanticContextMessages = await semanticBuilder.buildSemanticContext({
                     includeSemanticContext: true,
                     maxContextChunks: settings.maxSemanticContextChunks || 3,
-                    minSimilarity: settings.semanticSimilarityThreshold || 0.7,
+                    minSimilarity: 0.7,
                     forceNoCurrentNote: true
                 }, queryText);
                 

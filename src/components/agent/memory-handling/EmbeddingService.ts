@@ -317,7 +317,7 @@ export class EmbeddingService {
     try {
       const queryEmbedding = await this.generateEmbedding(query);
       const topK = options.topK || 5;
-      const minSimilarity = options.minSimilarity || 0.7;
+      const minSimilarity = options.minSimilarity !== undefined ? options.minSimilarity : 0.7;
 
       // Get similar vectors (now async)
       let results = await this.vectorStore.findSimilarVectors(queryEmbedding, topK * 2, minSimilarity);

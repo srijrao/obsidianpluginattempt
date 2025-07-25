@@ -3467,7 +3467,7 @@ var init_settings = __esm({
       /** @inheritdoc */
       maxSemanticContextChunks: 3,
       /** @inheritdoc */
-      semanticSimilarityThreshold: 0.7,
+      semanticSearchResultCount: 10,
       /** @inheritdoc */
       embeddingFolderFilter: {
         mode: "off",
@@ -16671,7 +16671,7 @@ var init_EmbeddingService = __esm({
         try {
           const queryEmbedding = await this.generateEmbedding(query);
           const topK = options.topK || 5;
-          const minSimilarity = options.minSimilarity || 0.7;
+          const minSimilarity = options.minSimilarity !== void 0 ? options.minSimilarity : 0.7;
           let results = await this.vectorStore.findSimilarVectors(queryEmbedding, topK * 2, minSimilarity);
           if (options.filterMetadata) {
             results = results.filter((result) => {
@@ -25647,11 +25647,14 @@ var VectorStoreSettingsSection = class {
           await this.plugin.saveSettings();
         });
       });
-      new import_obsidian32.Setting(containerEl).setName("Similarity Threshold").setDesc("Minimum similarity score for including context (0.0 to 1.0)").addSlider((slider) => {
+      new import_obsidian32.Setting(containerEl).setName("Search Result Count").setDesc("Number of results to show in semantic search (1 to 100)").addText((text) => {
         var _a2;
-        return slider.setLimits(0, 1, 0.1).setValue((_a2 = this.plugin.settings.semanticSimilarityThreshold) != null ? _a2 : 0.7).setDynamicTooltip().onChange(async (value) => {
-          this.plugin.settings.semanticSimilarityThreshold = value;
-          await this.plugin.saveSettings();
+        return text.setPlaceholder("10").setValue(String((_a2 = this.plugin.settings.semanticSearchResultCount) != null ? _a2 : 10)).onChange(async (value) => {
+          const count = parseInt(value);
+          if (!isNaN(count) && count >= 1 && count <= 100) {
+            this.plugin.settings.semanticSearchResultCount = count;
+            await this.plugin.saveSettings();
+          }
         });
       });
     }
@@ -25828,8 +25831,8 @@ var VectorStoreSettingsSection = class {
         button.setButtonText("Searching...");
         button.setDisabled(true);
         const results = await this.semanticContextBuilder.semanticSearch(searchQuery, {
-          topK: 3,
-          minSimilarity: (_a2 = this.plugin.settings.semanticSimilarityThreshold) != null ? _a2 : 0.7
+          topK: (_a2 = this.plugin.settings.semanticSearchResultCount) != null ? _a2 : 10,
+          minSimilarity: 0
         });
         button.setButtonText("Search");
         button.setDisabled(false);
@@ -26218,7 +26221,7 @@ async function handleAICompletion(editor, settings, processMessages2, vault, plu
         semanticContextMessages = await semanticBuilder.buildSemanticContext({
           includeSemanticContext: true,
           maxContextChunks: settings.maxSemanticContextChunks || 3,
-          minSimilarity: settings.semanticSimilarityThreshold || 0.7,
+          minSimilarity: 0.7,
           forceNoCurrentNote: true
         }, queryText);
         if (semanticContextMessages.length > 0) {
@@ -26786,7 +26789,7 @@ function registerVectorStoreCommands(plugin) {
     id: "semantic-search",
     name: "Semantic Search",
     callback: async () => {
-      var _a2;
+      var _a2, _b;
       try {
         const modal = new SemanticSearchInputModal(plugin.app);
         const query = await modal.getSearchQuery();
@@ -26795,13 +26798,13 @@ function registerVectorStoreCommands(plugin) {
         const stats = await semanticBuilder.getStats();
         const totalEmbeddings = stats ? stats.totalVectors : 0;
         const results = await semanticBuilder.semanticSearch(query, {
-          topK: 10,
-          minSimilarity: plugin.settings.semanticSimilarityThreshold || 0.7
+          topK: (_a2 = plugin.settings.semanticSearchResultCount) != null ? _a2 : 10,
+          minSimilarity: 0
         });
         const resultsModal = new SemanticSearchModal(plugin.app, results, totalEmbeddings);
         resultsModal.open();
       } catch (error) {
-        debugLog((_a2 = plugin.settings.debugMode) != null ? _a2 : false, "error", "Semantic search failed:", error);
+        debugLog((_b = plugin.settings.debugMode) != null ? _b : false, "error", "Semantic search failed:", error);
         new import_obsidian36.Notice(`Error: ${error.message}`);
       }
     }
@@ -26878,7 +26881,7 @@ function registerVectorStoreCommands(plugin) {
     id: "semantic-search-selection",
     name: "Semantic Search with Selection",
     editorCallback: async (editor) => {
-      var _a2;
+      var _a2, _b;
       try {
         const selection = editor.getSelection();
         if (!selection.trim()) {
@@ -26889,13 +26892,13 @@ function registerVectorStoreCommands(plugin) {
         const stats = await semanticBuilder.getStats();
         const totalEmbeddings = stats ? stats.totalVectors : 0;
         const results = await semanticBuilder.semanticSearch(selection, {
-          topK: 5,
-          minSimilarity: plugin.settings.semanticSimilarityThreshold || 0.7
+          topK: (_a2 = plugin.settings.semanticSearchResultCount) != null ? _a2 : 10,
+          minSimilarity: 0
         });
         const resultsModal = new SemanticSearchModal(plugin.app, results, totalEmbeddings);
         resultsModal.open();
       } catch (error) {
-        debugLog((_a2 = plugin.settings.debugMode) != null ? _a2 : false, "error", "Semantic search failed:", error);
+        debugLog((_b = plugin.settings.debugMode) != null ? _b : false, "error", "Semantic search failed:", error);
         new import_obsidian36.Notice(`Error: ${error.message}`);
       }
     }
@@ -27357,7 +27360,7 @@ function registerSemanticSearchCodeblock(plugin) {
   });
 }
 async function processSemanticSearchCodeblock(source, el, ctx, plugin) {
-  var _a2;
+  var _a2, _b, _c;
   el.empty();
   const query = source.trim();
   if (!query) {
@@ -27377,35 +27380,59 @@ async function processSemanticSearchCodeblock(source, el, ctx, plugin) {
     if (!semanticBuilder.initialized) {
       await semanticBuilder.initialize();
     }
+    const stats = await semanticBuilder.getStats();
+    console.log(`Semantic search debug: ${(stats == null ? void 0 : stats.totalVectors) || 0} total embeddings available`);
+    debugLog((_a2 = plugin.settings.debugMode) != null ? _a2 : false, "info", `Semantic search: ${(stats == null ? void 0 : stats.totalVectors) || 0} total embeddings available`);
+    console.log(`Attempting semantic search for query: "${query}"`);
     const results = await semanticBuilder.semanticSearch(query, {
-      topK: 5,
-      minSimilarity: plugin.settings.semanticSimilarityThreshold || 0.7
+      topK: (_b = plugin.settings.semanticSearchResultCount) != null ? _b : 10,
+      minSimilarity: 0
     });
+    console.log(`Semantic search completed. Found ${results.length} results`);
     loadingEl.remove();
+    if (results.length === 0 && stats && stats.totalVectors > 0) {
+      console.warn(`No results found for query "${query}" despite having ${stats.totalVectors} embeddings`);
+      el.createEl("div", {
+        text: `Debug: Found ${stats.totalVectors} total embeddings but no results for query "${query}". This might indicate an embedding service issue.`,
+        cls: "semantic-search-error"
+      });
+      return;
+    }
     renderSemanticSearchResults(el, results, query, plugin);
   } catch (error) {
     loadingEl.remove();
-    debugLog((_a2 = plugin.settings.debugMode) != null ? _a2 : false, "error", "Semantic search codeblock failed:", error);
-    el.createEl("div", {
-      text: `Error: ${error.message}`,
+    console.error("Semantic search codeblock failed:", error);
+    debugLog((_c = plugin.settings.debugMode) != null ? _c : false, "error", "Semantic search codeblock failed:", error);
+    const errorEl = el.createEl("div", {
       cls: "semantic-search-error"
     });
+    errorEl.createEl("div", {
+      text: `Error: ${error.message}`
+    });
+    if (error.stack) {
+      const stackEl = errorEl.createEl("details");
+      stackEl.createEl("summary", { text: "Error Details" });
+      stackEl.createEl("pre", {
+        text: error.stack,
+        attr: { style: "font-size: 0.8em; margin-top: 10px; white-space: pre-wrap;" }
+      });
+    }
   }
 }
 function renderSemanticSearchResults(el, results, query, plugin) {
   el.addClass("semantic-search-container");
   const headerEl = el.createEl("div", { cls: "semantic-search-header" });
   headerEl.createEl("h4", {
-    text: `Semantic Search: "${query}"`,
+    text: `Query: "${query}"`,
     cls: "semantic-search-title"
   });
   headerEl.createEl("span", {
-    text: `${results.length} results`,
+    text: `${results.length} embeddings found`,
     cls: "semantic-search-count"
   });
   if (results.length === 0) {
     el.createEl("div", {
-      text: "No similar content found.",
+      text: 'No embeddings found. Make sure you have embedded some notes first using "AI Assistant: Embed All Notes" or "AI Assistant: Embed Currently Open Note".',
       cls: "semantic-search-no-results"
     });
     return;
@@ -27416,6 +27443,10 @@ function renderSemanticSearchResults(el, results, query, plugin) {
       cls: "semantic-search-result"
     });
     const resultHeader = resultEl.createEl("div", { cls: "semantic-search-result-header" });
+    const rankEl = resultHeader.createEl("span", {
+      cls: "semantic-search-rank",
+      text: `#${index + 1}`
+    });
     const scoreEl = resultHeader.createEl("span", {
       cls: "semantic-search-score",
       text: `${(result.similarity * 100).toFixed(1)}%`
@@ -27437,18 +27468,9 @@ function renderSemanticSearchResults(el, results, query, plugin) {
     const contentEl = resultEl.createEl("div", {
       cls: "semantic-search-content"
     });
-    const highlightedContent = highlightQueryTerms(result.text, query);
-    contentEl.innerHTML = highlightedContent;
+    const truncatedText = result.text.length > 200 ? result.text.substring(0, 200) + "..." : result.text;
+    contentEl.textContent = truncatedText;
   });
-}
-function highlightQueryTerms(text, query) {
-  const queryWords = query.toLowerCase().split(/\s+/).filter((word) => word.length > 2);
-  let highlightedText = text;
-  queryWords.forEach((word) => {
-    const regex = new RegExp(`(${word})`, "gi");
-    highlightedText = highlightedText.replace(regex, "<mark>$1</mark>");
-  });
-  return highlightedText;
 }
 
 // src/utils/PerformanceDashboard.ts
