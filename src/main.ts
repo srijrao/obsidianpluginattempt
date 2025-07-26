@@ -272,6 +272,18 @@ export default class MyPlugin extends Plugin {
             }
         }
 
+        // Archive AI call logs by date (compress old files) - non-blocking
+        if (this.settings.debugMode) {
+            // Only run archival in debug mode to avoid startup issues
+            try {
+                const { archiveAICallsByDate } = await import('./utils/saveAICalls');
+                await archiveAICallsByDate(this);
+                debugLog(this.settings.debugMode ?? false, 'info', 'AI call archival completed');
+            } catch (error) {
+                debugLog(this.settings.debugMode ?? false, 'warn', 'AI call archival failed:', error);
+            }
+        }
+
         debugLog(this.settings.debugMode ?? false, 'info', 'AI Assistant Plugin loaded.'); // Changed from log to debugLog
     }
 

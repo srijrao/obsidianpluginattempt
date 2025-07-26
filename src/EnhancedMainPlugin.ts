@@ -238,10 +238,25 @@ export default class EnhancedAIAssistantPlugin extends Plugin {
             // Step 8: Initialize commands and finalize setup
             await this.initializationManager.initializeCommands();
             
-            // Step 9: Add settings tab
+            // Step 9: Archive AI call logs by date (compress old files)
+            try {
+                const { archiveAICallsByDate } = await import('./utils/saveAICalls');
+                await archiveAICallsByDate(this as any);
+                if (this.logger) {
+                    this.logger.info('AI call archival completed');
+                }
+            } catch (error: any) {
+                if (this.logger) {
+                    this.logger.warn('AI call archival failed', { error: error.message });
+                } else {
+                    console.warn('AI call archival failed:', error);
+                }
+            }
+            
+            // Step 10: Add settings tab
             this.addSettingTab(new MyPluginSettingTab(this.app, this as any));
             
-            // Step 10: Log successful initialization
+            // Step 11: Log successful initialization
             const totalTime = Date.now() - startTime;
             const systemStatus = this.getSystemStatus();
             

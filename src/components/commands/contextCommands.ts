@@ -97,4 +97,41 @@ export function registerContextCommands(
             }
         }
     );
+    
+    /**
+     * Registers the 'Archive AI Call Logs' command.
+     * This command manually triggers archival of AI call logs by date.
+     */
+    registerCommand(
+        plugin,
+        {
+            id: 'archive-ai-call-logs',
+            name: 'Archive AI Call Logs',
+            callback: async () => {
+                try {
+                    showNotice('Archiving AI call logs...');
+                    const { manualArchiveAICalls } = await import('../../utils/saveAICalls');
+                    const result = await manualArchiveAICalls(plugin as any);
+                    
+                    console.log('Archive result:', result);
+                    
+                    if (result.success) {
+                        showNotice(result.message);
+                        if (result.archivedDates.length > 0) {
+                            console.log('Archived dates:', result.archivedDates);
+                        }
+                        if (result.details) {
+                            console.log('Archive details:', result.details);
+                        }
+                    } else {
+                        showNotice(`Archive failed: ${result.message}`);
+                        console.error('Archive failed with details:', result.details);
+                    }
+                } catch (error: any) {
+                    showNotice(`Archive failed: ${error.message}`);
+                    console.error('Archive error:', error);
+                }
+            }
+        }
+    );
 }

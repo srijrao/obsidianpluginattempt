@@ -32,6 +32,8 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.36.3",
     "@google/generative-ai": "^0.24.0",
+    "@types/adm-zip": "^0.5.7",
+    "adm-zip": "^0.5.16",
     "builtin-modules": "^5.0.0",
     "diff": "^8.0.2",
     "js-yaml": "^4.1.0",
