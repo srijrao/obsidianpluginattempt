@@ -1192,7 +1192,86 @@
     color: var(--text-normal);
 }
 
-/* === File Change Suggestions Modal improvements === */
+/* === File Change Suggestions Panel improvements === */
+/* Floating panel instead of modal - no screen darkening */
+.ai-file-diff-panel {
+    font-family: var(--font-interface);
+    background-color: var(--background-primary);
+    border: 1px solid var(--background-modifier-border);
+    border-radius: var(--border-radius);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+    backdrop-filter: blur(4px);
+    animation: slideInFromRight 0.3s ease-out;
+    overflow-x: hidden; /* Prevent horizontal scrolling */
+    overflow-y: auto; /* Allow vertical scrolling */
+    word-wrap: break-word; /* Ensure text wrapping */
+    
+    /* Layout and sizing */
+    width: 50%;
+    max-width: 700px;
+    min-width: 500px;
+    max-height: 90vh;
+    padding: 1rem;
+}
+
+@keyframes slideInFromRight {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+/* Responsive behavior for smaller screens */
+@media (max-width: 768px) {
+    .ai-file-diff-panel {
+        width: 95% !important;
+        min-width: 300px !important;
+        max-height: 96vh !important;
+    }
+}
+
+.ai-file-diff-header {
+    border-bottom: 1px solid var(--background-modifier-border);
+    padding-bottom: 0.5rem;
+    margin-bottom: 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.ai-file-diff-header h2 {
+    color: var(--text-accent);
+    margin: 0;
+    font-size: 1.2em;
+    font-weight: 600;
+}
+
+.ai-file-diff-header button {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 1.5em;
+    padding: 0;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--border-radius);
+    transition: var(--transition);
+}
+
+.ai-file-diff-header button:hover {
+    background-color: var(--background-modifier-hover);
+    color: var(--text-normal);
+}
+
+/* Legacy modal styles for backwards compatibility */
 .ai-assistant-modal .ai-assistant-modal-content {
     max-height: 70vh;
     overflow-y: auto;
@@ -1200,19 +1279,22 @@
 }
 
 /* Suggestion containers in the modal */
-.suggestion-container {
+.suggestion-content {
     margin-bottom: 1.5rem;
-    padding: 1rem;
-    border: 1px solid var(--background-modifier-border);
-    border-radius: var(--border-radius);
-    background: var(--background-secondary);
+    overflow-x: hidden; /* Prevent horizontal scrolling */
+    word-wrap: break-word; /* Ensure text wrapping */
+    /* Removed all container styling to eliminate nested appearance */
 }
 
-.suggestion-container h4 {
+.suggestion-content h4 {
     margin: 0 0 0.75rem 0;
     color: var(--text-accent);
     font-weight: 600;
     font-size: 1.1em;
+    word-wrap: break-word; /* Wrap long file paths */
+    overflow-wrap: break-word; /* Modern CSS property for word breaking */
+    padding-bottom: 0.25rem;
+    border-bottom: 1px solid var(--background-modifier-border);
 }
 
 /* Enhanced diff display styling */
@@ -1223,21 +1305,27 @@
     border-radius: var(--border-radius) !important;
     padding: 0.75rem !important;
     margin: 0.75rem 0 !important;
-    max-height: 300px !important;
-    overflow-y: auto !important;
+    max-height: none !important; /* Remove height restriction - let it flow naturally */
+    overflow-x: hidden !important; /* Prevent horizontal scrolling */
     font-size: 0.85em !important;
     line-height: 1.4 !important;
+    word-wrap: break-word !important; /* Break long words */
+    word-break: break-word !important; /* Break long words */
+    white-space: pre-wrap !important; /* Preserve whitespace but allow wrapping */
 }
 
 .suggestion-diff div {
     padding: 2px 4px;
     margin: 1px 0;
     border-radius: 2px;
+    word-wrap: break-word !important; /* Break long words in individual lines */
+    word-break: break-word !important; /* Break long words in individual lines */
+    white-space: pre-wrap !important; /* Preserve whitespace but allow wrapping */
+    overflow-wrap: break-word !important; /* Modern CSS property for word breaking */
 }
 
 /* Green background for added lines */
-.suggestion-diff div[style*="background-color: #d4edda"] {
-    background-color: var(--color-green-rgb, 40, 167, 69) !important;
+.suggestion-diff div[data-diff-type="add"] {
     background: rgba(var(--color-green-rgb, 40, 167, 69), 0.1) !important;
     color: var(--color-green) !important;
     border-left: 3px solid var(--color-green);
@@ -1245,8 +1333,7 @@
 }
 
 /* Red background for removed lines */
-.suggestion-diff div[style*="background-color: #f8d7da"] {
-    background-color: var(--color-red-rgb, 220, 53, 69) !important;
+.suggestion-diff div[data-diff-type="remove"] {
     background: rgba(var(--color-red-rgb, 220, 53, 69), 0.1) !important;
     color: var(--color-red) !important;
     border-left: 3px solid var(--color-red);

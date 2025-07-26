@@ -19,75 +19,103 @@ export interface FileChangeSuggestion {
 }
 
 /**
- * Modal dialog to display multiple file change suggestions.
+ * Non-modal popup to display multiple file change suggestions.
  * Each suggestion can be accepted or rejected by the user.
+ * Uses a floating panel instead of a modal to avoid screen darkening.
  */
-class FileChangeSuggestionsModal extends Modal {
+class FileChangeSuggestionsPanel {
   suggestions: FileChangeSuggestion[];
+  containerEl: HTMLElement;
+  app: App;
 
   constructor(app: App, suggestions: FileChangeSuggestion[]) {
-    super(app);
+    this.app = app;
     this.suggestions = suggestions;
+    this.createContainer();
   }
 
   /**
-   * Called when the modal is opened.
-   * Sets up the modal UI and renders suggestions.
+   * Creates the floating container element and positions it.
    */
-  async onOpen() {
-    const { contentEl } = this;
-    contentEl.empty();
-    contentEl.addClass('ai-assistant-modal');
-    // Set modal size and style
-    contentEl.style.minWidth = '600px';
-    contentEl.style.maxWidth = '80vw';
-    contentEl.style.minHeight = '400px';
-    contentEl.style.maxHeight = '80vh';
-    contentEl.style.overflowY = 'auto';
-    contentEl.createEl('h2', { text: 'File Change Suggestions' });
+  createContainer() {
+    this.containerEl = document.body.createDiv('ai-file-diff-panel');
+    
+    // Let CSS handle all styling - remove inline styles that create the "outer box"
+    // Position the panel in the center-right of the screen
+    this.containerEl.style.position = 'fixed';
+    this.containerEl.style.top = '5%';
+    this.containerEl.style.right = '2%';
+    this.containerEl.style.zIndex = '1000';
+
+    // Add responsive behavior for smaller screens
+    const mediaQuery = window.matchMedia('(max-width: 768px)');
+    const updateResponsive = () => {
+      if (mediaQuery.matches) {
+        this.containerEl.style.top = '2%';
+        this.containerEl.style.right = '2.5%';
+        this.containerEl.style.left = '2.5%';
+      } else {
+        this.containerEl.style.top = '5%';
+        this.containerEl.style.right = '2%';
+        this.containerEl.style.left = 'auto';
+      }
+    };
+    
+    updateResponsive();
+    mediaQuery.addListener(updateResponsive);
+
+    // Add escape key listener to close panel
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        this.close();
+        document.removeEventListener('keydown', handleKeyDown);
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+  }
+
+  /**
+   * Opens the panel and renders suggestions.
+   */
+  async open() {
+    // Add header with close button
+    const header = this.containerEl.createDiv('ai-file-diff-header');
+    const title = header.createEl('h2', { text: 'File Change Suggestions' });
+    const closeButton = header.createEl('button', { text: '×' });
+    closeButton.onclick = () => this.close();
 
     this.renderSuggestions();
   }
 
   /**
-   * Renders all suggestions in the modal.
+   * Renders all suggestions in the panel.
    * Each suggestion shows the file path, diff, and accept/reject buttons.
    */
   renderSuggestions() {
-    const { contentEl } = this;
     // Remove previous suggestion containers
-    Array.from(contentEl.querySelectorAll('.suggestion-container, .no-suggestions')).forEach(el => el.remove());
+    Array.from(this.containerEl.querySelectorAll('.suggestion-content, .no-suggestions')).forEach((el: Element) => el.remove());
 
     if (!this.suggestions.length) {
-      contentEl.createEl('div', { text: 'No suggestions available.', cls: 'no-suggestions' });
+      this.containerEl.createEl('div', { text: 'No suggestions available.', cls: 'no-suggestions' });
       return;
     }
 
     this.suggestions.forEach((s, idx) => {
-      const container = contentEl.createDiv('suggestion-container');
-      container.createEl('h4', { text: s.file?.path || '(No file path)' });
+      // Create content directly in the main container without an extra wrapper
+      const contentEl = this.containerEl.createDiv('suggestion-content');
+      contentEl.createEl('h4', { text: s.file?.path || '(No file path)' });
 
-      // Render the diff/suggestion text with color coding
-      const diffEl = container.createEl('pre', { cls: 'suggestion-diff' });
-      diffEl.style.backgroundColor = '#f5f5f5';
-      diffEl.style.border = '1px solid #ddd';
-      diffEl.style.borderRadius = '4px';
-      diffEl.style.padding = '12px';
-      diffEl.style.maxHeight = '300px';
-      diffEl.style.overflowY = 'auto';
-      diffEl.style.fontSize = '12px';
-      diffEl.style.lineHeight = '1.4';
+      // Render the diff/suggestion text using CSS classes
+      const diffEl = contentEl.createEl('pre', { cls: 'suggestion-diff' });
 
       if (s.suggestionText) {
         const lines = s.suggestionText.split('\n');
         lines.forEach(line => {
           const lineEl = diffEl.createEl('div');
           if (line.startsWith('+')) {
-            lineEl.style.backgroundColor = '#d4edda';
-            lineEl.style.color = '#155724';
+            lineEl.setAttribute('data-diff-type', 'add');
           } else if (line.startsWith('-')) {
-            lineEl.style.backgroundColor = '#f8d7da';
-            lineEl.style.color = '#721c24';
+            lineEl.setAttribute('data-diff-type', 'remove');
           }
           lineEl.textContent = line;
         });
@@ -96,32 +124,16 @@ class FileChangeSuggestionsModal extends Modal {
       }
 
       // Accept/Reject buttons
-      const btnRow = container.createDiv('suggestion-btn-row');
+      const btnRow = contentEl.createDiv('suggestion-btn-row');
       const acceptBtn = btnRow.createEl('button', { text: 'Accept' });
       const rejectBtn = btnRow.createEl('button', { text: 'Reject' });
-
-      // Style buttons
-      acceptBtn.style.backgroundColor = '#28a745';
-      acceptBtn.style.color = 'white';
-      acceptBtn.style.border = 'none';
-      acceptBtn.style.padding = '8px 16px';
-      acceptBtn.style.marginRight = '8px';
-      acceptBtn.style.borderRadius = '4px';
-      acceptBtn.style.cursor = 'pointer';
-
-      rejectBtn.style.backgroundColor = '#dc3545';
-      rejectBtn.style.color = 'white';
-      rejectBtn.style.border = 'none';
-      rejectBtn.style.padding = '8px 16px';
-      rejectBtn.style.borderRadius = '4px';
-      rejectBtn.style.cursor = 'pointer';
 
       // Accept button handler
       acceptBtn.onclick = async () => {
         try {
           if (s.onAccept) await s.onAccept();
           new Notice('Suggestion accepted');
-        } catch (e) {
+        } catch (e: any) {
           new Notice('Failed to accept suggestion: ' + (e?.message || e));
         }
         // Remove suggestion and re-render
@@ -136,7 +148,7 @@ class FileChangeSuggestionsModal extends Modal {
         try {
           if (s.onReject) await s.onReject();
           new Notice('Suggestion rejected');
-        } catch (e) {
+        } catch (e: any) {
           new Notice('Failed to reject suggestion: ' + (e?.message || e));
         }
         // Remove suggestion and re-render
@@ -150,16 +162,17 @@ class FileChangeSuggestionsModal extends Modal {
   }
 
   /**
-   * Called when the modal is closed.
-   * Cleans up the modal content.
+   * Closes the panel and removes it from the DOM.
    */
-  onClose() {
-    this.contentEl.empty();
+  close() {
+    if (this.containerEl && this.containerEl.parentNode) {
+      this.containerEl.parentNode.removeChild(this.containerEl);
+    }
   }
 }
 
 /**
- * Displays file change suggestions in a modal dialog.
+ * Displays file change suggestions in a floating panel.
  * Each suggestion can be accepted or rejected by the user.
  * @param app The Obsidian App instance.
  * @param suggestions Array of FileChangeSuggestion objects, each containing file details and optional callbacks.
@@ -168,7 +181,8 @@ export function showFileChangeSuggestionsModal(
   app: App,
   suggestions: FileChangeSuggestion[]
 ) {
-  new FileChangeSuggestionsModal(app, suggestions).open();
+  const panel = new FileChangeSuggestionsPanel(app, suggestions);
+  panel.open();
 }
 
 /**

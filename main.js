@@ -1631,9 +1631,10 @@ var init_editorUtils = __esm({
 
 // src/components/agent/tools/FileDiffTool.ts
 function showFileChangeSuggestionsModal(app, suggestions) {
-  new FileChangeSuggestionsModal(app, suggestions).open();
+  const panel = new FileChangeSuggestionsPanel(app, suggestions);
+  panel.open();
 }
-var import_obsidian3, FileChangeSuggestionsModal, FileDiffTool;
+var import_obsidian3, FileChangeSuggestionsPanel, FileDiffTool;
 var init_FileDiffTool = __esm({
   "src/components/agent/tools/FileDiffTool.ts"() {
     import_obsidian3 = require("obsidian");
@@ -1642,84 +1643,88 @@ var init_FileDiffTool = __esm({
     init_logger();
     init_editorUtils();
     init_fileUtils();
-    FileChangeSuggestionsModal = class extends import_obsidian3.Modal {
+    FileChangeSuggestionsPanel = class {
       constructor(app, suggestions) {
-        super(app);
         __publicField(this, "suggestions");
+        __publicField(this, "containerEl");
+        __publicField(this, "app");
+        this.app = app;
         this.suggestions = suggestions;
+        this.createContainer();
       }
       /**
-       * Called when the modal is opened.
-       * Sets up the modal UI and renders suggestions.
+       * Creates the floating container element and positions it.
        */
-      async onOpen() {
-        const { contentEl } = this;
-        contentEl.empty();
-        contentEl.addClass("ai-assistant-modal");
-        contentEl.style.minWidth = "600px";
-        contentEl.style.maxWidth = "80vw";
-        contentEl.style.minHeight = "400px";
-        contentEl.style.maxHeight = "80vh";
-        contentEl.style.overflowY = "auto";
-        contentEl.createEl("h2", { text: "File Change Suggestions" });
+      createContainer() {
+        this.containerEl = document.body.createDiv("ai-file-diff-panel");
+        this.containerEl.style.position = "fixed";
+        this.containerEl.style.top = "5%";
+        this.containerEl.style.right = "2%";
+        this.containerEl.style.zIndex = "1000";
+        const mediaQuery = window.matchMedia("(max-width: 768px)");
+        const updateResponsive = () => {
+          if (mediaQuery.matches) {
+            this.containerEl.style.top = "2%";
+            this.containerEl.style.right = "2.5%";
+            this.containerEl.style.left = "2.5%";
+          } else {
+            this.containerEl.style.top = "5%";
+            this.containerEl.style.right = "2%";
+            this.containerEl.style.left = "auto";
+          }
+        };
+        updateResponsive();
+        mediaQuery.addListener(updateResponsive);
+        const handleKeyDown = (e) => {
+          if (e.key === "Escape") {
+            this.close();
+            document.removeEventListener("keydown", handleKeyDown);
+          }
+        };
+        document.addEventListener("keydown", handleKeyDown);
+      }
+      /**
+       * Opens the panel and renders suggestions.
+       */
+      async open() {
+        const header = this.containerEl.createDiv("ai-file-diff-header");
+        const title = header.createEl("h2", { text: "File Change Suggestions" });
+        const closeButton = header.createEl("button", { text: "\xD7" });
+        closeButton.onclick = () => this.close();
         this.renderSuggestions();
       }
       /**
-       * Renders all suggestions in the modal.
+       * Renders all suggestions in the panel.
        * Each suggestion shows the file path, diff, and accept/reject buttons.
        */
       renderSuggestions() {
-        const { contentEl } = this;
-        Array.from(contentEl.querySelectorAll(".suggestion-container, .no-suggestions")).forEach((el) => el.remove());
+        Array.from(this.containerEl.querySelectorAll(".suggestion-content, .no-suggestions")).forEach((el) => el.remove());
         if (!this.suggestions.length) {
-          contentEl.createEl("div", { text: "No suggestions available.", cls: "no-suggestions" });
+          this.containerEl.createEl("div", { text: "No suggestions available.", cls: "no-suggestions" });
           return;
         }
         this.suggestions.forEach((s, idx) => {
           var _a2;
-          const container = contentEl.createDiv("suggestion-container");
-          container.createEl("h4", { text: ((_a2 = s.file) == null ? void 0 : _a2.path) || "(No file path)" });
-          const diffEl = container.createEl("pre", { cls: "suggestion-diff" });
-          diffEl.style.backgroundColor = "#f5f5f5";
-          diffEl.style.border = "1px solid #ddd";
-          diffEl.style.borderRadius = "4px";
-          diffEl.style.padding = "12px";
-          diffEl.style.maxHeight = "300px";
-          diffEl.style.overflowY = "auto";
-          diffEl.style.fontSize = "12px";
-          diffEl.style.lineHeight = "1.4";
+          const contentEl = this.containerEl.createDiv("suggestion-content");
+          contentEl.createEl("h4", { text: ((_a2 = s.file) == null ? void 0 : _a2.path) || "(No file path)" });
+          const diffEl = contentEl.createEl("pre", { cls: "suggestion-diff" });
           if (s.suggestionText) {
             const lines = s.suggestionText.split("\n");
             lines.forEach((line) => {
               const lineEl = diffEl.createEl("div");
               if (line.startsWith("+")) {
-                lineEl.style.backgroundColor = "#d4edda";
-                lineEl.style.color = "#155724";
+                lineEl.setAttribute("data-diff-type", "add");
               } else if (line.startsWith("-")) {
-                lineEl.style.backgroundColor = "#f8d7da";
-                lineEl.style.color = "#721c24";
+                lineEl.setAttribute("data-diff-type", "remove");
               }
               lineEl.textContent = line;
             });
           } else {
             diffEl.textContent = "(No suggestion text)";
           }
-          const btnRow = container.createDiv("suggestion-btn-row");
+          const btnRow = contentEl.createDiv("suggestion-btn-row");
           const acceptBtn = btnRow.createEl("button", { text: "Accept" });
           const rejectBtn = btnRow.createEl("button", { text: "Reject" });
-          acceptBtn.style.backgroundColor = "#28a745";
-          acceptBtn.style.color = "white";
-          acceptBtn.style.border = "none";
-          acceptBtn.style.padding = "8px 16px";
-          acceptBtn.style.marginRight = "8px";
-          acceptBtn.style.borderRadius = "4px";
-          acceptBtn.style.cursor = "pointer";
-          rejectBtn.style.backgroundColor = "#dc3545";
-          rejectBtn.style.color = "white";
-          rejectBtn.style.border = "none";
-          rejectBtn.style.padding = "8px 16px";
-          rejectBtn.style.borderRadius = "4px";
-          rejectBtn.style.cursor = "pointer";
           acceptBtn.onclick = async () => {
             try {
               if (s.onAccept) await s.onAccept();
@@ -1749,11 +1754,12 @@ var init_FileDiffTool = __esm({
         });
       }
       /**
-       * Called when the modal is closed.
-       * Cleans up the modal content.
+       * Closes the panel and removes it from the DOM.
        */
-      onClose() {
-        this.contentEl.empty();
+      close() {
+        if (this.containerEl && this.containerEl.parentNode) {
+          this.containerEl.parentNode.removeChild(this.containerEl);
+        }
       }
     };
     FileDiffTool = class {
