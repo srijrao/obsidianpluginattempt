@@ -379,15 +379,21 @@ export class AIDispatcher {
 
     /**
      * Sanitizes message content for safety using enhanced validation.
+     * Only sanitizes user messages to preserve code/diff formatting in system and assistant messages.
      */
     private sanitizeMessages(messages: Message[]): void {
         for (const message of messages) {
+            // Only sanitize user messages to avoid breaking code/diff content in system/assistant messages
+            if (message.role !== 'user') {
+                continue;
+            }
+            
             try {
                 // Only apply comprehensive sanitization, no length limit
                 message.content = sanitizeInput(message.content);
-                debugLog(this.plugin.settings.debugMode ?? false, 'debug', '[AIDispatcher] Message content sanitized successfully');
+                debugLog(this.plugin.settings.debugMode ?? false, 'debug', '[AIDispatcher] User message content sanitized successfully');
             } catch (error) {
-                debugLog(this.plugin.settings.debugMode ?? false, 'warn', '[AIDispatcher] Message content sanitization failed:', error);
+                debugLog(this.plugin.settings.debugMode ?? false, 'warn', '[AIDispatcher] User message content sanitization failed:', error);
                 // Fallback to basic sanitization if enhanced validation fails
                 message.content = message.content.trim();
                 // Basic sanitization as fallback

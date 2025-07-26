@@ -148,22 +148,28 @@ export class SecurityManager implements ISecurityManager {
         let sanitized = output;
 
         try {
-            // HTML encode dangerous characters
-            sanitized = sanitized
-                .replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;')
-                .replace(/"/g, '&quot;')
-                .replace(/'/g, '&#x27;')
-                .replace(/\//g, '&#x2F;');
+            // Skip HTML escaping for tool outputs to preserve code/diff formatting
+            const isToolOutput = context.operation === 'sanitize_tool_output' || 
+                                context.source?.startsWith('tool_');
+            
+            if (!isToolOutput) {
+                // HTML encode dangerous characters only for non-tool outputs
+                sanitized = sanitized
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#x27;')
+                    .replace(/\//g, '&#x2F;');
+            }
 
-            // Remove or escape potentially dangerous URLs
+            // Always remove or escape potentially dangerous URLs (regardless of context)
             sanitized = sanitized.replace(
                 /(javascript|vbscript|data):[^"'\s>]*/gi,
                 '[UNSAFE_URL_REMOVED]'
             );
 
-            // Remove suspicious script-like content
+            // Always remove suspicious script-like content (regardless of context)
             sanitized = sanitized.replace(
                 /<script[^>]*>.*?<\/script>/gis,
                 '[SCRIPT_REMOVED]'
@@ -179,7 +185,8 @@ export class SecurityManager implements ISecurityManager {
                         operation: 'output_sanitization',
                         changesApplied: true,
                         originalLength: output.length,
-                        sanitizedLength: sanitized.length
+                        sanitizedLength: sanitized.length,
+                        skipHtmlEscaping: isToolOutput
                     },
                     severity: 'info'
                 });

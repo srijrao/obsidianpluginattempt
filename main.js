@@ -3307,31 +3307,6 @@ EFFICIENCY GUIDELINES:
 - Leverage auto-backup and .trash features for safety
 - Handle errors gracefully and inform users of alternatives
 
-TOOL SELECTION PRIORITY & WORKFLOWS:
-
-DISCOVERY & NAVIGATION:
-- vault_tree: Overall vault structure and organization
-- file_list: Directory contents (recursive for deep exploration)
-- file_search: Find files by name/content when location unknown
-
-CONTENT ACCESS:
-- file_read: Get current file content before modifications
-- get_user_feedback: When user input/decisions needed
-
-CONTENT MODIFICATION:
-- file_diff: Edit existing files (preferred - shows preview)
-- file_write: Create new files or complete rewrites
-- file_move: Organize, rename, or relocate files
-- file_delete: Remove files/folders (uses .trash for safety)
-
-COMMON WORKFLOWS:
-1. Content Edit: file_read \u2192 file_diff \u2192 (user approval)
-2. File Creation: file_write (with auto-backup)
-3. File Discovery: file_search \u2192 file_read \u2192 file_diff
-4. Organization: file_list \u2192 file_move/file_delete
-5. Structure Review: vault_tree \u2192 file_list (specific folders)
-6. User Interaction: get_user_feedback \u2192 (action based on response)
-
 Available tools:
 {{TOOL_DESCRIPTIONS}}
 
@@ -16649,15 +16624,19 @@ var init_aiDispatcher = __esm({
       }
       /**
        * Sanitizes message content for safety using enhanced validation.
+       * Only sanitizes user messages to preserve code/diff formatting in system and assistant messages.
        */
       sanitizeMessages(messages) {
         var _a2, _b;
         for (const message of messages) {
+          if (message.role !== "user") {
+            continue;
+          }
           try {
             message.content = sanitizeInput(message.content);
-            debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "debug", "[AIDispatcher] Message content sanitized successfully");
+            debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "debug", "[AIDispatcher] User message content sanitized successfully");
           } catch (error) {
-            debugLog((_b = this.plugin.settings.debugMode) != null ? _b : false, "warn", "[AIDispatcher] Message content sanitization failed:", error);
+            debugLog((_b = this.plugin.settings.debugMode) != null ? _b : false, "warn", "[AIDispatcher] User message content sanitization failed:", error);
             message.content = message.content.trim();
             message.content = message.content.replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
           }
