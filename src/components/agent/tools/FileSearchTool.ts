@@ -32,33 +32,33 @@ export class FileSearchTool implements Tool {
     // Name of the tool (used for referencing in the plugin system)
     name = 'file_search';
     // Description of what this tool does
-    description = 'Searches for files within the vault based on a query and specified file types, returning a limited number of results. This tool is useful for quickly locating relevant documents and assets.';
+    description = 'Find files by name/content. Supports regex, content search, and file type filtering. Use when file location is unknown.';
     // Parameters that can be passed to this tool
     parameters = {
         query: {
             type: 'string',
-            description: 'Search query for files.',
+            description: 'Search term (supports regex with useRegex=true)',
             required: false
         },
         filterType: {
             type: 'string',
             enum: ['markdown', 'image', 'all'],
-            description: 'Type of files to include.',
+            description: 'File type filter: "markdown", "image", or "all"',
             default: 'markdown'
         },
         maxResults: {
             type: 'number',
-            description: 'Maximum number of results.',
+            description: 'Maximum items to return (prevents overwhelming output)',
             default: 10
         },
         searchContent: {
             type: 'boolean',
-            description: 'Whether to search within file contents. Defaults to false.',
+            description: 'Search within file contents (markdown only)',
             required: false
         },
         useRegex: {
             type: 'boolean',
-            description: 'If true, treat the query as a regular expression.',
+            description: 'Treat query as regular expression',
             required: false
         }
     };

@@ -19,11 +19,11 @@ export interface FileListParams {
  */
 export class FileListTool implements Tool {
     name = 'file_list';
-    description = 'Retrieves a comprehensive list of files and folders within a specified directory, offering options for recursive traversal. This tool is crucial for understanding project structure and navigating the file system.';
+    description = 'List files/folders in directory. Use recursive=true for deep exploration, false for overview. Essential for navigation.';
     parameters = {
-        path: { type: 'string', description: 'Path to the folder.', required: false },
-        recursive: { type: 'boolean', description: 'List files recursively.', default: false },
-        maxResults: { type: 'number', description: 'Maximum number of results to return.', default: 100 }
+        path: { type: 'string', description: 'File/folder path relative to vault root', required: false },
+        recursive: { type: 'boolean', description: 'Include subdirectories (true) or current level only (false)', default: false },
+        maxResults: { type: 'number', description: 'Maximum items to return (prevents overwhelming output)', default: 100 }
     };
 
     private pathValidator: PathValidator;

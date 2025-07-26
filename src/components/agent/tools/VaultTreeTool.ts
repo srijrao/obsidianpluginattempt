@@ -19,7 +19,7 @@ export interface VaultTreeParams {
  */
 export class VaultTreeTool implements Tool {
     name = 'vault_tree';
-    description = 'Generates a hierarchical tree view of the vault structure, showing only folders and their organization in a visual tree format. Perfect for understanding the overall vault organization.';
+    description = 'Generate hierarchical folder tree view. Shows vault organization structure. Use for understanding overall layout.';
     parameters = {
         path: { type: 'string', description: 'Starting path for the tree (defaults to vault root)', required: false },
         maxDepth: { type: 'number', description: 'Maximum depth to traverse', default: 10 },

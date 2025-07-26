@@ -23,26 +23,26 @@ export interface FileDeleteParams {
  */
 export class FileDeleteTool implements Tool {
     name = 'file_delete';
-    description = 'Safely deletes files or folders from the vault by moving them to a .trash folder (default) or permanently deleting them. The trash option provides safer file management and allows restoration. For folders, creates backups of all contained files before deletion.';
+    description = 'Delete files/folders safely. Moves to .trash by default (recoverable). Creates backups before deletion. Requires confirmation.';
     parameters = {
         path: {
             type: 'string',
-            description: 'Path to the file or folder to delete.',
+            description: 'File/folder path relative to vault root',
             required: true
         },
         backup: {
             type: 'boolean',
-            description: 'Create backup before deletion.',
+            description: 'Create backup before changes (recommended: true)',
             default: true
         },
         confirmDeletion: {
             type: 'boolean',
-            description: 'Extra confirmation that deletion is intended.',
+            description: 'Required safety confirmation for deletions',
             default: true
         },
         useTrash: {
             type: 'boolean',
-            description: 'Move to .trash folder instead of permanent deletion (default: true for safety).',
+            description: 'Move to .trash instead of permanent deletion (safer)',
             default: true
         }
     };

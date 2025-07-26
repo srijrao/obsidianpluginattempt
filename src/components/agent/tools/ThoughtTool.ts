@@ -38,22 +38,22 @@ export interface ThoughtParams {
  */
 export class ThoughtTool implements Tool {
     name = 'thought';
-    description = 'Record AI reasoning and suggest next tool. When nextTool is "finished", include final response in thought parameter. When planning, check the file list tool for available files and folders.';
+    description = 'Plan your approach and summarize completion. Use at start (planning) and end (summary). Set nextTool to "finished" when task complete.';
 
     parameters = {
         thought: {
             type: 'string',
-            description: 'The reasoning step to record',
+            description: 'The reasoning step or summary to record',
             required: true
         },
         nextTool: {
             type: 'string',
-            description: 'Next tool name or "finished" if complete. ALWAYS use "finished" to indicate no further action is needed.',
+            description: 'Next tool name or "finished" when task complete',
             required: true
         },
         nextActionDescription: {
             type: 'string',
-            description: 'Brief description of next step',
+            description: 'Brief description of next step or completion status',
             required: true
         }
     };

@@ -263,7 +263,7 @@ export interface FileDiffParams {
  */
 export class FileDiffTool implements Tool {
     name = 'file_diff';
-    description = 'Manages file changes: presents suggestions for user review. This tool is essential for precise file manipulation and collaborative editing workflows.';
+    description = 'Show file change preview with diff visualization. Requires user approval before applying. Preferred for edits and corrections.';
     parameters = {
         path: {
             type: 'string',

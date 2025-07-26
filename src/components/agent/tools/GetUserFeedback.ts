@@ -32,7 +32,7 @@ export interface UserFeedbackResponse {
  */
 export class GetUserFeedbackTool implements Tool {
     name = 'get_user_feedback';
-    description = 'Asks the user a question and waits for their response. Supports both text input and multiple choice questions with interactive buttons. Use this when you need user input to proceed with a task.';
+    description = 'Ask user questions with text or multiple choice responses. Pauses execution until answered. Use when user input required.';
     parameters = {
         question: {
             type: 'string',

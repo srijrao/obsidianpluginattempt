@@ -53,33 +53,33 @@ var init_FileSearchTool = __esm({
         // Name of the tool (used for referencing in the plugin system)
         __publicField(this, "name", "file_search");
         // Description of what this tool does
-        __publicField(this, "description", "Searches for files within the vault based on a query and specified file types, returning a limited number of results. This tool is useful for quickly locating relevant documents and assets.");
+        __publicField(this, "description", "Find files by name/content. Supports regex, content search, and file type filtering. Use when file location is unknown.");
         // Parameters that can be passed to this tool
         __publicField(this, "parameters", {
           query: {
             type: "string",
-            description: "Search query for files.",
+            description: "Search term (supports regex with useRegex=true)",
             required: false
           },
           filterType: {
             type: "string",
             enum: ["markdown", "image", "all"],
-            description: "Type of files to include.",
+            description: 'File type filter: "markdown", "image", or "all"',
             default: "markdown"
           },
           maxResults: {
             type: "number",
-            description: "Maximum number of results.",
+            description: "Maximum items to return (prevents overwhelming output)",
             default: 10
           },
           searchContent: {
             type: "boolean",
-            description: "Whether to search within file contents. Defaults to false.",
+            description: "Search within file contents (markdown only)",
             required: false
           },
           useRegex: {
             type: "boolean",
-            description: "If true, treat the query as a regular expression.",
+            description: "Treat query as regular expression",
             required: false
           }
         });
@@ -500,16 +500,16 @@ var init_FileReadTool = __esm({
       constructor(app) {
         this.app = app;
         __publicField(this, "name", "file_read");
-        __publicField(this, "description", "Reads and retrieves the content of a specified file from the vault, with an option to limit the maximum file size. This tool is fundamental for accessing and processing file data.");
+        __publicField(this, "description", "Read file content from vault. Use before editing or when content analysis is needed. Supports size limits for large files.");
         __publicField(this, "parameters", {
           path: {
             type: "string",
-            description: "Path to the file.",
+            description: "File path relative to vault root",
             required: true
           },
           maxSize: {
             type: "number",
-            description: "Maximum file size in bytes.",
+            description: "Maximum file size in bytes for large file handling",
             default: 1024 * 1024
           }
         });
@@ -1147,31 +1147,31 @@ var init_FileWriteTool = __esm({
       constructor(app, backupManager) {
         this.app = app;
         __publicField(this, "name", "file_write");
-        __publicField(this, "description", "Writes or modifies the content of a file in the vault, with options for creating new files, backing up existing ones, and creating parent directories. This tool is essential for managing file content.");
+        __publicField(this, "description", "Create new files or completely rewrite existing ones. Auto-creates parent folders and backups. Use file_diff for edits.");
         __publicField(this, "parameters", {
           path: {
             type: "string",
-            description: "Path to the file.",
+            description: "File path relative to vault root",
             required: true
           },
           content: {
             type: "string",
-            description: "Content to write.",
+            description: "Complete file content to write",
             required: true
           },
           createIfNotExists: {
             type: "boolean",
-            description: "Create file if it doesn't exist.",
+            description: "Create file if missing (default: true)",
             default: true
           },
           backup: {
             type: "boolean",
-            description: "Create backup before modifying.",
+            description: "Create backup before changes (recommended: true)",
             default: true
           },
           createParentFolders: {
             type: "boolean",
-            description: "Create parent folders if they don't exist.",
+            description: "Create parent folders automatically if needed",
             default: true
             // Changed default to true
           }
@@ -1766,7 +1766,7 @@ var init_FileDiffTool = __esm({
       constructor(app) {
         this.app = app;
         __publicField(this, "name", "file_diff");
-        __publicField(this, "description", "Manages file changes: presents suggestions for user review. This tool is essential for precise file manipulation and collaborative editing workflows.");
+        __publicField(this, "description", "Show file change preview with diff visualization. Requires user approval before applying. Preferred for edits and corrections.");
         __publicField(this, "parameters", {
           path: {
             type: "string",
@@ -2022,7 +2022,7 @@ var init_FileMoveTool = __esm({
       constructor(app) {
         this.app = app;
         __publicField(this, "name", "file_move");
-        __publicField(this, "description", "Relocates or renames files within the vault, providing options to create necessary directories and handle existing files. This tool is vital for organizing and restructuring content.");
+        __publicField(this, "description", "Move or rename files/folders. Auto-creates destination folders. Use for organization and restructuring.");
         __publicField(this, "parameters", {
           sourcePath: {
             type: "string",
@@ -2174,21 +2174,21 @@ var init_ThoughtTool = __esm({
       constructor(app) {
         this.app = app;
         __publicField(this, "name", "thought");
-        __publicField(this, "description", 'Record AI reasoning and suggest next tool. When nextTool is "finished", include final response in thought parameter. When planning, check the file list tool for available files and folders.');
+        __publicField(this, "description", 'Plan your approach and summarize completion. Use at start (planning) and end (summary). Set nextTool to "finished" when task complete.');
         __publicField(this, "parameters", {
           thought: {
             type: "string",
-            description: "The reasoning step to record",
+            description: "The reasoning step or summary to record",
             required: true
           },
           nextTool: {
             type: "string",
-            description: 'Next tool name or "finished" if complete. ALWAYS use "finished" to indicate no further action is needed.',
+            description: 'Next tool name or "finished" when task complete',
             required: true
           },
           nextActionDescription: {
             type: "string",
-            description: "Brief description of next step",
+            description: "Brief description of next step or completion status",
             required: true
           }
         });
@@ -2286,11 +2286,11 @@ var init_FileListTool = __esm({
       constructor(app) {
         this.app = app;
         __publicField(this, "name", "file_list");
-        __publicField(this, "description", "Retrieves a comprehensive list of files and folders within a specified directory, offering options for recursive traversal. This tool is crucial for understanding project structure and navigating the file system.");
+        __publicField(this, "description", "List files/folders in directory. Use recursive=true for deep exploration, false for overview. Essential for navigation.");
         __publicField(this, "parameters", {
-          path: { type: "string", description: "Path to the folder.", required: false },
-          recursive: { type: "boolean", description: "List files recursively.", default: false },
-          maxResults: { type: "number", description: "Maximum number of results to return.", default: 100 }
+          path: { type: "string", description: "File/folder path relative to vault root", required: false },
+          recursive: { type: "boolean", description: "Include subdirectories (true) or current level only (false)", default: false },
+          maxResults: { type: "number", description: "Maximum items to return (prevents overwhelming output)", default: 100 }
         });
         __publicField(this, "pathValidator");
         this.pathValidator = new PathValidator(app);
@@ -2405,7 +2405,7 @@ var init_VaultTreeTool = __esm({
       constructor(app) {
         this.app = app;
         __publicField(this, "name", "vault_tree");
-        __publicField(this, "description", "Generates a hierarchical tree view of the vault structure, showing only folders and their organization in a visual tree format. Perfect for understanding the overall vault organization.");
+        __publicField(this, "description", "Generate hierarchical folder tree view. Shows vault organization structure. Use for understanding overall layout.");
         __publicField(this, "parameters", {
           path: { type: "string", description: "Starting path for the tree (defaults to vault root)", required: false },
           maxDepth: { type: "number", description: "Maximum depth to traverse", default: 10 },
@@ -2589,26 +2589,26 @@ var init_FileDeleteTool = __esm({
       constructor(app, backupManager) {
         this.app = app;
         __publicField(this, "name", "file_delete");
-        __publicField(this, "description", "Safely deletes files or folders from the vault by moving them to a .trash folder (default) or permanently deleting them. The trash option provides safer file management and allows restoration. For folders, creates backups of all contained files before deletion.");
+        __publicField(this, "description", "Delete files/folders safely. Moves to .trash by default (recoverable). Creates backups before deletion. Requires confirmation.");
         __publicField(this, "parameters", {
           path: {
             type: "string",
-            description: "Path to the file or folder to delete.",
+            description: "File/folder path relative to vault root",
             required: true
           },
           backup: {
             type: "boolean",
-            description: "Create backup before deletion.",
+            description: "Create backup before changes (recommended: true)",
             default: true
           },
           confirmDeletion: {
             type: "boolean",
-            description: "Extra confirmation that deletion is intended.",
+            description: "Required safety confirmation for deletions",
             default: true
           },
           useTrash: {
             type: "boolean",
-            description: "Move to .trash folder instead of permanent deletion (default: true for safety).",
+            description: "Move to .trash instead of permanent deletion (safer)",
             default: true
           }
         });
@@ -2963,7 +2963,7 @@ var init_GetUserFeedback = __esm({
       constructor(app) {
         this.app = app;
         __publicField(this, "name", "get_user_feedback");
-        __publicField(this, "description", "Asks the user a question and waits for their response. Supports both text input and multiple choice questions with interactive buttons. Use this when you need user input to proceed with a task.");
+        __publicField(this, "description", "Ask user questions with text or multiple choice responses. Pauses execution until answered. Use when user input required.");
         __publicField(this, "parameters", {
           question: {
             type: "string",
@@ -3291,27 +3291,52 @@ var init_promptConstants = __esm({
       }));
     };
     AGENT_SYSTEM_PROMPT_TEMPLATE = `
-- You are an AI assistant in an Obsidian Vault with access to powerful tools for vault management.
-- ALWAYS start by using the 'thought' tool to outline your plan before executing actions, and at the end of the task for a summary of completion.
-- ALWAYS use relative paths from the vault root.
-- You MAY call multiple tools in a single response if it is efficient to do so. Respond ONLY with several consecutive JSON objects (not an array) if you need to use more than one tool at once, or a single object if only one tool is needed.
+You are an AI assistant in an Obsidian Vault with powerful tools for vault management.
+
+WORKFLOW:
+1. Use 'thought' tool first to plan your approach
+2. Execute tools efficiently (multiple tools per response when logical)
+3. Use 'thought' tool at completion to summarize results
+4. Always use relative paths from vault root
+
+EFFICIENCY GUIDELINES:
+- Batch related operations (search \u2192 read \u2192 diff \u2192 move)
+- Prefer file_diff over file_write for edits (shows preview)
+- Use file_search before file_read when location unknown
+- Use vault_tree for structure, file_list for specific directories
+- Leverage auto-backup and .trash features for safety
+- Handle errors gracefully and inform users of alternatives
+
+TOOL SELECTION PRIORITY & WORKFLOWS:
+
+DISCOVERY & NAVIGATION:
+- vault_tree: Overall vault structure and organization
+- file_list: Directory contents (recursive for deep exploration)
+- file_search: Find files by name/content when location unknown
+
+CONTENT ACCESS:
+- file_read: Get current file content before modifications
+- get_user_feedback: When user input/decisions needed
+
+CONTENT MODIFICATION:
+- file_diff: Edit existing files (preferred - shows preview)
+- file_write: Create new files or complete rewrites
+- file_move: Organize, rename, or relocate files
+- file_delete: Remove files/folders (uses .trash for safety)
+
+COMMON WORKFLOWS:
+1. Content Edit: file_read \u2192 file_diff \u2192 (user approval)
+2. File Creation: file_write (with auto-backup)
+3. File Discovery: file_search \u2192 file_read \u2192 file_diff
+4. Organization: file_list \u2192 file_move/file_delete
+5. Structure Review: vault_tree \u2192 file_list (specific folders)
+6. User Interaction: get_user_feedback \u2192 (action based on response)
 
 Available tools:
 {{TOOL_DESCRIPTIONS}}
 
-When using tools, respond ONLY with JSON objects using this parameter framework:
-
-Multiple tool calls (no commas between objects):
-{
-  "action": "tool1",
-  "parameters": { /* ... */ },
-  "requestId": "..."
-}
-{
-  "action": "tool2",
-  "parameters": { /* ... */ },
-  "requestId": "..."
-}
+Respond with consecutive JSON objects (no array wrapper):
+{"action": "tool_name", "parameters": {...}, "requestId": "unique_id"}
 `;
     AGENT_SYSTEM_PROMPT = buildAgentSystemPrompt();
     DEFAULT_YAML_SYSTEM_MESSAGE = "You are an assistant that generates YAML attribute values for Obsidian notes. Read the note and generate a value for the specified YAML field. Only output the value, not the key or extra text.";

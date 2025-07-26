@@ -19,16 +19,16 @@ export interface FileReadParams {
  */
 export class FileReadTool implements Tool {
     name = 'file_read';
-    description = 'Reads and retrieves the content of a specified file from the vault, with an option to limit the maximum file size. This tool is fundamental for accessing and processing file data.';
+    description = 'Read file content from vault. Use before editing or when content analysis is needed. Supports size limits for large files.';
     parameters = {
         path: {
             type: 'string',
-            description: 'Path to the file.',
+            description: 'File path relative to vault root',
             required: true
         },
         maxSize: {
             type: 'number',
-            description: 'Maximum file size in bytes.',
+            description: 'Maximum file size in bytes for large file handling',
             default: 1024 * 1024
         }
     };
