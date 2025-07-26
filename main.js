@@ -26550,42 +26550,74 @@ var SemanticSearchModal = class extends import_obsidian36.Modal {
     super(app);
     this.results = results;
     this.totalEmbeddings = totalEmbeddings;
+    this.modalEl.addClass("mod-semantic-search");
   }
   onOpen() {
     const { contentEl } = this;
-    const headerContainer = contentEl.createDiv({ cls: "semantic-search-header" });
-    headerContainer.createEl("h3", { text: "Semantic Search Results" });
+    contentEl.empty();
+    contentEl.style.cssText = "";
+    contentEl.addClass("semantic-search-container");
+    const headerEl = contentEl.createDiv({ cls: "semantic-search-header" });
+    const titleEl = headerEl.createEl("h4", {
+      text: "Semantic Search Results",
+      cls: "semantic-search-title"
+    });
+    titleEl.style.cssText = "margin: 0 !important; font-size: 1.1em !important; color: var(--text-normal) !important; font-weight: 600 !important; font-family: var(--font-interface) !important;";
+    let countText;
     if (this.totalEmbeddings !== void 0) {
-      const statsEl = headerContainer.createDiv({ cls: "search-stats" });
-      statsEl.style.fontSize = "0.9em";
-      statsEl.style.color = "var(--text-muted)";
-      statsEl.style.marginBottom = "10px";
-      statsEl.setText(`Found ${this.results.length} results from ${this.totalEmbeddings} total embeddings`);
+      countText = `${this.results.length} of ${this.totalEmbeddings} embeddings`;
+    } else {
+      countText = `${this.results.length} results`;
     }
+    const countEl = headerEl.createEl("span", {
+      text: countText,
+      cls: "semantic-search-count"
+    });
+    countEl.style.cssText = "font-size: 0.9em !important; color: var(--text-muted) !important; font-weight: 500 !important; font-family: var(--font-interface) !important;";
     if (this.results.length === 0) {
-      contentEl.createEl("p", { text: "No results found." });
+      const noResultsEl = contentEl.createEl("div", {
+        text: "No embeddings found.",
+        cls: "semantic-search-no-results"
+      });
+      noResultsEl.style.cssText = "padding: var(--spacing-lg) !important; text-align: center !important; color: var(--text-muted) !important; font-style: italic !important; border: 1px solid var(--background-modifier-border) !important; border-radius: var(--border-radius) !important; background: var(--background-secondary) !important; font-family: var(--font-interface) !important;";
       return;
     }
+    const resultsContainer = contentEl.createDiv({ cls: "semantic-search-results" });
+    resultsContainer.style.cssText = "display: flex !important; flex-direction: column !important; gap: var(--spacing-lg) !important; font-family: var(--font-interface) !important;";
     this.results.forEach((result, index) => {
-      const resultEl = contentEl.createDiv({ cls: "semantic-search-result" });
-      resultEl.style.marginBottom = "15px";
-      resultEl.style.padding = "10px";
-      resultEl.style.border = "1px solid var(--background-modifier-border)";
-      resultEl.style.borderRadius = "5px";
-      const headerEl = resultEl.createDiv({ cls: "result-header" });
-      headerEl.style.marginBottom = "5px";
-      headerEl.style.fontWeight = "bold";
-      headerEl.setText(`${index + 1}. Similarity: ${result.similarity.toFixed(3)}`);
+      const resultEl = resultsContainer.createDiv({ cls: "semantic-search-result" });
+      resultEl.style.cssText = "padding: var(--spacing-lg) !important; border: 1px solid var(--background-modifier-border) !important; border-radius: var(--border-radius) !important; background: var(--background-secondary) !important; transition: all 0.2s ease !important; font-family: var(--font-interface) !important;";
+      const resultHeader = resultEl.createDiv({ cls: "semantic-search-result-header" });
+      resultHeader.style.cssText = "display: flex !important; justify-content: space-between !important; align-items: center !important; margin-bottom: var(--spacing-md) !important; gap: var(--spacing-md) !important; font-family: var(--font-interface) !important;";
+      const rankEl = resultHeader.createEl("span", {
+        cls: "semantic-search-rank",
+        text: `#${index + 1}`
+      });
+      rankEl.style.cssText = "font-weight: bold !important; color: var(--text-accent) !important; min-width: 30px !important; font-size: 0.9em !important; font-family: var(--font-interface) !important;";
+      const scoreEl = resultHeader.createEl("span", {
+        cls: "semantic-search-score",
+        text: `${(result.similarity * 100).toFixed(1)}%`
+      });
+      scoreEl.style.cssText = "background: var(--interactive-accent) !important; color: var(--text-on-accent) !important; padding: var(--spacing-xs) var(--spacing-md) !important; border-radius: 12px !important; font-size: 0.8em !important; font-weight: 600 !important; font-family: var(--font-interface) !important;";
       if (result.filePath) {
-        const pathEl = resultEl.createDiv({ cls: "result-path" });
-        pathEl.style.fontSize = "0.9em";
-        pathEl.style.color = "var(--text-muted)";
-        pathEl.setText(`File: ${result.filePath}`);
+        const linkEl = resultHeader.createEl("a", {
+          cls: "semantic-search-file-link",
+          text: result.filePath,
+          href: result.filePath
+        });
+        linkEl.style.cssText = "color: var(--link-color) !important; text-decoration: none !important; font-size: 0.9em !important; font-weight: 500 !important; font-family: var(--font-interface) !important; flex-grow: 1 !important; overflow: hidden !important; text-overflow: ellipsis !important; white-space: nowrap !important;";
+        linkEl.addEventListener("click", (e) => {
+          e.preventDefault();
+          this.close();
+          this.app.workspace.openLinkText(result.filePath, "", false);
+        });
       }
-      const resultContentEl = resultEl.createDiv({ cls: "result-content" });
-      resultContentEl.style.marginTop = "10px";
-      resultContentEl.style.whiteSpace = "pre-wrap";
-      resultContentEl.setText(result.text);
+      const contentEl2 = resultEl.createDiv({
+        cls: "semantic-search-content"
+      });
+      contentEl2.style.cssText = "line-height: 1.6 !important; color: var(--text-normal) !important; font-size: 0.9em !important; font-family: var(--font-interface) !important;";
+      const truncatedText = result.text.length > 200 ? result.text.substring(0, 200) + "..." : result.text;
+      contentEl2.textContent = truncatedText;
     });
   }
   onClose() {
