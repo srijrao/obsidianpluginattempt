@@ -4,11 +4,11 @@ import * as fs from "fs";
 import * as path from "path";
 
 /**
- * Saves an AI call (request and response) as a Markdown file in the specified folder within the Obsidian vault.
+ * Saves an AI call (request and response) as a TXT file in the specified folder within the Obsidian vault.
  *
  * The file is named using the current timestamp to ensure uniqueness. If a file with the same name already exists,
  * a random number is appended to the filename. The request and response are serialized as formatted JSON and stored
- * in separate sections within the Markdown file.
+ * in separate sections within the TXT file.
  *
  * The function ensures that the target folder exists, creating it if necessary.
  * 
@@ -41,7 +41,7 @@ export async function saveAICallToFolder(
     debugLog(debugMode, 'info', '[saveAICalls.ts] targetFolder:', targetFolder);
 
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-    let fileName = `ai-call-${timestamp}.md`;
+    let fileName = `ai-call-${timestamp}.txt`;
     let finalFilePath = path.join(targetFolder, fileName);
     debugLog(debugMode, 'info', '[saveAICalls.ts] finalFilePath:', finalFilePath);
     const fileContent = `# AI Call\n\n## Request\n\`\`\`json\n${JSON.stringify(request, null, 2)}\n\`\`\`\n\n## Response\n\`\`\`json\n${JSON.stringify(response, null, 2)}\n\`\`\``;
@@ -63,7 +63,7 @@ export async function saveAICallToFolder(
     let attempts = 0;
     while (fs.existsSync(finalFilePath)) {
         attempts++;
-        fileName = `ai-call-${timestamp}-${Math.floor(Math.random() * 10000)}.md`;
+        fileName = `ai-call-${timestamp}-${Math.floor(Math.random() * 10000)}.txt`;
         finalFilePath = path.join(targetFolder, fileName);
         debugLog(debugMode, 'warn', `[saveAICalls.ts] File already exists, trying new filename (attempt ${attempts}):`, finalFilePath);
         if (attempts > 5) {

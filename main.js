@@ -11796,7 +11796,7 @@ async function saveAICallToFolder(request, response, plugin, folder = "ai-calls"
   const targetFolder = path.join(pluginFolder, folder);
   debugLog(debugMode, "info", "[saveAICalls.ts] targetFolder:", targetFolder);
   const timestamp2 = (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-");
-  let fileName = `ai-call-${timestamp2}.md`;
+  let fileName = `ai-call-${timestamp2}.txt`;
   let finalFilePath = path.join(targetFolder, fileName);
   debugLog(debugMode, "info", "[saveAICalls.ts] finalFilePath:", finalFilePath);
   const fileContent = `# AI Call
@@ -11824,7 +11824,7 @@ ${JSON.stringify(response, null, 2)}
   let attempts = 0;
   while (fs.existsSync(finalFilePath)) {
     attempts++;
-    fileName = `ai-call-${timestamp2}-${Math.floor(Math.random() * 1e4)}.md`;
+    fileName = `ai-call-${timestamp2}-${Math.floor(Math.random() * 1e4)}.txt`;
     finalFilePath = path.join(targetFolder, fileName);
     debugLog(debugMode, "warn", `[saveAICalls.ts] File already exists, trying new filename (attempt ${attempts}):`, finalFilePath);
     if (attempts > 5) {
