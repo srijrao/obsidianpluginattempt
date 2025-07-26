@@ -12,7 +12,6 @@ import { AgentSettingsSection } from './sections/AgentSettingsSection';
 import { ContentNoteHandlingSection } from './sections/ContentNoteHandlingSection';
 import { BackupManagementSection } from './sections/BackupManagementSection';
 import { ChatHistorySettingsSection } from './sections/ChatHistorySettingsSection';
-import { VectorStoreSettingsSection } from './sections/VectorStoreSettingsSection';
 import { DEFAULT_TITLE_PROMPT } from '../promptConstants'; // Import DEFAULT_TITLE_PROMPT
 
 
@@ -43,8 +42,6 @@ export class MyPluginSettingTab extends PluginSettingTab {
     private backupManagementSection: BackupManagementSection;
     /** Chat history and UI section. */
     private chatHistorySettingsSection: ChatHistorySettingsSection;
-    /** Vector store and semantic memory section. */
-    private vectorStoreSettingsSection: VectorStoreSettingsSection;
 
     /** Listener for settings changes, used to refresh the UI when settings are updated elsewhere. */
     private settingsChangeListener: (() => void) | null = null;
@@ -74,7 +71,6 @@ export class MyPluginSettingTab extends PluginSettingTab {
         this.contentNoteHandlingSection = new ContentNoteHandlingSection(this.plugin, this.settingCreators);
         this.backupManagementSection = new BackupManagementSection(this.plugin, this.settingCreators);
         this.chatHistorySettingsSection = new ChatHistorySettingsSection(this.plugin, this.settingCreators);
-        this.vectorStoreSettingsSection = new VectorStoreSettingsSection(this.plugin, this.settingCreators);
 
         // Listener to refresh the settings UI when settings are changed elsewhere
         this.settingsChangeListener = () => {
@@ -164,13 +160,6 @@ export class MyPluginSettingTab extends PluginSettingTab {
             'backupManagementExpanded'
         );
 
-        CollapsibleSectionRenderer.createCollapsibleSection(
-            containerEl,
-            'Vector Store & Semantic Memory',
-            (sectionEl: HTMLElement) => this.vectorStoreSettingsSection.render(sectionEl),
-            this.plugin,
-            'vectorStoreExpanded'
-        );
 
         // Add a button to reset all settings to their default values (except API keys)
         new Setting(containerEl)

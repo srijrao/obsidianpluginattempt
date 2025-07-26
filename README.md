@@ -11,7 +11,6 @@ A feature-rich AI assistant plugin for Obsidian, designed to supercharge your no
   - [Command Palette Commands](#command-palette-commands)
   - [Chat Interface](#chat-interface)
   - [Agent Mode & Tools](#agent-mode--tools)
-  - [Vector Store & Semantic Search](#vector-store--semantic-search)
   - [YAML Attribute Generation](#yaml-attribute-generation)
 - [Configuration](#configuration)
   - [Provider Setup](#provider-setup)
@@ -28,7 +27,6 @@ A feature-rich AI assistant plugin for Obsidian, designed to supercharge your no
 - **Modern Chat Interface:** Chat with AI in a dedicated sidebar or panel, with real-time streaming responses and markdown rendering.
 - **Context-Aware Commands:** Run AI actions on selected text, entire notes, or across your vault. Summarize, rewrite, or generate content contextually.
 - **Agent Mode & Tool Use:** Enable "Agent Mode" to let the AI use built-in tools for automation and reasoning. 10 powerful tools including file operations, search, and planning.
-- **Vector Store & Semantic Search:** 12 commands for embedding notes and performing semantic searches across your vault.
 - **Custom Prompts & Templates:** Create, edit, and manage your own prompt templates for any workflow.
 - **Session & History Management:** Save, load, and revisit chat sessions. View and manage chat history directly in the plugin.
 - **Model Settings & Testing:** Fine-tune model parameters (temperature, max tokens, etc.), test API connections, and refresh available models from the settings UI.
@@ -51,7 +49,6 @@ A feature-rich AI assistant plugin for Obsidian, designed to supercharge your no
 2. **Open Chat:** Use `Ctrl+P` → "Show AI Chat" to open the chat interface.
 3. **Test Basic Functionality:** Try "Get AI Completion" on selected text in any note.
 4. **Enable Agent Mode:** In settings, enable Agent Mode to unlock advanced automation capabilities.
-5. **Try Semantic Search:** Use "Embed All Notes" then "Semantic Search" to find related content.
 
 ## Complete Function Reference
 
@@ -173,36 +170,6 @@ When Agent Mode is enabled, the AI can use powerful tools to interact with your 
 - **Max Iterations:** Control how many reasoning loops the agent can perform
 - **Tool Selection:** Enable/disable specific tools based on your needs
 
-### Vector Store & Semantic Search
-
-The plugin includes a powerful semantic search system using vector embeddings:
-
-#### Embedding Commands
-- **Embed Currently Open Note** - Create embedding for the active note
-- **Embed All Notes** - Process all notes in your vault for semantic search
-- **Cancel Embedding Process** - Stop ongoing embedding operations
-- **Show Notes Missing Embeddings** - Identify notes that haven't been embedded yet
-
-#### Search Commands
-- **Semantic Search** - Search for semantically similar content using natural language
-- **Semantic Search with Selection** - Use selected text as search query for similar content
-
-#### Management Commands
-- **Vector Store Statistics** - View embedding counts and coverage statistics
-- **Detailed Vector Store Information** - Comprehensive statistics and recommendations
-- **Clear All Embeddings** - Remove all stored embeddings to start fresh
-
-#### Hybrid Vector Management
-- **Hybrid Vector: Force Backup** - Manually backup vector database
-- **Hybrid Vector: Force Restore** - Restore vector database from backup
-- **Hybrid Vector: Status & Statistics** - View hybrid vector system status
-
-#### Configuration Options
-- **Enable Semantic Context:** Toggle semantic search integration
-- **Max Semantic Context Chunks:** Control how many similar chunks to include
-- **Similarity Threshold:** Set minimum similarity score for results
-- **Folder Filtering:** Include/exclude specific folders from embedding
-
 ### YAML Attribute Generation
 
 Generate and manage YAML frontmatter attributes using AI:
@@ -295,12 +262,6 @@ Configure custom YAML attribute generators in settings:
 - **Max Iterations:** Control reasoning loop depth
 - **Custom Agent System Message:** Override default agent instructions
 
-#### Vector Store Settings
-- **Enable Semantic Context:** Use vector embeddings for context
-- **Max Semantic Context Chunks:** Number of similar chunks to include
-- **Similarity Threshold:** Minimum similarity score for inclusion
-- **Embedding Folder Filter:** Include/exclude specific folders
-
 #### UI Behavior Settings
 - **Collapse Old Reasoning:** Auto-collapse reasoning in older messages
 - **Show Completion Notifications:** Display notifications when tasks complete
@@ -329,12 +290,6 @@ Configure custom YAML attribute generators in settings:
    - Uses `file_read` to examine content
    - Uses `thought` to plan the summary
    - Provides a comprehensive response
-
-### Semantic Search Workflow
-1. Run "AI Assistant: Embed All Notes" (one-time setup)
-2. Use "AI Assistant: Semantic Search"
-3. Enter a natural language query like "productivity tips"
-4. Review semantically similar content from across your vault
 
 ### YAML Generation
 1. Open a note you want to enhance
@@ -369,12 +324,6 @@ Configure custom YAML attribute generators in settings:
   - Ensure Agent Mode is enabled in settings
   - Check that specific tools aren't disabled
   - Verify file permissions for file operations
-
-#### Vector Store Issues
-- **Semantic search not working**
-  - Run "Embed All Notes" first
-  - Check Vector Store Statistics for embedding count
-  - Verify OpenAI API key (required for embeddings)
 
 #### Performance Issues
 - **Slow responses**

@@ -443,9 +443,6 @@ export class InitializationManager implements IInitializationManager {
             (this.plugin as any).processToolExecutionCodeBlock(source, el, ctx);
         });
 
-        // Register semantic search codeblock
-        const { registerSemanticSearchCodeblock } = await import('../../components/codeblocks/SemanticSearchCodeblock');
-        registerSemanticSearchCodeblock(this.plugin);
     }
 
     /**

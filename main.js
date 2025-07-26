@@ -3430,8 +3430,6 @@ var init_settings = __esm({
       /** @inheritdoc */
       backupManagementExpanded: {},
       /** @inheritdoc */
-      vectorStoreExpanded: {},
-      /** @inheritdoc */
       modelSettingPresets: [
         {
           name: "Default",
@@ -3461,17 +3459,6 @@ var init_settings = __esm({
         maxToolCalls: 10,
         timeoutMs: 3e4,
         maxIterations: 10
-      },
-      /** @inheritdoc */
-      enableSemanticContext: false,
-      /** @inheritdoc */
-      maxSemanticContextChunks: 3,
-      /** @inheritdoc */
-      semanticSearchResultCount: 10,
-      /** @inheritdoc */
-      embeddingFolderFilter: {
-        mode: "off",
-        rules: []
       }
     };
   }
@@ -15106,88 +15093,6 @@ var init_eventHandlers = __esm({
   }
 });
 
-// src/utils/generalUtils.ts
-function showNotice(message) {
-  new import_obsidian19.Notice(message);
-}
-async function copyToClipboard3(text, successMsg = "Copied to clipboard", failMsg = "Failed to copy to clipboard") {
-  try {
-    await navigator.clipboard.writeText(text);
-    showNotice(successMsg);
-  } catch (error) {
-    showNotice(failMsg);
-    debugLog(true, "error", "Clipboard error:", error);
-  }
-}
-function moveCursorAfterInsert(editor, startPos, insertText) {
-  const lines = insertText.split("\n");
-  if (lines.length === 1) {
-    editor.setCursor({
-      line: startPos.line,
-      ch: startPos.ch + insertText.length
-    });
-  } else {
-    editor.setCursor({
-      line: startPos.line + lines.length - 1,
-      ch: lines[lines.length - 1].length
-    });
-  }
-}
-function insertSeparator(editor, position, separator) {
-  var _a2;
-  const lineContent = (_a2 = editor.getLine(position.line)) != null ? _a2 : "";
-  const prefix = lineContent.trim() !== "" ? "\n" : "";
-  editor.replaceRange(`${prefix}
-${separator}
-`, position);
-  return position.line + (prefix ? 1 : 0) + 2;
-}
-function findFile(app, filePath) {
-  let file = app.vault.getAbstractFileByPath(filePath) || app.vault.getAbstractFileByPath(`${filePath}.md`);
-  if (!file) {
-    const allFiles = app.vault.getFiles();
-    file = allFiles.find(
-      (f) => f.name === filePath || f.name === `${filePath}.md` || f.basename.toLowerCase() === filePath.toLowerCase() || f.path === filePath || f.path === `${filePath}.md`
-    ) || null;
-  }
-  return file;
-}
-function extractContentUnderHeader(content, headerText) {
-  const lines = content.split("\n");
-  let foundHeader = false;
-  let extractedContent = [];
-  let headerLevel = 0;
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    const headerMatch = line.match(/^(#+)\s+(.*?)$/);
-    if (headerMatch) {
-      const currentHeaderLevel = headerMatch[1].length;
-      const currentHeaderText = headerMatch[2].trim();
-      if (foundHeader) {
-        if (currentHeaderLevel <= headerLevel) {
-          break;
-        }
-      } else if (currentHeaderText.toLowerCase() === headerText.toLowerCase()) {
-        foundHeader = true;
-        headerLevel = currentHeaderLevel;
-        extractedContent.push(line);
-        continue;
-      }
-    }
-    if (foundHeader) {
-      extractedContent.push(line);
-    }
-  }
-  return extractedContent.join("\n");
-}
-var import_obsidian19;
-var init_generalUtils = __esm({
-  "src/utils/generalUtils.ts"() {
-    import_obsidian19 = require("obsidian");
-    init_logger();
-  }
-});
-
 // src/components/chat/BotMessage.ts
 var BotMessage_exports = {};
 __export(BotMessage_exports, {
@@ -15415,1648 +15320,6 @@ var init_clearAICallLogs = __esm({
   }
 });
 
-// src/components/agent/memory-handling/vectorStore.ts
-var vectorStore_exports = {};
-__export(vectorStore_exports, {
-  VectorStore: () => VectorStore
-});
-var VectorStore;
-var init_vectorStore = __esm({
-  "src/components/agent/memory-handling/vectorStore.ts"() {
-    VectorStore = class _VectorStore {
-      /**
-       * Constructs a new VectorStore instance.
-       * @param plugin - The Obsidian plugin instance (used for naming the database).
-       */
-      constructor(plugin) {
-        __publicField(this, "db", null);
-        __publicField(this, "dbName");
-        __publicField(this, "isInitialized", false);
-        this.dbName = "ai-assistant-vectorstore";
-      }
-      /**
-       * Gets all vector IDs from the store (memory efficient).
-       * @returns Array of all vector IDs.
-       */
-      async getAllVectorIds() {
-        this.ensureInitialized();
-        return new Promise((resolve, reject) => {
-          const transaction = this.db.transaction(["vectors"], "readonly");
-          const store = transaction.objectStore("vectors");
-          const request = store.openCursor();
-          const ids = [];
-          request.onsuccess = (event) => {
-            const cursor = event.target.result;
-            if (cursor) {
-              ids.push(cursor.key);
-              cursor.continue();
-            } else {
-              resolve(ids);
-            }
-          };
-          request.onerror = () => {
-            var _a2;
-            return reject(new Error(`Failed to get all vector IDs: ${(_a2 = request.error) == null ? void 0 : _a2.message}`));
-          };
-        });
-      }
-      /**
-       * Gets the latest timestamp from all vectors (memory efficient).
-       * @returns The latest timestamp.
-       */
-      async getLatestTimestamp() {
-        this.ensureInitialized();
-        return new Promise((resolve, reject) => {
-          const transaction = this.db.transaction(["vectors"], "readonly");
-          const store = transaction.objectStore("vectors");
-          const request = store.openCursor();
-          let maxTimestamp = 0;
-          request.onsuccess = (event) => {
-            const cursor = event.target.result;
-            if (cursor) {
-              const vector = cursor.value;
-              if (vector.timestamp && vector.timestamp > maxTimestamp) {
-                maxTimestamp = vector.timestamp;
-              }
-              cursor.continue();
-            } else {
-              resolve(maxTimestamp);
-            }
-          };
-          request.onerror = () => {
-            var _a2;
-            return reject(new Error(`Failed to get latest timestamp: ${(_a2 = request.error) == null ? void 0 : _a2.message}`));
-          };
-        });
-      }
-      /**
-       * Gets a batch of vectors from the store.
-       * @param offset - The starting index.
-       * @param batchSize - The number of vectors to retrieve.
-       * @returns Array of vectors in the batch.
-       */
-      async getVectorsBatch(offset, batchSize) {
-        this.ensureInitialized();
-        return new Promise((resolve, reject) => {
-          const transaction = this.db.transaction(["vectors"], "readonly");
-          const store = transaction.objectStore("vectors");
-          const request = store.openCursor();
-          const batch = [];
-          let skipped = 0;
-          request.onsuccess = (event) => {
-            const cursor = event.target.result;
-            if (cursor) {
-              if (skipped < offset) {
-                skipped++;
-                cursor.continue();
-              } else if (batch.length < batchSize) {
-                batch.push(cursor.value);
-                cursor.continue();
-              } else {
-                resolve(batch);
-              }
-            } else {
-              resolve(batch);
-            }
-          };
-          request.onerror = () => {
-            var _a2;
-            return reject(new Error(`Failed to get vectors batch: ${(_a2 = request.error) == null ? void 0 : _a2.message}`));
-          };
-        });
-      }
-      /**
-       * Gets a batch of vector IDs from the store (memory efficient for streaming).
-       * @param offset - The starting index.
-       * @param batchSize - Number of IDs to return.
-       * @returns Array of vector IDs for the batch.
-       */
-      async getVectorIdsBatch(offset, batchSize) {
-        this.ensureInitialized();
-        return new Promise((resolve, reject) => {
-          const transaction = this.db.transaction(["vectors"], "readonly");
-          const store = transaction.objectStore("vectors");
-          const request = store.openCursor();
-          const ids = [];
-          let skipped = 0;
-          request.onsuccess = (event) => {
-            const cursor = event.target.result;
-            if (cursor) {
-              if (skipped < offset) {
-                skipped++;
-                cursor.continue();
-              } else if (ids.length < batchSize) {
-                ids.push(cursor.key);
-                cursor.continue();
-              } else {
-                resolve(ids);
-              }
-            } else {
-              resolve(ids);
-            }
-          };
-          request.onerror = () => {
-            var _a2;
-            return reject(new Error(`Failed to get vector IDs batch: ${(_a2 = request.error) == null ? void 0 : _a2.message}`));
-          };
-        });
-      }
-      /**
-       * Optimized streaming similarity calculation for large datasets.
-       */
-      async findSimilarVectors(queryEmbedding, limit = 5, minSimilarity = 0) {
-        this.ensureInitialized();
-        const results = [];
-        let minHeapSimilarity = minSimilarity;
-        const batchSize = 100;
-        const totalCount = await this.getVectorCount();
-        for (let offset = 0; offset < totalCount; offset += batchSize) {
-          const batch = await this.getVectorsBatch(offset, batchSize);
-          for (const vector of batch) {
-            const similarity = _VectorStore.cosineSimilarity(queryEmbedding, vector.embedding);
-            if (similarity >= minHeapSimilarity) {
-              results.push({ ...vector, similarity });
-              if (results.length > limit) {
-                results.sort((a, b) => b.similarity - a.similarity);
-                results.splice(limit);
-                minHeapSimilarity = results[results.length - 1].similarity;
-              }
-            }
-          }
-        }
-        return results.sort((a, b) => b.similarity - a.similarity);
-      }
-      /**
-       * Initializes the VectorStore by setting up the IndexedDB database.
-       * Must be called before using any other methods.
-       */
-      async initialize() {
-        if (this.isInitialized) {
-          return;
-        }
-        try {
-          console.log("Initializing VectorStore with IndexedDB (no SQL dependencies)");
-          this.db = await this.openIndexedDB();
-          this.isInitialized = true;
-          console.log("\u2705 VectorStore initialized successfully");
-        } catch (error) {
-          console.error("Failed to initialize VectorStore:", error);
-          throw new Error(`VectorStore initialization failed: ${error.message}`);
-        }
-      }
-      /**
-       * Opens or creates the IndexedDB database
-       */
-      openIndexedDB() {
-        return new Promise((resolve, reject) => {
-          const request = indexedDB.open(this.dbName, 1);
-          request.onerror = () => {
-            var _a2;
-            reject(new Error(`Failed to open IndexedDB: ${(_a2 = request.error) == null ? void 0 : _a2.message}`));
-          };
-          request.onsuccess = () => {
-            resolve(request.result);
-          };
-          request.onupgradeneeded = (event) => {
-            const db = event.target.result;
-            if (!db.objectStoreNames.contains("vectors")) {
-              const store = db.createObjectStore("vectors", { keyPath: "id" });
-              store.createIndex("timestamp", "timestamp", { unique: false });
-            }
-          };
-        });
-      }
-      /**
-       * Ensures the database is initialized before operations.
-       */
-      ensureInitialized() {
-        if (!this.isInitialized || !this.db) {
-          throw new Error("VectorStore not initialized. Call initialize() first.");
-        }
-      }
-      /**
-       * Checks if the VectorStore is initialized and ready for use.
-       * @returns True if initialized, false otherwise.
-       */
-      isReady() {
-        return this.isInitialized && this.db !== null;
-      }
-      /**
-       * Adds or updates a vector in the store.
-       * @param id - Unique identifier for the vector.
-       * @param text - The original text content.
-       * @param embedding - The vector embedding (array of numbers).
-       * @param metadata - Optional metadata to store with the vector.
-       */
-      async addVector(id, text, embedding, metadata) {
-        this.ensureInitialized();
-        if (!id || typeof id !== "string") {
-          throw new Error("Vector ID must be a non-empty string");
-        }
-        if (typeof text !== "string") {
-          throw new Error("Vector text must be a string");
-        }
-        if (!Array.isArray(embedding)) {
-          throw new Error("Vector embedding must be an array of numbers");
-        }
-        if (embedding.length === 0) {
-          throw new Error("Vector embedding cannot be empty");
-        }
-        if (!embedding.every((val) => typeof val === "number" && !isNaN(val))) {
-          throw new Error("Vector embedding must contain only valid numbers");
-        }
-        const vectorData = {
-          id,
-          text,
-          embedding,
-          metadata,
-          timestamp: Date.now()
-        };
-        return new Promise((resolve, reject) => {
-          const transaction = this.db.transaction(["vectors"], "readwrite");
-          const store = transaction.objectStore("vectors");
-          const request = store.put(vectorData);
-          request.onsuccess = () => resolve();
-          request.onerror = () => {
-            var _a2;
-            return reject(new Error(`Failed to add vector: ${(_a2 = request.error) == null ? void 0 : _a2.message}`));
-          };
-        });
-      }
-      /**
-       * Retrieves a vector by its ID.
-       * @param id - The unique identifier for the vector.
-       * @returns The vector data or null if not found.
-       */
-      async getVector(id) {
-        this.ensureInitialized();
-        return new Promise((resolve, reject) => {
-          const transaction = this.db.transaction(["vectors"], "readonly");
-          const store = transaction.objectStore("vectors");
-          const request = store.get(id);
-          request.onsuccess = () => {
-            resolve(request.result || null);
-          };
-          request.onerror = () => {
-            var _a2;
-            return reject(new Error(`Failed to get vector: ${(_a2 = request.error) == null ? void 0 : _a2.message}`));
-          };
-        });
-      }
-      /**
-       * Removes a vector from the store.
-       * @param id - The unique identifier for the vector to remove.
-       * @returns True if the vector was removed, false if it didn't exist.
-       */
-      async removeVector(id) {
-        this.ensureInitialized();
-        return new Promise((resolve, reject) => {
-          const transaction = this.db.transaction(["vectors"], "readwrite");
-          const store = transaction.objectStore("vectors");
-          const getRequest = store.get(id);
-          getRequest.onsuccess = () => {
-            if (getRequest.result) {
-              const deleteRequest = store.delete(id);
-              deleteRequest.onsuccess = () => resolve(true);
-              deleteRequest.onerror = () => {
-                var _a2;
-                return reject(new Error(`Failed to delete vector: ${(_a2 = deleteRequest.error) == null ? void 0 : _a2.message}`));
-              };
-            } else {
-              resolve(false);
-            }
-          };
-          getRequest.onerror = () => {
-            var _a2;
-            return reject(new Error(`Failed to check vector existence: ${(_a2 = getRequest.error) == null ? void 0 : _a2.message}`));
-          };
-        });
-      }
-      /**
-       * Gets all vectors from the store.
-       * @returns Array of all stored vectors.
-       */
-      async getAllVectors() {
-        this.ensureInitialized();
-        return new Promise((resolve, reject) => {
-          const transaction = this.db.transaction(["vectors"], "readonly");
-          const store = transaction.objectStore("vectors");
-          const request = store.getAll();
-          request.onsuccess = () => resolve(request.result);
-          request.onerror = () => {
-            var _a2;
-            return reject(new Error(`Failed to get all vectors: ${(_a2 = request.error) == null ? void 0 : _a2.message}`));
-          };
-        });
-      }
-      /**
-       * Finds vectors containing the specified text (simple text search).
-       * @param searchText - The text to search for.
-       * @param limit - Maximum number of results to return (default: 10).
-       * @returns Array of matching vectors.
-       */
-      async findVectorsByText(searchText, limit = 10) {
-        this.ensureInitialized();
-        const allVectors = await this.getAllVectors();
-        const searchLower = searchText.toLowerCase();
-        return allVectors.filter((vector) => vector.text.toLowerCase().includes(searchLower)).slice(0, limit);
-      }
-      /**
-       * Searches for vectors containing specific text (alias for findVectorsByText for backward compatibility).
-       * @param searchText - Text to search for in vector text content.
-       * @param limit - Maximum number of results to return (default: 10).
-       * @returns Array of matching vectors.
-       */
-      async searchByText(searchText, limit = 10) {
-        return this.findVectorsByText(searchText, limit);
-      }
-      /**
-       * Gets vectors by their metadata properties.
-       * @param metadataQuery - Key-value pairs to match in metadata.
-       * @param limit - Maximum number of results (default: 10).
-       * @returns Array of matching vectors.
-       */
-      async getVectorsByMetadata(metadataQuery, limit = 10) {
-        this.ensureInitialized();
-        const allVectors = await this.getAllVectors();
-        const matches = allVectors.filter((vector) => {
-          if (!vector.metadata) return false;
-          try {
-            return Object.entries(metadataQuery).every(([key, value]) => vector.metadata[key] === value);
-          } catch (e) {
-            return false;
-          }
-        }).slice(0, limit);
-        return matches;
-      }
-      /**
-       * Gets the total number of vectors in the store.
-       * @returns The count of vectors.
-       */
-      async getVectorCount() {
-        this.ensureInitialized();
-        return new Promise((resolve, reject) => {
-          const transaction = this.db.transaction(["vectors"], "readonly");
-          const store = transaction.objectStore("vectors");
-          const request = store.count();
-          request.onsuccess = () => resolve(request.result);
-          request.onerror = () => {
-            var _a2;
-            return reject(new Error(`Failed to count vectors: ${(_a2 = request.error) == null ? void 0 : _a2.message}`));
-          };
-        });
-      }
-      /**
-       * Clears all vectors from the store.
-       * @returns The number of vectors that were removed.
-       */
-      async clearAllVectors() {
-        this.ensureInitialized();
-        const count = await this.getVectorCount();
-        return new Promise((resolve, reject) => {
-          const transaction = this.db.transaction(["vectors"], "readwrite");
-          const store = transaction.objectStore("vectors");
-          const request = store.clear();
-          request.onsuccess = () => resolve(count);
-          request.onerror = () => {
-            var _a2;
-            return reject(new Error(`Failed to clear vectors: ${(_a2 = request.error) == null ? void 0 : _a2.message}`));
-          };
-        });
-      }
-      /**
-       * Calculates cosine similarity between two embedding vectors.
-       * @param vec1 - First embedding vector.
-       * @param vec2 - Second embedding vector.
-       * @returns Cosine similarity score (0-1, where 1 is most similar).
-       */
-      static cosineSimilarity(vec1, vec2) {
-        if (vec1.length !== vec2.length) {
-          throw new Error("Vectors must have the same length for similarity calculation");
-        }
-        let dotProduct = 0;
-        let norm1 = 0;
-        let norm2 = 0;
-        for (let i = 0; i < vec1.length; i++) {
-          dotProduct += vec1[i] * vec2[i];
-          norm1 += vec1[i] * vec1[i];
-          norm2 += vec2[i] * vec2[i];
-        }
-        const magnitude = Math.sqrt(norm1) * Math.sqrt(norm2);
-        return magnitude === 0 ? 0 : dotProduct / magnitude;
-      }
-      /**
-       * Deletes a vector by its ID (alias for removeVector for backward compatibility).
-       * @param id - The unique identifier of the vector to delete.
-       * @returns True if a vector was deleted, false if not found.
-       */
-      async deleteVector(id) {
-        return this.removeVector(id);
-      }
-      /**
-       * Closes the database connection.
-       */
-      async close() {
-        if (this.db) {
-          this.db.close();
-          this.db = null;
-          this.isInitialized = false;
-        }
-      }
-    };
-  }
-});
-
-// src/components/agent/memory-handling/HybridVectorManager.ts
-var DEFAULT_CONFIG, HybridVectorManager;
-var init_HybridVectorManager = __esm({
-  "src/components/agent/memory-handling/HybridVectorManager.ts"() {
-    init_vectorStore();
-    init_logger();
-    DEFAULT_CONFIG = {
-      backupFilePath: "vector-backup.json",
-      backupInterval: 5 * 60 * 1e3,
-      // 5 minutes
-      changeThreshold: 10,
-      // backup after 10 changes
-      showNotifications: false
-    };
-    HybridVectorManager = class {
-      // Add backup state protection
-      constructor(plugin, config = {}) {
-        __publicField(this, "vectorStore");
-        __publicField(this, "plugin");
-        __publicField(this, "config");
-        __publicField(this, "isInitialized", false);
-        // State tracking
-        __publicField(this, "changesSinceBackup", 0);
-        __publicField(this, "lastBackupTime", 0);
-        __publicField(this, "backupTimer", null);
-        __publicField(this, "currentMetadata", null);
-        __publicField(this, "isBackupInProgress", false);
-        this.plugin = plugin;
-        this.vectorStore = new VectorStore(plugin);
-        this.config = { ...DEFAULT_CONFIG, ...config };
-      }
-      /**
-       * Initialize the hybrid vector manager
-       * Performs startup sync logic and sets up automatic backup
-       */
-      async initialize() {
-        var _a2, _b, _c;
-        if (this.isInitialized) {
-          return;
-        }
-        try {
-          debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", "Initializing HybridVectorManager...");
-          await this.vectorStore.initialize();
-          await this.performStartupSync();
-          this.setupAutomaticBackup();
-          this.isInitialized = true;
-          debugLog((_b = this.plugin.settings.debugMode) != null ? _b : false, "info", "\u2705 HybridVectorManager initialized successfully");
-        } catch (error) {
-          debugLog((_c = this.plugin.settings.debugMode) != null ? _c : false, "error", "Failed to initialize HybridVectorManager:", error);
-          throw error;
-        }
-      }
-      /**
-       * Startup sync logic - checks fidelity and syncs data if needed
-       */
-      async performStartupSync() {
-        var _a2, _b, _c, _d;
-        try {
-          const indexedDBMetadata = await this.getIndexedDBMetadata();
-          const vaultMetadata = await this.getVaultMetadata();
-          debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", "Startup sync check:", {
-            indexedDB: indexedDBMetadata,
-            vault: vaultMetadata
-          });
-          const needsSync = this.needsSync(indexedDBMetadata, vaultMetadata);
-          if (needsSync) {
-            debugLog((_b = this.plugin.settings.debugMode) != null ? _b : false, "info", "Data sync required, performing restoration...");
-            if (this.config.showNotifications) {
-              new window.Notice("Syncing vector data...");
-            }
-            await this.restoreFromVault();
-            if (this.config.showNotifications) {
-              new window.Notice("Vector data sync completed");
-            }
-          } else {
-            debugLog((_c = this.plugin.settings.debugMode) != null ? _c : false, "info", "Data is in sync, no restoration needed");
-          }
-          this.currentMetadata = indexedDBMetadata || await this.generateMetadata();
-        } catch (error) {
-          debugLog((_d = this.plugin.settings.debugMode) != null ? _d : false, "warn", "Startup sync failed, continuing with available data:", error);
-          this.currentMetadata = await this.generateMetadata();
-        }
-      }
-      /**
-       * Determine if sync is needed based on metadata comparison
-       */
-      needsSync(indexedDBMeta, vaultMeta) {
-        if (!indexedDBMeta && vaultMeta) {
-          return true;
-        }
-        if (indexedDBMeta && !vaultMeta) {
-          return false;
-        }
-        if (indexedDBMeta && vaultMeta) {
-          return indexedDBMeta.vectorCount !== vaultMeta.vectorCount || indexedDBMeta.summaryHash !== vaultMeta.summaryHash;
-        }
-        return false;
-      }
-      /**
-       * Get metadata from IndexedDB vector store
-       */
-      async getIndexedDBMetadata() {
-        var _a2;
-        try {
-          const vectorCount = await this.vectorStore.getVectorCount();
-          if (vectorCount === 0) {
-            return null;
-          }
-          const vectorIds = await this.vectorStore.getAllVectorIds();
-          const summaryHash = this.generateSummaryHash(vectorIds);
-          const lastModified = await this.vectorStore.getLatestTimestamp();
-          return {
-            vectorCount,
-            lastModified,
-            summaryHash,
-            version: "1.0.0",
-            lastBackup: this.lastBackupTime
-          };
-        } catch (error) {
-          debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "warn", "Failed to get IndexedDB metadata:", error);
-          return null;
-        }
-      }
-      /**
-       * Get metadata from vault backup file
-       */
-      async getVaultMetadata() {
-        var _a2, _b;
-        try {
-          const backupExists = await this.plugin.app.vault.adapter.exists(this.config.backupFilePath);
-          if (!backupExists) {
-            return null;
-          }
-          const backupContent = await this.plugin.app.vault.adapter.read(this.config.backupFilePath);
-          let backupData;
-          try {
-            backupData = JSON.parse(backupContent);
-          } catch (parseError) {
-            debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "error", "Failed to parse backup file JSON:", parseError);
-            return null;
-          }
-          return backupData.metadata || null;
-        } catch (error) {
-          debugLog((_b = this.plugin.settings.debugMode) != null ? _b : false, "warn", "Failed to get vault metadata:", error);
-          return null;
-        }
-      }
-      /**
-       * Generate a more robust hash from vector IDs for integrity checking
-       */
-      generateSummaryHash(vectorIds) {
-        const sortedIds = vectorIds.sort();
-        const combined = sortedIds.join("|");
-        let hash = 2166136261;
-        for (let i = 0; i < combined.length; i++) {
-          hash ^= combined.charCodeAt(i);
-          hash *= 16777619;
-          hash = hash >>> 0;
-        }
-        return hash.toString(36);
-      }
-      /**
-       * Generate current metadata efficiently with streaming and batching
-       */
-      async generateMetadata() {
-        const vectorCount = await this.vectorStore.getVectorCount();
-        if (vectorCount === 0) {
-          return {
-            vectorCount: 0,
-            lastModified: Date.now(),
-            summaryHash: "",
-            version: "1.0.0",
-            lastBackup: this.lastBackupTime
-          };
-        }
-        const summaryHash = await this.generateStreamedSummaryHash(vectorCount);
-        const lastModified = await this.vectorStore.getLatestTimestamp();
-        return {
-          vectorCount,
-          lastModified,
-          summaryHash,
-          version: "1.0.0",
-          lastBackup: this.lastBackupTime
-        };
-      }
-      /**
-       * Generate summary hash using streaming/batched processing to prevent memory leaks
-       */
-      async generateStreamedSummaryHash(totalCount) {
-        const BATCH_SIZE = 100;
-        let hash = 2166136261;
-        const sortedIds = [];
-        for (let offset = 0; offset < totalCount; offset += BATCH_SIZE) {
-          const batchIds = await this.vectorStore.getVectorIdsBatch(offset, BATCH_SIZE);
-          sortedIds.push(...batchIds);
-          if (offset % (BATCH_SIZE * 5) === 0) {
-            await new Promise((resolve) => setTimeout(resolve, 0));
-          }
-        }
-        sortedIds.sort();
-        const combined = sortedIds.join("|");
-        for (let i = 0; i < combined.length; i++) {
-          hash ^= combined.charCodeAt(i);
-          hash *= 16777619;
-          hash = hash >>> 0;
-        }
-        return hash.toString(36);
-      }
-      /**
-       * Set up automatic backup system
-       */
-      setupAutomaticBackup() {
-        var _a2, _b;
-        if (this.backupTimer) {
-          clearInterval(this.backupTimer);
-        }
-        if (this.config.backupInterval > 0) {
-          this.backupTimer = setInterval(() => {
-            this.performAutomaticBackup();
-          }, this.config.backupInterval);
-          debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", `Automatic backup set up with ${this.config.backupInterval}ms interval`);
-        } else {
-          debugLog((_b = this.plugin.settings.debugMode) != null ? _b : false, "info", "Automatic backup disabled (interval = 0)");
-        }
-      }
-      /**
-       * Perform automatic backup if needed
-       */
-      async performAutomaticBackup() {
-        var _a2, _b;
-        if (this.isBackupInProgress) {
-          debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", "Backup already in progress, skipping");
-          return;
-        }
-        try {
-          this.isBackupInProgress = true;
-          const timeSinceLastBackup = Date.now() - this.lastBackupTime;
-          const shouldBackup = this.changesSinceBackup >= this.config.changeThreshold || timeSinceLastBackup > this.config.backupInterval;
-          if (shouldBackup) {
-            await this.backupToVault();
-          }
-        } catch (error) {
-          debugLog((_b = this.plugin.settings.debugMode) != null ? _b : false, "warn", "Automatic backup failed:", error);
-        } finally {
-          this.isBackupInProgress = false;
-        }
-      }
-      /**
-       * Backup all vectors to vault file using streaming to prevent memory issues
-       */
-      async backupToVault() {
-        var _a2, _b, _c, _d;
-        try {
-          debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", "Creating vector backup with streaming...");
-          const metadata = await this.generateMetadata();
-          const vectorCount = metadata.vectorCount;
-          const BATCH_SIZE = 50;
-          const backupData = {
-            metadata,
-            exportDate: (/* @__PURE__ */ new Date()).toISOString(),
-            version: "1.0.0",
-            totalVectors: vectorCount,
-            vectors: []
-          };
-          if (vectorCount === 0) {
-            const backupContent2 = JSON.stringify(backupData, null, 2);
-            await this.plugin.app.vault.adapter.write(this.config.backupFilePath, backupContent2);
-            this.lastBackupTime = Date.now();
-            this.changesSinceBackup = 0;
-            this.currentMetadata = metadata;
-            debugLog((_b = this.plugin.settings.debugMode) != null ? _b : false, "info", `\u2705 Empty backup completed`);
-            return;
-          }
-          const allVectors = [];
-          for (let offset = 0; offset < vectorCount; offset += BATCH_SIZE) {
-            const batch = await this.vectorStore.getVectorsBatch(offset, BATCH_SIZE);
-            allVectors.push(...batch);
-            if (offset % (BATCH_SIZE * 4) === 0) {
-              await new Promise((resolve) => setTimeout(resolve, 0));
-            }
-          }
-          backupData.vectors = allVectors;
-          const backupContent = JSON.stringify(backupData, null, 2);
-          await this.plugin.app.vault.adapter.write(this.config.backupFilePath, backupContent);
-          this.lastBackupTime = Date.now();
-          this.changesSinceBackup = 0;
-          this.currentMetadata = metadata;
-          debugLog((_c = this.plugin.settings.debugMode) != null ? _c : false, "info", `\u2705 Streaming backup completed: ${allVectors.length} vectors saved to ${this.config.backupFilePath}`);
-        } catch (error) {
-          debugLog((_d = this.plugin.settings.debugMode) != null ? _d : false, "error", "Failed to backup to vault:", error);
-          throw error;
-        }
-      }
-      /**
-       * Restore vectors from vault backup file
-       */
-      async restoreFromVault() {
-        var _a2, _b, _c, _d, _e, _f, _g;
-        const wasBackupInProgress = this.isBackupInProgress;
-        this.isBackupInProgress = true;
-        try {
-          console.log("\u{1F504} Starting restoreFromVault...");
-          debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", "Restoring vectors from vault backup...");
-          const backupExists = await this.plugin.app.vault.adapter.exists(this.config.backupFilePath);
-          console.log("\u{1F4C1} Backup exists:", backupExists, "Path:", this.config.backupFilePath);
-          if (!backupExists) {
-            debugLog((_b = this.plugin.settings.debugMode) != null ? _b : false, "warn", "No backup file found for restoration");
-            return;
-          }
-          const backupContent = await this.plugin.app.vault.adapter.read(this.config.backupFilePath);
-          console.log("\u{1F4C4} Backup content length:", backupContent.length);
-          let backupData;
-          try {
-            backupData = JSON.parse(backupContent);
-            console.log("\u{1F4CA} Parsed backup data:", {
-              hasVectors: !!backupData.vectors,
-              vectorCount: (_c = backupData.vectors) == null ? void 0 : _c.length,
-              totalVectors: backupData.totalVectors
-            });
-          } catch (parseError) {
-            console.error("\u274C JSON parse error:", parseError);
-            debugLog((_d = this.plugin.settings.debugMode) != null ? _d : false, "error", "Failed to parse backup file JSON:", parseError);
-            throw new Error("Invalid backup file format: JSON parse error");
-          }
-          if (!backupData.vectors || !Array.isArray(backupData.vectors)) {
-            console.error("\u274C Invalid backup format - no vectors array");
-            throw new Error("Invalid backup file format: missing or invalid vectors array");
-          }
-          console.log("\u{1F5D1}\uFE0F Clearing existing vectors...");
-          await this.clearAllVectors(true);
-          let importedCount = 0;
-          console.log(`\u{1F4E5} Starting to import ${backupData.vectors.length} vectors...`);
-          for (const vectorData of backupData.vectors) {
-            try {
-              console.log(`\u{1F4E5} Importing vector ${importedCount + 1}/${backupData.vectors.length}: ${vectorData.id}`);
-              await this.vectorStore.addVector(
-                vectorData.id,
-                vectorData.text,
-                vectorData.embedding,
-                vectorData.metadata
-              );
-              importedCount++;
-            } catch (error) {
-              console.error(`\u274C Failed to restore vector ${vectorData.id}:`, error);
-              debugLog((_e = this.plugin.settings.debugMode) != null ? _e : false, "warn", `Failed to restore vector ${vectorData.id}:`, error);
-            }
-          }
-          this.changesSinceBackup = 0;
-          this.lastBackupTime = Date.now();
-          this.currentMetadata = await this.generateMetadata();
-          console.log(`\u2705 Restoration completed: ${importedCount} vectors restored from backup`);
-          debugLog((_f = this.plugin.settings.debugMode) != null ? _f : false, "info", `\u2705 Restoration completed: ${importedCount} vectors restored from backup`);
-        } catch (error) {
-          console.error("\u274C Failed to restore from vault:", error);
-          debugLog((_g = this.plugin.settings.debugMode) != null ? _g : false, "error", "Failed to restore from vault:", error);
-          throw error;
-        } finally {
-          this.isBackupInProgress = wasBackupInProgress;
-        }
-      }
-      /**
-       * Track changes for automatic backup triggering
-       */
-      trackChange() {
-        this.changesSinceBackup++;
-        if (this.changesSinceBackup >= this.config.changeThreshold) {
-          setTimeout(() => {
-            this.performAutomaticBackup().catch((error) => {
-              var _a2;
-              debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "warn", "Threshold-triggered backup failed:", error);
-            });
-          }, 0);
-        }
-      }
-      // Wrapper methods that delegate to VectorStore and track changes
-      /**
-       * Add or update a vector in the store
-       */
-      async addVector(id, text, embedding, metadata) {
-        await this.vectorStore.addVector(id, text, embedding, metadata);
-        this.trackChange();
-      }
-      /**
-       * Remove a vector from the store
-       */
-      async removeVector(id) {
-        const result = await this.vectorStore.removeVector(id);
-        if (result) {
-          this.trackChange();
-        }
-        return result;
-      }
-      /**
-       * Clear all vectors from the store
-       */
-      async clearAllVectors(skipBackup = false) {
-        const count = await this.vectorStore.clearAllVectors();
-        if (count > 0 && !skipBackup) {
-          this.changesSinceBackup += count;
-          await this.performAutomaticBackup();
-        }
-        return count;
-      }
-      // Pass-through methods (no change tracking needed)
-      /**
-       * Get a vector by ID
-       */
-      async getVector(id) {
-        return await this.vectorStore.getVector(id);
-      }
-      /**
-       * Get all vectors
-       */
-      async getAllVectors() {
-        return await this.vectorStore.getAllVectors();
-      }
-      /**
-       * Get vector count
-       */
-      async getVectorCount() {
-        return await this.vectorStore.getVectorCount();
-      }
-      /**
-       * Find similar vectors
-       */
-      async findSimilarVectors(queryEmbedding, limit = 5, minSimilarity = 0) {
-        return await this.vectorStore.findSimilarVectors(queryEmbedding, limit, minSimilarity);
-      }
-      /**
-       * Search vectors by text
-       */
-      async findVectorsByText(searchText, limit = 10) {
-        return await this.vectorStore.findVectorsByText(searchText, limit);
-      }
-      /**
-       * Get vectors by metadata
-       */
-      async getVectorsByMetadata(metadataQuery, limit = 10) {
-        return await this.vectorStore.getVectorsByMetadata(metadataQuery, limit);
-      }
-      /**
-       * Check if the manager is ready
-       */
-      isReady() {
-        return this.isInitialized && this.vectorStore.isReady();
-      }
-      /**
-       * Get current status and statistics
-       */
-      async getStatus() {
-        const vectorCount = await this.vectorStore.getVectorCount();
-        const metadata = this.currentMetadata || await this.generateMetadata();
-        return {
-          isReady: this.isReady(),
-          vectorCount,
-          changesSinceBackup: this.changesSinceBackup,
-          lastBackupTime: this.lastBackupTime,
-          metadata,
-          backupFilePath: this.config.backupFilePath
-        };
-      }
-      /**
-       * Force an immediate backup
-       */
-      async forceBackup() {
-        await this.backupToVault();
-      }
-      /**
-       * Force restoration from vault
-       */
-      async forceRestore() {
-        await this.restoreFromVault();
-      }
-      /**
-       * Clean up resources
-       */
-      async close() {
-        var _a2;
-        if (this.backupTimer) {
-          clearInterval(this.backupTimer);
-          this.backupTimer = null;
-        }
-        if (this.changesSinceBackup > 0) {
-          try {
-            await this.backupToVault();
-          } catch (error) {
-            debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "warn", "Final backup failed during close:", error);
-          }
-        }
-        await this.vectorStore.close();
-        this.isInitialized = false;
-      }
-    };
-  }
-});
-
-// src/utils/embeddingFilterUtils.ts
-function matchesPattern(pattern, path3) {
-  const normalizedPattern = pattern.replace(/\\/g, "/");
-  const normalizedPath = path3.replace(/\\/g, "/");
-  if (normalizedPattern === normalizedPath) {
-    return true;
-  }
-  let pat = normalizedPattern;
-  let regexStr = "^";
-  if (pat.startsWith("**/")) {
-    regexStr += "(?:.*/)?";
-    pat = pat.slice(3);
-  }
-  const escaped = pat.replace(/([.+?^${}()|[\]\\])/g, "\\$1");
-  const body = escaped.replace(/\*\*/g, "\xA7RECURSIVE\xA7").replace(/\*/g, "[^/]*").replace(/§RECURSIVE§/g, ".*");
-  regexStr += body + "$";
-  try {
-    const regex = new RegExp(regexStr);
-    return regex.test(normalizedPath);
-  } catch (error) {
-    console.warn("Invalid pattern:", pattern, error);
-    return false;
-  }
-}
-function matchesAnyRule(filePath, rules) {
-  if (!rules || rules.length === 0) {
-    return false;
-  }
-  return rules.some((rule) => {
-    const normalizedRulePath = rule.path.replace(/\\/g, "/");
-    const normalizedFilePath = filePath.replace(/\\/g, "/");
-    if (rule.recursive) {
-      if (matchesPattern(normalizedRulePath, normalizedFilePath)) {
-        return true;
-      }
-      const recursivePattern = normalizedRulePath.endsWith("/**") ? normalizedRulePath : `${normalizedRulePath}/**`;
-      return matchesPattern(recursivePattern, normalizedFilePath);
-    } else {
-      if (matchesPattern(normalizedRulePath, normalizedFilePath)) {
-        return true;
-      }
-      const directPattern = normalizedRulePath.endsWith("/*") ? normalizedRulePath : `${normalizedRulePath}/*`;
-      return matchesPattern(directPattern, normalizedFilePath);
-    }
-  });
-}
-function filterFilesForEmbedding(files, filterSettings) {
-  if (!filterSettings || filterSettings.mode === "off" || !filterSettings.rules || filterSettings.rules.length === 0) {
-    return files;
-  }
-  return files.filter((file) => {
-    const filePath = file.path;
-    const matchesRules = matchesAnyRule(filePath, filterSettings.rules);
-    if (filterSettings.mode === "include") {
-      return matchesRules;
-    } else if (filterSettings.mode === "exclude") {
-      return !matchesRules;
-    }
-    return true;
-  });
-}
-function getFilterDescription(filterSettings) {
-  if (!filterSettings || filterSettings.mode === "off" || !filterSettings.rules || filterSettings.rules.length === 0) {
-    return "No filtering (all files will be embedded)";
-  }
-  const ruleCount = filterSettings.rules.length;
-  const modeText = filterSettings.mode === "include" ? "including only" : "excluding";
-  return `Active filtering: ${modeText} files from ${ruleCount} folder rule${ruleCount !== 1 ? "s" : ""}`;
-}
-function normalizeFolderPath(path3) {
-  return path3.replace(/\\/g, "/").replace(/\/+/g, "/").replace(/^\//, "").replace(/\/$/, "");
-}
-var init_embeddingFilterUtils = __esm({
-  "src/utils/embeddingFilterUtils.ts"() {
-  }
-});
-
-// src/components/agent/memory-handling/EmbeddingService.ts
-var EmbeddingService_exports = {};
-__export(EmbeddingService_exports, {
-  EmbeddingService: () => EmbeddingService
-});
-var import_obsidian31, crypto, EmbeddingService;
-var init_EmbeddingService = __esm({
-  "src/components/agent/memory-handling/EmbeddingService.ts"() {
-    import_obsidian31 = require("obsidian");
-    init_HybridVectorManager();
-    init_logger();
-    init_generalUtils();
-    init_embeddingFilterUtils();
-    crypto = __toESM(require("crypto"));
-    EmbeddingService = class {
-      constructor(plugin, settings) {
-        __publicField(this, "vectorStore");
-        __publicField(this, "plugin");
-        __publicField(this, "settings");
-        __publicField(this, "isInitialized", false);
-        __publicField(this, "abortController", null);
-        this.plugin = plugin;
-        this.settings = settings;
-        this.vectorStore = new HybridVectorManager(plugin);
-      }
-      /**
-       * Initialize the EmbeddingService by setting up the VectorStore.
-       * Must be called before using any other methods.
-       */
-      async initialize() {
-        var _a2, _b;
-        if (this.isInitialized) {
-          return;
-        }
-        try {
-          await this.vectorStore.initialize();
-          this.isInitialized = true;
-          debugLog((_a2 = this.settings.debugMode) != null ? _a2 : false, "info", "EmbeddingService initialized successfully");
-        } catch (error) {
-          debugLog((_b = this.settings.debugMode) != null ? _b : false, "error", "Failed to initialize EmbeddingService:", error);
-          throw error;
-        }
-      }
-      /**
-       * Checks if the service is initialized and ready for use.
-       */
-      get initialized() {
-        return this.isInitialized && this.vectorStore.isReady();
-      }
-      /**
-       * Ensures the service is initialized before operations.
-       */
-      ensureInitialized() {
-        if (!this.initialized) {
-          throw new Error("EmbeddingService not initialized. Call initialize() first.");
-        }
-      }
-      /**
-       * Generates embeddings for text using the configured AI provider.
-       * @param text - Text to embed
-       * @returns Promise<number[]> - The embedding vector
-       */
-      /**
-       * Always uses OpenAI for embedding generation, regardless of provider settings.
-       */
-      async generateEmbedding(text) {
-        var _a2;
-        try {
-          const response = await fetch("https://api.openai.com/v1/embeddings", {
-            method: "POST",
-            headers: {
-              "Authorization": `Bearer ${this.settings.openaiSettings.apiKey}`,
-              "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-              input: text,
-              model: "text-embedding-3-small"
-            })
-          });
-          if (!response.ok) {
-            throw new Error(`Embedding API error: ${response.status}`);
-          }
-          const data = await response.json();
-          return data.data[0].embedding;
-        } catch (error) {
-          debugLog((_a2 = this.settings.debugMode) != null ? _a2 : false, "error", "Embedding generation failed:", error);
-          throw new Error(`Failed to generate embedding: ${error.message}`);
-        }
-      }
-      /**
-       * Splits a long text into smaller chunks for embedding.
-       * This helps keep each chunk within the model's context window.
-       * Tries to split at sentence or line boundaries for better semantic meaning.
-       *
-       * @param text - The text to split into chunks
-       * @param options - Options for chunk size and overlap
-       * @returns Array of text chunks
-       */
-      splitIntoChunks(text, options = {}) {
-        const chunkSize = options.chunkSize || 1e3;
-        const overlap = options.chunkOverlap || 100;
-        const chunks = [];
-        let start = 0;
-        while (start < text.length) {
-          const end = Math.min(start + chunkSize, text.length);
-          const chunk = text.slice(start, end);
-          if (end < text.length) {
-            const lastSentence = chunk.lastIndexOf(".");
-            const lastNewline = chunk.lastIndexOf("\n");
-            const breakPoint = Math.max(lastSentence, lastNewline);
-            if (breakPoint > start + chunkSize / 2) {
-              chunks.push(text.slice(start, breakPoint + 1).trim());
-              start = breakPoint + 1 - overlap;
-            } else {
-              chunks.push(chunk.trim());
-              start = end - overlap;
-            }
-          } else {
-            chunks.push(chunk.trim());
-            break;
-          }
-          start = Math.max(start, 0);
-        }
-        return chunks.filter((chunk) => chunk.length > 0);
-      }
-      /**
-       * Generates a unique ID for a text chunk.
-       * @param text - Text content
-       * @param metadata - Associated metadata
-       * @returns Unique identifier
-       */
-      generateId(text, metadata = {}) {
-        const content = text + JSON.stringify(metadata);
-        return crypto.createHash("sha256").update(content).digest("hex");
-      }
-      /**
-       * Embeds a single note file.
-       * @param file - The note file to embed
-       * @param options - Embedding options
-       */
-      async embedNote(file, options = {}) {
-        var _a2, _b;
-        this.ensureInitialized();
-        try {
-          const content = await this.plugin.app.vault.read(file);
-          await this.embedText(content, {
-            ...options,
-            customMetadata: {
-              filePath: file.path,
-              fileName: file.name,
-              type: "note",
-              lastModified: file.stat.mtime,
-              ...options.customMetadata
-            }
-          });
-          debugLog((_a2 = this.settings.debugMode) != null ? _a2 : false, "info", `Embedded note: ${file.path}`);
-        } catch (error) {
-          debugLog((_b = this.settings.debugMode) != null ? _b : false, "error", `Failed to embed note ${file.path}:`, error);
-          throw error;
-        }
-      }
-      /**
-       * Embeds arbitrary text content.
-       * @param text - Text to embed
-       * @param options - Embedding options
-       */
-      async embedText(text, options = {}) {
-        var _a2, _b;
-        this.ensureInitialized();
-        try {
-          const chunks = this.splitIntoChunks(text, options);
-          for (let i = 0; i < chunks.length; i++) {
-            const chunk = chunks[i];
-            const embedding = await this.generateEmbedding(chunk);
-            const metadata = {
-              chunkIndex: i,
-              totalChunks: chunks.length,
-              timestamp: Date.now(),
-              ...options.customMetadata
-            };
-            const id = this.generateId(chunk, metadata);
-            await this.vectorStore.addVector(id, chunk, embedding, metadata);
-          }
-          debugLog((_a2 = this.settings.debugMode) != null ? _a2 : false, "info", `Embedded ${chunks.length} chunks`);
-        } catch (error) {
-          debugLog((_b = this.settings.debugMode) != null ? _b : false, "error", "Failed to embed text:", error);
-          throw error;
-        }
-      }
-      /**
-       * Embeds a conversation or chat history.
-       * @param messages - Array of messages to embed
-       * @param sessionId - Optional session identifier
-       */
-      async embedConversation(messages, sessionId) {
-        var _a2, _b;
-        this.ensureInitialized();
-        try {
-          for (let i = 0; i < messages.length; i++) {
-            const message = messages[i];
-            const text = typeof message.content === "string" ? message.content : JSON.stringify(message.content);
-            if (text.trim().length === 0) continue;
-            const embedding = await this.generateEmbedding(text);
-            const metadata = {
-              role: message.role,
-              messageIndex: i,
-              sessionId: sessionId || "unknown",
-              timestamp: Date.now(),
-              type: "conversation"
-            };
-            const id = this.generateId(text, metadata);
-            await this.vectorStore.addVector(id, text, embedding, metadata);
-          }
-          debugLog((_a2 = this.settings.debugMode) != null ? _a2 : false, "info", `Embedded conversation with ${messages.length} messages`);
-        } catch (error) {
-          debugLog((_b = this.settings.debugMode) != null ? _b : false, "error", "Failed to embed conversation:", error);
-          throw error;
-        }
-      }
-      /**
-       * Performs semantic search to find relevant content.
-       * @param query - Search query
-       * @param options - Search options
-       * @returns Array of search results
-       */
-      async semanticSearch(query, options = {}) {
-        var _a2;
-        this.ensureInitialized();
-        try {
-          const queryEmbedding = await this.generateEmbedding(query);
-          const topK = options.topK || 5;
-          const minSimilarity = options.minSimilarity !== void 0 ? options.minSimilarity : 0.7;
-          let results = await this.vectorStore.findSimilarVectors(queryEmbedding, topK * 2, minSimilarity);
-          if (options.filterMetadata) {
-            results = results.filter((result) => {
-              if (!result.metadata) return false;
-              return Object.entries(options.filterMetadata).every(
-                ([key, value]) => result.metadata[key] === value
-              );
-            });
-          }
-          if (options.includeTypes) {
-            results = results.filter(
-              (result) => result.metadata && options.includeTypes.includes(result.metadata.type)
-            );
-          }
-          return results.slice(0, topK).map((result) => {
-            var _a3;
-            return {
-              text: result.text,
-              filePath: (_a3 = result.metadata) == null ? void 0 : _a3.filePath,
-              similarity: result.similarity,
-              metadata: result.metadata,
-              id: result.id
-            };
-          });
-        } catch (error) {
-          debugLog((_a2 = this.settings.debugMode) != null ? _a2 : false, "error", "Semantic search failed:", error);
-          throw error;
-        }
-      }
-      /**
-       * Gets contextually relevant content for AI completions.
-       * @param query - The current query or conversation context
-       * @param options - Context retrieval options
-       * @returns Array of relevant content chunks
-       */
-      async getRelevantContext(query, options = {}) {
-        const includeTypes = [];
-        if (options.includeNotes !== false) includeTypes.push("note");
-        if (options.includeConversations !== false) includeTypes.push("conversation");
-        const results = await this.semanticSearch(query, {
-          topK: options.maxChunks || 3,
-          minSimilarity: options.minSimilarity || 0.7,
-          includeTypes
-        });
-        return results.map((result) => {
-          const source = result.filePath ? `[${result.filePath}]` : "[Memory]";
-          return `${source}: ${result.text}`;
-        });
-      }
-      /**
-       * Cancels the current embedding operation if one is running.
-       */
-      cancelEmbedding() {
-        var _a2;
-        if (this.abortController) {
-          this.abortController.abort();
-          debugLog((_a2 = this.settings.debugMode) != null ? _a2 : false, "info", "Embedding operation cancelled by user");
-        }
-      }
-      /**
-       * Checks if an embedding operation is currently running.
-       */
-      isEmbeddingInProgress() {
-        return this.abortController !== null && !this.abortController.signal.aborted;
-      }
-      /**
-       * Checks if the current operation should be cancelled.
-       */
-      shouldCancel() {
-        var _a2, _b;
-        return (_b = (_a2 = this.abortController) == null ? void 0 : _a2.signal.aborted) != null ? _b : false;
-      }
-      /**
-       * Embeds all notes in the vault.
-       * @param options - Embedding options
-       */
-      async embedAllNotes(options = {}) {
-        var _a2;
-        this.ensureInitialized();
-        this.abortController = new AbortController();
-        const notice = new import_obsidian31.Notice("Embedding all notes... (Click to cancel)", 0);
-        const noticeEl = notice.noticeEl;
-        if (noticeEl) {
-          noticeEl.style.cursor = "pointer";
-          noticeEl.addEventListener("click", () => {
-            this.cancelEmbedding();
-          });
-        }
-        try {
-          const allFiles = this.plugin.app.vault.getMarkdownFiles();
-          const filterSettings = this.settings.embeddingFolderFilter;
-          const files = filterFilesForEmbedding(allFiles, filterSettings || { mode: "off", rules: [] });
-          if (files.length === 0) {
-            notice.hide();
-            const filterDesc = getFilterDescription(filterSettings || { mode: "off", rules: [] });
-            showNotice(`No files to embed after applying filters. ${filterDesc}`);
-            return;
-          }
-          if ((filterSettings == null ? void 0 : filterSettings.mode) !== "off" && (filterSettings == null ? void 0 : filterSettings.rules) && filterSettings.rules.length > 0) {
-            const skippedCount = allFiles.length - files.length;
-            notice.setMessage(`Embedding ${files.length} notes (${skippedCount} filtered out)... (Click to cancel)`);
-          }
-          let processed = 0;
-          let cancelled = false;
-          for (const file of files) {
-            if (this.shouldCancel()) {
-              cancelled = true;
-              break;
-            }
-            try {
-              await this.embedNote(file, options);
-              processed++;
-              if (this.shouldCancel()) {
-                cancelled = true;
-                break;
-              }
-              if (options.onProgress) {
-                options.onProgress(processed, files.length);
-              }
-              notice.setMessage(`Embedded ${processed}/${files.length} notes... (Click to cancel)`);
-            } catch (error) {
-              debugLog((_a2 = this.settings.debugMode) != null ? _a2 : false, "warn", `Skipped ${file.path}:`, error);
-            }
-          }
-          notice.hide();
-          if (cancelled) {
-            showNotice(`Embedding cancelled. Successfully processed ${processed} out of ${files.length} notes.`);
-          } else {
-            const finalStats = await this.getStats();
-            const totalEmbeddings = finalStats.totalVectors;
-            showNotice(
-              `Successfully embedded ${processed} notes! Total embeddings in database: ${totalEmbeddings}`
-            );
-          }
-        } catch (error) {
-          notice.hide();
-          if (this.shouldCancel()) {
-            showNotice(`Embedding cancelled: ${error.message}`);
-          } else {
-            showNotice(`Error embedding notes: ${error.message}`);
-            throw error;
-          }
-        } finally {
-          this.abortController = null;
-        }
-      }
-      /**
-       * Clears all embeddings from the vector store.
-       */
-      async clearAllEmbeddings() {
-        var _a2;
-        this.ensureInitialized();
-        const count = await this.vectorStore.clearAllVectors();
-        showNotice(`Cleared ${count} embeddings from memory.`);
-        debugLog((_a2 = this.settings.debugMode) != null ? _a2 : false, "info", `Cleared ${count} embeddings`);
-      }
-      /**
-       * Gets statistics about the vector store.
-       */
-      async getStats() {
-        this.ensureInitialized();
-        return {
-          totalVectors: await this.vectorStore.getVectorCount()
-        };
-      }
-      /**
-       * Closes the embedding service and cleans up resources.
-       */
-      async close() {
-        await this.vectorStore.close();
-      }
-      /**
-       * Embeds the currently active note in the editor.
-       * @param options - Embedding options
-       */
-      async embedActiveNote(options = {}) {
-        var _a2, _b;
-        this.ensureInitialized();
-        const activeFile = (_b = (_a2 = this.plugin.app.workspace).getActiveFile) == null ? void 0 : _b.call(_a2);
-        if (!activeFile) {
-          showNotice("No active note found to embed.");
-          return;
-        }
-        await this.embedNote(activeFile, options);
-        showNotice(`Embedded active note: ${activeFile.path}`);
-      }
-    };
-  }
-});
-
-// src/components/agent/memory-handling/SemanticContextBuilder.ts
-var SemanticContextBuilder_exports = {};
-__export(SemanticContextBuilder_exports, {
-  SemanticContextBuilder: () => SemanticContextBuilder
-});
-var SemanticContextBuilder;
-var init_SemanticContextBuilder = __esm({
-  "src/components/agent/memory-handling/SemanticContextBuilder.ts"() {
-    init_logger();
-    init_EmbeddingService();
-    SemanticContextBuilder = class {
-      constructor(app, plugin) {
-        this.app = app;
-        this.plugin = plugin;
-        __publicField(this, "embeddingService", null);
-        __publicField(this, "isInitialized", false);
-        var _a2;
-        try {
-          this.embeddingService = new EmbeddingService(plugin, plugin.settings);
-        } catch (error) {
-          debugLog((_a2 = plugin.settings.debugMode) != null ? _a2 : false, "warn", "EmbeddingService unavailable:", error);
-        }
-      }
-      /**
-       * Initialize the SemanticContextBuilder by setting up the EmbeddingService.
-       * Should be called before using other methods.
-       */
-      async initialize() {
-        var _a2, _b;
-        if (this.isInitialized || !this.embeddingService) {
-          return;
-        }
-        try {
-          await this.embeddingService.initialize();
-          this.isInitialized = true;
-          debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", "SemanticContextBuilder initialized successfully");
-        } catch (error) {
-          debugLog((_b = this.plugin.settings.debugMode) != null ? _b : false, "error", "Failed to initialize SemanticContextBuilder:", error);
-          throw error;
-        }
-      }
-      /**
-       * Checks if the SemanticContextBuilder is ready for use.
-       */
-      get initialized() {
-        var _a2;
-        return this.isInitialized && ((_a2 = this.embeddingService) == null ? void 0 : _a2.initialized) === true;
-      }
-      /**
-       * Builds semantic context messages for AI completions.
-       * @param options - Context building options
-       * @param query - The current query for semantic search
-       * @returns Array of context messages
-       */
-      async buildSemanticContext(options = {}, query) {
-        var _a2, _b, _c;
-        const contextMessages = [];
-        try {
-          if (!this.initialized) {
-            await this.initialize();
-          }
-          if (!this.embeddingService || !this.initialized) {
-            debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", "Embedding service not available, skipping semantic context");
-            return contextMessages;
-          }
-          const activeFile = this.app.workspace.getActiveFile();
-          let currentContent = "";
-          if (activeFile && options.includeCurrentNote && !options.forceNoCurrentNote) {
-            currentContent = await this.app.vault.read(activeFile);
-          }
-          let searchQuery = query || "";
-          if (!searchQuery && currentContent) {
-            searchQuery = currentContent.split("\n").slice(0, 5).join(" ").slice(0, 500);
-          }
-          if (searchQuery && options.includeSemanticContext) {
-            const relevantContext = await this.embeddingService.getRelevantContext(searchQuery, {
-              maxChunks: options.maxContextChunks || 3,
-              includeNotes: true,
-              includeConversations: options.includeConversationHistory !== false,
-              minSimilarity: options.minSimilarity || 0.7
-            });
-            if (relevantContext.length > 0) {
-              contextMessages.push({
-                role: "user",
-                content: `Relevant context from your knowledge base:
-
-${relevantContext.join("\n\n")}`
-              });
-            }
-          }
-          debugLog((_b = this.plugin.settings.debugMode) != null ? _b : false, "info", `Built semantic context with ${contextMessages.length} messages`);
-        } catch (error) {
-          debugLog((_c = this.plugin.settings.debugMode) != null ? _c : false, "error", "Failed to build semantic context:", error);
-        }
-        return contextMessages;
-      }
-      /**
-       * Embeds the current note if embedding service is available.
-       * @param file - File to embed (optional, uses active file if not provided)
-       */
-      async embedCurrentNote(file) {
-        var _a2, _b;
-        if (!this.embeddingService) return;
-        const targetFile = file || this.app.workspace.getActiveFile();
-        if (!targetFile) return;
-        try {
-          await this.embeddingService.embedNote(targetFile);
-          debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", `Embedded current note: ${targetFile.path}`);
-        } catch (error) {
-          debugLog((_b = this.plugin.settings.debugMode) != null ? _b : false, "error", "Failed to embed current note:", error);
-        }
-      }
-      /**
-       * Embeds a conversation when it's saved or completed.
-       * @param messages - Conversation messages
-       * @param sessionId - Session identifier
-       */
-      async embedConversation(messages, sessionId) {
-        var _a2, _b;
-        if (!this.embeddingService) return;
-        try {
-          await this.embeddingService.embedConversation(messages, sessionId);
-          debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", `Embedded conversation with ${messages.length} messages`);
-        } catch (error) {
-          debugLog((_b = this.plugin.settings.debugMode) != null ? _b : false, "error", "Failed to embed conversation:", error);
-        }
-      }
-      /**
-       * Gets embedding service statistics.
-       */
-      async getStats() {
-        var _a2;
-        return ((_a2 = this.embeddingService) == null ? void 0 : _a2.getStats()) || null;
-      }
-      /**
-       * Performs a semantic search directly.
-       * @param query - Search query
-       * @param options - Search options
-       */
-      async semanticSearch(query, options = {}) {
-        if (!this.embeddingService) return [];
-        return await this.embeddingService.semanticSearch(query, options);
-      }
-      /**
-       * Clears all embeddings.
-       */
-      async clearAllEmbeddings() {
-        if (!this.embeddingService) return;
-        await this.embeddingService.clearAllEmbeddings();
-      }
-      /**
-       * Embeds all notes in the vault.
-       * @param options - Embedding options including progress callback
-       */
-      async embedAllNotes(options) {
-        if (!this.embeddingService) return;
-        await this.embeddingService.embedAllNotes(options);
-      }
-      /**
-       * Cancels the current embedding operation if one is running.
-       */
-      cancelEmbedding() {
-        if (this.embeddingService) {
-          this.embeddingService.cancelEmbedding();
-        }
-      }
-      /**
-       * Checks if an embedding operation is currently running.
-       */
-      isEmbeddingInProgress() {
-        var _a2, _b;
-        return (_b = (_a2 = this.embeddingService) == null ? void 0 : _a2.isEmbeddingInProgress()) != null ? _b : false;
-      }
-      /**
-       * Gets access to the underlying hybrid vector manager for advanced operations.
-       * @returns The hybrid vector manager instance or null if not available
-       */
-      getHybridVectorManager() {
-        if (this.embeddingService && "vectorStore" in this.embeddingService) {
-          return this.embeddingService.vectorStore;
-        }
-        return null;
-      }
-      /**
-       * Closes the semantic context builder and cleans up resources.
-       */
-      async close() {
-        if (this.embeddingService) {
-          await this.embeddingService.close();
-        }
-      }
-    };
-  }
-});
-
 // src/YAMLHandler.ts
 var YAMLHandler_exports = {};
 __export(YAMLHandler_exports, {
@@ -17081,7 +15344,7 @@ async function generateNoteTitle(app, settings, processMessages2, dispatcher) {
   debugLog(DEBUG, "debug", "Starting generateNoteTitle");
   const activeFile = app.workspace.getActiveFile();
   if (!activeFile) {
-    new import_obsidian35.Notice("No active note found.");
+    new import_obsidian33.Notice("No active note found.");
     return;
   }
   let noteContent = await app.vault.cachedRead(activeFile);
@@ -17110,7 +15373,7 @@ async function generateNoteTitle(app, settings, processMessages2, dispatcher) {
     debugLog(DEBUG, "debug", "Processed messages:", JSON.stringify(processedMessages));
     if (!processedMessages || processedMessages.length === 0) {
       debugLog(DEBUG, "debug", "No processed messages!");
-      new import_obsidian35.Notice("No valid messages to send to the model. Please check your note content.");
+      new import_obsidian33.Notice("No valid messages to send to the model. Please check your note content.");
       return;
     }
     debugLog(DEBUG, "debug", "Calling dispatcher.getCompletion");
@@ -17138,38 +15401,38 @@ async function generateNoteTitle(app, settings, processMessages2, dispatcher) {
           const newPath = parentPath ? parentPath + "/" + sanitized + ext : sanitized + ext;
           if (file.path !== newPath) {
             await app.fileManager.renameFile(file, newPath);
-            new import_obsidian35.Notice(`Note renamed to: ${sanitized}${ext}`);
+            new import_obsidian33.Notice(`Note renamed to: ${sanitized}${ext}`);
           } else {
-            new import_obsidian35.Notice(`Note title is already: ${sanitized}${ext}`);
+            new import_obsidian33.Notice(`Note title is already: ${sanitized}${ext}`);
           }
         }
       } else if (outputMode === "metadata") {
         const file = app.workspace.getActiveFile();
         if (file) {
           await upsertYamlField(app, file, "title", title);
-          new import_obsidian35.Notice(`Inserted title into metadata: ${title}`);
+          new import_obsidian33.Notice(`Inserted title into metadata: ${title}`);
         }
       } else {
         try {
           await navigator.clipboard.writeText(title);
-          new import_obsidian35.Notice(`Generated title (copied): ${title}`);
+          new import_obsidian33.Notice(`Generated title (copied): ${title}`);
         } catch (e) {
-          new import_obsidian35.Notice(`Generated title: ${title}`);
+          new import_obsidian33.Notice(`Generated title: ${title}`);
         }
       }
     } else {
       debugLog(DEBUG, "debug", "No title generated after sanitization.");
-      new import_obsidian35.Notice("No title generated.");
+      new import_obsidian33.Notice("No title generated.");
     }
   } catch (err) {
-    new import_obsidian35.Notice("Error generating title: " + ((_b = err == null ? void 0 : err.message) != null ? _b : err));
+    new import_obsidian33.Notice("Error generating title: " + ((_b = err == null ? void 0 : err.message) != null ? _b : err));
   }
 }
 async function generateYamlAttribute(app, settings, processMessages2, attributeName, prompt, outputMode = "metadata", dispatcher) {
   debugLog(DEBUG, "debug", `Starting generateYamlAttribute for ${attributeName}`);
   const activeFile = app.workspace.getActiveFile();
   if (!activeFile) {
-    new import_obsidian35.Notice("No active note found.");
+    new import_obsidian33.Notice("No active note found.");
     return;
   }
   let noteContent = await app.vault.cachedRead(activeFile);
@@ -17192,7 +15455,7 @@ async function generateYamlAttribute(app, settings, processMessages2, attributeN
     debugLog(DEBUG, "debug", "Processed messages:", JSON.stringify(processedMessages));
     if (!processedMessages || processedMessages.length === 0) {
       debugLog(DEBUG, "debug", "No processed messages!");
-      new import_obsidian35.Notice("No valid messages to send to the model. Please check your note content.");
+      new import_obsidian33.Notice("No valid messages to send to the model. Please check your note content.");
       return;
     }
     debugLog(DEBUG, "debug", "Calling dispatcher.getCompletion");
@@ -17215,18 +15478,18 @@ async function generateYamlAttribute(app, settings, processMessages2, attributeN
       debugLog(DEBUG, "debug", "Output mode:", outputMode);
       if (outputMode === "metadata") {
         await upsertYamlField(app, activeFile, attributeName, value);
-        new import_obsidian35.Notice(`Inserted ${attributeName} into metadata: ${value}`);
+        new import_obsidian33.Notice(`Inserted ${attributeName} into metadata: ${value}`);
       } else {
         try {
           await navigator.clipboard.writeText(value);
-          new import_obsidian35.Notice(`Generated ${attributeName} (copied): ${value}`);
+          new import_obsidian33.Notice(`Generated ${attributeName} (copied): ${value}`);
         } catch (e) {
-          new import_obsidian35.Notice(`Generated ${attributeName}: ${value}`);
+          new import_obsidian33.Notice(`Generated ${attributeName}: ${value}`);
         }
       }
     } else {
       debugLog(DEBUG, "debug", `No value generated for ${attributeName} after sanitization.`);
-      new import_obsidian35.Notice(`No value generated for ${attributeName}.`);
+      new import_obsidian33.Notice(`No value generated for ${attributeName}.`);
     }
   } catch (processError) {
     debugLog(DEBUG, "debug", "Error in processMessages or provider.getCompletion:", processError);
@@ -17292,10 +15555,10 @@ function registerYamlAttributeCommands(plugin, settings, processMessages2, yamlA
   }
   return newCommandIds;
 }
-var import_obsidian35, DEBUG;
+var import_obsidian33, DEBUG;
 var init_YAMLHandler = __esm({
   "src/YAMLHandler.ts"() {
-    import_obsidian35 = require("obsidian");
+    import_obsidian33 = require("obsidian");
     init_aiDispatcher();
     init_promptConstants();
     init_pluginUtils();
@@ -19255,214 +17518,6 @@ var init_streamManager = __esm({
   }
 });
 
-// src/tests/test-hybrid-vector.ts
-var test_hybrid_vector_exports = {};
-__export(test_hybrid_vector_exports, {
-  HybridVectorTest: () => HybridVectorTest,
-  registerHybridVectorTestCommand: () => registerHybridVectorTestCommand
-});
-function registerHybridVectorTestCommand(plugin) {
-  plugin.addCommand({
-    id: "test-hybrid-vector-storage",
-    name: "Test: Hybrid Vector Storage System",
-    callback: async () => {
-      try {
-        const tester = new HybridVectorTest(plugin);
-        await tester.runAllTests();
-        new window.Notice("\u2705 Hybrid Vector Storage tests completed successfully!");
-      } catch (error) {
-        console.error("Hybrid Vector Storage test failed:", error);
-        new window.Notice(`\u274C Hybrid Vector Storage test failed: ${error.message}`);
-      }
-    }
-  });
-}
-var HybridVectorTest;
-var init_test_hybrid_vector = __esm({
-  "src/tests/test-hybrid-vector.ts"() {
-    init_HybridVectorManager();
-    HybridVectorTest = class {
-      constructor(plugin) {
-        __publicField(this, "plugin");
-        __publicField(this, "hybridManager");
-        this.plugin = plugin;
-        this.hybridManager = new HybridVectorManager(plugin, {
-          backupFilePath: "test-vector-backup.json",
-          backupInterval: 3e4,
-          // 30 seconds for testing
-          changeThreshold: 3,
-          // Backup after 3 changes for testing
-          showNotifications: true
-        });
-      }
-      /**
-       * Run all hybrid vector tests
-       */
-      async runAllTests() {
-        try {
-          console.log("\u{1F9EA} Starting Hybrid Vector Storage Tests...");
-          await this.testInitialization();
-          await this.testBasicOperations();
-          await this.testChangeTracking();
-          await this.testBackupRestore();
-          await this.testSyncLogic();
-          await this.testErrorHandling();
-          await this.cleanup();
-          console.log("\u2705 All Hybrid Vector Storage Tests Passed!");
-        } catch (error) {
-          console.error("\u274C Hybrid Vector Storage Tests Failed:", error);
-          throw error;
-        }
-      }
-      /**
-       * Test initialization and startup sync
-       */
-      async testInitialization() {
-        console.log("Testing initialization...");
-        await this.hybridManager.initialize();
-        if (!this.hybridManager.isReady()) {
-          throw new Error("HybridVectorManager failed to initialize");
-        }
-        const status = await this.hybridManager.getStatus();
-        console.log("Initial status:", status);
-        console.log("\u2713 Initialization test passed");
-      }
-      /**
-       * Test basic vector operations
-       */
-      async testBasicOperations() {
-        console.log("Testing basic operations...");
-        const testVectors = [
-          { id: "test1", text: "This is a test document about cats", embedding: this.generateTestEmbedding() },
-          { id: "test2", text: "Another document about dogs", embedding: this.generateTestEmbedding() },
-          { id: "test3", text: "A third document about birds", embedding: this.generateTestEmbedding() }
-        ];
-        for (const vector of testVectors) {
-          await this.hybridManager.addVector(vector.id, vector.text, vector.embedding, { type: "test" });
-        }
-        const vector1 = await this.hybridManager.getVector("test1");
-        if (!vector1 || vector1.text !== testVectors[0].text) {
-          throw new Error("Vector retrieval failed");
-        }
-        const count = await this.hybridManager.getVectorCount();
-        if (count !== testVectors.length) {
-          throw new Error(`Expected ${testVectors.length} vectors, got ${count}`);
-        }
-        const allVectors = await this.hybridManager.getAllVectors();
-        if (allVectors.length !== testVectors.length) {
-          throw new Error(`Expected ${testVectors.length} vectors in search, got ${allVectors.length}`);
-        }
-        console.log("\u2713 Basic operations test passed");
-      }
-      /**
-       * Test change tracking and automatic backup
-       */
-      async testChangeTracking() {
-        console.log("Testing change tracking...");
-        const initialStatus = await this.hybridManager.getStatus();
-        console.log("Status before changes:", initialStatus);
-        await this.hybridManager.addVector("track1", "Change tracking test 1", this.generateTestEmbedding());
-        await this.hybridManager.addVector("track2", "Change tracking test 2", this.generateTestEmbedding());
-        await this.hybridManager.addVector("track3", "Change tracking test 3", this.generateTestEmbedding());
-        await new Promise((resolve) => setTimeout(resolve, 1e3));
-        const statusAfter = await this.hybridManager.getStatus();
-        console.log("Status after changes:", statusAfter);
-        if (statusAfter.changesSinceBackup > 3) {
-          console.warn("Backup may not have been triggered automatically");
-        }
-        console.log("\u2713 Change tracking test passed");
-      }
-      /**
-       * Test manual backup and restore operations
-       */
-      async testBackupRestore() {
-        console.log("Testing backup and restore...");
-        await this.hybridManager.forceBackup();
-        const backupExists = await this.plugin.app.vault.adapter.exists("test-vector-backup.json");
-        if (!backupExists) {
-          throw new Error("Backup file was not created");
-        }
-        const beforeCount = await this.hybridManager.getVectorCount();
-        await this.hybridManager.addVector("restore-test", "This vector will be lost", this.generateTestEmbedding());
-        const afterAddCount = await this.hybridManager.getVectorCount();
-        if (afterAddCount !== beforeCount + 1) {
-          throw new Error("Vector addition failed");
-        }
-        await this.hybridManager.forceRestore();
-        const afterRestoreCount = await this.hybridManager.getVectorCount();
-        if (afterRestoreCount !== beforeCount) {
-          throw new Error(`Restore failed: expected ${beforeCount} vectors, got ${afterRestoreCount}`);
-        }
-        const lostVector = await this.hybridManager.getVector("restore-test");
-        if (lostVector !== null) {
-          throw new Error("Vector should have been removed during restore");
-        }
-        console.log("\u2713 Backup and restore test passed");
-      }
-      /**
-       * Test startup sync logic with simulated scenarios
-       */
-      async testSyncLogic() {
-        console.log("Testing sync logic...");
-        const status = await this.hybridManager.getStatus();
-        if (!status.metadata || !status.metadata.summaryHash) {
-          throw new Error("Metadata not properly generated");
-        }
-        if (status.vectorCount <= 0) {
-          throw new Error("No vectors found for sync logic test");
-        }
-        console.log("\u2713 Sync logic test passed");
-      }
-      /**
-       * Test error handling scenarios
-       */
-      async testErrorHandling() {
-        console.log("Testing error handling...");
-        try {
-          await this.hybridManager.addVector("", "Empty ID test", this.generateTestEmbedding());
-        } catch (error) {
-        }
-        const removed = await this.hybridManager.removeVector("non-existent-vector");
-        if (removed) {
-          throw new Error("Should not have removed non-existent vector");
-        }
-        const nonExistent = await this.hybridManager.getVector("definitely-not-there");
-        if (nonExistent !== null) {
-          throw new Error("Should return null for non-existent vector");
-        }
-        console.log("\u2713 Error handling test passed");
-      }
-      /**
-       * Clean up test data
-       */
-      async cleanup() {
-        console.log("Cleaning up test data...");
-        const testIds = ["test1", "test2", "test3", "track1", "track2", "track3", "restore-test"];
-        for (const id of testIds) {
-          await this.hybridManager.removeVector(id);
-        }
-        const backupExists = await this.plugin.app.vault.adapter.exists("test-vector-backup.json");
-        if (backupExists) {
-          await this.plugin.app.vault.adapter.remove("test-vector-backup.json");
-        }
-        await this.hybridManager.close();
-        console.log("\u2713 Cleanup completed");
-      }
-      /**
-       * Generate a test embedding vector
-       */
-      generateTestEmbedding() {
-        const embedding = [];
-        for (let i = 0; i < 1536; i++) {
-          embedding.push((Math.random() - 0.5) * 2);
-        }
-        const magnitude = Math.sqrt(embedding.reduce((sum, val) => sum + val * val, 0));
-        return embedding.map((val) => val / magnitude);
-      }
-    };
-  }
-});
-
 // tests/testRunner.ts
 var testRunner_exports = {};
 __export(testRunner_exports, {
@@ -19470,146 +17525,17 @@ __export(testRunner_exports, {
 });
 function registerTestCommands(plugin) {
   plugin.addCommand({
-    id: "test-vector-store-init",
-    name: "Test: Vector Store Initialization",
+    id: "test-basic-indexeddb",
+    name: "Test: Basic IndexedDB Functionality",
     callback: async () => {
       try {
-        const { VectorStore: VectorStore2 } = await Promise.resolve().then(() => (init_vectorStore(), vectorStore_exports));
-        const vectorStore = new VectorStore2(plugin);
-        new import_obsidian39.Notice("Initializing VectorStore...");
-        await vectorStore.initialize();
-        if (vectorStore.isReady()) {
-          new import_obsidian39.Notice("\u2705 VectorStore initialized successfully!");
-          console.log("VectorStore test: SUCCESS");
-        } else {
-          new import_obsidian39.Notice("\u274C VectorStore initialization failed");
-          console.log("VectorStore test: FAILED - not initialized");
-        }
-        await vectorStore.close();
-      } catch (error) {
-        new import_obsidian39.Notice(`\u274C VectorStore test failed: ${error.message}`);
-        console.error("VectorStore test: ERROR", error);
-      }
-    }
-  });
-  plugin.addCommand({
-    id: "test-embedding-service-init",
-    name: "Test: Embedding Service Initialization",
-    callback: async () => {
-      try {
-        const { EmbeddingService: EmbeddingService2 } = await Promise.resolve().then(() => (init_EmbeddingService(), EmbeddingService_exports));
-        const embeddingService = new EmbeddingService2(plugin, plugin.settings);
-        new import_obsidian39.Notice("Initializing EmbeddingService...");
-        await embeddingService.initialize();
-        if (embeddingService.initialized) {
-          const stats = await embeddingService.getStats();
-          new import_obsidian39.Notice(`\u2705 EmbeddingService initialized! ${stats.totalVectors} vectors stored`);
-          console.log("EmbeddingService test: SUCCESS", stats);
-        } else {
-          new import_obsidian39.Notice("\u274C EmbeddingService initialization failed");
-          console.log("EmbeddingService test: FAILED - not initialized");
-        }
-        await embeddingService.close();
-      } catch (error) {
-        new import_obsidian39.Notice(`\u274C EmbeddingService test failed: ${error.message}`);
-        console.error("EmbeddingService test: ERROR", error);
-      }
-    }
-  });
-  plugin.addCommand({
-    id: "test-semantic-builder-init",
-    name: "Test: Semantic Context Builder Initialization",
-    callback: async () => {
-      try {
-        const { SemanticContextBuilder: SemanticContextBuilder2 } = await Promise.resolve().then(() => (init_SemanticContextBuilder(), SemanticContextBuilder_exports));
-        const semanticBuilder = new SemanticContextBuilder2(plugin.app, plugin);
-        new import_obsidian39.Notice("Initializing SemanticContextBuilder...");
-        await semanticBuilder.initialize();
-        if (semanticBuilder.initialized) {
-          const stats = await semanticBuilder.getStats();
-          new import_obsidian39.Notice(`\u2705 SemanticContextBuilder initialized! ${(stats == null ? void 0 : stats.totalVectors) || 0} vectors available`);
-          console.log("SemanticContextBuilder test: SUCCESS", stats);
-        } else {
-          new import_obsidian39.Notice("\u274C SemanticContextBuilder initialization failed");
-          console.log("SemanticContextBuilder test: FAILED - not initialized");
-        }
-      } catch (error) {
-        new import_obsidian39.Notice(`\u274C SemanticContextBuilder test failed: ${error.message}`);
-        console.error("SemanticContextBuilder test: ERROR", error);
-      }
-    }
-  });
-  plugin.addCommand({
-    id: "test-semantic-search-workflow",
-    name: "Test: Complete Semantic Search Workflow",
-    callback: async () => {
-      try {
-        new import_obsidian39.Notice("Testing complete semantic search workflow...");
-        const { EmbeddingService: EmbeddingService2 } = await Promise.resolve().then(() => (init_EmbeddingService(), EmbeddingService_exports));
-        const embeddingService = new EmbeddingService2(plugin, plugin.settings);
-        await embeddingService.initialize();
-        if (!embeddingService.initialized) {
-          throw new Error("EmbeddingService failed to initialize");
-        }
-        const initialStats = await embeddingService.getStats();
-        console.log("Initial stats:", initialStats);
-        const activeFile = plugin.app.workspace.getActiveFile();
-        if (activeFile) {
-          console.log("Embedding active file:", activeFile.path);
-          await embeddingService.embedNote(activeFile);
-          const finalStats = await embeddingService.getStats();
-          console.log("Final stats:", finalStats);
-          const results = await embeddingService.semanticSearch("test content", {
-            topK: 3,
-            minSimilarity: 0.1
-          });
-          new import_obsidian39.Notice(`\u2705 Workflow complete! Embedded ${activeFile.name}, found ${results.length} similar vectors`);
-          console.log("Semantic search workflow: SUCCESS", {
-            embedded: activeFile.path,
-            searchResults: results.length,
-            finalStats
-          });
-        } else {
-          new import_obsidian39.Notice("\u274C No active file to embed");
-          console.log("Semantic search workflow: SKIPPED - no active file");
-        }
-        await embeddingService.close();
-      } catch (error) {
-        new import_obsidian39.Notice(`\u274C Semantic search workflow failed: ${error.message}`);
-        console.error("Semantic search workflow: ERROR", error);
-      }
-    }
-  });
-  plugin.addCommand({
-    id: "test-run-all-semantic-tests",
-    name: "Test: Run All Semantic Search Tests",
-    callback: async () => {
-      new import_obsidian39.Notice("Running all semantic search tests...");
-      console.log("=".repeat(50));
-      console.log("RUNNING ALL SEMANTIC SEARCH TESTS");
-      console.log("=".repeat(50));
-      try {
-        console.log("\n--- Running: Basic IndexedDB Test ---");
+        new import_obsidian36.Notice("Testing basic IndexedDB functionality...");
         await runBasicIndexedDBTest();
-        await new Promise((resolve) => setTimeout(resolve, 1e3));
-        console.log("\n--- Running: VectorStore Initialization ---");
-        await runVectorStoreTest();
-        await new Promise((resolve) => setTimeout(resolve, 1e3));
-        console.log("\n--- Running: EmbeddingService Initialization ---");
-        await runEmbeddingServiceTest();
-        await new Promise((resolve) => setTimeout(resolve, 1e3));
-        console.log("\n--- Running: SemanticContextBuilder Initialization ---");
-        await runSemanticBuilderTest();
-        await new Promise((resolve) => setTimeout(resolve, 1e3));
-        console.log("\n--- Running: Complete Workflow Test ---");
-        await runWorkflowTest();
+        new import_obsidian36.Notice("\u2705 IndexedDB test completed successfully!");
       } catch (error) {
-        console.error("Error during test execution:", error);
+        new import_obsidian36.Notice(`\u274C IndexedDB test failed: ${error.message}`);
+        console.error("IndexedDB test failed:", error);
       }
-      console.log("\n" + "=".repeat(50));
-      console.log("ALL TESTS COMPLETED");
-      console.log("=".repeat(50));
-      new import_obsidian39.Notice("All semantic search tests completed! Check console for details.");
     }
   });
   async function runBasicIndexedDBTest() {
@@ -19643,111 +17569,15 @@ function registerTestCommands(plugin) {
       console.log("\u2705 IndexedDB basic test: SUCCESS", result);
     } catch (error) {
       console.error("\u274C IndexedDB basic test: ERROR", error);
+      throw error;
     }
   }
-  async function runVectorStoreTest() {
-    try {
-      const { VectorStore: VectorStore2 } = await Promise.resolve().then(() => (init_vectorStore(), vectorStore_exports));
-      const vectorStore = new VectorStore2(plugin);
-      await vectorStore.initialize();
-      if (vectorStore.isReady()) {
-        console.log("\u2705 VectorStore test: SUCCESS");
-      } else {
-        console.log("\u274C VectorStore test: FAILED - not initialized");
-      }
-      await vectorStore.close();
-    } catch (error) {
-      console.error("\u274C VectorStore test: ERROR", error);
-    }
-  }
-  async function runEmbeddingServiceTest() {
-    try {
-      const { EmbeddingService: EmbeddingService2 } = await Promise.resolve().then(() => (init_EmbeddingService(), EmbeddingService_exports));
-      const embeddingService = new EmbeddingService2(plugin, plugin.settings);
-      await embeddingService.initialize();
-      if (embeddingService.initialized) {
-        const stats = await embeddingService.getStats();
-        console.log("\u2705 EmbeddingService test: SUCCESS", stats);
-      } else {
-        console.log("\u274C EmbeddingService test: FAILED - not initialized");
-      }
-      await embeddingService.close();
-    } catch (error) {
-      console.error("\u274C EmbeddingService test: ERROR", error);
-    }
-  }
-  async function runSemanticBuilderTest() {
-    try {
-      const { SemanticContextBuilder: SemanticContextBuilder2 } = await Promise.resolve().then(() => (init_SemanticContextBuilder(), SemanticContextBuilder_exports));
-      const semanticBuilder = new SemanticContextBuilder2(plugin.app, plugin);
-      await semanticBuilder.initialize();
-      if (semanticBuilder.initialized) {
-        const stats = await semanticBuilder.getStats();
-        console.log("\u2705 SemanticContextBuilder test: SUCCESS", stats);
-      } else {
-        console.log("\u274C SemanticContextBuilder test: FAILED - not initialized");
-      }
-    } catch (error) {
-      console.error("\u274C SemanticContextBuilder test: ERROR", error);
-    }
-  }
-  async function runWorkflowTest() {
-    try {
-      const { EmbeddingService: EmbeddingService2 } = await Promise.resolve().then(() => (init_EmbeddingService(), EmbeddingService_exports));
-      const embeddingService = new EmbeddingService2(plugin, plugin.settings);
-      await embeddingService.initialize();
-      if (!embeddingService.initialized) {
-        throw new Error("EmbeddingService failed to initialize");
-      }
-      const initialStats = await embeddingService.getStats();
-      console.log("Initial stats:", initialStats);
-      const activeFile = plugin.app.workspace.getActiveFile();
-      if (activeFile) {
-        console.log("Embedding active file:", activeFile.path);
-        await embeddingService.embedNote(activeFile);
-        const finalStats = await embeddingService.getStats();
-        console.log("Final stats:", finalStats);
-        const results = await embeddingService.semanticSearch("test content", {
-          topK: 3,
-          minSimilarity: 0.1
-        });
-        console.log("\u2705 Semantic search workflow: SUCCESS", {
-          embedded: activeFile.path,
-          searchResults: results.length,
-          finalStats
-        });
-      } else {
-        console.log("\u26A0\uFE0F Semantic search workflow: SKIPPED - no active file");
-      }
-      await embeddingService.close();
-    } catch (error) {
-      console.error("\u274C Semantic search workflow: ERROR", error);
-    }
-  }
-  plugin.addCommand({
-    id: "test-hybrid-vector-storage",
-    name: "Test: Hybrid Vector Storage System",
-    callback: async () => {
-      try {
-        const { HybridVectorTest: HybridVectorTest2 } = await Promise.resolve().then(() => (init_test_hybrid_vector(), test_hybrid_vector_exports));
-        const tester = new HybridVectorTest2(plugin);
-        new import_obsidian39.Notice("\u{1F9EA} Running Hybrid Vector Storage tests...");
-        console.log("\u{1F9EA} Starting Hybrid Vector Storage Tests...");
-        await tester.runAllTests();
-        new import_obsidian39.Notice("\u2705 Hybrid Vector Storage tests completed successfully!");
-        console.log("\u2705 All Hybrid Vector Storage Tests Passed!");
-      } catch (error) {
-        new import_obsidian39.Notice(`\u274C Hybrid Vector Storage test failed: ${error.message}`);
-        console.error("\u274C Hybrid Vector Storage test failed:", error);
-      }
-    }
-  });
-  console.log("Test commands registered for semantic search and hybrid vector debugging");
+  console.log("Test commands registered for basic functionality debugging");
 }
-var import_obsidian39;
+var import_obsidian36;
 var init_testRunner = __esm({
   "tests/testRunner.ts"() {
-    import_obsidian39 = require("obsidian");
+    import_obsidian36 = require("obsidian");
   }
 });
 
@@ -19757,11 +17587,11 @@ __export(main_exports, {
   default: () => MyPlugin
 });
 module.exports = __toCommonJS(main_exports);
-var import_obsidian40 = require("obsidian");
+var import_obsidian37 = require("obsidian");
 init_types();
 
 // src/settings/SettingTab.ts
-var import_obsidian33 = require("obsidian");
+var import_obsidian31 = require("obsidian");
 
 // src/components/commands/viewCommands.ts
 init_pluginUtils();
@@ -21834,7 +19664,85 @@ The current time is ${currentDate} ${currentTime} ${timeZoneString}.`;
 
 // src/utils/noteUtils.ts
 var import_obsidian20 = require("obsidian");
-init_generalUtils();
+
+// src/utils/generalUtils.ts
+var import_obsidian19 = require("obsidian");
+init_logger();
+function showNotice(message) {
+  new import_obsidian19.Notice(message);
+}
+async function copyToClipboard3(text, successMsg = "Copied to clipboard", failMsg = "Failed to copy to clipboard") {
+  try {
+    await navigator.clipboard.writeText(text);
+    showNotice(successMsg);
+  } catch (error) {
+    showNotice(failMsg);
+    debugLog(true, "error", "Clipboard error:", error);
+  }
+}
+function moveCursorAfterInsert(editor, startPos, insertText) {
+  const lines = insertText.split("\n");
+  if (lines.length === 1) {
+    editor.setCursor({
+      line: startPos.line,
+      ch: startPos.ch + insertText.length
+    });
+  } else {
+    editor.setCursor({
+      line: startPos.line + lines.length - 1,
+      ch: lines[lines.length - 1].length
+    });
+  }
+}
+function insertSeparator(editor, position, separator) {
+  var _a2;
+  const lineContent = (_a2 = editor.getLine(position.line)) != null ? _a2 : "";
+  const prefix = lineContent.trim() !== "" ? "\n" : "";
+  editor.replaceRange(`${prefix}
+${separator}
+`, position);
+  return position.line + (prefix ? 1 : 0) + 2;
+}
+function findFile(app, filePath) {
+  let file = app.vault.getAbstractFileByPath(filePath) || app.vault.getAbstractFileByPath(`${filePath}.md`);
+  if (!file) {
+    const allFiles = app.vault.getFiles();
+    file = allFiles.find(
+      (f) => f.name === filePath || f.name === `${filePath}.md` || f.basename.toLowerCase() === filePath.toLowerCase() || f.path === filePath || f.path === `${filePath}.md`
+    ) || null;
+  }
+  return file;
+}
+function extractContentUnderHeader(content, headerText) {
+  const lines = content.split("\n");
+  let foundHeader = false;
+  let extractedContent = [];
+  let headerLevel = 0;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const headerMatch = line.match(/^(#+)\s+(.*?)$/);
+    if (headerMatch) {
+      const currentHeaderLevel = headerMatch[1].length;
+      const currentHeaderText = headerMatch[2].trim();
+      if (foundHeader) {
+        if (currentHeaderLevel <= headerLevel) {
+          break;
+        }
+      } else if (currentHeaderText.toLowerCase() === headerText.toLowerCase()) {
+        foundHeader = true;
+        headerLevel = currentHeaderLevel;
+        extractedContent.push(line);
+        continue;
+      }
+    }
+    if (foundHeader) {
+      extractedContent.push(line);
+    }
+  }
+  return extractedContent.join("\n");
+}
+
+// src/utils/noteUtils.ts
 init_typeGuards();
 async function processObsidianLinks(content, app, settings, visitedNotes = /* @__PURE__ */ new Set(), currentDepth = 0) {
   var _a2;
@@ -25588,292 +23496,9 @@ var ChatHistorySettingsSection = class {
   }
 };
 
-// src/settings/sections/VectorStoreSettingsSection.ts
-var import_obsidian32 = require("obsidian");
-init_SemanticContextBuilder();
-init_generalUtils();
-init_embeddingFilterUtils();
-var VectorStoreSettingsSection = class {
-  constructor(plugin, settingCreators) {
-    this.plugin = plugin;
-    this.settingCreators = settingCreators;
-    __publicField(this, "semanticContextBuilder", null);
-    try {
-      this.semanticContextBuilder = new SemanticContextBuilder(plugin.app, plugin);
-    } catch (error) {
-      console.warn("SemanticContextBuilder not available:", error);
-    }
-  }
-  /**
-   * Renders the vector store settings section.
-   */
-  render(containerEl) {
-    new import_obsidian32.Setting(containerEl).setName("Vector Store Status").setDesc("Current status of the semantic memory system").addText((text) => {
-      text.setValue("Loading...");
-      text.setDisabled(true);
-      if (this.semanticContextBuilder) {
-        (async () => {
-          try {
-            if (!this.semanticContextBuilder.initialized) {
-              text.setValue("Initializing...");
-              await this.semanticContextBuilder.initialize();
-            }
-            const stats = await this.semanticContextBuilder.getStats();
-            if (stats) {
-              text.setValue(`${stats.totalVectors} embeddings stored`);
-            } else {
-              text.setValue("Vector store ready (no embeddings yet)");
-            }
-          } catch (error) {
-            text.setValue(`Error: ${error.message}`);
-          }
-        })();
-      } else {
-        text.setValue("Vector store unavailable");
-      }
-    });
-    new import_obsidian32.Setting(containerEl).setName("Enable Semantic Context").setDesc("Use semantic search to find relevant context for AI completions. Requires embeddings to be generated first.").addToggle((toggle) => {
-      var _a2;
-      return toggle.setValue((_a2 = this.plugin.settings.enableSemanticContext) != null ? _a2 : false).onChange(async (value) => {
-        this.plugin.settings.enableSemanticContext = value;
-        await this.plugin.saveSettings();
-      });
-    });
-    if (this.plugin.settings.enableSemanticContext) {
-      new import_obsidian32.Setting(containerEl).setName("Max Context Chunks").setDesc("Maximum number of relevant chunks to include in AI context").addSlider((slider) => {
-        var _a2;
-        return slider.setLimits(1, 10, 1).setValue((_a2 = this.plugin.settings.maxSemanticContextChunks) != null ? _a2 : 3).setDynamicTooltip().onChange(async (value) => {
-          this.plugin.settings.maxSemanticContextChunks = value;
-          await this.plugin.saveSettings();
-        });
-      });
-      new import_obsidian32.Setting(containerEl).setName("Search Result Count").setDesc("Number of results to show in semantic search (1 to 100)").addText((text) => {
-        var _a2;
-        return text.setPlaceholder("10").setValue(String((_a2 = this.plugin.settings.semanticSearchResultCount) != null ? _a2 : 10)).onChange(async (value) => {
-          const count = parseInt(value);
-          if (!isNaN(count) && count >= 1 && count <= 100) {
-            this.plugin.settings.semanticSearchResultCount = count;
-            await this.plugin.saveSettings();
-          }
-        });
-      });
-    }
-    const filterSettings = this.plugin.settings.embeddingFolderFilter || { mode: "off", rules: [] };
-    new import_obsidian32.Setting(containerEl).setName("Folder Filtering").setDesc("Control which folders are included or excluded from embedding").addDropdown((dropdown) => dropdown.addOption("off", "No filtering (all files)").addOption("include", "Include only (whitelist)").addOption("exclude", "Exclude (blacklist)").setValue(filterSettings.mode).onChange(async (value) => {
-      if (!this.plugin.settings.embeddingFolderFilter) {
-        this.plugin.settings.embeddingFolderFilter = { mode: "off", rules: [] };
-      }
-      this.plugin.settings.embeddingFolderFilter.mode = value;
-      await this.plugin.saveSettings();
-      containerEl.empty();
-      this.render(containerEl);
-    }));
-    const filterDesc = getFilterDescription(filterSettings);
-    const statusEl = containerEl.createDiv({
-      text: filterDesc,
-      cls: "setting-item-description"
-    });
-    statusEl.style.marginBottom = "10px";
-    statusEl.style.fontStyle = "italic";
-    if (filterSettings.mode !== "off") {
-      const rulesHeader = containerEl.createEl("h4", { text: "Folder Rules" });
-      rulesHeader.style.marginTop = "20px";
-      rulesHeader.style.marginBottom = "10px";
-      const rulesContainer = containerEl.createDiv({ cls: "folder-rules-container" });
-      rulesContainer.style.marginBottom = "15px";
-      const renderRules = () => {
-        var _a2;
-        rulesContainer.empty();
-        const rules = ((_a2 = this.plugin.settings.embeddingFolderFilter) == null ? void 0 : _a2.rules) || [];
-        rules.forEach((rule, index) => {
-          const ruleEl = rulesContainer.createDiv({ cls: "folder-rule-item" });
-          ruleEl.style.border = "1px solid var(--background-modifier-border)";
-          ruleEl.style.borderRadius = "5px";
-          ruleEl.style.padding = "10px";
-          ruleEl.style.marginBottom = "10px";
-          ruleEl.style.backgroundColor = "var(--background-secondary)";
-          const pathSetting = new import_obsidian32.Setting(ruleEl).setName(`Folder Path ${index + 1}`).setDesc("Folder path (supports * and ** wildcards)").addText((text) => {
-            text.setPlaceholder("e.g., Notes/**, Templates/*, Archive").setValue(rule.path).onChange((value) => {
-              var _a3;
-              if ((_a3 = this.plugin.settings.embeddingFolderFilter) == null ? void 0 : _a3.rules) {
-                this.plugin.settings.embeddingFolderFilter.rules[index].path = normalizeFolderPath(value);
-              }
-            });
-            text.inputEl.addEventListener("blur", async () => {
-              await this.plugin.saveSettings();
-            });
-          });
-          new import_obsidian32.Setting(ruleEl).setName("Recursive").setDesc("Include subdirectories").addToggle((toggle) => toggle.setValue(rule.recursive).onChange(async (value) => {
-            var _a3;
-            if ((_a3 = this.plugin.settings.embeddingFolderFilter) == null ? void 0 : _a3.rules) {
-              this.plugin.settings.embeddingFolderFilter.rules[index].recursive = value;
-              await this.plugin.saveSettings();
-            }
-          }));
-          new import_obsidian32.Setting(ruleEl).setName("Description").setDesc("Optional description for this rule").addText((text) => {
-            text.setPlaceholder("e.g., Project notes, Templates").setValue(rule.description || "").onChange((value) => {
-              var _a3;
-              if ((_a3 = this.plugin.settings.embeddingFolderFilter) == null ? void 0 : _a3.rules) {
-                this.plugin.settings.embeddingFolderFilter.rules[index].description = value;
-              }
-            });
-            text.inputEl.addEventListener("blur", async () => {
-              await this.plugin.saveSettings();
-            });
-          });
-          new import_obsidian32.Setting(ruleEl).addButton((button) => button.setButtonText("Delete Rule").setWarning().onClick(async () => {
-            var _a3;
-            if ((_a3 = this.plugin.settings.embeddingFolderFilter) == null ? void 0 : _a3.rules) {
-              this.plugin.settings.embeddingFolderFilter.rules.splice(index, 1);
-              await this.plugin.saveSettings();
-              renderRules();
-            }
-          }));
-        });
-        const addRuleButton = rulesContainer.createDiv();
-        new import_obsidian32.Setting(addRuleButton).setName("Add Folder Rule").setDesc("Add a new folder path to the filter").addButton((button) => button.setButtonText("Add Rule").setCta().onClick(async () => {
-          if (!this.plugin.settings.embeddingFolderFilter) {
-            this.plugin.settings.embeddingFolderFilter = { mode: "include", rules: [] };
-          }
-          const newRule = {
-            path: "",
-            recursive: true,
-            description: ""
-          };
-          this.plugin.settings.embeddingFolderFilter.rules.push(newRule);
-          await this.plugin.saveSettings();
-          renderRules();
-        }));
-        const helpEl = rulesContainer.createDiv({
-          cls: "setting-item-description"
-        });
-        helpEl.innerHTML = `
-                    <strong>Pattern Examples:</strong><br>
-                    \u2022 <code>Notes</code> - Files directly in Notes folder<br>
-                    \u2022 <code>Notes/**</code> - All files in Notes and subdirectories<br>
-                    \u2022 <code>**/Templates</code> - Any Templates folder anywhere<br>
-                    \u2022 <code>Archive/*</code> - Files directly in Archive folder<br>
-                    \u2022 <code>*.md</code> - All markdown files (not recommended for folders)
-                `;
-        helpEl.style.marginTop = "15px";
-        helpEl.style.padding = "10px";
-        helpEl.style.backgroundColor = "var(--background-primary-alt)";
-        helpEl.style.borderRadius = "5px";
-      };
-      renderRules();
-    }
-    const actionsContainer = containerEl.createDiv({ cls: "vector-store-actions" });
-    new import_obsidian32.Setting(actionsContainer).setName("Embed All Notes").setDesc("Generate embeddings for notes in your vault. Respects folder filtering settings above.").addButton((button) => button.setButtonText("Embed All Notes").setCta().onClick(async () => {
-      if (!this.semanticContextBuilder) {
-        showNotice("Vector store not available on this platform");
-        return;
-      }
-      if (!this.plugin.settings.openaiSettings.apiKey) {
-        showNotice("OpenAI API key required for embedding generation");
-        return;
-      }
-      try {
-        if (!this.semanticContextBuilder.initialized) {
-          button.setButtonText("Initializing...");
-          button.setDisabled(true);
-          await this.semanticContextBuilder.initialize();
-        }
-        button.setButtonText("Embedding...");
-        button.setDisabled(true);
-        await this.semanticContextBuilder.embedAllNotes();
-        button.setButtonText("Embed All Notes");
-        button.setDisabled(false);
-        containerEl.empty();
-        this.render(containerEl);
-      } catch (error) {
-        button.setButtonText("Embed All Notes");
-        button.setDisabled(false);
-        showNotice(`Error: ${error.message}`);
-      }
-    }));
-    new import_obsidian32.Setting(actionsContainer).setName("Clear All Embeddings").setDesc("Remove all stored embeddings from the vector database").addButton((button) => button.setButtonText("Clear All").setWarning().onClick(async () => {
-      if (!this.semanticContextBuilder) {
-        showNotice("Vector store not available");
-        return;
-      }
-      try {
-        if (!this.semanticContextBuilder.initialized) {
-          await this.semanticContextBuilder.initialize();
-        }
-        await this.semanticContextBuilder.clearAllEmbeddings();
-        containerEl.empty();
-        this.render(containerEl);
-      } catch (error) {
-        showNotice(`Error: ${error.message}`);
-      }
-    }));
-    let searchQuery = "";
-    new import_obsidian32.Setting(actionsContainer).setName("Test Semantic Search").setDesc("Test the semantic search functionality with a sample query").addText((text) => text.setPlaceholder("Enter search query...").onChange((value) => {
-      searchQuery = value;
-    })).addButton((button) => button.setButtonText("Search").onClick(async () => {
-      var _a2;
-      if (!this.semanticContextBuilder) {
-        showNotice("Vector store not available");
-        return;
-      }
-      if (!searchQuery.trim()) {
-        showNotice("Please enter a search query");
-        return;
-      }
-      try {
-        if (!this.semanticContextBuilder.initialized) {
-          button.setButtonText("Initializing...");
-          button.setDisabled(true);
-          await this.semanticContextBuilder.initialize();
-          button.setButtonText("Search");
-          button.setDisabled(false);
-        }
-        button.setButtonText("Searching...");
-        button.setDisabled(true);
-        const results = await this.semanticContextBuilder.semanticSearch(searchQuery, {
-          topK: (_a2 = this.plugin.settings.semanticSearchResultCount) != null ? _a2 : 10,
-          minSimilarity: 0
-        });
-        button.setButtonText("Search");
-        button.setDisabled(false);
-        if (results.length === 0) {
-          showNotice("No similar content found. Make sure you have generated embeddings first.");
-        } else {
-          const resultText = results.map(
-            (r, i) => `${i + 1}. [${r.similarity.toFixed(3)}] ${r.text.slice(0, 100)}...`
-          ).join("\n\n");
-          const modal = new import_obsidian32.Modal(this.plugin.app);
-          modal.titleEl.setText("Semantic Search Results");
-          modal.contentEl.createEl("pre", { text: resultText });
-          modal.open();
-        }
-      } catch (error) {
-        button.setButtonText("Search");
-        button.setDisabled(false);
-        showNotice(`Search error: ${error.message}`);
-      }
-    }));
-    const infoEl = containerEl.createDiv({ cls: "setting-item-description" });
-    infoEl.style.marginTop = "20px";
-    infoEl.style.padding = "10px";
-    infoEl.style.border = "1px solid var(--background-modifier-border)";
-    infoEl.style.borderRadius = "5px";
-    infoEl.innerHTML = `
-            <strong>About Semantic Memory:</strong><br>
-            The vector store provides semantic memory capabilities by storing embeddings of your notes and conversations. 
-            This allows the AI to find and include relevant context even when the exact keywords don't match.<br><br>
-            <strong>Requirements:</strong><br>
-            \u2022 OpenAI API key for embedding generation<br>
-            \u2022 Initial embedding generation for your notes<br><br>
-            <strong>Cross-Platform:</strong> Works on both Obsidian Desktop and Mobile devices.<br><br>
-            <strong>Privacy:</strong> Embeddings are stored locally using IndexedDB and never sent to external services except for the initial generation.
-        `;
-  }
-};
-
 // src/settings/SettingTab.ts
 init_promptConstants();
-var MyPluginSettingTab = class extends import_obsidian33.PluginSettingTab {
+var MyPluginSettingTab = class extends import_obsidian31.PluginSettingTab {
   /**
    * Constructs the settings tab and initializes all settings sections.
    *
@@ -25900,8 +23525,6 @@ var MyPluginSettingTab = class extends import_obsidian33.PluginSettingTab {
     __publicField(this, "backupManagementSection");
     /** Chat history and UI section. */
     __publicField(this, "chatHistorySettingsSection");
-    /** Vector store and semantic memory section. */
-    __publicField(this, "vectorStoreSettingsSection");
     /** Listener for settings changes, used to refresh the UI when settings are updated elsewhere. */
     __publicField(this, "settingsChangeListener", null);
     /** Flag to track if settings changes are coming from the UI to prevent unnecessary re-renders. */
@@ -25915,7 +23538,6 @@ var MyPluginSettingTab = class extends import_obsidian33.PluginSettingTab {
     this.contentNoteHandlingSection = new ContentNoteHandlingSection(this.plugin, this.settingCreators);
     this.backupManagementSection = new BackupManagementSection(this.plugin, this.settingCreators);
     this.chatHistorySettingsSection = new ChatHistorySettingsSection(this.plugin, this.settingCreators);
-    this.vectorStoreSettingsSection = new VectorStoreSettingsSection(this.plugin, this.settingCreators);
     this.settingsChangeListener = () => {
       if (this.containerEl.isConnected && !this.isUpdatingFromUI) {
         this.display();
@@ -25988,14 +23610,7 @@ var MyPluginSettingTab = class extends import_obsidian33.PluginSettingTab {
       this.plugin,
       "backupManagementExpanded"
     );
-    CollapsibleSectionRenderer.createCollapsibleSection(
-      containerEl,
-      "Vector Store & Semantic Memory",
-      (sectionEl) => this.vectorStoreSettingsSection.render(sectionEl),
-      this.plugin,
-      "vectorStoreExpanded"
-    );
-    new import_obsidian33.Setting(containerEl).setName("Reset All Settings to Default").setDesc("Reset all plugin settings (except API keys) to their original default values.").addButton((button) => button.setButtonText("Reset").onClick(async () => {
+    new import_obsidian31.Setting(containerEl).setName("Reset All Settings to Default").setDesc("Reset all plugin settings (except API keys) to their original default values.").addButton((button) => button.setButtonText("Reset").onClick(async () => {
       const { DEFAULT_SETTINGS: DEFAULT_SETTINGS2 } = await Promise.resolve().then(() => (init_types(), types_exports));
       const preservedApiKeys = {
         openai: this.plugin.settings.openaiSettings.apiKey,
@@ -26012,7 +23627,7 @@ var MyPluginSettingTab = class extends import_obsidian33.PluginSettingTab {
       setTimeout(() => {
         activateView(this.plugin.app, VIEW_TYPE_MODEL_SETTINGS);
       }, 100);
-      new import_obsidian33.Notice("All settings (except API keys) reset to default.");
+      new import_obsidian31.Notice("All settings (except API keys) reset to default.");
     }));
   }
   /**
@@ -26032,9 +23647,9 @@ var MyPluginSettingTab = class extends import_obsidian33.PluginSettingTab {
 };
 
 // src/components/ModelSettingsView.ts
-var import_obsidian34 = require("obsidian");
+var import_obsidian32 = require("obsidian");
 var VIEW_TYPE_MODEL_SETTINGS2 = "model-settings-view";
-var ModelSettingsView = class extends import_obsidian34.ItemView {
+var ModelSettingsView = class extends import_obsidian32.ItemView {
   constructor(leaf, plugin) {
     super(leaf);
     __publicField(this, "plugin");
@@ -26067,7 +23682,6 @@ var ModelSettingsView = class extends import_obsidian34.ItemView {
 };
 
 // src/main.ts
-init_generalUtils();
 init_logger();
 
 // src/components/agent/agentModeManager.ts
@@ -26169,12 +23783,10 @@ function parseSelection(selection, chatSeparator, chatBoundaryString) {
 }
 
 // src/utils/aiCompletionHandler.ts
-init_generalUtils();
 init_logger();
 init_aiDispatcher();
-init_SemanticContextBuilder();
 async function handleAICompletion(editor, settings, processMessages2, vault, plugin, activeStream, setActiveStream, app) {
-  var _a2, _b, _c, _d, _e;
+  var _a2, _b, _c;
   let text;
   let insertPosition;
   if (editor.somethingSelected()) {
@@ -26213,27 +23825,8 @@ async function handleAICompletion(editor, settings, processMessages2, vault, plu
       includeContextNotes: true,
       forceNoCurrentNote: true
     });
-    let semanticContextMessages = [];
-    if (settings.enableSemanticContext) {
-      try {
-        const semanticBuilder = new SemanticContextBuilder(app || myPlugin.app, myPlugin);
-        const queryText = messages.map((m) => typeof m.content === "string" ? m.content : "").join(" ");
-        semanticContextMessages = await semanticBuilder.buildSemanticContext({
-          includeSemanticContext: true,
-          maxContextChunks: settings.maxSemanticContextChunks || 3,
-          minSimilarity: 0.7,
-          forceNoCurrentNote: true
-        }, queryText);
-        if (semanticContextMessages.length > 0) {
-          debugLog((_a2 = settings.debugMode) != null ? _a2 : false, "info", `Added ${semanticContextMessages.length} semantic context messages`);
-        }
-      } catch (error) {
-        debugLog((_b = settings.debugMode) != null ? _b : false, "warn", "Failed to build semantic context:", error);
-      }
-    }
     const processedMessages = await processMessages2([
       ...contextMessages,
-      ...semanticContextMessages,
       ...messages
     ]);
     let bufferedChunk = "";
@@ -26258,7 +23851,7 @@ async function handleAICompletion(editor, settings, processMessages2, vault, plu
       }
     );
     flushBuffer();
-    const endLineContent = (_c = editor.getLine(currentPosition.line)) != null ? _c : "";
+    const endLineContent = (_a2 = editor.getLine(currentPosition.line)) != null ? _a2 : "";
     const endPrefix = endLineContent.trim() !== "" ? "\n" : "";
     editor.replaceRange(`${endPrefix}
 ${settings.chatSeparator}
@@ -26270,8 +23863,8 @@ ${settings.chatSeparator}
     editor.setCursor(newCursorPos);
   } catch (error) {
     showNotice(`Error: ${error.message}`);
-    debugLog((_d = settings.debugMode) != null ? _d : false, "error", "AI Completion Error:", error);
-    const errLineContent = (_e = editor.getLine(currentPosition.line)) != null ? _e : "";
+    debugLog((_b = settings.debugMode) != null ? _b : false, "error", "AI Completion Error:", error);
+    const errLineContent = (_c = editor.getLine(currentPosition.line)) != null ? _c : "";
     const errPrefix = errLineContent.trim() !== "" ? "\n" : "";
     editor.replaceRange(`Error: ${error.message}
 ${errPrefix}
@@ -26282,7 +23875,6 @@ ${settings.chatSeparator}
 }
 
 // src/components/commands/aiStreamCommands.ts
-init_generalUtils();
 function registerAIStreamCommands(plugin, settings, processMessages2, activeStream, setActiveStream) {
   registerCommand(
     plugin,
@@ -26363,7 +23955,6 @@ function registerAIStreamCommands(plugin, settings, processMessages2, activeStre
 
 // src/components/commands/noteCommands.ts
 init_pluginUtils();
-init_generalUtils();
 function registerNoteCommands(plugin, settings, activateChatViewAndLoadMessages) {
   registerCommand(
     plugin,
@@ -26444,7 +24035,6 @@ function registerGenerateNoteTitleCommand(plugin, settings, processMessages2) {
 
 // src/components/commands/contextCommands.ts
 init_pluginUtils();
-init_generalUtils();
 function registerContextCommands(plugin, settings) {
   registerCommand(
     plugin,
@@ -26510,7 +24100,6 @@ ${wikiLink}`;
 
 // src/components/commands/toggleCommands.ts
 init_pluginUtils();
-init_generalUtils();
 function registerToggleCommands(plugin, settings) {
   registerCommand(
     plugin,
@@ -26540,509 +24129,6 @@ function registerToggleCommands(plugin, settings) {
   );
 }
 
-// src/components/commands/vectorStoreCommands.ts
-var import_obsidian36 = require("obsidian");
-init_SemanticContextBuilder();
-init_pluginUtils();
-init_logger();
-var SemanticSearchModal = class extends import_obsidian36.Modal {
-  constructor(app, results, totalEmbeddings) {
-    super(app);
-    this.results = results;
-    this.totalEmbeddings = totalEmbeddings;
-    this.modalEl.addClass("mod-semantic-search");
-  }
-  onOpen() {
-    const { contentEl } = this;
-    contentEl.empty();
-    contentEl.style.cssText = "";
-    contentEl.addClass("semantic-search-container");
-    const headerEl = contentEl.createDiv({ cls: "semantic-search-header" });
-    const titleEl = headerEl.createEl("h4", {
-      text: "Semantic Search Results",
-      cls: "semantic-search-title"
-    });
-    titleEl.style.cssText = "margin: 0 !important; font-size: 1.1em !important; color: var(--text-normal) !important; font-weight: 600 !important; font-family: var(--font-interface) !important;";
-    let countText;
-    if (this.totalEmbeddings !== void 0) {
-      countText = `${this.results.length} of ${this.totalEmbeddings} embeddings`;
-    } else {
-      countText = `${this.results.length} results`;
-    }
-    const countEl = headerEl.createEl("span", {
-      text: countText,
-      cls: "semantic-search-count"
-    });
-    countEl.style.cssText = "font-size: 0.9em !important; color: var(--text-muted) !important; font-weight: 500 !important; font-family: var(--font-interface) !important;";
-    if (this.results.length === 0) {
-      const noResultsEl = contentEl.createEl("div", {
-        text: "No embeddings found.",
-        cls: "semantic-search-no-results"
-      });
-      noResultsEl.style.cssText = "padding: var(--spacing-lg) !important; text-align: center !important; color: var(--text-muted) !important; font-style: italic !important; border: 1px solid var(--background-modifier-border) !important; border-radius: var(--border-radius) !important; background: var(--background-secondary) !important; font-family: var(--font-interface) !important;";
-      return;
-    }
-    const resultsContainer = contentEl.createDiv({ cls: "semantic-search-results" });
-    resultsContainer.style.cssText = "display: flex !important; flex-direction: column !important; gap: var(--spacing-lg) !important; font-family: var(--font-interface) !important;";
-    this.results.forEach((result, index) => {
-      const resultEl = resultsContainer.createDiv({ cls: "semantic-search-result" });
-      resultEl.style.cssText = "padding: var(--spacing-lg) !important; border: 1px solid var(--background-modifier-border) !important; border-radius: var(--border-radius) !important; background: var(--background-secondary) !important; transition: all 0.2s ease !important; font-family: var(--font-interface) !important;";
-      const resultHeader = resultEl.createDiv({ cls: "semantic-search-result-header" });
-      resultHeader.style.cssText = "display: flex !important; justify-content: space-between !important; align-items: center !important; margin-bottom: var(--spacing-md) !important; gap: var(--spacing-md) !important; font-family: var(--font-interface) !important;";
-      const rankEl = resultHeader.createEl("span", {
-        cls: "semantic-search-rank",
-        text: `#${index + 1}`
-      });
-      rankEl.style.cssText = "font-weight: bold !important; color: var(--text-accent) !important; min-width: 30px !important; font-size: 0.9em !important; font-family: var(--font-interface) !important;";
-      const scoreEl = resultHeader.createEl("span", {
-        cls: "semantic-search-score",
-        text: `${(result.similarity * 100).toFixed(1)}%`
-      });
-      scoreEl.style.cssText = "background: var(--interactive-accent) !important; color: var(--text-on-accent) !important; padding: var(--spacing-xs) var(--spacing-md) !important; border-radius: 12px !important; font-size: 0.8em !important; font-weight: 600 !important; font-family: var(--font-interface) !important;";
-      if (result.filePath) {
-        const linkEl = resultHeader.createEl("a", {
-          cls: "semantic-search-file-link",
-          text: result.filePath,
-          href: result.filePath
-        });
-        linkEl.style.cssText = "color: var(--link-color) !important; text-decoration: none !important; font-size: 0.9em !important; font-weight: 500 !important; font-family: var(--font-interface) !important; flex-grow: 1 !important; overflow: hidden !important; text-overflow: ellipsis !important; white-space: nowrap !important;";
-        linkEl.addEventListener("click", (e) => {
-          e.preventDefault();
-          this.close();
-          this.app.workspace.openLinkText(result.filePath, "", false);
-        });
-      }
-      const contentEl2 = resultEl.createDiv({
-        cls: "semantic-search-content"
-      });
-      contentEl2.style.cssText = "line-height: 1.6 !important; color: var(--text-normal) !important; font-size: 0.9em !important; font-family: var(--font-interface) !important;";
-      const truncatedText = result.text.length > 200 ? result.text.substring(0, 200) + "..." : result.text;
-      contentEl2.textContent = truncatedText;
-    });
-  }
-  onClose() {
-    const { contentEl } = this;
-    contentEl.empty();
-  }
-};
-var SemanticSearchInputModal = class extends import_obsidian36.Modal {
-  constructor(app) {
-    super(app);
-    __publicField(this, "result", null);
-  }
-  onOpen() {
-    const { contentEl } = this;
-    contentEl.createEl("h3", { text: "Semantic Search" });
-    const inputEl = contentEl.createEl("input", {
-      type: "text",
-      placeholder: "Enter your search query..."
-    });
-    inputEl.style.width = "100%";
-    inputEl.style.marginBottom = "10px";
-    inputEl.style.padding = "8px";
-    const buttonContainer = contentEl.createDiv();
-    const searchBtn = buttonContainer.createEl("button", { text: "Search" });
-    searchBtn.style.marginRight = "10px";
-    const cancelBtn = buttonContainer.createEl("button", { text: "Cancel" });
-    searchBtn.addEventListener("click", () => {
-      this.result = inputEl.value.trim();
-      if (this.result) {
-        this.close();
-      }
-    });
-    cancelBtn.addEventListener("click", () => {
-      this.result = null;
-      this.close();
-    });
-    inputEl.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") {
-        this.result = inputEl.value.trim();
-        if (this.result) {
-          this.close();
-        }
-      } else if (e.key === "Escape") {
-        this.result = null;
-        this.close();
-      }
-    });
-    inputEl.focus();
-  }
-  onClose() {
-    const { contentEl } = this;
-    contentEl.empty();
-  }
-  async getSearchQuery() {
-    return new Promise((resolve) => {
-      this.onClose = () => {
-        this.contentEl.empty();
-        resolve(this.result);
-      };
-      this.open();
-    });
-  }
-};
-var EmbeddingProgressModal = class extends import_obsidian36.Modal {
-  constructor(app, semanticBuilder, onCancel) {
-    super(app);
-    __publicField(this, "progressEl");
-    __publicField(this, "statusEl");
-    __publicField(this, "cancelBtn");
-    __publicField(this, "semanticBuilder");
-    __publicField(this, "onCancel");
-    __publicField(this, "progressCallback");
-    this.semanticBuilder = semanticBuilder;
-    this.onCancel = onCancel;
-    this.progressCallback = (processed, total) => {
-      this.updateProgress(processed, total);
-    };
-  }
-  onOpen() {
-    const { contentEl } = this;
-    contentEl.createEl("h3", { text: "Embedding Notes Progress" });
-    this.statusEl = contentEl.createDiv({ cls: "embedding-status" });
-    this.statusEl.style.marginBottom = "15px";
-    this.statusEl.setText("Starting embedding process...");
-    this.progressEl = contentEl.createDiv({ cls: "embedding-progress" });
-    this.progressEl.style.width = "100%";
-    this.progressEl.style.height = "20px";
-    this.progressEl.style.backgroundColor = "var(--background-modifier-border)";
-    this.progressEl.style.borderRadius = "10px";
-    this.progressEl.style.overflow = "hidden";
-    this.progressEl.style.marginBottom = "15px";
-    const progressBar = this.progressEl.createDiv({ cls: "progress-bar" });
-    progressBar.style.width = "0%";
-    progressBar.style.height = "100%";
-    progressBar.style.backgroundColor = "var(--interactive-accent)";
-    progressBar.style.transition = "width 0.3s ease";
-    const buttonContainer = contentEl.createDiv({ cls: "button-container" });
-    buttonContainer.style.textAlign = "center";
-    this.cancelBtn = buttonContainer.createEl("button", { text: "Cancel Embedding" });
-    this.cancelBtn.style.padding = "8px 16px";
-    this.cancelBtn.addEventListener("click", () => {
-      this.onCancel();
-      this.close();
-    });
-  }
-  updateProgress(current, total, currentFile) {
-    const percentage = total > 0 ? Math.round(current / total * 100) : 0;
-    this.statusEl.setText(
-      `Embedded ${current}/${total} notes (${percentage}%)` + (currentFile ? `
-Processing: ${currentFile}` : "")
-    );
-    const progressBar = this.progressEl.querySelector(".progress-bar");
-    if (progressBar) {
-      progressBar.style.width = `${percentage}%`;
-    }
-  }
-  getProgressCallback() {
-    return this.progressCallback;
-  }
-  onClose() {
-    const { contentEl } = this;
-    contentEl.empty();
-  }
-};
-function registerVectorStoreCommands(plugin) {
-  registerCommand(plugin, {
-    id: "embed-currently-open-note",
-    name: "Embed Currently Open Note",
-    callback: async () => {
-      var _a2;
-      try {
-        const semanticBuilder = new SemanticContextBuilder(plugin.app, plugin);
-        await semanticBuilder.initialize();
-        await semanticBuilder.embedCurrentNote();
-        const stats = await semanticBuilder.getStats();
-        const totalCount = stats ? stats.totalVectors : 0;
-        new import_obsidian36.Notice(`Successfully embedded currently open note! Total embedded notes: ${totalCount}`);
-      } catch (error) {
-        debugLog((_a2 = plugin.settings.debugMode) != null ? _a2 : false, "error", "Failed to embed currently open note:", error);
-        new import_obsidian36.Notice(`Error: ${error.message}`);
-      }
-    }
-  });
-  registerCommand(plugin, {
-    id: "embed-all-notes",
-    name: "Embed All Notes",
-    callback: async () => {
-      var _a2;
-      if (!plugin.settings.openaiSettings.apiKey) {
-        new import_obsidian36.Notice("OpenAI API key required for embedding generation");
-        return;
-      }
-      try {
-        const semanticBuilder = new SemanticContextBuilder(plugin.app, plugin);
-        await semanticBuilder.initialize();
-        if (semanticBuilder.isEmbeddingInProgress()) {
-          new import_obsidian36.Notice('Embedding is already in progress. Use "Cancel Embedding" to stop it.');
-          return;
-        }
-        const initialStats = await semanticBuilder.getStats();
-        const initialCount = initialStats ? initialStats.totalVectors : 0;
-        const totalNotes = plugin.app.vault.getMarkdownFiles().length;
-        new import_obsidian36.Notice(`Starting embedding process... Currently have ${initialCount} embeddings for ${totalNotes} notes`);
-        const progressModal = new EmbeddingProgressModal(plugin.app, semanticBuilder, () => {
-          semanticBuilder.cancelEmbedding();
-        });
-        progressModal.open();
-        await semanticBuilder.embedAllNotes({
-          onProgress: progressModal.getProgressCallback()
-        });
-        progressModal.close();
-        const finalStats = await semanticBuilder.getStats();
-        const finalCount = finalStats ? finalStats.totalVectors : 0;
-        new import_obsidian36.Notice(`Embedding process completed. Total embedded notes: ${finalCount}`);
-      } catch (error) {
-        debugLog((_a2 = plugin.settings.debugMode) != null ? _a2 : false, "error", "Failed to embed notes:", error);
-        new import_obsidian36.Notice(`Error: ${error.message}`);
-      }
-    }
-  });
-  registerCommand(plugin, {
-    id: "cancel-embedding",
-    name: "Cancel Embedding Process",
-    callback: async () => {
-      var _a2;
-      try {
-        const semanticBuilder = new SemanticContextBuilder(plugin.app, plugin);
-        if (semanticBuilder.isEmbeddingInProgress()) {
-          semanticBuilder.cancelEmbedding();
-          new import_obsidian36.Notice("Embedding process cancellation requested...");
-        } else {
-          new import_obsidian36.Notice("No embedding process is currently running.");
-        }
-      } catch (error) {
-        debugLog((_a2 = plugin.settings.debugMode) != null ? _a2 : false, "error", "Failed to cancel embedding:", error);
-        new import_obsidian36.Notice(`Error: ${error.message}`);
-      }
-    }
-  });
-  registerCommand(plugin, {
-    id: "semantic-search",
-    name: "Semantic Search",
-    callback: async () => {
-      var _a2, _b;
-      try {
-        const modal = new SemanticSearchInputModal(plugin.app);
-        const query = await modal.getSearchQuery();
-        if (!query) return;
-        const semanticBuilder = new SemanticContextBuilder(plugin.app, plugin);
-        const stats = await semanticBuilder.getStats();
-        const totalEmbeddings = stats ? stats.totalVectors : 0;
-        const results = await semanticBuilder.semanticSearch(query, {
-          topK: (_a2 = plugin.settings.semanticSearchResultCount) != null ? _a2 : 10,
-          minSimilarity: 0
-        });
-        const resultsModal = new SemanticSearchModal(plugin.app, results, totalEmbeddings);
-        resultsModal.open();
-      } catch (error) {
-        debugLog((_b = plugin.settings.debugMode) != null ? _b : false, "error", "Semantic search failed:", error);
-        new import_obsidian36.Notice(`Error: ${error.message}`);
-      }
-    }
-  });
-  registerCommand(plugin, {
-    id: "clear-all-embeddings",
-    name: "Clear All Embeddings",
-    callback: async () => {
-      var _a2;
-      try {
-        const semanticBuilder = new SemanticContextBuilder(plugin.app, plugin);
-        const statsBefore = await semanticBuilder.getStats();
-        const countBefore = statsBefore ? statsBefore.totalVectors : 0;
-        await semanticBuilder.clearAllEmbeddings();
-        new import_obsidian36.Notice(`Successfully cleared ${countBefore} embeddings from vector store`);
-      } catch (error) {
-        debugLog((_a2 = plugin.settings.debugMode) != null ? _a2 : false, "error", "Failed to clear embeddings:", error);
-        new import_obsidian36.Notice(`Error: ${error.message}`);
-      }
-    }
-  });
-  registerCommand(plugin, {
-    id: "vector-store-stats",
-    name: "Vector Store Statistics",
-    callback: async () => {
-      var _a2;
-      try {
-        const semanticBuilder = new SemanticContextBuilder(plugin.app, plugin);
-        const stats = await semanticBuilder.getStats();
-        if (stats) {
-          const totalNotes = plugin.app.vault.getMarkdownFiles().length;
-          const embeddedCount = stats.totalVectors;
-          const percentage = totalNotes > 0 ? Math.round(embeddedCount / totalNotes * 100) : 0;
-          const statusSuffix = semanticBuilder.isEmbeddingInProgress() ? " (\u23F3 Embedding in progress...)" : "";
-          new import_obsidian36.Notice(
-            `Vector Store: ${embeddedCount} embeddings stored (${percentage}% of ${totalNotes} notes)${statusSuffix}`
-          );
-        } else {
-          new import_obsidian36.Notice("Vector store not available on this platform");
-        }
-      } catch (error) {
-        debugLog((_a2 = plugin.settings.debugMode) != null ? _a2 : false, "error", "Failed to get stats:", error);
-        new import_obsidian36.Notice(`Error: ${error.message}`);
-      }
-    }
-  });
-  registerCommand(plugin, {
-    id: "vector-store-detailed-info",
-    name: "Detailed Vector Store Information",
-    callback: async () => {
-      var _a2;
-      try {
-        const semanticBuilder = new SemanticContextBuilder(plugin.app, plugin);
-        const stats = await semanticBuilder.getStats();
-        if (stats) {
-          const totalNotes = plugin.app.vault.getMarkdownFiles().length;
-          const embeddedCount = stats.totalVectors;
-          const notEmbedded = totalNotes - embeddedCount;
-          const percentage = totalNotes > 0 ? Math.round(embeddedCount / totalNotes * 100) : 0;
-          const recommendation = percentage < 50 ? "Consider embedding more notes for better semantic search!" : percentage < 80 ? "Good coverage! You may want to embed a few more notes." : "Excellent coverage! Your semantic search should work very well.";
-          new import_obsidian36.Notice(
-            `\u{1F4CA} Vector Store Info: ${embeddedCount}/${totalNotes} notes embedded (${percentage}%). ${recommendation}`
-          );
-        } else {
-          new import_obsidian36.Notice("Vector store not available on this platform");
-        }
-      } catch (error) {
-        debugLog((_a2 = plugin.settings.debugMode) != null ? _a2 : false, "error", "Failed to get detailed info:", error);
-        new import_obsidian36.Notice(`Error: ${error.message}`);
-      }
-    }
-  });
-  registerCommand(plugin, {
-    id: "semantic-search-selection",
-    name: "Semantic Search with Selection",
-    editorCallback: async (editor) => {
-      var _a2, _b;
-      try {
-        const selection = editor.getSelection();
-        if (!selection.trim()) {
-          new import_obsidian36.Notice("Please select some text to search for similar content");
-          return;
-        }
-        const semanticBuilder = new SemanticContextBuilder(plugin.app, plugin);
-        const stats = await semanticBuilder.getStats();
-        const totalEmbeddings = stats ? stats.totalVectors : 0;
-        const results = await semanticBuilder.semanticSearch(selection, {
-          topK: (_a2 = plugin.settings.semanticSearchResultCount) != null ? _a2 : 10,
-          minSimilarity: 0
-        });
-        const resultsModal = new SemanticSearchModal(plugin.app, results, totalEmbeddings);
-        resultsModal.open();
-      } catch (error) {
-        debugLog((_b = plugin.settings.debugMode) != null ? _b : false, "error", "Semantic search failed:", error);
-        new import_obsidian36.Notice(`Error: ${error.message}`);
-      }
-    }
-  });
-  registerCommand(plugin, {
-    id: "show-missing-embeddings",
-    name: "Show Notes Missing Embeddings",
-    callback: async () => {
-      var _a2;
-      try {
-        const semanticBuilder = new SemanticContextBuilder(plugin.app, plugin);
-        await semanticBuilder.initialize();
-        if (!semanticBuilder.initialized) {
-          new import_obsidian36.Notice("Vector store not available on this platform");
-          return;
-        }
-        const allFiles = plugin.app.vault.getMarkdownFiles();
-        const stats = await semanticBuilder.getStats();
-        const embeddedCount = stats ? stats.totalVectors : 0;
-        if (embeddedCount === 0) {
-          new import_obsidian36.Notice('No notes have been embedded yet. Use "Embed All Notes" to get started!');
-          return;
-        }
-        const missingCount = allFiles.length - embeddedCount;
-        if (missingCount === 0) {
-          new import_obsidian36.Notice("\u{1F389} All notes are embedded! Your semantic search is fully ready.");
-        } else if (missingCount <= 5) {
-          new import_obsidian36.Notice(`${missingCount} notes still need embedding. Consider running "Embed All Notes" to complete coverage.`);
-        } else {
-          new import_obsidian36.Notice(`${missingCount} out of ${allFiles.length} notes still need embedding (${Math.round(embeddedCount / allFiles.length * 100)}% complete).`);
-        }
-      } catch (error) {
-        debugLog((_a2 = plugin.settings.debugMode) != null ? _a2 : false, "error", "Failed to check missing embeddings:", error);
-        new import_obsidian36.Notice(`Error: ${error.message}`);
-      }
-    }
-  });
-  registerCommand(plugin, {
-    id: "hybrid-vector-force-backup",
-    name: "Hybrid Vector: Force Backup",
-    callback: async () => {
-      var _a2;
-      try {
-        const semanticBuilder = new SemanticContextBuilder(plugin.app, plugin);
-        await semanticBuilder.initialize();
-        const hybridManager = semanticBuilder.getHybridVectorManager();
-        if (hybridManager && "forceBackup" in hybridManager) {
-          await hybridManager.forceBackup();
-          new import_obsidian36.Notice("\u2705 Vector backup completed successfully");
-        } else {
-          new import_obsidian36.Notice("\u274C Hybrid vector manager not available");
-        }
-      } catch (error) {
-        debugLog((_a2 = plugin.settings.debugMode) != null ? _a2 : false, "error", "Failed to force backup:", error);
-        new import_obsidian36.Notice(`Error: ${error.message}`);
-      }
-    }
-  });
-  registerCommand(plugin, {
-    id: "hybrid-vector-force-restore",
-    name: "Hybrid Vector: Force Restore from Backup",
-    callback: async () => {
-      var _a2;
-      try {
-        const semanticBuilder = new SemanticContextBuilder(plugin.app, plugin);
-        await semanticBuilder.initialize();
-        const hybridManager = semanticBuilder.getHybridVectorManager();
-        if (hybridManager && "forceRestore" in hybridManager) {
-          await hybridManager.forceRestore();
-          new import_obsidian36.Notice("\u2705 Vector restore completed successfully");
-        } else {
-          new import_obsidian36.Notice("\u274C Hybrid vector manager not available");
-        }
-      } catch (error) {
-        debugLog((_a2 = plugin.settings.debugMode) != null ? _a2 : false, "error", "Failed to force restore:", error);
-        new import_obsidian36.Notice(`Error: ${error.message}`);
-      }
-    }
-  });
-  registerCommand(plugin, {
-    id: "hybrid-vector-status",
-    name: "Hybrid Vector: Status & Statistics",
-    callback: async () => {
-      var _a2;
-      try {
-        const semanticBuilder = new SemanticContextBuilder(plugin.app, plugin);
-        await semanticBuilder.initialize();
-        const hybridManager = semanticBuilder.getHybridVectorManager();
-        if (hybridManager && "getStatus" in hybridManager) {
-          const status = await hybridManager.getStatus();
-          const lastBackupStr = status.lastBackupTime > 0 ? new Date(status.lastBackupTime).toLocaleString() : "Never";
-          const changeStr = status.changesSinceBackup > 0 ? ` (${status.changesSinceBackup} changes since backup)` : "";
-          const message = [
-            `\u{1F4CA} Hybrid Vector Storage Status:`,
-            `Ready: ${status.isReady ? "\u2705" : "\u274C"}`,
-            `Vectors: ${status.vectorCount}${changeStr}`,
-            `Last backup: ${lastBackupStr}`,
-            `Backup file: ${status.backupFilePath}`,
-            `Summary hash: ${status.metadata.summaryHash}`
-          ].join("\n");
-          new import_obsidian36.Notice(message, 8e3);
-        } else {
-          new import_obsidian36.Notice("\u274C Hybrid vector manager not available");
-        }
-      } catch (error) {
-        debugLog((_a2 = plugin.settings.debugMode) != null ? _a2 : false, "error", "Failed to get hybrid vector status:", error);
-        new import_obsidian36.Notice(`Error: ${error.message}`);
-      }
-    }
-  });
-}
-
 // src/components/commands/commandRegistry.ts
 init_YAMLHandler();
 init_logger();
@@ -27053,7 +24139,6 @@ function registerAllCommands(plugin, settings, processMessages2, activateChatVie
   registerGenerateNoteTitleCommand(plugin, settings, processMessages2);
   registerContextCommands(plugin, settings);
   registerToggleCommands(plugin, settings);
-  registerVectorStoreCommands(plugin);
   return registerYamlAttributeCommands(
     plugin,
     settings,
@@ -27072,7 +24157,7 @@ init_aiDispatcher();
 init_objectPool();
 
 // src/integration/priority3Integration.ts
-var import_obsidian37 = require("obsidian");
+var import_obsidian34 = require("obsidian");
 init_dependencyInjection();
 init_stateManager();
 init_streamManager();
@@ -27383,130 +24468,8 @@ var Priority3IntegrationManager = class {
 // src/main.ts
 init_typeGuards();
 
-// src/components/codeblocks/SemanticSearchCodeblock.ts
-init_SemanticContextBuilder();
-init_logger();
-function registerSemanticSearchCodeblock(plugin) {
-  plugin.registerMarkdownCodeBlockProcessor("semantic-search", async (source, el, ctx) => {
-    await processSemanticSearchCodeblock(source, el, ctx, plugin);
-  });
-}
-async function processSemanticSearchCodeblock(source, el, ctx, plugin) {
-  var _a2, _b, _c;
-  el.empty();
-  const query = source.trim();
-  if (!query) {
-    el.createEl("div", {
-      text: "Enter a search query in the codeblock",
-      cls: "semantic-search-empty"
-    });
-    return;
-  }
-  el.addClass("semantic-search-container");
-  const loadingEl = el.createEl("div", {
-    text: "Searching...",
-    cls: "semantic-search-loading"
-  });
-  try {
-    const semanticBuilder = new SemanticContextBuilder(plugin.app, plugin);
-    if (!semanticBuilder.initialized) {
-      await semanticBuilder.initialize();
-    }
-    const stats = await semanticBuilder.getStats();
-    console.log(`Semantic search debug: ${(stats == null ? void 0 : stats.totalVectors) || 0} total embeddings available`);
-    debugLog((_a2 = plugin.settings.debugMode) != null ? _a2 : false, "info", `Semantic search: ${(stats == null ? void 0 : stats.totalVectors) || 0} total embeddings available`);
-    console.log(`Attempting semantic search for query: "${query}"`);
-    const results = await semanticBuilder.semanticSearch(query, {
-      topK: (_b = plugin.settings.semanticSearchResultCount) != null ? _b : 10,
-      minSimilarity: 0
-    });
-    console.log(`Semantic search completed. Found ${results.length} results`);
-    loadingEl.remove();
-    if (results.length === 0 && stats && stats.totalVectors > 0) {
-      console.warn(`No results found for query "${query}" despite having ${stats.totalVectors} embeddings`);
-      el.createEl("div", {
-        text: `Debug: Found ${stats.totalVectors} total embeddings but no results for query "${query}". This might indicate an embedding service issue.`,
-        cls: "semantic-search-error"
-      });
-      return;
-    }
-    renderSemanticSearchResults(el, results, query, plugin);
-  } catch (error) {
-    loadingEl.remove();
-    console.error("Semantic search codeblock failed:", error);
-    debugLog((_c = plugin.settings.debugMode) != null ? _c : false, "error", "Semantic search codeblock failed:", error);
-    const errorEl = el.createEl("div", {
-      cls: "semantic-search-error"
-    });
-    errorEl.createEl("div", {
-      text: `Error: ${error.message}`
-    });
-    if (error.stack) {
-      const stackEl = errorEl.createEl("details");
-      stackEl.createEl("summary", { text: "Error Details" });
-      stackEl.createEl("pre", {
-        text: error.stack,
-        attr: { style: "font-size: 0.8em; margin-top: 10px; white-space: pre-wrap;" }
-      });
-    }
-  }
-}
-function renderSemanticSearchResults(el, results, query, plugin) {
-  el.addClass("semantic-search-container");
-  const headerEl = el.createEl("div", { cls: "semantic-search-header" });
-  headerEl.createEl("h4", {
-    text: `Query: "${query}"`,
-    cls: "semantic-search-title"
-  });
-  headerEl.createEl("span", {
-    text: `${results.length} embeddings found`,
-    cls: "semantic-search-count"
-  });
-  if (results.length === 0) {
-    el.createEl("div", {
-      text: 'No embeddings found. Make sure you have embedded some notes first using "AI Assistant: Embed All Notes" or "AI Assistant: Embed Currently Open Note".',
-      cls: "semantic-search-no-results"
-    });
-    return;
-  }
-  const resultsContainer = el.createEl("div", { cls: "semantic-search-results" });
-  results.forEach((result, index) => {
-    const resultEl = resultsContainer.createEl("div", {
-      cls: "semantic-search-result"
-    });
-    const resultHeader = resultEl.createEl("div", { cls: "semantic-search-result-header" });
-    const rankEl = resultHeader.createEl("span", {
-      cls: "semantic-search-rank",
-      text: `#${index + 1}`
-    });
-    const scoreEl = resultHeader.createEl("span", {
-      cls: "semantic-search-score",
-      text: `${(result.similarity * 100).toFixed(1)}%`
-    });
-    if (result.filePath) {
-      const linkEl = resultHeader.createEl("a", {
-        cls: "semantic-search-file-link",
-        text: result.filePath,
-        href: result.filePath
-      });
-      linkEl.addEventListener("click", (e) => {
-        e.preventDefault();
-        const file = plugin.app.vault.getAbstractFileByPath(result.filePath);
-        if (file) {
-          plugin.app.workspace.openLinkText(result.filePath, "", false);
-        }
-      });
-    }
-    const contentEl = resultEl.createEl("div", {
-      cls: "semantic-search-content"
-    });
-    const truncatedText = result.text.length > 200 ? result.text.substring(0, 200) + "..." : result.text;
-    contentEl.textContent = truncatedText;
-  });
-}
-
 // src/utils/PerformanceDashboard.ts
-var import_obsidian38 = require("obsidian");
+var import_obsidian35 = require("obsidian");
 init_performanceMonitor();
 init_APICircuitBreaker();
 init_logger();
@@ -27834,7 +24797,7 @@ ${Array.from(this.activeAlerts.values()).sort((a, b) => b.timestamp - a.timestam
 };
 __publicField(_PerformanceDashboard, "instance");
 var PerformanceDashboard = _PerformanceDashboard;
-var PerformanceDashboardModal = class extends import_obsidian38.Modal {
+var PerformanceDashboardModal = class extends import_obsidian35.Modal {
   constructor(plugin) {
     super(plugin.app);
     __publicField(this, "dashboard");
@@ -27973,7 +24936,7 @@ var PerformanceDashboardModal = class extends import_obsidian38.Modal {
 var performanceDashboard = PerformanceDashboard.getInstance();
 
 // src/main.ts
-var _MyPlugin = class _MyPlugin extends import_obsidian40.Plugin {
+var _MyPlugin = class _MyPlugin extends import_obsidian37.Plugin {
   constructor() {
     super(...arguments);
     /**
@@ -28151,7 +25114,6 @@ var _MyPlugin = class _MyPlugin extends import_obsidian40.Plugin {
     this.registerMarkdownCodeBlockProcessor("ai-tool-execution", (source, el, ctx) => {
       this.processToolExecutionCodeBlock(source, el, ctx);
     });
-    registerSemanticSearchCodeblock(this);
     this.addCommand({
       id: "open-performance-dashboard",
       name: "Open Performance Dashboard",

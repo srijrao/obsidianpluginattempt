@@ -19,7 +19,6 @@ import { Priority3IntegrationManager } from './integration/priority3Integration'
 import { parseToolDataFromContent, cleanContentFromToolData } from './utils/messageContentParser';
 import { isVaultAdapterWithBasePath, validatePluginSettings } from './utils/typeGuards';
 import { RecentlyOpenedFilesManager } from './utils/recently-opened-files';
-import { registerSemanticSearchCodeblock } from './components/codeblocks/SemanticSearchCodeblock';
 import { PerformanceDashboardModal } from './utils/PerformanceDashboard';
 
 /**
@@ -247,8 +246,6 @@ export default class MyPlugin extends Plugin {
             this.processToolExecutionCodeBlock(source, el, ctx);
         });
 
-        // Register semantic search codeblock processor
-        registerSemanticSearchCodeblock(this);
 
         // Register performance dashboard command
         this.addCommand({

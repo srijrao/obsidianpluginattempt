@@ -2,33 +2,6 @@ import { DEFAULT_TITLE_PROMPT, DEFAULT_SUMMARY_PROMPT, DEFAULT_YAML_SYSTEM_MESSA
 import { AgentModeSettings, UnifiedModel, ChatSession } from "../types";
 
 /**
- * Represents a folder path rule for embedding filtering.
- */
-export interface FolderFilterRule {
-    /** The folder path (supports glob patterns). */
-    path: string;
-    /** Whether to include subdirectories recursively. */
-    recursive: boolean;
-    /** Human-readable description of the rule. */
-    description?: string;
-}
-
-/**
- * Settings for controlling which folders/notes are included or excluded from embedding.
- */
-export interface EmbeddingFolderFilter {
-    /** 
-     * Filter mode: 
-     * - 'include': Only embed files in specified folders (whitelist mode)
-     * - 'exclude': Embed all files except those in specified folders (blacklist mode)
-     * - 'off': No filtering (embed all files)
-     */
-    mode: 'include' | 'exclude' | 'off';
-    /** List of folder rules for inclusion or exclusion. */
-    rules: FolderFilterRule[];
-}
-
-/**
  * Represents a YAML attribute generator for the settings UI.
  * This interface defines the structure for generating YAML attributes dynamically.
  */
@@ -256,8 +229,6 @@ export interface MyPluginSettings {
     pluginBehaviorExpanded?: Record<string, boolean>;
     /** Stores the expanded state of backup management sections. */
     backupManagementExpanded?: Record<string, boolean>;
-    /** Stores the expanded state of vector store sections. */
-    vectorStoreExpanded?: Record<string, boolean>;
 
     /** Model setting presets defined by the user. */
     modelSettingPresets?: ModelSettingPreset[];
@@ -285,15 +256,6 @@ export interface MyPluginSettings {
     /** Debug mode for verbose logging and UI. */
     debugMode?: boolean;
 
-    /** Vector Store / Semantic Memory settings. */
-    /** If true, enables semantic context using vector embeddings. */
-    enableSemanticContext?: boolean;
-    /** Maximum number of semantic context chunks to include in AI queries. */
-    maxSemanticContextChunks?: number;
-    /** Number of results to show in semantic search (1 to 100). */
-    semanticSearchResultCount?: number;
-    /** Embedding folder filter settings. */
-    embeddingFolderFilter?: EmbeddingFolderFilter;
 
     
 }
@@ -435,8 +397,6 @@ export const DEFAULT_SETTINGS: MyPluginSettings = {
     /** @inheritdoc */
     backupManagementExpanded: {},
     /** @inheritdoc */
-    vectorStoreExpanded: {},
-    /** @inheritdoc */
     modelSettingPresets: [
         {
             name: "Default",
@@ -466,16 +426,5 @@ export const DEFAULT_SETTINGS: MyPluginSettings = {
         maxToolCalls: 10,
         timeoutMs: 30000,
         maxIterations: 10
-    },
-    /** @inheritdoc */
-    enableSemanticContext: false,
-    /** @inheritdoc */
-    maxSemanticContextChunks: 3,
-    /** @inheritdoc */
-    semanticSearchResultCount: 10,
-    /** @inheritdoc */
-    embeddingFolderFilter: {
-        mode: 'off',
-        rules: []
     },
 };

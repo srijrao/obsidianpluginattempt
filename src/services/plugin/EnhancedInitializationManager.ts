@@ -795,8 +795,6 @@ export class EnhancedInitializationManager implements IInitializationManager {
                 (this.plugin as any).processToolExecutionCodeBlock(source, el, ctx);
             });
 
-            const { registerSemanticSearchCodeblock } = await import('../../components/codeblocks/SemanticSearchCodeblock');
-            registerSemanticSearchCodeblock(this.plugin);
         } catch (error) {
             this.logger.warn('Failed to register markdown processors', { error });
         }

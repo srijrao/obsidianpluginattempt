@@ -4,4 +4,3 @@ export { registerNoteCommands } from './noteCommands';
 export { registerGenerateNoteTitleCommand } from './generateNoteTitleCommand';
 export { registerContextCommands } from './contextCommands';
 export { registerToggleCommands } from './toggleCommands';
-export { registerVectorStoreCommands } from './vectorStoreCommands';
