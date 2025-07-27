@@ -3262,11 +3262,7 @@ function buildAgentSystemPrompt(enabledTools, customTemplate) {
   }
   const toolList = getDynamicToolList(enabledTools);
   const toolDescriptions = toolList.map((tool, idx) => {
-    let paramDesc = "";
-    if (tool.parameterDescriptions && Object.keys(tool.parameterDescriptions).length > 0) {
-      paramDesc = "\n    Parameters:\n" + Object.entries(tool.parameterDescriptions).map(([param, desc]) => `      - ${param}: ${desc}`).join("\n");
-    }
-    return `${idx + 1}. ${tool.name} - ${tool.description}${paramDesc}`;
+    return `${idx + 1}. ${tool.name} - ${tool.description}`;
   }).join("\n");
   const template = customTemplate || AGENT_SYSTEM_PROMPT_TEMPLATE;
   return template.replace("{{TOOL_DESCRIPTIONS}}", toolDescriptions);
