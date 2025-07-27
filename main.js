@@ -53,7 +53,7 @@ var init_FileSearchTool = __esm({
         // Name of the tool (used for referencing in the plugin system)
         __publicField(this, "name", "file_search");
         // Description of what this tool does
-        __publicField(this, "description", "Searches for files within the vault based on a query and specified file types, returning a limited number of results. This tool is useful for quickly locating relevant documents and assets.");
+        __publicField(this, "description", "Searches files by name and type, with optional content search for markdown files.");
         // Parameters that can be passed to this tool
         __publicField(this, "parameters", {
           query: {
@@ -500,7 +500,7 @@ var init_FileReadTool = __esm({
       constructor(app) {
         this.app = app;
         __publicField(this, "name", "file_read");
-        __publicField(this, "description", "Reads and retrieves the content of a specified file from the vault, with an option to limit the maximum file size. This tool is fundamental for accessing and processing file data.");
+        __publicField(this, "description", "Reads file content with optional size limiting.");
         __publicField(this, "parameters", {
           path: {
             type: "string",
@@ -1147,7 +1147,7 @@ var init_FileWriteTool = __esm({
       constructor(app, backupManager) {
         this.app = app;
         __publicField(this, "name", "file_write");
-        __publicField(this, "description", "Writes or modifies the content of a file in the vault, with options for creating new files, backing up existing ones, and creating parent directories. This tool is essential for managing file content.");
+        __publicField(this, "description", "Writes content to files with creation, backup, and folder options.");
         __publicField(this, "parameters", {
           path: {
             type: "string",
@@ -1766,7 +1766,7 @@ var init_FileDiffTool = __esm({
       constructor(app) {
         this.app = app;
         __publicField(this, "name", "file_diff");
-        __publicField(this, "description", "Manages file changes: presents suggestions for user review. This tool is essential for precise file manipulation and collaborative editing workflows.");
+        __publicField(this, "description", "Presents file change suggestions for user review and approval.");
         __publicField(this, "parameters", {
           path: {
             type: "string",
@@ -2022,7 +2022,7 @@ var init_FileMoveTool = __esm({
       constructor(app) {
         this.app = app;
         __publicField(this, "name", "file_move");
-        __publicField(this, "description", "Relocates or renames files within the vault, providing options to create necessary directories and handle existing files. This tool is vital for organizing and restructuring content.");
+        __publicField(this, "description", "Moves or renames files with folder creation and overwrite options.");
         __publicField(this, "parameters", {
           sourcePath: {
             type: "string",
@@ -2286,7 +2286,7 @@ var init_FileListTool = __esm({
       constructor(app) {
         this.app = app;
         __publicField(this, "name", "file_list");
-        __publicField(this, "description", "Retrieves a comprehensive list of files and folders within a specified directory, offering options for recursive traversal. This tool is crucial for understanding project structure and navigating the file system.");
+        __publicField(this, "description", "Lists files and folders in a directory with optional recursive traversal.");
         __publicField(this, "parameters", {
           path: { type: "string", description: "Path to the folder.", required: false },
           recursive: { type: "boolean", description: "List files recursively.", default: false },
@@ -2394,183 +2394,6 @@ var init_FileListTool = __esm({
   }
 });
 
-// src/components/agent/tools/VaultTreeTool.ts
-var import_obsidian6, VaultTreeTool;
-var init_VaultTreeTool = __esm({
-  "src/components/agent/tools/VaultTreeTool.ts"() {
-    import_obsidian6 = require("obsidian");
-    init_pathValidation();
-    init_typeGuards();
-    VaultTreeTool = class {
-      constructor(app) {
-        this.app = app;
-        __publicField(this, "name", "vault_tree");
-        __publicField(this, "description", "Generates a hierarchical tree view of the vault structure, showing only folders and their organization in a visual tree format. Perfect for understanding the overall vault organization.");
-        __publicField(this, "parameters", {
-          path: { type: "string", description: "Starting path for the tree (defaults to vault root)", required: false },
-          maxDepth: { type: "number", description: "Maximum depth to traverse", default: 10 },
-          maxItems: { type: "number", description: "Maximum total items to include", default: 200 },
-          showFolders: { type: "boolean", description: "Whether to include folders in the tree", default: true }
-        });
-        __publicField(this, "pathValidator");
-        this.pathValidator = new PathValidator(app);
-      }
-      /**
-       * Executes the vault tree generation.
-       * Traverses the vault folder structure and builds a tree representation.
-       * @param params VaultTreeParams
-       * @param context Execution context (unused)
-       * @returns ToolResult with the tree string and stats or error
-       */
-      async execute(params, context) {
-        const {
-          path: path3 = "",
-          maxDepth = 10,
-          maxItems = 200,
-          showFolders = true
-        } = params;
-        let startPath;
-        try {
-          startPath = this.pathValidator.validateAndNormalizePath(path3);
-        } catch (error) {
-          return {
-            success: false,
-            error: `Path validation failed: ${error.message}`
-          };
-        }
-        const vault = this.app.vault;
-        let startFolder;
-        if (startPath === "" || startPath === "/") {
-          startFolder = vault.getRoot();
-        } else {
-          startFolder = vault.getAbstractFileByPath(startPath);
-        }
-        if (!startFolder || !(startFolder instanceof import_obsidian6.TFolder)) {
-          return {
-            success: false,
-            error: "Folder not found: " + (startPath || "(root)")
-          };
-        }
-        const treeLines = [];
-        let totalItems = 0;
-        let truncated = false;
-        const buildTree = (folder, prefix = "", depth = 0) => {
-          if (depth > maxDepth || totalItems >= maxItems) {
-            if (totalItems >= maxItems) {
-              truncated = true;
-            }
-            return;
-          }
-          if (depth > 0 && showFolders) {
-            const itemCount = folder.children.length;
-            treeLines.push(`${prefix}\u{1F4C1}${folder.name}/(${itemCount} items)`);
-            totalItems++;
-            if (totalItems >= maxItems) {
-              truncated = true;
-              return;
-            }
-          }
-          const children = [...folder.children];
-          children.sort((a, b) => {
-            if (isTFolder(a) && isTFile(b)) return -1;
-            if (isTFile(a) && isTFolder(b)) return 1;
-            if (isTFile(a) && isTFile(b)) return 1;
-            if (!isTFile(a) && isTFile(b)) return -1;
-            return a.name.localeCompare(b.name);
-          });
-          const filteredChildren = children.filter((child) => {
-            if (isTFolder(child)) return showFolders;
-            return false;
-          });
-          filteredChildren.forEach((child, index) => {
-            if (totalItems >= maxItems) {
-              truncated = true;
-              return;
-            }
-            const newPrefix = depth > 0 ? prefix + "  " : "";
-            if (isTFile(child)) {
-            } else if (isTFolder(child)) {
-              buildTree(child, newPrefix, depth + 1);
-            }
-          });
-        };
-        try {
-          if (startPath === "" || startPath === "/") {
-            const rootItemCount = startFolder.children.length;
-            treeLines.push(`\u{1F4C1}Vault Root/(${rootItemCount} items)`);
-            totalItems++;
-          }
-          buildTree(startFolder, "", startPath === "" || startPath === "/" ? 0 : -1);
-          const tree = treeLines.join(",\n");
-          const stats = {
-            totalItems,
-            maxDepth,
-            maxItems,
-            truncated,
-            startPath: startPath || "/",
-            showFolders
-          };
-          return {
-            success: true,
-            data: {
-              tree,
-              stats,
-              // For compatibility with other tools
-              items: tree,
-              count: totalItems,
-              path: startPath || "/"
-            }
-          };
-        } catch (error) {
-          return {
-            success: false,
-            error: error instanceof Error ? error.message : String(error)
-          };
-        }
-      }
-      /**
-       * Returns an emoji icon for a given file extension.
-       * Not used in the current tree output, but available for extension.
-       * @param extension File extension (without dot)
-       * @returns Emoji string
-       */
-      getFileIcon(extension) {
-        const iconMap = {
-          "md": "\u{1F4DD}",
-          "txt": "\u{1F4C4}",
-          "pdf": "\u{1F4D5}",
-          "doc": "\u{1F4D8}",
-          "docx": "\u{1F4D8}",
-          "xls": "\u{1F4CA}",
-          "xlsx": "\u{1F4CA}",
-          "ppt": "\u{1F4CA}",
-          "pptx": "\u{1F4CA}",
-          "png": "\u{1F5BC}\uFE0F",
-          "jpg": "\u{1F5BC}\uFE0F",
-          "jpeg": "\u{1F5BC}\uFE0F",
-          "gif": "\u{1F5BC}\uFE0F",
-          "svg": "\u{1F5BC}\uFE0F",
-          "mp3": "\u{1F3B5}",
-          "wav": "\u{1F3B5}",
-          "mp4": "\u{1F3AC}",
-          "avi": "\u{1F3AC}",
-          "zip": "\u{1F4E6}",
-          "rar": "\u{1F4E6}",
-          "json": "\u2699\uFE0F",
-          "yaml": "\u2699\uFE0F",
-          "yml": "\u2699\uFE0F",
-          "css": "\u{1F3A8}",
-          "js": "\u26A1",
-          "ts": "\u26A1",
-          "html": "\u{1F310}",
-          "xml": "\u{1F310}"
-        };
-        return iconMap[extension.toLowerCase()] || "\u{1F4C4}";
-      }
-    };
-  }
-});
-
 // src/components/agent/tools/FileDeleteTool.ts
 var FileDeleteTool;
 var init_FileDeleteTool = __esm({
@@ -2589,7 +2412,7 @@ var init_FileDeleteTool = __esm({
       constructor(app, backupManager) {
         this.app = app;
         __publicField(this, "name", "file_delete");
-        __publicField(this, "description", "Safely deletes files or folders from the vault by moving them to a .trash folder (default) or permanently deleting them. The trash option provides safer file management and allows restoration. For folders, creates backups of all contained files before deletion.");
+        __publicField(this, "description", "Deletes files or folders with backup and trash options for safe removal.");
         __publicField(this, "parameters", {
           path: {
             type: "string",
@@ -2963,7 +2786,7 @@ var init_GetUserFeedback = __esm({
       constructor(app) {
         this.app = app;
         __publicField(this, "name", "get_user_feedback");
-        __publicField(this, "description", "Asks the user a question and waits for their response. Supports both text input and multiple choice questions with interactive buttons. Use this when you need user input to proceed with a task.");
+        __publicField(this, "description", "Prompts user for text or multiple choice input during agent execution.");
         __publicField(this, "parameters", {
           question: {
             type: "string",
@@ -3140,7 +2963,6 @@ function getAllToolClasses() {
     FileMoveTool,
     ThoughtTool,
     FileListTool,
-    VaultTreeTool,
     FileDeleteTool,
     GetUserFeedbackTool
   ];
@@ -3238,7 +3060,6 @@ var init_toolcollect = __esm({
     init_FileMoveTool();
     init_ThoughtTool();
     init_FileListTool();
-    init_VaultTreeTool();
     init_FileDeleteTool();
     init_GetUserFeedback();
   }
@@ -3287,10 +3108,10 @@ var init_promptConstants = __esm({
       }));
     };
     AGENT_SYSTEM_PROMPT_TEMPLATE = `
-- You are an AI assistant in an Obsidian Vault with access to powerful tools for vault management.
-- ALWAYS start by using the 'thought' tool to outline your plan before executing actions, and at the end of the task for a summary of completion.
-- ALWAYS use relative paths from the vault root.
-- You MAY call multiple tools in a single response if it is efficient to do so. Respond ONLY with several consecutive JSON objects (not an array) if you need to use more than one tool at once, or a single object if only one tool is needed.
+- AI assistant for Obsidian Vault with vault management tools.
+- ALWAYS use 'thought' tool first to plan, then at end to summarize.
+- Use relative paths from vault root.
+- Respond with JSON objects only (consecutive, not array format).
 
 Available tools:
 {{TOOL_DESCRIPTIONS}}
@@ -3510,11 +3331,11 @@ async function copyToClipboard(text) {
   } catch (error) {
   }
 }
-var import_obsidian8, Buttons;
+var import_obsidian7, Buttons;
 var init_Buttons = __esm({
   "src/components/chat/Buttons.ts"() {
-    import_obsidian8 = require("obsidian");
-    Buttons = class extends import_obsidian8.Component {
+    import_obsidian7 = require("obsidian");
+    Buttons = class extends import_obsidian7.Component {
       /**
        * Constructs the Buttons component and initializes all main chat buttons.
        */
@@ -3527,13 +3348,13 @@ var init_Buttons = __esm({
         __publicField(this, "settingsButton");
         this.container = document.createElement("div");
         this.container.addClass("ai-chat-buttons");
-        this.sendButton = new import_obsidian8.ButtonComponent(this.container).setButtonText("Send").setClass("mod-cta");
+        this.sendButton = new import_obsidian7.ButtonComponent(this.container).setButtonText("Send").setClass("mod-cta");
         this.sendButton.buttonEl.addClass("hidden-button");
-        this.stopButton = new import_obsidian8.ButtonComponent(this.container).setButtonText("Stop");
+        this.stopButton = new import_obsidian7.ButtonComponent(this.container).setButtonText("Stop");
         this.stopButton.buttonEl.addClass("hidden-button");
-        this.clearButton = new import_obsidian8.ButtonComponent(this.container).setButtonText("Clear");
+        this.clearButton = new import_obsidian7.ButtonComponent(this.container).setButtonText("Clear");
         this.clearButton.buttonEl.addClass("hidden-button");
-        this.settingsButton = new import_obsidian8.ButtonComponent(this.container).setButtonText("Settings");
+        this.settingsButton = new import_obsidian7.ButtonComponent(this.container).setButtonText("Settings");
         this.settingsButton.buttonEl.addClass("hidden-button");
       }
       /**
@@ -3702,11 +3523,11 @@ var init_Buttons = __esm({
 });
 
 // src/components/agent/ToolRichDisplay.ts
-var import_obsidian9, ToolRichDisplay;
+var import_obsidian8, ToolRichDisplay;
 var init_ToolRichDisplay = __esm({
   "src/components/agent/ToolRichDisplay.ts"() {
-    import_obsidian9 = require("obsidian");
-    ToolRichDisplay = class _ToolRichDisplay extends import_obsidian9.Component {
+    import_obsidian8 = require("obsidian");
+    ToolRichDisplay = class _ToolRichDisplay extends import_obsidian8.Component {
       /**
        * Constructs a ToolRichDisplay instance.
        * @param options ToolDisplayOptions for rendering and actions
@@ -4302,10 +4123,10 @@ ${details}
 });
 
 // src/components/agent/MessageRenderer.ts
-var import_obsidian10, MessageRenderer;
+var import_obsidian9, MessageRenderer;
 var init_MessageRenderer = __esm({
   "src/components/agent/MessageRenderer.ts"() {
-    import_obsidian10 = require("obsidian");
+    import_obsidian9 = require("obsidian");
     init_ToolRichDisplay();
     init_logger();
     MessageRenderer = class {
@@ -4338,12 +4159,12 @@ var init_MessageRenderer = __esm({
         const contentEl = container.querySelector(".message-content");
         if (contentEl) {
           contentEl.empty();
-          import_obsidian10.MarkdownRenderer.render(
+          import_obsidian9.MarkdownRenderer.render(
             this.app,
             messageData.content,
             contentEl,
             "",
-            component || new import_obsidian10.Component()
+            component || new import_obsidian9.Component()
           ).catch((error) => {
             contentEl.textContent = messageData.content;
           });
@@ -4576,7 +4397,7 @@ var init_MessageRenderer = __esm({
         if (message.content && message.content.trim()) {
           const textDiv = document.createElement("div");
           textDiv.className = "message-text-part";
-          await import_obsidian10.MarkdownRenderer.render(this.app, message.content, textDiv, "", component || new import_obsidian10.Component());
+          await import_obsidian9.MarkdownRenderer.render(this.app, message.content, textDiv, "", component || new import_obsidian9.Component());
           messageContent.appendChild(textDiv);
         }
       }
@@ -4590,7 +4411,7 @@ var init_MessageRenderer = __esm({
         const messageContent = container.querySelector(".message-content");
         if (!messageContent) return;
         messageContent.empty();
-        await import_obsidian10.MarkdownRenderer.render(this.app, message.content, messageContent, "", component || new import_obsidian10.Component());
+        await import_obsidian9.MarkdownRenderer.render(this.app, message.content, messageContent, "", component || new import_obsidian9.Component());
       }
       /**
        * Parse message content to extract tool calls and text parts.
@@ -11505,7 +11326,7 @@ async function saveChatAsNote({
       } catch (e) {
         if (!app.vault.getAbstractFileByPath(folder)) {
           debugLog((_i = settings.debugMode) != null ? _i : false, "error", `[saveChatAsNote] Failed to create folder for chat note: ${folder}`, e);
-          new import_obsidian11.Notice("Failed to create folder for chat note.");
+          new import_obsidian10.Notice("Failed to create folder for chat note.");
           return;
         } else {
           debugLog((_j = settings.debugMode) != null ? _j : false, "warn", `[saveChatAsNote] Folder already exists after race: ${folder}`);
@@ -11529,10 +11350,10 @@ async function saveChatAsNote({
   try {
     await app.vault.create(finalFilePath, noteContent);
     debugLog((_m = settings.debugMode) != null ? _m : false, "info", "[saveChatAsNote] Chat successfully saved as note", { finalFilePath });
-    new import_obsidian11.Notice(`Chat saved as note: ${finalFilePath}`);
+    new import_obsidian10.Notice(`Chat saved as note: ${finalFilePath}`);
   } catch (e) {
     debugLog((_n = settings.debugMode) != null ? _n : false, "error", "[saveChatAsNote] Failed to save chat as note", { finalFilePath, error: e });
-    new import_obsidian11.Notice("Failed to save chat as note.");
+    new import_obsidian10.Notice("Failed to save chat as note.");
   }
   debugLog((_o = settings.debugMode) != null ? _o : false, "info", "[saveChatAsNote] Exiting function. Save process complete.");
   return;
@@ -11614,23 +11435,23 @@ async function loadChatYamlAndApplySettings({
     temperature: newTemperature
   };
 }
-var import_obsidian11;
+var import_obsidian10;
 var init_chatPersistence = __esm({
   "src/components/chat/chatPersistence.ts"() {
     init_js_yaml();
     init_logger();
     init_providers();
     init_MessageRenderer();
-    import_obsidian11 = require("obsidian");
+    import_obsidian10 = require("obsidian");
   }
 });
 
 // src/components/chat/ChatHelpModal.ts
-var import_obsidian12, ChatHelpModal;
+var import_obsidian11, ChatHelpModal;
 var init_ChatHelpModal = __esm({
   "src/components/chat/ChatHelpModal.ts"() {
-    import_obsidian12 = require("obsidian");
-    ChatHelpModal = class extends import_obsidian12.Modal {
+    import_obsidian11 = require("obsidian");
+    ChatHelpModal = class extends import_obsidian11.Modal {
       constructor(app) {
         super(app);
       }
@@ -11737,11 +11558,11 @@ var init_ChatHelpModal = __esm({
 });
 
 // src/components/chat/ConfirmationModal.ts
-var import_obsidian13, ConfirmationModal;
+var import_obsidian12, ConfirmationModal;
 var init_ConfirmationModal = __esm({
   "src/components/chat/ConfirmationModal.ts"() {
-    import_obsidian13 = require("obsidian");
-    ConfirmationModal = class extends import_obsidian13.Modal {
+    import_obsidian12 = require("obsidian");
+    ConfirmationModal = class extends import_obsidian12.Modal {
       /**
        * Constructs a ConfirmationModal.
        * @param app Obsidian App instance
@@ -15452,10 +15273,10 @@ async function withErrorHandling(operation, component, operationName, options) {
     operation: operationName
   }, options);
 }
-var import_obsidian14, _ErrorHandler, ErrorHandler, errorHandler;
+var import_obsidian13, _ErrorHandler, ErrorHandler, errorHandler;
 var init_errorHandler = __esm({
   "src/utils/errorHandler.ts"() {
-    import_obsidian14 = require("obsidian");
+    import_obsidian13 = require("obsidian");
     init_logger();
     init_performanceMonitor();
     init_typeGuards();
@@ -15496,7 +15317,7 @@ var init_errorHandler = __esm({
         });
         if (showNotice2 && this.shouldShowNotice(errorKey)) {
           const userMessage = this.formatUserMessage(errorMessage, context, fallbackMessage);
-          new import_obsidian14.Notice(userMessage, retryable ? 5e3 : 3e3);
+          new import_obsidian13.Notice(userMessage, retryable ? 5e3 : 3e3);
         }
       }
       /**
@@ -15557,7 +15378,7 @@ var init_errorHandler = __esm({
                   originalProvider: currentProvider,
                   fallbackProvider
                 });
-                new import_obsidian14.Notice(`Switched to ${fallbackProvider} due to ${currentProvider} error`, 3e3);
+                new import_obsidian13.Notice(`Switched to ${fallbackProvider} due to ${currentProvider} error`, 3e3);
                 return { success: true, result, fallbackProvider };
               } catch (fallbackError) {
                 debugLog(true, "warn", `[${context.component}] Fallback provider ${fallbackProvider} also failed:`, fallbackError);
@@ -15570,7 +15391,7 @@ var init_errorHandler = __esm({
         }
         const displayMessage = `All AI providers failed. Please check your configuration.`;
         if (options.showNotice !== false) {
-          new import_obsidian14.Notice(displayMessage, 5e3);
+          new import_obsidian13.Notice(displayMessage, 5e3);
         }
         return {
           success: false,
@@ -15597,7 +15418,7 @@ var init_errorHandler = __esm({
                 attempt: attempt.toString()
               });
               if (options.showNotice !== false) {
-                new import_obsidian14.Notice(`Operation succeeded after ${attempt} retries`, 2e3);
+                new import_obsidian13.Notice(`Operation succeeded after ${attempt} retries`, 2e3);
               }
             }
             return result;
@@ -17300,10 +17121,10 @@ var SettingsSections_exports = {};
 __export(SettingsSections_exports, {
   SettingsSections: () => SettingsSections
 });
-var import_obsidian15, SettingsSections;
+var import_obsidian14, SettingsSections;
 var init_SettingsSections = __esm({
   "src/components/chat/SettingsSections.ts"() {
-    import_obsidian15 = require("obsidian");
+    import_obsidian14 = require("obsidian");
     init_aiDispatcher();
     SettingsSections = class {
       /**
@@ -17343,11 +17164,11 @@ var init_SettingsSections = __esm({
                   window._aiModelSettingsRefreshTimeout = null;
                 }, 50);
               }
-              new import_obsidian15.Notice(`Applied preset: ${preset.name}`);
+              new import_obsidian14.Notice(`Applied preset: ${preset.name}`);
             };
           });
         }
-        new import_obsidian15.Setting(containerEl).setName("System Message").setDesc("Set the system message for the AI").addTextArea((text) => {
+        new import_obsidian14.Setting(containerEl).setName("System Message").setDesc("Set the system message for the AI").addTextArea((text) => {
           text.setPlaceholder("You are a helpful assistant.").setValue(this.plugin.settings.systemMessage).onChange((value) => {
             this.plugin.settings.systemMessage = value;
           });
@@ -17356,23 +17177,23 @@ var init_SettingsSections = __esm({
           });
           return text;
         });
-        new import_obsidian15.Setting(containerEl).setName("Enable Streaming").setDesc("Enable or disable streaming for completions").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableStreaming).onChange(async (value) => {
+        new import_obsidian14.Setting(containerEl).setName("Enable Streaming").setDesc("Enable or disable streaming for completions").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableStreaming).onChange(async (value) => {
           this.plugin.settings.enableStreaming = value;
           await this.plugin.saveSettings();
         }));
-        new import_obsidian15.Setting(containerEl).setName("Temperature").setDesc("Set the randomness of the model's output (0-1)").addSlider((slider) => slider.setLimits(0, 1, 0.1).setValue(this.plugin.settings.temperature).setDynamicTooltip().onChange(async (value) => {
+        new import_obsidian14.Setting(containerEl).setName("Temperature").setDesc("Set the randomness of the model's output (0-1)").addSlider((slider) => slider.setLimits(0, 1, 0.1).setValue(this.plugin.settings.temperature).setDynamicTooltip().onChange(async (value) => {
           this.plugin.settings.temperature = value;
           await this.plugin.saveSettings();
         }));
-        new import_obsidian15.Setting(containerEl).setName("Refresh Available Models").setDesc("Test connections to all configured providers and refresh available models").addButton((button) => button.setButtonText("Refresh Models").onClick(async () => {
+        new import_obsidian14.Setting(containerEl).setName("Refresh Available Models").setDesc("Test connections to all configured providers and refresh available models").addButton((button) => button.setButtonText("Refresh Models").onClick(async () => {
           button.setButtonText("Refreshing...");
           button.setDisabled(true);
           try {
             await this.refreshAllAvailableModels();
-            new import_obsidian15.Notice("Successfully refreshed available models");
+            new import_obsidian14.Notice("Successfully refreshed available models");
             if (onRefresh) onRefresh();
           } catch (error) {
-            new import_obsidian15.Notice(`Error refreshing models: ${error.message}`);
+            new import_obsidian14.Notice(`Error refreshing models: ${error.message}`);
           } finally {
             button.setButtonText("Refresh Models");
             button.setDisabled(false);
@@ -17386,7 +17207,7 @@ var init_SettingsSections = __esm({
        * @param containerEl The HTML element to render the section into.
        */
       renderDateSettings(containerEl) {
-        new import_obsidian15.Setting(containerEl).setName("Include Time with System Message").setDesc("Add the current time along with the date to the system message").addToggle((toggle) => toggle.setValue(this.plugin.settings.includeTimeWithSystemMessage).onChange(async (value) => {
+        new import_obsidian14.Setting(containerEl).setName("Include Time with System Message").setDesc("Add the current time along with the date to the system message").addToggle((toggle) => toggle.setValue(this.plugin.settings.includeTimeWithSystemMessage).onChange(async (value) => {
           this.plugin.settings.includeTimeWithSystemMessage = value;
           await this.plugin.saveSettings();
         }));
@@ -17397,17 +17218,17 @@ var init_SettingsSections = __esm({
        * @param containerEl The HTML element to render the section into.
        */
       renderNoteReferenceSettings(containerEl) {
-        new import_obsidian15.Setting(containerEl).setName("Enable Obsidian Links").setDesc("Read Obsidian links in messages using [[filename]] syntax").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableObsidianLinks).onChange(async (value) => {
+        new import_obsidian14.Setting(containerEl).setName("Enable Obsidian Links").setDesc("Read Obsidian links in messages using [[filename]] syntax").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableObsidianLinks).onChange(async (value) => {
           this.plugin.settings.enableObsidianLinks = value;
           await this.plugin.saveSettings();
         }));
-        new import_obsidian15.Setting(containerEl).setName("Enable Context Notes").setDesc("Attach specified note content to chat messages").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableContextNotes).onChange(async (value) => {
+        new import_obsidian14.Setting(containerEl).setName("Enable Context Notes").setDesc("Attach specified note content to chat messages").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableContextNotes).onChange(async (value) => {
           this.plugin.settings.enableContextNotes = value;
           await this.plugin.saveSettings();
         }));
         const contextNotesContainer = containerEl.createDiv("context-notes-container");
         contextNotesContainer.style.marginBottom = "24px";
-        new import_obsidian15.Setting(contextNotesContainer).setName("Context Notes").setDesc("Notes to attach as context (supports [[filename]] and [[filename#header]] syntax)").addTextArea((text) => {
+        new import_obsidian14.Setting(contextNotesContainer).setName("Context Notes").setDesc("Notes to attach as context (supports [[filename]] and [[filename#header]] syntax)").addTextArea((text) => {
           text.setPlaceholder("[[Note Name]]\n[[Another Note#Header]]").setValue(this.plugin.settings.contextNotes || "").onChange((value) => {
             this.plugin.settings.contextNotes = value;
           });
@@ -17418,7 +17239,7 @@ var init_SettingsSections = __esm({
           text.inputEl.style.width = "100%";
           return text;
         });
-        new import_obsidian15.Setting(containerEl).setName("Expand Linked Notes Recursively").setDesc("If enabled, when fetching a note, also fetch and expand links within that note recursively (prevents infinite loops).").addToggle((toggle) => {
+        new import_obsidian14.Setting(containerEl).setName("Expand Linked Notes Recursively").setDesc("If enabled, when fetching a note, also fetch and expand links within that note recursively (prevents infinite loops).").addToggle((toggle) => {
           var _a2;
           return toggle.setValue((_a2 = this.plugin.settings.expandLinkedNotesRecursively) != null ? _a2 : false).onChange(async (value) => {
             this.plugin.settings.expandLinkedNotesRecursively = value;
@@ -17452,7 +17273,7 @@ var init_SettingsSections = __esm({
           this.plugin.settings.availableModels = await aiDispatcher.getAllUnifiedModels();
           await this.plugin.saveSettings();
         }
-        new import_obsidian15.Setting(containerEl).setName("Selected Model").setDesc("Choose from all available models across all configured providers").addDropdown((dropdown) => {
+        new import_obsidian14.Setting(containerEl).setName("Selected Model").setDesc("Choose from all available models across all configured providers").addDropdown((dropdown) => {
           if (!this.plugin.settings.availableModels || this.plugin.settings.availableModels.length === 0) {
             dropdown.addOption("", "No models available - configure providers below");
           } else {
@@ -17552,7 +17373,7 @@ var init_SettingsSections = __esm({
        */
       renderOpenAIConfig(containerEl) {
         this._renderCollapsibleProviderConfig(containerEl, "openai", "OpenAI", (contentEl) => {
-          new import_obsidian15.Setting(contentEl).setName("OpenAI Base URL").setDesc("Custom base URL for OpenAI API (optional)").addText((text) => {
+          new import_obsidian14.Setting(contentEl).setName("OpenAI Base URL").setDesc("Custom base URL for OpenAI API (optional)").addText((text) => {
             text.setPlaceholder("https://api.openai.com/v1").setValue(this.plugin.settings.openaiSettings.baseUrl || "").onChange((value) => {
               this.plugin.settings.openaiSettings.baseUrl = value;
             });
@@ -17603,7 +17424,7 @@ var init_SettingsSections = __esm({
        */
       renderProviderTestSection(containerEl, provider, displayName) {
         const settings = this.plugin.settings[`${provider}Settings`];
-        new import_obsidian15.Setting(containerEl).setName("Test Connection").setDesc(`Verify your API key and fetch available models for ${displayName}`).addButton((button) => button.setButtonText("Test").onClick(async () => {
+        new import_obsidian14.Setting(containerEl).setName("Test Connection").setDesc(`Verify your API key and fetch available models for ${displayName}`).addButton((button) => button.setButtonText("Test").onClick(async () => {
           button.setButtonText("Testing...");
           button.setDisabled(true);
           try {
@@ -17619,17 +17440,17 @@ var init_SettingsSections = __esm({
               await this.plugin.saveSettings();
               this.plugin.settings.availableModels = await aiDispatcher.getAllUnifiedModels();
               await this.plugin.saveSettings();
-              new import_obsidian15.Notice(result.message);
+              new import_obsidian14.Notice(result.message);
             } else {
               settings.lastTestResult = {
                 timestamp: Date.now(),
                 success: false,
                 message: result.message
               };
-              new import_obsidian15.Notice(result.message);
+              new import_obsidian14.Notice(result.message);
             }
           } catch (error) {
-            new import_obsidian15.Notice(`Error: ${error.message}`);
+            new import_obsidian14.Notice(`Error: ${error.message}`);
             settings.lastTestResult = {
               timestamp: Date.now(),
               success: false,
@@ -17660,7 +17481,7 @@ var init_SettingsSections = __esm({
        * @param containerEl The HTML element to render the section into.
        */
       renderDebugModeSettings(containerEl) {
-        new import_obsidian15.Setting(containerEl).setName("Debug Mode").setDesc("Enable verbose logging and debug UI features").addToggle((toggle) => {
+        new import_obsidian14.Setting(containerEl).setName("Debug Mode").setDesc("Enable verbose logging and debug UI features").addToggle((toggle) => {
           var _a2;
           return toggle.setValue((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false).onChange(async (value) => {
             this.plugin.settings.debugMode = value;
@@ -17690,12 +17511,12 @@ var SettingsModal_exports = {};
 __export(SettingsModal_exports, {
   SettingsModal: () => SettingsModal
 });
-var import_obsidian16, SettingsModal;
+var import_obsidian15, SettingsModal;
 var init_SettingsModal = __esm({
   "src/components/chat/SettingsModal.ts"() {
-    import_obsidian16 = require("obsidian");
+    import_obsidian15 = require("obsidian");
     init_SettingsSections();
-    SettingsModal = class extends import_obsidian16.Modal {
+    SettingsModal = class extends import_obsidian15.Modal {
       /**
        * Constructs a SettingsModal instance.
        * @param app The Obsidian App instance.
@@ -17796,7 +17617,7 @@ function handleClearChat(messagesContainer, chatHistoryManager) {
     try {
       await chatHistoryManager.clearHistory();
     } catch (e) {
-      new import_obsidian17.Notice("Failed to clear chat history.");
+      new import_obsidian16.Notice("Failed to clear chat history.");
     }
   };
 }
@@ -17828,11 +17649,11 @@ function handleCopyMessage(messageEl, plugin) {
       contentToCopy = messageEl.dataset.rawContent || "";
     }
     if (contentToCopy.trim() === "") {
-      new import_obsidian17.Notice("No content to copy");
+      new import_obsidian16.Notice("No content to copy");
       return;
     }
     await copyToClipboard(contentToCopy);
-    new import_obsidian17.Notice("Message copied to clipboard");
+    new import_obsidian16.Notice("Message copied to clipboard");
   };
 }
 function handleEditMessage(messageEl, chatHistoryManager, plugin) {
@@ -17881,14 +17702,14 @@ function handleEditMessage(messageEl, chatHistoryManager, plugin) {
               toolResults: enhancedData.toolResults
             }, messageEl, void 0);
           } else {
-            await import_obsidian17.MarkdownRenderer.render(plugin.app, newContent, contentEl, "", void 0);
+            await import_obsidian16.MarkdownRenderer.render(plugin.app, newContent, contentEl, "", void 0);
           }
           contentEl.removeClass("editing");
         } catch (e) {
-          new import_obsidian17.Notice("Failed to save edited message.");
+          new import_obsidian16.Notice("Failed to save edited message.");
           messageEl.dataset.rawContent = oldContent || "";
           contentEl.empty();
-          await import_obsidian17.MarkdownRenderer.render(plugin.app, oldContent || "", contentEl, "", void 0);
+          await import_obsidian16.MarkdownRenderer.render(plugin.app, oldContent || "", contentEl, "", void 0);
           contentEl.removeClass("editing");
         }
       });
@@ -17906,7 +17727,7 @@ function handleDeleteMessage(messageEl, chatHistoryManager, app) {
         ).then(() => {
           messageEl.remove();
         }).catch(() => {
-          new import_obsidian17.Notice("Failed to delete message from history.");
+          new import_obsidian16.Notice("Failed to delete message from history.");
         });
       }
     });
@@ -17918,13 +17739,13 @@ function handleRegenerateMessage(messageEl, regenerateCallback) {
     regenerateCallback(messageEl);
   };
 }
-var import_obsidian17;
+var import_obsidian16;
 var init_eventHandlers = __esm({
   "src/components/chat/eventHandlers.ts"() {
     init_Buttons();
     init_chatPersistence();
     init_ChatHelpModal();
-    import_obsidian17 = require("obsidian");
+    import_obsidian16 = require("obsidian");
     init_MessageRenderer();
     init_ConfirmationModal();
   }
@@ -17935,12 +17756,12 @@ var BotMessage_exports = {};
 __export(BotMessage_exports, {
   BotMessage: () => BotMessage
 });
-var import_obsidian22, BotMessage;
+var import_obsidian21, BotMessage;
 var init_BotMessage = __esm({
   "src/components/chat/BotMessage.ts"() {
-    import_obsidian22 = require("obsidian");
+    import_obsidian21 = require("obsidian");
     init_Buttons();
-    BotMessage = class extends import_obsidian22.Component {
+    BotMessage = class extends import_obsidian21.Component {
       /**
        * Constructs a BotMessage instance.
        * @param app Obsidian App instance
@@ -17979,7 +17800,7 @@ var init_BotMessage = __esm({
         this.content = content;
         this.element.dataset.rawContent = content;
         this.contentEl.empty();
-        await import_obsidian22.MarkdownRenderer.render(
+        await import_obsidian21.MarkdownRenderer.render(
           this.app,
           content,
           this.contentEl,
@@ -17997,7 +17818,7 @@ var init_BotMessage = __esm({
         messageEl.dataset.rawContent = this.content;
         const messageContainer = messageEl.createDiv("message-container");
         this.contentEl = messageContainer.createDiv("message-content");
-        import_obsidian22.MarkdownRenderer.render(
+        import_obsidian21.MarkdownRenderer.render(
           this.app,
           this.content,
           this.contentEl,
@@ -18181,7 +18002,7 @@ async function generateNoteTitle(app, settings, processMessages2, dispatcher) {
   debugLog(DEBUG, "debug", "Starting generateNoteTitle");
   const activeFile = app.workspace.getActiveFile();
   if (!activeFile) {
-    new import_obsidian33.Notice("No active note found.");
+    new import_obsidian32.Notice("No active note found.");
     return;
   }
   let noteContent = await app.vault.cachedRead(activeFile);
@@ -18210,7 +18031,7 @@ async function generateNoteTitle(app, settings, processMessages2, dispatcher) {
     debugLog(DEBUG, "debug", "Processed messages:", JSON.stringify(processedMessages));
     if (!processedMessages || processedMessages.length === 0) {
       debugLog(DEBUG, "debug", "No processed messages!");
-      new import_obsidian33.Notice("No valid messages to send to the model. Please check your note content.");
+      new import_obsidian32.Notice("No valid messages to send to the model. Please check your note content.");
       return;
     }
     debugLog(DEBUG, "debug", "Calling dispatcher.getCompletion");
@@ -18238,38 +18059,38 @@ async function generateNoteTitle(app, settings, processMessages2, dispatcher) {
           const newPath = parentPath ? parentPath + "/" + sanitized + ext : sanitized + ext;
           if (file.path !== newPath) {
             await app.fileManager.renameFile(file, newPath);
-            new import_obsidian33.Notice(`Note renamed to: ${sanitized}${ext}`);
+            new import_obsidian32.Notice(`Note renamed to: ${sanitized}${ext}`);
           } else {
-            new import_obsidian33.Notice(`Note title is already: ${sanitized}${ext}`);
+            new import_obsidian32.Notice(`Note title is already: ${sanitized}${ext}`);
           }
         }
       } else if (outputMode === "metadata") {
         const file = app.workspace.getActiveFile();
         if (file) {
           await upsertYamlField(app, file, "title", title);
-          new import_obsidian33.Notice(`Inserted title into metadata: ${title}`);
+          new import_obsidian32.Notice(`Inserted title into metadata: ${title}`);
         }
       } else {
         try {
           await navigator.clipboard.writeText(title);
-          new import_obsidian33.Notice(`Generated title (copied): ${title}`);
+          new import_obsidian32.Notice(`Generated title (copied): ${title}`);
         } catch (e) {
-          new import_obsidian33.Notice(`Generated title: ${title}`);
+          new import_obsidian32.Notice(`Generated title: ${title}`);
         }
       }
     } else {
       debugLog(DEBUG, "debug", "No title generated after sanitization.");
-      new import_obsidian33.Notice("No title generated.");
+      new import_obsidian32.Notice("No title generated.");
     }
   } catch (err) {
-    new import_obsidian33.Notice("Error generating title: " + ((_b = err == null ? void 0 : err.message) != null ? _b : err));
+    new import_obsidian32.Notice("Error generating title: " + ((_b = err == null ? void 0 : err.message) != null ? _b : err));
   }
 }
 async function generateYamlAttribute(app, settings, processMessages2, attributeName, prompt, outputMode = "metadata", dispatcher) {
   debugLog(DEBUG, "debug", `Starting generateYamlAttribute for ${attributeName}`);
   const activeFile = app.workspace.getActiveFile();
   if (!activeFile) {
-    new import_obsidian33.Notice("No active note found.");
+    new import_obsidian32.Notice("No active note found.");
     return;
   }
   let noteContent = await app.vault.cachedRead(activeFile);
@@ -18292,7 +18113,7 @@ async function generateYamlAttribute(app, settings, processMessages2, attributeN
     debugLog(DEBUG, "debug", "Processed messages:", JSON.stringify(processedMessages));
     if (!processedMessages || processedMessages.length === 0) {
       debugLog(DEBUG, "debug", "No processed messages!");
-      new import_obsidian33.Notice("No valid messages to send to the model. Please check your note content.");
+      new import_obsidian32.Notice("No valid messages to send to the model. Please check your note content.");
       return;
     }
     debugLog(DEBUG, "debug", "Calling dispatcher.getCompletion");
@@ -18315,18 +18136,18 @@ async function generateYamlAttribute(app, settings, processMessages2, attributeN
       debugLog(DEBUG, "debug", "Output mode:", outputMode);
       if (outputMode === "metadata") {
         await upsertYamlField(app, activeFile, attributeName, value);
-        new import_obsidian33.Notice(`Inserted ${attributeName} into metadata: ${value}`);
+        new import_obsidian32.Notice(`Inserted ${attributeName} into metadata: ${value}`);
       } else {
         try {
           await navigator.clipboard.writeText(value);
-          new import_obsidian33.Notice(`Generated ${attributeName} (copied): ${value}`);
+          new import_obsidian32.Notice(`Generated ${attributeName} (copied): ${value}`);
         } catch (e) {
-          new import_obsidian33.Notice(`Generated ${attributeName}: ${value}`);
+          new import_obsidian32.Notice(`Generated ${attributeName}: ${value}`);
         }
       }
     } else {
       debugLog(DEBUG, "debug", `No value generated for ${attributeName} after sanitization.`);
-      new import_obsidian33.Notice(`No value generated for ${attributeName}.`);
+      new import_obsidian32.Notice(`No value generated for ${attributeName}.`);
     }
   } catch (processError) {
     debugLog(DEBUG, "debug", "Error in processMessages or provider.getCompletion:", processError);
@@ -18392,10 +18213,10 @@ function registerYamlAttributeCommands(plugin, settings, processMessages2, yamlA
   }
   return newCommandIds;
 }
-var import_obsidian33, DEBUG;
+var import_obsidian32, DEBUG;
 var init_YAMLHandler = __esm({
   "src/YAMLHandler.ts"() {
-    import_obsidian33 = require("obsidian");
+    import_obsidian32 = require("obsidian");
     init_aiDispatcher();
     init_promptConstants();
     init_pluginUtils();
@@ -20366,11 +20187,11 @@ function registerTestCommands(plugin) {
     name: "Test: Basic IndexedDB Functionality",
     callback: async () => {
       try {
-        new import_obsidian36.Notice("Testing basic IndexedDB functionality...");
+        new import_obsidian35.Notice("Testing basic IndexedDB functionality...");
         await runBasicIndexedDBTest();
-        new import_obsidian36.Notice("\u2705 IndexedDB test completed successfully!");
+        new import_obsidian35.Notice("\u2705 IndexedDB test completed successfully!");
       } catch (error) {
-        new import_obsidian36.Notice(`\u274C IndexedDB test failed: ${error.message}`);
+        new import_obsidian35.Notice(`\u274C IndexedDB test failed: ${error.message}`);
         console.error("IndexedDB test failed:", error);
       }
     }
@@ -20411,10 +20232,10 @@ function registerTestCommands(plugin) {
   }
   console.log("Test commands registered for basic functionality debugging");
 }
-var import_obsidian36;
+var import_obsidian35;
 var init_testRunner = __esm({
   "tests/testRunner.ts"() {
-    import_obsidian36 = require("obsidian");
+    import_obsidian35 = require("obsidian");
   }
 });
 
@@ -20424,11 +20245,11 @@ __export(main_exports, {
   default: () => MyPlugin
 });
 module.exports = __toCommonJS(main_exports);
-var import_obsidian37 = require("obsidian");
+var import_obsidian36 = require("obsidian");
 init_types();
 
 // src/settings/SettingTab.ts
-var import_obsidian31 = require("obsidian");
+var import_obsidian30 = require("obsidian");
 
 // src/components/commands/viewCommands.ts
 init_pluginUtils();
@@ -20447,10 +20268,10 @@ async function activateView(app, viewType, reveal = true) {
 }
 
 // src/chat.ts
-var import_obsidian25 = require("obsidian");
+var import_obsidian24 = require("obsidian");
 
 // src/components/chat/ChatHistoryManager.ts
-var import_obsidian7 = require("obsidian");
+var import_obsidian6 = require("obsidian");
 var ChatHistoryManager = class {
   /**
    * @param vault The Obsidian Vault instance
@@ -20469,7 +20290,7 @@ var ChatHistoryManager = class {
       effectivePluginId = "unknown-plugin-id-error";
     }
     const fPath = historyFilePath || "chat-history.json";
-    this.historyFilePath = (0, import_obsidian7.normalizePath)(`.obsidian/plugins/${effectivePluginId}/${fPath}`);
+    this.historyFilePath = (0, import_obsidian6.normalizePath)(`.obsidian/plugins/${effectivePluginId}/${fPath}`);
     if (typeof window !== "undefined" && window.Notice) {
     }
   }
@@ -20483,7 +20304,7 @@ var ChatHistoryManager = class {
       const abstractFile = this.vault.getAbstractFileByPath(dirPath);
       if (abstractFile === null) {
         await this.vault.createFolder(dirPath);
-      } else if (!(abstractFile instanceof import_obsidian7.TFolder)) {
+      } else if (!(abstractFile instanceof import_obsidian6.TFolder)) {
         console.error(`Path ${dirPath} exists but is not a folder.`);
         throw new Error(`Path ${dirPath} exists but is not a folder.`);
       }
@@ -20594,11 +20415,11 @@ var ChatHistoryManager = class {
       await this.ensureDirectoryExists();
       const data = JSON.stringify(this.history, null, 2);
       const abstractTarget = this.vault.getAbstractFileByPath(this.historyFilePath);
-      if (abstractTarget instanceof import_obsidian7.TFolder) {
+      if (abstractTarget instanceof import_obsidian6.TFolder) {
         throw new Error(`Path ${this.historyFilePath} is a directory, not a file.`);
       }
       await this.vault.adapter.write(this.historyFilePath, data);
-      if (!abstractTarget || !(abstractTarget instanceof import_obsidian7.TFile)) {
+      if (!abstractTarget || !(abstractTarget instanceof import_obsidian6.TFile)) {
         await this.vault.adapter.exists(this.historyFilePath);
       }
     } catch (e) {
@@ -20609,7 +20430,7 @@ var ChatHistoryManager = class {
 };
 
 // src/components/chat/Message.ts
-var import_obsidian18 = require("obsidian");
+var import_obsidian17 = require("obsidian");
 init_Buttons();
 init_MessageRenderer();
 init_eventHandlers();
@@ -20647,14 +20468,14 @@ async function createMessageElement(app, role, content, chatHistoryManager, plug
       if (!contentEl) {
         contentEl = messageContainer.createDiv("message-content");
       }
-      await import_obsidian18.MarkdownRenderer.render(app, content, contentEl, "", parentComponent);
+      await import_obsidian17.MarkdownRenderer.render(app, content, contentEl, "", parentComponent);
     }
   } else {
     contentEl = messageEl.querySelector(".message-content");
     if (!contentEl) {
       contentEl = messageContainer.createDiv("message-content");
     }
-    await import_obsidian18.MarkdownRenderer.render(app, content, contentEl, "", parentComponent);
+    await import_obsidian17.MarkdownRenderer.render(app, content, contentEl, "", parentComponent);
   }
   if (!contentEl) {
     contentEl = messageEl.querySelector(".message-content");
@@ -22500,13 +22321,13 @@ The current time is ${currentDate} ${currentTime} ${timeZoneString}.`;
 }
 
 // src/utils/noteUtils.ts
-var import_obsidian20 = require("obsidian");
+var import_obsidian19 = require("obsidian");
 
 // src/utils/generalUtils.ts
-var import_obsidian19 = require("obsidian");
+var import_obsidian18 = require("obsidian");
 init_logger();
 function showNotice(message) {
-  new import_obsidian19.Notice(message);
+  new import_obsidian18.Notice(message);
 }
 async function copyToClipboard3(text, successMsg = "Copied to clipboard", failMsg = "Failed to copy to clipboard") {
   try {
@@ -22622,10 +22443,10 @@ ${extractedContent}
 `
           );
         } else {
-          new import_obsidian20.Notice(`File not found: ${filePath}. Ensure the file name and path are correct.`);
+          new import_obsidian19.Notice(`File not found: ${filePath}. Ensure the file name and path are correct.`);
         }
       } catch (error) {
-        new import_obsidian20.Notice(`Error processing link for ${filePath}: ${error.message}`);
+        new import_obsidian19.Notice(`Error processing link for ${filePath}: ${error.message}`);
       }
     }
   }
@@ -22918,15 +22739,15 @@ ${currentNoteContent}`
 }
 
 // src/components/chat/MessageRegenerator.ts
-var import_obsidian24 = require("obsidian");
+var import_obsidian23 = require("obsidian");
 
 // src/components/chat/ResponseStreamer.ts
-var import_obsidian23 = require("obsidian");
+var import_obsidian22 = require("obsidian");
 init_aiDispatcher();
 init_MessageRenderer();
 
 // src/components/agent/TaskContinuation.ts
-var import_obsidian21 = require("obsidian");
+var import_obsidian20 = require("obsidian");
 var TaskContinuation = class {
   /**
    * @param plugin The main plugin instance (for settings and logging)
@@ -23090,7 +22911,7 @@ var TaskContinuation = class {
     const contentEl = container.querySelector(".message-content");
     if (contentEl) {
       contentEl.empty();
-      await import_obsidian21.MarkdownRenderer.render(
+      await import_obsidian20.MarkdownRenderer.render(
         this.plugin.app,
         content,
         contentEl,
@@ -23287,7 +23108,7 @@ var ResponseStreamer = class {
     if (!contentEl) return;
     this.updateContainerDataset(container, content);
     contentEl.empty();
-    await import_obsidian23.MarkdownRenderer.render(
+    await import_obsidian22.MarkdownRenderer.render(
       this.plugin.app,
       content,
       contentEl,
@@ -23795,7 +23616,7 @@ var MessageRegenerator = class {
       );
     } catch (error) {
       if (error.name !== "AbortError") {
-        new import_obsidian24.Notice(`Error: ${error.message}`);
+        new import_obsidian23.Notice(`Error: ${error.message}`);
         assistantContainer.remove();
       }
     } finally {
@@ -23904,7 +23725,7 @@ var globalDOMBatcher = new DOMBatcher();
 init_errorHandler();
 init_asyncOptimizer();
 var VIEW_TYPE_CHAT = "chat-view";
-var ChatView = class extends import_obsidian25.ItemView {
+var ChatView = class extends import_obsidian24.ItemView {
   constructor(leaf, plugin) {
     super(leaf);
     __publicField(this, "plugin");
@@ -24067,14 +23888,14 @@ var ChatView = class extends import_obsidian25.ItemView {
       if (this.plugin.agentModeManager.isAgentModeEnabled()) {
         agentButton2.classList.add("active");
         agentButton2.setAttribute("title", "Agent Mode: ON - AI can use tools");
-        new import_obsidian25.Notice("Agent Mode enabled - AI can now use tools");
+        new import_obsidian24.Notice("Agent Mode enabled - AI can now use tools");
         if (this.agentResponseHandler) {
           this.agentResponseHandler.resetExecutionCount();
         }
       } else {
         agentButton2.classList.remove("active");
         agentButton2.setAttribute("title", "Agent Mode: OFF - Regular chat");
-        new import_obsidian25.Notice("Agent Mode disabled");
+        new import_obsidian24.Notice("Agent Mode disabled");
       }
     });
     const agentButton = this.domElementCache.agentModeButton;
@@ -24521,7 +24342,7 @@ var CollapsibleSectionRenderer = class {
 init_logger();
 
 // src/settings/components/SettingCreators.ts
-var import_obsidian26 = require("obsidian");
+var import_obsidian25 = require("obsidian");
 var SettingCreators = class {
   /**
    * @param plugin The plugin instance, used for saving settings.
@@ -24544,7 +24365,7 @@ var SettingCreators = class {
    * @param options Additional options for the text input (e.g., trim, undefinedIfEmpty, isTextArea).
    */
   createTextSetting(containerEl, name, desc, placeholder, getValue, setValue, options) {
-    new import_obsidian26.Setting(containerEl).setName(name).setDesc(desc).then((setting) => {
+    new import_obsidian25.Setting(containerEl).setName(name).setDesc(desc).then((setting) => {
       const textInputOptions = {
         trim: options == null ? void 0 : options.trim,
         undefinedIfEmpty: options == null ? void 0 : options.undefinedIfEmpty
@@ -24610,7 +24431,7 @@ var SettingCreators = class {
    * @param setValue A function to set the new value of the setting.
    */
   createDropdownSetting(containerEl, name, desc, options, getValue, setValue) {
-    new import_obsidian26.Setting(containerEl).setName(name).setDesc(desc).addDropdown((drop) => {
+    new import_obsidian25.Setting(containerEl).setName(name).setDesc(desc).addDropdown((drop) => {
       Object.entries(options).forEach(([key, display]) => drop.addOption(key, display));
       drop.setValue(getValue());
       drop.onChange(async (value) => {
@@ -24629,7 +24450,7 @@ var SettingCreators = class {
    * @param onChangeCallback An optional callback to run after the value changes and settings are saved.
    */
   createToggleSetting(containerEl, name, desc, getValue, setValue, onChangeCallback) {
-    new import_obsidian26.Setting(containerEl).setName(name).setDesc(desc).addToggle((toggle) => toggle.setValue(getValue()).onChange(async (value) => {
+    new import_obsidian25.Setting(containerEl).setName(name).setDesc(desc).addToggle((toggle) => toggle.setValue(getValue()).onChange(async (value) => {
       await setValue(value);
       if (onChangeCallback) {
         onChangeCallback();
@@ -24647,7 +24468,7 @@ var SettingCreators = class {
    * @param setValue A function to set the new numeric value.
    */
   createSliderSetting(containerEl, name, desc, limits, getValue, setValue) {
-    new import_obsidian26.Setting(containerEl).setName(name).setDesc(desc).addSlider((slider) => {
+    new import_obsidian25.Setting(containerEl).setName(name).setDesc(desc).addSlider((slider) => {
       slider.setLimits(limits.min, limits.max, limits.step).setValue(getValue()).setDynamicTooltip().onChange(async (value) => {
         await setValue(value);
         this.reRenderCallback();
@@ -24657,7 +24478,7 @@ var SettingCreators = class {
 };
 
 // src/settings/sections/GeneralSettingsSection.ts
-var import_obsidian27 = require("obsidian");
+var import_obsidian26 = require("obsidian");
 var GeneralSettingsSection = class {
   /**
    * @param plugin The main plugin instance.
@@ -24735,7 +24556,7 @@ var GeneralSettingsSection = class {
       containerEl,
       "AI Call Log Management",
       (sectionEl) => {
-        new import_obsidian27.Setting(sectionEl).setName("Clear AI Call Logs").setDesc("Delete all AI call log files from the plugin's ai-calls folder.").addButton((btn) => {
+        new import_obsidian26.Setting(sectionEl).setName("Clear AI Call Logs").setDesc("Delete all AI call log files from the plugin's ai-calls folder.").addButton((btn) => {
           btn.setButtonText("Clear Logs").setCta().onClick(async () => {
             const { clearAICallLogs: clearAICallLogs2 } = await Promise.resolve().then(() => (init_clearAICallLogs(), clearAICallLogs_exports));
             const pluginFolder = __dirname;
@@ -24751,7 +24572,7 @@ var GeneralSettingsSection = class {
 };
 
 // src/settings/sections/AIModelConfigurationSection.ts
-var import_obsidian28 = require("obsidian");
+var import_obsidian27 = require("obsidian");
 init_aiDispatcher();
 init_validationUtils();
 var AIModelConfigurationSection = class {
@@ -24786,7 +24607,7 @@ var AIModelConfigurationSection = class {
               () => this.plugin.settings.openaiSettings.apiKey,
               async (value) => {
                 if (value && !isValidOpenAIApiKey(value)) {
-                  new import_obsidian28.Notice("Invalid OpenAI API Key format. Please check your key.");
+                  new import_obsidian27.Notice("Invalid OpenAI API Key format. Please check your key.");
                   return;
                 }
                 this.plugin.settings.openaiSettings.apiKey = value != null ? value : "";
@@ -24822,7 +24643,7 @@ var AIModelConfigurationSection = class {
               () => this.plugin.settings.anthropicSettings.apiKey,
               async (value) => {
                 if (value && !isValidAnthropicApiKey(value)) {
-                  new import_obsidian28.Notice("Invalid Anthropic API Key format. Please check your key.");
+                  new import_obsidian27.Notice("Invalid Anthropic API Key format. Please check your key.");
                   return;
                 }
                 this.plugin.settings.anthropicSettings.apiKey = value != null ? value : "";
@@ -24846,7 +24667,7 @@ var AIModelConfigurationSection = class {
               () => this.plugin.settings.geminiSettings.apiKey,
               async (value) => {
                 if (value && !isValidGoogleApiKey(value)) {
-                  new import_obsidian28.Notice("Invalid Google API Key format. Please check your key.");
+                  new import_obsidian27.Notice("Invalid Google API Key format. Please check your key.");
                   return;
                 }
                 this.plugin.settings.geminiSettings.apiKey = value != null ? value : "";
@@ -24870,7 +24691,7 @@ var AIModelConfigurationSection = class {
               () => this.plugin.settings.ollamaSettings.serverUrl,
               async (value) => {
                 if (value && !isValidUrl(value)) {
-                  new import_obsidian28.Notice("Invalid Ollama Server URL format. Please enter a valid URL.");
+                  new import_obsidian27.Notice("Invalid Ollama Server URL format. Please enter a valid URL.");
                   return;
                 }
                 this.plugin.settings.ollamaSettings.serverUrl = value != null ? value : "";
@@ -24926,7 +24747,7 @@ var AIModelConfigurationSection = class {
    */
   renderProviderTestSection(containerEl, provider, displayName) {
     const settings = this.plugin.settings[`${provider}Settings`];
-    new import_obsidian28.Setting(containerEl).setName("Test Connection").setDesc(`Verify your API key and fetch available models for ${displayName}`).addButton((button) => button.setButtonText("Test").onClick(async () => {
+    new import_obsidian27.Setting(containerEl).setName("Test Connection").setDesc(`Verify your API key and fetch available models for ${displayName}`).addButton((button) => button.setButtonText("Test").onClick(async () => {
       button.setButtonText("Testing...");
       button.setDisabled(true);
       try {
@@ -24942,17 +24763,17 @@ var AIModelConfigurationSection = class {
           await this.plugin.saveSettings();
           this.plugin.settings.availableModels = await aiDispatcher.getAllUnifiedModels();
           await this.plugin.saveSettings();
-          new import_obsidian28.Notice(result.message);
+          new import_obsidian27.Notice(result.message);
         } else {
           settings.lastTestResult = {
             timestamp: Date.now(),
             success: false,
             message: result.message
           };
-          new import_obsidian28.Notice(result.message);
+          new import_obsidian27.Notice(result.message);
         }
       } catch (error) {
-        new import_obsidian28.Notice(`Error: ${error.message}`);
+        new import_obsidian27.Notice(`Error: ${error.message}`);
       } finally {
         button.setButtonText("Test");
         button.setDisabled(false);
@@ -24991,11 +24812,11 @@ var AIModelConfigurationSection = class {
           if (preset.temperature !== void 0) this.plugin.settings.temperature = preset.temperature;
           if (preset.enableStreaming !== void 0) this.plugin.settings.enableStreaming = preset.enableStreaming;
           await this.plugin.saveSettings();
-          new import_obsidian28.Notice(`Applied preset: ${preset.name}`);
+          new import_obsidian27.Notice(`Applied preset: ${preset.name}`);
         };
       });
     }
-    new import_obsidian28.Setting(containerEl).setName("System Message").setDesc("Set the system message for the AI").addTextArea((text) => {
+    new import_obsidian27.Setting(containerEl).setName("System Message").setDesc("Set the system message for the AI").addTextArea((text) => {
       text.setPlaceholder("You are a helpful assistant.").setValue(this.plugin.settings.systemMessage).onChange((value) => {
         this.plugin.settings.systemMessage = value;
       });
@@ -25004,22 +24825,22 @@ var AIModelConfigurationSection = class {
       });
       return text;
     });
-    new import_obsidian28.Setting(containerEl).setName("Enable Streaming").setDesc("Enable or disable streaming for completions").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableStreaming).onChange(async (value) => {
+    new import_obsidian27.Setting(containerEl).setName("Enable Streaming").setDesc("Enable or disable streaming for completions").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableStreaming).onChange(async (value) => {
       this.plugin.settings.enableStreaming = value;
       await this.plugin.saveSettings();
     }));
-    new import_obsidian28.Setting(containerEl).setName("Temperature").setDesc("Set the randomness of the model's output (0-1)").addSlider((slider) => slider.setLimits(0, 1, 0.1).setValue(this.plugin.settings.temperature).setDynamicTooltip().onChange(async (value) => {
+    new import_obsidian27.Setting(containerEl).setName("Temperature").setDesc("Set the randomness of the model's output (0-1)").addSlider((slider) => slider.setLimits(0, 1, 0.1).setValue(this.plugin.settings.temperature).setDynamicTooltip().onChange(async (value) => {
       this.plugin.settings.temperature = value;
       await this.plugin.saveSettings();
     }));
-    new import_obsidian28.Setting(containerEl).setName("Refresh Available Models").setDesc("Test connections to all configured providers and refresh available models").addButton((button) => button.setButtonText("Refresh Models").onClick(async () => {
+    new import_obsidian27.Setting(containerEl).setName("Refresh Available Models").setDesc("Test connections to all configured providers and refresh available models").addButton((button) => button.setButtonText("Refresh Models").onClick(async () => {
       button.setButtonText("Refreshing...");
       button.setDisabled(true);
       try {
         await this.refreshAllAvailableModels();
-        new import_obsidian28.Notice("Successfully refreshed available models");
+        new import_obsidian27.Notice("Successfully refreshed available models");
       } catch (error) {
-        new import_obsidian28.Notice(`Error refreshing models: ${error.message}`);
+        new import_obsidian27.Notice(`Error refreshing models: ${error.message}`);
       } finally {
         button.setButtonText("Refresh Models");
         button.setDisabled(false);
@@ -25038,7 +24859,7 @@ var AIModelConfigurationSection = class {
       this.plugin.settings.availableModels = await aiDispatcher.getAllUnifiedModels();
       await this.plugin.saveSettings();
     }
-    new import_obsidian28.Setting(containerEl).setName("Selected Model").setDesc("Choose from all available models across all configured providers").addDropdown((dropdown) => {
+    new import_obsidian27.Setting(containerEl).setName("Selected Model").setDesc("Choose from all available models across all configured providers").addDropdown((dropdown) => {
       if (!this.plugin.settings.availableModels || this.plugin.settings.availableModels.length === 0) {
         dropdown.addOption("", "No models available - configure providers above");
       } else {
@@ -25115,7 +24936,7 @@ var AIModelConfigurationSection = class {
       const row = tbody.createEl("tr");
       row.createEl("td", { text: model.name });
       row.createEl("td", { text: model.provider });
-      const enabledToggle = new import_obsidian28.Setting(row.createEl("td")).setName("").setDesc("Enable or disable this model").addToggle((toggle) => {
+      const enabledToggle = new import_obsidian27.Setting(row.createEl("td")).setName("").setDesc("Enable or disable this model").addToggle((toggle) => {
         var _a2;
         return toggle.setValue(((_a2 = this.plugin.settings.enabledModels) == null ? void 0 : _a2[model.id]) !== false).onChange(async (value) => {
           const enabledModels = this.plugin.settings.enabledModels || {};
@@ -25125,7 +24946,7 @@ var AIModelConfigurationSection = class {
         });
       });
       const actionsCell = row.createEl("td");
-      new import_obsidian28.Setting(actionsCell).setName("").setDesc("Delete local copy of this model").addButton((button) => button.setButtonText("Delete").setWarning().onClick(async () => {
+      new import_obsidian27.Setting(actionsCell).setName("").setDesc("Delete local copy of this model").addButton((button) => button.setButtonText("Delete").setWarning().onClick(async () => {
         const confirmed = confirm(`Are you sure you want to delete the local copy of the model "${model.name}"?`);
         if (confirmed) {
           try {
@@ -25133,20 +24954,20 @@ var AIModelConfigurationSection = class {
             const aiDispatcher = new AIDispatcher(this.plugin.app.vault, this.plugin);
             this.plugin.settings.availableModels = await aiDispatcher.getAllUnifiedModels();
             await this.plugin.saveSettings();
-            new import_obsidian28.Notice(`Deleted model "${model.name}"`);
+            new import_obsidian27.Notice(`Deleted model "${model.name}"`);
             containerEl.empty();
             await this.renderAvailableModelsSection(containerEl);
           } catch (error) {
-            new import_obsidian28.Notice(`Error deleting model: ${error.message}`);
+            new import_obsidian27.Notice(`Error deleting model: ${error.message}`);
           }
         }
       })).addButton((button) => button.setButtonText("Re-download").onClick(async () => {
         const confirmed = confirm(`Are you sure you want to re-download the model "${model.name}"?`);
         if (confirmed) {
           try {
-            new import_obsidian28.Notice(`Re-download feature is not yet implemented. Please pull the model again using the provider settings.`);
+            new import_obsidian27.Notice(`Re-download feature is not yet implemented. Please pull the model again using the provider settings.`);
           } catch (error) {
-            new import_obsidian28.Notice(`Error re-downloading model: ${error.message}`);
+            new import_obsidian27.Notice(`Error re-downloading model: ${error.message}`);
           }
         }
       }));
@@ -25165,7 +24986,7 @@ var AIModelConfigurationSection = class {
     });
     const presetList = this.plugin.settings.modelSettingPresets || [];
     presetList.forEach((preset, idx) => {
-      new import_obsidian28.Setting(containerEl).setName("Preset Name").setDesc("Edit the name of this preset").addText((text) => {
+      new import_obsidian27.Setting(containerEl).setName("Preset Name").setDesc("Edit the name of this preset").addText((text) => {
         text.setPlaceholder("Preset Name").setValue(preset.name).onChange((value) => {
           preset.name = value != null ? value : "";
         });
@@ -25173,7 +24994,7 @@ var AIModelConfigurationSection = class {
           await this.plugin.saveSettings();
         });
       });
-      new import_obsidian28.Setting(containerEl).setName("Model ID (provider:model)").setDesc("Edit the model for this preset").addText((text) => {
+      new import_obsidian27.Setting(containerEl).setName("Model ID (provider:model)").setDesc("Edit the model for this preset").addText((text) => {
         text.setPlaceholder("Model ID (provider:model)").setValue(preset.selectedModel || "").onChange((value) => {
           preset.selectedModel = value != null ? value : "";
         });
@@ -25181,7 +25002,7 @@ var AIModelConfigurationSection = class {
           await this.plugin.saveSettings();
         });
       });
-      new import_obsidian28.Setting(containerEl).setName("System Message").setDesc("Edit the system message for this preset").addTextArea((text) => {
+      new import_obsidian27.Setting(containerEl).setName("System Message").setDesc("Edit the system message for this preset").addTextArea((text) => {
         text.setPlaceholder("System message").setValue(preset.systemMessage || "").onChange((value) => {
           preset.systemMessage = value != null ? value : "";
         });
@@ -25203,7 +25024,7 @@ var AIModelConfigurationSection = class {
         preset.enableStreaming = value;
         await this.plugin.saveSettings();
       });
-      new import_obsidian28.Setting(containerEl).addExtraButton(
+      new import_obsidian27.Setting(containerEl).addExtraButton(
         (btn) => btn.setIcon("cross").setTooltip("Delete").onClick(async () => {
           var _a2;
           (_a2 = this.plugin.settings.modelSettingPresets) == null ? void 0 : _a2.splice(idx, 1);
@@ -25211,7 +25032,7 @@ var AIModelConfigurationSection = class {
         })
       );
     });
-    new import_obsidian28.Setting(containerEl).addButton(
+    new import_obsidian27.Setting(containerEl).addButton(
       (btn) => btn.setButtonText("Add Preset").setCta().onClick(async () => {
         if (!this.plugin.settings.modelSettingPresets) this.plugin.settings.modelSettingPresets = [];
         this.plugin.settings.modelSettingPresets.push(JSON.parse(JSON.stringify({
@@ -25456,7 +25277,7 @@ var AgentSettingsSection = class {
 };
 
 // src/settings/sections/ContentNoteHandlingSection.ts
-var import_obsidian29 = require("obsidian");
+var import_obsidian28 = require("obsidian");
 var ContentNoteHandlingSection = class {
   /**
    * @param plugin The main plugin instance.
@@ -25590,7 +25411,7 @@ var ContentNoteHandlingSection = class {
         );
         const contextNotesContainer = sectionEl.createDiv("context-notes-container");
         contextNotesContainer.style.marginBottom = "24px";
-        new import_obsidian29.Setting(contextNotesContainer).setName("Context Notes").setDesc("Notes to attach as context (supports [[filename]] and [[another note#header]] syntax)").addTextArea((text) => {
+        new import_obsidian28.Setting(contextNotesContainer).setName("Context Notes").setDesc("Notes to attach as context (supports [[filename]] and [[another note#header]] syntax)").addTextArea((text) => {
           text.setPlaceholder("[[Note Name]]\n[[Another Note#Header]]").setValue(this.plugin.settings.contextNotes || "").onChange((value) => {
             this.plugin.settings.contextNotes = value;
           });
@@ -25688,7 +25509,7 @@ var ContentNoteHandlingSection = class {
       genContainer.style.padding = "1em";
       genContainer.style.marginBottom = "1em";
       genContainer.createEl("h4", { text: autoCommandName });
-      new import_obsidian29.Setting(genContainer).setName("YAML Attribute Name").setDesc("The YAML field name to insert/update").addText((text) => {
+      new import_obsidian28.Setting(genContainer).setName("YAML Attribute Name").setDesc("The YAML field name to insert/update").addText((text) => {
         text.setPlaceholder("YAML Attribute Name").setValue(gen.attributeName).onChange((value) => {
           if (this.plugin.settings.yamlAttributeGenerators) {
             this.plugin.settings.yamlAttributeGenerators[idx].attributeName = value != null ? value : "";
@@ -25699,7 +25520,7 @@ var ContentNoteHandlingSection = class {
           await this.plugin.saveSettings();
         });
       });
-      new import_obsidian29.Setting(genContainer).setName("Prompt for LLM").setDesc("The prompt to send to the AI for generating the YAML value").addTextArea((text) => {
+      new import_obsidian28.Setting(genContainer).setName("Prompt for LLM").setDesc("The prompt to send to the AI for generating the YAML value").addTextArea((text) => {
         text.setPlaceholder("Prompt for LLM").setValue(gen.prompt).onChange((value) => {
           if (this.plugin.settings.yamlAttributeGenerators) {
             this.plugin.settings.yamlAttributeGenerators[idx].prompt = value != null ? value : "";
@@ -25711,7 +25532,7 @@ var ContentNoteHandlingSection = class {
         text.inputEl.rows = 3;
         text.inputEl.style.width = "100%";
       });
-      new import_obsidian29.Setting(genContainer).setName("Output Mode").setDesc("Where to put the generated YAML attribute").addDropdown((drop) => {
+      new import_obsidian28.Setting(genContainer).setName("Output Mode").setDesc("Where to put the generated YAML attribute").addDropdown((drop) => {
         drop.addOption("clipboard", "Copy to clipboard");
         drop.addOption("metadata", "Insert into metadata");
         drop.setValue(gen.outputMode);
@@ -25722,7 +25543,7 @@ var ContentNoteHandlingSection = class {
           }
         });
       });
-      new import_obsidian29.Setting(genContainer).addExtraButton((btn) => {
+      new import_obsidian28.Setting(genContainer).addExtraButton((btn) => {
         btn.setIcon("cross").setTooltip("Delete this YAML generator").onClick(async () => {
           if (this.plugin.settings.yamlAttributeGenerators) {
             this.plugin.settings.yamlAttributeGenerators.splice(idx, 1);
@@ -25731,7 +25552,7 @@ var ContentNoteHandlingSection = class {
         });
       });
     });
-    new import_obsidian29.Setting(containerEl).addButton((btn) => {
+    new import_obsidian28.Setting(containerEl).addButton((btn) => {
       btn.setButtonText("Add YAML Attribute Generator").setCta().onClick(async () => {
         if (!this.plugin.settings.yamlAttributeGenerators) this.plugin.settings.yamlAttributeGenerators = [];
         this.plugin.settings.yamlAttributeGenerators.push(JSON.parse(JSON.stringify({
@@ -25747,7 +25568,7 @@ var ContentNoteHandlingSection = class {
 };
 
 // src/settings/sections/BackupManagementSection.ts
-var import_obsidian30 = require("obsidian");
+var import_obsidian29 = require("obsidian");
 
 // src/settings/components/DialogHelpers.ts
 var DialogHelpers = class {
@@ -25836,10 +25657,10 @@ var BackupManagementSection = class {
           if (confirmed) {
             try {
               await backupManager.deleteAllBackups();
-              new import_obsidian30.Notice("Deleted all backups successfully");
+              new import_obsidian29.Notice("Deleted all backups successfully");
               await this.renderBackupManagement(containerEl);
             } catch (error) {
-              new import_obsidian30.Notice(`Error deleting all backups: ${error.message}`);
+              new import_obsidian29.Notice(`Error deleting all backups: ${error.message}`);
             }
           }
         });
@@ -25945,12 +25766,12 @@ var BackupManagementSection = class {
         try {
           const result = await backupManager.restoreBackup(backup);
           if (result.success) {
-            new import_obsidian30.Notice(`Successfully restored backup for ${filePath}`);
+            new import_obsidian29.Notice(`Successfully restored backup for ${filePath}`);
           } else {
-            new import_obsidian30.Notice(`Failed to restore backup: ${result.error}`);
+            new import_obsidian29.Notice(`Failed to restore backup: ${result.error}`);
           }
         } catch (error) {
-          new import_obsidian30.Notice(`Error restoring backup: ${error.message}`);
+          new import_obsidian29.Notice(`Error restoring backup: ${error.message}`);
         }
       }
     };
@@ -25966,11 +25787,11 @@ var BackupManagementSection = class {
       if (confirmed) {
         try {
           await backupManager.deleteSpecificBackup(filePath, backup.timestamp);
-          new import_obsidian30.Notice(`Deleted backup for ${filePath}`);
+          new import_obsidian29.Notice(`Deleted backup for ${filePath}`);
           containerEl.empty();
           await this.renderBackupFilesList(containerEl, backupFiles, backupManager);
         } catch (error) {
-          new import_obsidian30.Notice(`Error deleting backup: ${error.message}`);
+          new import_obsidian29.Notice(`Error deleting backup: ${error.message}`);
         }
       }
     };
@@ -25982,7 +25803,7 @@ var BackupManagementSection = class {
       previewBtn.onclick = () => {
         const preview = backup.content.substring(0, 200);
         const truncated = backup.content.length > 200 ? "..." : "";
-        new import_obsidian30.Notice(`Preview: ${preview}${truncated}`, 1e4);
+        new import_obsidian29.Notice(`Preview: ${preview}${truncated}`, 1e4);
       };
     } else if (backup.isBinary) {
       const infoBtn = backupActions.createEl("button", {
@@ -25991,7 +25812,7 @@ var BackupManagementSection = class {
       });
       infoBtn.onclick = () => {
         const sizeKB = backup.fileSize ? Math.round(backup.fileSize / 1024) : 0;
-        new import_obsidian30.Notice(`Binary file backup: ${sizeKB} KB
+        new import_obsidian29.Notice(`Binary file backup: ${sizeKB} KB
 Stored at: ${backup.backupFilePath || "Unknown location"}`, 5e3);
       };
     }
@@ -26012,11 +25833,11 @@ Stored at: ${backup.backupFilePath || "Unknown location"}`, 5e3);
       if (confirmed) {
         try {
           await backupManager.deleteBackupsForFile(filePath);
-          new import_obsidian30.Notice(`Deleted all backups for ${filePath}`);
+          new import_obsidian29.Notice(`Deleted all backups for ${filePath}`);
           containerEl.empty();
           await this.renderBackupFilesList(containerEl, backupFiles, backupManager);
         } catch (error) {
-          new import_obsidian30.Notice(`Error deleting backups: ${error.message}`);
+          new import_obsidian29.Notice(`Error deleting backups: ${error.message}`);
         }
       }
     };
@@ -26059,10 +25880,10 @@ Stored at: ${backup.backupFilePath || "Unknown location"}`, 5e3);
             });
             return;
           }
-        } else if (trashFolder instanceof import_obsidian30.TFolder) {
+        } else if (trashFolder instanceof import_obsidian29.TFolder) {
           trashItems = trashFolder.children.map((item) => ({
             name: item.name,
-            isFolder: item instanceof import_obsidian30.TFolder,
+            isFolder: item instanceof import_obsidian29.TFolder,
             size: isTFile(item) && item.stat ? item.stat.size : void 0
           }));
         } else {
@@ -26097,10 +25918,10 @@ Stored at: ${backup.backupFilePath || "Unknown location"}`, 5e3);
                   await adapter.remove(fullPath);
                 }
               }
-              new import_obsidian30.Notice(`Emptied trash - permanently deleted ${trashItems.length} items`);
+              new import_obsidian29.Notice(`Emptied trash - permanently deleted ${trashItems.length} items`);
               await this.renderTrashManagement(containerEl);
             } catch (error) {
-              new import_obsidian30.Notice(`Error emptying trash: ${error.message}`);
+              new import_obsidian29.Notice(`Error emptying trash: ${error.message}`);
             }
           }
         });
@@ -26181,17 +26002,17 @@ Stored at: ${backup.backupFilePath || "Unknown location"}`, 5e3);
       if (confirmed) {
         try {
           const trashFolderObj = this.plugin.app.vault.getAbstractFileByPath(".trash");
-          if (trashFolderObj instanceof import_obsidian30.TFolder) {
+          if (trashFolderObj instanceof import_obsidian29.TFolder) {
             const fileObj = trashFolderObj.children.find((child) => child.name === name);
             if (fileObj) {
               const newPath = name;
               await this.plugin.app.fileManager.renameFile(fileObj, newPath);
-              new import_obsidian30.Notice(`Restored "${name}" to vault root`);
+              new import_obsidian29.Notice(`Restored "${name}" to vault root`);
               await this.renderTrashManagement(containerEl.parentElement);
             }
           }
         } catch (error) {
-          new import_obsidian30.Notice(`Error restoring item: ${error.message}`);
+          new import_obsidian29.Notice(`Error restoring item: ${error.message}`);
         }
       }
     };
@@ -26218,10 +26039,10 @@ Stored at: ${backup.backupFilePath || "Unknown location"}`, 5e3);
           } else {
             await adapter.remove(fullPath);
           }
-          new import_obsidian30.Notice(`Permanently deleted "${name}"`);
+          new import_obsidian29.Notice(`Permanently deleted "${name}"`);
           await this.renderTrashManagement(containerEl.parentElement);
         } catch (error) {
-          new import_obsidian30.Notice(`Error deleting item: ${error.message}`);
+          new import_obsidian29.Notice(`Error deleting item: ${error.message}`);
         }
       }
     };
@@ -26335,7 +26156,7 @@ var ChatHistorySettingsSection = class {
 
 // src/settings/SettingTab.ts
 init_promptConstants();
-var MyPluginSettingTab = class extends import_obsidian31.PluginSettingTab {
+var MyPluginSettingTab = class extends import_obsidian30.PluginSettingTab {
   /**
    * Constructs the settings tab and initializes all settings sections.
    *
@@ -26447,7 +26268,7 @@ var MyPluginSettingTab = class extends import_obsidian31.PluginSettingTab {
       this.plugin,
       "backupManagementExpanded"
     );
-    new import_obsidian31.Setting(containerEl).setName("Reset All Settings to Default").setDesc("Reset all plugin settings (except API keys) to their original default values.").addButton((button) => button.setButtonText("Reset").onClick(async () => {
+    new import_obsidian30.Setting(containerEl).setName("Reset All Settings to Default").setDesc("Reset all plugin settings (except API keys) to their original default values.").addButton((button) => button.setButtonText("Reset").onClick(async () => {
       const { DEFAULT_SETTINGS: DEFAULT_SETTINGS2 } = await Promise.resolve().then(() => (init_types(), types_exports));
       const preservedApiKeys = {
         openai: this.plugin.settings.openaiSettings.apiKey,
@@ -26464,7 +26285,7 @@ var MyPluginSettingTab = class extends import_obsidian31.PluginSettingTab {
       setTimeout(() => {
         activateView(this.plugin.app, VIEW_TYPE_MODEL_SETTINGS);
       }, 100);
-      new import_obsidian31.Notice("All settings (except API keys) reset to default.");
+      new import_obsidian30.Notice("All settings (except API keys) reset to default.");
     }));
   }
   /**
@@ -26484,9 +26305,9 @@ var MyPluginSettingTab = class extends import_obsidian31.PluginSettingTab {
 };
 
 // src/components/ModelSettingsView.ts
-var import_obsidian32 = require("obsidian");
+var import_obsidian31 = require("obsidian");
 var VIEW_TYPE_MODEL_SETTINGS2 = "model-settings-view";
-var ModelSettingsView = class extends import_obsidian32.ItemView {
+var ModelSettingsView = class extends import_obsidian31.ItemView {
   constructor(leaf, plugin) {
     super(leaf);
     __publicField(this, "plugin");
@@ -27024,7 +26845,7 @@ init_aiDispatcher();
 init_objectPool();
 
 // src/integration/priority3Integration.ts
-var import_obsidian34 = require("obsidian");
+var import_obsidian33 = require("obsidian");
 init_dependencyInjection();
 init_stateManager();
 init_streamManager();
@@ -27336,7 +27157,7 @@ var Priority3IntegrationManager = class {
 init_typeGuards();
 
 // src/utils/PerformanceDashboard.ts
-var import_obsidian35 = require("obsidian");
+var import_obsidian34 = require("obsidian");
 init_performanceMonitor();
 init_APICircuitBreaker();
 init_logger();
@@ -27664,7 +27485,7 @@ ${Array.from(this.activeAlerts.values()).sort((a, b) => b.timestamp - a.timestam
 };
 __publicField(_PerformanceDashboard, "instance");
 var PerformanceDashboard = _PerformanceDashboard;
-var PerformanceDashboardModal = class extends import_obsidian35.Modal {
+var PerformanceDashboardModal = class extends import_obsidian34.Modal {
   constructor(plugin) {
     super(plugin.app);
     __publicField(this, "dashboard");
@@ -27803,7 +27624,7 @@ var PerformanceDashboardModal = class extends import_obsidian35.Modal {
 var performanceDashboard = PerformanceDashboard.getInstance();
 
 // src/main.ts
-var _MyPlugin = class _MyPlugin extends import_obsidian37.Plugin {
+var _MyPlugin = class _MyPlugin extends import_obsidian36.Plugin {
   constructor() {
     super(...arguments);
     /**

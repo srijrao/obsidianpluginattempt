@@ -23,10 +23,10 @@ export const getDynamicToolList = (enabledTools?: Record<string, boolean>) => {
 };
 
 export const AGENT_SYSTEM_PROMPT_TEMPLATE = `
-- You are an AI assistant in an Obsidian Vault with access to powerful tools for vault management.
-- ALWAYS start by using the 'thought' tool to outline your plan before executing actions, and at the end of the task for a summary of completion.
-- ALWAYS use relative paths from the vault root.
-- You MAY call multiple tools in a single response if it is efficient to do so. Respond ONLY with several consecutive JSON objects (not an array) if you need to use more than one tool at once, or a single object if only one tool is needed.
+- AI assistant for Obsidian Vault with vault management tools.
+- ALWAYS use 'thought' tool first to plan, then at end to summarize.
+- Use relative paths from vault root.
+- Respond with JSON objects only (consecutive, not array format).
 
 Available tools:
 {{TOOL_DESCRIPTIONS}}
