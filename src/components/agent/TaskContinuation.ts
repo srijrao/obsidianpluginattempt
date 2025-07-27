@@ -87,7 +87,7 @@ export class TaskContinuation {
                 ];
 
                 // Get the agent's continuation response
-                const continuationContent = await this.getContinuationResponse(continuationMessages, container);
+                const continuationContent = await this.getContinuationResponse(continuationMessages, container, allToolResults);
                 if (continuationContent.trim()) {
                     let processingResult;
                     if (this.agentResponseHandler) {
@@ -250,20 +250,28 @@ export class TaskContinuation {
      * Calls the provider's getCompletion method and streams the result.
      * @param messages The conversation history/messages
      * @param container The chat message container element
+     * @param toolResults Optional tool results to extract requested tool from
      * @returns The agent's response content as a string
      */
     private async getContinuationResponse(
         messages: Message[],
-        container: HTMLElement
+        container: HTMLElement,
+        toolResults?: Array<{ command: ToolCommand; result: ToolResult }>
     ): Promise<string> {
         try {
             if (this.plugin.settings.debugMode) {
-                this.plugin.debugLog('debug', '[TaskContinuation] getContinuationResponse', { messages });
+                this.plugin.debugLog('debug', '[TaskContinuation] getContinuationResponse', { messages, toolResults });
             }
 
             if (this.agentResponseHandler?.isToolLimitReached()) {
                 return '*[Tool execution limit reached - no continuation response]*';
             }
+
+            // Extract requested tool from thought tool results
+            const requestedTool = this.extractRequestedToolFromResults(toolResults || []);
+
+            // Add agent system prompt with tool-specific details if available
+            await this.addAgentSystemPrompt(messages, requestedTool);
 
             // Use dispatcher for all AI completions
             const { AIDispatcher } = await import('../../utils/aiDispatcher');
@@ -298,6 +306,59 @@ export class TaskContinuation {
             }
             return '';
         }
+    }
+
+    /**
+     * Extracts the requested tool name from thought tool results
+     * @param toolResults Array of tool execution results
+     * @returns The name of the tool requested via nextTool parameter, or undefined
+     */
+    private extractRequestedToolFromResults(toolResults: Array<{ command: ToolCommand; result: ToolResult }>): string | undefined {
+        for (const toolResult of toolResults) {
+            if (toolResult.command.action === 'thought' && toolResult.result.data) {
+                try {
+                    const data = typeof toolResult.result.data === 'string' 
+                        ? JSON.parse(toolResult.result.data) 
+                        : toolResult.result.data;
+                    
+                    if (data?.nextTool && typeof data.nextTool === 'string') {
+                        return data.nextTool;
+                    }
+                } catch (error) {
+                    // Ignore JSON parsing errors
+                }
+            }
+        }
+        return undefined;
+    }
+
+    /**
+     * Adds or updates the agent system prompt with tool-specific details
+     * @param messages The messages array to modify
+     * @param requestedTool Optional tool name to include detailed parameters for
+     */
+    private async addAgentSystemPrompt(messages: Message[], requestedTool?: string): Promise<void> {
+        const { buildAgentSystemPrompt } = await import('../../promptConstants');
+        
+        // Build the system prompt with conditional tool details
+        const systemPrompt = buildAgentSystemPrompt(
+            this.plugin.settings.enabledTools,
+            this.plugin.settings.customAgentSystemMessage,
+            requestedTool
+        );
+        
+        // Remove ALL existing system messages to avoid duplication
+        for (let i = messages.length - 1; i >= 0; i--) {
+            if (messages[i].role === 'system') {
+                messages.splice(i, 1);
+            }
+        }
+        
+        // Add the new system prompt at the beginning
+        messages.unshift({
+            role: 'system',
+            content: systemPrompt
+        });
     }
 
     /**

@@ -3249,46 +3249,77 @@ var promptConstants_exports = {};
 __export(promptConstants_exports, {
   AGENT_SYSTEM_PROMPT: () => AGENT_SYSTEM_PROMPT,
   AGENT_SYSTEM_PROMPT_TEMPLATE: () => AGENT_SYSTEM_PROMPT_TEMPLATE,
+  AGENT_SYSTEM_PROMPT_TEMPLATE_WITH_TOOL_DETAILS: () => AGENT_SYSTEM_PROMPT_TEMPLATE_WITH_TOOL_DETAILS,
   DEFAULT_GENERAL_SYSTEM_PROMPT: () => DEFAULT_GENERAL_SYSTEM_PROMPT,
   DEFAULT_SUMMARY_PROMPT: () => DEFAULT_SUMMARY_PROMPT,
   DEFAULT_TITLE_PROMPT: () => DEFAULT_TITLE_PROMPT,
   DEFAULT_YAML_SYSTEM_MESSAGE: () => DEFAULT_YAML_SYSTEM_MESSAGE,
   buildAgentSystemPrompt: () => buildAgentSystemPrompt,
-  getDynamicToolList: () => getDynamicToolList
+  getDynamicToolList: () => getDynamicToolList,
+  getToolParameters: () => getToolParameters
 });
-function buildAgentSystemPrompt(enabledTools, customTemplate) {
+function buildAgentSystemPrompt(enabledTools, customTemplate, requestedTool) {
   if (window.aiAssistantPlugin && typeof window.aiAssistantPlugin.debugLog === "function") {
-    window.aiAssistantPlugin.debugLog("debug", "[promptConstants] buildAgentSystemPrompt called", { enabledTools, customTemplate });
+    window.aiAssistantPlugin.debugLog("debug", "[promptConstants] buildAgentSystemPrompt called", { enabledTools, customTemplate, requestedTool });
   }
-  const toolList = getDynamicToolList(enabledTools);
+  const useDetailedTemplate = !!requestedTool;
+  const template = customTemplate || (useDetailedTemplate ? AGENT_SYSTEM_PROMPT_TEMPLATE_WITH_TOOL_DETAILS : AGENT_SYSTEM_PROMPT_TEMPLATE);
+  const toolList = getDynamicToolList(enabledTools, false);
   const toolDescriptions = toolList.map((tool, idx) => {
-    let paramDesc = "";
-    if (tool.parameterDescriptions && Object.keys(tool.parameterDescriptions).length > 0) {
-      paramDesc = "\n    Parameters:\n" + Object.entries(tool.parameterDescriptions).map(([param, desc]) => `      - ${param}: ${desc}`).join("\n");
+    if (tool.name === "thought") {
+      const thoughtTool = getToolParameters("thought");
+      let paramDesc = "";
+      if ((thoughtTool == null ? void 0 : thoughtTool.parameterDescriptions) && Object.keys(thoughtTool.parameterDescriptions).length > 0) {
+        paramDesc = "\n    Parameters:\n" + Object.entries(thoughtTool.parameterDescriptions).map(([param, desc]) => `      - ${param}: ${desc}`).join("\n");
+      }
+      return `${idx + 1}. ${tool.name} - ${tool.description}${paramDesc}`;
+    } else {
+      return `${idx + 1}. ${tool.name} - ${tool.description}`;
     }
-    return `${idx + 1}. ${tool.name} - ${tool.description}${paramDesc}`;
   }).join("\n");
-  const template = customTemplate || AGENT_SYSTEM_PROMPT_TEMPLATE;
-  return template.replace("{{TOOL_DESCRIPTIONS}}", toolDescriptions);
+  let prompt = template.replace("{{TOOL_DESCRIPTIONS}}", toolDescriptions);
+  if (requestedTool && useDetailedTemplate) {
+    const toolParams = getToolParameters(requestedTool);
+    let toolDetails = "";
+    if ((toolParams == null ? void 0 : toolParams.parameterDescriptions) && Object.keys(toolParams.parameterDescriptions).length > 0) {
+      toolDetails = `
+
+Requested Tool Details:
+${requestedTool} - Parameters:
+` + Object.entries(toolParams.parameterDescriptions).map(([param, desc]) => `  - ${param}: ${desc}`).join("\n");
+    }
+    prompt = prompt.replace("{{REQUESTED_TOOL_DETAILS}}", toolDetails);
+  } else if (useDetailedTemplate) {
+    prompt = prompt.replace("{{REQUESTED_TOOL_DETAILS}}", "");
+  }
+  return prompt;
 }
-var DEFAULT_TITLE_PROMPT, DEFAULT_SUMMARY_PROMPT, DEFAULT_GENERAL_SYSTEM_PROMPT, getDynamicToolList, AGENT_SYSTEM_PROMPT_TEMPLATE, AGENT_SYSTEM_PROMPT, DEFAULT_YAML_SYSTEM_MESSAGE;
+var DEFAULT_TITLE_PROMPT, DEFAULT_SUMMARY_PROMPT, DEFAULT_GENERAL_SYSTEM_PROMPT, getDynamicToolList, getToolParameters, AGENT_SYSTEM_PROMPT_TEMPLATE, AGENT_SYSTEM_PROMPT_TEMPLATE_WITH_TOOL_DETAILS, AGENT_SYSTEM_PROMPT, DEFAULT_YAML_SYSTEM_MESSAGE;
 var init_promptConstants = __esm({
   "src/promptConstants.ts"() {
     init_toolcollect();
     DEFAULT_TITLE_PROMPT = "You are a title generator. You will give succinct titles that do not contain backslashes, forward slashes, or colons. Only generate a title as your response.";
     DEFAULT_SUMMARY_PROMPT = "Summarize the note content in 1-2 sentences, focusing on the main ideas and purpose.";
     DEFAULT_GENERAL_SYSTEM_PROMPT = "You are a helpful assistant in an Obsidian Vault.";
-    getDynamicToolList = (enabledTools) => {
+    getDynamicToolList = (enabledTools, includeParameters = true) => {
       if (window.aiAssistantPlugin && typeof window.aiAssistantPlugin.debugLog === "function") {
-        window.aiAssistantPlugin.debugLog("debug", "[promptConstants] getDynamicToolList called", { enabledTools });
+        window.aiAssistantPlugin.debugLog("debug", "[promptConstants] getDynamicToolList called", { enabledTools, includeParameters });
       }
       const toolMetadata = getToolMetadata();
       return toolMetadata.filter((tool) => tool.name === "thought" || !enabledTools || enabledTools[tool.name] !== false).map((tool) => ({
         name: tool.name,
         description: tool.description,
+        parameters: includeParameters ? tool.parameters : void 0,
+        parameterDescriptions: includeParameters ? tool.parameterDescriptions : void 0
+      }));
+    };
+    getToolParameters = (toolName) => {
+      const toolMetadata = getToolMetadata();
+      const tool = toolMetadata.find((t) => t.name === toolName);
+      return tool ? {
         parameters: tool.parameters,
         parameterDescriptions: tool.parameterDescriptions
-      }));
+      } : null;
     };
     AGENT_SYSTEM_PROMPT_TEMPLATE = `
 You are an AI assistant in an Obsidian Vault with powerful tools for vault management.
@@ -3309,6 +3340,33 @@ EFFICIENCY GUIDELINES:
 
 Available tools:
 {{TOOL_DESCRIPTIONS}}
+
+IMPORTANT: When you want to use a tool other than 'thought', first use the 'thought' tool to specify which tool you want to use via the 'nextTool' parameter. Only after that will you receive the full parameter details for that specific tool.
+
+Respond with consecutive JSON objects (no array wrapper):
+{"action": "tool_name", "parameters": {...}, "requestId": "unique_id"}
+`;
+    AGENT_SYSTEM_PROMPT_TEMPLATE_WITH_TOOL_DETAILS = `
+You are an AI assistant in an Obsidian Vault with powerful tools for vault management.
+
+WORKFLOW:
+1. Use 'thought' tool first to plan your approach
+2. Execute tools efficiently (multiple tools per response when logical)
+3. Use 'thought' tool at completion to summarize results
+4. Always use relative paths from vault root
+
+EFFICIENCY GUIDELINES:
+- Batch related operations (search \u2192 read \u2192 diff \u2192 move)
+- Prefer file_diff over file_write for edits (shows preview)
+- Use file_search before file_read when location unknown
+- Use vault_tree for structure, file_list for specific directories
+- Leverage auto-backup and .trash features for safety
+- Handle errors gracefully and inform users of alternatives
+
+Available tools:
+{{TOOL_DESCRIPTIONS}}
+
+{{REQUESTED_TOOL_DETAILS}}
 
 Respond with consecutive JSON objects (no array wrapper):
 {"action": "tool_name", "parameters": {...}, "requestId": "unique_id"}
@@ -4323,7 +4381,7 @@ var init_MessageRenderer = __esm({
        * @param messageData The message data (may include reasoning/taskStatus)
        * @param component Optional parent component for Markdown rendering
        */
-      updateMessageWithEnhancedData(container, messageData, component) {
+      async updateMessageWithEnhancedData(container, messageData, component) {
         debugLog(true, "debug", "[MessageRenderer] updateMessageWithEnhancedData called", { messageData });
         const existingReasoning = container.querySelector(".reasoning-container");
         const existingTaskStatus = container.querySelector(".task-status-container");
@@ -4339,18 +4397,22 @@ var init_MessageRenderer = __esm({
           const taskStatusEl = this.createTaskStatusSection(messageData.taskStatus);
           messageContainer.insertBefore(taskStatusEl, messageContainer.firstChild);
         }
-        const contentEl = container.querySelector(".message-content");
-        if (contentEl) {
-          contentEl.empty();
-          import_obsidian10.MarkdownRenderer.render(
-            this.app,
-            messageData.content,
-            contentEl,
-            "",
-            component || new import_obsidian10.Component()
-          ).catch((error) => {
-            contentEl.textContent = messageData.content;
-          });
+        if (messageData.toolResults && messageData.toolResults.length > 0) {
+          await this.renderMessage(messageData, container, component);
+        } else {
+          const contentEl = container.querySelector(".message-content");
+          if (contentEl) {
+            contentEl.empty();
+            import_obsidian10.MarkdownRenderer.render(
+              this.app,
+              messageData.content,
+              contentEl,
+              "",
+              component || new import_obsidian10.Component()
+            ).catch((error) => {
+              contentEl.textContent = messageData.content;
+            });
+          }
         }
       }
       /**
@@ -4578,10 +4640,13 @@ var init_MessageRenderer = __esm({
           }
         }
         if (message.content && message.content.trim()) {
-          const textDiv = document.createElement("div");
-          textDiv.className = "message-text-part";
-          await import_obsidian10.MarkdownRenderer.render(this.app, message.content, textDiv, "", component || new import_obsidian10.Component());
-          messageContent.appendChild(textDiv);
+          let cleanedContent = message.content.replace(/\n*```ai-tool-execution[\s\S]*?```\s*$/g, "").replace(/\n*```json\s*\{[^}]*"action":\s*"[^"]+"[^}]*\}[^`]*```\s*$/g, "").replace(/\n*\{[^}]*"action":\s*"[^"]+"[^}]*\}\s*$/g, "").trim();
+          if (cleanedContent) {
+            const textDiv = document.createElement("div");
+            textDiv.className = "message-text-part";
+            await import_obsidian10.MarkdownRenderer.render(this.app, cleanedContent, textDiv, "", component || new import_obsidian10.Component());
+            messageContent.appendChild(textDiv);
+          }
         }
       }
       /**
@@ -22995,7 +23060,7 @@ var TaskContinuation = class {
           { role: "assistant", content: initialResponseContent },
           toolResultMessage
         ];
-        const continuationContent = await this.getContinuationResponse(continuationMessages, container);
+        const continuationContent = await this.getContinuationResponse(continuationMessages, container, allToolResults);
         if (continuationContent.trim()) {
           let processingResult;
           if (this.agentResponseHandler) {
@@ -23130,17 +23195,20 @@ var TaskContinuation = class {
    * Calls the provider's getCompletion method and streams the result.
    * @param messages The conversation history/messages
    * @param container The chat message container element
+   * @param toolResults Optional tool results to extract requested tool from
    * @returns The agent's response content as a string
    */
-  async getContinuationResponse(messages, container) {
+  async getContinuationResponse(messages, container, toolResults) {
     var _a2;
     try {
       if (this.plugin.settings.debugMode) {
-        this.plugin.debugLog("debug", "[TaskContinuation] getContinuationResponse", { messages });
+        this.plugin.debugLog("debug", "[TaskContinuation] getContinuationResponse", { messages, toolResults });
       }
       if ((_a2 = this.agentResponseHandler) == null ? void 0 : _a2.isToolLimitReached()) {
         return "*[Tool execution limit reached - no continuation response]*";
       }
+      const requestedTool = this.extractRequestedToolFromResults(toolResults || []);
+      await this.addAgentSystemPrompt(messages, requestedTool);
       const { AIDispatcher: AIDispatcher2 } = await Promise.resolve().then(() => (init_aiDispatcher(), aiDispatcher_exports));
       const aiDispatcher = new AIDispatcher2(this.plugin.app.vault, this.plugin);
       let continuationContent = "";
@@ -23167,6 +23235,47 @@ var TaskContinuation = class {
       }
       return "";
     }
+  }
+  /**
+   * Extracts the requested tool name from thought tool results
+   * @param toolResults Array of tool execution results
+   * @returns The name of the tool requested via nextTool parameter, or undefined
+   */
+  extractRequestedToolFromResults(toolResults) {
+    for (const toolResult of toolResults) {
+      if (toolResult.command.action === "thought" && toolResult.result.data) {
+        try {
+          const data = typeof toolResult.result.data === "string" ? JSON.parse(toolResult.result.data) : toolResult.result.data;
+          if ((data == null ? void 0 : data.nextTool) && typeof data.nextTool === "string") {
+            return data.nextTool;
+          }
+        } catch (error) {
+        }
+      }
+    }
+    return void 0;
+  }
+  /**
+   * Adds or updates the agent system prompt with tool-specific details
+   * @param messages The messages array to modify
+   * @param requestedTool Optional tool name to include detailed parameters for
+   */
+  async addAgentSystemPrompt(messages, requestedTool) {
+    const { buildAgentSystemPrompt: buildAgentSystemPrompt2 } = await Promise.resolve().then(() => (init_promptConstants(), promptConstants_exports));
+    const systemPrompt = buildAgentSystemPrompt2(
+      this.plugin.settings.enabledTools,
+      this.plugin.settings.customAgentSystemMessage,
+      requestedTool
+    );
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].role === "system") {
+        messages.splice(i, 1);
+      }
+    }
+    messages.unshift({
+      role: "system",
+      content: systemPrompt
+    });
   }
   /**
    * Creates an enhanced message data structure for UI or logging.
@@ -23265,25 +23374,44 @@ var ResponseStreamer = class {
    * Adds agent system prompt to messages if agent mode is enabled.
    * Prepends the agent prompt to the existing system message or adds a new one.
    * @param messages The message array to modify
+   * @param requestedTool Optional tool name to include detailed parameters for
    */
-  async addAgentSystemPrompt(messages) {
-    this.plugin.debugLog("debug", "[ResponseStreamer] addAgentSystemPrompt called", { messages });
+  async addAgentSystemPrompt(messages, requestedTool) {
+    this.plugin.debugLog("debug", "[ResponseStreamer] addAgentSystemPrompt called", { messages, requestedTool });
     if (!this.plugin.agentModeManager.isAgentModeEnabled()) return;
     const { buildAgentSystemPrompt: buildAgentSystemPrompt2 } = await Promise.resolve().then(() => (init_promptConstants(), promptConstants_exports));
     const agentPrompt = buildAgentSystemPrompt2(
       this.plugin.settings.enabledTools,
-      this.plugin.settings.customAgentSystemMessage
+      this.plugin.settings.customAgentSystemMessage,
+      requestedTool
     );
-    const systemMessageIndex = messages.findIndex((msg) => msg.role === "system");
-    if (systemMessageIndex !== -1) {
-      const originalContent = messages[systemMessageIndex].content;
-      messages[systemMessageIndex].content = agentPrompt + "\n\n" + originalContent;
-    } else {
-      messages.unshift({
-        role: "system",
-        content: agentPrompt
-      });
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].role === "system") {
+        messages.splice(i, 1);
+      }
     }
+    messages.unshift({
+      role: "system",
+      content: agentPrompt
+    });
+  }
+  /**
+   * Extracts the next tool requested from thought tool results.
+   * @param toolResults Array of tool command/result pairs
+   * @returns The name of the requested tool, or undefined if none found
+   */
+  extractRequestedToolFromResults(toolResults) {
+    for (let i = toolResults.length - 1; i >= 0; i--) {
+      const { command, result } = toolResults[i];
+      if (command.action === "thought" && result.success && result.data) {
+        const nextTool = result.data.nextTool;
+        if (nextTool && typeof nextTool === "string" && nextTool.toLowerCase() !== "finished") {
+          this.plugin.debugLog("debug", "[ResponseStreamer] Found requested tool from thought result", { nextTool });
+          return nextTool;
+        }
+      }
+    }
+    return void 0;
   }
   /**
    * Updates message content in the UI with markdown rendering.

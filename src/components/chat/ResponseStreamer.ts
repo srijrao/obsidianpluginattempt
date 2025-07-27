@@ -105,33 +105,55 @@ export class ResponseStreamer {
      * Adds agent system prompt to messages if agent mode is enabled.
      * Prepends the agent prompt to the existing system message or adds a new one.
      * @param messages The message array to modify
+     * @param requestedTool Optional tool name to include detailed parameters for
      */
-    private async addAgentSystemPrompt(messages: Message[]) {
-        this.plugin.debugLog('debug', '[ResponseStreamer] addAgentSystemPrompt called', { messages });
+    private async addAgentSystemPrompt(messages: Message[], requestedTool?: string) {
+        this.plugin.debugLog('debug', '[ResponseStreamer] addAgentSystemPrompt called', { messages, requestedTool });
         if (!this.plugin.agentModeManager.isAgentModeEnabled()) return;
 
         // Dynamically import the agent prompt builder
         const { buildAgentSystemPrompt } = await import('../../promptConstants');
 
-        // Build the agent-specific system prompt
+        // Build the agent-specific system prompt with optional tool details
         const agentPrompt = buildAgentSystemPrompt(
             this.plugin.settings.enabledTools, 
-            this.plugin.settings.customAgentSystemMessage
+            this.plugin.settings.customAgentSystemMessage,
+            requestedTool
         );
 
-        // Find the existing system message
-        const systemMessageIndex = messages.findIndex(msg => msg.role === 'system');
-        if (systemMessageIndex !== -1) {
-            // Prepend agent prompt to the existing system message
-            const originalContent = messages[systemMessageIndex].content;
-            messages[systemMessageIndex].content = agentPrompt + '\n\n' + originalContent;
-        } else {
-            // Add agent prompt as the first system message
-            messages.unshift({
-                role: 'system',
-                content: agentPrompt
-            });
+        // Remove ALL existing system messages to avoid duplication
+        for (let i = messages.length - 1; i >= 0; i--) {
+            if (messages[i].role === 'system') {
+                messages.splice(i, 1);
+            }
         }
+
+        // Add the agent prompt as the only system message
+        messages.unshift({
+            role: 'system',
+            content: agentPrompt
+        });
+    }
+
+    /**
+     * Extracts the next tool requested from thought tool results.
+     * @param toolResults Array of tool command/result pairs
+     * @returns The name of the requested tool, or undefined if none found
+     */
+    private extractRequestedToolFromResults(toolResults: Array<{ command: ToolCommand; result: ToolResult }>): string | undefined {
+        // Find the most recent thought tool result with a nextTool specification
+        for (let i = toolResults.length - 1; i >= 0; i--) {
+            const { command, result } = toolResults[i];
+            if (command.action === 'thought' && result.success && result.data) {
+                const nextTool = result.data.nextTool;
+                // Only return if it's not "finished" and is a valid tool name
+                if (nextTool && typeof nextTool === 'string' && nextTool.toLowerCase() !== 'finished') {
+                    this.plugin.debugLog('debug', '[ResponseStreamer] Found requested tool from thought result', { nextTool });
+                    return nextTool;
+                }
+            }
+        }
+        return undefined;
     }
 
     /**

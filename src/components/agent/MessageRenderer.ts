@@ -17,7 +17,7 @@ export class MessageRenderer {
      * @param messageData The message data (may include reasoning/taskStatus)
      * @param component Optional parent component for Markdown rendering
      */
-    updateMessageWithEnhancedData(container: HTMLElement, messageData: Message, component?: Component): void {
+    async updateMessageWithEnhancedData(container: HTMLElement, messageData: Message, component?: Component): Promise<void> {
         debugLog(true, 'debug', '[MessageRenderer] updateMessageWithEnhancedData called', { messageData });
 
         // Remove existing reasoning/task status sections if present
@@ -41,19 +41,25 @@ export class MessageRenderer {
             messageContainer.insertBefore(taskStatusEl, messageContainer.firstChild);
         }
 
-        // Render the main message content
-        const contentEl = container.querySelector('.message-content') as HTMLElement;
-        if (contentEl) {
-            contentEl.empty();
-            MarkdownRenderer.render(
-                this.app,
-                messageData.content,
-                contentEl,
-                '',
-                component || new Component()
-            ).catch((error) => {
-                contentEl.textContent = messageData.content;
-            });
+        // Render the main message content using the appropriate method
+        if (messageData.toolResults && messageData.toolResults.length > 0) {
+            // Use renderMessage which will handle tool displays properly
+            await this.renderMessage(messageData, container, component);
+        } else {
+            // Render regular content
+            const contentEl = container.querySelector('.message-content') as HTMLElement;
+            if (contentEl) {
+                contentEl.empty();
+                MarkdownRenderer.render(
+                    this.app,
+                    messageData.content,
+                    contentEl,
+                    '',
+                    component || new Component()
+                ).catch((error) => {
+                    contentEl.textContent = messageData.content;
+                });
+            }
         }
     }
 
@@ -281,12 +287,24 @@ export class MessageRenderer {
             }
         }
 
-        // Render the main message content (if any)
+        // Render the main message content (if any), but strip trailing tool JSON blocks
         if (message.content && message.content.trim()) {
-            const textDiv = document.createElement('div');
-            textDiv.className = 'message-text-part';
-            await MarkdownRenderer.render(this.app, message.content, textDiv, '', component || new Component());
-            messageContent.appendChild(textDiv);
+            // Remove trailing tool JSON code blocks and other tool command formats
+            let cleanedContent = message.content
+                // Remove ai-tool-execution blocks
+                .replace(/\n*```ai-tool-execution[\s\S]*?```\s*$/g, '')
+                // Remove trailing JSON code blocks that contain tool commands
+                .replace(/\n*```json\s*\{[^}]*"action":\s*"[^"]+"[^}]*\}[^`]*```\s*$/g, '')
+                // Remove any trailing raw JSON objects with action properties
+                .replace(/\n*\{[^}]*"action":\s*"[^"]+"[^}]*\}\s*$/g, '')
+                .trim();
+            
+            if (cleanedContent) {
+                const textDiv = document.createElement('div');
+                textDiv.className = 'message-text-part';
+                await MarkdownRenderer.render(this.app, cleanedContent, textDiv, '', component || new Component());
+                messageContent.appendChild(textDiv);
+            }
         }
     }
 

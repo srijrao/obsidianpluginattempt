@@ -196,7 +196,10 @@ export async function createMessageElement(
     const messageEl = document.createElement('div');
     messageEl.addClass('ai-chat-message', role);
     const messageContainer = messageEl.createDiv('message-container');
+    // Store original content (with tool JSONs) for editing
     messageEl.dataset.rawContent = content;
+    // Use original content for display - MessageRenderer will handle rich tool displays
+    // No need to strip tool JSONs since MessageRenderer creates rich displays for them
     messageEl.dataset.timestamp = new Date().toISOString();
     if (messageData) {
         messageEl.dataset.messageData = JSON.stringify(messageData);
