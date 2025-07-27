@@ -19,7 +19,7 @@ export interface FileReadParams {
  */
 export class FileReadTool implements Tool {
     name = 'file_read';
-    description = 'Reads and retrieves the content of a specified file from the vault, with an option to limit the maximum file size. This tool is fundamental for accessing and processing file data.';
+    description = 'Reads file content with optional size limiting.';
     parameters = {
         path: {
             type: 'string',

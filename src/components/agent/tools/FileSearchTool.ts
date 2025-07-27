@@ -32,7 +32,7 @@ export class FileSearchTool implements Tool {
     // Name of the tool (used for referencing in the plugin system)
     name = 'file_search';
     // Description of what this tool does
-    description = 'Searches for files within the vault based on a query and specified file types, returning a limited number of results. This tool is useful for quickly locating relevant documents and assets.';
+    description = 'Searches files by name and type, with optional content search for markdown files.';
     // Parameters that can be passed to this tool
     parameters = {
         query: {

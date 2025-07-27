@@ -23,7 +23,7 @@ export interface FileWriteParams {
  */
 export class FileWriteTool implements Tool {
     name = 'file_write';
-    description = 'Writes or modifies the content of a file in the vault, with options for creating new files, backing up existing ones, and creating parent directories. This tool is essential for managing file content.';
+    description = 'Writes content to files with creation, backup, and folder options.';
     parameters = {
         path: {
             type: 'string',

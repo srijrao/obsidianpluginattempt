@@ -23,7 +23,7 @@ export interface FileMoveParams {
  */
 export class FileMoveTool implements Tool {
     name = 'file_move';
-    description = 'Relocates or renames files within the vault, providing options to create necessary directories and handle existing files. This tool is vital for organizing and restructuring content.';
+    description = 'Moves or renames files with folder creation and overwrite options.';
     parameters = {
         sourcePath: {
             type: 'string',

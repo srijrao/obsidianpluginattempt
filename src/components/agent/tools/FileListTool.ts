@@ -19,7 +19,7 @@ export interface FileListParams {
  */
 export class FileListTool implements Tool {
     name = 'file_list';
-    description = 'Retrieves a comprehensive list of files and folders within a specified directory, offering options for recursive traversal. This tool is crucial for understanding project structure and navigating the file system.';
+    description = 'Lists files and folders in a directory with optional recursive traversal.';
     parameters = {
         path: { type: 'string', description: 'Path to the folder.', required: false },
         recursive: { type: 'boolean', description: 'List files recursively.', default: false },

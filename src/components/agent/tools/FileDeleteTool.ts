@@ -23,7 +23,7 @@ export interface FileDeleteParams {
  */
 export class FileDeleteTool implements Tool {
     name = 'file_delete';
-    description = 'Safely deletes files or folders from the vault by moving them to a .trash folder (default) or permanently deleting them. The trash option provides safer file management and allows restoration. For folders, creates backups of all contained files before deletion.';
+    description = 'Deletes files or folders with backup and trash options for safe removal.';
     parameters = {
         path: {
             type: 'string',
