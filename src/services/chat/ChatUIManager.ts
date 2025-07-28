@@ -9,6 +9,7 @@ import { App } from 'obsidian';
 import { IChatUIManager, IEventBus } from '../interfaces';
 import { ChatMessage } from '../../components/chat/ChatHistoryManager';
 import { createChatUI, ChatUIElements } from '../../components/chat/ui';
+import MyPlugin from '../../main';
 
 export interface UIState {
     isStreaming: boolean;
@@ -17,6 +18,9 @@ export interface UIState {
     referenceNoteEnabled: boolean;
     referenceNoteFile?: string;
     agentModeEnabled: boolean;
+    obsidianLinksEnabled: boolean;
+    contextNotesEnabled: boolean;
+    contextNotesList: string[];
 }
 
 /**
@@ -29,12 +33,16 @@ export class ChatUIManager implements IChatUIManager {
         isTyping: false,
         currentModel: 'Unknown Model',
         referenceNoteEnabled: false,
-        agentModeEnabled: false
+        agentModeEnabled: false,
+        obsidianLinksEnabled: false,
+        contextNotesEnabled: false,
+        contextNotesList: []
     };
 
     constructor(
         private app: App,
-        private eventBus: IEventBus
+        private eventBus: IEventBus,
+        private plugin: MyPlugin
     ) {
         this.setupEventListeners();
     }
@@ -191,6 +199,74 @@ export class ChatUIManager implements IChatUIManager {
     }
 
     /**
+     * Updates Obsidian Links indicator
+     */
+    updateObsidianLinksIndicator(isEnabled: boolean): void {
+        this.uiState.obsidianLinksEnabled = isEnabled;
+
+        if (!this.uiElements) return;
+
+        const indicator = this.uiElements.obsidianLinksIndicator;
+
+        if (isEnabled) {
+            indicator.setText('🔗 Obsidian Links: ON');
+            indicator.style.display = 'block';
+        } else {
+            indicator.style.display = 'none';
+        }
+
+        this.eventBus.publish('chat.ui.obsidian_links_updated', {
+            isEnabled,
+            timestamp: Date.now()
+        });
+    }
+
+    /**
+     * Updates context notes indicator
+     */
+    updateContextNotesIndicator(isEnabled: boolean, contextNotes?: string): void {
+        this.uiState.contextNotesEnabled = isEnabled;
+        
+        // Parse context notes to extract note names
+        const notesList: string[] = [];
+        if (contextNotes) {
+            const linkRegex = /\[\[(.*?)\]\]/g;
+            let match;
+            while ((match = linkRegex.exec(contextNotes)) !== null) {
+                if (match[1]) {
+                    // Extract just the note name (before any # for sections)
+                    const [noteName] = match[1].split('#');
+                    if (noteName && !notesList.includes(noteName.trim())) {
+                        notesList.push(noteName.trim());
+                    }
+                }
+            }
+        }
+        this.uiState.contextNotesList = notesList;
+
+        if (!this.uiElements) return;
+
+        const indicator = this.uiElements.contextNotesIndicator;
+
+        if (isEnabled && notesList.length > 0) {
+            const notesText = notesList.length === 1 
+                ? notesList[0] 
+                : `${notesList.length} notes`;
+            indicator.setText(`📚 Context: ${notesText}`);
+            indicator.style.display = 'block';
+            indicator.setAttribute('title', `Context Notes: ${notesList.join(', ')}`);
+        } else {
+            indicator.style.display = 'none';
+        }
+
+        this.eventBus.publish('chat.ui.context_notes_updated', {
+            isEnabled,
+            notesList,
+            timestamp: Date.now()
+        });
+    }
+
+    /**
      * Updates streaming state display
      */
     updateStreamingState(isStreaming: boolean): void {
@@ -305,6 +381,12 @@ export class ChatUIManager implements IChatUIManager {
         // Update other buttons based on state
         this.updateAgentModeDisplay(this.uiState.agentModeEnabled);
         this.updateReferenceNoteIndicator(this.uiState.referenceNoteEnabled, this.uiState.referenceNoteFile);
+        
+        // Update indicators based on current plugin settings
+        if (this.plugin?.settings) {
+            this.updateObsidianLinksIndicator(this.plugin.settings.enableObsidianLinks);
+            this.updateContextNotesIndicator(this.plugin.settings.enableContextNotes, this.plugin.settings.contextNotes);
+        }
     }
 
     /**
@@ -332,6 +414,14 @@ export class ChatUIManager implements IChatUIManager {
 
         this.eventBus.subscribe('stream.aborted', () => {
             this.updateStreamingState(false);
+        });
+
+        // Listen for settings changes
+        this.eventBus.subscribe('settings.changed', () => {
+            if (this.plugin?.settings) {
+                this.updateObsidianLinksIndicator(this.plugin.settings.enableObsidianLinks);
+                this.updateContextNotesIndicator(this.plugin.settings.enableContextNotes, this.plugin.settings.contextNotes);
+            }
         });
     }
 
@@ -383,6 +473,12 @@ export class ChatUIManager implements IChatUIManager {
         this.updateAgentModeDisplay(this.uiState.agentModeEnabled);
         this.updateStreamingState(this.uiState.isStreaming);
         this.updateButtonStates();
+        
+        // Update new indicators based on plugin settings
+        if (this.plugin?.settings) {
+            this.updateObsidianLinksIndicator(this.plugin.settings.enableObsidianLinks);
+            this.updateContextNotesIndicator(this.plugin.settings.enableContextNotes, this.plugin.settings.contextNotes);
+        }
     }
 
     /**
@@ -395,7 +491,10 @@ export class ChatUIManager implements IChatUIManager {
             isTyping: false,
             currentModel: 'Unknown Model',
             referenceNoteEnabled: false,
-            agentModeEnabled: false
+            agentModeEnabled: false,
+            obsidianLinksEnabled: false,
+            contextNotesEnabled: false,
+            contextNotesList: []
         };
     }
 }

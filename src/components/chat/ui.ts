@@ -21,6 +21,8 @@ export interface ChatUIElements {
     agentModeButton: HTMLButtonElement; // Button to toggle agent mode
     referenceNoteButton: HTMLButtonElement; // Button to toggle referencing current note
     referenceNoteIndicator: HTMLElement; // Indicator showing referenced note name
+    obsidianLinksIndicator: HTMLElement; // Indicator showing Obsidian Links status
+    contextNotesIndicator: HTMLElement;  // Indicator showing context notes
     modelNameDisplay: HTMLElement;      // Display for the current model name
 }
 
@@ -86,7 +88,39 @@ export function createChatUI(app: App, contentEl: HTMLElement): ChatUIElements {
     referenceNoteIndicator.style.fontSize = '0.85em';
     referenceNoteIndicator.style.margin = '0.1em 0 0.2em 0';
     referenceNoteIndicator.style.display = 'none'; // Hidden by default
+    referenceNoteIndicator.style.whiteSpace = 'normal'; // Allow wrapping
+    referenceNoteIndicator.style.wordBreak = 'break-word'; // Break long words
+    referenceNoteIndicator.style.overflowWrap = 'break-word'; // Modern property for word breaking
+    referenceNoteIndicator.style.maxWidth = '100%'; // Ensure it doesn't exceed container width
     topButtonContainer.appendChild(referenceNoteIndicator);
+
+    // Obsidian Links Indicator (shows if Obsidian Links are enabled)
+    const obsidianLinksIndicator = document.createElement('div');
+    obsidianLinksIndicator.className = 'ai-obsidian-links-indicator';
+    obsidianLinksIndicator.style.textAlign = 'center';
+    obsidianLinksIndicator.style.opacity = '0.5';
+    obsidianLinksIndicator.style.fontSize = '0.85em';
+    obsidianLinksIndicator.style.margin = '0.1em 0 0.2em 0';
+    obsidianLinksIndicator.style.display = 'none'; // Hidden by default
+    obsidianLinksIndicator.style.whiteSpace = 'normal'; // Allow wrapping
+    obsidianLinksIndicator.style.wordBreak = 'break-word'; // Break long words
+    obsidianLinksIndicator.style.overflowWrap = 'break-word'; // Modern property for word breaking
+    obsidianLinksIndicator.style.maxWidth = '100%'; // Ensure it doesn't exceed container width
+    topButtonContainer.appendChild(obsidianLinksIndicator);
+
+    // Context Notes Indicator (shows context notes if enabled)
+    const contextNotesIndicator = document.createElement('div');
+    contextNotesIndicator.className = 'ai-context-notes-indicator';
+    contextNotesIndicator.style.textAlign = 'center';
+    contextNotesIndicator.style.opacity = '0.5';
+    contextNotesIndicator.style.fontSize = '0.85em';
+    contextNotesIndicator.style.margin = '0.1em 0 0.2em 0';
+    contextNotesIndicator.style.display = 'none'; // Hidden by default
+    contextNotesIndicator.style.whiteSpace = 'normal'; // Allow wrapping
+    contextNotesIndicator.style.wordBreak = 'break-word'; // Break long words
+    contextNotesIndicator.style.overflowWrap = 'break-word'; // Modern property for word breaking
+    contextNotesIndicator.style.maxWidth = '100%'; // Ensure it doesn't exceed container width
+    topButtonContainer.appendChild(contextNotesIndicator);
 
     // Model Name Display
     const modelNameDisplay = document.createElement('div');
@@ -220,6 +254,8 @@ export function createChatUI(app: App, contentEl: HTMLElement): ChatUIElements {
         agentModeButton,
         referenceNoteButton,
         referenceNoteIndicator,
+        obsidianLinksIndicator,
+        contextNotesIndicator,
         modelNameDisplay,
     };
 }

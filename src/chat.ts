@@ -43,6 +43,8 @@ export class ChatView extends ItemView {
     private inputContainer: HTMLElement;
     private activeStream: AbortController | null = null;
     private referenceNoteIndicator: HTMLElement;
+    private obsidianLinksIndicator: HTMLElement;
+    private contextNotesIndicator: HTMLElement;
     private modelNameDisplay: HTMLElement;
     private agentResponseHandler: AgentResponseHandler | null = null;
     private messageRegenerator: MessageRegenerator | null = null;
@@ -151,9 +153,13 @@ export class ChatView extends ItemView {
         this.messagesContainer = ui.messagesContainer;
         this.inputContainer = ui.inputContainer;
         this.referenceNoteIndicator = ui.referenceNoteIndicator;
+        this.obsidianLinksIndicator = ui.obsidianLinksIndicator;
+        this.contextNotesIndicator = ui.contextNotesIndicator;
         this.modelNameDisplay = ui.modelNameDisplay;
         this.cacheUIElements(ui);
         this.updateReferenceNoteIndicator();
+        this.updateObsidianLinksIndicator();
+        this.updateContextNotesIndicator();
         this.updateModelNameDisplay();
     }
 
@@ -422,6 +428,8 @@ export class ChatView extends ItemView {
         }));
         this.plugin.onSettingsChange(() => {
             this.updateReferenceNoteIndicator();
+            this.updateObsidianLinksIndicator();
+            this.updateContextNotesIndicator();
             this.updateModelNameDisplay();
         });
     }
@@ -503,6 +511,53 @@ export class ChatView extends ItemView {
             modelName = settings.selectedModel;
         }
         this.modelNameDisplay.textContent = `Model: ${modelName}`;
+    }
+    private updateObsidianLinksIndicator() {
+        if (!this.obsidianLinksIndicator) return;
+        
+        const isObsidianLinksEnabled = this.plugin.settings.enableObsidianLinks;
+        if (isObsidianLinksEnabled) {
+            this.obsidianLinksIndicator.setText('🔗 Obsidian Links: ON');
+            this.obsidianLinksIndicator.style.display = 'block';
+            this.obsidianLinksIndicator.classList.add('active');
+        } else {
+            this.obsidianLinksIndicator.style.display = 'none';
+            this.obsidianLinksIndicator.classList.remove('active');
+        }
+    }
+    private updateContextNotesIndicator() {
+        if (!this.contextNotesIndicator) return;
+        
+        const isContextNotesEnabled = this.plugin.settings.enableContextNotes;
+        const contextNotesText = this.plugin.settings.contextNotes || '';
+        
+        if (isContextNotesEnabled && contextNotesText.trim()) {
+            // Extract note names from the context notes text using regex
+            const linkRegex = /\[\[([^\]]+)\]\]/g;
+            const noteNames: string[] = [];
+            let match;
+            
+            while ((match = linkRegex.exec(contextNotesText)) !== null) {
+                const noteName = match[1];
+                // Extract just the note name from paths
+                const displayName = noteName.split('/').pop() || noteName;
+                noteNames.push(displayName);
+            }
+            
+            if (noteNames.length > 0) {
+                const notesList = noteNames.join(', ');
+                const displayText = `📚 Context: ${notesList}`;
+                this.contextNotesIndicator.setText(displayText);
+                this.contextNotesIndicator.style.display = 'block';
+                this.contextNotesIndicator.classList.add('active');
+            } else {
+                this.contextNotesIndicator.style.display = 'none';
+                this.contextNotesIndicator.classList.remove('active');
+            }
+        } else {
+            this.contextNotesIndicator.style.display = 'none';
+            this.contextNotesIndicator.classList.remove('active');
+        }
     }
     private async buildContextMessages(): Promise<Message[]> {
         return await buildContextMessages({ app: this.app, plugin: this.plugin });

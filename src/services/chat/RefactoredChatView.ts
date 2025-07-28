@@ -38,7 +38,7 @@ export class RefactoredChatView extends ItemView {
         super(leaf);
         
         // Initialize services
-        this.uiManager = new ChatUIManager(this.app, this.eventBus);
+        this.uiManager = new ChatUIManager(this.app, this.eventBus, this.plugin);
         this.streamCoordinator = new StreamCoordinator(this.plugin, this.eventBus, this.aiService);
         this.messageManager = new MessageManager(
             this.app,
