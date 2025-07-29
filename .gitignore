@@ -14,7 +14,11 @@ backups.json
 *.log
 .clinerules/localrules.md
 ai-calls/*
+<<<<<<< HEAD
 _gsdata_/*
 
 # Generated WASM files (copied from node_modules during build)
 *.wasm
+=======
+_gsdata_*
+>>>>>>> bf54a15 (refactor: add _gsdata_* to .gitignore to exclude additional temporary files)
