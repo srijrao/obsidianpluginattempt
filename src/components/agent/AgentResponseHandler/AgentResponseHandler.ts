@@ -194,31 +194,6 @@ export class AgentResponseHandler {
                 this.createToolDisplay(command, result);
                 this.context.onToolResult(result, command);
 
-                // Special handling for get_user_feedback tool
-                if (command.action === 'get_user_feedback' && result.success && result.data?.status === 'pending') {
-                    this.debugLog("User feedback tool detected - pausing execution", { command, result }, contextLabel);
-                    
-                    // Set up the pending feedback request and wait for user response
-                    const userResponse = await this.handlePendingUserFeedback(command, result);
-                    
-                    // Update the tool result with the actual user response
-                    const completedResult = {
-                        success: true,
-                        data: {
-                            ...userResponse,
-                            requestId: result.data.requestId,
-                            status: 'completed'
-                        }
-                    };
-                    
-                    // Replace the pending result with the completed result
-                    toolResults[toolResults.length - 1] = { command, result: completedResult };
-                    
-                    // Update the display with the completed result
-                    this.updateToolDisplay(command, completedResult);
-                    this.context.onToolResult(completedResult, command);
-                }
-
                 // Stop if execution limit is reached.
                 if (this.executionCount >= effectiveLimit) {
                     break;
@@ -637,28 +612,6 @@ ${resultData}
      */
     createToolLimitWarning(): HTMLElement {
         return this.toolLimitWarningUI.createToolLimitWarning();
-    }
-
-    /**
-     * Handles pending user feedback by setting up the async request and waiting for response.
-     * @param command The get_user_feedback command
-     * @param result The pending result from the tool
-     * @returns Promise that resolves with the user response
-     */
-    private async handlePendingUserFeedback(command: ToolCommand, result: ToolResult): Promise<any> {
-        const { GetUserFeedbackTool } = await import('../tools/GetUserFeedback');
-        
-        const timeout = result.data.timeout || 300000; // Default 5 minutes
-        
-        // Create the pending request that will be resolved when user responds
-        try {
-            const userResponse = await GetUserFeedbackTool.createPendingRequest(result.data.requestId, timeout);
-            this.debugLog("User feedback received", { userResponse });
-            return userResponse;
-        } catch (error) {
-            this.debugLog("User feedback timeout or error", { error });
-            throw error;
-        }
     }
 
     /**
