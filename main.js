@@ -22189,17 +22189,44 @@ function createChatUI(app, contentEl) {
   fadedHelp.style.margin = "0.5em 0 0.2em 0";
   const topButtonContainer = contentEl.createDiv("ai-chat-buttons");
   const settingsButton = document.createElement("button");
-  settingsButton.setText("Settings");
+  settingsButton.setText("\u2699\uFE0F");
   settingsButton.setAttribute("aria-label", "Toggle model settings");
+  settingsButton.style.fontSize = "0.85em";
+  settingsButton.style.fontFamily = "inherit";
+  settingsButton.style.width = "1.8em";
+  settingsButton.style.height = "1.8em";
+  settingsButton.style.marginBottom = "0.2em";
+  settingsButton.style.opacity = "0.7";
   topButtonContainer.appendChild(settingsButton);
   const copyAllButton = document.createElement("button");
-  copyAllButton.textContent = "Copy All";
+  copyAllButton.setText("\u{1F4CB}");
+  copyAllButton.setAttribute("aria-label", "Copy all messages");
+  copyAllButton.style.fontSize = "0.85em";
+  copyAllButton.style.fontFamily = "inherit";
+  copyAllButton.style.width = "1.8em";
+  copyAllButton.style.height = "1.8em";
+  copyAllButton.style.marginBottom = "0.2em";
+  copyAllButton.style.opacity = "0.7";
   topButtonContainer.appendChild(copyAllButton);
   const saveNoteButton = document.createElement("button");
-  saveNoteButton.textContent = "Save as Note";
+  saveNoteButton.setText("\u{1F4BE}");
+  saveNoteButton.setAttribute("aria-label", "Save chat as note");
+  saveNoteButton.style.fontSize = "0.85em";
+  saveNoteButton.style.fontFamily = "inherit";
+  saveNoteButton.style.width = "1.8em";
+  saveNoteButton.style.height = "1.8em";
+  saveNoteButton.style.marginBottom = "0.2em";
+  saveNoteButton.style.opacity = "0.7";
   topButtonContainer.appendChild(saveNoteButton);
   const clearButton = document.createElement("button");
-  clearButton.textContent = "Clear Chat";
+  clearButton.setText("\u{1F5D1}\uFE0F");
+  clearButton.setAttribute("aria-label", "Clear chat history");
+  clearButton.style.fontSize = "0.85em";
+  clearButton.style.fontFamily = "inherit";
+  clearButton.style.width = "1.8em";
+  clearButton.style.height = "1.8em";
+  clearButton.style.marginBottom = "0.2em";
+  clearButton.style.opacity = "0.7";
   topButtonContainer.appendChild(clearButton);
   const referenceNoteButton = document.createElement("button");
   referenceNoteButton.setText("\u{1F4DD}");
@@ -22212,6 +22239,28 @@ function createChatUI(app, contentEl) {
   referenceNoteButton.style.marginBottom = "0.2em";
   referenceNoteButton.style.opacity = "0.7";
   topButtonContainer.appendChild(referenceNoteButton);
+  const obsidianLinksButton = document.createElement("button");
+  obsidianLinksButton.setText("\u{1F517}");
+  obsidianLinksButton.setAttribute("aria-label", "Toggle Obsidian links");
+  obsidianLinksButton.addClass("ai-chat-obsidian-links-button");
+  obsidianLinksButton.style.fontSize = "0.85em";
+  obsidianLinksButton.style.fontFamily = "inherit";
+  obsidianLinksButton.style.width = "1.8em";
+  obsidianLinksButton.style.height = "1.8em";
+  obsidianLinksButton.style.marginBottom = "0.2em";
+  obsidianLinksButton.style.opacity = "0.7";
+  topButtonContainer.appendChild(obsidianLinksButton);
+  const contextNotesButton = document.createElement("button");
+  contextNotesButton.setText("\u{1F4DA}");
+  contextNotesButton.setAttribute("aria-label", "Toggle context notes");
+  contextNotesButton.addClass("ai-chat-context-notes-button");
+  contextNotesButton.style.fontSize = "0.85em";
+  contextNotesButton.style.fontFamily = "inherit";
+  contextNotesButton.style.width = "1.8em";
+  contextNotesButton.style.height = "1.8em";
+  contextNotesButton.style.marginBottom = "0.2em";
+  contextNotesButton.style.opacity = "0.7";
+  topButtonContainer.appendChild(contextNotesButton);
   const referenceNoteIndicator = document.createElement("div");
   referenceNoteIndicator.className = "ai-reference-note-indicator";
   referenceNoteIndicator.style.textAlign = "center";
@@ -22223,7 +22272,6 @@ function createChatUI(app, contentEl) {
   referenceNoteIndicator.style.wordBreak = "break-word";
   referenceNoteIndicator.style.overflowWrap = "break-word";
   referenceNoteIndicator.style.maxWidth = "100%";
-  topButtonContainer.appendChild(referenceNoteIndicator);
   const obsidianLinksIndicator = document.createElement("div");
   obsidianLinksIndicator.className = "ai-obsidian-links-indicator";
   obsidianLinksIndicator.style.textAlign = "center";
@@ -22235,7 +22283,6 @@ function createChatUI(app, contentEl) {
   obsidianLinksIndicator.style.wordBreak = "break-word";
   obsidianLinksIndicator.style.overflowWrap = "break-word";
   obsidianLinksIndicator.style.maxWidth = "100%";
-  topButtonContainer.appendChild(obsidianLinksIndicator);
   const contextNotesIndicator = document.createElement("div");
   contextNotesIndicator.className = "ai-context-notes-indicator";
   contextNotesIndicator.style.textAlign = "center";
@@ -22247,15 +22294,22 @@ function createChatUI(app, contentEl) {
   contextNotesIndicator.style.wordBreak = "break-word";
   contextNotesIndicator.style.overflowWrap = "break-word";
   contextNotesIndicator.style.maxWidth = "100%";
-  topButtonContainer.appendChild(contextNotesIndicator);
+  const modelDisplayContainer = contentEl.createDiv("ai-model-display-container");
+  modelDisplayContainer.style.textAlign = "center";
+  modelDisplayContainer.style.margin = "0.5em 0";
+  modelDisplayContainer.style.borderBottom = "1px solid var(--background-modifier-border)";
+  modelDisplayContainer.style.paddingBottom = "0.5em";
   const modelNameDisplay = document.createElement("div");
   modelNameDisplay.className = "ai-model-name-display";
   modelNameDisplay.style.textAlign = "center";
   modelNameDisplay.style.opacity = "0.7";
   modelNameDisplay.style.fontSize = "0.75em";
-  modelNameDisplay.style.margin = "0.2em 0 0.5em 0";
+  modelNameDisplay.style.margin = "0";
   modelNameDisplay.style.fontWeight = "bold";
-  topButtonContainer.appendChild(modelNameDisplay);
+  modelDisplayContainer.appendChild(modelNameDisplay);
+  modelDisplayContainer.appendChild(referenceNoteIndicator);
+  modelDisplayContainer.appendChild(obsidianLinksIndicator);
+  modelDisplayContainer.appendChild(contextNotesIndicator);
   const messagesContainer = contentEl.createDiv("ai-chat-messages");
   messagesContainer.setAttribute("tabindex", "0");
   const toolContinuationContainer = contentEl.createDiv("ai-tool-continuation-container");
@@ -22319,12 +22373,6 @@ function createChatUI(app, contentEl) {
   agentModeButton.setActive = setAgentModeActive;
   inputContainer.appendChild(agentModeButton);
   inputContainer.style.position = "relative";
-  [topButtonContainer.querySelectorAll("button")].forEach((btns) => {
-    btns.forEach((btn) => {
-      btn.style.fontSize = "0.85em";
-      btn.style.fontFamily = "inherit";
-    });
-  });
   return {
     contentEl,
     fadedHelp,
@@ -22342,6 +22390,8 @@ function createChatUI(app, contentEl) {
     helpButton,
     agentModeButton,
     referenceNoteButton,
+    obsidianLinksButton,
+    contextNotesButton,
     referenceNoteIndicator,
     obsidianLinksIndicator,
     contextNotesIndicator,
@@ -25450,6 +25500,8 @@ var ChatView = class extends import_obsidian30.ItemView {
     this.domElementCache.referenceNoteButton = ui.referenceNoteButton;
     this.domElementCache.agentModeButton = ui.agentModeButton;
     this.domElementCache.toolContinuationContainer = ui.toolContinuationContainer;
+    this.domElementCache.obsidianLinksButton = ui.obsidianLinksButton;
+    this.domElementCache.contextNotesButton = ui.contextNotesButton;
   }
   getViewType() {
     return VIEW_TYPE_CHAT;
@@ -25512,6 +25564,16 @@ var ChatView = class extends import_obsidian30.ItemView {
       this.updateReferenceNoteIndicator();
     });
     this.addEventListenerWithCleanup(this.domElementCache.saveNoteButton, "click", handleSaveNote(this.messagesContainer, this.plugin, this.app, this.agentResponseHandler));
+    this.addEventListenerWithCleanup(this.domElementCache.obsidianLinksButton, "click", () => {
+      this.plugin.settings.enableObsidianLinks = !this.plugin.settings.enableObsidianLinks;
+      this.plugin.saveSettings();
+      this.updateObsidianLinksIndicator();
+    });
+    this.addEventListenerWithCleanup(this.domElementCache.contextNotesButton, "click", () => {
+      this.plugin.settings.enableContextNotes = !this.plugin.settings.enableContextNotes;
+      this.plugin.saveSettings();
+      this.updateContextNotesIndicator();
+    });
   }
   setupAgentResponseHandler() {
     this.agentResponseHandler = new AgentResponseHandler({
@@ -25850,41 +25912,62 @@ var ChatView = class extends import_obsidian30.ItemView {
   updateObsidianLinksIndicator() {
     if (!this.obsidianLinksIndicator) return;
     const isObsidianLinksEnabled = this.plugin.settings.enableObsidianLinks;
+    const button = this.domElementCache.obsidianLinksButton;
     if (isObsidianLinksEnabled) {
       this.obsidianLinksIndicator.setText("\u{1F517} Obsidian Links: ON");
       this.obsidianLinksIndicator.style.display = "block";
       this.obsidianLinksIndicator.classList.add("active");
+      if (button) {
+        button.classList.add("active");
+      }
     } else {
       this.obsidianLinksIndicator.style.display = "none";
       this.obsidianLinksIndicator.classList.remove("active");
+      if (button) {
+        button.classList.remove("active");
+      }
     }
   }
   updateContextNotesIndicator() {
     if (!this.contextNotesIndicator) return;
     const isContextNotesEnabled = this.plugin.settings.enableContextNotes;
     const contextNotesText = this.plugin.settings.contextNotes || "";
-    if (isContextNotesEnabled && contextNotesText.trim()) {
-      const linkRegex = /\[\[([^\]]+)\]\]/g;
-      const noteNames = [];
-      let match;
-      while ((match = linkRegex.exec(contextNotesText)) !== null) {
-        const noteName = match[1];
-        const displayName = noteName.split("/").pop() || noteName;
-        noteNames.push(displayName);
+    const button = this.domElementCache.contextNotesButton;
+    if (isContextNotesEnabled) {
+      if (button) {
+        button.classList.add("active");
       }
-      if (noteNames.length > 0) {
-        const notesList = noteNames.join(", ");
-        const displayText = `\u{1F4DA} Context: ${notesList}`;
-        this.contextNotesIndicator.setText(displayText);
+      if (contextNotesText.trim()) {
+        const linkRegex = /\[\[([^\]]+)\]\]/g;
+        const noteNames = [];
+        let match;
+        while ((match = linkRegex.exec(contextNotesText)) !== null) {
+          const noteName = match[1];
+          const displayName = noteName.split("/").pop() || noteName;
+          noteNames.push(displayName);
+        }
+        if (noteNames.length > 0) {
+          const notesList = noteNames.join(", ");
+          const displayText = `\u{1F4DA} Context: ${notesList}`;
+          this.contextNotesIndicator.setText(displayText);
+          this.contextNotesIndicator.style.display = "block";
+          this.contextNotesIndicator.classList.add("active");
+        } else {
+          this.contextNotesIndicator.setText("\u{1F4DA} Context Notes: ON");
+          this.contextNotesIndicator.style.display = "block";
+          this.contextNotesIndicator.classList.add("active");
+        }
+      } else {
+        this.contextNotesIndicator.setText("\u{1F4DA} Context Notes: ON");
         this.contextNotesIndicator.style.display = "block";
         this.contextNotesIndicator.classList.add("active");
-      } else {
-        this.contextNotesIndicator.style.display = "none";
-        this.contextNotesIndicator.classList.remove("active");
       }
     } else {
       this.contextNotesIndicator.style.display = "none";
       this.contextNotesIndicator.classList.remove("active");
+      if (button) {
+        button.classList.remove("active");
+      }
     }
   }
   async buildContextMessages() {

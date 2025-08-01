@@ -260,6 +260,64 @@
     opacity: 1;
 }
 
+/* Obsidian Links button styles */
+.ai-chat-obsidian-links-button {
+    font-size: 0.85em;
+    font-family: inherit;
+    padding: 0.2em 0.7em;
+    border-radius: var(--border-radius);
+    background-color: var(--background-secondary);
+    color: var(--text-normal);
+    border: 1px solid var(--background-modifier-border);
+    transition: var(--transition);
+    opacity: 0.7;
+    margin-bottom: 0.2em;
+    min-width: 1.8em;
+    min-height: 1.8em;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.ai-chat-obsidian-links-button:hover {
+    background-color: var(--background-modifier-hover);
+}
+
+.ai-chat-obsidian-links-button.active {
+    background-color: var(--background-modifier-success);
+    color: var(--text-on-accent);
+    opacity: 1;
+}
+
+/* Context Notes button styles */
+.ai-chat-context-notes-button {
+    font-size: 0.85em;
+    font-family: inherit;
+    padding: 0.2em 0.7em;
+    border-radius: var(--border-radius);
+    background-color: var(--background-secondary);
+    color: var(--text-normal);
+    border: 1px solid var(--background-modifier-border);
+    transition: var(--transition);
+    opacity: 0.7;
+    margin-bottom: 0.2em;
+    min-width: 1.8em;
+    min-height: 1.8em;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.ai-chat-context-notes-button:hover {
+    background-color: var(--background-modifier-hover);
+}
+
+.ai-chat-context-notes-button.active {
+    background-color: var(--background-modifier-success);
+    color: var(--text-on-accent);
+    opacity: 1;
+}
+
 .ai-reference-note-indicator {
     text-align: center;
     opacity: 0.5;

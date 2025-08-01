@@ -67,6 +67,8 @@ export class ChatView extends ItemView {
         referenceNoteButton?: HTMLButtonElement;
         agentModeButton?: HTMLButtonElement;
         toolContinuationContainer?: HTMLElement;
+        obsidianLinksButton?: HTMLButtonElement;
+        contextNotesButton?: HTMLButtonElement;
     } = {};
     private eventListeners: Array<{
         element: HTMLElement;
@@ -108,6 +110,9 @@ export class ChatView extends ItemView {
         this.domElementCache.referenceNoteButton = ui.referenceNoteButton;
         this.domElementCache.agentModeButton = ui.agentModeButton;
         this.domElementCache.toolContinuationContainer = ui.toolContinuationContainer;
+        // Cache new buttons
+        this.domElementCache.obsidianLinksButton = ui.obsidianLinksButton;
+        this.domElementCache.contextNotesButton = ui.contextNotesButton;
     }
     getViewType(): string {
         return VIEW_TYPE_CHAT;
@@ -174,6 +179,20 @@ export class ChatView extends ItemView {
             this.updateReferenceNoteIndicator();
         });
         this.addEventListenerWithCleanup(this.domElementCache.saveNoteButton!, 'click', handleSaveNote(this.messagesContainer, this.plugin, this.app, this.agentResponseHandler));
+        
+        // Obsidian Links button
+        this.addEventListenerWithCleanup(this.domElementCache.obsidianLinksButton!, 'click', () => {
+            this.plugin.settings.enableObsidianLinks = !this.plugin.settings.enableObsidianLinks;
+            this.plugin.saveSettings();
+            this.updateObsidianLinksIndicator();
+        });
+        
+        // Context Notes button
+        this.addEventListenerWithCleanup(this.domElementCache.contextNotesButton!, 'click', () => {
+            this.plugin.settings.enableContextNotes = !this.plugin.settings.enableContextNotes;
+            this.plugin.saveSettings();
+            this.updateContextNotesIndicator();
+        });
     }
 
     private setupAgentResponseHandler() {
@@ -523,13 +542,21 @@ export class ChatView extends ItemView {
         if (!this.obsidianLinksIndicator) return;
         
         const isObsidianLinksEnabled = this.plugin.settings.enableObsidianLinks;
+        const button = this.domElementCache.obsidianLinksButton;
+        
         if (isObsidianLinksEnabled) {
             this.obsidianLinksIndicator.setText('🔗 Obsidian Links: ON');
             this.obsidianLinksIndicator.style.display = 'block';
             this.obsidianLinksIndicator.classList.add('active');
+            if (button) {
+                button.classList.add('active');
+            }
         } else {
             this.obsidianLinksIndicator.style.display = 'none';
             this.obsidianLinksIndicator.classList.remove('active');
+            if (button) {
+                button.classList.remove('active');
+            }
         }
     }
     private updateContextNotesIndicator() {
@@ -537,33 +564,50 @@ export class ChatView extends ItemView {
         
         const isContextNotesEnabled = this.plugin.settings.enableContextNotes;
         const contextNotesText = this.plugin.settings.contextNotes || '';
+        const button = this.domElementCache.contextNotesButton;
         
-        if (isContextNotesEnabled && contextNotesText.trim()) {
-            // Extract note names from the context notes text using regex
-            const linkRegex = /\[\[([^\]]+)\]\]/g;
-            const noteNames: string[] = [];
-            let match;
-            
-            while ((match = linkRegex.exec(contextNotesText)) !== null) {
-                const noteName = match[1];
-                // Extract just the note name from paths
-                const displayName = noteName.split('/').pop() || noteName;
-                noteNames.push(displayName);
+        if (isContextNotesEnabled) {
+            // Show button as active when setting is enabled, regardless of content
+            if (button) {
+                button.classList.add('active');
             }
             
-            if (noteNames.length > 0) {
-                const notesList = noteNames.join(', ');
-                const displayText = `📚 Context: ${notesList}`;
-                this.contextNotesIndicator.setText(displayText);
+            // Show indicator only if there's actual content
+            if (contextNotesText.trim()) {
+                // Extract note names from the context notes text using regex
+                const linkRegex = /\[\[([^\]]+)\]\]/g;
+                const noteNames: string[] = [];
+                let match;
+                
+                while ((match = linkRegex.exec(contextNotesText)) !== null) {
+                    const noteName = match[1];
+                    // Extract just the note name from paths
+                    const displayName = noteName.split('/').pop() || noteName;
+                    noteNames.push(displayName);
+                }
+                
+                if (noteNames.length > 0) {
+                    const notesList = noteNames.join(', ');
+                    const displayText = `📚 Context: ${notesList}`;
+                    this.contextNotesIndicator.setText(displayText);
+                    this.contextNotesIndicator.style.display = 'block';
+                    this.contextNotesIndicator.classList.add('active');
+                } else {
+                    this.contextNotesIndicator.setText('📚 Context Notes: ON');
+                    this.contextNotesIndicator.style.display = 'block';
+                    this.contextNotesIndicator.classList.add('active');
+                }
+            } else {
+                this.contextNotesIndicator.setText('📚 Context Notes: ON');
                 this.contextNotesIndicator.style.display = 'block';
                 this.contextNotesIndicator.classList.add('active');
-            } else {
-                this.contextNotesIndicator.style.display = 'none';
-                this.contextNotesIndicator.classList.remove('active');
             }
         } else {
             this.contextNotesIndicator.style.display = 'none';
             this.contextNotesIndicator.classList.remove('active');
+            if (button) {
+                button.classList.remove('active');
+            }
         }
     }
     private async buildContextMessages(): Promise<Message[]> {

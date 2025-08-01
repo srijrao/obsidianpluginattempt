@@ -316,6 +316,53 @@ export class ChatEventCoordinator implements IChatEventCoordinator {
                 }
             );
         }
+
+        // Obsidian Links button
+        if (uiElements.obsidianLinksButton) {
+            this.addEventListenerWithCleanup(
+                uiElements.obsidianLinksButton,
+                'click',
+                () => {
+                    const currentState = this.plugin.settings.enableObsidianLinks;
+                    this.plugin.settings.enableObsidianLinks = !currentState;
+                    this.plugin.saveSettings();
+                    
+                    this.uiManager.updateObsidianLinksIndicator(!currentState);
+                    
+                    // Update button active state
+                    if (!currentState) {
+                        uiElements.obsidianLinksButton.classList.add('active');
+                    } else {
+                        uiElements.obsidianLinksButton.classList.remove('active');
+                    }
+                }
+            );
+        }
+
+        // Context Notes button
+        if (uiElements.contextNotesButton) {
+            this.addEventListenerWithCleanup(
+                uiElements.contextNotesButton,
+                'click',
+                () => {
+                    const currentState = this.plugin.settings.enableContextNotes;
+                    this.plugin.settings.enableContextNotes = !currentState;
+                    this.plugin.saveSettings();
+                    
+                    this.uiManager.updateContextNotesIndicator(
+                        !currentState,
+                        this.plugin.settings.contextNotes
+                    );
+                    
+                    // Update button active state
+                    if (!currentState) {
+                        uiElements.contextNotesButton.classList.add('active');
+                    } else {
+                        uiElements.contextNotesButton.classList.remove('active');
+                    }
+                }
+            );
+        }
     }
 
     /**
@@ -502,6 +549,12 @@ export class ChatEventCoordinator implements IChatEventCoordinator {
                 break;
             case '/agent':
                 uiElements.agentModeButton?.click();
+                break;
+            case '/links':
+                uiElements.obsidianLinksButton?.click();
+                break;
+            case '/context':
+                uiElements.contextNotesButton?.click();
                 break;
             default:
                 this.eventBus.publish('chat.slash_command.unknown', {

@@ -386,6 +386,10 @@ export class ChatUIManager implements IChatUIManager {
         if (this.plugin?.settings) {
             this.updateObsidianLinksIndicator(this.plugin.settings.enableObsidianLinks);
             this.updateContextNotesIndicator(this.plugin.settings.enableContextNotes, this.plugin.settings.contextNotes);
+            
+            // Update button active states
+            this.updateObsidianLinksButtonState(this.plugin.settings.enableObsidianLinks);
+            this.updateContextNotesButtonState(this.plugin.settings.enableContextNotes);
         }
     }
 
@@ -478,6 +482,32 @@ export class ChatUIManager implements IChatUIManager {
         if (this.plugin?.settings) {
             this.updateObsidianLinksIndicator(this.plugin.settings.enableObsidianLinks);
             this.updateContextNotesIndicator(this.plugin.settings.enableContextNotes, this.plugin.settings.contextNotes);
+        }
+    }
+
+    /**
+     * Updates Obsidian Links button active state
+     */
+    private updateObsidianLinksButtonState(isEnabled: boolean): void {
+        if (!this.uiElements?.obsidianLinksButton) return;
+
+        if (isEnabled) {
+            this.uiElements.obsidianLinksButton.classList.add('active');
+        } else {
+            this.uiElements.obsidianLinksButton.classList.remove('active');
+        }
+    }
+
+    /**
+     * Updates Context Notes button active state
+     */
+    private updateContextNotesButtonState(isEnabled: boolean): void {
+        if (!this.uiElements?.contextNotesButton) return;
+
+        if (isEnabled) {
+            this.uiElements.contextNotesButton.classList.add('active');
+        } else {
+            this.uiElements.contextNotesButton.classList.remove('active');
         }
     }
 

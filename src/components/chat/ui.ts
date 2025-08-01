@@ -20,6 +20,8 @@ export interface ChatUIElements {
     helpButton: HTMLButtonElement;      // Button to show help modal
     agentModeButton: HTMLButtonElement; // Button to toggle agent mode
     referenceNoteButton: HTMLButtonElement; // Button to toggle referencing current note
+    obsidianLinksButton: HTMLButtonElement; // Button to toggle Obsidian links
+    contextNotesButton: HTMLButtonElement;  // Button to toggle context notes
     referenceNoteIndicator: HTMLElement; // Indicator showing referenced note name
     obsidianLinksIndicator: HTMLElement; // Indicator showing Obsidian Links status
     contextNotesIndicator: HTMLElement;  // Indicator showing context notes
@@ -48,23 +50,50 @@ export function createChatUI(app: App, contentEl: HTMLElement): ChatUIElements {
 
     // Settings button
     const settingsButton = document.createElement('button');
-    settingsButton.setText('Settings');
+    settingsButton.setText('⚙️');
     settingsButton.setAttribute('aria-label', 'Toggle model settings');
+    settingsButton.style.fontSize = '0.85em';
+    settingsButton.style.fontFamily = 'inherit';
+    settingsButton.style.width = '1.8em';
+    settingsButton.style.height = '1.8em';
+    settingsButton.style.marginBottom = '0.2em';
+    settingsButton.style.opacity = '0.7';
     topButtonContainer.appendChild(settingsButton);
 
     // Copy All button
     const copyAllButton = document.createElement('button');
-    copyAllButton.textContent = 'Copy All';
+    copyAllButton.setText('📋');
+    copyAllButton.setAttribute('aria-label', 'Copy all messages');
+    copyAllButton.style.fontSize = '0.85em';
+    copyAllButton.style.fontFamily = 'inherit';
+    copyAllButton.style.width = '1.8em';
+    copyAllButton.style.height = '1.8em';
+    copyAllButton.style.marginBottom = '0.2em';
+    copyAllButton.style.opacity = '0.7';
     topButtonContainer.appendChild(copyAllButton);
 
     // Save as Note button
     const saveNoteButton = document.createElement('button');
-    saveNoteButton.textContent = 'Save as Note';
+    saveNoteButton.setText('💾');
+    saveNoteButton.setAttribute('aria-label', 'Save chat as note');
+    saveNoteButton.style.fontSize = '0.85em';
+    saveNoteButton.style.fontFamily = 'inherit';
+    saveNoteButton.style.width = '1.8em';
+    saveNoteButton.style.height = '1.8em';
+    saveNoteButton.style.marginBottom = '0.2em';
+    saveNoteButton.style.opacity = '0.7';
     topButtonContainer.appendChild(saveNoteButton);
 
     // Clear Chat button
     const clearButton = document.createElement('button');
-    clearButton.textContent = 'Clear Chat';
+    clearButton.setText('🗑️');
+    clearButton.setAttribute('aria-label', 'Clear chat history');
+    clearButton.style.fontSize = '0.85em';
+    clearButton.style.fontFamily = 'inherit';
+    clearButton.style.width = '1.8em';
+    clearButton.style.height = '1.8em';
+    clearButton.style.marginBottom = '0.2em';
+    clearButton.style.opacity = '0.7';
     topButtonContainer.appendChild(clearButton);
 
     // Reference Current Note button (📝)
@@ -80,6 +109,32 @@ export function createChatUI(app: App, contentEl: HTMLElement): ChatUIElements {
     referenceNoteButton.style.opacity = '0.7';
     topButtonContainer.appendChild(referenceNoteButton);
 
+    // Obsidian Links button (🔗)
+    const obsidianLinksButton = document.createElement('button');
+    obsidianLinksButton.setText('🔗');
+    obsidianLinksButton.setAttribute('aria-label', 'Toggle Obsidian links');
+    obsidianLinksButton.addClass('ai-chat-obsidian-links-button');
+    obsidianLinksButton.style.fontSize = '0.85em';
+    obsidianLinksButton.style.fontFamily = 'inherit';
+    obsidianLinksButton.style.width = '1.8em';
+    obsidianLinksButton.style.height = '1.8em';
+    obsidianLinksButton.style.marginBottom = '0.2em';
+    obsidianLinksButton.style.opacity = '0.7';
+    topButtonContainer.appendChild(obsidianLinksButton);
+
+    // Context Notes button (📚)
+    const contextNotesButton = document.createElement('button');
+    contextNotesButton.setText('📚');
+    contextNotesButton.setAttribute('aria-label', 'Toggle context notes');
+    contextNotesButton.addClass('ai-chat-context-notes-button');
+    contextNotesButton.style.fontSize = '0.85em';
+    contextNotesButton.style.fontFamily = 'inherit';
+    contextNotesButton.style.width = '1.8em';
+    contextNotesButton.style.height = '1.8em';
+    contextNotesButton.style.marginBottom = '0.2em';
+    contextNotesButton.style.opacity = '0.7';
+    topButtonContainer.appendChild(contextNotesButton);
+
     // Reference Note Indicator (shows name of referenced note)
     const referenceNoteIndicator = document.createElement('div');
     referenceNoteIndicator.className = 'ai-reference-note-indicator';
@@ -92,7 +147,6 @@ export function createChatUI(app: App, contentEl: HTMLElement): ChatUIElements {
     referenceNoteIndicator.style.wordBreak = 'break-word'; // Break long words
     referenceNoteIndicator.style.overflowWrap = 'break-word'; // Modern property for word breaking
     referenceNoteIndicator.style.maxWidth = '100%'; // Ensure it doesn't exceed container width
-    topButtonContainer.appendChild(referenceNoteIndicator);
 
     // Obsidian Links Indicator (shows if Obsidian Links are enabled)
     const obsidianLinksIndicator = document.createElement('div');
@@ -106,7 +160,6 @@ export function createChatUI(app: App, contentEl: HTMLElement): ChatUIElements {
     obsidianLinksIndicator.style.wordBreak = 'break-word'; // Break long words
     obsidianLinksIndicator.style.overflowWrap = 'break-word'; // Modern property for word breaking
     obsidianLinksIndicator.style.maxWidth = '100%'; // Ensure it doesn't exceed container width
-    topButtonContainer.appendChild(obsidianLinksIndicator);
 
     // Context Notes Indicator (shows context notes if enabled)
     const contextNotesIndicator = document.createElement('div');
@@ -120,7 +173,13 @@ export function createChatUI(app: App, contentEl: HTMLElement): ChatUIElements {
     contextNotesIndicator.style.wordBreak = 'break-word'; // Break long words
     contextNotesIndicator.style.overflowWrap = 'break-word'; // Modern property for word breaking
     contextNotesIndicator.style.maxWidth = '100%'; // Ensure it doesn't exceed container width
-    topButtonContainer.appendChild(contextNotesIndicator);
+
+    // Model Name Display Container (separate line from buttons)
+    const modelDisplayContainer = contentEl.createDiv('ai-model-display-container');
+    modelDisplayContainer.style.textAlign = 'center';
+    modelDisplayContainer.style.margin = '0.5em 0';
+    modelDisplayContainer.style.borderBottom = '1px solid var(--background-modifier-border)';
+    modelDisplayContainer.style.paddingBottom = '0.5em';
 
     // Model Name Display
     const modelNameDisplay = document.createElement('div');
@@ -128,9 +187,14 @@ export function createChatUI(app: App, contentEl: HTMLElement): ChatUIElements {
     modelNameDisplay.style.textAlign = 'center';
     modelNameDisplay.style.opacity = '0.7';
     modelNameDisplay.style.fontSize = '0.75em';
-    modelNameDisplay.style.margin = '0.2em 0 0.5em 0';
+    modelNameDisplay.style.margin = '0';
     modelNameDisplay.style.fontWeight = 'bold';
-    topButtonContainer.appendChild(modelNameDisplay);
+    modelDisplayContainer.appendChild(modelNameDisplay);
+    
+    // Add all indicators to the model display container (same line as model)
+    modelDisplayContainer.appendChild(referenceNoteIndicator);
+    modelDisplayContainer.appendChild(obsidianLinksIndicator);
+    modelDisplayContainer.appendChild(contextNotesIndicator);
 
     // Messages container (where chat messages are displayed)
     const messagesContainer = contentEl.createDiv('ai-chat-messages');
@@ -227,14 +291,6 @@ export function createChatUI(app: App, contentEl: HTMLElement): ChatUIElements {
     // Set input container position to relative for absolute positioning of help/agent buttons
     inputContainer.style.position = 'relative';
 
-    // Apply consistent styling to top buttons
-    [topButtonContainer.querySelectorAll('button')].forEach(btns => {
-      btns.forEach(btn => {
-        btn.style.fontSize = '0.85em';
-        btn.style.fontFamily = 'inherit';
-      });
-    });
-
     // Return all created UI elements
     return {
         contentEl,
@@ -253,6 +309,8 @@ export function createChatUI(app: App, contentEl: HTMLElement): ChatUIElements {
         helpButton,
         agentModeButton,
         referenceNoteButton,
+        obsidianLinksButton,
+        contextNotesButton,
         referenceNoteIndicator,
         obsidianLinksIndicator,
         contextNotesIndicator,
