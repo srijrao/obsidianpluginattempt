@@ -145,8 +145,6 @@ export interface MyPluginSettings {
     includeTimeWithSystemMessage: boolean;
     /** If true, enables streaming responses from the AI model for a more interactive experience. */
     enableStreaming: boolean;
-    /** If true, automatically opens the model settings when a new model is selected. */
-    autoOpenModelSettings: boolean;
     /** If true, enables the AI to understand and generate Obsidian-style links. */
     enableObsidianLinks: boolean;
     /**
@@ -317,8 +315,6 @@ export const DEFAULT_SETTINGS: MyPluginSettings = {
     includeTimeWithSystemMessage: false,
     /** @inheritdoc */
     enableStreaming: true,
-    /** @inheritdoc */
-    autoOpenModelSettings: false,
     /** @inheritdoc */
     enableObsidianLinks: true,
     /** @inheritdoc */

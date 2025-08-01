@@ -30,17 +30,11 @@ export class GeneralSettingsSection {
             containerEl,
             'Plugin Behavior',
             (sectionEl: HTMLElement) => {
-                // Auto-Open Model Settings Toggle
-                this.settingCreators.createToggleSetting(
-                    sectionEl, 
-                    'Auto-Open Model Settings', 
-                    'Automatically open the AI model settings panel when the plugin loads.',
-                    () => this.plugin.settings.autoOpenModelSettings,
-                    async (value) => { 
-                        this.plugin.settings.autoOpenModelSettings = value; 
-                        await this.plugin.saveSettings(); 
-                    }
-                );
+                // Plugin behavior settings can be added here in the future
+                sectionEl.createEl('div', { 
+                    text: 'Additional plugin behavior settings will be available here.',
+                    cls: 'setting-item-description'
+                });
             },
             this.plugin,
             'generalSectionsExpanded'

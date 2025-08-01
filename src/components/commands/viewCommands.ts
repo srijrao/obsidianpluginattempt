@@ -4,32 +4,12 @@ import { activateView } from '../../utils/viewManager';
 import { VIEW_TYPE_CHAT } from '../../chat';
 
 /**
- * Defines the view type for the model settings view.
- */
-export const VIEW_TYPE_MODEL_SETTINGS = 'model-settings-view';
-
-/**
  * Registers view-related commands for the plugin.
- * These commands allow users to open specific plugin views (settings, chat).
+ * These commands allow users to open specific plugin views (chat).
  *
  * @param plugin The Obsidian plugin instance.
  */
 export function registerViewCommands(plugin: Plugin) {
-    /**
-     * Registers the 'Show AI Settings' command.
-     * This command activates and displays the AI settings view.
-     */
-    registerCommand(
-        plugin,
-        {
-            id: 'show-ai-settings',
-            name: 'Show AI Settings',
-            callback: () => activateView(plugin.app, VIEW_TYPE_MODEL_SETTINGS)
-        },
-        'file-sliders', // Icon ID for the command palette
-        'Open AI Settings' // Display name in the command palette
-    );
-
     /**
      * Registers the 'Show AI Chat' command.
      * This command activates and displays the AI chat view.

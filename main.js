@@ -3001,8 +3001,6 @@ var init_settings = __esm({
       /** @inheritdoc */
       enableStreaming: true,
       /** @inheritdoc */
-      autoOpenModelSettings: false,
-      /** @inheritdoc */
       enableObsidianLinks: true,
       /** @inheritdoc */
       titleOutputMode: "clipboard",
@@ -3120,3687 +3118,30 @@ var init_types = __esm({
   }
 });
 
-// src/utils/pluginUtils.ts
-function registerCommand(plugin, options, ribbonIcon, ribbonTitle) {
-  plugin.addCommand(options);
-  if (ribbonIcon && ribbonTitle) {
-    plugin.addRibbonIcon(ribbonIcon, ribbonTitle, options.callback || (() => {
-    }));
-  }
-}
-var init_pluginUtils = __esm({
-  "src/utils/pluginUtils.ts"() {
-  }
+// src/utils/clearAICallLogs.ts
+var clearAICallLogs_exports = {};
+__export(clearAICallLogs_exports, {
+  clearAICallLogs: () => clearAICallLogs
 });
-
-// src/components/chat/Buttons.ts
-function createActionButton(label, tooltip, callback) {
-  const button = document.createElement("button");
-  button.addClass("ai-chat-action-button");
-  button.setAttribute("aria-label", tooltip);
-  const labelEl = document.createElement("span");
-  labelEl.textContent = label;
-  button.appendChild(labelEl);
-  button.addEventListener("click", callback);
-  return button;
-}
-async function copyToClipboard(text) {
-  try {
-    await navigator.clipboard.writeText(text);
-  } catch (error) {
-  }
-}
-var import_obsidian7, Buttons;
-var init_Buttons = __esm({
-  "src/components/chat/Buttons.ts"() {
-    import_obsidian7 = require("obsidian");
-    Buttons = class extends import_obsidian7.Component {
-      /**
-       * Constructs the Buttons component and initializes all main chat buttons.
-       */
-      constructor() {
-        super();
-        __publicField(this, "container");
-        __publicField(this, "sendButton");
-        __publicField(this, "stopButton");
-        __publicField(this, "clearButton");
-        __publicField(this, "settingsButton");
-        this.container = document.createElement("div");
-        this.container.addClass("ai-chat-buttons");
-        this.sendButton = new import_obsidian7.ButtonComponent(this.container).setButtonText("Send").setClass("mod-cta");
-        this.sendButton.buttonEl.addClass("hidden-button");
-        this.stopButton = new import_obsidian7.ButtonComponent(this.container).setButtonText("Stop");
-        this.stopButton.buttonEl.addClass("hidden-button");
-        this.clearButton = new import_obsidian7.ButtonComponent(this.container).setButtonText("Clear");
-        this.clearButton.buttonEl.addClass("hidden-button");
-        this.settingsButton = new import_obsidian7.ButtonComponent(this.container).setButtonText("Settings");
-        this.settingsButton.buttonEl.addClass("hidden-button");
-      }
-      /**
-       * Get the button container element.
-       */
-      getContainer() {
-        return this.container;
-      }
-      /**
-       * Get the main Send button.
-       */
-      getSendButton() {
-        return this.sendButton;
-      }
-      /**
-       * Get the main Stop button.
-       */
-      getStopButton() {
-        return this.stopButton;
-      }
-      /**
-       * Get the main Clear button.
-       */
-      getClearButton() {
-        return this.clearButton;
-      }
-      /**
-       * Get the main Settings button.
-       */
-      getSettingsButton() {
-        return this.settingsButton;
-      }
-      /**
-       * Show the Send button.
-       */
-      showSendButton() {
-        this.sendButton.buttonEl.removeClass("hidden-button");
-      }
-      /**
-       * Hide the Send button.
-       */
-      hideSendButton() {
-        this.sendButton.buttonEl.addClass("hidden-button");
-      }
-      /**
-       * Show the Stop button.
-       */
-      showStopButton() {
-        this.stopButton.buttonEl.removeClass("hidden-button");
-      }
-      /**
-       * Hide the Stop button.
-       */
-      hideStopButton() {
-        this.stopButton.buttonEl.addClass("hidden-button");
-      }
-      /**
-       * Show the Clear button.
-       */
-      showClearButton() {
-        this.clearButton.buttonEl.removeClass("hidden-button");
-      }
-      /**
-       * Hide the Clear button.
-       */
-      hideClearButton() {
-        this.clearButton.buttonEl.addClass("hidden-button");
-      }
-      /**
-       * Show the Settings button.
-       */
-      showSettingsButton() {
-        this.settingsButton.buttonEl.removeClass("hidden-button");
-      }
-      /**
-       * Hide the Settings button.
-       */
-      hideSettingsButton() {
-        this.settingsButton.buttonEl.addClass("hidden-button");
-      }
-      /**
-       * Create action buttons for messages (e.g., copy, edit, delete, regenerate).
-       * @param buttons Array of button configs
-       * @returns HTMLElement containing all action buttons
-       */
-      createMessageActions(buttons) {
-        const actionsContainer = document.createElement("div");
-        actionsContainer.addClass("message-actions");
-        buttons.forEach((config) => {
-          const button = this.createButton(config);
-          actionsContainer.appendChild(button);
-        });
-        return actionsContainer;
-      }
-      /**
-       * Create the main chat control buttons (send, stop, clear, settings).
-       * @param buttons Array of button configs
-       * @returns HTMLElement containing all control buttons
-       */
-      createChatControls(buttons) {
-        const controlsContainer = document.createElement("div");
-        controlsContainer.addClass("ai-chat-buttons");
-        buttons.forEach((config) => {
-          const button = this.createButton(config);
-          if (config.isHidden) {
-            button.addClass("hidden-button");
-          }
-          controlsContainer.appendChild(button);
-        });
-        return controlsContainer;
-      }
-      /**
-       * Create a single button with the given configuration.
-       * @param config Button configuration
-       * @returns The created button element
-       */
-      createButton(config) {
-        const button = document.createElement("button");
-        button.addClass("ai-chat-action-button");
-        if (config.className) {
-          button.addClass(config.className);
-        }
-        button.setAttribute("aria-label", config.tooltip);
-        const labelEl = document.createElement("span");
-        labelEl.textContent = config.label;
-        button.appendChild(labelEl);
-        button.addEventListener("click", config.onClick);
-        return button;
-      }
-      /**
-       * Show or hide a specific button in a container by label.
-       * @param container The container element
-       * @param label The aria-label of the button
-       * @param show Whether to show or hide the button
-       */
-      toggleButton(container, label, show) {
-        const button = container.querySelector(`[aria-label="${label}"]`);
-        if (button instanceof HTMLElement) {
-          show ? button.removeClass("hidden-button") : button.addClass("hidden-button");
-        }
-      }
-      /**
-       * Set the send button state (enabled/disabled and visible/hidden).
-       */
-      setSendButtonState(enabled, visible = true) {
-        this.sendButton.setDisabled(!enabled);
-        if (visible) {
-          this.sendButton.buttonEl.removeClass("hidden-button");
-        } else {
-          this.sendButton.buttonEl.addClass("hidden-button");
-        }
-      }
-      /**
-       * Set the stop button state (enabled/disabled and visible/hidden).
-       */
-      setStopButtonState(enabled, visible = true) {
-        this.stopButton.setDisabled(!enabled);
-        if (visible) {
-          this.stopButton.buttonEl.removeClass("hidden-button");
-        } else {
-          this.stopButton.buttonEl.addClass("hidden-button");
-        }
-      }
-    };
-  }
-});
-
-// src/components/agent/ToolRichDisplay.ts
-var import_obsidian8, ToolRichDisplay;
-var init_ToolRichDisplay = __esm({
-  "src/components/agent/ToolRichDisplay.ts"() {
-    import_obsidian8 = require("obsidian");
-    ToolRichDisplay = class _ToolRichDisplay extends import_obsidian8.Component {
-      /**
-       * Constructs a ToolRichDisplay instance.
-       * @param options ToolDisplayOptions for rendering and actions
-       */
-      constructor(options) {
-        super();
-        __publicField(this, "element");
-        __publicField(this, "options");
-        this.options = options;
-        if (window.aiAssistantPlugin && typeof window.aiAssistantPlugin.debugLog === "function") {
-          window.aiAssistantPlugin.debugLog("debug", "[ToolRichDisplay] constructor called", { options });
-        }
-        this.element = this.createToolDisplay();
-      }
-      /**
-       * Returns the root element for this display.
-       */
-      getElement() {
-        return this.element;
-      }
-      /**
-       * Creates the main display element for the tool result.
-       * @returns HTMLElement representing the tool result
-       */
-      createToolDisplay() {
-        if (window.aiAssistantPlugin && typeof window.aiAssistantPlugin.debugLog === "function") {
-          window.aiAssistantPlugin.debugLog("debug", "[ToolRichDisplay] createToolDisplay called", { command: this.options.command, result: this.options.result });
-        }
-        return _ToolRichDisplay.createDisplayElement(this.options.command, this.options.result, {
-          onRerun: this.options.onRerun,
-          onCopy: this.options.onCopy
-        });
-      }
-      /**
-       * Returns an emoji icon for the tool action.
-       */
-      getToolIcon() {
-        const iconMap = {
-          "file_search": "\u{1F50D}",
-          "file_read": "\u{1F4D6}",
-          "file_write": "\u270D\uFE0F",
-          "file_diff": "\u{1F504}",
-          "file_move": "\u{1F4C1}",
-          "file_rename": "\u{1F3F7}\uFE0F",
-          "file_list": "\u{1F4CB}",
-          "thought": "\u{1F9E0}",
-          "get_user_feedback": "\u2753"
-        };
-        return iconMap[this.options.command.action] || "\u{1F527}";
-      }
-      /**
-       * Returns a human-readable display name for the tool action.
-       */
-      getToolDisplayName() {
-        const nameMap = {
-          "file_search": "File Search",
-          "file_read": "File Read",
-          "file_write": "File Write",
-          "file_diff": "File Diff",
-          "file_move": "File Move",
-          "file_rename": "File Rename",
-          "file_list": "File List",
-          "thought": "Thought Process",
-          "get_user_feedback": "User Feedback"
-        };
-        return nameMap[this.options.command.action] || this.options.command.action;
-      }
-      /**
-       * Formats the tool parameters for display.
-       */
-      formatParameters() {
-        const params = this.options.command.parameters;
-        const formatted = Object.entries(params).map(([key, value]) => `${key}: ${typeof value === "string" && value.length > 50 ? value.substring(0, 50) + "..." : JSON.stringify(value)}`).join(", ");
-        return `<code>${formatted}</code>`;
-      }
-      /**
-       * Returns a summary string for the tool result.
-       */
-      getResultSummary() {
-        if (!this.options.result.success) {
-          return `<span class="tool-error">${this.options.result.error || "Unknown error"}</span>`;
-        }
-        const data = this.options.result.data;
-        if (this.options.command.action === "file_write" && data) {
-          const action = data.action || "modified";
-          const filePath = data.filePath || "unknown file";
-          const size = data.size ? ` (${data.size} bytes)` : "";
-          if (action === "created") {
-            return `<span class="tool-success">\u{1F4DD} Created file: <strong>${filePath}</strong>${size}</span>`;
-          } else {
-            return `<span class="tool-success">\u{1F4BE} Saved file: <strong>${filePath}</strong>${size}</span>`;
-          }
-        }
-        if (this.options.command.action === "file_read" && data) {
-          const filePath = data.filePath || this.options.command.parameters.path;
-          const size = data.content ? ` (${data.content.length} chars)` : "";
-          return `<span class="tool-success">\u{1F4D6} Read file: <strong>${filePath}</strong>${size}</span>`;
-        }
-        if (this.options.command.action === "file_search" && data) {
-          const count = data.count || (Array.isArray(data.files) ? data.files.length : 0);
-          return `<span class="tool-success">\u{1F50D} Found ${count} file${count !== 1 ? "s" : ""}</span>`;
-        }
-        if (this.options.command.action === "file_list" && data) {
-          const count = data.count || (Array.isArray(data.files) ? data.files.length : 0);
-          const path3 = data.path || this.options.command.parameters.path;
-          return `<span class="tool-success">\u{1F4CB} Listed ${count} file${count !== 1 ? "s" : ""} in <strong>${path3}</strong></span>`;
-        }
-        if (this.options.command.action === "file_move" && data) {
-          const from = this.options.command.parameters.sourcePath;
-          const to = this.options.command.parameters.destinationPath;
-          return `<span class="tool-success">\u{1F4C1} Moved <strong>${from}</strong> \u2192 <strong>${to}</strong></span>`;
-        }
-        if (this.options.command.action === "file_rename" && data) {
-          const oldName = this.options.command.parameters.path;
-          const newName = this.options.command.parameters.newName;
-          return `<span class="tool-success">\u{1F3F7}\uFE0F Renamed <strong>${oldName}</strong> \u2192 <strong>${newName}</strong></span>`;
-        }
-        if (this.options.command.action === "thought" && data) {
-          const thought = data.thought || data.reasoning || "";
-          return `<span class="tool-success">\u{1F9E0} ${thought}</span>`;
-        }
-        if (this.options.command.action === "get_user_feedback" && data) {
-          if (data.status === "completed") {
-            const answer = data.answer || "";
-            const responseTime = data.responseTimeMs ? ` (responded in ${Math.round(data.responseTimeMs / 1e3)}s)` : "";
-            return `<span class="tool-success">\u2753 User responded: <strong>${answer}</strong>${responseTime}</span>`;
-          } else if (data.status === "failed") {
-            return `<span class="tool-error">\u2753 Failed to get user response</span>`;
-          } else {
-            return `<span class="tool-pending">\u2753 Waiting for user response...</span>`;
-          }
-        }
-        if (typeof data === "string") {
-          return data;
-        }
-        if (Array.isArray(data)) {
-          return `${data.length} items returned`;
-        }
-        if (typeof data === "object" && data !== null) {
-          const keys = Object.keys(data);
-          return `Object with ${keys.length} properties`;
-        }
-        return "Success";
-      }
-      /**
-       * Returns a detailed string (JSON or plain) for the tool result.
-       */
-      getDetailedResult() {
-        if (!this.options.result.success) {
-          return this.options.result.error || "Unknown error occurred";
-        }
-        if (this.options.result.data) {
-          return typeof this.options.result.data === "string" ? this.options.result.data : JSON.stringify(this.options.result.data, null, 2);
-        }
-        return null;
-      }
-      /**
-       * Updates the display with a new tool result.
-       * @param result The new ToolResult to display
-       */
-      updateResult(result) {
-        this.options.result = result;
-        const newElement = _ToolRichDisplay.createDisplayElement(this.options.command, this.options.result, {
-          onRerun: this.options.onRerun,
-          onCopy: this.options.onCopy
-        });
-        this.element.replaceWith(newElement);
-        this.element = newElement;
-      }
-      /**
-       * Converts the tool display to markdown format for saving to notes.
-       * @returns Markdown string representing the tool result
-       */
-      toMarkdown() {
-        const { command, result } = this.options;
-        const status = result.success ? "\u2705" : "\u274C";
-        const toolName = this.getToolDisplayName();
-        const icon = this.getToolIcon();
-        let markdown = `
-### ${icon} ${toolName} ${status}
-
-`;
-        if (command.parameters && Object.keys(command.parameters).length > 0) {
-          markdown += `**Parameters:**
-`;
-          Object.entries(command.parameters).forEach(([key, value]) => {
-            const displayValue = typeof value === "string" && value.length > 100 ? value.substring(0, 100) + "..." : JSON.stringify(value);
-            markdown += `- **${key}:** \`${displayValue}\`
-`;
-          });
-          markdown += "\n";
-        }
-        if (result.success) {
-          markdown += `**Result:** ${this.getResultSummary()}
-
-`;
-          const details = this.getDetailedResult();
-          if (details && details !== this.getResultSummary()) {
-            if (details.length <= 200) {
-              markdown += `**Details:** \`${details}\`
-
-`;
-            } else {
-              markdown += `<details>
-<summary>Show Details</summary>
-
-\`\`\`
-${details}
-\`\`\`
-
-</details>
-
-`;
-            }
-          }
-        } else {
-          markdown += `**Error:** ${result.error}
-
-`;
-        }
-        return markdown;
-      }
-      /**
-       * Static method to create a tool display element for notes (without re-run functionality).
-       */
-      static createNoteDisplay(command, result, options) {
-        return _ToolRichDisplay.createDisplayElement(command, result, {
-          ...options,
-          isNote: true
-        });
-      }
-      /**
-       * Static method to create a tool display element with customizable options.
-       * @param command The tool command
-       * @param result The tool result
-       * @param options Optional callbacks and flags
-       * @returns HTMLElement representing the tool result
-       */
-      static createDisplayElement(command, result, options) {
-        const container = document.createElement("div");
-        container.className = (options == null ? void 0 : options.isNote) ? "tool-rich-display tool-rich-display-note" : "tool-rich-display";
-        const iconDiv = document.createElement("div");
-        iconDiv.className = "tool-rich-icon";
-        iconDiv.innerHTML = _ToolRichDisplay.getStaticToolIcon(command.action);
-        container.appendChild(iconDiv);
-        const infoDiv = document.createElement("div");
-        infoDiv.className = "tool-rich-info";
-        const titleDiv = document.createElement("div");
-        titleDiv.className = "tool-rich-title";
-        titleDiv.innerText = _ToolRichDisplay.getStaticToolDisplayName(command.action);
-        const statusSpan = document.createElement("span");
-        statusSpan.className = `tool-rich-status ${result.success ? "success" : "error"}`;
-        statusSpan.innerText = result.success ? "Success" : "Error";
-        titleDiv.appendChild(statusSpan);
-        infoDiv.appendChild(titleDiv);
-        if (command.parameters && Object.keys(command.parameters).length > 0) {
-          const paramsDiv = document.createElement("div");
-          paramsDiv.innerHTML = `<strong>Parameters:</strong> ${_ToolRichDisplay.formatStaticParameters(command.parameters)}`;
-          infoDiv.appendChild(paramsDiv);
-        }
-        const resultDiv = document.createElement("div");
-        resultDiv.innerHTML = `<strong>Result:</strong> ${_ToolRichDisplay.getStaticResultSummary(command, result)}`;
-        infoDiv.appendChild(resultDiv);
-        const details = _ToolRichDisplay.getStaticDetailedResult(result);
-        if (details) {
-          const toggle = document.createElement("div");
-          toggle.className = "tool-rich-details-toggle";
-          toggle.innerText = "Show details \u25BC";
-          const detailsDiv = document.createElement("div");
-          detailsDiv.className = "tool-rich-details";
-          detailsDiv.style.display = "none";
-          detailsDiv.innerHTML = `<pre>${details}</pre>`;
-          toggle.onclick = () => {
-            const isExpanded = detailsDiv.classList.contains("expanded");
-            if (isExpanded) {
-              detailsDiv.classList.remove("expanded");
-              detailsDiv.style.display = "none";
-              toggle.innerText = "Show details \u25BC";
-            } else {
-              detailsDiv.classList.add("expanded");
-              detailsDiv.style.display = "block";
-              toggle.innerText = "Hide details \u25B2";
-            }
-          };
-          infoDiv.appendChild(toggle);
-          infoDiv.appendChild(detailsDiv);
-        }
-        const actionsDiv = document.createElement("div");
-        actionsDiv.className = "tool-rich-actions";
-        if (!(options == null ? void 0 : options.isNote) && (options == null ? void 0 : options.onRerun)) {
-          const rerunBtn = document.createElement("button");
-          rerunBtn.className = "tool-rich-action-btn";
-          rerunBtn.innerText = "Re-run";
-          rerunBtn.onclick = options.onRerun;
-          actionsDiv.appendChild(rerunBtn);
-        }
-        if (options == null ? void 0 : options.onCopy) {
-          const copyBtn = document.createElement("button");
-          copyBtn.className = "tool-rich-action-btn";
-          copyBtn.innerText = "Copy";
-          copyBtn.onclick = options.onCopy;
-          actionsDiv.appendChild(copyBtn);
-        }
-        const copyResultBtn = document.createElement("button");
-        copyResultBtn.className = "tool-rich-action-btn";
-        copyResultBtn.innerText = "Copy Result";
-        copyResultBtn.onclick = async () => {
-          const resultText = result.success ? JSON.stringify(result.data, null, 2) : result.error || "Unknown error";
-          try {
-            await navigator.clipboard.writeText(resultText);
-            copyResultBtn.innerText = "Copied!";
-            setTimeout(() => {
-              copyResultBtn.innerText = "Copy Result";
-            }, 2e3);
-          } catch (error) {
-            console.error("Failed to copy to clipboard:", error);
-          }
-        };
-        actionsDiv.appendChild(copyResultBtn);
-        infoDiv.appendChild(actionsDiv);
-        container.appendChild(infoDiv);
-        return container;
-      }
-      /**
-       * Returns a static emoji icon for a tool action.
-       */
-      static getStaticToolIcon(action) {
-        const iconMap = {
-          "file_search": "\u{1F50D}",
-          "file_read": "\u{1F4D6}",
-          "file_write": "\u270D\uFE0F",
-          "file_diff": "\u{1F504}",
-          "file_move": "\u{1F4C1}",
-          "file_rename": "\u{1F3F7}\uFE0F",
-          "file_list": "\u{1F4CB}",
-          "thought": "\u{1F9E0}",
-          "get_user_feedback": "\u2753"
-        };
-        return iconMap[action] || "\u{1F527}";
-      }
-      /**
-       * Returns a static display name for a tool action.
-       */
-      static getStaticToolDisplayName(action) {
-        const nameMap = {
-          "file_search": "File Search",
-          "file_read": "File Read",
-          "file_write": "File Write",
-          "file_diff": "File Diff",
-          "file_move": "File Move",
-          "file_rename": "File Rename",
-          "file_list": "File List",
-          "thought": "Thought Process",
-          "get_user_feedback": "User Feedback"
-        };
-        return nameMap[action] || action;
-      }
-      /**
-       * Formats parameters for static display.
-       */
-      static formatStaticParameters(params) {
-        const formatted = Object.entries(params).map(([key, value]) => `${key}: ${typeof value === "string" && value.length > 50 ? value.substring(0, 50) + "..." : JSON.stringify(value)}`).join(", ");
-        return `<code>${formatted}</code>`;
-      }
-      /**
-       * Returns a static summary string for a tool result.
-       */
-      static getStaticResultSummary(command, result) {
-        if (!result.success) {
-          return `<span class="tool-error">${result.error || "Unknown error"}</span>`;
-        }
-        const data = result.data;
-        if (command.action === "file_write" && data) {
-          const action = data.action || "modified";
-          const filePath = data.filePath || "unknown file";
-          const size = data.size ? ` (${data.size} bytes)` : "";
-          if (action === "created") {
-            return `<span class="tool-success">\u{1F4DD} Created file: <strong>${filePath}</strong>${size}</span>`;
-          } else {
-            return `<span class="tool-success">\u{1F4BE} Saved file: <strong>${filePath}</strong>${size}</span>`;
-          }
-        }
-        if (command.action === "file_read" && data) {
-          const filePath = data.filePath || command.parameters.path;
-          const size = data.content ? ` (${data.content.length} chars)` : "";
-          return `<span class="tool-success">\u{1F4D6} Read file: <strong>${filePath}</strong>${size}</span>`;
-        }
-        if (command.action === "file_search" && data) {
-          const count = data.count || (Array.isArray(data.files) ? data.files.length : 0);
-          return `<span class="tool-success">\u{1F50D} Found ${count} file${count !== 1 ? "s" : ""}</span>`;
-        }
-        if (command.action === "file_list" && data) {
-          const count = data.count || (Array.isArray(data.files) ? data.files.length : 0);
-          const path3 = data.path || command.parameters.path;
-          return `<span class="tool-success">\u{1F4CB} Listed ${count} file${count !== 1 ? "s" : ""} in <strong>${path3}</strong></span>`;
-        }
-        if (command.action === "file_move" && data) {
-          const from = command.parameters.sourcePath;
-          const to = command.parameters.destinationPath;
-          return `<span class="tool-success">\u{1F4C1} Moved <strong>${from}</strong> \u2192 <strong>${to}</strong></span>`;
-        }
-        if (command.action === "file_rename" && data) {
-          const oldName = command.parameters.path;
-          const newName = command.parameters.newName;
-          return `<span class="tool-success">\u{1F3F7}\uFE0F Renamed <strong>${oldName}</strong> \u2192 <strong>${newName}</strong></span>`;
-        }
-        if (command.action === "thought" && data) {
-          const thought = data.thought || data.reasoning || "";
-          return `<span class="tool-success">\u{1F9E0} ${thought}</span>`;
-        }
-        if (command.action === "get_user_feedback" && data) {
-          if (data.status === "completed") {
-            const answer = data.answer || "";
-            const responseTime = data.responseTimeMs ? ` (responded in ${Math.round(data.responseTimeMs / 1e3)}s)` : "";
-            return `<span class="tool-success">\u2753 User responded: <strong>${answer}</strong>${responseTime}</span>`;
-          } else if (data.status === "failed") {
-            return `<span class="tool-error">\u2753 Failed to get user response</span>`;
-          } else {
-            return `<span class="tool-pending">\u2753 Waiting for user response...</span>`;
-          }
-        }
-        if (typeof data === "string") {
-          return data;
-        }
-        if (Array.isArray(data)) {
-          return `${data.length} items returned`;
-        }
-        if (typeof data === "object" && data !== null) {
-          const keys = Object.keys(data);
-          return `Object with ${keys.length} properties`;
-        }
-        return "Success";
-      }
-      /**
-       * Returns a static detailed string (JSON or plain) for a tool result.
-       */
-      static getStaticDetailedResult(result) {
-        if (!result.success) {
-          return result.error || "Unknown error occurred";
-        }
-        if (result.data) {
-          return typeof result.data === "string" ? result.data : JSON.stringify(result.data, null, 2);
-        }
-        return null;
-      }
-      /**
-       * Render a tool execution block (array of toolResults) into a container element.
-       * Used by both markdown and code block processors.
-       * @param toolData Object containing toolResults array
-       * @param container The container element to render into
-       * @param onCopy Optional callback for copying a result
-       */
-      static renderToolExecutionBlock(toolData, container, onCopy) {
-        container.innerHTML = "";
-        container.className = "ai-tool-execution-container";
-        if (toolData.toolResults && Array.isArray(toolData.toolResults)) {
-          for (const toolResult of toolData.toolResults) {
-            if (toolResult.command && toolResult.result) {
-              const toolDisplay = _ToolRichDisplay.createNoteDisplay(
-                toolResult.command,
-                toolResult.result,
-                {
-                  onCopy: onCopy ? () => onCopy(toolResult.result) : void 0
-                }
-              );
-              container.appendChild(toolDisplay);
-            }
-          }
-        }
-      }
-    };
-  }
-});
-
-// src/components/agent/MessageRenderer.ts
-var import_obsidian9, MessageRenderer;
-var init_MessageRenderer = __esm({
-  "src/components/agent/MessageRenderer.ts"() {
-    import_obsidian9 = require("obsidian");
-    init_ToolRichDisplay();
-    init_logger();
-    MessageRenderer = class {
-      constructor(app) {
-        this.app = app;
-      }
-      /**
-       * Updates a message container with enhanced reasoning and task status data.
-       * Renders reasoning and task status sections above the message content.
-       * @param container The message DOM element
-       * @param messageData The message data (may include reasoning/taskStatus)
-       * @param component Optional parent component for Markdown rendering
-       */
-      updateMessageWithEnhancedData(container, messageData, component) {
-        debugLog(true, "debug", "[MessageRenderer] updateMessageWithEnhancedData called", { messageData });
-        const existingReasoning = container.querySelector(".reasoning-container");
-        const existingTaskStatus = container.querySelector(".task-status-container");
-        if (existingReasoning) existingReasoning.remove();
-        if (existingTaskStatus) existingTaskStatus.remove();
-        const messageContainer = container.querySelector(".message-container");
-        if (!messageContainer) return;
-        if (messageData.reasoning) {
-          const reasoningEl = this.createReasoningSection(messageData.reasoning);
-          messageContainer.insertBefore(reasoningEl, messageContainer.firstChild);
-        }
-        if (messageData.taskStatus) {
-          const taskStatusEl = this.createTaskStatusSection(messageData.taskStatus);
-          messageContainer.insertBefore(taskStatusEl, messageContainer.firstChild);
-        }
-        const contentEl = container.querySelector(".message-content");
-        if (contentEl) {
-          contentEl.empty();
-          import_obsidian9.MarkdownRenderer.render(
-            this.app,
-            messageData.content,
-            contentEl,
-            "",
-            component || new import_obsidian9.Component()
-          ).catch((error) => {
-            contentEl.textContent = messageData.content;
-          });
-        }
-      }
-      /**
-       * Creates a reasoning section element for display above the message.
-       * Supports structured and summary reasoning.
-       * @param reasoning The reasoning data object
-       * @returns HTMLElement for the reasoning section
-       */
-      createReasoningSection(reasoning) {
-        var _a2;
-        debugLog(true, "debug", "[MessageRenderer] createReasoningSection called", { reasoning });
-        const reasoningContainer = document.createElement("div");
-        reasoningContainer.className = "reasoning-container";
-        const header = document.createElement("div");
-        header.className = "reasoning-summary";
-        const toggle = document.createElement("span");
-        toggle.className = "reasoning-toggle";
-        toggle.textContent = reasoning.isCollapsed ? "\u25B6" : "\u25BC";
-        const headerText = document.createElement("span");
-        const typeLabel = reasoning.type === "structured" ? "STRUCTURED REASONING" : "REASONING";
-        const stepCount = ((_a2 = reasoning.steps) == null ? void 0 : _a2.length) || 0;
-        headerText.innerHTML = `<strong>\u{1F9E0} ${typeLabel}</strong>`;
-        if (stepCount > 0) {
-          headerText.innerHTML += ` (${stepCount} steps)`;
-        }
-        headerText.innerHTML += ` - <em>Click to ${reasoning.isCollapsed ? "expand" : "collapse"}</em>`;
-        header.appendChild(toggle);
-        header.appendChild(headerText);
-        const details = document.createElement("div");
-        details.className = "reasoning-details";
-        if (!reasoning.isCollapsed) {
-          details.classList.add("expanded");
-        }
-        if (reasoning.type === "structured" && reasoning.steps) {
-          if (reasoning.problem) {
-            const problemDiv = document.createElement("div");
-            problemDiv.className = "reasoning-problem";
-            problemDiv.innerHTML = `<strong>Problem:</strong> ${reasoning.problem}`;
-            details.appendChild(problemDiv);
-          }
-          reasoning.steps.forEach((step) => {
-            const stepDiv = document.createElement("div");
-            stepDiv.className = `reasoning-step ${step.category}`;
-            stepDiv.innerHTML = `
-                    <div class="step-header">
-                        ${this.getStepEmoji(step.category)} Step ${step.step}: ${step.title.toUpperCase()}
-                    </div>
-                    <div class="step-confidence">
-                        Confidence: ${step.confidence}/10
-                    </div>
-                    <div class="step-content">
-                        ${step.content}
-                    </div>
-                `;
-            details.appendChild(stepDiv);
-          });
-        } else if (reasoning.summary) {
-          const summaryDiv = document.createElement("div");
-          summaryDiv.className = "reasoning-completion";
-          summaryDiv.textContent = reasoning.summary;
-          details.appendChild(summaryDiv);
-        }
-        header.addEventListener("click", () => {
-          const isExpanded = details.classList.contains("expanded");
-          if (isExpanded) {
-            details.classList.remove("expanded");
-            toggle.textContent = "\u25B6";
-            reasoning.isCollapsed = true;
-          } else {
-            details.classList.add("expanded");
-            toggle.textContent = "\u25BC";
-            reasoning.isCollapsed = false;
-          }
-        });
-        reasoningContainer.appendChild(header);
-        reasoningContainer.appendChild(details);
-        return reasoningContainer;
-      }
-      /**
-       * Creates a task status section element for display above the message.
-       * @param taskStatus The task status object
-       * @returns HTMLElement for the task status section
-       */
-      createTaskStatusSection(taskStatus) {
-        const statusContainer = document.createElement("div");
-        statusContainer.className = "task-status-container";
-        statusContainer.dataset.taskStatus = taskStatus.status;
-        const statusText = this.getTaskStatusText(taskStatus);
-        const statusIcon = this.getTaskStatusIcon(taskStatus.status);
-        statusContainer.innerHTML = `
-            <div class="task-status-header">
-                ${statusIcon} <strong>${statusText}</strong>
-            </div>
-        `;
-        if (taskStatus.toolExecutionCount > 0) {
-          const toolInfo = document.createElement("div");
-          toolInfo.className = "task-tool-info";
-          toolInfo.textContent = `Tools used: ${taskStatus.toolExecutionCount}/${taskStatus.maxToolExecutions}`;
-          statusContainer.appendChild(toolInfo);
-        }
-        return statusContainer;
-      }
-      /**
-       * Returns an emoji for a reasoning step category.
-       */
-      getStepEmoji(category) {
-        switch (category) {
-          case "analysis":
-            return "\u{1F50D}";
-          case "planning":
-            return "\u{1F4CB}";
-          case "problem-solving":
-            return "\u{1F9E9}";
-          case "reflection":
-            return "\u{1F914}";
-          case "conclusion":
-            return "\u2705";
-          case "reasoning":
-            return "\u{1F9E0}";
-          case "information":
-            return "\u{1F4CA}";
-          case "approach":
-            return "\u{1F3AF}";
-          case "evaluation":
-            return "\u2696\uFE0F";
-          case "synthesis":
-            return "\u{1F517}";
-          case "validation":
-            return "\u2705";
-          case "refinement":
-            return "\u26A1";
-          default:
-            return "\u{1F4AD}";
-        }
-      }
-      /**
-       * Returns a user-friendly status text for a task status.
-       */
-      getTaskStatusText(taskStatus) {
-        switch (taskStatus.status) {
-          case "idle":
-            return "Task Ready";
-          case "running":
-            return "Task In Progress";
-          case "stopped":
-            return "Task Stopped";
-          case "completed":
-            return "Task Completed";
-          case "limit_reached":
-            return "Tool Limit Reached";
-          case "waiting_for_user":
-            return "Waiting for User Input";
-          default:
-            return "Unknown Status";
-        }
-      }
-      /**
-       * Returns an emoji icon for a task status.
-       */
-      getTaskStatusIcon(status) {
-        switch (status) {
-          case "idle":
-            return "\u23F8\uFE0F";
-          case "running":
-            return "\u{1F504}";
-          case "stopped":
-            return "\u23F9\uFE0F";
-          case "completed":
-            return "\u2705";
-          case "limit_reached":
-            return "\u26A0\uFE0F";
-          case "waiting_for_user":
-            return "\u23F3";
-          default:
-            return "\u2753";
-        }
-      }
-      /**
-       * Render a complete message with tool displays if present.
-       * @param message The message object (may include toolResults)
-       * @param container The message DOM element
-       * @param component Optional parent component for Markdown rendering
-       */
-      async renderMessage(message, container, component) {
-        if (message.toolResults && message.toolResults.length > 0) {
-          await this.renderMessageWithToolDisplays(message, container, component);
-        } else {
-          await this.renderRegularMessage(message, container, component);
-        }
-      }
-      /**
-       * Render a message with embedded tool displays.
-       * @param message The message object (with toolResults)
-       * @param container The message DOM element
-       * @param component Optional parent component for Markdown rendering
-       */
-      async renderMessageWithToolDisplays(message, container, component) {
-        const messageContent = container.querySelector(".message-content");
-        if (!messageContent) {
-          console.error("No .message-content element found in container");
-          return;
-        }
-        messageContent.empty();
-        container.classList.add("has-rich-tools");
-        if (message.toolResults && message.toolResults.length > 0) {
-          for (const toolExecutionResult of message.toolResults) {
-            const richDisplay = new ToolRichDisplay({
-              command: toolExecutionResult.command,
-              result: toolExecutionResult.result,
-              onRerun: () => {
-              },
-              onCopy: async () => {
-                const displayText = this.formatToolForCopy(toolExecutionResult.command, toolExecutionResult.result);
-                try {
-                  await navigator.clipboard.writeText(displayText);
-                } catch (error) {
-                  console.error("Failed to copy tool result:", error);
-                }
-              }
-            });
-            const toolWrapper = document.createElement("div");
-            toolWrapper.className = "embedded-tool-display";
-            toolWrapper.appendChild(richDisplay.getElement());
-            messageContent.appendChild(toolWrapper);
-          }
-        }
-        if (message.content && message.content.trim()) {
-          const textDiv = document.createElement("div");
-          textDiv.className = "message-text-part";
-          await import_obsidian9.MarkdownRenderer.render(this.app, message.content, textDiv, "", component || new import_obsidian9.Component());
-          messageContent.appendChild(textDiv);
-        }
-      }
-      /**
-       * Render a regular message without tool displays.
-       * @param message The message object
-       * @param container The message DOM element
-       * @param component Optional parent component for Markdown rendering
-       */
-      async renderRegularMessage(message, container, component) {
-        const messageContent = container.querySelector(".message-content");
-        if (!messageContent) return;
-        messageContent.empty();
-        await import_obsidian9.MarkdownRenderer.render(this.app, message.content, messageContent, "", component || new import_obsidian9.Component());
-      }
-      /**
-       * Parse message content to extract tool calls and text parts.
-       * Returns an array of text/tool parts for further processing.
-       * @param content The message content string
-       */
-      parseMessageWithTools(content) {
-        const parts = [];
-        const toolCallRegex = /```json\s*\{[^}]*"action":\s*"([^"]+)"[^}]*\}[^`]*```/g;
-        let lastIndex = 0;
-        let match;
-        while ((match = toolCallRegex.exec(content)) !== null) {
-          if (match.index > lastIndex) {
-            const textContent = content.slice(lastIndex, match.index).trim();
-            if (textContent) {
-              parts.push({ type: "text", content: textContent });
-            }
-          }
-          try {
-            const toolJson = match[0].replace(/```json\s*/, "").replace(/\s*```[\s\S]*?$/, "");
-            const command = JSON.parse(toolJson);
-            parts.push({ type: "tool", command });
-          } catch (e) {
-            parts.push({ type: "text", content: match[0] });
-          }
-          lastIndex = match.index + match[0].length;
-        }
-        if (lastIndex < content.length) {
-          const remainingContent = content.slice(lastIndex).trim();
-          if (remainingContent) {
-            parts.push({ type: "text", content: remainingContent });
-          }
-        }
-        if (parts.length === 0) {
-          parts.push({ type: "text", content });
-        }
-        return parts;
-      }
-      /**
-       * Compare tool parameters for matching (deep equality).
-       * @param params1 First parameters object
-       * @param params2 Second parameters object
-       * @returns True if parameters are deeply equal
-       */
-      compareToolParams(params1, params2) {
-        try {
-          return JSON.stringify(params1) === JSON.stringify(params2);
-        } catch (e) {
-          return false;
-        }
-      }
-      /**
-       * Format a tool execution result for clipboard copy.
-       * @param command The tool command
-       * @param result The tool result
-       * @returns Formatted string for copy
-       */
-      formatToolForCopy(command, result) {
-        const status = result.success ? "\u2705" : "\u274C";
-        const statusText = result.success ? "SUCCESS" : "ERROR";
-        let output = `${status} **${command.action}** ${statusText}`;
-        if (command.parameters && Object.keys(command.parameters).length > 0) {
-          output += `
-
-**Parameters:**
-\`\`\`json
-${JSON.stringify(command.parameters, null, 2)}
-\`\`\``;
-        }
-        if (result.success) {
-          output += `
-
-**Result:**
-\`\`\`json
-${JSON.stringify(result.data, null, 2)}
-\`\`\``;
-        } else {
-          output += `
-
-**Error:**
-${result.error}`;
-        }
-        return output;
-      }
-      /**
-       * Get message content formatted for clipboard copy, including tool results.
-       * @param messageData The message data (may include toolResults)
-       * @returns Formatted string for copy
-       */
-      getMessageContentForCopy(messageData) {
-        let content = messageData.content;
-        if (messageData.toolResults && messageData.toolResults.length > 0) {
-          content += "\n\n```ai-tool-execution\n";
-          content += JSON.stringify({
-            toolResults: messageData.toolResults,
-            reasoning: messageData.reasoning,
-            taskStatus: messageData.taskStatus
-          }, null, 2);
-          content += "\n```\n";
-        }
-        return content;
-      }
-    };
-  }
-});
-
-// node_modules/js-yaml/dist/js-yaml.mjs
-function isNothing(subject) {
-  return typeof subject === "undefined" || subject === null;
-}
-function isObject2(subject) {
-  return typeof subject === "object" && subject !== null;
-}
-function toArray(sequence) {
-  if (Array.isArray(sequence)) return sequence;
-  else if (isNothing(sequence)) return [];
-  return [sequence];
-}
-function extend(target, source) {
-  var index, length, key, sourceKeys;
-  if (source) {
-    sourceKeys = Object.keys(source);
-    for (index = 0, length = sourceKeys.length; index < length; index += 1) {
-      key = sourceKeys[index];
-      target[key] = source[key];
-    }
-  }
-  return target;
-}
-function repeat(string, count) {
-  var result = "", cycle;
-  for (cycle = 0; cycle < count; cycle += 1) {
-    result += string;
-  }
-  return result;
-}
-function isNegativeZero(number) {
-  return number === 0 && Number.NEGATIVE_INFINITY === 1 / number;
-}
-function formatError(exception2, compact) {
-  var where = "", message = exception2.reason || "(unknown reason)";
-  if (!exception2.mark) return message;
-  if (exception2.mark.name) {
-    where += 'in "' + exception2.mark.name + '" ';
-  }
-  where += "(" + (exception2.mark.line + 1) + ":" + (exception2.mark.column + 1) + ")";
-  if (!compact && exception2.mark.snippet) {
-    where += "\n\n" + exception2.mark.snippet;
-  }
-  return message + " " + where;
-}
-function YAMLException$1(reason, mark) {
-  Error.call(this);
-  this.name = "YAMLException";
-  this.reason = reason;
-  this.mark = mark;
-  this.message = formatError(this, false);
-  if (Error.captureStackTrace) {
-    Error.captureStackTrace(this, this.constructor);
-  } else {
-    this.stack = new Error().stack || "";
-  }
-}
-function getLine(buffer, lineStart, lineEnd, position, maxLineLength) {
-  var head = "";
-  var tail = "";
-  var maxHalfLength = Math.floor(maxLineLength / 2) - 1;
-  if (position - lineStart > maxHalfLength) {
-    head = " ... ";
-    lineStart = position - maxHalfLength + head.length;
-  }
-  if (lineEnd - position > maxHalfLength) {
-    tail = " ...";
-    lineEnd = position + maxHalfLength - tail.length;
-  }
-  return {
-    str: head + buffer.slice(lineStart, lineEnd).replace(/\t/g, "\u2192") + tail,
-    pos: position - lineStart + head.length
-    // relative position
-  };
-}
-function padStart(string, max) {
-  return common.repeat(" ", max - string.length) + string;
-}
-function makeSnippet(mark, options) {
-  options = Object.create(options || null);
-  if (!mark.buffer) return null;
-  if (!options.maxLength) options.maxLength = 79;
-  if (typeof options.indent !== "number") options.indent = 1;
-  if (typeof options.linesBefore !== "number") options.linesBefore = 3;
-  if (typeof options.linesAfter !== "number") options.linesAfter = 2;
-  var re = /\r?\n|\r|\0/g;
-  var lineStarts = [0];
-  var lineEnds = [];
-  var match;
-  var foundLineNo = -1;
-  while (match = re.exec(mark.buffer)) {
-    lineEnds.push(match.index);
-    lineStarts.push(match.index + match[0].length);
-    if (mark.position <= match.index && foundLineNo < 0) {
-      foundLineNo = lineStarts.length - 2;
-    }
-  }
-  if (foundLineNo < 0) foundLineNo = lineStarts.length - 1;
-  var result = "", i, line;
-  var lineNoLength = Math.min(mark.line + options.linesAfter, lineEnds.length).toString().length;
-  var maxLineLength = options.maxLength - (options.indent + lineNoLength + 3);
-  for (i = 1; i <= options.linesBefore; i++) {
-    if (foundLineNo - i < 0) break;
-    line = getLine(
-      mark.buffer,
-      lineStarts[foundLineNo - i],
-      lineEnds[foundLineNo - i],
-      mark.position - (lineStarts[foundLineNo] - lineStarts[foundLineNo - i]),
-      maxLineLength
-    );
-    result = common.repeat(" ", options.indent) + padStart((mark.line - i + 1).toString(), lineNoLength) + " | " + line.str + "\n" + result;
-  }
-  line = getLine(mark.buffer, lineStarts[foundLineNo], lineEnds[foundLineNo], mark.position, maxLineLength);
-  result += common.repeat(" ", options.indent) + padStart((mark.line + 1).toString(), lineNoLength) + " | " + line.str + "\n";
-  result += common.repeat("-", options.indent + lineNoLength + 3 + line.pos) + "^\n";
-  for (i = 1; i <= options.linesAfter; i++) {
-    if (foundLineNo + i >= lineEnds.length) break;
-    line = getLine(
-      mark.buffer,
-      lineStarts[foundLineNo + i],
-      lineEnds[foundLineNo + i],
-      mark.position - (lineStarts[foundLineNo] - lineStarts[foundLineNo + i]),
-      maxLineLength
-    );
-    result += common.repeat(" ", options.indent) + padStart((mark.line + i + 1).toString(), lineNoLength) + " | " + line.str + "\n";
-  }
-  return result.replace(/\n$/, "");
-}
-function compileStyleAliases(map2) {
-  var result = {};
-  if (map2 !== null) {
-    Object.keys(map2).forEach(function(style) {
-      map2[style].forEach(function(alias) {
-        result[String(alias)] = style;
-      });
-    });
-  }
-  return result;
-}
-function Type$1(tag, options) {
-  options = options || {};
-  Object.keys(options).forEach(function(name) {
-    if (TYPE_CONSTRUCTOR_OPTIONS.indexOf(name) === -1) {
-      throw new exception('Unknown option "' + name + '" is met in definition of "' + tag + '" YAML type.');
-    }
-  });
-  this.options = options;
-  this.tag = tag;
-  this.kind = options["kind"] || null;
-  this.resolve = options["resolve"] || function() {
-    return true;
-  };
-  this.construct = options["construct"] || function(data) {
-    return data;
-  };
-  this.instanceOf = options["instanceOf"] || null;
-  this.predicate = options["predicate"] || null;
-  this.represent = options["represent"] || null;
-  this.representName = options["representName"] || null;
-  this.defaultStyle = options["defaultStyle"] || null;
-  this.multi = options["multi"] || false;
-  this.styleAliases = compileStyleAliases(options["styleAliases"] || null);
-  if (YAML_NODE_KINDS.indexOf(this.kind) === -1) {
-    throw new exception('Unknown kind "' + this.kind + '" is specified for "' + tag + '" YAML type.');
-  }
-}
-function compileList(schema2, name) {
-  var result = [];
-  schema2[name].forEach(function(currentType) {
-    var newIndex = result.length;
-    result.forEach(function(previousType, previousIndex) {
-      if (previousType.tag === currentType.tag && previousType.kind === currentType.kind && previousType.multi === currentType.multi) {
-        newIndex = previousIndex;
-      }
-    });
-    result[newIndex] = currentType;
-  });
-  return result;
-}
-function compileMap() {
-  var result = {
-    scalar: {},
-    sequence: {},
-    mapping: {},
-    fallback: {},
-    multi: {
-      scalar: [],
-      sequence: [],
-      mapping: [],
-      fallback: []
-    }
-  }, index, length;
-  function collectType(type2) {
-    if (type2.multi) {
-      result.multi[type2.kind].push(type2);
-      result.multi["fallback"].push(type2);
-    } else {
-      result[type2.kind][type2.tag] = result["fallback"][type2.tag] = type2;
-    }
-  }
-  for (index = 0, length = arguments.length; index < length; index += 1) {
-    arguments[index].forEach(collectType);
-  }
-  return result;
-}
-function Schema$1(definition) {
-  return this.extend(definition);
-}
-function resolveYamlNull(data) {
-  if (data === null) return true;
-  var max = data.length;
-  return max === 1 && data === "~" || max === 4 && (data === "null" || data === "Null" || data === "NULL");
-}
-function constructYamlNull() {
-  return null;
-}
-function isNull(object) {
-  return object === null;
-}
-function resolveYamlBoolean(data) {
-  if (data === null) return false;
-  var max = data.length;
-  return max === 4 && (data === "true" || data === "True" || data === "TRUE") || max === 5 && (data === "false" || data === "False" || data === "FALSE");
-}
-function constructYamlBoolean(data) {
-  return data === "true" || data === "True" || data === "TRUE";
-}
-function isBoolean(object) {
-  return Object.prototype.toString.call(object) === "[object Boolean]";
-}
-function isHexCode(c) {
-  return 48 <= c && c <= 57 || 65 <= c && c <= 70 || 97 <= c && c <= 102;
-}
-function isOctCode(c) {
-  return 48 <= c && c <= 55;
-}
-function isDecCode(c) {
-  return 48 <= c && c <= 57;
-}
-function resolveYamlInteger(data) {
-  if (data === null) return false;
-  var max = data.length, index = 0, hasDigits = false, ch;
-  if (!max) return false;
-  ch = data[index];
-  if (ch === "-" || ch === "+") {
-    ch = data[++index];
-  }
-  if (ch === "0") {
-    if (index + 1 === max) return true;
-    ch = data[++index];
-    if (ch === "b") {
-      index++;
-      for (; index < max; index++) {
-        ch = data[index];
-        if (ch === "_") continue;
-        if (ch !== "0" && ch !== "1") return false;
-        hasDigits = true;
-      }
-      return hasDigits && ch !== "_";
-    }
-    if (ch === "x") {
-      index++;
-      for (; index < max; index++) {
-        ch = data[index];
-        if (ch === "_") continue;
-        if (!isHexCode(data.charCodeAt(index))) return false;
-        hasDigits = true;
-      }
-      return hasDigits && ch !== "_";
-    }
-    if (ch === "o") {
-      index++;
-      for (; index < max; index++) {
-        ch = data[index];
-        if (ch === "_") continue;
-        if (!isOctCode(data.charCodeAt(index))) return false;
-        hasDigits = true;
-      }
-      return hasDigits && ch !== "_";
-    }
-  }
-  if (ch === "_") return false;
-  for (; index < max; index++) {
-    ch = data[index];
-    if (ch === "_") continue;
-    if (!isDecCode(data.charCodeAt(index))) {
-      return false;
-    }
-    hasDigits = true;
-  }
-  if (!hasDigits || ch === "_") return false;
-  return true;
-}
-function constructYamlInteger(data) {
-  var value = data, sign = 1, ch;
-  if (value.indexOf("_") !== -1) {
-    value = value.replace(/_/g, "");
-  }
-  ch = value[0];
-  if (ch === "-" || ch === "+") {
-    if (ch === "-") sign = -1;
-    value = value.slice(1);
-    ch = value[0];
-  }
-  if (value === "0") return 0;
-  if (ch === "0") {
-    if (value[1] === "b") return sign * parseInt(value.slice(2), 2);
-    if (value[1] === "x") return sign * parseInt(value.slice(2), 16);
-    if (value[1] === "o") return sign * parseInt(value.slice(2), 8);
-  }
-  return sign * parseInt(value, 10);
-}
-function isInteger(object) {
-  return Object.prototype.toString.call(object) === "[object Number]" && (object % 1 === 0 && !common.isNegativeZero(object));
-}
-function resolveYamlFloat(data) {
-  if (data === null) return false;
-  if (!YAML_FLOAT_PATTERN.test(data) || // Quick hack to not allow integers end with `_`
-  // Probably should update regexp & check speed
-  data[data.length - 1] === "_") {
-    return false;
-  }
-  return true;
-}
-function constructYamlFloat(data) {
-  var value, sign;
-  value = data.replace(/_/g, "").toLowerCase();
-  sign = value[0] === "-" ? -1 : 1;
-  if ("+-".indexOf(value[0]) >= 0) {
-    value = value.slice(1);
-  }
-  if (value === ".inf") {
-    return sign === 1 ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY;
-  } else if (value === ".nan") {
-    return NaN;
-  }
-  return sign * parseFloat(value, 10);
-}
-function representYamlFloat(object, style) {
-  var res;
-  if (isNaN(object)) {
-    switch (style) {
-      case "lowercase":
-        return ".nan";
-      case "uppercase":
-        return ".NAN";
-      case "camelcase":
-        return ".NaN";
-    }
-  } else if (Number.POSITIVE_INFINITY === object) {
-    switch (style) {
-      case "lowercase":
-        return ".inf";
-      case "uppercase":
-        return ".INF";
-      case "camelcase":
-        return ".Inf";
-    }
-  } else if (Number.NEGATIVE_INFINITY === object) {
-    switch (style) {
-      case "lowercase":
-        return "-.inf";
-      case "uppercase":
-        return "-.INF";
-      case "camelcase":
-        return "-.Inf";
-    }
-  } else if (common.isNegativeZero(object)) {
-    return "-0.0";
-  }
-  res = object.toString(10);
-  return SCIENTIFIC_WITHOUT_DOT.test(res) ? res.replace("e", ".e") : res;
-}
-function isFloat(object) {
-  return Object.prototype.toString.call(object) === "[object Number]" && (object % 1 !== 0 || common.isNegativeZero(object));
-}
-function resolveYamlTimestamp(data) {
-  if (data === null) return false;
-  if (YAML_DATE_REGEXP.exec(data) !== null) return true;
-  if (YAML_TIMESTAMP_REGEXP.exec(data) !== null) return true;
-  return false;
-}
-function constructYamlTimestamp(data) {
-  var match, year, month, day, hour, minute, second, fraction = 0, delta = null, tz_hour, tz_minute, date;
-  match = YAML_DATE_REGEXP.exec(data);
-  if (match === null) match = YAML_TIMESTAMP_REGEXP.exec(data);
-  if (match === null) throw new Error("Date resolve error");
-  year = +match[1];
-  month = +match[2] - 1;
-  day = +match[3];
-  if (!match[4]) {
-    return new Date(Date.UTC(year, month, day));
-  }
-  hour = +match[4];
-  minute = +match[5];
-  second = +match[6];
-  if (match[7]) {
-    fraction = match[7].slice(0, 3);
-    while (fraction.length < 3) {
-      fraction += "0";
-    }
-    fraction = +fraction;
-  }
-  if (match[9]) {
-    tz_hour = +match[10];
-    tz_minute = +(match[11] || 0);
-    delta = (tz_hour * 60 + tz_minute) * 6e4;
-    if (match[9] === "-") delta = -delta;
-  }
-  date = new Date(Date.UTC(year, month, day, hour, minute, second, fraction));
-  if (delta) date.setTime(date.getTime() - delta);
-  return date;
-}
-function representYamlTimestamp(object) {
-  return object.toISOString();
-}
-function resolveYamlMerge(data) {
-  return data === "<<" || data === null;
-}
-function resolveYamlBinary(data) {
-  if (data === null) return false;
-  var code, idx, bitlen = 0, max = data.length, map2 = BASE64_MAP;
-  for (idx = 0; idx < max; idx++) {
-    code = map2.indexOf(data.charAt(idx));
-    if (code > 64) continue;
-    if (code < 0) return false;
-    bitlen += 6;
-  }
-  return bitlen % 8 === 0;
-}
-function constructYamlBinary(data) {
-  var idx, tailbits, input = data.replace(/[\r\n=]/g, ""), max = input.length, map2 = BASE64_MAP, bits = 0, result = [];
-  for (idx = 0; idx < max; idx++) {
-    if (idx % 4 === 0 && idx) {
-      result.push(bits >> 16 & 255);
-      result.push(bits >> 8 & 255);
-      result.push(bits & 255);
-    }
-    bits = bits << 6 | map2.indexOf(input.charAt(idx));
-  }
-  tailbits = max % 4 * 6;
-  if (tailbits === 0) {
-    result.push(bits >> 16 & 255);
-    result.push(bits >> 8 & 255);
-    result.push(bits & 255);
-  } else if (tailbits === 18) {
-    result.push(bits >> 10 & 255);
-    result.push(bits >> 2 & 255);
-  } else if (tailbits === 12) {
-    result.push(bits >> 4 & 255);
-  }
-  return new Uint8Array(result);
-}
-function representYamlBinary(object) {
-  var result = "", bits = 0, idx, tail, max = object.length, map2 = BASE64_MAP;
-  for (idx = 0; idx < max; idx++) {
-    if (idx % 3 === 0 && idx) {
-      result += map2[bits >> 18 & 63];
-      result += map2[bits >> 12 & 63];
-      result += map2[bits >> 6 & 63];
-      result += map2[bits & 63];
-    }
-    bits = (bits << 8) + object[idx];
-  }
-  tail = max % 3;
-  if (tail === 0) {
-    result += map2[bits >> 18 & 63];
-    result += map2[bits >> 12 & 63];
-    result += map2[bits >> 6 & 63];
-    result += map2[bits & 63];
-  } else if (tail === 2) {
-    result += map2[bits >> 10 & 63];
-    result += map2[bits >> 4 & 63];
-    result += map2[bits << 2 & 63];
-    result += map2[64];
-  } else if (tail === 1) {
-    result += map2[bits >> 2 & 63];
-    result += map2[bits << 4 & 63];
-    result += map2[64];
-    result += map2[64];
-  }
-  return result;
-}
-function isBinary(obj) {
-  return Object.prototype.toString.call(obj) === "[object Uint8Array]";
-}
-function resolveYamlOmap(data) {
-  if (data === null) return true;
-  var objectKeys = [], index, length, pair, pairKey, pairHasKey, object = data;
-  for (index = 0, length = object.length; index < length; index += 1) {
-    pair = object[index];
-    pairHasKey = false;
-    if (_toString$2.call(pair) !== "[object Object]") return false;
-    for (pairKey in pair) {
-      if (_hasOwnProperty$3.call(pair, pairKey)) {
-        if (!pairHasKey) pairHasKey = true;
-        else return false;
-      }
-    }
-    if (!pairHasKey) return false;
-    if (objectKeys.indexOf(pairKey) === -1) objectKeys.push(pairKey);
-    else return false;
-  }
-  return true;
-}
-function constructYamlOmap(data) {
-  return data !== null ? data : [];
-}
-function resolveYamlPairs(data) {
-  if (data === null) return true;
-  var index, length, pair, keys, result, object = data;
-  result = new Array(object.length);
-  for (index = 0, length = object.length; index < length; index += 1) {
-    pair = object[index];
-    if (_toString$1.call(pair) !== "[object Object]") return false;
-    keys = Object.keys(pair);
-    if (keys.length !== 1) return false;
-    result[index] = [keys[0], pair[keys[0]]];
-  }
-  return true;
-}
-function constructYamlPairs(data) {
-  if (data === null) return [];
-  var index, length, pair, keys, result, object = data;
-  result = new Array(object.length);
-  for (index = 0, length = object.length; index < length; index += 1) {
-    pair = object[index];
-    keys = Object.keys(pair);
-    result[index] = [keys[0], pair[keys[0]]];
-  }
-  return result;
-}
-function resolveYamlSet(data) {
-  if (data === null) return true;
-  var key, object = data;
-  for (key in object) {
-    if (_hasOwnProperty$2.call(object, key)) {
-      if (object[key] !== null) return false;
-    }
-  }
-  return true;
-}
-function constructYamlSet(data) {
-  return data !== null ? data : {};
-}
-function _class(obj) {
-  return Object.prototype.toString.call(obj);
-}
-function is_EOL(c) {
-  return c === 10 || c === 13;
-}
-function is_WHITE_SPACE(c) {
-  return c === 9 || c === 32;
-}
-function is_WS_OR_EOL(c) {
-  return c === 9 || c === 32 || c === 10 || c === 13;
-}
-function is_FLOW_INDICATOR(c) {
-  return c === 44 || c === 91 || c === 93 || c === 123 || c === 125;
-}
-function fromHexCode(c) {
-  var lc;
-  if (48 <= c && c <= 57) {
-    return c - 48;
-  }
-  lc = c | 32;
-  if (97 <= lc && lc <= 102) {
-    return lc - 97 + 10;
-  }
-  return -1;
-}
-function escapedHexLen(c) {
-  if (c === 120) {
-    return 2;
-  }
-  if (c === 117) {
-    return 4;
-  }
-  if (c === 85) {
-    return 8;
-  }
-  return 0;
-}
-function fromDecimalCode(c) {
-  if (48 <= c && c <= 57) {
-    return c - 48;
-  }
-  return -1;
-}
-function simpleEscapeSequence(c) {
-  return c === 48 ? "\0" : c === 97 ? "\x07" : c === 98 ? "\b" : c === 116 ? "	" : c === 9 ? "	" : c === 110 ? "\n" : c === 118 ? "\v" : c === 102 ? "\f" : c === 114 ? "\r" : c === 101 ? "\x1B" : c === 32 ? " " : c === 34 ? '"' : c === 47 ? "/" : c === 92 ? "\\" : c === 78 ? "\x85" : c === 95 ? "\xA0" : c === 76 ? "\u2028" : c === 80 ? "\u2029" : "";
-}
-function charFromCodepoint(c) {
-  if (c <= 65535) {
-    return String.fromCharCode(c);
-  }
-  return String.fromCharCode(
-    (c - 65536 >> 10) + 55296,
-    (c - 65536 & 1023) + 56320
-  );
-}
-function State$1(input, options) {
-  this.input = input;
-  this.filename = options["filename"] || null;
-  this.schema = options["schema"] || _default;
-  this.onWarning = options["onWarning"] || null;
-  this.legacy = options["legacy"] || false;
-  this.json = options["json"] || false;
-  this.listener = options["listener"] || null;
-  this.implicitTypes = this.schema.compiledImplicit;
-  this.typeMap = this.schema.compiledTypeMap;
-  this.length = input.length;
-  this.position = 0;
-  this.line = 0;
-  this.lineStart = 0;
-  this.lineIndent = 0;
-  this.firstTabInLine = -1;
-  this.documents = [];
-}
-function generateError(state, message) {
-  var mark = {
-    name: state.filename,
-    buffer: state.input.slice(0, -1),
-    // omit trailing \0
-    position: state.position,
-    line: state.line,
-    column: state.position - state.lineStart
-  };
-  mark.snippet = snippet(mark);
-  return new exception(message, mark);
-}
-function throwError(state, message) {
-  throw generateError(state, message);
-}
-function throwWarning(state, message) {
-  if (state.onWarning) {
-    state.onWarning.call(null, generateError(state, message));
-  }
-}
-function captureSegment(state, start, end, checkJson) {
-  var _position, _length, _character, _result;
-  if (start < end) {
-    _result = state.input.slice(start, end);
-    if (checkJson) {
-      for (_position = 0, _length = _result.length; _position < _length; _position += 1) {
-        _character = _result.charCodeAt(_position);
-        if (!(_character === 9 || 32 <= _character && _character <= 1114111)) {
-          throwError(state, "expected valid JSON character");
-        }
-      }
-    } else if (PATTERN_NON_PRINTABLE.test(_result)) {
-      throwError(state, "the stream contains non-printable characters");
-    }
-    state.result += _result;
-  }
-}
-function mergeMappings(state, destination, source, overridableKeys) {
-  var sourceKeys, key, index, quantity;
-  if (!common.isObject(source)) {
-    throwError(state, "cannot merge mappings; the provided source object is unacceptable");
-  }
-  sourceKeys = Object.keys(source);
-  for (index = 0, quantity = sourceKeys.length; index < quantity; index += 1) {
-    key = sourceKeys[index];
-    if (!_hasOwnProperty$1.call(destination, key)) {
-      destination[key] = source[key];
-      overridableKeys[key] = true;
-    }
-  }
-}
-function storeMappingPair(state, _result, overridableKeys, keyTag, keyNode, valueNode, startLine, startLineStart, startPos) {
-  var index, quantity;
-  if (Array.isArray(keyNode)) {
-    keyNode = Array.prototype.slice.call(keyNode);
-    for (index = 0, quantity = keyNode.length; index < quantity; index += 1) {
-      if (Array.isArray(keyNode[index])) {
-        throwError(state, "nested arrays are not supported inside keys");
-      }
-      if (typeof keyNode === "object" && _class(keyNode[index]) === "[object Object]") {
-        keyNode[index] = "[object Object]";
-      }
-    }
-  }
-  if (typeof keyNode === "object" && _class(keyNode) === "[object Object]") {
-    keyNode = "[object Object]";
-  }
-  keyNode = String(keyNode);
-  if (_result === null) {
-    _result = {};
-  }
-  if (keyTag === "tag:yaml.org,2002:merge") {
-    if (Array.isArray(valueNode)) {
-      for (index = 0, quantity = valueNode.length; index < quantity; index += 1) {
-        mergeMappings(state, _result, valueNode[index], overridableKeys);
-      }
-    } else {
-      mergeMappings(state, _result, valueNode, overridableKeys);
-    }
-  } else {
-    if (!state.json && !_hasOwnProperty$1.call(overridableKeys, keyNode) && _hasOwnProperty$1.call(_result, keyNode)) {
-      state.line = startLine || state.line;
-      state.lineStart = startLineStart || state.lineStart;
-      state.position = startPos || state.position;
-      throwError(state, "duplicated mapping key");
-    }
-    if (keyNode === "__proto__") {
-      Object.defineProperty(_result, keyNode, {
-        configurable: true,
-        enumerable: true,
-        writable: true,
-        value: valueNode
-      });
-    } else {
-      _result[keyNode] = valueNode;
-    }
-    delete overridableKeys[keyNode];
-  }
-  return _result;
-}
-function readLineBreak(state) {
-  var ch;
-  ch = state.input.charCodeAt(state.position);
-  if (ch === 10) {
-    state.position++;
-  } else if (ch === 13) {
-    state.position++;
-    if (state.input.charCodeAt(state.position) === 10) {
-      state.position++;
-    }
-  } else {
-    throwError(state, "a line break is expected");
-  }
-  state.line += 1;
-  state.lineStart = state.position;
-  state.firstTabInLine = -1;
-}
-function skipSeparationSpace(state, allowComments, checkIndent) {
-  var lineBreaks = 0, ch = state.input.charCodeAt(state.position);
-  while (ch !== 0) {
-    while (is_WHITE_SPACE(ch)) {
-      if (ch === 9 && state.firstTabInLine === -1) {
-        state.firstTabInLine = state.position;
-      }
-      ch = state.input.charCodeAt(++state.position);
-    }
-    if (allowComments && ch === 35) {
-      do {
-        ch = state.input.charCodeAt(++state.position);
-      } while (ch !== 10 && ch !== 13 && ch !== 0);
-    }
-    if (is_EOL(ch)) {
-      readLineBreak(state);
-      ch = state.input.charCodeAt(state.position);
-      lineBreaks++;
-      state.lineIndent = 0;
-      while (ch === 32) {
-        state.lineIndent++;
-        ch = state.input.charCodeAt(++state.position);
-      }
-    } else {
-      break;
-    }
-  }
-  if (checkIndent !== -1 && lineBreaks !== 0 && state.lineIndent < checkIndent) {
-    throwWarning(state, "deficient indentation");
-  }
-  return lineBreaks;
-}
-function testDocumentSeparator(state) {
-  var _position = state.position, ch;
-  ch = state.input.charCodeAt(_position);
-  if ((ch === 45 || ch === 46) && ch === state.input.charCodeAt(_position + 1) && ch === state.input.charCodeAt(_position + 2)) {
-    _position += 3;
-    ch = state.input.charCodeAt(_position);
-    if (ch === 0 || is_WS_OR_EOL(ch)) {
-      return true;
-    }
-  }
-  return false;
-}
-function writeFoldedLines(state, count) {
-  if (count === 1) {
-    state.result += " ";
-  } else if (count > 1) {
-    state.result += common.repeat("\n", count - 1);
-  }
-}
-function readPlainScalar(state, nodeIndent, withinFlowCollection) {
-  var preceding, following, captureStart, captureEnd, hasPendingContent, _line, _lineStart, _lineIndent, _kind = state.kind, _result = state.result, ch;
-  ch = state.input.charCodeAt(state.position);
-  if (is_WS_OR_EOL(ch) || is_FLOW_INDICATOR(ch) || ch === 35 || ch === 38 || ch === 42 || ch === 33 || ch === 124 || ch === 62 || ch === 39 || ch === 34 || ch === 37 || ch === 64 || ch === 96) {
-    return false;
-  }
-  if (ch === 63 || ch === 45) {
-    following = state.input.charCodeAt(state.position + 1);
-    if (is_WS_OR_EOL(following) || withinFlowCollection && is_FLOW_INDICATOR(following)) {
-      return false;
-    }
-  }
-  state.kind = "scalar";
-  state.result = "";
-  captureStart = captureEnd = state.position;
-  hasPendingContent = false;
-  while (ch !== 0) {
-    if (ch === 58) {
-      following = state.input.charCodeAt(state.position + 1);
-      if (is_WS_OR_EOL(following) || withinFlowCollection && is_FLOW_INDICATOR(following)) {
-        break;
-      }
-    } else if (ch === 35) {
-      preceding = state.input.charCodeAt(state.position - 1);
-      if (is_WS_OR_EOL(preceding)) {
-        break;
-      }
-    } else if (state.position === state.lineStart && testDocumentSeparator(state) || withinFlowCollection && is_FLOW_INDICATOR(ch)) {
-      break;
-    } else if (is_EOL(ch)) {
-      _line = state.line;
-      _lineStart = state.lineStart;
-      _lineIndent = state.lineIndent;
-      skipSeparationSpace(state, false, -1);
-      if (state.lineIndent >= nodeIndent) {
-        hasPendingContent = true;
-        ch = state.input.charCodeAt(state.position);
-        continue;
-      } else {
-        state.position = captureEnd;
-        state.line = _line;
-        state.lineStart = _lineStart;
-        state.lineIndent = _lineIndent;
-        break;
-      }
-    }
-    if (hasPendingContent) {
-      captureSegment(state, captureStart, captureEnd, false);
-      writeFoldedLines(state, state.line - _line);
-      captureStart = captureEnd = state.position;
-      hasPendingContent = false;
-    }
-    if (!is_WHITE_SPACE(ch)) {
-      captureEnd = state.position + 1;
-    }
-    ch = state.input.charCodeAt(++state.position);
-  }
-  captureSegment(state, captureStart, captureEnd, false);
-  if (state.result) {
-    return true;
-  }
-  state.kind = _kind;
-  state.result = _result;
-  return false;
-}
-function readSingleQuotedScalar(state, nodeIndent) {
-  var ch, captureStart, captureEnd;
-  ch = state.input.charCodeAt(state.position);
-  if (ch !== 39) {
-    return false;
-  }
-  state.kind = "scalar";
-  state.result = "";
-  state.position++;
-  captureStart = captureEnd = state.position;
-  while ((ch = state.input.charCodeAt(state.position)) !== 0) {
-    if (ch === 39) {
-      captureSegment(state, captureStart, state.position, true);
-      ch = state.input.charCodeAt(++state.position);
-      if (ch === 39) {
-        captureStart = state.position;
-        state.position++;
-        captureEnd = state.position;
-      } else {
-        return true;
-      }
-    } else if (is_EOL(ch)) {
-      captureSegment(state, captureStart, captureEnd, true);
-      writeFoldedLines(state, skipSeparationSpace(state, false, nodeIndent));
-      captureStart = captureEnd = state.position;
-    } else if (state.position === state.lineStart && testDocumentSeparator(state)) {
-      throwError(state, "unexpected end of the document within a single quoted scalar");
-    } else {
-      state.position++;
-      captureEnd = state.position;
-    }
-  }
-  throwError(state, "unexpected end of the stream within a single quoted scalar");
-}
-function readDoubleQuotedScalar(state, nodeIndent) {
-  var captureStart, captureEnd, hexLength, hexResult, tmp, ch;
-  ch = state.input.charCodeAt(state.position);
-  if (ch !== 34) {
-    return false;
-  }
-  state.kind = "scalar";
-  state.result = "";
-  state.position++;
-  captureStart = captureEnd = state.position;
-  while ((ch = state.input.charCodeAt(state.position)) !== 0) {
-    if (ch === 34) {
-      captureSegment(state, captureStart, state.position, true);
-      state.position++;
-      return true;
-    } else if (ch === 92) {
-      captureSegment(state, captureStart, state.position, true);
-      ch = state.input.charCodeAt(++state.position);
-      if (is_EOL(ch)) {
-        skipSeparationSpace(state, false, nodeIndent);
-      } else if (ch < 256 && simpleEscapeCheck[ch]) {
-        state.result += simpleEscapeMap[ch];
-        state.position++;
-      } else if ((tmp = escapedHexLen(ch)) > 0) {
-        hexLength = tmp;
-        hexResult = 0;
-        for (; hexLength > 0; hexLength--) {
-          ch = state.input.charCodeAt(++state.position);
-          if ((tmp = fromHexCode(ch)) >= 0) {
-            hexResult = (hexResult << 4) + tmp;
-          } else {
-            throwError(state, "expected hexadecimal character");
-          }
-        }
-        state.result += charFromCodepoint(hexResult);
-        state.position++;
-      } else {
-        throwError(state, "unknown escape sequence");
-      }
-      captureStart = captureEnd = state.position;
-    } else if (is_EOL(ch)) {
-      captureSegment(state, captureStart, captureEnd, true);
-      writeFoldedLines(state, skipSeparationSpace(state, false, nodeIndent));
-      captureStart = captureEnd = state.position;
-    } else if (state.position === state.lineStart && testDocumentSeparator(state)) {
-      throwError(state, "unexpected end of the document within a double quoted scalar");
-    } else {
-      state.position++;
-      captureEnd = state.position;
-    }
-  }
-  throwError(state, "unexpected end of the stream within a double quoted scalar");
-}
-function readFlowCollection(state, nodeIndent) {
-  var readNext = true, _line, _lineStart, _pos, _tag = state.tag, _result, _anchor = state.anchor, following, terminator, isPair, isExplicitPair, isMapping, overridableKeys = /* @__PURE__ */ Object.create(null), keyNode, keyTag, valueNode, ch;
-  ch = state.input.charCodeAt(state.position);
-  if (ch === 91) {
-    terminator = 93;
-    isMapping = false;
-    _result = [];
-  } else if (ch === 123) {
-    terminator = 125;
-    isMapping = true;
-    _result = {};
-  } else {
-    return false;
-  }
-  if (state.anchor !== null) {
-    state.anchorMap[state.anchor] = _result;
-  }
-  ch = state.input.charCodeAt(++state.position);
-  while (ch !== 0) {
-    skipSeparationSpace(state, true, nodeIndent);
-    ch = state.input.charCodeAt(state.position);
-    if (ch === terminator) {
-      state.position++;
-      state.tag = _tag;
-      state.anchor = _anchor;
-      state.kind = isMapping ? "mapping" : "sequence";
-      state.result = _result;
-      return true;
-    } else if (!readNext) {
-      throwError(state, "missed comma between flow collection entries");
-    } else if (ch === 44) {
-      throwError(state, "expected the node content, but found ','");
-    }
-    keyTag = keyNode = valueNode = null;
-    isPair = isExplicitPair = false;
-    if (ch === 63) {
-      following = state.input.charCodeAt(state.position + 1);
-      if (is_WS_OR_EOL(following)) {
-        isPair = isExplicitPair = true;
-        state.position++;
-        skipSeparationSpace(state, true, nodeIndent);
-      }
-    }
-    _line = state.line;
-    _lineStart = state.lineStart;
-    _pos = state.position;
-    composeNode(state, nodeIndent, CONTEXT_FLOW_IN, false, true);
-    keyTag = state.tag;
-    keyNode = state.result;
-    skipSeparationSpace(state, true, nodeIndent);
-    ch = state.input.charCodeAt(state.position);
-    if ((isExplicitPair || state.line === _line) && ch === 58) {
-      isPair = true;
-      ch = state.input.charCodeAt(++state.position);
-      skipSeparationSpace(state, true, nodeIndent);
-      composeNode(state, nodeIndent, CONTEXT_FLOW_IN, false, true);
-      valueNode = state.result;
-    }
-    if (isMapping) {
-      storeMappingPair(state, _result, overridableKeys, keyTag, keyNode, valueNode, _line, _lineStart, _pos);
-    } else if (isPair) {
-      _result.push(storeMappingPair(state, null, overridableKeys, keyTag, keyNode, valueNode, _line, _lineStart, _pos));
-    } else {
-      _result.push(keyNode);
-    }
-    skipSeparationSpace(state, true, nodeIndent);
-    ch = state.input.charCodeAt(state.position);
-    if (ch === 44) {
-      readNext = true;
-      ch = state.input.charCodeAt(++state.position);
-    } else {
-      readNext = false;
-    }
-  }
-  throwError(state, "unexpected end of the stream within a flow collection");
-}
-function readBlockScalar(state, nodeIndent) {
-  var captureStart, folding, chomping = CHOMPING_CLIP, didReadContent = false, detectedIndent = false, textIndent = nodeIndent, emptyLines = 0, atMoreIndented = false, tmp, ch;
-  ch = state.input.charCodeAt(state.position);
-  if (ch === 124) {
-    folding = false;
-  } else if (ch === 62) {
-    folding = true;
-  } else {
-    return false;
-  }
-  state.kind = "scalar";
-  state.result = "";
-  while (ch !== 0) {
-    ch = state.input.charCodeAt(++state.position);
-    if (ch === 43 || ch === 45) {
-      if (CHOMPING_CLIP === chomping) {
-        chomping = ch === 43 ? CHOMPING_KEEP : CHOMPING_STRIP;
-      } else {
-        throwError(state, "repeat of a chomping mode identifier");
-      }
-    } else if ((tmp = fromDecimalCode(ch)) >= 0) {
-      if (tmp === 0) {
-        throwError(state, "bad explicit indentation width of a block scalar; it cannot be less than one");
-      } else if (!detectedIndent) {
-        textIndent = nodeIndent + tmp - 1;
-        detectedIndent = true;
-      } else {
-        throwError(state, "repeat of an indentation width identifier");
-      }
-    } else {
-      break;
-    }
-  }
-  if (is_WHITE_SPACE(ch)) {
-    do {
-      ch = state.input.charCodeAt(++state.position);
-    } while (is_WHITE_SPACE(ch));
-    if (ch === 35) {
-      do {
-        ch = state.input.charCodeAt(++state.position);
-      } while (!is_EOL(ch) && ch !== 0);
-    }
-  }
-  while (ch !== 0) {
-    readLineBreak(state);
-    state.lineIndent = 0;
-    ch = state.input.charCodeAt(state.position);
-    while ((!detectedIndent || state.lineIndent < textIndent) && ch === 32) {
-      state.lineIndent++;
-      ch = state.input.charCodeAt(++state.position);
-    }
-    if (!detectedIndent && state.lineIndent > textIndent) {
-      textIndent = state.lineIndent;
-    }
-    if (is_EOL(ch)) {
-      emptyLines++;
-      continue;
-    }
-    if (state.lineIndent < textIndent) {
-      if (chomping === CHOMPING_KEEP) {
-        state.result += common.repeat("\n", didReadContent ? 1 + emptyLines : emptyLines);
-      } else if (chomping === CHOMPING_CLIP) {
-        if (didReadContent) {
-          state.result += "\n";
-        }
-      }
-      break;
-    }
-    if (folding) {
-      if (is_WHITE_SPACE(ch)) {
-        atMoreIndented = true;
-        state.result += common.repeat("\n", didReadContent ? 1 + emptyLines : emptyLines);
-      } else if (atMoreIndented) {
-        atMoreIndented = false;
-        state.result += common.repeat("\n", emptyLines + 1);
-      } else if (emptyLines === 0) {
-        if (didReadContent) {
-          state.result += " ";
-        }
-      } else {
-        state.result += common.repeat("\n", emptyLines);
-      }
-    } else {
-      state.result += common.repeat("\n", didReadContent ? 1 + emptyLines : emptyLines);
-    }
-    didReadContent = true;
-    detectedIndent = true;
-    emptyLines = 0;
-    captureStart = state.position;
-    while (!is_EOL(ch) && ch !== 0) {
-      ch = state.input.charCodeAt(++state.position);
-    }
-    captureSegment(state, captureStart, state.position, false);
-  }
-  return true;
-}
-function readBlockSequence(state, nodeIndent) {
-  var _line, _tag = state.tag, _anchor = state.anchor, _result = [], following, detected = false, ch;
-  if (state.firstTabInLine !== -1) return false;
-  if (state.anchor !== null) {
-    state.anchorMap[state.anchor] = _result;
-  }
-  ch = state.input.charCodeAt(state.position);
-  while (ch !== 0) {
-    if (state.firstTabInLine !== -1) {
-      state.position = state.firstTabInLine;
-      throwError(state, "tab characters must not be used in indentation");
-    }
-    if (ch !== 45) {
-      break;
-    }
-    following = state.input.charCodeAt(state.position + 1);
-    if (!is_WS_OR_EOL(following)) {
-      break;
-    }
-    detected = true;
-    state.position++;
-    if (skipSeparationSpace(state, true, -1)) {
-      if (state.lineIndent <= nodeIndent) {
-        _result.push(null);
-        ch = state.input.charCodeAt(state.position);
-        continue;
-      }
-    }
-    _line = state.line;
-    composeNode(state, nodeIndent, CONTEXT_BLOCK_IN, false, true);
-    _result.push(state.result);
-    skipSeparationSpace(state, true, -1);
-    ch = state.input.charCodeAt(state.position);
-    if ((state.line === _line || state.lineIndent > nodeIndent) && ch !== 0) {
-      throwError(state, "bad indentation of a sequence entry");
-    } else if (state.lineIndent < nodeIndent) {
-      break;
-    }
-  }
-  if (detected) {
-    state.tag = _tag;
-    state.anchor = _anchor;
-    state.kind = "sequence";
-    state.result = _result;
-    return true;
-  }
-  return false;
-}
-function readBlockMapping(state, nodeIndent, flowIndent) {
-  var following, allowCompact, _line, _keyLine, _keyLineStart, _keyPos, _tag = state.tag, _anchor = state.anchor, _result = {}, overridableKeys = /* @__PURE__ */ Object.create(null), keyTag = null, keyNode = null, valueNode = null, atExplicitKey = false, detected = false, ch;
-  if (state.firstTabInLine !== -1) return false;
-  if (state.anchor !== null) {
-    state.anchorMap[state.anchor] = _result;
-  }
-  ch = state.input.charCodeAt(state.position);
-  while (ch !== 0) {
-    if (!atExplicitKey && state.firstTabInLine !== -1) {
-      state.position = state.firstTabInLine;
-      throwError(state, "tab characters must not be used in indentation");
-    }
-    following = state.input.charCodeAt(state.position + 1);
-    _line = state.line;
-    if ((ch === 63 || ch === 58) && is_WS_OR_EOL(following)) {
-      if (ch === 63) {
-        if (atExplicitKey) {
-          storeMappingPair(state, _result, overridableKeys, keyTag, keyNode, null, _keyLine, _keyLineStart, _keyPos);
-          keyTag = keyNode = valueNode = null;
-        }
-        detected = true;
-        atExplicitKey = true;
-        allowCompact = true;
-      } else if (atExplicitKey) {
-        atExplicitKey = false;
-        allowCompact = true;
-      } else {
-        throwError(state, "incomplete explicit mapping pair; a key node is missed; or followed by a non-tabulated empty line");
-      }
-      state.position += 1;
-      ch = following;
-    } else {
-      _keyLine = state.line;
-      _keyLineStart = state.lineStart;
-      _keyPos = state.position;
-      if (!composeNode(state, flowIndent, CONTEXT_FLOW_OUT, false, true)) {
-        break;
-      }
-      if (state.line === _line) {
-        ch = state.input.charCodeAt(state.position);
-        while (is_WHITE_SPACE(ch)) {
-          ch = state.input.charCodeAt(++state.position);
-        }
-        if (ch === 58) {
-          ch = state.input.charCodeAt(++state.position);
-          if (!is_WS_OR_EOL(ch)) {
-            throwError(state, "a whitespace character is expected after the key-value separator within a block mapping");
-          }
-          if (atExplicitKey) {
-            storeMappingPair(state, _result, overridableKeys, keyTag, keyNode, null, _keyLine, _keyLineStart, _keyPos);
-            keyTag = keyNode = valueNode = null;
-          }
-          detected = true;
-          atExplicitKey = false;
-          allowCompact = false;
-          keyTag = state.tag;
-          keyNode = state.result;
-        } else if (detected) {
-          throwError(state, "can not read an implicit mapping pair; a colon is missed");
-        } else {
-          state.tag = _tag;
-          state.anchor = _anchor;
-          return true;
-        }
-      } else if (detected) {
-        throwError(state, "can not read a block mapping entry; a multiline key may not be an implicit key");
-      } else {
-        state.tag = _tag;
-        state.anchor = _anchor;
-        return true;
-      }
-    }
-    if (state.line === _line || state.lineIndent > nodeIndent) {
-      if (atExplicitKey) {
-        _keyLine = state.line;
-        _keyLineStart = state.lineStart;
-        _keyPos = state.position;
-      }
-      if (composeNode(state, nodeIndent, CONTEXT_BLOCK_OUT, true, allowCompact)) {
-        if (atExplicitKey) {
-          keyNode = state.result;
-        } else {
-          valueNode = state.result;
-        }
-      }
-      if (!atExplicitKey) {
-        storeMappingPair(state, _result, overridableKeys, keyTag, keyNode, valueNode, _keyLine, _keyLineStart, _keyPos);
-        keyTag = keyNode = valueNode = null;
-      }
-      skipSeparationSpace(state, true, -1);
-      ch = state.input.charCodeAt(state.position);
-    }
-    if ((state.line === _line || state.lineIndent > nodeIndent) && ch !== 0) {
-      throwError(state, "bad indentation of a mapping entry");
-    } else if (state.lineIndent < nodeIndent) {
-      break;
-    }
-  }
-  if (atExplicitKey) {
-    storeMappingPair(state, _result, overridableKeys, keyTag, keyNode, null, _keyLine, _keyLineStart, _keyPos);
-  }
-  if (detected) {
-    state.tag = _tag;
-    state.anchor = _anchor;
-    state.kind = "mapping";
-    state.result = _result;
-  }
-  return detected;
-}
-function readTagProperty(state) {
-  var _position, isVerbatim = false, isNamed = false, tagHandle, tagName, ch;
-  ch = state.input.charCodeAt(state.position);
-  if (ch !== 33) return false;
-  if (state.tag !== null) {
-    throwError(state, "duplication of a tag property");
-  }
-  ch = state.input.charCodeAt(++state.position);
-  if (ch === 60) {
-    isVerbatim = true;
-    ch = state.input.charCodeAt(++state.position);
-  } else if (ch === 33) {
-    isNamed = true;
-    tagHandle = "!!";
-    ch = state.input.charCodeAt(++state.position);
-  } else {
-    tagHandle = "!";
-  }
-  _position = state.position;
-  if (isVerbatim) {
-    do {
-      ch = state.input.charCodeAt(++state.position);
-    } while (ch !== 0 && ch !== 62);
-    if (state.position < state.length) {
-      tagName = state.input.slice(_position, state.position);
-      ch = state.input.charCodeAt(++state.position);
-    } else {
-      throwError(state, "unexpected end of the stream within a verbatim tag");
-    }
-  } else {
-    while (ch !== 0 && !is_WS_OR_EOL(ch)) {
-      if (ch === 33) {
-        if (!isNamed) {
-          tagHandle = state.input.slice(_position - 1, state.position + 1);
-          if (!PATTERN_TAG_HANDLE.test(tagHandle)) {
-            throwError(state, "named tag handle cannot contain such characters");
-          }
-          isNamed = true;
-          _position = state.position + 1;
-        } else {
-          throwError(state, "tag suffix cannot contain exclamation marks");
-        }
-      }
-      ch = state.input.charCodeAt(++state.position);
-    }
-    tagName = state.input.slice(_position, state.position);
-    if (PATTERN_FLOW_INDICATORS.test(tagName)) {
-      throwError(state, "tag suffix cannot contain flow indicator characters");
-    }
-  }
-  if (tagName && !PATTERN_TAG_URI.test(tagName)) {
-    throwError(state, "tag name cannot contain such characters: " + tagName);
-  }
-  try {
-    tagName = decodeURIComponent(tagName);
-  } catch (err) {
-    throwError(state, "tag name is malformed: " + tagName);
-  }
-  if (isVerbatim) {
-    state.tag = tagName;
-  } else if (_hasOwnProperty$1.call(state.tagMap, tagHandle)) {
-    state.tag = state.tagMap[tagHandle] + tagName;
-  } else if (tagHandle === "!") {
-    state.tag = "!" + tagName;
-  } else if (tagHandle === "!!") {
-    state.tag = "tag:yaml.org,2002:" + tagName;
-  } else {
-    throwError(state, 'undeclared tag handle "' + tagHandle + '"');
-  }
-  return true;
-}
-function readAnchorProperty(state) {
-  var _position, ch;
-  ch = state.input.charCodeAt(state.position);
-  if (ch !== 38) return false;
-  if (state.anchor !== null) {
-    throwError(state, "duplication of an anchor property");
-  }
-  ch = state.input.charCodeAt(++state.position);
-  _position = state.position;
-  while (ch !== 0 && !is_WS_OR_EOL(ch) && !is_FLOW_INDICATOR(ch)) {
-    ch = state.input.charCodeAt(++state.position);
-  }
-  if (state.position === _position) {
-    throwError(state, "name of an anchor node must contain at least one character");
-  }
-  state.anchor = state.input.slice(_position, state.position);
-  return true;
-}
-function readAlias(state) {
-  var _position, alias, ch;
-  ch = state.input.charCodeAt(state.position);
-  if (ch !== 42) return false;
-  ch = state.input.charCodeAt(++state.position);
-  _position = state.position;
-  while (ch !== 0 && !is_WS_OR_EOL(ch) && !is_FLOW_INDICATOR(ch)) {
-    ch = state.input.charCodeAt(++state.position);
-  }
-  if (state.position === _position) {
-    throwError(state, "name of an alias node must contain at least one character");
-  }
-  alias = state.input.slice(_position, state.position);
-  if (!_hasOwnProperty$1.call(state.anchorMap, alias)) {
-    throwError(state, 'unidentified alias "' + alias + '"');
-  }
-  state.result = state.anchorMap[alias];
-  skipSeparationSpace(state, true, -1);
-  return true;
-}
-function composeNode(state, parentIndent, nodeContext, allowToSeek, allowCompact) {
-  var allowBlockStyles, allowBlockScalars, allowBlockCollections, indentStatus = 1, atNewLine = false, hasContent = false, typeIndex, typeQuantity, typeList, type2, flowIndent, blockIndent;
-  if (state.listener !== null) {
-    state.listener("open", state);
-  }
-  state.tag = null;
-  state.anchor = null;
-  state.kind = null;
-  state.result = null;
-  allowBlockStyles = allowBlockScalars = allowBlockCollections = CONTEXT_BLOCK_OUT === nodeContext || CONTEXT_BLOCK_IN === nodeContext;
-  if (allowToSeek) {
-    if (skipSeparationSpace(state, true, -1)) {
-      atNewLine = true;
-      if (state.lineIndent > parentIndent) {
-        indentStatus = 1;
-      } else if (state.lineIndent === parentIndent) {
-        indentStatus = 0;
-      } else if (state.lineIndent < parentIndent) {
-        indentStatus = -1;
-      }
-    }
-  }
-  if (indentStatus === 1) {
-    while (readTagProperty(state) || readAnchorProperty(state)) {
-      if (skipSeparationSpace(state, true, -1)) {
-        atNewLine = true;
-        allowBlockCollections = allowBlockStyles;
-        if (state.lineIndent > parentIndent) {
-          indentStatus = 1;
-        } else if (state.lineIndent === parentIndent) {
-          indentStatus = 0;
-        } else if (state.lineIndent < parentIndent) {
-          indentStatus = -1;
-        }
-      } else {
-        allowBlockCollections = false;
-      }
-    }
-  }
-  if (allowBlockCollections) {
-    allowBlockCollections = atNewLine || allowCompact;
-  }
-  if (indentStatus === 1 || CONTEXT_BLOCK_OUT === nodeContext) {
-    if (CONTEXT_FLOW_IN === nodeContext || CONTEXT_FLOW_OUT === nodeContext) {
-      flowIndent = parentIndent;
-    } else {
-      flowIndent = parentIndent + 1;
-    }
-    blockIndent = state.position - state.lineStart;
-    if (indentStatus === 1) {
-      if (allowBlockCollections && (readBlockSequence(state, blockIndent) || readBlockMapping(state, blockIndent, flowIndent)) || readFlowCollection(state, flowIndent)) {
-        hasContent = true;
-      } else {
-        if (allowBlockScalars && readBlockScalar(state, flowIndent) || readSingleQuotedScalar(state, flowIndent) || readDoubleQuotedScalar(state, flowIndent)) {
-          hasContent = true;
-        } else if (readAlias(state)) {
-          hasContent = true;
-          if (state.tag !== null || state.anchor !== null) {
-            throwError(state, "alias node should not have any properties");
-          }
-        } else if (readPlainScalar(state, flowIndent, CONTEXT_FLOW_IN === nodeContext)) {
-          hasContent = true;
-          if (state.tag === null) {
-            state.tag = "?";
-          }
-        }
-        if (state.anchor !== null) {
-          state.anchorMap[state.anchor] = state.result;
-        }
-      }
-    } else if (indentStatus === 0) {
-      hasContent = allowBlockCollections && readBlockSequence(state, blockIndent);
-    }
-  }
-  if (state.tag === null) {
-    if (state.anchor !== null) {
-      state.anchorMap[state.anchor] = state.result;
-    }
-  } else if (state.tag === "?") {
-    if (state.result !== null && state.kind !== "scalar") {
-      throwError(state, 'unacceptable node kind for !<?> tag; it should be "scalar", not "' + state.kind + '"');
-    }
-    for (typeIndex = 0, typeQuantity = state.implicitTypes.length; typeIndex < typeQuantity; typeIndex += 1) {
-      type2 = state.implicitTypes[typeIndex];
-      if (type2.resolve(state.result)) {
-        state.result = type2.construct(state.result);
-        state.tag = type2.tag;
-        if (state.anchor !== null) {
-          state.anchorMap[state.anchor] = state.result;
-        }
-        break;
-      }
-    }
-  } else if (state.tag !== "!") {
-    if (_hasOwnProperty$1.call(state.typeMap[state.kind || "fallback"], state.tag)) {
-      type2 = state.typeMap[state.kind || "fallback"][state.tag];
-    } else {
-      type2 = null;
-      typeList = state.typeMap.multi[state.kind || "fallback"];
-      for (typeIndex = 0, typeQuantity = typeList.length; typeIndex < typeQuantity; typeIndex += 1) {
-        if (state.tag.slice(0, typeList[typeIndex].tag.length) === typeList[typeIndex].tag) {
-          type2 = typeList[typeIndex];
-          break;
-        }
-      }
-    }
-    if (!type2) {
-      throwError(state, "unknown tag !<" + state.tag + ">");
-    }
-    if (state.result !== null && type2.kind !== state.kind) {
-      throwError(state, "unacceptable node kind for !<" + state.tag + '> tag; it should be "' + type2.kind + '", not "' + state.kind + '"');
-    }
-    if (!type2.resolve(state.result, state.tag)) {
-      throwError(state, "cannot resolve a node with !<" + state.tag + "> explicit tag");
-    } else {
-      state.result = type2.construct(state.result, state.tag);
-      if (state.anchor !== null) {
-        state.anchorMap[state.anchor] = state.result;
-      }
-    }
-  }
-  if (state.listener !== null) {
-    state.listener("close", state);
-  }
-  return state.tag !== null || state.anchor !== null || hasContent;
-}
-function readDocument(state) {
-  var documentStart = state.position, _position, directiveName, directiveArgs, hasDirectives = false, ch;
-  state.version = null;
-  state.checkLineBreaks = state.legacy;
-  state.tagMap = /* @__PURE__ */ Object.create(null);
-  state.anchorMap = /* @__PURE__ */ Object.create(null);
-  while ((ch = state.input.charCodeAt(state.position)) !== 0) {
-    skipSeparationSpace(state, true, -1);
-    ch = state.input.charCodeAt(state.position);
-    if (state.lineIndent > 0 || ch !== 37) {
-      break;
-    }
-    hasDirectives = true;
-    ch = state.input.charCodeAt(++state.position);
-    _position = state.position;
-    while (ch !== 0 && !is_WS_OR_EOL(ch)) {
-      ch = state.input.charCodeAt(++state.position);
-    }
-    directiveName = state.input.slice(_position, state.position);
-    directiveArgs = [];
-    if (directiveName.length < 1) {
-      throwError(state, "directive name must not be less than one character in length");
-    }
-    while (ch !== 0) {
-      while (is_WHITE_SPACE(ch)) {
-        ch = state.input.charCodeAt(++state.position);
-      }
-      if (ch === 35) {
-        do {
-          ch = state.input.charCodeAt(++state.position);
-        } while (ch !== 0 && !is_EOL(ch));
-        break;
-      }
-      if (is_EOL(ch)) break;
-      _position = state.position;
-      while (ch !== 0 && !is_WS_OR_EOL(ch)) {
-        ch = state.input.charCodeAt(++state.position);
-      }
-      directiveArgs.push(state.input.slice(_position, state.position));
-    }
-    if (ch !== 0) readLineBreak(state);
-    if (_hasOwnProperty$1.call(directiveHandlers, directiveName)) {
-      directiveHandlers[directiveName](state, directiveName, directiveArgs);
-    } else {
-      throwWarning(state, 'unknown document directive "' + directiveName + '"');
-    }
-  }
-  skipSeparationSpace(state, true, -1);
-  if (state.lineIndent === 0 && state.input.charCodeAt(state.position) === 45 && state.input.charCodeAt(state.position + 1) === 45 && state.input.charCodeAt(state.position + 2) === 45) {
-    state.position += 3;
-    skipSeparationSpace(state, true, -1);
-  } else if (hasDirectives) {
-    throwError(state, "directives end mark is expected");
-  }
-  composeNode(state, state.lineIndent - 1, CONTEXT_BLOCK_OUT, false, true);
-  skipSeparationSpace(state, true, -1);
-  if (state.checkLineBreaks && PATTERN_NON_ASCII_LINE_BREAKS.test(state.input.slice(documentStart, state.position))) {
-    throwWarning(state, "non-ASCII line breaks are interpreted as content");
-  }
-  state.documents.push(state.result);
-  if (state.position === state.lineStart && testDocumentSeparator(state)) {
-    if (state.input.charCodeAt(state.position) === 46) {
-      state.position += 3;
-      skipSeparationSpace(state, true, -1);
-    }
-    return;
-  }
-  if (state.position < state.length - 1) {
-    throwError(state, "end of the stream or a document separator is expected");
-  } else {
-    return;
-  }
-}
-function loadDocuments(input, options) {
-  input = String(input);
-  options = options || {};
-  if (input.length !== 0) {
-    if (input.charCodeAt(input.length - 1) !== 10 && input.charCodeAt(input.length - 1) !== 13) {
-      input += "\n";
-    }
-    if (input.charCodeAt(0) === 65279) {
-      input = input.slice(1);
-    }
-  }
-  var state = new State$1(input, options);
-  var nullpos = input.indexOf("\0");
-  if (nullpos !== -1) {
-    state.position = nullpos;
-    throwError(state, "null byte is not allowed in input");
-  }
-  state.input += "\0";
-  while (state.input.charCodeAt(state.position) === 32) {
-    state.lineIndent += 1;
-    state.position += 1;
-  }
-  while (state.position < state.length - 1) {
-    readDocument(state);
-  }
-  return state.documents;
-}
-function loadAll$1(input, iterator, options) {
-  if (iterator !== null && typeof iterator === "object" && typeof options === "undefined") {
-    options = iterator;
-    iterator = null;
-  }
-  var documents = loadDocuments(input, options);
-  if (typeof iterator !== "function") {
-    return documents;
-  }
-  for (var index = 0, length = documents.length; index < length; index += 1) {
-    iterator(documents[index]);
-  }
-}
-function load$1(input, options) {
-  var documents = loadDocuments(input, options);
-  if (documents.length === 0) {
-    return void 0;
-  } else if (documents.length === 1) {
-    return documents[0];
-  }
-  throw new exception("expected a single document in the stream, but found more");
-}
-function compileStyleMap(schema2, map2) {
-  var result, keys, index, length, tag, style, type2;
-  if (map2 === null) return {};
-  result = {};
-  keys = Object.keys(map2);
-  for (index = 0, length = keys.length; index < length; index += 1) {
-    tag = keys[index];
-    style = String(map2[tag]);
-    if (tag.slice(0, 2) === "!!") {
-      tag = "tag:yaml.org,2002:" + tag.slice(2);
-    }
-    type2 = schema2.compiledTypeMap["fallback"][tag];
-    if (type2 && _hasOwnProperty.call(type2.styleAliases, style)) {
-      style = type2.styleAliases[style];
-    }
-    result[tag] = style;
-  }
-  return result;
-}
-function encodeHex(character) {
-  var string, handle, length;
-  string = character.toString(16).toUpperCase();
-  if (character <= 255) {
-    handle = "x";
-    length = 2;
-  } else if (character <= 65535) {
-    handle = "u";
-    length = 4;
-  } else if (character <= 4294967295) {
-    handle = "U";
-    length = 8;
-  } else {
-    throw new exception("code point within a string may not be greater than 0xFFFFFFFF");
-  }
-  return "\\" + handle + common.repeat("0", length - string.length) + string;
-}
-function State(options) {
-  this.schema = options["schema"] || _default;
-  this.indent = Math.max(1, options["indent"] || 2);
-  this.noArrayIndent = options["noArrayIndent"] || false;
-  this.skipInvalid = options["skipInvalid"] || false;
-  this.flowLevel = common.isNothing(options["flowLevel"]) ? -1 : options["flowLevel"];
-  this.styleMap = compileStyleMap(this.schema, options["styles"] || null);
-  this.sortKeys = options["sortKeys"] || false;
-  this.lineWidth = options["lineWidth"] || 80;
-  this.noRefs = options["noRefs"] || false;
-  this.noCompatMode = options["noCompatMode"] || false;
-  this.condenseFlow = options["condenseFlow"] || false;
-  this.quotingType = options["quotingType"] === '"' ? QUOTING_TYPE_DOUBLE : QUOTING_TYPE_SINGLE;
-  this.forceQuotes = options["forceQuotes"] || false;
-  this.replacer = typeof options["replacer"] === "function" ? options["replacer"] : null;
-  this.implicitTypes = this.schema.compiledImplicit;
-  this.explicitTypes = this.schema.compiledExplicit;
-  this.tag = null;
-  this.result = "";
-  this.duplicates = [];
-  this.usedDuplicates = null;
-}
-function indentString(string, spaces) {
-  var ind = common.repeat(" ", spaces), position = 0, next = -1, result = "", line, length = string.length;
-  while (position < length) {
-    next = string.indexOf("\n", position);
-    if (next === -1) {
-      line = string.slice(position);
-      position = length;
-    } else {
-      line = string.slice(position, next + 1);
-      position = next + 1;
-    }
-    if (line.length && line !== "\n") result += ind;
-    result += line;
-  }
-  return result;
-}
-function generateNextLine(state, level) {
-  return "\n" + common.repeat(" ", state.indent * level);
-}
-function testImplicitResolving(state, str2) {
-  var index, length, type2;
-  for (index = 0, length = state.implicitTypes.length; index < length; index += 1) {
-    type2 = state.implicitTypes[index];
-    if (type2.resolve(str2)) {
-      return true;
-    }
-  }
-  return false;
-}
-function isWhitespace(c) {
-  return c === CHAR_SPACE || c === CHAR_TAB;
-}
-function isPrintable(c) {
-  return 32 <= c && c <= 126 || 161 <= c && c <= 55295 && c !== 8232 && c !== 8233 || 57344 <= c && c <= 65533 && c !== CHAR_BOM || 65536 <= c && c <= 1114111;
-}
-function isNsCharOrWhitespace(c) {
-  return isPrintable(c) && c !== CHAR_BOM && c !== CHAR_CARRIAGE_RETURN && c !== CHAR_LINE_FEED;
-}
-function isPlainSafe(c, prev, inblock) {
-  var cIsNsCharOrWhitespace = isNsCharOrWhitespace(c);
-  var cIsNsChar = cIsNsCharOrWhitespace && !isWhitespace(c);
-  return (
-    // ns-plain-safe
-    (inblock ? (
-      // c = flow-in
-      cIsNsCharOrWhitespace
-    ) : cIsNsCharOrWhitespace && c !== CHAR_COMMA && c !== CHAR_LEFT_SQUARE_BRACKET && c !== CHAR_RIGHT_SQUARE_BRACKET && c !== CHAR_LEFT_CURLY_BRACKET && c !== CHAR_RIGHT_CURLY_BRACKET) && c !== CHAR_SHARP && !(prev === CHAR_COLON && !cIsNsChar) || isNsCharOrWhitespace(prev) && !isWhitespace(prev) && c === CHAR_SHARP || prev === CHAR_COLON && cIsNsChar
-  );
-}
-function isPlainSafeFirst(c) {
-  return isPrintable(c) && c !== CHAR_BOM && !isWhitespace(c) && c !== CHAR_MINUS && c !== CHAR_QUESTION && c !== CHAR_COLON && c !== CHAR_COMMA && c !== CHAR_LEFT_SQUARE_BRACKET && c !== CHAR_RIGHT_SQUARE_BRACKET && c !== CHAR_LEFT_CURLY_BRACKET && c !== CHAR_RIGHT_CURLY_BRACKET && c !== CHAR_SHARP && c !== CHAR_AMPERSAND && c !== CHAR_ASTERISK && c !== CHAR_EXCLAMATION && c !== CHAR_VERTICAL_LINE && c !== CHAR_EQUALS && c !== CHAR_GREATER_THAN && c !== CHAR_SINGLE_QUOTE && c !== CHAR_DOUBLE_QUOTE && c !== CHAR_PERCENT && c !== CHAR_COMMERCIAL_AT && c !== CHAR_GRAVE_ACCENT;
-}
-function isPlainSafeLast(c) {
-  return !isWhitespace(c) && c !== CHAR_COLON;
-}
-function codePointAt(string, pos) {
-  var first = string.charCodeAt(pos), second;
-  if (first >= 55296 && first <= 56319 && pos + 1 < string.length) {
-    second = string.charCodeAt(pos + 1);
-    if (second >= 56320 && second <= 57343) {
-      return (first - 55296) * 1024 + second - 56320 + 65536;
-    }
-  }
-  return first;
-}
-function needIndentIndicator(string) {
-  var leadingSpaceRe = /^\n* /;
-  return leadingSpaceRe.test(string);
-}
-function chooseScalarStyle(string, singleLineOnly, indentPerLevel, lineWidth, testAmbiguousType, quotingType, forceQuotes, inblock) {
-  var i;
-  var char = 0;
-  var prevChar = null;
-  var hasLineBreak = false;
-  var hasFoldableLine = false;
-  var shouldTrackWidth = lineWidth !== -1;
-  var previousLineBreak = -1;
-  var plain = isPlainSafeFirst(codePointAt(string, 0)) && isPlainSafeLast(codePointAt(string, string.length - 1));
-  if (singleLineOnly || forceQuotes) {
-    for (i = 0; i < string.length; char >= 65536 ? i += 2 : i++) {
-      char = codePointAt(string, i);
-      if (!isPrintable(char)) {
-        return STYLE_DOUBLE;
-      }
-      plain = plain && isPlainSafe(char, prevChar, inblock);
-      prevChar = char;
-    }
-  } else {
-    for (i = 0; i < string.length; char >= 65536 ? i += 2 : i++) {
-      char = codePointAt(string, i);
-      if (char === CHAR_LINE_FEED) {
-        hasLineBreak = true;
-        if (shouldTrackWidth) {
-          hasFoldableLine = hasFoldableLine || // Foldable line = too long, and not more-indented.
-          i - previousLineBreak - 1 > lineWidth && string[previousLineBreak + 1] !== " ";
-          previousLineBreak = i;
-        }
-      } else if (!isPrintable(char)) {
-        return STYLE_DOUBLE;
-      }
-      plain = plain && isPlainSafe(char, prevChar, inblock);
-      prevChar = char;
-    }
-    hasFoldableLine = hasFoldableLine || shouldTrackWidth && (i - previousLineBreak - 1 > lineWidth && string[previousLineBreak + 1] !== " ");
-  }
-  if (!hasLineBreak && !hasFoldableLine) {
-    if (plain && !forceQuotes && !testAmbiguousType(string)) {
-      return STYLE_PLAIN;
-    }
-    return quotingType === QUOTING_TYPE_DOUBLE ? STYLE_DOUBLE : STYLE_SINGLE;
-  }
-  if (indentPerLevel > 9 && needIndentIndicator(string)) {
-    return STYLE_DOUBLE;
-  }
-  if (!forceQuotes) {
-    return hasFoldableLine ? STYLE_FOLDED : STYLE_LITERAL;
-  }
-  return quotingType === QUOTING_TYPE_DOUBLE ? STYLE_DOUBLE : STYLE_SINGLE;
-}
-function writeScalar(state, string, level, iskey, inblock) {
-  state.dump = function() {
-    if (string.length === 0) {
-      return state.quotingType === QUOTING_TYPE_DOUBLE ? '""' : "''";
-    }
-    if (!state.noCompatMode) {
-      if (DEPRECATED_BOOLEANS_SYNTAX.indexOf(string) !== -1 || DEPRECATED_BASE60_SYNTAX.test(string)) {
-        return state.quotingType === QUOTING_TYPE_DOUBLE ? '"' + string + '"' : "'" + string + "'";
-      }
-    }
-    var indent = state.indent * Math.max(1, level);
-    var lineWidth = state.lineWidth === -1 ? -1 : Math.max(Math.min(state.lineWidth, 40), state.lineWidth - indent);
-    var singleLineOnly = iskey || state.flowLevel > -1 && level >= state.flowLevel;
-    function testAmbiguity(string2) {
-      return testImplicitResolving(state, string2);
-    }
-    switch (chooseScalarStyle(
-      string,
-      singleLineOnly,
-      state.indent,
-      lineWidth,
-      testAmbiguity,
-      state.quotingType,
-      state.forceQuotes && !iskey,
-      inblock
-    )) {
-      case STYLE_PLAIN:
-        return string;
-      case STYLE_SINGLE:
-        return "'" + string.replace(/'/g, "''") + "'";
-      case STYLE_LITERAL:
-        return "|" + blockHeader(string, state.indent) + dropEndingNewline(indentString(string, indent));
-      case STYLE_FOLDED:
-        return ">" + blockHeader(string, state.indent) + dropEndingNewline(indentString(foldString(string, lineWidth), indent));
-      case STYLE_DOUBLE:
-        return '"' + escapeString(string) + '"';
-      default:
-        throw new exception("impossible error: invalid scalar style");
-    }
-  }();
-}
-function blockHeader(string, indentPerLevel) {
-  var indentIndicator = needIndentIndicator(string) ? String(indentPerLevel) : "";
-  var clip = string[string.length - 1] === "\n";
-  var keep = clip && (string[string.length - 2] === "\n" || string === "\n");
-  var chomp = keep ? "+" : clip ? "" : "-";
-  return indentIndicator + chomp + "\n";
-}
-function dropEndingNewline(string) {
-  return string[string.length - 1] === "\n" ? string.slice(0, -1) : string;
-}
-function foldString(string, width) {
-  var lineRe = /(\n+)([^\n]*)/g;
-  var result = function() {
-    var nextLF = string.indexOf("\n");
-    nextLF = nextLF !== -1 ? nextLF : string.length;
-    lineRe.lastIndex = nextLF;
-    return foldLine(string.slice(0, nextLF), width);
-  }();
-  var prevMoreIndented = string[0] === "\n" || string[0] === " ";
-  var moreIndented;
-  var match;
-  while (match = lineRe.exec(string)) {
-    var prefix = match[1], line = match[2];
-    moreIndented = line[0] === " ";
-    result += prefix + (!prevMoreIndented && !moreIndented && line !== "" ? "\n" : "") + foldLine(line, width);
-    prevMoreIndented = moreIndented;
-  }
-  return result;
-}
-function foldLine(line, width) {
-  if (line === "" || line[0] === " ") return line;
-  var breakRe = / [^ ]/g;
-  var match;
-  var start = 0, end, curr = 0, next = 0;
-  var result = "";
-  while (match = breakRe.exec(line)) {
-    next = match.index;
-    if (next - start > width) {
-      end = curr > start ? curr : next;
-      result += "\n" + line.slice(start, end);
-      start = end + 1;
-    }
-    curr = next;
-  }
-  result += "\n";
-  if (line.length - start > width && curr > start) {
-    result += line.slice(start, curr) + "\n" + line.slice(curr + 1);
-  } else {
-    result += line.slice(start);
-  }
-  return result.slice(1);
-}
-function escapeString(string) {
-  var result = "";
-  var char = 0;
-  var escapeSeq;
-  for (var i = 0; i < string.length; char >= 65536 ? i += 2 : i++) {
-    char = codePointAt(string, i);
-    escapeSeq = ESCAPE_SEQUENCES[char];
-    if (!escapeSeq && isPrintable(char)) {
-      result += string[i];
-      if (char >= 65536) result += string[i + 1];
-    } else {
-      result += escapeSeq || encodeHex(char);
-    }
-  }
-  return result;
-}
-function writeFlowSequence(state, level, object) {
-  var _result = "", _tag = state.tag, index, length, value;
-  for (index = 0, length = object.length; index < length; index += 1) {
-    value = object[index];
-    if (state.replacer) {
-      value = state.replacer.call(object, String(index), value);
-    }
-    if (writeNode(state, level, value, false, false) || typeof value === "undefined" && writeNode(state, level, null, false, false)) {
-      if (_result !== "") _result += "," + (!state.condenseFlow ? " " : "");
-      _result += state.dump;
-    }
-  }
-  state.tag = _tag;
-  state.dump = "[" + _result + "]";
-}
-function writeBlockSequence(state, level, object, compact) {
-  var _result = "", _tag = state.tag, index, length, value;
-  for (index = 0, length = object.length; index < length; index += 1) {
-    value = object[index];
-    if (state.replacer) {
-      value = state.replacer.call(object, String(index), value);
-    }
-    if (writeNode(state, level + 1, value, true, true, false, true) || typeof value === "undefined" && writeNode(state, level + 1, null, true, true, false, true)) {
-      if (!compact || _result !== "") {
-        _result += generateNextLine(state, level);
-      }
-      if (state.dump && CHAR_LINE_FEED === state.dump.charCodeAt(0)) {
-        _result += "-";
-      } else {
-        _result += "- ";
-      }
-      _result += state.dump;
-    }
-  }
-  state.tag = _tag;
-  state.dump = _result || "[]";
-}
-function writeFlowMapping(state, level, object) {
-  var _result = "", _tag = state.tag, objectKeyList = Object.keys(object), index, length, objectKey, objectValue, pairBuffer;
-  for (index = 0, length = objectKeyList.length; index < length; index += 1) {
-    pairBuffer = "";
-    if (_result !== "") pairBuffer += ", ";
-    if (state.condenseFlow) pairBuffer += '"';
-    objectKey = objectKeyList[index];
-    objectValue = object[objectKey];
-    if (state.replacer) {
-      objectValue = state.replacer.call(object, objectKey, objectValue);
-    }
-    if (!writeNode(state, level, objectKey, false, false)) {
-      continue;
-    }
-    if (state.dump.length > 1024) pairBuffer += "? ";
-    pairBuffer += state.dump + (state.condenseFlow ? '"' : "") + ":" + (state.condenseFlow ? "" : " ");
-    if (!writeNode(state, level, objectValue, false, false)) {
-      continue;
-    }
-    pairBuffer += state.dump;
-    _result += pairBuffer;
-  }
-  state.tag = _tag;
-  state.dump = "{" + _result + "}";
-}
-function writeBlockMapping(state, level, object, compact) {
-  var _result = "", _tag = state.tag, objectKeyList = Object.keys(object), index, length, objectKey, objectValue, explicitPair, pairBuffer;
-  if (state.sortKeys === true) {
-    objectKeyList.sort();
-  } else if (typeof state.sortKeys === "function") {
-    objectKeyList.sort(state.sortKeys);
-  } else if (state.sortKeys) {
-    throw new exception("sortKeys must be a boolean or a function");
-  }
-  for (index = 0, length = objectKeyList.length; index < length; index += 1) {
-    pairBuffer = "";
-    if (!compact || _result !== "") {
-      pairBuffer += generateNextLine(state, level);
-    }
-    objectKey = objectKeyList[index];
-    objectValue = object[objectKey];
-    if (state.replacer) {
-      objectValue = state.replacer.call(object, objectKey, objectValue);
-    }
-    if (!writeNode(state, level + 1, objectKey, true, true, true)) {
-      continue;
-    }
-    explicitPair = state.tag !== null && state.tag !== "?" || state.dump && state.dump.length > 1024;
-    if (explicitPair) {
-      if (state.dump && CHAR_LINE_FEED === state.dump.charCodeAt(0)) {
-        pairBuffer += "?";
-      } else {
-        pairBuffer += "? ";
-      }
-    }
-    pairBuffer += state.dump;
-    if (explicitPair) {
-      pairBuffer += generateNextLine(state, level);
-    }
-    if (!writeNode(state, level + 1, objectValue, true, explicitPair)) {
-      continue;
-    }
-    if (state.dump && CHAR_LINE_FEED === state.dump.charCodeAt(0)) {
-      pairBuffer += ":";
-    } else {
-      pairBuffer += ": ";
-    }
-    pairBuffer += state.dump;
-    _result += pairBuffer;
-  }
-  state.tag = _tag;
-  state.dump = _result || "{}";
-}
-function detectType(state, object, explicit) {
-  var _result, typeList, index, length, type2, style;
-  typeList = explicit ? state.explicitTypes : state.implicitTypes;
-  for (index = 0, length = typeList.length; index < length; index += 1) {
-    type2 = typeList[index];
-    if ((type2.instanceOf || type2.predicate) && (!type2.instanceOf || typeof object === "object" && object instanceof type2.instanceOf) && (!type2.predicate || type2.predicate(object))) {
-      if (explicit) {
-        if (type2.multi && type2.representName) {
-          state.tag = type2.representName(object);
-        } else {
-          state.tag = type2.tag;
-        }
-      } else {
-        state.tag = "?";
-      }
-      if (type2.represent) {
-        style = state.styleMap[type2.tag] || type2.defaultStyle;
-        if (_toString.call(type2.represent) === "[object Function]") {
-          _result = type2.represent(object, style);
-        } else if (_hasOwnProperty.call(type2.represent, style)) {
-          _result = type2.represent[style](object, style);
-        } else {
-          throw new exception("!<" + type2.tag + '> tag resolver accepts not "' + style + '" style');
-        }
-        state.dump = _result;
-      }
-      return true;
-    }
-  }
-  return false;
-}
-function writeNode(state, level, object, block, compact, iskey, isblockseq) {
-  state.tag = null;
-  state.dump = object;
-  if (!detectType(state, object, false)) {
-    detectType(state, object, true);
-  }
-  var type2 = _toString.call(state.dump);
-  var inblock = block;
-  var tagStr;
-  if (block) {
-    block = state.flowLevel < 0 || state.flowLevel > level;
-  }
-  var objectOrArray = type2 === "[object Object]" || type2 === "[object Array]", duplicateIndex, duplicate;
-  if (objectOrArray) {
-    duplicateIndex = state.duplicates.indexOf(object);
-    duplicate = duplicateIndex !== -1;
-  }
-  if (state.tag !== null && state.tag !== "?" || duplicate || state.indent !== 2 && level > 0) {
-    compact = false;
-  }
-  if (duplicate && state.usedDuplicates[duplicateIndex]) {
-    state.dump = "*ref_" + duplicateIndex;
-  } else {
-    if (objectOrArray && duplicate && !state.usedDuplicates[duplicateIndex]) {
-      state.usedDuplicates[duplicateIndex] = true;
-    }
-    if (type2 === "[object Object]") {
-      if (block && Object.keys(state.dump).length !== 0) {
-        writeBlockMapping(state, level, state.dump, compact);
-        if (duplicate) {
-          state.dump = "&ref_" + duplicateIndex + state.dump;
-        }
-      } else {
-        writeFlowMapping(state, level, state.dump);
-        if (duplicate) {
-          state.dump = "&ref_" + duplicateIndex + " " + state.dump;
-        }
-      }
-    } else if (type2 === "[object Array]") {
-      if (block && state.dump.length !== 0) {
-        if (state.noArrayIndent && !isblockseq && level > 0) {
-          writeBlockSequence(state, level - 1, state.dump, compact);
-        } else {
-          writeBlockSequence(state, level, state.dump, compact);
-        }
-        if (duplicate) {
-          state.dump = "&ref_" + duplicateIndex + state.dump;
-        }
-      } else {
-        writeFlowSequence(state, level, state.dump);
-        if (duplicate) {
-          state.dump = "&ref_" + duplicateIndex + " " + state.dump;
-        }
-      }
-    } else if (type2 === "[object String]") {
-      if (state.tag !== "?") {
-        writeScalar(state, state.dump, level, iskey, inblock);
-      }
-    } else if (type2 === "[object Undefined]") {
-      return false;
-    } else {
-      if (state.skipInvalid) return false;
-      throw new exception("unacceptable kind of an object to dump " + type2);
-    }
-    if (state.tag !== null && state.tag !== "?") {
-      tagStr = encodeURI(
-        state.tag[0] === "!" ? state.tag.slice(1) : state.tag
-      ).replace(/!/g, "%21");
-      if (state.tag[0] === "!") {
-        tagStr = "!" + tagStr;
-      } else if (tagStr.slice(0, 18) === "tag:yaml.org,2002:") {
-        tagStr = "!!" + tagStr.slice(18);
-      } else {
-        tagStr = "!<" + tagStr + ">";
-      }
-      state.dump = tagStr + " " + state.dump;
-    }
-  }
-  return true;
-}
-function getDuplicateReferences(object, state) {
-  var objects = [], duplicatesIndexes = [], index, length;
-  inspectNode(object, objects, duplicatesIndexes);
-  for (index = 0, length = duplicatesIndexes.length; index < length; index += 1) {
-    state.duplicates.push(objects[duplicatesIndexes[index]]);
-  }
-  state.usedDuplicates = new Array(length);
-}
-function inspectNode(object, objects, duplicatesIndexes) {
-  var objectKeyList, index, length;
-  if (object !== null && typeof object === "object") {
-    index = objects.indexOf(object);
-    if (index !== -1) {
-      if (duplicatesIndexes.indexOf(index) === -1) {
-        duplicatesIndexes.push(index);
-      }
-    } else {
-      objects.push(object);
-      if (Array.isArray(object)) {
-        for (index = 0, length = object.length; index < length; index += 1) {
-          inspectNode(object[index], objects, duplicatesIndexes);
-        }
-      } else {
-        objectKeyList = Object.keys(object);
-        for (index = 0, length = objectKeyList.length; index < length; index += 1) {
-          inspectNode(object[objectKeyList[index]], objects, duplicatesIndexes);
-        }
-      }
-    }
-  }
-}
-function dump$1(input, options) {
-  options = options || {};
-  var state = new State(options);
-  if (!state.noRefs) getDuplicateReferences(input, state);
-  var value = input;
-  if (state.replacer) {
-    value = state.replacer.call({ "": value }, "", value);
-  }
-  if (writeNode(state, 0, value, true, true)) return state.dump + "\n";
-  return "";
-}
-function renamed(from, to) {
-  return function() {
-    throw new Error("Function yaml." + from + " is removed in js-yaml 4. Use yaml." + to + " instead, which is now safe by default.");
-  };
-}
-var isNothing_1, isObject_1, toArray_1, repeat_1, isNegativeZero_1, extend_1, common, exception, snippet, TYPE_CONSTRUCTOR_OPTIONS, YAML_NODE_KINDS, type, schema, str, seq, map, failsafe, _null, bool, int, YAML_FLOAT_PATTERN, SCIENTIFIC_WITHOUT_DOT, float, json, core, YAML_DATE_REGEXP, YAML_TIMESTAMP_REGEXP, timestamp, merge, BASE64_MAP, binary, _hasOwnProperty$3, _toString$2, omap, _toString$1, pairs, _hasOwnProperty$2, set, _default, _hasOwnProperty$1, CONTEXT_FLOW_IN, CONTEXT_FLOW_OUT, CONTEXT_BLOCK_IN, CONTEXT_BLOCK_OUT, CHOMPING_CLIP, CHOMPING_STRIP, CHOMPING_KEEP, PATTERN_NON_PRINTABLE, PATTERN_NON_ASCII_LINE_BREAKS, PATTERN_FLOW_INDICATORS, PATTERN_TAG_HANDLE, PATTERN_TAG_URI, simpleEscapeCheck, simpleEscapeMap, i, directiveHandlers, loadAll_1, load_1, loader, _toString, _hasOwnProperty, CHAR_BOM, CHAR_TAB, CHAR_LINE_FEED, CHAR_CARRIAGE_RETURN, CHAR_SPACE, CHAR_EXCLAMATION, CHAR_DOUBLE_QUOTE, CHAR_SHARP, CHAR_PERCENT, CHAR_AMPERSAND, CHAR_SINGLE_QUOTE, CHAR_ASTERISK, CHAR_COMMA, CHAR_MINUS, CHAR_COLON, CHAR_EQUALS, CHAR_GREATER_THAN, CHAR_QUESTION, CHAR_COMMERCIAL_AT, CHAR_LEFT_SQUARE_BRACKET, CHAR_RIGHT_SQUARE_BRACKET, CHAR_GRAVE_ACCENT, CHAR_LEFT_CURLY_BRACKET, CHAR_VERTICAL_LINE, CHAR_RIGHT_CURLY_BRACKET, ESCAPE_SEQUENCES, DEPRECATED_BOOLEANS_SYNTAX, DEPRECATED_BASE60_SYNTAX, QUOTING_TYPE_SINGLE, QUOTING_TYPE_DOUBLE, STYLE_PLAIN, STYLE_SINGLE, STYLE_LITERAL, STYLE_FOLDED, STYLE_DOUBLE, dump_1, dumper, load, loadAll, dump, safeLoad, safeLoadAll, safeDump;
-var init_js_yaml = __esm({
-  "node_modules/js-yaml/dist/js-yaml.mjs"() {
-    isNothing_1 = isNothing;
-    isObject_1 = isObject2;
-    toArray_1 = toArray;
-    repeat_1 = repeat;
-    isNegativeZero_1 = isNegativeZero;
-    extend_1 = extend;
-    common = {
-      isNothing: isNothing_1,
-      isObject: isObject_1,
-      toArray: toArray_1,
-      repeat: repeat_1,
-      isNegativeZero: isNegativeZero_1,
-      extend: extend_1
-    };
-    YAMLException$1.prototype = Object.create(Error.prototype);
-    YAMLException$1.prototype.constructor = YAMLException$1;
-    YAMLException$1.prototype.toString = function toString(compact) {
-      return this.name + ": " + formatError(this, compact);
-    };
-    exception = YAMLException$1;
-    snippet = makeSnippet;
-    TYPE_CONSTRUCTOR_OPTIONS = [
-      "kind",
-      "multi",
-      "resolve",
-      "construct",
-      "instanceOf",
-      "predicate",
-      "represent",
-      "representName",
-      "defaultStyle",
-      "styleAliases"
-    ];
-    YAML_NODE_KINDS = [
-      "scalar",
-      "sequence",
-      "mapping"
-    ];
-    type = Type$1;
-    Schema$1.prototype.extend = function extend2(definition) {
-      var implicit = [];
-      var explicit = [];
-      if (definition instanceof type) {
-        explicit.push(definition);
-      } else if (Array.isArray(definition)) {
-        explicit = explicit.concat(definition);
-      } else if (definition && (Array.isArray(definition.implicit) || Array.isArray(definition.explicit))) {
-        if (definition.implicit) implicit = implicit.concat(definition.implicit);
-        if (definition.explicit) explicit = explicit.concat(definition.explicit);
-      } else {
-        throw new exception("Schema.extend argument should be a Type, [ Type ], or a schema definition ({ implicit: [...], explicit: [...] })");
-      }
-      implicit.forEach(function(type$1) {
-        if (!(type$1 instanceof type)) {
-          throw new exception("Specified list of YAML types (or a single Type object) contains a non-Type object.");
-        }
-        if (type$1.loadKind && type$1.loadKind !== "scalar") {
-          throw new exception("There is a non-scalar type in the implicit list of a schema. Implicit resolving of such types is not supported.");
-        }
-        if (type$1.multi) {
-          throw new exception("There is a multi type in the implicit list of a schema. Multi tags can only be listed as explicit.");
-        }
-      });
-      explicit.forEach(function(type$1) {
-        if (!(type$1 instanceof type)) {
-          throw new exception("Specified list of YAML types (or a single Type object) contains a non-Type object.");
-        }
-      });
-      var result = Object.create(Schema$1.prototype);
-      result.implicit = (this.implicit || []).concat(implicit);
-      result.explicit = (this.explicit || []).concat(explicit);
-      result.compiledImplicit = compileList(result, "implicit");
-      result.compiledExplicit = compileList(result, "explicit");
-      result.compiledTypeMap = compileMap(result.compiledImplicit, result.compiledExplicit);
-      return result;
-    };
-    schema = Schema$1;
-    str = new type("tag:yaml.org,2002:str", {
-      kind: "scalar",
-      construct: function(data) {
-        return data !== null ? data : "";
-      }
-    });
-    seq = new type("tag:yaml.org,2002:seq", {
-      kind: "sequence",
-      construct: function(data) {
-        return data !== null ? data : [];
-      }
-    });
-    map = new type("tag:yaml.org,2002:map", {
-      kind: "mapping",
-      construct: function(data) {
-        return data !== null ? data : {};
-      }
-    });
-    failsafe = new schema({
-      explicit: [
-        str,
-        seq,
-        map
-      ]
-    });
-    _null = new type("tag:yaml.org,2002:null", {
-      kind: "scalar",
-      resolve: resolveYamlNull,
-      construct: constructYamlNull,
-      predicate: isNull,
-      represent: {
-        canonical: function() {
-          return "~";
-        },
-        lowercase: function() {
-          return "null";
-        },
-        uppercase: function() {
-          return "NULL";
-        },
-        camelcase: function() {
-          return "Null";
-        },
-        empty: function() {
-          return "";
-        }
-      },
-      defaultStyle: "lowercase"
-    });
-    bool = new type("tag:yaml.org,2002:bool", {
-      kind: "scalar",
-      resolve: resolveYamlBoolean,
-      construct: constructYamlBoolean,
-      predicate: isBoolean,
-      represent: {
-        lowercase: function(object) {
-          return object ? "true" : "false";
-        },
-        uppercase: function(object) {
-          return object ? "TRUE" : "FALSE";
-        },
-        camelcase: function(object) {
-          return object ? "True" : "False";
-        }
-      },
-      defaultStyle: "lowercase"
-    });
-    int = new type("tag:yaml.org,2002:int", {
-      kind: "scalar",
-      resolve: resolveYamlInteger,
-      construct: constructYamlInteger,
-      predicate: isInteger,
-      represent: {
-        binary: function(obj) {
-          return obj >= 0 ? "0b" + obj.toString(2) : "-0b" + obj.toString(2).slice(1);
-        },
-        octal: function(obj) {
-          return obj >= 0 ? "0o" + obj.toString(8) : "-0o" + obj.toString(8).slice(1);
-        },
-        decimal: function(obj) {
-          return obj.toString(10);
-        },
-        /* eslint-disable max-len */
-        hexadecimal: function(obj) {
-          return obj >= 0 ? "0x" + obj.toString(16).toUpperCase() : "-0x" + obj.toString(16).toUpperCase().slice(1);
-        }
-      },
-      defaultStyle: "decimal",
-      styleAliases: {
-        binary: [2, "bin"],
-        octal: [8, "oct"],
-        decimal: [10, "dec"],
-        hexadecimal: [16, "hex"]
-      }
-    });
-    YAML_FLOAT_PATTERN = new RegExp(
-      // 2.5e4, 2.5 and integers
-      "^(?:[-+]?(?:[0-9][0-9_]*)(?:\\.[0-9_]*)?(?:[eE][-+]?[0-9]+)?|\\.[0-9_]+(?:[eE][-+]?[0-9]+)?|[-+]?\\.(?:inf|Inf|INF)|\\.(?:nan|NaN|NAN))$"
-    );
-    SCIENTIFIC_WITHOUT_DOT = /^[-+]?[0-9]+e/;
-    float = new type("tag:yaml.org,2002:float", {
-      kind: "scalar",
-      resolve: resolveYamlFloat,
-      construct: constructYamlFloat,
-      predicate: isFloat,
-      represent: representYamlFloat,
-      defaultStyle: "lowercase"
-    });
-    json = failsafe.extend({
-      implicit: [
-        _null,
-        bool,
-        int,
-        float
-      ]
-    });
-    core = json;
-    YAML_DATE_REGEXP = new RegExp(
-      "^([0-9][0-9][0-9][0-9])-([0-9][0-9])-([0-9][0-9])$"
-    );
-    YAML_TIMESTAMP_REGEXP = new RegExp(
-      "^([0-9][0-9][0-9][0-9])-([0-9][0-9]?)-([0-9][0-9]?)(?:[Tt]|[ \\t]+)([0-9][0-9]?):([0-9][0-9]):([0-9][0-9])(?:\\.([0-9]*))?(?:[ \\t]*(Z|([-+])([0-9][0-9]?)(?::([0-9][0-9]))?))?$"
-    );
-    timestamp = new type("tag:yaml.org,2002:timestamp", {
-      kind: "scalar",
-      resolve: resolveYamlTimestamp,
-      construct: constructYamlTimestamp,
-      instanceOf: Date,
-      represent: representYamlTimestamp
-    });
-    merge = new type("tag:yaml.org,2002:merge", {
-      kind: "scalar",
-      resolve: resolveYamlMerge
-    });
-    BASE64_MAP = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=\n\r";
-    binary = new type("tag:yaml.org,2002:binary", {
-      kind: "scalar",
-      resolve: resolveYamlBinary,
-      construct: constructYamlBinary,
-      predicate: isBinary,
-      represent: representYamlBinary
-    });
-    _hasOwnProperty$3 = Object.prototype.hasOwnProperty;
-    _toString$2 = Object.prototype.toString;
-    omap = new type("tag:yaml.org,2002:omap", {
-      kind: "sequence",
-      resolve: resolveYamlOmap,
-      construct: constructYamlOmap
-    });
-    _toString$1 = Object.prototype.toString;
-    pairs = new type("tag:yaml.org,2002:pairs", {
-      kind: "sequence",
-      resolve: resolveYamlPairs,
-      construct: constructYamlPairs
-    });
-    _hasOwnProperty$2 = Object.prototype.hasOwnProperty;
-    set = new type("tag:yaml.org,2002:set", {
-      kind: "mapping",
-      resolve: resolveYamlSet,
-      construct: constructYamlSet
-    });
-    _default = core.extend({
-      implicit: [
-        timestamp,
-        merge
-      ],
-      explicit: [
-        binary,
-        omap,
-        pairs,
-        set
-      ]
-    });
-    _hasOwnProperty$1 = Object.prototype.hasOwnProperty;
-    CONTEXT_FLOW_IN = 1;
-    CONTEXT_FLOW_OUT = 2;
-    CONTEXT_BLOCK_IN = 3;
-    CONTEXT_BLOCK_OUT = 4;
-    CHOMPING_CLIP = 1;
-    CHOMPING_STRIP = 2;
-    CHOMPING_KEEP = 3;
-    PATTERN_NON_PRINTABLE = /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x84\x86-\x9F\uFFFE\uFFFF]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?:[^\uD800-\uDBFF]|^)[\uDC00-\uDFFF]/;
-    PATTERN_NON_ASCII_LINE_BREAKS = /[\x85\u2028\u2029]/;
-    PATTERN_FLOW_INDICATORS = /[,\[\]\{\}]/;
-    PATTERN_TAG_HANDLE = /^(?:!|!!|![a-z\-]+!)$/i;
-    PATTERN_TAG_URI = /^(?:!|[^,\[\]\{\}])(?:%[0-9a-f]{2}|[0-9a-z\-#;\/\?:@&=\+\$,_\.!~\*'\(\)\[\]])*$/i;
-    simpleEscapeCheck = new Array(256);
-    simpleEscapeMap = new Array(256);
-    for (i = 0; i < 256; i++) {
-      simpleEscapeCheck[i] = simpleEscapeSequence(i) ? 1 : 0;
-      simpleEscapeMap[i] = simpleEscapeSequence(i);
-    }
-    directiveHandlers = {
-      YAML: function handleYamlDirective(state, name, args) {
-        var match, major, minor;
-        if (state.version !== null) {
-          throwError(state, "duplication of %YAML directive");
-        }
-        if (args.length !== 1) {
-          throwError(state, "YAML directive accepts exactly one argument");
-        }
-        match = /^([0-9]+)\.([0-9]+)$/.exec(args[0]);
-        if (match === null) {
-          throwError(state, "ill-formed argument of the YAML directive");
-        }
-        major = parseInt(match[1], 10);
-        minor = parseInt(match[2], 10);
-        if (major !== 1) {
-          throwError(state, "unacceptable YAML version of the document");
-        }
-        state.version = args[0];
-        state.checkLineBreaks = minor < 2;
-        if (minor !== 1 && minor !== 2) {
-          throwWarning(state, "unsupported YAML version of the document");
-        }
-      },
-      TAG: function handleTagDirective(state, name, args) {
-        var handle, prefix;
-        if (args.length !== 2) {
-          throwError(state, "TAG directive accepts exactly two arguments");
-        }
-        handle = args[0];
-        prefix = args[1];
-        if (!PATTERN_TAG_HANDLE.test(handle)) {
-          throwError(state, "ill-formed tag handle (first argument) of the TAG directive");
-        }
-        if (_hasOwnProperty$1.call(state.tagMap, handle)) {
-          throwError(state, 'there is a previously declared suffix for "' + handle + '" tag handle');
-        }
-        if (!PATTERN_TAG_URI.test(prefix)) {
-          throwError(state, "ill-formed tag prefix (second argument) of the TAG directive");
-        }
-        try {
-          prefix = decodeURIComponent(prefix);
-        } catch (err) {
-          throwError(state, "tag prefix is malformed: " + prefix);
-        }
-        state.tagMap[handle] = prefix;
-      }
-    };
-    loadAll_1 = loadAll$1;
-    load_1 = load$1;
-    loader = {
-      loadAll: loadAll_1,
-      load: load_1
-    };
-    _toString = Object.prototype.toString;
-    _hasOwnProperty = Object.prototype.hasOwnProperty;
-    CHAR_BOM = 65279;
-    CHAR_TAB = 9;
-    CHAR_LINE_FEED = 10;
-    CHAR_CARRIAGE_RETURN = 13;
-    CHAR_SPACE = 32;
-    CHAR_EXCLAMATION = 33;
-    CHAR_DOUBLE_QUOTE = 34;
-    CHAR_SHARP = 35;
-    CHAR_PERCENT = 37;
-    CHAR_AMPERSAND = 38;
-    CHAR_SINGLE_QUOTE = 39;
-    CHAR_ASTERISK = 42;
-    CHAR_COMMA = 44;
-    CHAR_MINUS = 45;
-    CHAR_COLON = 58;
-    CHAR_EQUALS = 61;
-    CHAR_GREATER_THAN = 62;
-    CHAR_QUESTION = 63;
-    CHAR_COMMERCIAL_AT = 64;
-    CHAR_LEFT_SQUARE_BRACKET = 91;
-    CHAR_RIGHT_SQUARE_BRACKET = 93;
-    CHAR_GRAVE_ACCENT = 96;
-    CHAR_LEFT_CURLY_BRACKET = 123;
-    CHAR_VERTICAL_LINE = 124;
-    CHAR_RIGHT_CURLY_BRACKET = 125;
-    ESCAPE_SEQUENCES = {};
-    ESCAPE_SEQUENCES[0] = "\\0";
-    ESCAPE_SEQUENCES[7] = "\\a";
-    ESCAPE_SEQUENCES[8] = "\\b";
-    ESCAPE_SEQUENCES[9] = "\\t";
-    ESCAPE_SEQUENCES[10] = "\\n";
-    ESCAPE_SEQUENCES[11] = "\\v";
-    ESCAPE_SEQUENCES[12] = "\\f";
-    ESCAPE_SEQUENCES[13] = "\\r";
-    ESCAPE_SEQUENCES[27] = "\\e";
-    ESCAPE_SEQUENCES[34] = '\\"';
-    ESCAPE_SEQUENCES[92] = "\\\\";
-    ESCAPE_SEQUENCES[133] = "\\N";
-    ESCAPE_SEQUENCES[160] = "\\_";
-    ESCAPE_SEQUENCES[8232] = "\\L";
-    ESCAPE_SEQUENCES[8233] = "\\P";
-    DEPRECATED_BOOLEANS_SYNTAX = [
-      "y",
-      "Y",
-      "yes",
-      "Yes",
-      "YES",
-      "on",
-      "On",
-      "ON",
-      "n",
-      "N",
-      "no",
-      "No",
-      "NO",
-      "off",
-      "Off",
-      "OFF"
-    ];
-    DEPRECATED_BASE60_SYNTAX = /^[-+]?[0-9_]+(?::[0-9_]+)+(?:\.[0-9_]*)?$/;
-    QUOTING_TYPE_SINGLE = 1;
-    QUOTING_TYPE_DOUBLE = 2;
-    STYLE_PLAIN = 1;
-    STYLE_SINGLE = 2;
-    STYLE_LITERAL = 3;
-    STYLE_FOLDED = 4;
-    STYLE_DOUBLE = 5;
-    dump_1 = dump$1;
-    dumper = {
-      dump: dump_1
-    };
-    load = loader.load;
-    loadAll = loader.loadAll;
-    dump = dumper.dump;
-    safeLoad = renamed("safeLoad", "load");
-    safeLoadAll = renamed("safeLoadAll", "loadAll");
-    safeDump = renamed("safeDump", "dump");
+async function clearAICallLogs(pluginFolder, subfolder = "ai-calls") {
+  const targetFolder = path.join(pluginFolder, subfolder);
+  if (!fs.existsSync(targetFolder)) return 0;
+  const files = fs.readdirSync(targetFolder);
+  let deleted = 0;
+  for (const file of files) {
+    const filePath = path.join(targetFolder, file);
+    if (fs.lstatSync(filePath).isFile()) {
+      fs.unlinkSync(filePath);
+      deleted++;
+    }
+  }
+  return deleted;
+}
+var fs, path;
+var init_clearAICallLogs = __esm({
+  "src/utils/clearAICallLogs.ts"() {
+    fs = __toESM(require("fs"), 1);
+    path = __toESM(require("path"), 1);
   }
 });
 
@@ -10895,421 +7236,6 @@ var init_providers = __esm({
   }
 });
 
-// src/components/chat/chatPersistence.ts
-function buildChatYaml(settings, provider, model) {
-  var _a2, _b, _c, _d, _e;
-  debugLog((_a2 = settings.debugMode) != null ? _a2 : false, "info", "[buildChatYaml] Entered function", { settings, provider, model });
-  if (settings.selectedModel) {
-    const providerType = getProviderFromUnifiedModel(settings.selectedModel);
-    const modelId = getModelIdFromUnifiedModel(settings.selectedModel);
-    const yamlObj = {
-      provider: providerType,
-      model: modelId,
-      unified_model: settings.selectedModel,
-      system_message: settings.systemMessage,
-      temperature: settings.temperature
-    };
-    debugLog((_b = settings.debugMode) != null ? _b : false, "debug", "[buildChatYaml] Using unified model format", yamlObj);
-    debugLog((_c = settings.debugMode) != null ? _c : false, "info", "[buildChatYaml] Returning YAML for unified model", { yaml: `---
-${dump(yamlObj)}---
-` });
-    return `---
-${dump(yamlObj)}---
-`;
-  } else {
-    const yamlObj = {
-      provider: provider || settings.provider,
-      model: model || getCurrentModelForProvider(settings),
-      system_message: settings.systemMessage,
-      temperature: settings.temperature
-    };
-    debugLog((_d = settings.debugMode) != null ? _d : false, "debug", "[buildChatYaml] Using legacy model format", yamlObj);
-    debugLog((_e = settings.debugMode) != null ? _e : false, "info", "[buildChatYaml] Returning YAML for legacy model", { yaml: `---
-${dump(yamlObj)}---
-` });
-    return `---
-${dump(yamlObj)}---
-`;
-  }
-}
-function getCurrentModelForProvider(settings) {
-  var _a2;
-  debugLog((_a2 = settings.debugMode) != null ? _a2 : false, "debug", "[getCurrentModelForProvider] Called", { provider: settings.provider });
-  switch (settings.provider) {
-    case "openai":
-      return settings.openaiSettings.model;
-    case "anthropic":
-      return settings.anthropicSettings.model;
-    case "gemini":
-      return settings.geminiSettings.model;
-    case "ollama":
-      return settings.ollamaSettings.model;
-    default:
-      return "";
-  }
-}
-async function saveChatAsNote({
-  app,
-  messages,
-  chatContent,
-  settings,
-  provider,
-  model,
-  chatSeparator,
-  chatNoteFolder,
-  agentResponseHandler
-}) {
-  var _a2, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o;
-  debugLog((_a2 = settings.debugMode) != null ? _a2 : false, "info", "[saveChatAsNote] Entered function", { hasMessages: !!messages, hasChatContent: typeof chatContent === "string" });
-  let content = "";
-  if (typeof chatContent === "string") {
-    debugLog((_b = settings.debugMode) != null ? _b : false, "info", "[saveChatAsNote] Using provided chatContent string directly.");
-    content = chatContent;
-  } else if (messages) {
-    debugLog((_c = settings.debugMode) != null ? _c : false, "info", "[saveChatAsNote] Building chat content from message DOM nodes.");
-    const messageRenderer = new MessageRenderer(app);
-    messages.forEach((el, index) => {
-      var _a3, _b2, _c2, _d2, _e2, _f2;
-      const htmlElement = el;
-      if (htmlElement.classList.contains("tool-display-message")) {
-        debugLog((_a3 = settings.debugMode) != null ? _a3 : false, "debug", `[saveChatAsNote] Skipping tool-display-message at index ${index}`);
-        return;
-      }
-      const messageDataStr = htmlElement.dataset.messageData;
-      let messageData = null;
-      if (messageDataStr) {
-        try {
-          messageData = JSON.parse(messageDataStr);
-          debugLog((_b2 = settings.debugMode) != null ? _b2 : false, "debug", `[saveChatAsNote] Parsed messageData at index ${index}`, messageData);
-        } catch (e) {
-          debugLog((_c2 = settings.debugMode) != null ? _c2 : false, "warn", `[saveChatAsNote] Failed to parse messageData at index ${index}`, e);
-        }
-      }
-      if (messageData && messageData.toolResults && messageData.toolResults.length > 0) {
-        debugLog((_d2 = settings.debugMode) != null ? _d2 : false, "info", `[saveChatAsNote] Formatting message with toolResults at index ${index}`);
-        content += messageRenderer.getMessageContentForCopy(messageData);
-      } else {
-        const rawContent = htmlElement.dataset.rawContent;
-        const msg = rawContent !== void 0 ? rawContent : ((_e2 = el.querySelector(".message-content")) == null ? void 0 : _e2.textContent) || "";
-        debugLog((_f2 = settings.debugMode) != null ? _f2 : false, "debug", `[saveChatAsNote] Appending regular message at index ${index}`, { msg });
-        content += msg;
-      }
-      if (index < messages.length - 1) {
-        content += "\n\n" + chatSeparator + "\n\n";
-      }
-    });
-    debugLog((_d = settings.debugMode) != null ? _d : false, "debug", "[saveChatAsNote] messages NodeList length:", { length: messages.length });
-  } else {
-    debugLog((_e = settings.debugMode) != null ? _e : false, "error", "[saveChatAsNote] Neither messages nor chatContent provided. Aborting.");
-    throw new Error("Either messages or chatContent must be provided");
-  }
-  const yaml = buildChatYaml(settings, provider || "", model || "");
-  debugLog((_f = settings.debugMode) != null ? _f : false, "info", "[saveChatAsNote] YAML frontmatter built. Stripping any existing YAML from chat content.");
-  content = content.replace(/^---\s*[\s\S]*?---\n?/, "");
-  content = content.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-  content = content.replace(/\n{3,}/g, "\n\n");
-  content = content.replace(/\n+$/, "");
-  const noteContent = yaml + "\n" + content + "\n";
-  const now = /* @__PURE__ */ new Date();
-  const pad = (n) => n.toString().padStart(2, "0");
-  const fileName = `Chat Export ${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}-${pad(now.getMinutes())}.md`;
-  let filePath = fileName;
-  const folder = chatNoteFolder == null ? void 0 : chatNoteFolder.trim();
-  if (folder) {
-    debugLog((_g = settings.debugMode) != null ? _g : false, "info", `[saveChatAsNote] Ensuring chat note folder exists: ${folder}`);
-    const folderExists = app.vault.getAbstractFileByPath(folder);
-    if (!folderExists) {
-      try {
-        await app.vault.createFolder(folder);
-        debugLog((_h = settings.debugMode) != null ? _h : false, "info", `[saveChatAsNote] Created chat note folder: ${folder}`);
-      } catch (e) {
-        if (!app.vault.getAbstractFileByPath(folder)) {
-          debugLog((_i = settings.debugMode) != null ? _i : false, "error", `[saveChatAsNote] Failed to create folder for chat note: ${folder}`, e);
-          new import_obsidian10.Notice("Failed to create folder for chat note.");
-          return;
-        } else {
-          debugLog((_j = settings.debugMode) != null ? _j : false, "warn", `[saveChatAsNote] Folder already exists after race: ${folder}`);
-        }
-      }
-    } else {
-      debugLog((_k = settings.debugMode) != null ? _k : false, "debug", `[saveChatAsNote] Folder already exists: ${folder}`);
-    }
-    filePath = folder.replace(/[\/\\]+$/, "") + "/" + fileName;
-  }
-  let finalFilePath = filePath;
-  let attempt = 1;
-  while (app.vault.getAbstractFileByPath(finalFilePath)) {
-    const extIndex = fileName.lastIndexOf(".");
-    const base = extIndex !== -1 ? fileName.substring(0, extIndex) : fileName;
-    const ext = extIndex !== -1 ? fileName.substring(extIndex) : "";
-    finalFilePath = (folder ? folder.replace(/[\/\\]+$/, "") + "/" : "") + `${base} (${attempt})${ext}`;
-    debugLog((_l = settings.debugMode) != null ? _l : false, "warn", "[saveChatAsNote] File already exists, trying new filename", { finalFilePath });
-    attempt++;
-  }
-  try {
-    await app.vault.create(finalFilePath, noteContent);
-    debugLog((_m = settings.debugMode) != null ? _m : false, "info", "[saveChatAsNote] Chat successfully saved as note", { finalFilePath });
-    new import_obsidian10.Notice(`Chat saved as note: ${finalFilePath}`);
-  } catch (e) {
-    debugLog((_n = settings.debugMode) != null ? _n : false, "error", "[saveChatAsNote] Failed to save chat as note", { finalFilePath, error: e });
-    new import_obsidian10.Notice("Failed to save chat as note.");
-  }
-  debugLog((_o = settings.debugMode) != null ? _o : false, "info", "[saveChatAsNote] Exiting function. Save process complete.");
-  return;
-}
-async function loadChatYamlAndApplySettings({
-  app,
-  plugin,
-  settings,
-  file
-}) {
-  var _a2, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o;
-  debugLog((_a2 = settings.debugMode) != null ? _a2 : false, "info", "[loadChatYamlAndApplySettings] Entered function", { file: (file == null ? void 0 : file.path) || (file == null ? void 0 : file.name) || file });
-  debugLog((_b = settings.debugMode) != null ? _b : false, "debug", "[loadChatYamlAndApplySettings] File content loaded. Extracting YAML frontmatter.");
-  let content = await app.vault.read(file);
-  const yamlMatch = content.match(/^---\n([\s\S]*?)\n---/);
-  let yamlObj = {};
-  if (yamlMatch) {
-    try {
-      yamlObj = load(yamlMatch[1]) || {};
-      debugLog((_c = settings.debugMode) != null ? _c : false, "info", "[loadChatYamlAndApplySettings] YAML frontmatter parsed", yamlObj);
-    } catch (e) {
-      debugLog((_d = settings.debugMode) != null ? _d : false, "warn", "[loadChatYamlAndApplySettings] Failed to parse YAML frontmatter", e);
-      yamlObj = {};
-    }
-  } else {
-    debugLog((_e = settings.debugMode) != null ? _e : false, "warn", "[loadChatYamlAndApplySettings] No YAML frontmatter found in file.");
-  }
-  if (yamlObj.unified_model) {
-    settings.selectedModel = yamlObj.unified_model;
-    debugLog((_f = settings.debugMode) != null ? _f : false, "info", "[loadChatYamlAndApplySettings] Loaded unified_model from YAML", yamlObj.unified_model);
-    debugLog((_g = settings.debugMode) != null ? _g : false, "info", "[loadChatYamlAndApplySettings] Set selectedModel from unified_model", { selectedModel: settings.selectedModel });
-  } else if (yamlObj.provider && yamlObj.model) {
-    const unifiedModelId = `${yamlObj.provider}:${yamlObj.model}`;
-    settings.selectedModel = unifiedModelId;
-    debugLog((_h = settings.debugMode) != null ? _h : false, "info", "[loadChatYamlAndApplySettings] Loaded legacy provider/model from YAML", { provider: yamlObj.provider, model: yamlObj.model });
-    debugLog((_i = settings.debugMode) != null ? _i : false, "info", "[loadChatYamlAndApplySettings] Set selectedModel from provider/model", { selectedModel: settings.selectedModel });
-    settings.provider = yamlObj.provider;
-    switch (yamlObj.provider) {
-      case "openai":
-        settings.openaiSettings.model = yamlObj.model;
-        break;
-      case "anthropic":
-        settings.anthropicSettings.model = yamlObj.model;
-        break;
-      case "gemini":
-        settings.geminiSettings.model = yamlObj.model;
-        break;
-      case "ollama":
-        settings.ollamaSettings.model = yamlObj.model;
-        break;
-    }
-  } else {
-    debugLog((_j = settings.debugMode) != null ? _j : false, "warn", "[loadChatYamlAndApplySettings] No model/provider found in YAML. Using existing settings.");
-  }
-  let newSystemMessage = yamlObj.system_message || settings.systemMessage;
-  let newTemperature = settings.temperature;
-  if (yamlObj.temperature !== void 0) {
-    const tempNum = parseFloat(yamlObj.temperature);
-    if (!isNaN(tempNum)) {
-      newTemperature = tempNum;
-      debugLog((_k = settings.debugMode) != null ? _k : false, "info", "[loadChatYamlAndApplySettings] Loaded temperature from YAML", newTemperature);
-    } else {
-      debugLog((_l = settings.debugMode) != null ? _l : false, "warn", "[loadChatYamlAndApplySettings] Invalid temperature in YAML, using existing value.", yamlObj.temperature);
-    }
-  }
-  settings.systemMessage = newSystemMessage;
-  settings.temperature = newTemperature;
-  debugLog((_m = settings.debugMode) != null ? _m : false, "info", "[loadChatYamlAndApplySettings] Applied settings from YAML", { selectedModel: settings.selectedModel, systemMessage: newSystemMessage, temperature: newTemperature });
-  if (plugin.onSettingsLoadedFromNote) {
-    debugLog((_n = settings.debugMode) != null ? _n : false, "debug", "[loadChatYamlAndApplySettings] Calling plugin.onSettingsLoadedFromNote");
-    plugin.onSettingsLoadedFromNote(settings);
-  }
-  debugLog((_o = settings.debugMode) != null ? _o : false, "info", "[loadChatYamlAndApplySettings] Exiting function. YAML load/apply process complete.");
-  return {
-    provider: yamlObj.provider,
-    model: yamlObj.model,
-    unifiedModel: settings.selectedModel,
-    systemMessage: newSystemMessage,
-    temperature: newTemperature
-  };
-}
-var import_obsidian10;
-var init_chatPersistence = __esm({
-  "src/components/chat/chatPersistence.ts"() {
-    init_js_yaml();
-    init_logger();
-    init_providers();
-    init_MessageRenderer();
-    import_obsidian10 = require("obsidian");
-  }
-});
-
-// src/components/chat/ChatHelpModal.ts
-var import_obsidian11, ChatHelpModal;
-var init_ChatHelpModal = __esm({
-  "src/components/chat/ChatHelpModal.ts"() {
-    import_obsidian11 = require("obsidian");
-    ChatHelpModal = class extends import_obsidian11.Modal {
-      constructor(app) {
-        super(app);
-      }
-      /**
-       * Creates a collapsible section with a title and content.
-       * @param title The section title
-       * @param contentCallback Function to populate the section content
-       * @param expanded Whether the section is expanded by default
-       * @returns The section container element
-       */
-      createCollapsibleSection(title, contentCallback, expanded = true) {
-        const sectionContainer = createDiv();
-        sectionContainer.addClass("ai-collapsible-section");
-        const header = createDiv();
-        header.addClass("ai-collapsible-header");
-        const arrow = createSpan();
-        arrow.addClass("ai-collapsible-arrow");
-        arrow.textContent = expanded ? "\u25BC" : "\u25B6";
-        const titleSpan = createSpan();
-        titleSpan.textContent = title;
-        header.appendChild(arrow);
-        header.appendChild(titleSpan);
-        const content = createDiv();
-        content.addClass("ai-collapsible-content");
-        content.style.display = expanded ? "block" : "none";
-        header.addEventListener("click", () => {
-          const isExpanded = content.style.display !== "none";
-          content.style.display = isExpanded ? "none" : "block";
-          arrow.textContent = isExpanded ? "\u25B6" : "\u25BC";
-        });
-        sectionContainer.appendChild(header);
-        sectionContainer.appendChild(content);
-        const originalContent = this.contentEl;
-        this.contentEl = content;
-        contentCallback();
-        this.contentEl = originalContent;
-        return sectionContainer;
-      }
-      /**
-       * Called when the modal is opened.
-       * Populates the modal with collapsible help sections.
-       */
-      onOpen() {
-        this.titleEl.setText("AI Chat Help");
-        this.contentEl.empty();
-        this.contentEl.appendChild(this.createCollapsibleSection("Slash Commands", () => {
-          this.contentEl.innerHTML = `
-                <code>/clear</code> \u2013 Clear the chat<br>
-                <code>/copy</code> \u2013 Copy all chat<br>
-                <code>/save</code> \u2013 Save chat as note<br>
-                <code>/settings</code> \u2013 Open settings<br>
-                <code>/help</code> \u2013 Show this help<br>
-                <br>
-            `;
-        }));
-        this.contentEl.appendChild(this.createCollapsibleSection("Keyboard Shortcuts (when chat window or input is focused)", () => {
-          this.contentEl.innerHTML = `
-                <code>Ctrl+Shift+X</code> \u2013 Clear chat<br>
-                <code>Ctrl+Shift+C</code> \u2013 Copy all chat<br>
-                <code>Ctrl+Shift+S</code> \u2013 Save as note<br>
-                <code>Ctrl+Shift+O</code> \u2013 Open settings<br>
-                <code>Ctrl+Shift+H</code> \u2013 Show this help<br>
-                <code>Ctrl+Shift+R</code> \u2013 Toggle referencing current note<br>
-                <br>
-            `;
-        }));
-        this.contentEl.appendChild(this.createCollapsibleSection("Other", () => {
-          this.contentEl.innerHTML = `
-                <code>Enter</code> \u2013 Send message<br>
-                <code>Shift+Enter</code> \u2013 Newline<br>
-                <br>
-                You can also use the buttons at the top of the chat window.
-            `;
-        }));
-        this.contentEl.appendChild(this.createCollapsibleSection("Reference Current Note", () => {
-          this.contentEl.innerHTML = `
-                <strong>What is it?</strong><br>
-                When enabled, the AI can see the content of your currently active note during chat. This helps the AI give more relevant, context-aware responses.<br><br>
-
-                <strong>How to use:</strong><br>
-                <ul style="margin-top:0;margin-bottom:0.5em;">
-                  <li>Click the <code>\u{1F4DD}</code> button at the top of the chat window to toggle referencing the current note.</li>
-                  <li>Or use the slash command <code>/ref</code> or keyboard shortcut <code>Ctrl+Shift+R</code>.</li>
-                  <li>The name of the referenced note will appear in faded small text below the buttons when enabled.</li>
-                </ul>
-
-                <strong>Notes:</strong><br>
-                - When referencing is enabled, the AI receives:<br>
-                <ul style="margin-top:0;margin-bottom:0.5em;">
-                  <li>The system prompt (always)</li>
-                  <li>Context notes (if enabled in settings)</li>
-                  <li>The content of the currently active note</li>
-                  <li>The chat history (all previous user/assistant messages)</li>
-                </ul>
-                - Only the currently active note is shared in addition to the above context.<br>
-                - You can turn this on or off at any time.<br>
-                - No other notes or personal data are accessed.<br>
-                - The <code>\u{1F4DD}</code> button will show "On" or "Off" to indicate the current state.
-            `;
-        }));
-      }
-    };
-  }
-});
-
-// src/components/chat/ConfirmationModal.ts
-var import_obsidian12, ConfirmationModal;
-var init_ConfirmationModal = __esm({
-  "src/components/chat/ConfirmationModal.ts"() {
-    import_obsidian12 = require("obsidian");
-    ConfirmationModal = class extends import_obsidian12.Modal {
-      /**
-       * Constructs a ConfirmationModal.
-       * @param app Obsidian App instance
-       * @param title Modal title text
-       * @param message Message to display in the modal
-       * @param onConfirm Callback invoked with true (confirmed) or false (cancelled)
-       */
-      constructor(app, title, message, onConfirm) {
-        super(app);
-        __publicField(this, "onConfirm");
-        __publicField(this, "message");
-        this.titleEl.setText(title);
-        this.message = message;
-        this.onConfirm = onConfirm;
-      }
-      /**
-       * Called when the modal is opened.
-       * Renders the message and Cancel/Delete buttons.
-       */
-      onOpen() {
-        const { contentEl } = this;
-        contentEl.addClass("ai-assistant-modal");
-        contentEl.createEl("p", { text: this.message });
-        const buttonContainer = contentEl.createDiv("modal-button-container");
-        buttonContainer.createEl("button", { text: "Cancel" }).addEventListener("click", () => {
-          this.onConfirm(false);
-          this.close();
-        });
-        const confirmButton = buttonContainer.createEl("button", {
-          text: "Delete",
-          cls: "mod-warning"
-        });
-        confirmButton.addEventListener("click", () => {
-          this.onConfirm(true);
-          this.close();
-        });
-      }
-      /**
-       * Called when the modal is closed.
-       * Cleans up the modal content.
-       */
-      onClose() {
-        this.contentEl.empty();
-      }
-    };
-  }
-});
-
 // node_modules/adm-zip/util/constants.js
 var require_constants = __commonJS({
   "node_modules/adm-zip/util/constants.js"(exports, module2) {
@@ -13978,13 +9904,13 @@ async function saveAICallToFolder(request, response, plugin, folder = "ai-calls"
   const debugMode = (_a2 = plugin.settings.debugMode) != null ? _a2 : false;
   const vaultBase = plugin.app.vault.adapter.basePath;
   const pluginId = ((_b = plugin.manifest) == null ? void 0 : _b.id) || "ai-assistant-for-obsidian";
-  const pluginFolder = path.join(vaultBase, ".obsidian", "plugins", pluginId);
+  const pluginFolder = path2.join(vaultBase, ".obsidian", "plugins", pluginId);
   debugLog(debugMode, "info", "[saveAICalls.ts] pluginFolder:", pluginFolder);
-  const targetFolder = path.join(pluginFolder, folder);
+  const targetFolder = path2.join(pluginFolder, folder);
   debugLog(debugMode, "info", "[saveAICalls.ts] targetFolder:", targetFolder);
   const timestamp2 = (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-");
   let fileName = `ai-call-${timestamp2}.txt`;
-  let finalFilePath = path.join(targetFolder, fileName);
+  let finalFilePath = path2.join(targetFolder, fileName);
   debugLog(debugMode, "info", "[saveAICalls.ts] finalFilePath:", finalFilePath);
   const fileContent = `# AI Call
 
@@ -13998,9 +9924,9 @@ ${JSON.stringify(request, null, 2)}
 ${JSON.stringify(response, null, 2)}
 \`\`\``;
   try {
-    if (!fs.existsSync(targetFolder)) {
+    if (!fs2.existsSync(targetFolder)) {
       debugLog(debugMode, "info", "[saveAICalls.ts] Plugin folder does not exist, creating:", targetFolder);
-      fs.mkdirSync(targetFolder, { recursive: true });
+      fs2.mkdirSync(targetFolder, { recursive: true });
       debugLog(debugMode, "info", "[saveAICalls.ts] Plugin folder created:", targetFolder);
     } else {
       debugLog(debugMode, "debug", "[saveAICalls.ts] Plugin folder already exists:", targetFolder);
@@ -14009,10 +9935,10 @@ ${JSON.stringify(response, null, 2)}
     debugLog(debugMode, "warn", "[saveAICalls.ts] Error creating plugin folder (may already exist):", e);
   }
   let attempts = 0;
-  while (fs.existsSync(finalFilePath)) {
+  while (fs2.existsSync(finalFilePath)) {
     attempts++;
     fileName = `ai-call-${timestamp2}-${Math.floor(Math.random() * 1e4)}.txt`;
-    finalFilePath = path.join(targetFolder, fileName);
+    finalFilePath = path2.join(targetFolder, fileName);
     debugLog(debugMode, "warn", `[saveAICalls.ts] File already exists, trying new filename (attempt ${attempts}):`, finalFilePath);
     if (attempts > 5) {
       debugLog(debugMode, "error", "[saveAICalls.ts] Too many attempts to find unique filename, aborting.");
@@ -14020,7 +9946,7 @@ ${JSON.stringify(response, null, 2)}
     }
   }
   try {
-    fs.writeFileSync(finalFilePath, fileContent, "utf8");
+    fs2.writeFileSync(finalFilePath, fileContent, "utf8");
     debugLog(debugMode, "info", "[saveAICalls.ts] AI call saved successfully in plugin folder as text file:", finalFilePath);
   } catch (e) {
     debugLog(debugMode, "error", "[saveAICalls.ts] Failed to save AI call in plugin folder:", e);
@@ -14032,14 +9958,14 @@ async function archiveAICallsByDate(plugin, folder = "ai-calls") {
   const debugMode = (_a2 = plugin.settings.debugMode) != null ? _a2 : false;
   const vaultBase = plugin.app.vault.adapter.basePath;
   const pluginId = ((_b = plugin.manifest) == null ? void 0 : _b.id) || "ai-assistant-for-obsidian";
-  const pluginFolder = path.join(vaultBase, ".obsidian", "plugins", pluginId);
-  const targetFolder = path.join(pluginFolder, folder);
-  if (!fs.existsSync(targetFolder)) {
+  const pluginFolder = path2.join(vaultBase, ".obsidian", "plugins", pluginId);
+  const targetFolder = path2.join(pluginFolder, folder);
+  if (!fs2.existsSync(targetFolder)) {
     debugLog(debugMode, "info", "[saveAICalls.ts] No ai-calls folder found, skipping archival");
     return;
   }
   try {
-    const files = fs.readdirSync(targetFolder);
+    const files = fs2.readdirSync(targetFolder);
     const aiCallFiles = files.filter(
       (file) => file.startsWith("ai-call-") && (file.endsWith(".txt") || file.endsWith(".md") || file.endsWith(".gz"))
     );
@@ -14080,9 +10006,9 @@ async function archiveAICallsByDate(plugin, folder = "ai-calls") {
 }
 async function archiveDateFiles(targetFolder, date, files, debugMode) {
   const archiveFileName = `ai-calls-${date}.zip`;
-  const archiveFilePath = path.join(targetFolder, archiveFileName);
+  const archiveFilePath = path2.join(targetFolder, archiveFileName);
   debugLog(debugMode, "info", `[saveAICalls.ts] Attempting to create archive at: ${archiveFilePath}`);
-  if (fs.existsSync(archiveFilePath)) {
+  if (fs2.existsSync(archiveFilePath)) {
     debugLog(debugMode, "info", `[saveAICalls.ts] Archive for ${date} already exists, skipping`);
     return;
   }
@@ -14095,7 +10021,7 @@ async function archiveDateFiles(targetFolder, date, files, debugMode) {
     const zip = new AdmZip();
     const filesToDelete = [];
     for (const file of files) {
-      const filePath = path.join(targetFolder, file);
+      const filePath = path2.join(targetFolder, file);
       try {
         if (file.endsWith(".gz")) {
           debugLog(debugMode, "warn", `[saveAICalls.ts] Skipping .gz file: ${file}`);
@@ -14112,8 +10038,8 @@ async function archiveDateFiles(targetFolder, date, files, debugMode) {
     debugLog(debugMode, "info", `[saveAICalls.ts] ZIP archive created: ${archiveFileName}`);
     for (const filePath of filesToDelete) {
       try {
-        fs.unlinkSync(filePath);
-        debugLog(debugMode, "debug", `[saveAICalls.ts] Deleted original file: ${path.basename(filePath)}`);
+        fs2.unlinkSync(filePath);
+        debugLog(debugMode, "debug", `[saveAICalls.ts] Deleted original file: ${path2.basename(filePath)}`);
       } catch (e) {
         debugLog(debugMode, "warn", `[saveAICalls.ts] Failed to delete file ${filePath}:`, e);
       }
@@ -14190,12 +10116,12 @@ async function manualArchiveAICalls(plugin, folder = "ai-calls") {
     };
   }
 }
-var fs, path, AdmZip;
+var fs2, path2, AdmZip;
 var init_saveAICalls = __esm({
   "src/utils/saveAICalls.ts"() {
     init_logger();
-    fs = __toESM(require("fs"), 1);
-    path = __toESM(require("path"), 1);
+    fs2 = __toESM(require("fs"), 1);
+    path2 = __toESM(require("path"), 1);
     try {
       AdmZip = require_adm_zip();
       console.log("adm-zip loaded successfully for ZIP creation");
@@ -14972,10 +10898,10 @@ async function withErrorHandling(operation, component, operationName, options) {
     operation: operationName
   }, options);
 }
-var import_obsidian13, _ErrorHandler, ErrorHandler, errorHandler;
+var import_obsidian8, _ErrorHandler, ErrorHandler, errorHandler;
 var init_errorHandler = __esm({
   "src/utils/errorHandler.ts"() {
-    import_obsidian13 = require("obsidian");
+    import_obsidian8 = require("obsidian");
     init_logger();
     init_performanceMonitor();
     init_typeguards();
@@ -15016,7 +10942,7 @@ var init_errorHandler = __esm({
         });
         if (showNotice2 && this.shouldShowNotice(errorKey)) {
           const userMessage = this.formatUserMessage(errorMessage, context, fallbackMessage);
-          new import_obsidian13.Notice(userMessage, retryable ? 5e3 : 3e3);
+          new import_obsidian8.Notice(userMessage, retryable ? 5e3 : 3e3);
         }
       }
       /**
@@ -15077,7 +11003,7 @@ var init_errorHandler = __esm({
                   originalProvider: currentProvider,
                   fallbackProvider
                 });
-                new import_obsidian13.Notice(`Switched to ${fallbackProvider} due to ${currentProvider} error`, 3e3);
+                new import_obsidian8.Notice(`Switched to ${fallbackProvider} due to ${currentProvider} error`, 3e3);
                 return { success: true, result, fallbackProvider };
               } catch (fallbackError) {
                 debugLog(true, "warn", `[${context.component}] Fallback provider ${fallbackProvider} also failed:`, fallbackError);
@@ -15090,7 +11016,7 @@ var init_errorHandler = __esm({
         }
         const displayMessage = `All AI providers failed. Please check your configuration.`;
         if (options.showNotice !== false) {
-          new import_obsidian13.Notice(displayMessage, 5e3);
+          new import_obsidian8.Notice(displayMessage, 5e3);
         }
         return {
           success: false,
@@ -15117,7 +11043,7 @@ var init_errorHandler = __esm({
                 attempt: attempt.toString()
               });
               if (options.showNotice !== false) {
-                new import_obsidian13.Notice(`Operation succeeded after ${attempt} retries`, 2e3);
+                new import_obsidian8.Notice(`Operation succeeded after ${attempt} retries`, 2e3);
               }
             }
             return result;
@@ -16815,15 +12741,4097 @@ var init_aiDispatcher = __esm({
   }
 });
 
-// src/components/chat/SettingsSections.ts
-var SettingsSections_exports = {};
-__export(SettingsSections_exports, {
-  SettingsSections: () => SettingsSections
+// src/components/chat/Buttons.ts
+function createActionButton(label, tooltip, callback) {
+  const button = document.createElement("button");
+  button.addClass("ai-chat-action-button");
+  button.setAttribute("aria-label", tooltip);
+  const labelEl = document.createElement("span");
+  labelEl.textContent = label;
+  button.appendChild(labelEl);
+  button.addEventListener("click", callback);
+  return button;
+}
+async function copyToClipboard(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch (error) {
+  }
+}
+var import_obsidian14, Buttons;
+var init_Buttons = __esm({
+  "src/components/chat/Buttons.ts"() {
+    import_obsidian14 = require("obsidian");
+    Buttons = class extends import_obsidian14.Component {
+      /**
+       * Constructs the Buttons component and initializes all main chat buttons.
+       */
+      constructor() {
+        super();
+        __publicField(this, "container");
+        __publicField(this, "sendButton");
+        __publicField(this, "stopButton");
+        __publicField(this, "clearButton");
+        __publicField(this, "settingsButton");
+        this.container = document.createElement("div");
+        this.container.addClass("ai-chat-buttons");
+        this.sendButton = new import_obsidian14.ButtonComponent(this.container).setButtonText("Send").setClass("mod-cta");
+        this.sendButton.buttonEl.addClass("hidden-button");
+        this.stopButton = new import_obsidian14.ButtonComponent(this.container).setButtonText("Stop");
+        this.stopButton.buttonEl.addClass("hidden-button");
+        this.clearButton = new import_obsidian14.ButtonComponent(this.container).setButtonText("Clear");
+        this.clearButton.buttonEl.addClass("hidden-button");
+        this.settingsButton = new import_obsidian14.ButtonComponent(this.container).setButtonText("Settings");
+        this.settingsButton.buttonEl.addClass("hidden-button");
+      }
+      /**
+       * Get the button container element.
+       */
+      getContainer() {
+        return this.container;
+      }
+      /**
+       * Get the main Send button.
+       */
+      getSendButton() {
+        return this.sendButton;
+      }
+      /**
+       * Get the main Stop button.
+       */
+      getStopButton() {
+        return this.stopButton;
+      }
+      /**
+       * Get the main Clear button.
+       */
+      getClearButton() {
+        return this.clearButton;
+      }
+      /**
+       * Get the main Settings button.
+       */
+      getSettingsButton() {
+        return this.settingsButton;
+      }
+      /**
+       * Show the Send button.
+       */
+      showSendButton() {
+        this.sendButton.buttonEl.removeClass("hidden-button");
+      }
+      /**
+       * Hide the Send button.
+       */
+      hideSendButton() {
+        this.sendButton.buttonEl.addClass("hidden-button");
+      }
+      /**
+       * Show the Stop button.
+       */
+      showStopButton() {
+        this.stopButton.buttonEl.removeClass("hidden-button");
+      }
+      /**
+       * Hide the Stop button.
+       */
+      hideStopButton() {
+        this.stopButton.buttonEl.addClass("hidden-button");
+      }
+      /**
+       * Show the Clear button.
+       */
+      showClearButton() {
+        this.clearButton.buttonEl.removeClass("hidden-button");
+      }
+      /**
+       * Hide the Clear button.
+       */
+      hideClearButton() {
+        this.clearButton.buttonEl.addClass("hidden-button");
+      }
+      /**
+       * Show the Settings button.
+       */
+      showSettingsButton() {
+        this.settingsButton.buttonEl.removeClass("hidden-button");
+      }
+      /**
+       * Hide the Settings button.
+       */
+      hideSettingsButton() {
+        this.settingsButton.buttonEl.addClass("hidden-button");
+      }
+      /**
+       * Create action buttons for messages (e.g., copy, edit, delete, regenerate).
+       * @param buttons Array of button configs
+       * @returns HTMLElement containing all action buttons
+       */
+      createMessageActions(buttons) {
+        const actionsContainer = document.createElement("div");
+        actionsContainer.addClass("message-actions");
+        buttons.forEach((config) => {
+          const button = this.createButton(config);
+          actionsContainer.appendChild(button);
+        });
+        return actionsContainer;
+      }
+      /**
+       * Create the main chat control buttons (send, stop, clear, settings).
+       * @param buttons Array of button configs
+       * @returns HTMLElement containing all control buttons
+       */
+      createChatControls(buttons) {
+        const controlsContainer = document.createElement("div");
+        controlsContainer.addClass("ai-chat-buttons");
+        buttons.forEach((config) => {
+          const button = this.createButton(config);
+          if (config.isHidden) {
+            button.addClass("hidden-button");
+          }
+          controlsContainer.appendChild(button);
+        });
+        return controlsContainer;
+      }
+      /**
+       * Create a single button with the given configuration.
+       * @param config Button configuration
+       * @returns The created button element
+       */
+      createButton(config) {
+        const button = document.createElement("button");
+        button.addClass("ai-chat-action-button");
+        if (config.className) {
+          button.addClass(config.className);
+        }
+        button.setAttribute("aria-label", config.tooltip);
+        const labelEl = document.createElement("span");
+        labelEl.textContent = config.label;
+        button.appendChild(labelEl);
+        button.addEventListener("click", config.onClick);
+        return button;
+      }
+      /**
+       * Show or hide a specific button in a container by label.
+       * @param container The container element
+       * @param label The aria-label of the button
+       * @param show Whether to show or hide the button
+       */
+      toggleButton(container, label, show) {
+        const button = container.querySelector(`[aria-label="${label}"]`);
+        if (button instanceof HTMLElement) {
+          show ? button.removeClass("hidden-button") : button.addClass("hidden-button");
+        }
+      }
+      /**
+       * Set the send button state (enabled/disabled and visible/hidden).
+       */
+      setSendButtonState(enabled, visible = true) {
+        this.sendButton.setDisabled(!enabled);
+        if (visible) {
+          this.sendButton.buttonEl.removeClass("hidden-button");
+        } else {
+          this.sendButton.buttonEl.addClass("hidden-button");
+        }
+      }
+      /**
+       * Set the stop button state (enabled/disabled and visible/hidden).
+       */
+      setStopButtonState(enabled, visible = true) {
+        this.stopButton.setDisabled(!enabled);
+        if (visible) {
+          this.stopButton.buttonEl.removeClass("hidden-button");
+        } else {
+          this.stopButton.buttonEl.addClass("hidden-button");
+        }
+      }
+    };
+  }
 });
-var import_obsidian14, SettingsSections;
+
+// src/components/agent/ToolRichDisplay.ts
+var import_obsidian15, ToolRichDisplay;
+var init_ToolRichDisplay = __esm({
+  "src/components/agent/ToolRichDisplay.ts"() {
+    import_obsidian15 = require("obsidian");
+    ToolRichDisplay = class _ToolRichDisplay extends import_obsidian15.Component {
+      /**
+       * Constructs a ToolRichDisplay instance.
+       * @param options ToolDisplayOptions for rendering and actions
+       */
+      constructor(options) {
+        super();
+        __publicField(this, "element");
+        __publicField(this, "options");
+        this.options = options;
+        if (window.aiAssistantPlugin && typeof window.aiAssistantPlugin.debugLog === "function") {
+          window.aiAssistantPlugin.debugLog("debug", "[ToolRichDisplay] constructor called", { options });
+        }
+        this.element = this.createToolDisplay();
+      }
+      /**
+       * Returns the root element for this display.
+       */
+      getElement() {
+        return this.element;
+      }
+      /**
+       * Creates the main display element for the tool result.
+       * @returns HTMLElement representing the tool result
+       */
+      createToolDisplay() {
+        if (window.aiAssistantPlugin && typeof window.aiAssistantPlugin.debugLog === "function") {
+          window.aiAssistantPlugin.debugLog("debug", "[ToolRichDisplay] createToolDisplay called", { command: this.options.command, result: this.options.result });
+        }
+        return _ToolRichDisplay.createDisplayElement(this.options.command, this.options.result, {
+          onRerun: this.options.onRerun,
+          onCopy: this.options.onCopy
+        });
+      }
+      /**
+       * Returns an emoji icon for the tool action.
+       */
+      getToolIcon() {
+        const iconMap = {
+          "file_search": "\u{1F50D}",
+          "file_read": "\u{1F4D6}",
+          "file_write": "\u270D\uFE0F",
+          "file_diff": "\u{1F504}",
+          "file_move": "\u{1F4C1}",
+          "file_rename": "\u{1F3F7}\uFE0F",
+          "file_list": "\u{1F4CB}",
+          "thought": "\u{1F9E0}",
+          "get_user_feedback": "\u2753"
+        };
+        return iconMap[this.options.command.action] || "\u{1F527}";
+      }
+      /**
+       * Returns a human-readable display name for the tool action.
+       */
+      getToolDisplayName() {
+        const nameMap = {
+          "file_search": "File Search",
+          "file_read": "File Read",
+          "file_write": "File Write",
+          "file_diff": "File Diff",
+          "file_move": "File Move",
+          "file_rename": "File Rename",
+          "file_list": "File List",
+          "thought": "Thought Process",
+          "get_user_feedback": "User Feedback"
+        };
+        return nameMap[this.options.command.action] || this.options.command.action;
+      }
+      /**
+       * Formats the tool parameters for display.
+       */
+      formatParameters() {
+        const params = this.options.command.parameters;
+        const formatted = Object.entries(params).map(([key, value]) => `${key}: ${typeof value === "string" && value.length > 50 ? value.substring(0, 50) + "..." : JSON.stringify(value)}`).join(", ");
+        return `<code>${formatted}</code>`;
+      }
+      /**
+       * Returns a summary string for the tool result.
+       */
+      getResultSummary() {
+        if (!this.options.result.success) {
+          return `<span class="tool-error">${this.options.result.error || "Unknown error"}</span>`;
+        }
+        const data = this.options.result.data;
+        if (this.options.command.action === "file_write" && data) {
+          const action = data.action || "modified";
+          const filePath = data.filePath || "unknown file";
+          const size = data.size ? ` (${data.size} bytes)` : "";
+          if (action === "created") {
+            return `<span class="tool-success">\u{1F4DD} Created file: <strong>${filePath}</strong>${size}</span>`;
+          } else {
+            return `<span class="tool-success">\u{1F4BE} Saved file: <strong>${filePath}</strong>${size}</span>`;
+          }
+        }
+        if (this.options.command.action === "file_read" && data) {
+          const filePath = data.filePath || this.options.command.parameters.path;
+          const size = data.content ? ` (${data.content.length} chars)` : "";
+          return `<span class="tool-success">\u{1F4D6} Read file: <strong>${filePath}</strong>${size}</span>`;
+        }
+        if (this.options.command.action === "file_search" && data) {
+          const count = data.count || (Array.isArray(data.files) ? data.files.length : 0);
+          return `<span class="tool-success">\u{1F50D} Found ${count} file${count !== 1 ? "s" : ""}</span>`;
+        }
+        if (this.options.command.action === "file_list" && data) {
+          const count = data.count || (Array.isArray(data.files) ? data.files.length : 0);
+          const path3 = data.path || this.options.command.parameters.path;
+          return `<span class="tool-success">\u{1F4CB} Listed ${count} file${count !== 1 ? "s" : ""} in <strong>${path3}</strong></span>`;
+        }
+        if (this.options.command.action === "file_move" && data) {
+          const from = this.options.command.parameters.sourcePath;
+          const to = this.options.command.parameters.destinationPath;
+          return `<span class="tool-success">\u{1F4C1} Moved <strong>${from}</strong> \u2192 <strong>${to}</strong></span>`;
+        }
+        if (this.options.command.action === "file_rename" && data) {
+          const oldName = this.options.command.parameters.path;
+          const newName = this.options.command.parameters.newName;
+          return `<span class="tool-success">\u{1F3F7}\uFE0F Renamed <strong>${oldName}</strong> \u2192 <strong>${newName}</strong></span>`;
+        }
+        if (this.options.command.action === "thought" && data) {
+          const thought = data.thought || data.reasoning || "";
+          return `<span class="tool-success">\u{1F9E0} ${thought}</span>`;
+        }
+        if (this.options.command.action === "get_user_feedback" && data) {
+          if (data.status === "completed") {
+            const answer = data.answer || "";
+            const responseTime = data.responseTimeMs ? ` (responded in ${Math.round(data.responseTimeMs / 1e3)}s)` : "";
+            return `<span class="tool-success">\u2753 User responded: <strong>${answer}</strong>${responseTime}</span>`;
+          } else if (data.status === "failed") {
+            return `<span class="tool-error">\u2753 Failed to get user response</span>`;
+          } else {
+            return `<span class="tool-pending">\u2753 Waiting for user response...</span>`;
+          }
+        }
+        if (typeof data === "string") {
+          return data;
+        }
+        if (Array.isArray(data)) {
+          return `${data.length} items returned`;
+        }
+        if (typeof data === "object" && data !== null) {
+          const keys = Object.keys(data);
+          return `Object with ${keys.length} properties`;
+        }
+        return "Success";
+      }
+      /**
+       * Returns a detailed string (JSON or plain) for the tool result.
+       */
+      getDetailedResult() {
+        if (!this.options.result.success) {
+          return this.options.result.error || "Unknown error occurred";
+        }
+        if (this.options.result.data) {
+          return typeof this.options.result.data === "string" ? this.options.result.data : JSON.stringify(this.options.result.data, null, 2);
+        }
+        return null;
+      }
+      /**
+       * Updates the display with a new tool result.
+       * @param result The new ToolResult to display
+       */
+      updateResult(result) {
+        this.options.result = result;
+        const newElement = _ToolRichDisplay.createDisplayElement(this.options.command, this.options.result, {
+          onRerun: this.options.onRerun,
+          onCopy: this.options.onCopy
+        });
+        this.element.replaceWith(newElement);
+        this.element = newElement;
+      }
+      /**
+       * Converts the tool display to markdown format for saving to notes.
+       * @returns Markdown string representing the tool result
+       */
+      toMarkdown() {
+        const { command, result } = this.options;
+        const status = result.success ? "\u2705" : "\u274C";
+        const toolName = this.getToolDisplayName();
+        const icon = this.getToolIcon();
+        let markdown = `
+### ${icon} ${toolName} ${status}
+
+`;
+        if (command.parameters && Object.keys(command.parameters).length > 0) {
+          markdown += `**Parameters:**
+`;
+          Object.entries(command.parameters).forEach(([key, value]) => {
+            const displayValue = typeof value === "string" && value.length > 100 ? value.substring(0, 100) + "..." : JSON.stringify(value);
+            markdown += `- **${key}:** \`${displayValue}\`
+`;
+          });
+          markdown += "\n";
+        }
+        if (result.success) {
+          markdown += `**Result:** ${this.getResultSummary()}
+
+`;
+          const details = this.getDetailedResult();
+          if (details && details !== this.getResultSummary()) {
+            if (details.length <= 200) {
+              markdown += `**Details:** \`${details}\`
+
+`;
+            } else {
+              markdown += `<details>
+<summary>Show Details</summary>
+
+\`\`\`
+${details}
+\`\`\`
+
+</details>
+
+`;
+            }
+          }
+        } else {
+          markdown += `**Error:** ${result.error}
+
+`;
+        }
+        return markdown;
+      }
+      /**
+       * Static method to create a tool display element for notes (without re-run functionality).
+       */
+      static createNoteDisplay(command, result, options) {
+        return _ToolRichDisplay.createDisplayElement(command, result, {
+          ...options,
+          isNote: true
+        });
+      }
+      /**
+       * Static method to create a tool display element with customizable options.
+       * @param command The tool command
+       * @param result The tool result
+       * @param options Optional callbacks and flags
+       * @returns HTMLElement representing the tool result
+       */
+      static createDisplayElement(command, result, options) {
+        const container = document.createElement("div");
+        container.className = (options == null ? void 0 : options.isNote) ? "tool-rich-display tool-rich-display-note" : "tool-rich-display";
+        const iconDiv = document.createElement("div");
+        iconDiv.className = "tool-rich-icon";
+        iconDiv.innerHTML = _ToolRichDisplay.getStaticToolIcon(command.action);
+        container.appendChild(iconDiv);
+        const infoDiv = document.createElement("div");
+        infoDiv.className = "tool-rich-info";
+        const titleDiv = document.createElement("div");
+        titleDiv.className = "tool-rich-title";
+        titleDiv.innerText = _ToolRichDisplay.getStaticToolDisplayName(command.action);
+        const statusSpan = document.createElement("span");
+        statusSpan.className = `tool-rich-status ${result.success ? "success" : "error"}`;
+        statusSpan.innerText = result.success ? "Success" : "Error";
+        titleDiv.appendChild(statusSpan);
+        infoDiv.appendChild(titleDiv);
+        if (command.parameters && Object.keys(command.parameters).length > 0) {
+          const paramsDiv = document.createElement("div");
+          paramsDiv.innerHTML = `<strong>Parameters:</strong> ${_ToolRichDisplay.formatStaticParameters(command.parameters)}`;
+          infoDiv.appendChild(paramsDiv);
+        }
+        const resultDiv = document.createElement("div");
+        resultDiv.innerHTML = `<strong>Result:</strong> ${_ToolRichDisplay.getStaticResultSummary(command, result)}`;
+        infoDiv.appendChild(resultDiv);
+        const details = _ToolRichDisplay.getStaticDetailedResult(result);
+        if (details) {
+          const toggle = document.createElement("div");
+          toggle.className = "tool-rich-details-toggle";
+          toggle.innerText = "Show details \u25BC";
+          const detailsDiv = document.createElement("div");
+          detailsDiv.className = "tool-rich-details";
+          detailsDiv.style.display = "none";
+          detailsDiv.innerHTML = `<pre>${details}</pre>`;
+          toggle.onclick = () => {
+            const isExpanded = detailsDiv.classList.contains("expanded");
+            if (isExpanded) {
+              detailsDiv.classList.remove("expanded");
+              detailsDiv.style.display = "none";
+              toggle.innerText = "Show details \u25BC";
+            } else {
+              detailsDiv.classList.add("expanded");
+              detailsDiv.style.display = "block";
+              toggle.innerText = "Hide details \u25B2";
+            }
+          };
+          infoDiv.appendChild(toggle);
+          infoDiv.appendChild(detailsDiv);
+        }
+        const actionsDiv = document.createElement("div");
+        actionsDiv.className = "tool-rich-actions";
+        if (!(options == null ? void 0 : options.isNote) && (options == null ? void 0 : options.onRerun)) {
+          const rerunBtn = document.createElement("button");
+          rerunBtn.className = "tool-rich-action-btn";
+          rerunBtn.innerText = "Re-run";
+          rerunBtn.onclick = options.onRerun;
+          actionsDiv.appendChild(rerunBtn);
+        }
+        if (options == null ? void 0 : options.onCopy) {
+          const copyBtn = document.createElement("button");
+          copyBtn.className = "tool-rich-action-btn";
+          copyBtn.innerText = "Copy";
+          copyBtn.onclick = options.onCopy;
+          actionsDiv.appendChild(copyBtn);
+        }
+        const copyResultBtn = document.createElement("button");
+        copyResultBtn.className = "tool-rich-action-btn";
+        copyResultBtn.innerText = "Copy Result";
+        copyResultBtn.onclick = async () => {
+          const resultText = result.success ? JSON.stringify(result.data, null, 2) : result.error || "Unknown error";
+          try {
+            await navigator.clipboard.writeText(resultText);
+            copyResultBtn.innerText = "Copied!";
+            setTimeout(() => {
+              copyResultBtn.innerText = "Copy Result";
+            }, 2e3);
+          } catch (error) {
+            console.error("Failed to copy to clipboard:", error);
+          }
+        };
+        actionsDiv.appendChild(copyResultBtn);
+        infoDiv.appendChild(actionsDiv);
+        container.appendChild(infoDiv);
+        return container;
+      }
+      /**
+       * Returns a static emoji icon for a tool action.
+       */
+      static getStaticToolIcon(action) {
+        const iconMap = {
+          "file_search": "\u{1F50D}",
+          "file_read": "\u{1F4D6}",
+          "file_write": "\u270D\uFE0F",
+          "file_diff": "\u{1F504}",
+          "file_move": "\u{1F4C1}",
+          "file_rename": "\u{1F3F7}\uFE0F",
+          "file_list": "\u{1F4CB}",
+          "thought": "\u{1F9E0}",
+          "get_user_feedback": "\u2753"
+        };
+        return iconMap[action] || "\u{1F527}";
+      }
+      /**
+       * Returns a static display name for a tool action.
+       */
+      static getStaticToolDisplayName(action) {
+        const nameMap = {
+          "file_search": "File Search",
+          "file_read": "File Read",
+          "file_write": "File Write",
+          "file_diff": "File Diff",
+          "file_move": "File Move",
+          "file_rename": "File Rename",
+          "file_list": "File List",
+          "thought": "Thought Process",
+          "get_user_feedback": "User Feedback"
+        };
+        return nameMap[action] || action;
+      }
+      /**
+       * Formats parameters for static display.
+       */
+      static formatStaticParameters(params) {
+        const formatted = Object.entries(params).map(([key, value]) => `${key}: ${typeof value === "string" && value.length > 50 ? value.substring(0, 50) + "..." : JSON.stringify(value)}`).join(", ");
+        return `<code>${formatted}</code>`;
+      }
+      /**
+       * Returns a static summary string for a tool result.
+       */
+      static getStaticResultSummary(command, result) {
+        if (!result.success) {
+          return `<span class="tool-error">${result.error || "Unknown error"}</span>`;
+        }
+        const data = result.data;
+        if (command.action === "file_write" && data) {
+          const action = data.action || "modified";
+          const filePath = data.filePath || "unknown file";
+          const size = data.size ? ` (${data.size} bytes)` : "";
+          if (action === "created") {
+            return `<span class="tool-success">\u{1F4DD} Created file: <strong>${filePath}</strong>${size}</span>`;
+          } else {
+            return `<span class="tool-success">\u{1F4BE} Saved file: <strong>${filePath}</strong>${size}</span>`;
+          }
+        }
+        if (command.action === "file_read" && data) {
+          const filePath = data.filePath || command.parameters.path;
+          const size = data.content ? ` (${data.content.length} chars)` : "";
+          return `<span class="tool-success">\u{1F4D6} Read file: <strong>${filePath}</strong>${size}</span>`;
+        }
+        if (command.action === "file_search" && data) {
+          const count = data.count || (Array.isArray(data.files) ? data.files.length : 0);
+          return `<span class="tool-success">\u{1F50D} Found ${count} file${count !== 1 ? "s" : ""}</span>`;
+        }
+        if (command.action === "file_list" && data) {
+          const count = data.count || (Array.isArray(data.files) ? data.files.length : 0);
+          const path3 = data.path || command.parameters.path;
+          return `<span class="tool-success">\u{1F4CB} Listed ${count} file${count !== 1 ? "s" : ""} in <strong>${path3}</strong></span>`;
+        }
+        if (command.action === "file_move" && data) {
+          const from = command.parameters.sourcePath;
+          const to = command.parameters.destinationPath;
+          return `<span class="tool-success">\u{1F4C1} Moved <strong>${from}</strong> \u2192 <strong>${to}</strong></span>`;
+        }
+        if (command.action === "file_rename" && data) {
+          const oldName = command.parameters.path;
+          const newName = command.parameters.newName;
+          return `<span class="tool-success">\u{1F3F7}\uFE0F Renamed <strong>${oldName}</strong> \u2192 <strong>${newName}</strong></span>`;
+        }
+        if (command.action === "thought" && data) {
+          const thought = data.thought || data.reasoning || "";
+          return `<span class="tool-success">\u{1F9E0} ${thought}</span>`;
+        }
+        if (command.action === "get_user_feedback" && data) {
+          if (data.status === "completed") {
+            const answer = data.answer || "";
+            const responseTime = data.responseTimeMs ? ` (responded in ${Math.round(data.responseTimeMs / 1e3)}s)` : "";
+            return `<span class="tool-success">\u2753 User responded: <strong>${answer}</strong>${responseTime}</span>`;
+          } else if (data.status === "failed") {
+            return `<span class="tool-error">\u2753 Failed to get user response</span>`;
+          } else {
+            return `<span class="tool-pending">\u2753 Waiting for user response...</span>`;
+          }
+        }
+        if (typeof data === "string") {
+          return data;
+        }
+        if (Array.isArray(data)) {
+          return `${data.length} items returned`;
+        }
+        if (typeof data === "object" && data !== null) {
+          const keys = Object.keys(data);
+          return `Object with ${keys.length} properties`;
+        }
+        return "Success";
+      }
+      /**
+       * Returns a static detailed string (JSON or plain) for a tool result.
+       */
+      static getStaticDetailedResult(result) {
+        if (!result.success) {
+          return result.error || "Unknown error occurred";
+        }
+        if (result.data) {
+          return typeof result.data === "string" ? result.data : JSON.stringify(result.data, null, 2);
+        }
+        return null;
+      }
+      /**
+       * Render a tool execution block (array of toolResults) into a container element.
+       * Used by both markdown and code block processors.
+       * @param toolData Object containing toolResults array
+       * @param container The container element to render into
+       * @param onCopy Optional callback for copying a result
+       */
+      static renderToolExecutionBlock(toolData, container, onCopy) {
+        container.innerHTML = "";
+        container.className = "ai-tool-execution-container";
+        if (toolData.toolResults && Array.isArray(toolData.toolResults)) {
+          for (const toolResult of toolData.toolResults) {
+            if (toolResult.command && toolResult.result) {
+              const toolDisplay = _ToolRichDisplay.createNoteDisplay(
+                toolResult.command,
+                toolResult.result,
+                {
+                  onCopy: onCopy ? () => onCopy(toolResult.result) : void 0
+                }
+              );
+              container.appendChild(toolDisplay);
+            }
+          }
+        }
+      }
+    };
+  }
+});
+
+// src/components/agent/MessageRenderer.ts
+var import_obsidian16, MessageRenderer;
+var init_MessageRenderer = __esm({
+  "src/components/agent/MessageRenderer.ts"() {
+    import_obsidian16 = require("obsidian");
+    init_ToolRichDisplay();
+    init_logger();
+    MessageRenderer = class {
+      constructor(app) {
+        this.app = app;
+      }
+      /**
+       * Updates a message container with enhanced reasoning and task status data.
+       * Renders reasoning and task status sections above the message content.
+       * @param container The message DOM element
+       * @param messageData The message data (may include reasoning/taskStatus)
+       * @param component Optional parent component for Markdown rendering
+       */
+      updateMessageWithEnhancedData(container, messageData, component) {
+        debugLog(true, "debug", "[MessageRenderer] updateMessageWithEnhancedData called", { messageData });
+        const existingReasoning = container.querySelector(".reasoning-container");
+        const existingTaskStatus = container.querySelector(".task-status-container");
+        if (existingReasoning) existingReasoning.remove();
+        if (existingTaskStatus) existingTaskStatus.remove();
+        const messageContainer = container.querySelector(".message-container");
+        if (!messageContainer) return;
+        if (messageData.reasoning) {
+          const reasoningEl = this.createReasoningSection(messageData.reasoning);
+          messageContainer.insertBefore(reasoningEl, messageContainer.firstChild);
+        }
+        if (messageData.taskStatus) {
+          const taskStatusEl = this.createTaskStatusSection(messageData.taskStatus);
+          messageContainer.insertBefore(taskStatusEl, messageContainer.firstChild);
+        }
+        const contentEl = container.querySelector(".message-content");
+        if (contentEl) {
+          contentEl.empty();
+          import_obsidian16.MarkdownRenderer.render(
+            this.app,
+            messageData.content,
+            contentEl,
+            "",
+            component || new import_obsidian16.Component()
+          ).catch((error) => {
+            contentEl.textContent = messageData.content;
+          });
+        }
+      }
+      /**
+       * Creates a reasoning section element for display above the message.
+       * Supports structured and summary reasoning.
+       * @param reasoning The reasoning data object
+       * @returns HTMLElement for the reasoning section
+       */
+      createReasoningSection(reasoning) {
+        var _a2;
+        debugLog(true, "debug", "[MessageRenderer] createReasoningSection called", { reasoning });
+        const reasoningContainer = document.createElement("div");
+        reasoningContainer.className = "reasoning-container";
+        const header = document.createElement("div");
+        header.className = "reasoning-summary";
+        const toggle = document.createElement("span");
+        toggle.className = "reasoning-toggle";
+        toggle.textContent = reasoning.isCollapsed ? "\u25B6" : "\u25BC";
+        const headerText = document.createElement("span");
+        const typeLabel = reasoning.type === "structured" ? "STRUCTURED REASONING" : "REASONING";
+        const stepCount = ((_a2 = reasoning.steps) == null ? void 0 : _a2.length) || 0;
+        headerText.innerHTML = `<strong>\u{1F9E0} ${typeLabel}</strong>`;
+        if (stepCount > 0) {
+          headerText.innerHTML += ` (${stepCount} steps)`;
+        }
+        headerText.innerHTML += ` - <em>Click to ${reasoning.isCollapsed ? "expand" : "collapse"}</em>`;
+        header.appendChild(toggle);
+        header.appendChild(headerText);
+        const details = document.createElement("div");
+        details.className = "reasoning-details";
+        if (!reasoning.isCollapsed) {
+          details.classList.add("expanded");
+        }
+        if (reasoning.type === "structured" && reasoning.steps) {
+          if (reasoning.problem) {
+            const problemDiv = document.createElement("div");
+            problemDiv.className = "reasoning-problem";
+            problemDiv.innerHTML = `<strong>Problem:</strong> ${reasoning.problem}`;
+            details.appendChild(problemDiv);
+          }
+          reasoning.steps.forEach((step) => {
+            const stepDiv = document.createElement("div");
+            stepDiv.className = `reasoning-step ${step.category}`;
+            stepDiv.innerHTML = `
+                    <div class="step-header">
+                        ${this.getStepEmoji(step.category)} Step ${step.step}: ${step.title.toUpperCase()}
+                    </div>
+                    <div class="step-confidence">
+                        Confidence: ${step.confidence}/10
+                    </div>
+                    <div class="step-content">
+                        ${step.content}
+                    </div>
+                `;
+            details.appendChild(stepDiv);
+          });
+        } else if (reasoning.summary) {
+          const summaryDiv = document.createElement("div");
+          summaryDiv.className = "reasoning-completion";
+          summaryDiv.textContent = reasoning.summary;
+          details.appendChild(summaryDiv);
+        }
+        header.addEventListener("click", () => {
+          const isExpanded = details.classList.contains("expanded");
+          if (isExpanded) {
+            details.classList.remove("expanded");
+            toggle.textContent = "\u25B6";
+            reasoning.isCollapsed = true;
+          } else {
+            details.classList.add("expanded");
+            toggle.textContent = "\u25BC";
+            reasoning.isCollapsed = false;
+          }
+        });
+        reasoningContainer.appendChild(header);
+        reasoningContainer.appendChild(details);
+        return reasoningContainer;
+      }
+      /**
+       * Creates a task status section element for display above the message.
+       * @param taskStatus The task status object
+       * @returns HTMLElement for the task status section
+       */
+      createTaskStatusSection(taskStatus) {
+        const statusContainer = document.createElement("div");
+        statusContainer.className = "task-status-container";
+        statusContainer.dataset.taskStatus = taskStatus.status;
+        const statusText = this.getTaskStatusText(taskStatus);
+        const statusIcon = this.getTaskStatusIcon(taskStatus.status);
+        statusContainer.innerHTML = `
+            <div class="task-status-header">
+                ${statusIcon} <strong>${statusText}</strong>
+            </div>
+        `;
+        if (taskStatus.toolExecutionCount > 0) {
+          const toolInfo = document.createElement("div");
+          toolInfo.className = "task-tool-info";
+          toolInfo.textContent = `Tools used: ${taskStatus.toolExecutionCount}/${taskStatus.maxToolExecutions}`;
+          statusContainer.appendChild(toolInfo);
+        }
+        return statusContainer;
+      }
+      /**
+       * Returns an emoji for a reasoning step category.
+       */
+      getStepEmoji(category) {
+        switch (category) {
+          case "analysis":
+            return "\u{1F50D}";
+          case "planning":
+            return "\u{1F4CB}";
+          case "problem-solving":
+            return "\u{1F9E9}";
+          case "reflection":
+            return "\u{1F914}";
+          case "conclusion":
+            return "\u2705";
+          case "reasoning":
+            return "\u{1F9E0}";
+          case "information":
+            return "\u{1F4CA}";
+          case "approach":
+            return "\u{1F3AF}";
+          case "evaluation":
+            return "\u2696\uFE0F";
+          case "synthesis":
+            return "\u{1F517}";
+          case "validation":
+            return "\u2705";
+          case "refinement":
+            return "\u26A1";
+          default:
+            return "\u{1F4AD}";
+        }
+      }
+      /**
+       * Returns a user-friendly status text for a task status.
+       */
+      getTaskStatusText(taskStatus) {
+        switch (taskStatus.status) {
+          case "idle":
+            return "Task Ready";
+          case "running":
+            return "Task In Progress";
+          case "stopped":
+            return "Task Stopped";
+          case "completed":
+            return "Task Completed";
+          case "limit_reached":
+            return "Tool Limit Reached";
+          case "waiting_for_user":
+            return "Waiting for User Input";
+          default:
+            return "Unknown Status";
+        }
+      }
+      /**
+       * Returns an emoji icon for a task status.
+       */
+      getTaskStatusIcon(status) {
+        switch (status) {
+          case "idle":
+            return "\u23F8\uFE0F";
+          case "running":
+            return "\u{1F504}";
+          case "stopped":
+            return "\u23F9\uFE0F";
+          case "completed":
+            return "\u2705";
+          case "limit_reached":
+            return "\u26A0\uFE0F";
+          case "waiting_for_user":
+            return "\u23F3";
+          default:
+            return "\u2753";
+        }
+      }
+      /**
+       * Render a complete message with tool displays if present.
+       * @param message The message object (may include toolResults)
+       * @param container The message DOM element
+       * @param component Optional parent component for Markdown rendering
+       */
+      async renderMessage(message, container, component) {
+        if (message.toolResults && message.toolResults.length > 0) {
+          await this.renderMessageWithToolDisplays(message, container, component);
+        } else {
+          await this.renderRegularMessage(message, container, component);
+        }
+      }
+      /**
+       * Render a message with embedded tool displays.
+       * @param message The message object (with toolResults)
+       * @param container The message DOM element
+       * @param component Optional parent component for Markdown rendering
+       */
+      async renderMessageWithToolDisplays(message, container, component) {
+        const messageContent = container.querySelector(".message-content");
+        if (!messageContent) {
+          console.error("No .message-content element found in container");
+          return;
+        }
+        messageContent.empty();
+        container.classList.add("has-rich-tools");
+        if (message.toolResults && message.toolResults.length > 0) {
+          for (const toolExecutionResult of message.toolResults) {
+            const richDisplay = new ToolRichDisplay({
+              command: toolExecutionResult.command,
+              result: toolExecutionResult.result,
+              onRerun: () => {
+              },
+              onCopy: async () => {
+                const displayText = this.formatToolForCopy(toolExecutionResult.command, toolExecutionResult.result);
+                try {
+                  await navigator.clipboard.writeText(displayText);
+                } catch (error) {
+                  console.error("Failed to copy tool result:", error);
+                }
+              }
+            });
+            const toolWrapper = document.createElement("div");
+            toolWrapper.className = "embedded-tool-display";
+            toolWrapper.appendChild(richDisplay.getElement());
+            messageContent.appendChild(toolWrapper);
+          }
+        }
+        if (message.content && message.content.trim()) {
+          const textDiv = document.createElement("div");
+          textDiv.className = "message-text-part";
+          await import_obsidian16.MarkdownRenderer.render(this.app, message.content, textDiv, "", component || new import_obsidian16.Component());
+          messageContent.appendChild(textDiv);
+        }
+      }
+      /**
+       * Render a regular message without tool displays.
+       * @param message The message object
+       * @param container The message DOM element
+       * @param component Optional parent component for Markdown rendering
+       */
+      async renderRegularMessage(message, container, component) {
+        const messageContent = container.querySelector(".message-content");
+        if (!messageContent) return;
+        messageContent.empty();
+        await import_obsidian16.MarkdownRenderer.render(this.app, message.content, messageContent, "", component || new import_obsidian16.Component());
+      }
+      /**
+       * Parse message content to extract tool calls and text parts.
+       * Returns an array of text/tool parts for further processing.
+       * @param content The message content string
+       */
+      parseMessageWithTools(content) {
+        const parts = [];
+        const toolCallRegex = /```json\s*\{[^}]*"action":\s*"([^"]+)"[^}]*\}[^`]*```/g;
+        let lastIndex = 0;
+        let match;
+        while ((match = toolCallRegex.exec(content)) !== null) {
+          if (match.index > lastIndex) {
+            const textContent = content.slice(lastIndex, match.index).trim();
+            if (textContent) {
+              parts.push({ type: "text", content: textContent });
+            }
+          }
+          try {
+            const toolJson = match[0].replace(/```json\s*/, "").replace(/\s*```[\s\S]*?$/, "");
+            const command = JSON.parse(toolJson);
+            parts.push({ type: "tool", command });
+          } catch (e) {
+            parts.push({ type: "text", content: match[0] });
+          }
+          lastIndex = match.index + match[0].length;
+        }
+        if (lastIndex < content.length) {
+          const remainingContent = content.slice(lastIndex).trim();
+          if (remainingContent) {
+            parts.push({ type: "text", content: remainingContent });
+          }
+        }
+        if (parts.length === 0) {
+          parts.push({ type: "text", content });
+        }
+        return parts;
+      }
+      /**
+       * Compare tool parameters for matching (deep equality).
+       * @param params1 First parameters object
+       * @param params2 Second parameters object
+       * @returns True if parameters are deeply equal
+       */
+      compareToolParams(params1, params2) {
+        try {
+          return JSON.stringify(params1) === JSON.stringify(params2);
+        } catch (e) {
+          return false;
+        }
+      }
+      /**
+       * Format a tool execution result for clipboard copy.
+       * @param command The tool command
+       * @param result The tool result
+       * @returns Formatted string for copy
+       */
+      formatToolForCopy(command, result) {
+        const status = result.success ? "\u2705" : "\u274C";
+        const statusText = result.success ? "SUCCESS" : "ERROR";
+        let output = `${status} **${command.action}** ${statusText}`;
+        if (command.parameters && Object.keys(command.parameters).length > 0) {
+          output += `
+
+**Parameters:**
+\`\`\`json
+${JSON.stringify(command.parameters, null, 2)}
+\`\`\``;
+        }
+        if (result.success) {
+          output += `
+
+**Result:**
+\`\`\`json
+${JSON.stringify(result.data, null, 2)}
+\`\`\``;
+        } else {
+          output += `
+
+**Error:**
+${result.error}`;
+        }
+        return output;
+      }
+      /**
+       * Get message content formatted for clipboard copy, including tool results.
+       * @param messageData The message data (may include toolResults)
+       * @returns Formatted string for copy
+       */
+      getMessageContentForCopy(messageData) {
+        let content = messageData.content;
+        if (messageData.toolResults && messageData.toolResults.length > 0) {
+          content += "\n\n```ai-tool-execution\n";
+          content += JSON.stringify({
+            toolResults: messageData.toolResults,
+            reasoning: messageData.reasoning,
+            taskStatus: messageData.taskStatus
+          }, null, 2);
+          content += "\n```\n";
+        }
+        return content;
+      }
+    };
+  }
+});
+
+// node_modules/js-yaml/dist/js-yaml.mjs
+function isNothing(subject) {
+  return typeof subject === "undefined" || subject === null;
+}
+function isObject2(subject) {
+  return typeof subject === "object" && subject !== null;
+}
+function toArray(sequence) {
+  if (Array.isArray(sequence)) return sequence;
+  else if (isNothing(sequence)) return [];
+  return [sequence];
+}
+function extend(target, source) {
+  var index, length, key, sourceKeys;
+  if (source) {
+    sourceKeys = Object.keys(source);
+    for (index = 0, length = sourceKeys.length; index < length; index += 1) {
+      key = sourceKeys[index];
+      target[key] = source[key];
+    }
+  }
+  return target;
+}
+function repeat(string, count) {
+  var result = "", cycle;
+  for (cycle = 0; cycle < count; cycle += 1) {
+    result += string;
+  }
+  return result;
+}
+function isNegativeZero(number) {
+  return number === 0 && Number.NEGATIVE_INFINITY === 1 / number;
+}
+function formatError(exception2, compact) {
+  var where = "", message = exception2.reason || "(unknown reason)";
+  if (!exception2.mark) return message;
+  if (exception2.mark.name) {
+    where += 'in "' + exception2.mark.name + '" ';
+  }
+  where += "(" + (exception2.mark.line + 1) + ":" + (exception2.mark.column + 1) + ")";
+  if (!compact && exception2.mark.snippet) {
+    where += "\n\n" + exception2.mark.snippet;
+  }
+  return message + " " + where;
+}
+function YAMLException$1(reason, mark) {
+  Error.call(this);
+  this.name = "YAMLException";
+  this.reason = reason;
+  this.mark = mark;
+  this.message = formatError(this, false);
+  if (Error.captureStackTrace) {
+    Error.captureStackTrace(this, this.constructor);
+  } else {
+    this.stack = new Error().stack || "";
+  }
+}
+function getLine(buffer, lineStart, lineEnd, position, maxLineLength) {
+  var head = "";
+  var tail = "";
+  var maxHalfLength = Math.floor(maxLineLength / 2) - 1;
+  if (position - lineStart > maxHalfLength) {
+    head = " ... ";
+    lineStart = position - maxHalfLength + head.length;
+  }
+  if (lineEnd - position > maxHalfLength) {
+    tail = " ...";
+    lineEnd = position + maxHalfLength - tail.length;
+  }
+  return {
+    str: head + buffer.slice(lineStart, lineEnd).replace(/\t/g, "\u2192") + tail,
+    pos: position - lineStart + head.length
+    // relative position
+  };
+}
+function padStart(string, max) {
+  return common.repeat(" ", max - string.length) + string;
+}
+function makeSnippet(mark, options) {
+  options = Object.create(options || null);
+  if (!mark.buffer) return null;
+  if (!options.maxLength) options.maxLength = 79;
+  if (typeof options.indent !== "number") options.indent = 1;
+  if (typeof options.linesBefore !== "number") options.linesBefore = 3;
+  if (typeof options.linesAfter !== "number") options.linesAfter = 2;
+  var re = /\r?\n|\r|\0/g;
+  var lineStarts = [0];
+  var lineEnds = [];
+  var match;
+  var foundLineNo = -1;
+  while (match = re.exec(mark.buffer)) {
+    lineEnds.push(match.index);
+    lineStarts.push(match.index + match[0].length);
+    if (mark.position <= match.index && foundLineNo < 0) {
+      foundLineNo = lineStarts.length - 2;
+    }
+  }
+  if (foundLineNo < 0) foundLineNo = lineStarts.length - 1;
+  var result = "", i, line;
+  var lineNoLength = Math.min(mark.line + options.linesAfter, lineEnds.length).toString().length;
+  var maxLineLength = options.maxLength - (options.indent + lineNoLength + 3);
+  for (i = 1; i <= options.linesBefore; i++) {
+    if (foundLineNo - i < 0) break;
+    line = getLine(
+      mark.buffer,
+      lineStarts[foundLineNo - i],
+      lineEnds[foundLineNo - i],
+      mark.position - (lineStarts[foundLineNo] - lineStarts[foundLineNo - i]),
+      maxLineLength
+    );
+    result = common.repeat(" ", options.indent) + padStart((mark.line - i + 1).toString(), lineNoLength) + " | " + line.str + "\n" + result;
+  }
+  line = getLine(mark.buffer, lineStarts[foundLineNo], lineEnds[foundLineNo], mark.position, maxLineLength);
+  result += common.repeat(" ", options.indent) + padStart((mark.line + 1).toString(), lineNoLength) + " | " + line.str + "\n";
+  result += common.repeat("-", options.indent + lineNoLength + 3 + line.pos) + "^\n";
+  for (i = 1; i <= options.linesAfter; i++) {
+    if (foundLineNo + i >= lineEnds.length) break;
+    line = getLine(
+      mark.buffer,
+      lineStarts[foundLineNo + i],
+      lineEnds[foundLineNo + i],
+      mark.position - (lineStarts[foundLineNo] - lineStarts[foundLineNo + i]),
+      maxLineLength
+    );
+    result += common.repeat(" ", options.indent) + padStart((mark.line + i + 1).toString(), lineNoLength) + " | " + line.str + "\n";
+  }
+  return result.replace(/\n$/, "");
+}
+function compileStyleAliases(map2) {
+  var result = {};
+  if (map2 !== null) {
+    Object.keys(map2).forEach(function(style) {
+      map2[style].forEach(function(alias) {
+        result[String(alias)] = style;
+      });
+    });
+  }
+  return result;
+}
+function Type$1(tag, options) {
+  options = options || {};
+  Object.keys(options).forEach(function(name) {
+    if (TYPE_CONSTRUCTOR_OPTIONS.indexOf(name) === -1) {
+      throw new exception('Unknown option "' + name + '" is met in definition of "' + tag + '" YAML type.');
+    }
+  });
+  this.options = options;
+  this.tag = tag;
+  this.kind = options["kind"] || null;
+  this.resolve = options["resolve"] || function() {
+    return true;
+  };
+  this.construct = options["construct"] || function(data) {
+    return data;
+  };
+  this.instanceOf = options["instanceOf"] || null;
+  this.predicate = options["predicate"] || null;
+  this.represent = options["represent"] || null;
+  this.representName = options["representName"] || null;
+  this.defaultStyle = options["defaultStyle"] || null;
+  this.multi = options["multi"] || false;
+  this.styleAliases = compileStyleAliases(options["styleAliases"] || null);
+  if (YAML_NODE_KINDS.indexOf(this.kind) === -1) {
+    throw new exception('Unknown kind "' + this.kind + '" is specified for "' + tag + '" YAML type.');
+  }
+}
+function compileList(schema2, name) {
+  var result = [];
+  schema2[name].forEach(function(currentType) {
+    var newIndex = result.length;
+    result.forEach(function(previousType, previousIndex) {
+      if (previousType.tag === currentType.tag && previousType.kind === currentType.kind && previousType.multi === currentType.multi) {
+        newIndex = previousIndex;
+      }
+    });
+    result[newIndex] = currentType;
+  });
+  return result;
+}
+function compileMap() {
+  var result = {
+    scalar: {},
+    sequence: {},
+    mapping: {},
+    fallback: {},
+    multi: {
+      scalar: [],
+      sequence: [],
+      mapping: [],
+      fallback: []
+    }
+  }, index, length;
+  function collectType(type2) {
+    if (type2.multi) {
+      result.multi[type2.kind].push(type2);
+      result.multi["fallback"].push(type2);
+    } else {
+      result[type2.kind][type2.tag] = result["fallback"][type2.tag] = type2;
+    }
+  }
+  for (index = 0, length = arguments.length; index < length; index += 1) {
+    arguments[index].forEach(collectType);
+  }
+  return result;
+}
+function Schema$1(definition) {
+  return this.extend(definition);
+}
+function resolveYamlNull(data) {
+  if (data === null) return true;
+  var max = data.length;
+  return max === 1 && data === "~" || max === 4 && (data === "null" || data === "Null" || data === "NULL");
+}
+function constructYamlNull() {
+  return null;
+}
+function isNull(object) {
+  return object === null;
+}
+function resolveYamlBoolean(data) {
+  if (data === null) return false;
+  var max = data.length;
+  return max === 4 && (data === "true" || data === "True" || data === "TRUE") || max === 5 && (data === "false" || data === "False" || data === "FALSE");
+}
+function constructYamlBoolean(data) {
+  return data === "true" || data === "True" || data === "TRUE";
+}
+function isBoolean(object) {
+  return Object.prototype.toString.call(object) === "[object Boolean]";
+}
+function isHexCode(c) {
+  return 48 <= c && c <= 57 || 65 <= c && c <= 70 || 97 <= c && c <= 102;
+}
+function isOctCode(c) {
+  return 48 <= c && c <= 55;
+}
+function isDecCode(c) {
+  return 48 <= c && c <= 57;
+}
+function resolveYamlInteger(data) {
+  if (data === null) return false;
+  var max = data.length, index = 0, hasDigits = false, ch;
+  if (!max) return false;
+  ch = data[index];
+  if (ch === "-" || ch === "+") {
+    ch = data[++index];
+  }
+  if (ch === "0") {
+    if (index + 1 === max) return true;
+    ch = data[++index];
+    if (ch === "b") {
+      index++;
+      for (; index < max; index++) {
+        ch = data[index];
+        if (ch === "_") continue;
+        if (ch !== "0" && ch !== "1") return false;
+        hasDigits = true;
+      }
+      return hasDigits && ch !== "_";
+    }
+    if (ch === "x") {
+      index++;
+      for (; index < max; index++) {
+        ch = data[index];
+        if (ch === "_") continue;
+        if (!isHexCode(data.charCodeAt(index))) return false;
+        hasDigits = true;
+      }
+      return hasDigits && ch !== "_";
+    }
+    if (ch === "o") {
+      index++;
+      for (; index < max; index++) {
+        ch = data[index];
+        if (ch === "_") continue;
+        if (!isOctCode(data.charCodeAt(index))) return false;
+        hasDigits = true;
+      }
+      return hasDigits && ch !== "_";
+    }
+  }
+  if (ch === "_") return false;
+  for (; index < max; index++) {
+    ch = data[index];
+    if (ch === "_") continue;
+    if (!isDecCode(data.charCodeAt(index))) {
+      return false;
+    }
+    hasDigits = true;
+  }
+  if (!hasDigits || ch === "_") return false;
+  return true;
+}
+function constructYamlInteger(data) {
+  var value = data, sign = 1, ch;
+  if (value.indexOf("_") !== -1) {
+    value = value.replace(/_/g, "");
+  }
+  ch = value[0];
+  if (ch === "-" || ch === "+") {
+    if (ch === "-") sign = -1;
+    value = value.slice(1);
+    ch = value[0];
+  }
+  if (value === "0") return 0;
+  if (ch === "0") {
+    if (value[1] === "b") return sign * parseInt(value.slice(2), 2);
+    if (value[1] === "x") return sign * parseInt(value.slice(2), 16);
+    if (value[1] === "o") return sign * parseInt(value.slice(2), 8);
+  }
+  return sign * parseInt(value, 10);
+}
+function isInteger(object) {
+  return Object.prototype.toString.call(object) === "[object Number]" && (object % 1 === 0 && !common.isNegativeZero(object));
+}
+function resolveYamlFloat(data) {
+  if (data === null) return false;
+  if (!YAML_FLOAT_PATTERN.test(data) || // Quick hack to not allow integers end with `_`
+  // Probably should update regexp & check speed
+  data[data.length - 1] === "_") {
+    return false;
+  }
+  return true;
+}
+function constructYamlFloat(data) {
+  var value, sign;
+  value = data.replace(/_/g, "").toLowerCase();
+  sign = value[0] === "-" ? -1 : 1;
+  if ("+-".indexOf(value[0]) >= 0) {
+    value = value.slice(1);
+  }
+  if (value === ".inf") {
+    return sign === 1 ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY;
+  } else if (value === ".nan") {
+    return NaN;
+  }
+  return sign * parseFloat(value, 10);
+}
+function representYamlFloat(object, style) {
+  var res;
+  if (isNaN(object)) {
+    switch (style) {
+      case "lowercase":
+        return ".nan";
+      case "uppercase":
+        return ".NAN";
+      case "camelcase":
+        return ".NaN";
+    }
+  } else if (Number.POSITIVE_INFINITY === object) {
+    switch (style) {
+      case "lowercase":
+        return ".inf";
+      case "uppercase":
+        return ".INF";
+      case "camelcase":
+        return ".Inf";
+    }
+  } else if (Number.NEGATIVE_INFINITY === object) {
+    switch (style) {
+      case "lowercase":
+        return "-.inf";
+      case "uppercase":
+        return "-.INF";
+      case "camelcase":
+        return "-.Inf";
+    }
+  } else if (common.isNegativeZero(object)) {
+    return "-0.0";
+  }
+  res = object.toString(10);
+  return SCIENTIFIC_WITHOUT_DOT.test(res) ? res.replace("e", ".e") : res;
+}
+function isFloat(object) {
+  return Object.prototype.toString.call(object) === "[object Number]" && (object % 1 !== 0 || common.isNegativeZero(object));
+}
+function resolveYamlTimestamp(data) {
+  if (data === null) return false;
+  if (YAML_DATE_REGEXP.exec(data) !== null) return true;
+  if (YAML_TIMESTAMP_REGEXP.exec(data) !== null) return true;
+  return false;
+}
+function constructYamlTimestamp(data) {
+  var match, year, month, day, hour, minute, second, fraction = 0, delta = null, tz_hour, tz_minute, date;
+  match = YAML_DATE_REGEXP.exec(data);
+  if (match === null) match = YAML_TIMESTAMP_REGEXP.exec(data);
+  if (match === null) throw new Error("Date resolve error");
+  year = +match[1];
+  month = +match[2] - 1;
+  day = +match[3];
+  if (!match[4]) {
+    return new Date(Date.UTC(year, month, day));
+  }
+  hour = +match[4];
+  minute = +match[5];
+  second = +match[6];
+  if (match[7]) {
+    fraction = match[7].slice(0, 3);
+    while (fraction.length < 3) {
+      fraction += "0";
+    }
+    fraction = +fraction;
+  }
+  if (match[9]) {
+    tz_hour = +match[10];
+    tz_minute = +(match[11] || 0);
+    delta = (tz_hour * 60 + tz_minute) * 6e4;
+    if (match[9] === "-") delta = -delta;
+  }
+  date = new Date(Date.UTC(year, month, day, hour, minute, second, fraction));
+  if (delta) date.setTime(date.getTime() - delta);
+  return date;
+}
+function representYamlTimestamp(object) {
+  return object.toISOString();
+}
+function resolveYamlMerge(data) {
+  return data === "<<" || data === null;
+}
+function resolveYamlBinary(data) {
+  if (data === null) return false;
+  var code, idx, bitlen = 0, max = data.length, map2 = BASE64_MAP;
+  for (idx = 0; idx < max; idx++) {
+    code = map2.indexOf(data.charAt(idx));
+    if (code > 64) continue;
+    if (code < 0) return false;
+    bitlen += 6;
+  }
+  return bitlen % 8 === 0;
+}
+function constructYamlBinary(data) {
+  var idx, tailbits, input = data.replace(/[\r\n=]/g, ""), max = input.length, map2 = BASE64_MAP, bits = 0, result = [];
+  for (idx = 0; idx < max; idx++) {
+    if (idx % 4 === 0 && idx) {
+      result.push(bits >> 16 & 255);
+      result.push(bits >> 8 & 255);
+      result.push(bits & 255);
+    }
+    bits = bits << 6 | map2.indexOf(input.charAt(idx));
+  }
+  tailbits = max % 4 * 6;
+  if (tailbits === 0) {
+    result.push(bits >> 16 & 255);
+    result.push(bits >> 8 & 255);
+    result.push(bits & 255);
+  } else if (tailbits === 18) {
+    result.push(bits >> 10 & 255);
+    result.push(bits >> 2 & 255);
+  } else if (tailbits === 12) {
+    result.push(bits >> 4 & 255);
+  }
+  return new Uint8Array(result);
+}
+function representYamlBinary(object) {
+  var result = "", bits = 0, idx, tail, max = object.length, map2 = BASE64_MAP;
+  for (idx = 0; idx < max; idx++) {
+    if (idx % 3 === 0 && idx) {
+      result += map2[bits >> 18 & 63];
+      result += map2[bits >> 12 & 63];
+      result += map2[bits >> 6 & 63];
+      result += map2[bits & 63];
+    }
+    bits = (bits << 8) + object[idx];
+  }
+  tail = max % 3;
+  if (tail === 0) {
+    result += map2[bits >> 18 & 63];
+    result += map2[bits >> 12 & 63];
+    result += map2[bits >> 6 & 63];
+    result += map2[bits & 63];
+  } else if (tail === 2) {
+    result += map2[bits >> 10 & 63];
+    result += map2[bits >> 4 & 63];
+    result += map2[bits << 2 & 63];
+    result += map2[64];
+  } else if (tail === 1) {
+    result += map2[bits >> 2 & 63];
+    result += map2[bits << 4 & 63];
+    result += map2[64];
+    result += map2[64];
+  }
+  return result;
+}
+function isBinary(obj) {
+  return Object.prototype.toString.call(obj) === "[object Uint8Array]";
+}
+function resolveYamlOmap(data) {
+  if (data === null) return true;
+  var objectKeys = [], index, length, pair, pairKey, pairHasKey, object = data;
+  for (index = 0, length = object.length; index < length; index += 1) {
+    pair = object[index];
+    pairHasKey = false;
+    if (_toString$2.call(pair) !== "[object Object]") return false;
+    for (pairKey in pair) {
+      if (_hasOwnProperty$3.call(pair, pairKey)) {
+        if (!pairHasKey) pairHasKey = true;
+        else return false;
+      }
+    }
+    if (!pairHasKey) return false;
+    if (objectKeys.indexOf(pairKey) === -1) objectKeys.push(pairKey);
+    else return false;
+  }
+  return true;
+}
+function constructYamlOmap(data) {
+  return data !== null ? data : [];
+}
+function resolveYamlPairs(data) {
+  if (data === null) return true;
+  var index, length, pair, keys, result, object = data;
+  result = new Array(object.length);
+  for (index = 0, length = object.length; index < length; index += 1) {
+    pair = object[index];
+    if (_toString$1.call(pair) !== "[object Object]") return false;
+    keys = Object.keys(pair);
+    if (keys.length !== 1) return false;
+    result[index] = [keys[0], pair[keys[0]]];
+  }
+  return true;
+}
+function constructYamlPairs(data) {
+  if (data === null) return [];
+  var index, length, pair, keys, result, object = data;
+  result = new Array(object.length);
+  for (index = 0, length = object.length; index < length; index += 1) {
+    pair = object[index];
+    keys = Object.keys(pair);
+    result[index] = [keys[0], pair[keys[0]]];
+  }
+  return result;
+}
+function resolveYamlSet(data) {
+  if (data === null) return true;
+  var key, object = data;
+  for (key in object) {
+    if (_hasOwnProperty$2.call(object, key)) {
+      if (object[key] !== null) return false;
+    }
+  }
+  return true;
+}
+function constructYamlSet(data) {
+  return data !== null ? data : {};
+}
+function _class(obj) {
+  return Object.prototype.toString.call(obj);
+}
+function is_EOL(c) {
+  return c === 10 || c === 13;
+}
+function is_WHITE_SPACE(c) {
+  return c === 9 || c === 32;
+}
+function is_WS_OR_EOL(c) {
+  return c === 9 || c === 32 || c === 10 || c === 13;
+}
+function is_FLOW_INDICATOR(c) {
+  return c === 44 || c === 91 || c === 93 || c === 123 || c === 125;
+}
+function fromHexCode(c) {
+  var lc;
+  if (48 <= c && c <= 57) {
+    return c - 48;
+  }
+  lc = c | 32;
+  if (97 <= lc && lc <= 102) {
+    return lc - 97 + 10;
+  }
+  return -1;
+}
+function escapedHexLen(c) {
+  if (c === 120) {
+    return 2;
+  }
+  if (c === 117) {
+    return 4;
+  }
+  if (c === 85) {
+    return 8;
+  }
+  return 0;
+}
+function fromDecimalCode(c) {
+  if (48 <= c && c <= 57) {
+    return c - 48;
+  }
+  return -1;
+}
+function simpleEscapeSequence(c) {
+  return c === 48 ? "\0" : c === 97 ? "\x07" : c === 98 ? "\b" : c === 116 ? "	" : c === 9 ? "	" : c === 110 ? "\n" : c === 118 ? "\v" : c === 102 ? "\f" : c === 114 ? "\r" : c === 101 ? "\x1B" : c === 32 ? " " : c === 34 ? '"' : c === 47 ? "/" : c === 92 ? "\\" : c === 78 ? "\x85" : c === 95 ? "\xA0" : c === 76 ? "\u2028" : c === 80 ? "\u2029" : "";
+}
+function charFromCodepoint(c) {
+  if (c <= 65535) {
+    return String.fromCharCode(c);
+  }
+  return String.fromCharCode(
+    (c - 65536 >> 10) + 55296,
+    (c - 65536 & 1023) + 56320
+  );
+}
+function State$1(input, options) {
+  this.input = input;
+  this.filename = options["filename"] || null;
+  this.schema = options["schema"] || _default;
+  this.onWarning = options["onWarning"] || null;
+  this.legacy = options["legacy"] || false;
+  this.json = options["json"] || false;
+  this.listener = options["listener"] || null;
+  this.implicitTypes = this.schema.compiledImplicit;
+  this.typeMap = this.schema.compiledTypeMap;
+  this.length = input.length;
+  this.position = 0;
+  this.line = 0;
+  this.lineStart = 0;
+  this.lineIndent = 0;
+  this.firstTabInLine = -1;
+  this.documents = [];
+}
+function generateError(state, message) {
+  var mark = {
+    name: state.filename,
+    buffer: state.input.slice(0, -1),
+    // omit trailing \0
+    position: state.position,
+    line: state.line,
+    column: state.position - state.lineStart
+  };
+  mark.snippet = snippet(mark);
+  return new exception(message, mark);
+}
+function throwError(state, message) {
+  throw generateError(state, message);
+}
+function throwWarning(state, message) {
+  if (state.onWarning) {
+    state.onWarning.call(null, generateError(state, message));
+  }
+}
+function captureSegment(state, start, end, checkJson) {
+  var _position, _length, _character, _result;
+  if (start < end) {
+    _result = state.input.slice(start, end);
+    if (checkJson) {
+      for (_position = 0, _length = _result.length; _position < _length; _position += 1) {
+        _character = _result.charCodeAt(_position);
+        if (!(_character === 9 || 32 <= _character && _character <= 1114111)) {
+          throwError(state, "expected valid JSON character");
+        }
+      }
+    } else if (PATTERN_NON_PRINTABLE.test(_result)) {
+      throwError(state, "the stream contains non-printable characters");
+    }
+    state.result += _result;
+  }
+}
+function mergeMappings(state, destination, source, overridableKeys) {
+  var sourceKeys, key, index, quantity;
+  if (!common.isObject(source)) {
+    throwError(state, "cannot merge mappings; the provided source object is unacceptable");
+  }
+  sourceKeys = Object.keys(source);
+  for (index = 0, quantity = sourceKeys.length; index < quantity; index += 1) {
+    key = sourceKeys[index];
+    if (!_hasOwnProperty$1.call(destination, key)) {
+      destination[key] = source[key];
+      overridableKeys[key] = true;
+    }
+  }
+}
+function storeMappingPair(state, _result, overridableKeys, keyTag, keyNode, valueNode, startLine, startLineStart, startPos) {
+  var index, quantity;
+  if (Array.isArray(keyNode)) {
+    keyNode = Array.prototype.slice.call(keyNode);
+    for (index = 0, quantity = keyNode.length; index < quantity; index += 1) {
+      if (Array.isArray(keyNode[index])) {
+        throwError(state, "nested arrays are not supported inside keys");
+      }
+      if (typeof keyNode === "object" && _class(keyNode[index]) === "[object Object]") {
+        keyNode[index] = "[object Object]";
+      }
+    }
+  }
+  if (typeof keyNode === "object" && _class(keyNode) === "[object Object]") {
+    keyNode = "[object Object]";
+  }
+  keyNode = String(keyNode);
+  if (_result === null) {
+    _result = {};
+  }
+  if (keyTag === "tag:yaml.org,2002:merge") {
+    if (Array.isArray(valueNode)) {
+      for (index = 0, quantity = valueNode.length; index < quantity; index += 1) {
+        mergeMappings(state, _result, valueNode[index], overridableKeys);
+      }
+    } else {
+      mergeMappings(state, _result, valueNode, overridableKeys);
+    }
+  } else {
+    if (!state.json && !_hasOwnProperty$1.call(overridableKeys, keyNode) && _hasOwnProperty$1.call(_result, keyNode)) {
+      state.line = startLine || state.line;
+      state.lineStart = startLineStart || state.lineStart;
+      state.position = startPos || state.position;
+      throwError(state, "duplicated mapping key");
+    }
+    if (keyNode === "__proto__") {
+      Object.defineProperty(_result, keyNode, {
+        configurable: true,
+        enumerable: true,
+        writable: true,
+        value: valueNode
+      });
+    } else {
+      _result[keyNode] = valueNode;
+    }
+    delete overridableKeys[keyNode];
+  }
+  return _result;
+}
+function readLineBreak(state) {
+  var ch;
+  ch = state.input.charCodeAt(state.position);
+  if (ch === 10) {
+    state.position++;
+  } else if (ch === 13) {
+    state.position++;
+    if (state.input.charCodeAt(state.position) === 10) {
+      state.position++;
+    }
+  } else {
+    throwError(state, "a line break is expected");
+  }
+  state.line += 1;
+  state.lineStart = state.position;
+  state.firstTabInLine = -1;
+}
+function skipSeparationSpace(state, allowComments, checkIndent) {
+  var lineBreaks = 0, ch = state.input.charCodeAt(state.position);
+  while (ch !== 0) {
+    while (is_WHITE_SPACE(ch)) {
+      if (ch === 9 && state.firstTabInLine === -1) {
+        state.firstTabInLine = state.position;
+      }
+      ch = state.input.charCodeAt(++state.position);
+    }
+    if (allowComments && ch === 35) {
+      do {
+        ch = state.input.charCodeAt(++state.position);
+      } while (ch !== 10 && ch !== 13 && ch !== 0);
+    }
+    if (is_EOL(ch)) {
+      readLineBreak(state);
+      ch = state.input.charCodeAt(state.position);
+      lineBreaks++;
+      state.lineIndent = 0;
+      while (ch === 32) {
+        state.lineIndent++;
+        ch = state.input.charCodeAt(++state.position);
+      }
+    } else {
+      break;
+    }
+  }
+  if (checkIndent !== -1 && lineBreaks !== 0 && state.lineIndent < checkIndent) {
+    throwWarning(state, "deficient indentation");
+  }
+  return lineBreaks;
+}
+function testDocumentSeparator(state) {
+  var _position = state.position, ch;
+  ch = state.input.charCodeAt(_position);
+  if ((ch === 45 || ch === 46) && ch === state.input.charCodeAt(_position + 1) && ch === state.input.charCodeAt(_position + 2)) {
+    _position += 3;
+    ch = state.input.charCodeAt(_position);
+    if (ch === 0 || is_WS_OR_EOL(ch)) {
+      return true;
+    }
+  }
+  return false;
+}
+function writeFoldedLines(state, count) {
+  if (count === 1) {
+    state.result += " ";
+  } else if (count > 1) {
+    state.result += common.repeat("\n", count - 1);
+  }
+}
+function readPlainScalar(state, nodeIndent, withinFlowCollection) {
+  var preceding, following, captureStart, captureEnd, hasPendingContent, _line, _lineStart, _lineIndent, _kind = state.kind, _result = state.result, ch;
+  ch = state.input.charCodeAt(state.position);
+  if (is_WS_OR_EOL(ch) || is_FLOW_INDICATOR(ch) || ch === 35 || ch === 38 || ch === 42 || ch === 33 || ch === 124 || ch === 62 || ch === 39 || ch === 34 || ch === 37 || ch === 64 || ch === 96) {
+    return false;
+  }
+  if (ch === 63 || ch === 45) {
+    following = state.input.charCodeAt(state.position + 1);
+    if (is_WS_OR_EOL(following) || withinFlowCollection && is_FLOW_INDICATOR(following)) {
+      return false;
+    }
+  }
+  state.kind = "scalar";
+  state.result = "";
+  captureStart = captureEnd = state.position;
+  hasPendingContent = false;
+  while (ch !== 0) {
+    if (ch === 58) {
+      following = state.input.charCodeAt(state.position + 1);
+      if (is_WS_OR_EOL(following) || withinFlowCollection && is_FLOW_INDICATOR(following)) {
+        break;
+      }
+    } else if (ch === 35) {
+      preceding = state.input.charCodeAt(state.position - 1);
+      if (is_WS_OR_EOL(preceding)) {
+        break;
+      }
+    } else if (state.position === state.lineStart && testDocumentSeparator(state) || withinFlowCollection && is_FLOW_INDICATOR(ch)) {
+      break;
+    } else if (is_EOL(ch)) {
+      _line = state.line;
+      _lineStart = state.lineStart;
+      _lineIndent = state.lineIndent;
+      skipSeparationSpace(state, false, -1);
+      if (state.lineIndent >= nodeIndent) {
+        hasPendingContent = true;
+        ch = state.input.charCodeAt(state.position);
+        continue;
+      } else {
+        state.position = captureEnd;
+        state.line = _line;
+        state.lineStart = _lineStart;
+        state.lineIndent = _lineIndent;
+        break;
+      }
+    }
+    if (hasPendingContent) {
+      captureSegment(state, captureStart, captureEnd, false);
+      writeFoldedLines(state, state.line - _line);
+      captureStart = captureEnd = state.position;
+      hasPendingContent = false;
+    }
+    if (!is_WHITE_SPACE(ch)) {
+      captureEnd = state.position + 1;
+    }
+    ch = state.input.charCodeAt(++state.position);
+  }
+  captureSegment(state, captureStart, captureEnd, false);
+  if (state.result) {
+    return true;
+  }
+  state.kind = _kind;
+  state.result = _result;
+  return false;
+}
+function readSingleQuotedScalar(state, nodeIndent) {
+  var ch, captureStart, captureEnd;
+  ch = state.input.charCodeAt(state.position);
+  if (ch !== 39) {
+    return false;
+  }
+  state.kind = "scalar";
+  state.result = "";
+  state.position++;
+  captureStart = captureEnd = state.position;
+  while ((ch = state.input.charCodeAt(state.position)) !== 0) {
+    if (ch === 39) {
+      captureSegment(state, captureStart, state.position, true);
+      ch = state.input.charCodeAt(++state.position);
+      if (ch === 39) {
+        captureStart = state.position;
+        state.position++;
+        captureEnd = state.position;
+      } else {
+        return true;
+      }
+    } else if (is_EOL(ch)) {
+      captureSegment(state, captureStart, captureEnd, true);
+      writeFoldedLines(state, skipSeparationSpace(state, false, nodeIndent));
+      captureStart = captureEnd = state.position;
+    } else if (state.position === state.lineStart && testDocumentSeparator(state)) {
+      throwError(state, "unexpected end of the document within a single quoted scalar");
+    } else {
+      state.position++;
+      captureEnd = state.position;
+    }
+  }
+  throwError(state, "unexpected end of the stream within a single quoted scalar");
+}
+function readDoubleQuotedScalar(state, nodeIndent) {
+  var captureStart, captureEnd, hexLength, hexResult, tmp, ch;
+  ch = state.input.charCodeAt(state.position);
+  if (ch !== 34) {
+    return false;
+  }
+  state.kind = "scalar";
+  state.result = "";
+  state.position++;
+  captureStart = captureEnd = state.position;
+  while ((ch = state.input.charCodeAt(state.position)) !== 0) {
+    if (ch === 34) {
+      captureSegment(state, captureStart, state.position, true);
+      state.position++;
+      return true;
+    } else if (ch === 92) {
+      captureSegment(state, captureStart, state.position, true);
+      ch = state.input.charCodeAt(++state.position);
+      if (is_EOL(ch)) {
+        skipSeparationSpace(state, false, nodeIndent);
+      } else if (ch < 256 && simpleEscapeCheck[ch]) {
+        state.result += simpleEscapeMap[ch];
+        state.position++;
+      } else if ((tmp = escapedHexLen(ch)) > 0) {
+        hexLength = tmp;
+        hexResult = 0;
+        for (; hexLength > 0; hexLength--) {
+          ch = state.input.charCodeAt(++state.position);
+          if ((tmp = fromHexCode(ch)) >= 0) {
+            hexResult = (hexResult << 4) + tmp;
+          } else {
+            throwError(state, "expected hexadecimal character");
+          }
+        }
+        state.result += charFromCodepoint(hexResult);
+        state.position++;
+      } else {
+        throwError(state, "unknown escape sequence");
+      }
+      captureStart = captureEnd = state.position;
+    } else if (is_EOL(ch)) {
+      captureSegment(state, captureStart, captureEnd, true);
+      writeFoldedLines(state, skipSeparationSpace(state, false, nodeIndent));
+      captureStart = captureEnd = state.position;
+    } else if (state.position === state.lineStart && testDocumentSeparator(state)) {
+      throwError(state, "unexpected end of the document within a double quoted scalar");
+    } else {
+      state.position++;
+      captureEnd = state.position;
+    }
+  }
+  throwError(state, "unexpected end of the stream within a double quoted scalar");
+}
+function readFlowCollection(state, nodeIndent) {
+  var readNext = true, _line, _lineStart, _pos, _tag = state.tag, _result, _anchor = state.anchor, following, terminator, isPair, isExplicitPair, isMapping, overridableKeys = /* @__PURE__ */ Object.create(null), keyNode, keyTag, valueNode, ch;
+  ch = state.input.charCodeAt(state.position);
+  if (ch === 91) {
+    terminator = 93;
+    isMapping = false;
+    _result = [];
+  } else if (ch === 123) {
+    terminator = 125;
+    isMapping = true;
+    _result = {};
+  } else {
+    return false;
+  }
+  if (state.anchor !== null) {
+    state.anchorMap[state.anchor] = _result;
+  }
+  ch = state.input.charCodeAt(++state.position);
+  while (ch !== 0) {
+    skipSeparationSpace(state, true, nodeIndent);
+    ch = state.input.charCodeAt(state.position);
+    if (ch === terminator) {
+      state.position++;
+      state.tag = _tag;
+      state.anchor = _anchor;
+      state.kind = isMapping ? "mapping" : "sequence";
+      state.result = _result;
+      return true;
+    } else if (!readNext) {
+      throwError(state, "missed comma between flow collection entries");
+    } else if (ch === 44) {
+      throwError(state, "expected the node content, but found ','");
+    }
+    keyTag = keyNode = valueNode = null;
+    isPair = isExplicitPair = false;
+    if (ch === 63) {
+      following = state.input.charCodeAt(state.position + 1);
+      if (is_WS_OR_EOL(following)) {
+        isPair = isExplicitPair = true;
+        state.position++;
+        skipSeparationSpace(state, true, nodeIndent);
+      }
+    }
+    _line = state.line;
+    _lineStart = state.lineStart;
+    _pos = state.position;
+    composeNode(state, nodeIndent, CONTEXT_FLOW_IN, false, true);
+    keyTag = state.tag;
+    keyNode = state.result;
+    skipSeparationSpace(state, true, nodeIndent);
+    ch = state.input.charCodeAt(state.position);
+    if ((isExplicitPair || state.line === _line) && ch === 58) {
+      isPair = true;
+      ch = state.input.charCodeAt(++state.position);
+      skipSeparationSpace(state, true, nodeIndent);
+      composeNode(state, nodeIndent, CONTEXT_FLOW_IN, false, true);
+      valueNode = state.result;
+    }
+    if (isMapping) {
+      storeMappingPair(state, _result, overridableKeys, keyTag, keyNode, valueNode, _line, _lineStart, _pos);
+    } else if (isPair) {
+      _result.push(storeMappingPair(state, null, overridableKeys, keyTag, keyNode, valueNode, _line, _lineStart, _pos));
+    } else {
+      _result.push(keyNode);
+    }
+    skipSeparationSpace(state, true, nodeIndent);
+    ch = state.input.charCodeAt(state.position);
+    if (ch === 44) {
+      readNext = true;
+      ch = state.input.charCodeAt(++state.position);
+    } else {
+      readNext = false;
+    }
+  }
+  throwError(state, "unexpected end of the stream within a flow collection");
+}
+function readBlockScalar(state, nodeIndent) {
+  var captureStart, folding, chomping = CHOMPING_CLIP, didReadContent = false, detectedIndent = false, textIndent = nodeIndent, emptyLines = 0, atMoreIndented = false, tmp, ch;
+  ch = state.input.charCodeAt(state.position);
+  if (ch === 124) {
+    folding = false;
+  } else if (ch === 62) {
+    folding = true;
+  } else {
+    return false;
+  }
+  state.kind = "scalar";
+  state.result = "";
+  while (ch !== 0) {
+    ch = state.input.charCodeAt(++state.position);
+    if (ch === 43 || ch === 45) {
+      if (CHOMPING_CLIP === chomping) {
+        chomping = ch === 43 ? CHOMPING_KEEP : CHOMPING_STRIP;
+      } else {
+        throwError(state, "repeat of a chomping mode identifier");
+      }
+    } else if ((tmp = fromDecimalCode(ch)) >= 0) {
+      if (tmp === 0) {
+        throwError(state, "bad explicit indentation width of a block scalar; it cannot be less than one");
+      } else if (!detectedIndent) {
+        textIndent = nodeIndent + tmp - 1;
+        detectedIndent = true;
+      } else {
+        throwError(state, "repeat of an indentation width identifier");
+      }
+    } else {
+      break;
+    }
+  }
+  if (is_WHITE_SPACE(ch)) {
+    do {
+      ch = state.input.charCodeAt(++state.position);
+    } while (is_WHITE_SPACE(ch));
+    if (ch === 35) {
+      do {
+        ch = state.input.charCodeAt(++state.position);
+      } while (!is_EOL(ch) && ch !== 0);
+    }
+  }
+  while (ch !== 0) {
+    readLineBreak(state);
+    state.lineIndent = 0;
+    ch = state.input.charCodeAt(state.position);
+    while ((!detectedIndent || state.lineIndent < textIndent) && ch === 32) {
+      state.lineIndent++;
+      ch = state.input.charCodeAt(++state.position);
+    }
+    if (!detectedIndent && state.lineIndent > textIndent) {
+      textIndent = state.lineIndent;
+    }
+    if (is_EOL(ch)) {
+      emptyLines++;
+      continue;
+    }
+    if (state.lineIndent < textIndent) {
+      if (chomping === CHOMPING_KEEP) {
+        state.result += common.repeat("\n", didReadContent ? 1 + emptyLines : emptyLines);
+      } else if (chomping === CHOMPING_CLIP) {
+        if (didReadContent) {
+          state.result += "\n";
+        }
+      }
+      break;
+    }
+    if (folding) {
+      if (is_WHITE_SPACE(ch)) {
+        atMoreIndented = true;
+        state.result += common.repeat("\n", didReadContent ? 1 + emptyLines : emptyLines);
+      } else if (atMoreIndented) {
+        atMoreIndented = false;
+        state.result += common.repeat("\n", emptyLines + 1);
+      } else if (emptyLines === 0) {
+        if (didReadContent) {
+          state.result += " ";
+        }
+      } else {
+        state.result += common.repeat("\n", emptyLines);
+      }
+    } else {
+      state.result += common.repeat("\n", didReadContent ? 1 + emptyLines : emptyLines);
+    }
+    didReadContent = true;
+    detectedIndent = true;
+    emptyLines = 0;
+    captureStart = state.position;
+    while (!is_EOL(ch) && ch !== 0) {
+      ch = state.input.charCodeAt(++state.position);
+    }
+    captureSegment(state, captureStart, state.position, false);
+  }
+  return true;
+}
+function readBlockSequence(state, nodeIndent) {
+  var _line, _tag = state.tag, _anchor = state.anchor, _result = [], following, detected = false, ch;
+  if (state.firstTabInLine !== -1) return false;
+  if (state.anchor !== null) {
+    state.anchorMap[state.anchor] = _result;
+  }
+  ch = state.input.charCodeAt(state.position);
+  while (ch !== 0) {
+    if (state.firstTabInLine !== -1) {
+      state.position = state.firstTabInLine;
+      throwError(state, "tab characters must not be used in indentation");
+    }
+    if (ch !== 45) {
+      break;
+    }
+    following = state.input.charCodeAt(state.position + 1);
+    if (!is_WS_OR_EOL(following)) {
+      break;
+    }
+    detected = true;
+    state.position++;
+    if (skipSeparationSpace(state, true, -1)) {
+      if (state.lineIndent <= nodeIndent) {
+        _result.push(null);
+        ch = state.input.charCodeAt(state.position);
+        continue;
+      }
+    }
+    _line = state.line;
+    composeNode(state, nodeIndent, CONTEXT_BLOCK_IN, false, true);
+    _result.push(state.result);
+    skipSeparationSpace(state, true, -1);
+    ch = state.input.charCodeAt(state.position);
+    if ((state.line === _line || state.lineIndent > nodeIndent) && ch !== 0) {
+      throwError(state, "bad indentation of a sequence entry");
+    } else if (state.lineIndent < nodeIndent) {
+      break;
+    }
+  }
+  if (detected) {
+    state.tag = _tag;
+    state.anchor = _anchor;
+    state.kind = "sequence";
+    state.result = _result;
+    return true;
+  }
+  return false;
+}
+function readBlockMapping(state, nodeIndent, flowIndent) {
+  var following, allowCompact, _line, _keyLine, _keyLineStart, _keyPos, _tag = state.tag, _anchor = state.anchor, _result = {}, overridableKeys = /* @__PURE__ */ Object.create(null), keyTag = null, keyNode = null, valueNode = null, atExplicitKey = false, detected = false, ch;
+  if (state.firstTabInLine !== -1) return false;
+  if (state.anchor !== null) {
+    state.anchorMap[state.anchor] = _result;
+  }
+  ch = state.input.charCodeAt(state.position);
+  while (ch !== 0) {
+    if (!atExplicitKey && state.firstTabInLine !== -1) {
+      state.position = state.firstTabInLine;
+      throwError(state, "tab characters must not be used in indentation");
+    }
+    following = state.input.charCodeAt(state.position + 1);
+    _line = state.line;
+    if ((ch === 63 || ch === 58) && is_WS_OR_EOL(following)) {
+      if (ch === 63) {
+        if (atExplicitKey) {
+          storeMappingPair(state, _result, overridableKeys, keyTag, keyNode, null, _keyLine, _keyLineStart, _keyPos);
+          keyTag = keyNode = valueNode = null;
+        }
+        detected = true;
+        atExplicitKey = true;
+        allowCompact = true;
+      } else if (atExplicitKey) {
+        atExplicitKey = false;
+        allowCompact = true;
+      } else {
+        throwError(state, "incomplete explicit mapping pair; a key node is missed; or followed by a non-tabulated empty line");
+      }
+      state.position += 1;
+      ch = following;
+    } else {
+      _keyLine = state.line;
+      _keyLineStart = state.lineStart;
+      _keyPos = state.position;
+      if (!composeNode(state, flowIndent, CONTEXT_FLOW_OUT, false, true)) {
+        break;
+      }
+      if (state.line === _line) {
+        ch = state.input.charCodeAt(state.position);
+        while (is_WHITE_SPACE(ch)) {
+          ch = state.input.charCodeAt(++state.position);
+        }
+        if (ch === 58) {
+          ch = state.input.charCodeAt(++state.position);
+          if (!is_WS_OR_EOL(ch)) {
+            throwError(state, "a whitespace character is expected after the key-value separator within a block mapping");
+          }
+          if (atExplicitKey) {
+            storeMappingPair(state, _result, overridableKeys, keyTag, keyNode, null, _keyLine, _keyLineStart, _keyPos);
+            keyTag = keyNode = valueNode = null;
+          }
+          detected = true;
+          atExplicitKey = false;
+          allowCompact = false;
+          keyTag = state.tag;
+          keyNode = state.result;
+        } else if (detected) {
+          throwError(state, "can not read an implicit mapping pair; a colon is missed");
+        } else {
+          state.tag = _tag;
+          state.anchor = _anchor;
+          return true;
+        }
+      } else if (detected) {
+        throwError(state, "can not read a block mapping entry; a multiline key may not be an implicit key");
+      } else {
+        state.tag = _tag;
+        state.anchor = _anchor;
+        return true;
+      }
+    }
+    if (state.line === _line || state.lineIndent > nodeIndent) {
+      if (atExplicitKey) {
+        _keyLine = state.line;
+        _keyLineStart = state.lineStart;
+        _keyPos = state.position;
+      }
+      if (composeNode(state, nodeIndent, CONTEXT_BLOCK_OUT, true, allowCompact)) {
+        if (atExplicitKey) {
+          keyNode = state.result;
+        } else {
+          valueNode = state.result;
+        }
+      }
+      if (!atExplicitKey) {
+        storeMappingPair(state, _result, overridableKeys, keyTag, keyNode, valueNode, _keyLine, _keyLineStart, _keyPos);
+        keyTag = keyNode = valueNode = null;
+      }
+      skipSeparationSpace(state, true, -1);
+      ch = state.input.charCodeAt(state.position);
+    }
+    if ((state.line === _line || state.lineIndent > nodeIndent) && ch !== 0) {
+      throwError(state, "bad indentation of a mapping entry");
+    } else if (state.lineIndent < nodeIndent) {
+      break;
+    }
+  }
+  if (atExplicitKey) {
+    storeMappingPair(state, _result, overridableKeys, keyTag, keyNode, null, _keyLine, _keyLineStart, _keyPos);
+  }
+  if (detected) {
+    state.tag = _tag;
+    state.anchor = _anchor;
+    state.kind = "mapping";
+    state.result = _result;
+  }
+  return detected;
+}
+function readTagProperty(state) {
+  var _position, isVerbatim = false, isNamed = false, tagHandle, tagName, ch;
+  ch = state.input.charCodeAt(state.position);
+  if (ch !== 33) return false;
+  if (state.tag !== null) {
+    throwError(state, "duplication of a tag property");
+  }
+  ch = state.input.charCodeAt(++state.position);
+  if (ch === 60) {
+    isVerbatim = true;
+    ch = state.input.charCodeAt(++state.position);
+  } else if (ch === 33) {
+    isNamed = true;
+    tagHandle = "!!";
+    ch = state.input.charCodeAt(++state.position);
+  } else {
+    tagHandle = "!";
+  }
+  _position = state.position;
+  if (isVerbatim) {
+    do {
+      ch = state.input.charCodeAt(++state.position);
+    } while (ch !== 0 && ch !== 62);
+    if (state.position < state.length) {
+      tagName = state.input.slice(_position, state.position);
+      ch = state.input.charCodeAt(++state.position);
+    } else {
+      throwError(state, "unexpected end of the stream within a verbatim tag");
+    }
+  } else {
+    while (ch !== 0 && !is_WS_OR_EOL(ch)) {
+      if (ch === 33) {
+        if (!isNamed) {
+          tagHandle = state.input.slice(_position - 1, state.position + 1);
+          if (!PATTERN_TAG_HANDLE.test(tagHandle)) {
+            throwError(state, "named tag handle cannot contain such characters");
+          }
+          isNamed = true;
+          _position = state.position + 1;
+        } else {
+          throwError(state, "tag suffix cannot contain exclamation marks");
+        }
+      }
+      ch = state.input.charCodeAt(++state.position);
+    }
+    tagName = state.input.slice(_position, state.position);
+    if (PATTERN_FLOW_INDICATORS.test(tagName)) {
+      throwError(state, "tag suffix cannot contain flow indicator characters");
+    }
+  }
+  if (tagName && !PATTERN_TAG_URI.test(tagName)) {
+    throwError(state, "tag name cannot contain such characters: " + tagName);
+  }
+  try {
+    tagName = decodeURIComponent(tagName);
+  } catch (err) {
+    throwError(state, "tag name is malformed: " + tagName);
+  }
+  if (isVerbatim) {
+    state.tag = tagName;
+  } else if (_hasOwnProperty$1.call(state.tagMap, tagHandle)) {
+    state.tag = state.tagMap[tagHandle] + tagName;
+  } else if (tagHandle === "!") {
+    state.tag = "!" + tagName;
+  } else if (tagHandle === "!!") {
+    state.tag = "tag:yaml.org,2002:" + tagName;
+  } else {
+    throwError(state, 'undeclared tag handle "' + tagHandle + '"');
+  }
+  return true;
+}
+function readAnchorProperty(state) {
+  var _position, ch;
+  ch = state.input.charCodeAt(state.position);
+  if (ch !== 38) return false;
+  if (state.anchor !== null) {
+    throwError(state, "duplication of an anchor property");
+  }
+  ch = state.input.charCodeAt(++state.position);
+  _position = state.position;
+  while (ch !== 0 && !is_WS_OR_EOL(ch) && !is_FLOW_INDICATOR(ch)) {
+    ch = state.input.charCodeAt(++state.position);
+  }
+  if (state.position === _position) {
+    throwError(state, "name of an anchor node must contain at least one character");
+  }
+  state.anchor = state.input.slice(_position, state.position);
+  return true;
+}
+function readAlias(state) {
+  var _position, alias, ch;
+  ch = state.input.charCodeAt(state.position);
+  if (ch !== 42) return false;
+  ch = state.input.charCodeAt(++state.position);
+  _position = state.position;
+  while (ch !== 0 && !is_WS_OR_EOL(ch) && !is_FLOW_INDICATOR(ch)) {
+    ch = state.input.charCodeAt(++state.position);
+  }
+  if (state.position === _position) {
+    throwError(state, "name of an alias node must contain at least one character");
+  }
+  alias = state.input.slice(_position, state.position);
+  if (!_hasOwnProperty$1.call(state.anchorMap, alias)) {
+    throwError(state, 'unidentified alias "' + alias + '"');
+  }
+  state.result = state.anchorMap[alias];
+  skipSeparationSpace(state, true, -1);
+  return true;
+}
+function composeNode(state, parentIndent, nodeContext, allowToSeek, allowCompact) {
+  var allowBlockStyles, allowBlockScalars, allowBlockCollections, indentStatus = 1, atNewLine = false, hasContent = false, typeIndex, typeQuantity, typeList, type2, flowIndent, blockIndent;
+  if (state.listener !== null) {
+    state.listener("open", state);
+  }
+  state.tag = null;
+  state.anchor = null;
+  state.kind = null;
+  state.result = null;
+  allowBlockStyles = allowBlockScalars = allowBlockCollections = CONTEXT_BLOCK_OUT === nodeContext || CONTEXT_BLOCK_IN === nodeContext;
+  if (allowToSeek) {
+    if (skipSeparationSpace(state, true, -1)) {
+      atNewLine = true;
+      if (state.lineIndent > parentIndent) {
+        indentStatus = 1;
+      } else if (state.lineIndent === parentIndent) {
+        indentStatus = 0;
+      } else if (state.lineIndent < parentIndent) {
+        indentStatus = -1;
+      }
+    }
+  }
+  if (indentStatus === 1) {
+    while (readTagProperty(state) || readAnchorProperty(state)) {
+      if (skipSeparationSpace(state, true, -1)) {
+        atNewLine = true;
+        allowBlockCollections = allowBlockStyles;
+        if (state.lineIndent > parentIndent) {
+          indentStatus = 1;
+        } else if (state.lineIndent === parentIndent) {
+          indentStatus = 0;
+        } else if (state.lineIndent < parentIndent) {
+          indentStatus = -1;
+        }
+      } else {
+        allowBlockCollections = false;
+      }
+    }
+  }
+  if (allowBlockCollections) {
+    allowBlockCollections = atNewLine || allowCompact;
+  }
+  if (indentStatus === 1 || CONTEXT_BLOCK_OUT === nodeContext) {
+    if (CONTEXT_FLOW_IN === nodeContext || CONTEXT_FLOW_OUT === nodeContext) {
+      flowIndent = parentIndent;
+    } else {
+      flowIndent = parentIndent + 1;
+    }
+    blockIndent = state.position - state.lineStart;
+    if (indentStatus === 1) {
+      if (allowBlockCollections && (readBlockSequence(state, blockIndent) || readBlockMapping(state, blockIndent, flowIndent)) || readFlowCollection(state, flowIndent)) {
+        hasContent = true;
+      } else {
+        if (allowBlockScalars && readBlockScalar(state, flowIndent) || readSingleQuotedScalar(state, flowIndent) || readDoubleQuotedScalar(state, flowIndent)) {
+          hasContent = true;
+        } else if (readAlias(state)) {
+          hasContent = true;
+          if (state.tag !== null || state.anchor !== null) {
+            throwError(state, "alias node should not have any properties");
+          }
+        } else if (readPlainScalar(state, flowIndent, CONTEXT_FLOW_IN === nodeContext)) {
+          hasContent = true;
+          if (state.tag === null) {
+            state.tag = "?";
+          }
+        }
+        if (state.anchor !== null) {
+          state.anchorMap[state.anchor] = state.result;
+        }
+      }
+    } else if (indentStatus === 0) {
+      hasContent = allowBlockCollections && readBlockSequence(state, blockIndent);
+    }
+  }
+  if (state.tag === null) {
+    if (state.anchor !== null) {
+      state.anchorMap[state.anchor] = state.result;
+    }
+  } else if (state.tag === "?") {
+    if (state.result !== null && state.kind !== "scalar") {
+      throwError(state, 'unacceptable node kind for !<?> tag; it should be "scalar", not "' + state.kind + '"');
+    }
+    for (typeIndex = 0, typeQuantity = state.implicitTypes.length; typeIndex < typeQuantity; typeIndex += 1) {
+      type2 = state.implicitTypes[typeIndex];
+      if (type2.resolve(state.result)) {
+        state.result = type2.construct(state.result);
+        state.tag = type2.tag;
+        if (state.anchor !== null) {
+          state.anchorMap[state.anchor] = state.result;
+        }
+        break;
+      }
+    }
+  } else if (state.tag !== "!") {
+    if (_hasOwnProperty$1.call(state.typeMap[state.kind || "fallback"], state.tag)) {
+      type2 = state.typeMap[state.kind || "fallback"][state.tag];
+    } else {
+      type2 = null;
+      typeList = state.typeMap.multi[state.kind || "fallback"];
+      for (typeIndex = 0, typeQuantity = typeList.length; typeIndex < typeQuantity; typeIndex += 1) {
+        if (state.tag.slice(0, typeList[typeIndex].tag.length) === typeList[typeIndex].tag) {
+          type2 = typeList[typeIndex];
+          break;
+        }
+      }
+    }
+    if (!type2) {
+      throwError(state, "unknown tag !<" + state.tag + ">");
+    }
+    if (state.result !== null && type2.kind !== state.kind) {
+      throwError(state, "unacceptable node kind for !<" + state.tag + '> tag; it should be "' + type2.kind + '", not "' + state.kind + '"');
+    }
+    if (!type2.resolve(state.result, state.tag)) {
+      throwError(state, "cannot resolve a node with !<" + state.tag + "> explicit tag");
+    } else {
+      state.result = type2.construct(state.result, state.tag);
+      if (state.anchor !== null) {
+        state.anchorMap[state.anchor] = state.result;
+      }
+    }
+  }
+  if (state.listener !== null) {
+    state.listener("close", state);
+  }
+  return state.tag !== null || state.anchor !== null || hasContent;
+}
+function readDocument(state) {
+  var documentStart = state.position, _position, directiveName, directiveArgs, hasDirectives = false, ch;
+  state.version = null;
+  state.checkLineBreaks = state.legacy;
+  state.tagMap = /* @__PURE__ */ Object.create(null);
+  state.anchorMap = /* @__PURE__ */ Object.create(null);
+  while ((ch = state.input.charCodeAt(state.position)) !== 0) {
+    skipSeparationSpace(state, true, -1);
+    ch = state.input.charCodeAt(state.position);
+    if (state.lineIndent > 0 || ch !== 37) {
+      break;
+    }
+    hasDirectives = true;
+    ch = state.input.charCodeAt(++state.position);
+    _position = state.position;
+    while (ch !== 0 && !is_WS_OR_EOL(ch)) {
+      ch = state.input.charCodeAt(++state.position);
+    }
+    directiveName = state.input.slice(_position, state.position);
+    directiveArgs = [];
+    if (directiveName.length < 1) {
+      throwError(state, "directive name must not be less than one character in length");
+    }
+    while (ch !== 0) {
+      while (is_WHITE_SPACE(ch)) {
+        ch = state.input.charCodeAt(++state.position);
+      }
+      if (ch === 35) {
+        do {
+          ch = state.input.charCodeAt(++state.position);
+        } while (ch !== 0 && !is_EOL(ch));
+        break;
+      }
+      if (is_EOL(ch)) break;
+      _position = state.position;
+      while (ch !== 0 && !is_WS_OR_EOL(ch)) {
+        ch = state.input.charCodeAt(++state.position);
+      }
+      directiveArgs.push(state.input.slice(_position, state.position));
+    }
+    if (ch !== 0) readLineBreak(state);
+    if (_hasOwnProperty$1.call(directiveHandlers, directiveName)) {
+      directiveHandlers[directiveName](state, directiveName, directiveArgs);
+    } else {
+      throwWarning(state, 'unknown document directive "' + directiveName + '"');
+    }
+  }
+  skipSeparationSpace(state, true, -1);
+  if (state.lineIndent === 0 && state.input.charCodeAt(state.position) === 45 && state.input.charCodeAt(state.position + 1) === 45 && state.input.charCodeAt(state.position + 2) === 45) {
+    state.position += 3;
+    skipSeparationSpace(state, true, -1);
+  } else if (hasDirectives) {
+    throwError(state, "directives end mark is expected");
+  }
+  composeNode(state, state.lineIndent - 1, CONTEXT_BLOCK_OUT, false, true);
+  skipSeparationSpace(state, true, -1);
+  if (state.checkLineBreaks && PATTERN_NON_ASCII_LINE_BREAKS.test(state.input.slice(documentStart, state.position))) {
+    throwWarning(state, "non-ASCII line breaks are interpreted as content");
+  }
+  state.documents.push(state.result);
+  if (state.position === state.lineStart && testDocumentSeparator(state)) {
+    if (state.input.charCodeAt(state.position) === 46) {
+      state.position += 3;
+      skipSeparationSpace(state, true, -1);
+    }
+    return;
+  }
+  if (state.position < state.length - 1) {
+    throwError(state, "end of the stream or a document separator is expected");
+  } else {
+    return;
+  }
+}
+function loadDocuments(input, options) {
+  input = String(input);
+  options = options || {};
+  if (input.length !== 0) {
+    if (input.charCodeAt(input.length - 1) !== 10 && input.charCodeAt(input.length - 1) !== 13) {
+      input += "\n";
+    }
+    if (input.charCodeAt(0) === 65279) {
+      input = input.slice(1);
+    }
+  }
+  var state = new State$1(input, options);
+  var nullpos = input.indexOf("\0");
+  if (nullpos !== -1) {
+    state.position = nullpos;
+    throwError(state, "null byte is not allowed in input");
+  }
+  state.input += "\0";
+  while (state.input.charCodeAt(state.position) === 32) {
+    state.lineIndent += 1;
+    state.position += 1;
+  }
+  while (state.position < state.length - 1) {
+    readDocument(state);
+  }
+  return state.documents;
+}
+function loadAll$1(input, iterator, options) {
+  if (iterator !== null && typeof iterator === "object" && typeof options === "undefined") {
+    options = iterator;
+    iterator = null;
+  }
+  var documents = loadDocuments(input, options);
+  if (typeof iterator !== "function") {
+    return documents;
+  }
+  for (var index = 0, length = documents.length; index < length; index += 1) {
+    iterator(documents[index]);
+  }
+}
+function load$1(input, options) {
+  var documents = loadDocuments(input, options);
+  if (documents.length === 0) {
+    return void 0;
+  } else if (documents.length === 1) {
+    return documents[0];
+  }
+  throw new exception("expected a single document in the stream, but found more");
+}
+function compileStyleMap(schema2, map2) {
+  var result, keys, index, length, tag, style, type2;
+  if (map2 === null) return {};
+  result = {};
+  keys = Object.keys(map2);
+  for (index = 0, length = keys.length; index < length; index += 1) {
+    tag = keys[index];
+    style = String(map2[tag]);
+    if (tag.slice(0, 2) === "!!") {
+      tag = "tag:yaml.org,2002:" + tag.slice(2);
+    }
+    type2 = schema2.compiledTypeMap["fallback"][tag];
+    if (type2 && _hasOwnProperty.call(type2.styleAliases, style)) {
+      style = type2.styleAliases[style];
+    }
+    result[tag] = style;
+  }
+  return result;
+}
+function encodeHex(character) {
+  var string, handle, length;
+  string = character.toString(16).toUpperCase();
+  if (character <= 255) {
+    handle = "x";
+    length = 2;
+  } else if (character <= 65535) {
+    handle = "u";
+    length = 4;
+  } else if (character <= 4294967295) {
+    handle = "U";
+    length = 8;
+  } else {
+    throw new exception("code point within a string may not be greater than 0xFFFFFFFF");
+  }
+  return "\\" + handle + common.repeat("0", length - string.length) + string;
+}
+function State(options) {
+  this.schema = options["schema"] || _default;
+  this.indent = Math.max(1, options["indent"] || 2);
+  this.noArrayIndent = options["noArrayIndent"] || false;
+  this.skipInvalid = options["skipInvalid"] || false;
+  this.flowLevel = common.isNothing(options["flowLevel"]) ? -1 : options["flowLevel"];
+  this.styleMap = compileStyleMap(this.schema, options["styles"] || null);
+  this.sortKeys = options["sortKeys"] || false;
+  this.lineWidth = options["lineWidth"] || 80;
+  this.noRefs = options["noRefs"] || false;
+  this.noCompatMode = options["noCompatMode"] || false;
+  this.condenseFlow = options["condenseFlow"] || false;
+  this.quotingType = options["quotingType"] === '"' ? QUOTING_TYPE_DOUBLE : QUOTING_TYPE_SINGLE;
+  this.forceQuotes = options["forceQuotes"] || false;
+  this.replacer = typeof options["replacer"] === "function" ? options["replacer"] : null;
+  this.implicitTypes = this.schema.compiledImplicit;
+  this.explicitTypes = this.schema.compiledExplicit;
+  this.tag = null;
+  this.result = "";
+  this.duplicates = [];
+  this.usedDuplicates = null;
+}
+function indentString(string, spaces) {
+  var ind = common.repeat(" ", spaces), position = 0, next = -1, result = "", line, length = string.length;
+  while (position < length) {
+    next = string.indexOf("\n", position);
+    if (next === -1) {
+      line = string.slice(position);
+      position = length;
+    } else {
+      line = string.slice(position, next + 1);
+      position = next + 1;
+    }
+    if (line.length && line !== "\n") result += ind;
+    result += line;
+  }
+  return result;
+}
+function generateNextLine(state, level) {
+  return "\n" + common.repeat(" ", state.indent * level);
+}
+function testImplicitResolving(state, str2) {
+  var index, length, type2;
+  for (index = 0, length = state.implicitTypes.length; index < length; index += 1) {
+    type2 = state.implicitTypes[index];
+    if (type2.resolve(str2)) {
+      return true;
+    }
+  }
+  return false;
+}
+function isWhitespace(c) {
+  return c === CHAR_SPACE || c === CHAR_TAB;
+}
+function isPrintable(c) {
+  return 32 <= c && c <= 126 || 161 <= c && c <= 55295 && c !== 8232 && c !== 8233 || 57344 <= c && c <= 65533 && c !== CHAR_BOM || 65536 <= c && c <= 1114111;
+}
+function isNsCharOrWhitespace(c) {
+  return isPrintable(c) && c !== CHAR_BOM && c !== CHAR_CARRIAGE_RETURN && c !== CHAR_LINE_FEED;
+}
+function isPlainSafe(c, prev, inblock) {
+  var cIsNsCharOrWhitespace = isNsCharOrWhitespace(c);
+  var cIsNsChar = cIsNsCharOrWhitespace && !isWhitespace(c);
+  return (
+    // ns-plain-safe
+    (inblock ? (
+      // c = flow-in
+      cIsNsCharOrWhitespace
+    ) : cIsNsCharOrWhitespace && c !== CHAR_COMMA && c !== CHAR_LEFT_SQUARE_BRACKET && c !== CHAR_RIGHT_SQUARE_BRACKET && c !== CHAR_LEFT_CURLY_BRACKET && c !== CHAR_RIGHT_CURLY_BRACKET) && c !== CHAR_SHARP && !(prev === CHAR_COLON && !cIsNsChar) || isNsCharOrWhitespace(prev) && !isWhitespace(prev) && c === CHAR_SHARP || prev === CHAR_COLON && cIsNsChar
+  );
+}
+function isPlainSafeFirst(c) {
+  return isPrintable(c) && c !== CHAR_BOM && !isWhitespace(c) && c !== CHAR_MINUS && c !== CHAR_QUESTION && c !== CHAR_COLON && c !== CHAR_COMMA && c !== CHAR_LEFT_SQUARE_BRACKET && c !== CHAR_RIGHT_SQUARE_BRACKET && c !== CHAR_LEFT_CURLY_BRACKET && c !== CHAR_RIGHT_CURLY_BRACKET && c !== CHAR_SHARP && c !== CHAR_AMPERSAND && c !== CHAR_ASTERISK && c !== CHAR_EXCLAMATION && c !== CHAR_VERTICAL_LINE && c !== CHAR_EQUALS && c !== CHAR_GREATER_THAN && c !== CHAR_SINGLE_QUOTE && c !== CHAR_DOUBLE_QUOTE && c !== CHAR_PERCENT && c !== CHAR_COMMERCIAL_AT && c !== CHAR_GRAVE_ACCENT;
+}
+function isPlainSafeLast(c) {
+  return !isWhitespace(c) && c !== CHAR_COLON;
+}
+function codePointAt(string, pos) {
+  var first = string.charCodeAt(pos), second;
+  if (first >= 55296 && first <= 56319 && pos + 1 < string.length) {
+    second = string.charCodeAt(pos + 1);
+    if (second >= 56320 && second <= 57343) {
+      return (first - 55296) * 1024 + second - 56320 + 65536;
+    }
+  }
+  return first;
+}
+function needIndentIndicator(string) {
+  var leadingSpaceRe = /^\n* /;
+  return leadingSpaceRe.test(string);
+}
+function chooseScalarStyle(string, singleLineOnly, indentPerLevel, lineWidth, testAmbiguousType, quotingType, forceQuotes, inblock) {
+  var i;
+  var char = 0;
+  var prevChar = null;
+  var hasLineBreak = false;
+  var hasFoldableLine = false;
+  var shouldTrackWidth = lineWidth !== -1;
+  var previousLineBreak = -1;
+  var plain = isPlainSafeFirst(codePointAt(string, 0)) && isPlainSafeLast(codePointAt(string, string.length - 1));
+  if (singleLineOnly || forceQuotes) {
+    for (i = 0; i < string.length; char >= 65536 ? i += 2 : i++) {
+      char = codePointAt(string, i);
+      if (!isPrintable(char)) {
+        return STYLE_DOUBLE;
+      }
+      plain = plain && isPlainSafe(char, prevChar, inblock);
+      prevChar = char;
+    }
+  } else {
+    for (i = 0; i < string.length; char >= 65536 ? i += 2 : i++) {
+      char = codePointAt(string, i);
+      if (char === CHAR_LINE_FEED) {
+        hasLineBreak = true;
+        if (shouldTrackWidth) {
+          hasFoldableLine = hasFoldableLine || // Foldable line = too long, and not more-indented.
+          i - previousLineBreak - 1 > lineWidth && string[previousLineBreak + 1] !== " ";
+          previousLineBreak = i;
+        }
+      } else if (!isPrintable(char)) {
+        return STYLE_DOUBLE;
+      }
+      plain = plain && isPlainSafe(char, prevChar, inblock);
+      prevChar = char;
+    }
+    hasFoldableLine = hasFoldableLine || shouldTrackWidth && (i - previousLineBreak - 1 > lineWidth && string[previousLineBreak + 1] !== " ");
+  }
+  if (!hasLineBreak && !hasFoldableLine) {
+    if (plain && !forceQuotes && !testAmbiguousType(string)) {
+      return STYLE_PLAIN;
+    }
+    return quotingType === QUOTING_TYPE_DOUBLE ? STYLE_DOUBLE : STYLE_SINGLE;
+  }
+  if (indentPerLevel > 9 && needIndentIndicator(string)) {
+    return STYLE_DOUBLE;
+  }
+  if (!forceQuotes) {
+    return hasFoldableLine ? STYLE_FOLDED : STYLE_LITERAL;
+  }
+  return quotingType === QUOTING_TYPE_DOUBLE ? STYLE_DOUBLE : STYLE_SINGLE;
+}
+function writeScalar(state, string, level, iskey, inblock) {
+  state.dump = function() {
+    if (string.length === 0) {
+      return state.quotingType === QUOTING_TYPE_DOUBLE ? '""' : "''";
+    }
+    if (!state.noCompatMode) {
+      if (DEPRECATED_BOOLEANS_SYNTAX.indexOf(string) !== -1 || DEPRECATED_BASE60_SYNTAX.test(string)) {
+        return state.quotingType === QUOTING_TYPE_DOUBLE ? '"' + string + '"' : "'" + string + "'";
+      }
+    }
+    var indent = state.indent * Math.max(1, level);
+    var lineWidth = state.lineWidth === -1 ? -1 : Math.max(Math.min(state.lineWidth, 40), state.lineWidth - indent);
+    var singleLineOnly = iskey || state.flowLevel > -1 && level >= state.flowLevel;
+    function testAmbiguity(string2) {
+      return testImplicitResolving(state, string2);
+    }
+    switch (chooseScalarStyle(
+      string,
+      singleLineOnly,
+      state.indent,
+      lineWidth,
+      testAmbiguity,
+      state.quotingType,
+      state.forceQuotes && !iskey,
+      inblock
+    )) {
+      case STYLE_PLAIN:
+        return string;
+      case STYLE_SINGLE:
+        return "'" + string.replace(/'/g, "''") + "'";
+      case STYLE_LITERAL:
+        return "|" + blockHeader(string, state.indent) + dropEndingNewline(indentString(string, indent));
+      case STYLE_FOLDED:
+        return ">" + blockHeader(string, state.indent) + dropEndingNewline(indentString(foldString(string, lineWidth), indent));
+      case STYLE_DOUBLE:
+        return '"' + escapeString(string) + '"';
+      default:
+        throw new exception("impossible error: invalid scalar style");
+    }
+  }();
+}
+function blockHeader(string, indentPerLevel) {
+  var indentIndicator = needIndentIndicator(string) ? String(indentPerLevel) : "";
+  var clip = string[string.length - 1] === "\n";
+  var keep = clip && (string[string.length - 2] === "\n" || string === "\n");
+  var chomp = keep ? "+" : clip ? "" : "-";
+  return indentIndicator + chomp + "\n";
+}
+function dropEndingNewline(string) {
+  return string[string.length - 1] === "\n" ? string.slice(0, -1) : string;
+}
+function foldString(string, width) {
+  var lineRe = /(\n+)([^\n]*)/g;
+  var result = function() {
+    var nextLF = string.indexOf("\n");
+    nextLF = nextLF !== -1 ? nextLF : string.length;
+    lineRe.lastIndex = nextLF;
+    return foldLine(string.slice(0, nextLF), width);
+  }();
+  var prevMoreIndented = string[0] === "\n" || string[0] === " ";
+  var moreIndented;
+  var match;
+  while (match = lineRe.exec(string)) {
+    var prefix = match[1], line = match[2];
+    moreIndented = line[0] === " ";
+    result += prefix + (!prevMoreIndented && !moreIndented && line !== "" ? "\n" : "") + foldLine(line, width);
+    prevMoreIndented = moreIndented;
+  }
+  return result;
+}
+function foldLine(line, width) {
+  if (line === "" || line[0] === " ") return line;
+  var breakRe = / [^ ]/g;
+  var match;
+  var start = 0, end, curr = 0, next = 0;
+  var result = "";
+  while (match = breakRe.exec(line)) {
+    next = match.index;
+    if (next - start > width) {
+      end = curr > start ? curr : next;
+      result += "\n" + line.slice(start, end);
+      start = end + 1;
+    }
+    curr = next;
+  }
+  result += "\n";
+  if (line.length - start > width && curr > start) {
+    result += line.slice(start, curr) + "\n" + line.slice(curr + 1);
+  } else {
+    result += line.slice(start);
+  }
+  return result.slice(1);
+}
+function escapeString(string) {
+  var result = "";
+  var char = 0;
+  var escapeSeq;
+  for (var i = 0; i < string.length; char >= 65536 ? i += 2 : i++) {
+    char = codePointAt(string, i);
+    escapeSeq = ESCAPE_SEQUENCES[char];
+    if (!escapeSeq && isPrintable(char)) {
+      result += string[i];
+      if (char >= 65536) result += string[i + 1];
+    } else {
+      result += escapeSeq || encodeHex(char);
+    }
+  }
+  return result;
+}
+function writeFlowSequence(state, level, object) {
+  var _result = "", _tag = state.tag, index, length, value;
+  for (index = 0, length = object.length; index < length; index += 1) {
+    value = object[index];
+    if (state.replacer) {
+      value = state.replacer.call(object, String(index), value);
+    }
+    if (writeNode(state, level, value, false, false) || typeof value === "undefined" && writeNode(state, level, null, false, false)) {
+      if (_result !== "") _result += "," + (!state.condenseFlow ? " " : "");
+      _result += state.dump;
+    }
+  }
+  state.tag = _tag;
+  state.dump = "[" + _result + "]";
+}
+function writeBlockSequence(state, level, object, compact) {
+  var _result = "", _tag = state.tag, index, length, value;
+  for (index = 0, length = object.length; index < length; index += 1) {
+    value = object[index];
+    if (state.replacer) {
+      value = state.replacer.call(object, String(index), value);
+    }
+    if (writeNode(state, level + 1, value, true, true, false, true) || typeof value === "undefined" && writeNode(state, level + 1, null, true, true, false, true)) {
+      if (!compact || _result !== "") {
+        _result += generateNextLine(state, level);
+      }
+      if (state.dump && CHAR_LINE_FEED === state.dump.charCodeAt(0)) {
+        _result += "-";
+      } else {
+        _result += "- ";
+      }
+      _result += state.dump;
+    }
+  }
+  state.tag = _tag;
+  state.dump = _result || "[]";
+}
+function writeFlowMapping(state, level, object) {
+  var _result = "", _tag = state.tag, objectKeyList = Object.keys(object), index, length, objectKey, objectValue, pairBuffer;
+  for (index = 0, length = objectKeyList.length; index < length; index += 1) {
+    pairBuffer = "";
+    if (_result !== "") pairBuffer += ", ";
+    if (state.condenseFlow) pairBuffer += '"';
+    objectKey = objectKeyList[index];
+    objectValue = object[objectKey];
+    if (state.replacer) {
+      objectValue = state.replacer.call(object, objectKey, objectValue);
+    }
+    if (!writeNode(state, level, objectKey, false, false)) {
+      continue;
+    }
+    if (state.dump.length > 1024) pairBuffer += "? ";
+    pairBuffer += state.dump + (state.condenseFlow ? '"' : "") + ":" + (state.condenseFlow ? "" : " ");
+    if (!writeNode(state, level, objectValue, false, false)) {
+      continue;
+    }
+    pairBuffer += state.dump;
+    _result += pairBuffer;
+  }
+  state.tag = _tag;
+  state.dump = "{" + _result + "}";
+}
+function writeBlockMapping(state, level, object, compact) {
+  var _result = "", _tag = state.tag, objectKeyList = Object.keys(object), index, length, objectKey, objectValue, explicitPair, pairBuffer;
+  if (state.sortKeys === true) {
+    objectKeyList.sort();
+  } else if (typeof state.sortKeys === "function") {
+    objectKeyList.sort(state.sortKeys);
+  } else if (state.sortKeys) {
+    throw new exception("sortKeys must be a boolean or a function");
+  }
+  for (index = 0, length = objectKeyList.length; index < length; index += 1) {
+    pairBuffer = "";
+    if (!compact || _result !== "") {
+      pairBuffer += generateNextLine(state, level);
+    }
+    objectKey = objectKeyList[index];
+    objectValue = object[objectKey];
+    if (state.replacer) {
+      objectValue = state.replacer.call(object, objectKey, objectValue);
+    }
+    if (!writeNode(state, level + 1, objectKey, true, true, true)) {
+      continue;
+    }
+    explicitPair = state.tag !== null && state.tag !== "?" || state.dump && state.dump.length > 1024;
+    if (explicitPair) {
+      if (state.dump && CHAR_LINE_FEED === state.dump.charCodeAt(0)) {
+        pairBuffer += "?";
+      } else {
+        pairBuffer += "? ";
+      }
+    }
+    pairBuffer += state.dump;
+    if (explicitPair) {
+      pairBuffer += generateNextLine(state, level);
+    }
+    if (!writeNode(state, level + 1, objectValue, true, explicitPair)) {
+      continue;
+    }
+    if (state.dump && CHAR_LINE_FEED === state.dump.charCodeAt(0)) {
+      pairBuffer += ":";
+    } else {
+      pairBuffer += ": ";
+    }
+    pairBuffer += state.dump;
+    _result += pairBuffer;
+  }
+  state.tag = _tag;
+  state.dump = _result || "{}";
+}
+function detectType(state, object, explicit) {
+  var _result, typeList, index, length, type2, style;
+  typeList = explicit ? state.explicitTypes : state.implicitTypes;
+  for (index = 0, length = typeList.length; index < length; index += 1) {
+    type2 = typeList[index];
+    if ((type2.instanceOf || type2.predicate) && (!type2.instanceOf || typeof object === "object" && object instanceof type2.instanceOf) && (!type2.predicate || type2.predicate(object))) {
+      if (explicit) {
+        if (type2.multi && type2.representName) {
+          state.tag = type2.representName(object);
+        } else {
+          state.tag = type2.tag;
+        }
+      } else {
+        state.tag = "?";
+      }
+      if (type2.represent) {
+        style = state.styleMap[type2.tag] || type2.defaultStyle;
+        if (_toString.call(type2.represent) === "[object Function]") {
+          _result = type2.represent(object, style);
+        } else if (_hasOwnProperty.call(type2.represent, style)) {
+          _result = type2.represent[style](object, style);
+        } else {
+          throw new exception("!<" + type2.tag + '> tag resolver accepts not "' + style + '" style');
+        }
+        state.dump = _result;
+      }
+      return true;
+    }
+  }
+  return false;
+}
+function writeNode(state, level, object, block, compact, iskey, isblockseq) {
+  state.tag = null;
+  state.dump = object;
+  if (!detectType(state, object, false)) {
+    detectType(state, object, true);
+  }
+  var type2 = _toString.call(state.dump);
+  var inblock = block;
+  var tagStr;
+  if (block) {
+    block = state.flowLevel < 0 || state.flowLevel > level;
+  }
+  var objectOrArray = type2 === "[object Object]" || type2 === "[object Array]", duplicateIndex, duplicate;
+  if (objectOrArray) {
+    duplicateIndex = state.duplicates.indexOf(object);
+    duplicate = duplicateIndex !== -1;
+  }
+  if (state.tag !== null && state.tag !== "?" || duplicate || state.indent !== 2 && level > 0) {
+    compact = false;
+  }
+  if (duplicate && state.usedDuplicates[duplicateIndex]) {
+    state.dump = "*ref_" + duplicateIndex;
+  } else {
+    if (objectOrArray && duplicate && !state.usedDuplicates[duplicateIndex]) {
+      state.usedDuplicates[duplicateIndex] = true;
+    }
+    if (type2 === "[object Object]") {
+      if (block && Object.keys(state.dump).length !== 0) {
+        writeBlockMapping(state, level, state.dump, compact);
+        if (duplicate) {
+          state.dump = "&ref_" + duplicateIndex + state.dump;
+        }
+      } else {
+        writeFlowMapping(state, level, state.dump);
+        if (duplicate) {
+          state.dump = "&ref_" + duplicateIndex + " " + state.dump;
+        }
+      }
+    } else if (type2 === "[object Array]") {
+      if (block && state.dump.length !== 0) {
+        if (state.noArrayIndent && !isblockseq && level > 0) {
+          writeBlockSequence(state, level - 1, state.dump, compact);
+        } else {
+          writeBlockSequence(state, level, state.dump, compact);
+        }
+        if (duplicate) {
+          state.dump = "&ref_" + duplicateIndex + state.dump;
+        }
+      } else {
+        writeFlowSequence(state, level, state.dump);
+        if (duplicate) {
+          state.dump = "&ref_" + duplicateIndex + " " + state.dump;
+        }
+      }
+    } else if (type2 === "[object String]") {
+      if (state.tag !== "?") {
+        writeScalar(state, state.dump, level, iskey, inblock);
+      }
+    } else if (type2 === "[object Undefined]") {
+      return false;
+    } else {
+      if (state.skipInvalid) return false;
+      throw new exception("unacceptable kind of an object to dump " + type2);
+    }
+    if (state.tag !== null && state.tag !== "?") {
+      tagStr = encodeURI(
+        state.tag[0] === "!" ? state.tag.slice(1) : state.tag
+      ).replace(/!/g, "%21");
+      if (state.tag[0] === "!") {
+        tagStr = "!" + tagStr;
+      } else if (tagStr.slice(0, 18) === "tag:yaml.org,2002:") {
+        tagStr = "!!" + tagStr.slice(18);
+      } else {
+        tagStr = "!<" + tagStr + ">";
+      }
+      state.dump = tagStr + " " + state.dump;
+    }
+  }
+  return true;
+}
+function getDuplicateReferences(object, state) {
+  var objects = [], duplicatesIndexes = [], index, length;
+  inspectNode(object, objects, duplicatesIndexes);
+  for (index = 0, length = duplicatesIndexes.length; index < length; index += 1) {
+    state.duplicates.push(objects[duplicatesIndexes[index]]);
+  }
+  state.usedDuplicates = new Array(length);
+}
+function inspectNode(object, objects, duplicatesIndexes) {
+  var objectKeyList, index, length;
+  if (object !== null && typeof object === "object") {
+    index = objects.indexOf(object);
+    if (index !== -1) {
+      if (duplicatesIndexes.indexOf(index) === -1) {
+        duplicatesIndexes.push(index);
+      }
+    } else {
+      objects.push(object);
+      if (Array.isArray(object)) {
+        for (index = 0, length = object.length; index < length; index += 1) {
+          inspectNode(object[index], objects, duplicatesIndexes);
+        }
+      } else {
+        objectKeyList = Object.keys(object);
+        for (index = 0, length = objectKeyList.length; index < length; index += 1) {
+          inspectNode(object[objectKeyList[index]], objects, duplicatesIndexes);
+        }
+      }
+    }
+  }
+}
+function dump$1(input, options) {
+  options = options || {};
+  var state = new State(options);
+  if (!state.noRefs) getDuplicateReferences(input, state);
+  var value = input;
+  if (state.replacer) {
+    value = state.replacer.call({ "": value }, "", value);
+  }
+  if (writeNode(state, 0, value, true, true)) return state.dump + "\n";
+  return "";
+}
+function renamed(from, to) {
+  return function() {
+    throw new Error("Function yaml." + from + " is removed in js-yaml 4. Use yaml." + to + " instead, which is now safe by default.");
+  };
+}
+var isNothing_1, isObject_1, toArray_1, repeat_1, isNegativeZero_1, extend_1, common, exception, snippet, TYPE_CONSTRUCTOR_OPTIONS, YAML_NODE_KINDS, type, schema, str, seq, map, failsafe, _null, bool, int, YAML_FLOAT_PATTERN, SCIENTIFIC_WITHOUT_DOT, float, json, core, YAML_DATE_REGEXP, YAML_TIMESTAMP_REGEXP, timestamp, merge, BASE64_MAP, binary, _hasOwnProperty$3, _toString$2, omap, _toString$1, pairs, _hasOwnProperty$2, set, _default, _hasOwnProperty$1, CONTEXT_FLOW_IN, CONTEXT_FLOW_OUT, CONTEXT_BLOCK_IN, CONTEXT_BLOCK_OUT, CHOMPING_CLIP, CHOMPING_STRIP, CHOMPING_KEEP, PATTERN_NON_PRINTABLE, PATTERN_NON_ASCII_LINE_BREAKS, PATTERN_FLOW_INDICATORS, PATTERN_TAG_HANDLE, PATTERN_TAG_URI, simpleEscapeCheck, simpleEscapeMap, i, directiveHandlers, loadAll_1, load_1, loader, _toString, _hasOwnProperty, CHAR_BOM, CHAR_TAB, CHAR_LINE_FEED, CHAR_CARRIAGE_RETURN, CHAR_SPACE, CHAR_EXCLAMATION, CHAR_DOUBLE_QUOTE, CHAR_SHARP, CHAR_PERCENT, CHAR_AMPERSAND, CHAR_SINGLE_QUOTE, CHAR_ASTERISK, CHAR_COMMA, CHAR_MINUS, CHAR_COLON, CHAR_EQUALS, CHAR_GREATER_THAN, CHAR_QUESTION, CHAR_COMMERCIAL_AT, CHAR_LEFT_SQUARE_BRACKET, CHAR_RIGHT_SQUARE_BRACKET, CHAR_GRAVE_ACCENT, CHAR_LEFT_CURLY_BRACKET, CHAR_VERTICAL_LINE, CHAR_RIGHT_CURLY_BRACKET, ESCAPE_SEQUENCES, DEPRECATED_BOOLEANS_SYNTAX, DEPRECATED_BASE60_SYNTAX, QUOTING_TYPE_SINGLE, QUOTING_TYPE_DOUBLE, STYLE_PLAIN, STYLE_SINGLE, STYLE_LITERAL, STYLE_FOLDED, STYLE_DOUBLE, dump_1, dumper, load, loadAll, dump, safeLoad, safeLoadAll, safeDump;
+var init_js_yaml = __esm({
+  "node_modules/js-yaml/dist/js-yaml.mjs"() {
+    isNothing_1 = isNothing;
+    isObject_1 = isObject2;
+    toArray_1 = toArray;
+    repeat_1 = repeat;
+    isNegativeZero_1 = isNegativeZero;
+    extend_1 = extend;
+    common = {
+      isNothing: isNothing_1,
+      isObject: isObject_1,
+      toArray: toArray_1,
+      repeat: repeat_1,
+      isNegativeZero: isNegativeZero_1,
+      extend: extend_1
+    };
+    YAMLException$1.prototype = Object.create(Error.prototype);
+    YAMLException$1.prototype.constructor = YAMLException$1;
+    YAMLException$1.prototype.toString = function toString(compact) {
+      return this.name + ": " + formatError(this, compact);
+    };
+    exception = YAMLException$1;
+    snippet = makeSnippet;
+    TYPE_CONSTRUCTOR_OPTIONS = [
+      "kind",
+      "multi",
+      "resolve",
+      "construct",
+      "instanceOf",
+      "predicate",
+      "represent",
+      "representName",
+      "defaultStyle",
+      "styleAliases"
+    ];
+    YAML_NODE_KINDS = [
+      "scalar",
+      "sequence",
+      "mapping"
+    ];
+    type = Type$1;
+    Schema$1.prototype.extend = function extend2(definition) {
+      var implicit = [];
+      var explicit = [];
+      if (definition instanceof type) {
+        explicit.push(definition);
+      } else if (Array.isArray(definition)) {
+        explicit = explicit.concat(definition);
+      } else if (definition && (Array.isArray(definition.implicit) || Array.isArray(definition.explicit))) {
+        if (definition.implicit) implicit = implicit.concat(definition.implicit);
+        if (definition.explicit) explicit = explicit.concat(definition.explicit);
+      } else {
+        throw new exception("Schema.extend argument should be a Type, [ Type ], or a schema definition ({ implicit: [...], explicit: [...] })");
+      }
+      implicit.forEach(function(type$1) {
+        if (!(type$1 instanceof type)) {
+          throw new exception("Specified list of YAML types (or a single Type object) contains a non-Type object.");
+        }
+        if (type$1.loadKind && type$1.loadKind !== "scalar") {
+          throw new exception("There is a non-scalar type in the implicit list of a schema. Implicit resolving of such types is not supported.");
+        }
+        if (type$1.multi) {
+          throw new exception("There is a multi type in the implicit list of a schema. Multi tags can only be listed as explicit.");
+        }
+      });
+      explicit.forEach(function(type$1) {
+        if (!(type$1 instanceof type)) {
+          throw new exception("Specified list of YAML types (or a single Type object) contains a non-Type object.");
+        }
+      });
+      var result = Object.create(Schema$1.prototype);
+      result.implicit = (this.implicit || []).concat(implicit);
+      result.explicit = (this.explicit || []).concat(explicit);
+      result.compiledImplicit = compileList(result, "implicit");
+      result.compiledExplicit = compileList(result, "explicit");
+      result.compiledTypeMap = compileMap(result.compiledImplicit, result.compiledExplicit);
+      return result;
+    };
+    schema = Schema$1;
+    str = new type("tag:yaml.org,2002:str", {
+      kind: "scalar",
+      construct: function(data) {
+        return data !== null ? data : "";
+      }
+    });
+    seq = new type("tag:yaml.org,2002:seq", {
+      kind: "sequence",
+      construct: function(data) {
+        return data !== null ? data : [];
+      }
+    });
+    map = new type("tag:yaml.org,2002:map", {
+      kind: "mapping",
+      construct: function(data) {
+        return data !== null ? data : {};
+      }
+    });
+    failsafe = new schema({
+      explicit: [
+        str,
+        seq,
+        map
+      ]
+    });
+    _null = new type("tag:yaml.org,2002:null", {
+      kind: "scalar",
+      resolve: resolveYamlNull,
+      construct: constructYamlNull,
+      predicate: isNull,
+      represent: {
+        canonical: function() {
+          return "~";
+        },
+        lowercase: function() {
+          return "null";
+        },
+        uppercase: function() {
+          return "NULL";
+        },
+        camelcase: function() {
+          return "Null";
+        },
+        empty: function() {
+          return "";
+        }
+      },
+      defaultStyle: "lowercase"
+    });
+    bool = new type("tag:yaml.org,2002:bool", {
+      kind: "scalar",
+      resolve: resolveYamlBoolean,
+      construct: constructYamlBoolean,
+      predicate: isBoolean,
+      represent: {
+        lowercase: function(object) {
+          return object ? "true" : "false";
+        },
+        uppercase: function(object) {
+          return object ? "TRUE" : "FALSE";
+        },
+        camelcase: function(object) {
+          return object ? "True" : "False";
+        }
+      },
+      defaultStyle: "lowercase"
+    });
+    int = new type("tag:yaml.org,2002:int", {
+      kind: "scalar",
+      resolve: resolveYamlInteger,
+      construct: constructYamlInteger,
+      predicate: isInteger,
+      represent: {
+        binary: function(obj) {
+          return obj >= 0 ? "0b" + obj.toString(2) : "-0b" + obj.toString(2).slice(1);
+        },
+        octal: function(obj) {
+          return obj >= 0 ? "0o" + obj.toString(8) : "-0o" + obj.toString(8).slice(1);
+        },
+        decimal: function(obj) {
+          return obj.toString(10);
+        },
+        /* eslint-disable max-len */
+        hexadecimal: function(obj) {
+          return obj >= 0 ? "0x" + obj.toString(16).toUpperCase() : "-0x" + obj.toString(16).toUpperCase().slice(1);
+        }
+      },
+      defaultStyle: "decimal",
+      styleAliases: {
+        binary: [2, "bin"],
+        octal: [8, "oct"],
+        decimal: [10, "dec"],
+        hexadecimal: [16, "hex"]
+      }
+    });
+    YAML_FLOAT_PATTERN = new RegExp(
+      // 2.5e4, 2.5 and integers
+      "^(?:[-+]?(?:[0-9][0-9_]*)(?:\\.[0-9_]*)?(?:[eE][-+]?[0-9]+)?|\\.[0-9_]+(?:[eE][-+]?[0-9]+)?|[-+]?\\.(?:inf|Inf|INF)|\\.(?:nan|NaN|NAN))$"
+    );
+    SCIENTIFIC_WITHOUT_DOT = /^[-+]?[0-9]+e/;
+    float = new type("tag:yaml.org,2002:float", {
+      kind: "scalar",
+      resolve: resolveYamlFloat,
+      construct: constructYamlFloat,
+      predicate: isFloat,
+      represent: representYamlFloat,
+      defaultStyle: "lowercase"
+    });
+    json = failsafe.extend({
+      implicit: [
+        _null,
+        bool,
+        int,
+        float
+      ]
+    });
+    core = json;
+    YAML_DATE_REGEXP = new RegExp(
+      "^([0-9][0-9][0-9][0-9])-([0-9][0-9])-([0-9][0-9])$"
+    );
+    YAML_TIMESTAMP_REGEXP = new RegExp(
+      "^([0-9][0-9][0-9][0-9])-([0-9][0-9]?)-([0-9][0-9]?)(?:[Tt]|[ \\t]+)([0-9][0-9]?):([0-9][0-9]):([0-9][0-9])(?:\\.([0-9]*))?(?:[ \\t]*(Z|([-+])([0-9][0-9]?)(?::([0-9][0-9]))?))?$"
+    );
+    timestamp = new type("tag:yaml.org,2002:timestamp", {
+      kind: "scalar",
+      resolve: resolveYamlTimestamp,
+      construct: constructYamlTimestamp,
+      instanceOf: Date,
+      represent: representYamlTimestamp
+    });
+    merge = new type("tag:yaml.org,2002:merge", {
+      kind: "scalar",
+      resolve: resolveYamlMerge
+    });
+    BASE64_MAP = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=\n\r";
+    binary = new type("tag:yaml.org,2002:binary", {
+      kind: "scalar",
+      resolve: resolveYamlBinary,
+      construct: constructYamlBinary,
+      predicate: isBinary,
+      represent: representYamlBinary
+    });
+    _hasOwnProperty$3 = Object.prototype.hasOwnProperty;
+    _toString$2 = Object.prototype.toString;
+    omap = new type("tag:yaml.org,2002:omap", {
+      kind: "sequence",
+      resolve: resolveYamlOmap,
+      construct: constructYamlOmap
+    });
+    _toString$1 = Object.prototype.toString;
+    pairs = new type("tag:yaml.org,2002:pairs", {
+      kind: "sequence",
+      resolve: resolveYamlPairs,
+      construct: constructYamlPairs
+    });
+    _hasOwnProperty$2 = Object.prototype.hasOwnProperty;
+    set = new type("tag:yaml.org,2002:set", {
+      kind: "mapping",
+      resolve: resolveYamlSet,
+      construct: constructYamlSet
+    });
+    _default = core.extend({
+      implicit: [
+        timestamp,
+        merge
+      ],
+      explicit: [
+        binary,
+        omap,
+        pairs,
+        set
+      ]
+    });
+    _hasOwnProperty$1 = Object.prototype.hasOwnProperty;
+    CONTEXT_FLOW_IN = 1;
+    CONTEXT_FLOW_OUT = 2;
+    CONTEXT_BLOCK_IN = 3;
+    CONTEXT_BLOCK_OUT = 4;
+    CHOMPING_CLIP = 1;
+    CHOMPING_STRIP = 2;
+    CHOMPING_KEEP = 3;
+    PATTERN_NON_PRINTABLE = /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x84\x86-\x9F\uFFFE\uFFFF]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?:[^\uD800-\uDBFF]|^)[\uDC00-\uDFFF]/;
+    PATTERN_NON_ASCII_LINE_BREAKS = /[\x85\u2028\u2029]/;
+    PATTERN_FLOW_INDICATORS = /[,\[\]\{\}]/;
+    PATTERN_TAG_HANDLE = /^(?:!|!!|![a-z\-]+!)$/i;
+    PATTERN_TAG_URI = /^(?:!|[^,\[\]\{\}])(?:%[0-9a-f]{2}|[0-9a-z\-#;\/\?:@&=\+\$,_\.!~\*'\(\)\[\]])*$/i;
+    simpleEscapeCheck = new Array(256);
+    simpleEscapeMap = new Array(256);
+    for (i = 0; i < 256; i++) {
+      simpleEscapeCheck[i] = simpleEscapeSequence(i) ? 1 : 0;
+      simpleEscapeMap[i] = simpleEscapeSequence(i);
+    }
+    directiveHandlers = {
+      YAML: function handleYamlDirective(state, name, args) {
+        var match, major, minor;
+        if (state.version !== null) {
+          throwError(state, "duplication of %YAML directive");
+        }
+        if (args.length !== 1) {
+          throwError(state, "YAML directive accepts exactly one argument");
+        }
+        match = /^([0-9]+)\.([0-9]+)$/.exec(args[0]);
+        if (match === null) {
+          throwError(state, "ill-formed argument of the YAML directive");
+        }
+        major = parseInt(match[1], 10);
+        minor = parseInt(match[2], 10);
+        if (major !== 1) {
+          throwError(state, "unacceptable YAML version of the document");
+        }
+        state.version = args[0];
+        state.checkLineBreaks = minor < 2;
+        if (minor !== 1 && minor !== 2) {
+          throwWarning(state, "unsupported YAML version of the document");
+        }
+      },
+      TAG: function handleTagDirective(state, name, args) {
+        var handle, prefix;
+        if (args.length !== 2) {
+          throwError(state, "TAG directive accepts exactly two arguments");
+        }
+        handle = args[0];
+        prefix = args[1];
+        if (!PATTERN_TAG_HANDLE.test(handle)) {
+          throwError(state, "ill-formed tag handle (first argument) of the TAG directive");
+        }
+        if (_hasOwnProperty$1.call(state.tagMap, handle)) {
+          throwError(state, 'there is a previously declared suffix for "' + handle + '" tag handle');
+        }
+        if (!PATTERN_TAG_URI.test(prefix)) {
+          throwError(state, "ill-formed tag prefix (second argument) of the TAG directive");
+        }
+        try {
+          prefix = decodeURIComponent(prefix);
+        } catch (err) {
+          throwError(state, "tag prefix is malformed: " + prefix);
+        }
+        state.tagMap[handle] = prefix;
+      }
+    };
+    loadAll_1 = loadAll$1;
+    load_1 = load$1;
+    loader = {
+      loadAll: loadAll_1,
+      load: load_1
+    };
+    _toString = Object.prototype.toString;
+    _hasOwnProperty = Object.prototype.hasOwnProperty;
+    CHAR_BOM = 65279;
+    CHAR_TAB = 9;
+    CHAR_LINE_FEED = 10;
+    CHAR_CARRIAGE_RETURN = 13;
+    CHAR_SPACE = 32;
+    CHAR_EXCLAMATION = 33;
+    CHAR_DOUBLE_QUOTE = 34;
+    CHAR_SHARP = 35;
+    CHAR_PERCENT = 37;
+    CHAR_AMPERSAND = 38;
+    CHAR_SINGLE_QUOTE = 39;
+    CHAR_ASTERISK = 42;
+    CHAR_COMMA = 44;
+    CHAR_MINUS = 45;
+    CHAR_COLON = 58;
+    CHAR_EQUALS = 61;
+    CHAR_GREATER_THAN = 62;
+    CHAR_QUESTION = 63;
+    CHAR_COMMERCIAL_AT = 64;
+    CHAR_LEFT_SQUARE_BRACKET = 91;
+    CHAR_RIGHT_SQUARE_BRACKET = 93;
+    CHAR_GRAVE_ACCENT = 96;
+    CHAR_LEFT_CURLY_BRACKET = 123;
+    CHAR_VERTICAL_LINE = 124;
+    CHAR_RIGHT_CURLY_BRACKET = 125;
+    ESCAPE_SEQUENCES = {};
+    ESCAPE_SEQUENCES[0] = "\\0";
+    ESCAPE_SEQUENCES[7] = "\\a";
+    ESCAPE_SEQUENCES[8] = "\\b";
+    ESCAPE_SEQUENCES[9] = "\\t";
+    ESCAPE_SEQUENCES[10] = "\\n";
+    ESCAPE_SEQUENCES[11] = "\\v";
+    ESCAPE_SEQUENCES[12] = "\\f";
+    ESCAPE_SEQUENCES[13] = "\\r";
+    ESCAPE_SEQUENCES[27] = "\\e";
+    ESCAPE_SEQUENCES[34] = '\\"';
+    ESCAPE_SEQUENCES[92] = "\\\\";
+    ESCAPE_SEQUENCES[133] = "\\N";
+    ESCAPE_SEQUENCES[160] = "\\_";
+    ESCAPE_SEQUENCES[8232] = "\\L";
+    ESCAPE_SEQUENCES[8233] = "\\P";
+    DEPRECATED_BOOLEANS_SYNTAX = [
+      "y",
+      "Y",
+      "yes",
+      "Yes",
+      "YES",
+      "on",
+      "On",
+      "ON",
+      "n",
+      "N",
+      "no",
+      "No",
+      "NO",
+      "off",
+      "Off",
+      "OFF"
+    ];
+    DEPRECATED_BASE60_SYNTAX = /^[-+]?[0-9_]+(?::[0-9_]+)+(?:\.[0-9_]*)?$/;
+    QUOTING_TYPE_SINGLE = 1;
+    QUOTING_TYPE_DOUBLE = 2;
+    STYLE_PLAIN = 1;
+    STYLE_SINGLE = 2;
+    STYLE_LITERAL = 3;
+    STYLE_FOLDED = 4;
+    STYLE_DOUBLE = 5;
+    dump_1 = dump$1;
+    dumper = {
+      dump: dump_1
+    };
+    load = loader.load;
+    loadAll = loader.loadAll;
+    dump = dumper.dump;
+    safeLoad = renamed("safeLoad", "load");
+    safeLoadAll = renamed("safeLoadAll", "loadAll");
+    safeDump = renamed("safeDump", "dump");
+  }
+});
+
+// src/components/chat/chatPersistence.ts
+function buildChatYaml(settings, provider, model) {
+  var _a2, _b, _c, _d, _e;
+  debugLog((_a2 = settings.debugMode) != null ? _a2 : false, "info", "[buildChatYaml] Entered function", { settings, provider, model });
+  if (settings.selectedModel) {
+    const providerType = getProviderFromUnifiedModel(settings.selectedModel);
+    const modelId = getModelIdFromUnifiedModel(settings.selectedModel);
+    const yamlObj = {
+      provider: providerType,
+      model: modelId,
+      unified_model: settings.selectedModel,
+      system_message: settings.systemMessage,
+      temperature: settings.temperature
+    };
+    debugLog((_b = settings.debugMode) != null ? _b : false, "debug", "[buildChatYaml] Using unified model format", yamlObj);
+    debugLog((_c = settings.debugMode) != null ? _c : false, "info", "[buildChatYaml] Returning YAML for unified model", { yaml: `---
+${dump(yamlObj)}---
+` });
+    return `---
+${dump(yamlObj)}---
+`;
+  } else {
+    const yamlObj = {
+      provider: provider || settings.provider,
+      model: model || getCurrentModelForProvider(settings),
+      system_message: settings.systemMessage,
+      temperature: settings.temperature
+    };
+    debugLog((_d = settings.debugMode) != null ? _d : false, "debug", "[buildChatYaml] Using legacy model format", yamlObj);
+    debugLog((_e = settings.debugMode) != null ? _e : false, "info", "[buildChatYaml] Returning YAML for legacy model", { yaml: `---
+${dump(yamlObj)}---
+` });
+    return `---
+${dump(yamlObj)}---
+`;
+  }
+}
+function getCurrentModelForProvider(settings) {
+  var _a2;
+  debugLog((_a2 = settings.debugMode) != null ? _a2 : false, "debug", "[getCurrentModelForProvider] Called", { provider: settings.provider });
+  switch (settings.provider) {
+    case "openai":
+      return settings.openaiSettings.model;
+    case "anthropic":
+      return settings.anthropicSettings.model;
+    case "gemini":
+      return settings.geminiSettings.model;
+    case "ollama":
+      return settings.ollamaSettings.model;
+    default:
+      return "";
+  }
+}
+async function saveChatAsNote({
+  app,
+  messages,
+  chatContent,
+  settings,
+  provider,
+  model,
+  chatSeparator,
+  chatNoteFolder,
+  agentResponseHandler
+}) {
+  var _a2, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o;
+  debugLog((_a2 = settings.debugMode) != null ? _a2 : false, "info", "[saveChatAsNote] Entered function", { hasMessages: !!messages, hasChatContent: typeof chatContent === "string" });
+  let content = "";
+  if (typeof chatContent === "string") {
+    debugLog((_b = settings.debugMode) != null ? _b : false, "info", "[saveChatAsNote] Using provided chatContent string directly.");
+    content = chatContent;
+  } else if (messages) {
+    debugLog((_c = settings.debugMode) != null ? _c : false, "info", "[saveChatAsNote] Building chat content from message DOM nodes.");
+    const messageRenderer = new MessageRenderer(app);
+    messages.forEach((el, index) => {
+      var _a3, _b2, _c2, _d2, _e2, _f2;
+      const htmlElement = el;
+      if (htmlElement.classList.contains("tool-display-message")) {
+        debugLog((_a3 = settings.debugMode) != null ? _a3 : false, "debug", `[saveChatAsNote] Skipping tool-display-message at index ${index}`);
+        return;
+      }
+      const messageDataStr = htmlElement.dataset.messageData;
+      let messageData = null;
+      if (messageDataStr) {
+        try {
+          messageData = JSON.parse(messageDataStr);
+          debugLog((_b2 = settings.debugMode) != null ? _b2 : false, "debug", `[saveChatAsNote] Parsed messageData at index ${index}`, messageData);
+        } catch (e) {
+          debugLog((_c2 = settings.debugMode) != null ? _c2 : false, "warn", `[saveChatAsNote] Failed to parse messageData at index ${index}`, e);
+        }
+      }
+      if (messageData && messageData.toolResults && messageData.toolResults.length > 0) {
+        debugLog((_d2 = settings.debugMode) != null ? _d2 : false, "info", `[saveChatAsNote] Formatting message with toolResults at index ${index}`);
+        content += messageRenderer.getMessageContentForCopy(messageData);
+      } else {
+        const rawContent = htmlElement.dataset.rawContent;
+        const msg = rawContent !== void 0 ? rawContent : ((_e2 = el.querySelector(".message-content")) == null ? void 0 : _e2.textContent) || "";
+        debugLog((_f2 = settings.debugMode) != null ? _f2 : false, "debug", `[saveChatAsNote] Appending regular message at index ${index}`, { msg });
+        content += msg;
+      }
+      if (index < messages.length - 1) {
+        content += "\n\n" + chatSeparator + "\n\n";
+      }
+    });
+    debugLog((_d = settings.debugMode) != null ? _d : false, "debug", "[saveChatAsNote] messages NodeList length:", { length: messages.length });
+  } else {
+    debugLog((_e = settings.debugMode) != null ? _e : false, "error", "[saveChatAsNote] Neither messages nor chatContent provided. Aborting.");
+    throw new Error("Either messages or chatContent must be provided");
+  }
+  const yaml = buildChatYaml(settings, provider || "", model || "");
+  debugLog((_f = settings.debugMode) != null ? _f : false, "info", "[saveChatAsNote] YAML frontmatter built. Stripping any existing YAML from chat content.");
+  content = content.replace(/^---\s*[\s\S]*?---\n?/, "");
+  content = content.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  content = content.replace(/\n{3,}/g, "\n\n");
+  content = content.replace(/\n+$/, "");
+  const noteContent = yaml + "\n" + content + "\n";
+  const now = /* @__PURE__ */ new Date();
+  const pad = (n) => n.toString().padStart(2, "0");
+  const fileName = `Chat Export ${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}-${pad(now.getMinutes())}.md`;
+  let filePath = fileName;
+  const folder = chatNoteFolder == null ? void 0 : chatNoteFolder.trim();
+  if (folder) {
+    debugLog((_g = settings.debugMode) != null ? _g : false, "info", `[saveChatAsNote] Ensuring chat note folder exists: ${folder}`);
+    const folderExists = app.vault.getAbstractFileByPath(folder);
+    if (!folderExists) {
+      try {
+        await app.vault.createFolder(folder);
+        debugLog((_h = settings.debugMode) != null ? _h : false, "info", `[saveChatAsNote] Created chat note folder: ${folder}`);
+      } catch (e) {
+        if (!app.vault.getAbstractFileByPath(folder)) {
+          debugLog((_i = settings.debugMode) != null ? _i : false, "error", `[saveChatAsNote] Failed to create folder for chat note: ${folder}`, e);
+          new import_obsidian17.Notice("Failed to create folder for chat note.");
+          return;
+        } else {
+          debugLog((_j = settings.debugMode) != null ? _j : false, "warn", `[saveChatAsNote] Folder already exists after race: ${folder}`);
+        }
+      }
+    } else {
+      debugLog((_k = settings.debugMode) != null ? _k : false, "debug", `[saveChatAsNote] Folder already exists: ${folder}`);
+    }
+    filePath = folder.replace(/[\/\\]+$/, "") + "/" + fileName;
+  }
+  let finalFilePath = filePath;
+  let attempt = 1;
+  while (app.vault.getAbstractFileByPath(finalFilePath)) {
+    const extIndex = fileName.lastIndexOf(".");
+    const base = extIndex !== -1 ? fileName.substring(0, extIndex) : fileName;
+    const ext = extIndex !== -1 ? fileName.substring(extIndex) : "";
+    finalFilePath = (folder ? folder.replace(/[\/\\]+$/, "") + "/" : "") + `${base} (${attempt})${ext}`;
+    debugLog((_l = settings.debugMode) != null ? _l : false, "warn", "[saveChatAsNote] File already exists, trying new filename", { finalFilePath });
+    attempt++;
+  }
+  try {
+    await app.vault.create(finalFilePath, noteContent);
+    debugLog((_m = settings.debugMode) != null ? _m : false, "info", "[saveChatAsNote] Chat successfully saved as note", { finalFilePath });
+    new import_obsidian17.Notice(`Chat saved as note: ${finalFilePath}`);
+  } catch (e) {
+    debugLog((_n = settings.debugMode) != null ? _n : false, "error", "[saveChatAsNote] Failed to save chat as note", { finalFilePath, error: e });
+    new import_obsidian17.Notice("Failed to save chat as note.");
+  }
+  debugLog((_o = settings.debugMode) != null ? _o : false, "info", "[saveChatAsNote] Exiting function. Save process complete.");
+  return;
+}
+async function loadChatYamlAndApplySettings({
+  app,
+  plugin,
+  settings,
+  file
+}) {
+  var _a2, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o;
+  debugLog((_a2 = settings.debugMode) != null ? _a2 : false, "info", "[loadChatYamlAndApplySettings] Entered function", { file: (file == null ? void 0 : file.path) || (file == null ? void 0 : file.name) || file });
+  debugLog((_b = settings.debugMode) != null ? _b : false, "debug", "[loadChatYamlAndApplySettings] File content loaded. Extracting YAML frontmatter.");
+  let content = await app.vault.read(file);
+  const yamlMatch = content.match(/^---\n([\s\S]*?)\n---/);
+  let yamlObj = {};
+  if (yamlMatch) {
+    try {
+      yamlObj = load(yamlMatch[1]) || {};
+      debugLog((_c = settings.debugMode) != null ? _c : false, "info", "[loadChatYamlAndApplySettings] YAML frontmatter parsed", yamlObj);
+    } catch (e) {
+      debugLog((_d = settings.debugMode) != null ? _d : false, "warn", "[loadChatYamlAndApplySettings] Failed to parse YAML frontmatter", e);
+      yamlObj = {};
+    }
+  } else {
+    debugLog((_e = settings.debugMode) != null ? _e : false, "warn", "[loadChatYamlAndApplySettings] No YAML frontmatter found in file.");
+  }
+  if (yamlObj.unified_model) {
+    settings.selectedModel = yamlObj.unified_model;
+    debugLog((_f = settings.debugMode) != null ? _f : false, "info", "[loadChatYamlAndApplySettings] Loaded unified_model from YAML", yamlObj.unified_model);
+    debugLog((_g = settings.debugMode) != null ? _g : false, "info", "[loadChatYamlAndApplySettings] Set selectedModel from unified_model", { selectedModel: settings.selectedModel });
+  } else if (yamlObj.provider && yamlObj.model) {
+    const unifiedModelId = `${yamlObj.provider}:${yamlObj.model}`;
+    settings.selectedModel = unifiedModelId;
+    debugLog((_h = settings.debugMode) != null ? _h : false, "info", "[loadChatYamlAndApplySettings] Loaded legacy provider/model from YAML", { provider: yamlObj.provider, model: yamlObj.model });
+    debugLog((_i = settings.debugMode) != null ? _i : false, "info", "[loadChatYamlAndApplySettings] Set selectedModel from provider/model", { selectedModel: settings.selectedModel });
+    settings.provider = yamlObj.provider;
+    switch (yamlObj.provider) {
+      case "openai":
+        settings.openaiSettings.model = yamlObj.model;
+        break;
+      case "anthropic":
+        settings.anthropicSettings.model = yamlObj.model;
+        break;
+      case "gemini":
+        settings.geminiSettings.model = yamlObj.model;
+        break;
+      case "ollama":
+        settings.ollamaSettings.model = yamlObj.model;
+        break;
+    }
+  } else {
+    debugLog((_j = settings.debugMode) != null ? _j : false, "warn", "[loadChatYamlAndApplySettings] No model/provider found in YAML. Using existing settings.");
+  }
+  let newSystemMessage = yamlObj.system_message || settings.systemMessage;
+  let newTemperature = settings.temperature;
+  if (yamlObj.temperature !== void 0) {
+    const tempNum = parseFloat(yamlObj.temperature);
+    if (!isNaN(tempNum)) {
+      newTemperature = tempNum;
+      debugLog((_k = settings.debugMode) != null ? _k : false, "info", "[loadChatYamlAndApplySettings] Loaded temperature from YAML", newTemperature);
+    } else {
+      debugLog((_l = settings.debugMode) != null ? _l : false, "warn", "[loadChatYamlAndApplySettings] Invalid temperature in YAML, using existing value.", yamlObj.temperature);
+    }
+  }
+  settings.systemMessage = newSystemMessage;
+  settings.temperature = newTemperature;
+  debugLog((_m = settings.debugMode) != null ? _m : false, "info", "[loadChatYamlAndApplySettings] Applied settings from YAML", { selectedModel: settings.selectedModel, systemMessage: newSystemMessage, temperature: newTemperature });
+  if (plugin.onSettingsLoadedFromNote) {
+    debugLog((_n = settings.debugMode) != null ? _n : false, "debug", "[loadChatYamlAndApplySettings] Calling plugin.onSettingsLoadedFromNote");
+    plugin.onSettingsLoadedFromNote(settings);
+  }
+  debugLog((_o = settings.debugMode) != null ? _o : false, "info", "[loadChatYamlAndApplySettings] Exiting function. YAML load/apply process complete.");
+  return {
+    provider: yamlObj.provider,
+    model: yamlObj.model,
+    unifiedModel: settings.selectedModel,
+    systemMessage: newSystemMessage,
+    temperature: newTemperature
+  };
+}
+var import_obsidian17;
+var init_chatPersistence = __esm({
+  "src/components/chat/chatPersistence.ts"() {
+    init_js_yaml();
+    init_logger();
+    init_providers();
+    init_MessageRenderer();
+    import_obsidian17 = require("obsidian");
+  }
+});
+
+// src/components/chat/ChatHelpModal.ts
+var import_obsidian18, ChatHelpModal;
+var init_ChatHelpModal = __esm({
+  "src/components/chat/ChatHelpModal.ts"() {
+    import_obsidian18 = require("obsidian");
+    ChatHelpModal = class extends import_obsidian18.Modal {
+      constructor(app) {
+        super(app);
+      }
+      /**
+       * Creates a collapsible section with a title and content.
+       * @param title The section title
+       * @param contentCallback Function to populate the section content
+       * @param expanded Whether the section is expanded by default
+       * @returns The section container element
+       */
+      createCollapsibleSection(title, contentCallback, expanded = true) {
+        const sectionContainer = createDiv();
+        sectionContainer.addClass("ai-collapsible-section");
+        const header = createDiv();
+        header.addClass("ai-collapsible-header");
+        const arrow = createSpan();
+        arrow.addClass("ai-collapsible-arrow");
+        arrow.textContent = expanded ? "\u25BC" : "\u25B6";
+        const titleSpan = createSpan();
+        titleSpan.textContent = title;
+        header.appendChild(arrow);
+        header.appendChild(titleSpan);
+        const content = createDiv();
+        content.addClass("ai-collapsible-content");
+        content.style.display = expanded ? "block" : "none";
+        header.addEventListener("click", () => {
+          const isExpanded = content.style.display !== "none";
+          content.style.display = isExpanded ? "none" : "block";
+          arrow.textContent = isExpanded ? "\u25B6" : "\u25BC";
+        });
+        sectionContainer.appendChild(header);
+        sectionContainer.appendChild(content);
+        const originalContent = this.contentEl;
+        this.contentEl = content;
+        contentCallback();
+        this.contentEl = originalContent;
+        return sectionContainer;
+      }
+      /**
+       * Called when the modal is opened.
+       * Populates the modal with collapsible help sections.
+       */
+      onOpen() {
+        this.titleEl.setText("AI Chat Help");
+        this.contentEl.empty();
+        this.contentEl.appendChild(this.createCollapsibleSection("Slash Commands", () => {
+          this.contentEl.innerHTML = `
+                <code>/clear</code> \u2013 Clear the chat<br>
+                <code>/copy</code> \u2013 Copy all chat<br>
+                <code>/save</code> \u2013 Save chat as note<br>
+                <code>/settings</code> \u2013 Open settings<br>
+                <code>/help</code> \u2013 Show this help<br>
+                <br>
+            `;
+        }));
+        this.contentEl.appendChild(this.createCollapsibleSection("Keyboard Shortcuts (when chat window or input is focused)", () => {
+          this.contentEl.innerHTML = `
+                <code>Ctrl+Shift+X</code> \u2013 Clear chat<br>
+                <code>Ctrl+Shift+C</code> \u2013 Copy all chat<br>
+                <code>Ctrl+Shift+S</code> \u2013 Save as note<br>
+                <code>Ctrl+Shift+O</code> \u2013 Open settings<br>
+                <code>Ctrl+Shift+H</code> \u2013 Show this help<br>
+                <code>Ctrl+Shift+R</code> \u2013 Toggle referencing current note<br>
+                <br>
+            `;
+        }));
+        this.contentEl.appendChild(this.createCollapsibleSection("Other", () => {
+          this.contentEl.innerHTML = `
+                <code>Enter</code> \u2013 Send message<br>
+                <code>Shift+Enter</code> \u2013 Newline<br>
+                <br>
+                You can also use the buttons at the top of the chat window.
+            `;
+        }));
+        this.contentEl.appendChild(this.createCollapsibleSection("Reference Current Note", () => {
+          this.contentEl.innerHTML = `
+                <strong>What is it?</strong><br>
+                When enabled, the AI can see the content of your currently active note during chat. This helps the AI give more relevant, context-aware responses.<br><br>
+
+                <strong>How to use:</strong><br>
+                <ul style="margin-top:0;margin-bottom:0.5em;">
+                  <li>Click the <code>\u{1F4DD}</code> button at the top of the chat window to toggle referencing the current note.</li>
+                  <li>Or use the slash command <code>/ref</code> or keyboard shortcut <code>Ctrl+Shift+R</code>.</li>
+                  <li>The name of the referenced note will appear in faded small text below the buttons when enabled.</li>
+                </ul>
+
+                <strong>Notes:</strong><br>
+                - When referencing is enabled, the AI receives:<br>
+                <ul style="margin-top:0;margin-bottom:0.5em;">
+                  <li>The system prompt (always)</li>
+                  <li>Context notes (if enabled in settings)</li>
+                  <li>The content of the currently active note</li>
+                  <li>The chat history (all previous user/assistant messages)</li>
+                </ul>
+                - Only the currently active note is shared in addition to the above context.<br>
+                - You can turn this on or off at any time.<br>
+                - No other notes or personal data are accessed.<br>
+                - The <code>\u{1F4DD}</code> button will show "On" or "Off" to indicate the current state.
+            `;
+        }));
+      }
+    };
+  }
+});
+
+// src/components/chat/ConfirmationModal.ts
+var import_obsidian19, ConfirmationModal;
+var init_ConfirmationModal = __esm({
+  "src/components/chat/ConfirmationModal.ts"() {
+    import_obsidian19 = require("obsidian");
+    ConfirmationModal = class extends import_obsidian19.Modal {
+      /**
+       * Constructs a ConfirmationModal.
+       * @param app Obsidian App instance
+       * @param title Modal title text
+       * @param message Message to display in the modal
+       * @param onConfirm Callback invoked with true (confirmed) or false (cancelled)
+       */
+      constructor(app, title, message, onConfirm) {
+        super(app);
+        __publicField(this, "onConfirm");
+        __publicField(this, "message");
+        this.titleEl.setText(title);
+        this.message = message;
+        this.onConfirm = onConfirm;
+      }
+      /**
+       * Called when the modal is opened.
+       * Renders the message and Cancel/Delete buttons.
+       */
+      onOpen() {
+        const { contentEl } = this;
+        contentEl.addClass("ai-assistant-modal");
+        contentEl.createEl("p", { text: this.message });
+        const buttonContainer = contentEl.createDiv("modal-button-container");
+        buttonContainer.createEl("button", { text: "Cancel" }).addEventListener("click", () => {
+          this.onConfirm(false);
+          this.close();
+        });
+        const confirmButton = buttonContainer.createEl("button", {
+          text: "Delete",
+          cls: "mod-warning"
+        });
+        confirmButton.addEventListener("click", () => {
+          this.onConfirm(true);
+          this.close();
+        });
+      }
+      /**
+       * Called when the modal is closed.
+       * Cleans up the modal content.
+       */
+      onClose() {
+        this.contentEl.empty();
+      }
+    };
+  }
+});
+
+// src/components/chat/SettingsSections.ts
+var import_obsidian20, SettingsSections;
 var init_SettingsSections = __esm({
   "src/components/chat/SettingsSections.ts"() {
-    import_obsidian14 = require("obsidian");
+    import_obsidian20 = require("obsidian");
     init_aiDispatcher();
     SettingsSections = class {
       /**
@@ -16863,11 +16871,11 @@ var init_SettingsSections = __esm({
                   window._aiModelSettingsRefreshTimeout = null;
                 }, 50);
               }
-              new import_obsidian14.Notice(`Applied preset: ${preset.name}`);
+              new import_obsidian20.Notice(`Applied preset: ${preset.name}`);
             };
           });
         }
-        new import_obsidian14.Setting(containerEl).setName("System Message").setDesc("Set the system message for the AI").addTextArea((text) => {
+        new import_obsidian20.Setting(containerEl).setName("System Message").setDesc("Set the system message for the AI").addTextArea((text) => {
           text.setPlaceholder("You are a helpful assistant.").setValue(this.plugin.settings.systemMessage).onChange((value) => {
             this.plugin.settings.systemMessage = value;
           });
@@ -16876,23 +16884,23 @@ var init_SettingsSections = __esm({
           });
           return text;
         });
-        new import_obsidian14.Setting(containerEl).setName("Enable Streaming").setDesc("Enable or disable streaming for completions").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableStreaming).onChange(async (value) => {
+        new import_obsidian20.Setting(containerEl).setName("Enable Streaming").setDesc("Enable or disable streaming for completions").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableStreaming).onChange(async (value) => {
           this.plugin.settings.enableStreaming = value;
           await this.plugin.saveSettings();
         }));
-        new import_obsidian14.Setting(containerEl).setName("Temperature").setDesc("Set the randomness of the model's output (0-1)").addSlider((slider) => slider.setLimits(0, 1, 0.1).setValue(this.plugin.settings.temperature).setDynamicTooltip().onChange(async (value) => {
+        new import_obsidian20.Setting(containerEl).setName("Temperature").setDesc("Set the randomness of the model's output (0-1)").addSlider((slider) => slider.setLimits(0, 1, 0.1).setValue(this.plugin.settings.temperature).setDynamicTooltip().onChange(async (value) => {
           this.plugin.settings.temperature = value;
           await this.plugin.saveSettings();
         }));
-        new import_obsidian14.Setting(containerEl).setName("Refresh Available Models").setDesc("Test connections to all configured providers and refresh available models").addButton((button) => button.setButtonText("Refresh Models").onClick(async () => {
+        new import_obsidian20.Setting(containerEl).setName("Refresh Available Models").setDesc("Test connections to all configured providers and refresh available models").addButton((button) => button.setButtonText("Refresh Models").onClick(async () => {
           button.setButtonText("Refreshing...");
           button.setDisabled(true);
           try {
             await this.refreshAllAvailableModels();
-            new import_obsidian14.Notice("Successfully refreshed available models");
+            new import_obsidian20.Notice("Successfully refreshed available models");
             if (onRefresh) onRefresh();
           } catch (error) {
-            new import_obsidian14.Notice(`Error refreshing models: ${error.message}`);
+            new import_obsidian20.Notice(`Error refreshing models: ${error.message}`);
           } finally {
             button.setButtonText("Refresh Models");
             button.setDisabled(false);
@@ -16906,7 +16914,7 @@ var init_SettingsSections = __esm({
        * @param containerEl The HTML element to render the section into.
        */
       renderDateSettings(containerEl) {
-        new import_obsidian14.Setting(containerEl).setName("Include Time with System Message").setDesc("Add the current time along with the date to the system message").addToggle((toggle) => toggle.setValue(this.plugin.settings.includeTimeWithSystemMessage).onChange(async (value) => {
+        new import_obsidian20.Setting(containerEl).setName("Include Time with System Message").setDesc("Add the current time along with the date to the system message").addToggle((toggle) => toggle.setValue(this.plugin.settings.includeTimeWithSystemMessage).onChange(async (value) => {
           this.plugin.settings.includeTimeWithSystemMessage = value;
           await this.plugin.saveSettings();
         }));
@@ -16917,17 +16925,17 @@ var init_SettingsSections = __esm({
        * @param containerEl The HTML element to render the section into.
        */
       renderNoteReferenceSettings(containerEl) {
-        new import_obsidian14.Setting(containerEl).setName("Enable Obsidian Links").setDesc("Read Obsidian links in messages using [[filename]] syntax").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableObsidianLinks).onChange(async (value) => {
+        new import_obsidian20.Setting(containerEl).setName("Enable Obsidian Links").setDesc("Read Obsidian links in messages using [[filename]] syntax").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableObsidianLinks).onChange(async (value) => {
           this.plugin.settings.enableObsidianLinks = value;
           await this.plugin.saveSettings();
         }));
-        new import_obsidian14.Setting(containerEl).setName("Enable Context Notes").setDesc("Attach specified note content to chat messages").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableContextNotes).onChange(async (value) => {
+        new import_obsidian20.Setting(containerEl).setName("Enable Context Notes").setDesc("Attach specified note content to chat messages").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableContextNotes).onChange(async (value) => {
           this.plugin.settings.enableContextNotes = value;
           await this.plugin.saveSettings();
         }));
         const contextNotesContainer = containerEl.createDiv("context-notes-container");
         contextNotesContainer.style.marginBottom = "24px";
-        new import_obsidian14.Setting(contextNotesContainer).setName("Context Notes").setDesc("Notes to attach as context (supports [[filename]] and [[filename#header]] syntax)").addTextArea((text) => {
+        new import_obsidian20.Setting(contextNotesContainer).setName("Context Notes").setDesc("Notes to attach as context (supports [[filename]] and [[filename#header]] syntax)").addTextArea((text) => {
           text.setPlaceholder("[[Note Name]]\n[[Another Note#Header]]").setValue(this.plugin.settings.contextNotes || "").onChange((value) => {
             this.plugin.settings.contextNotes = value;
           });
@@ -16938,7 +16946,7 @@ var init_SettingsSections = __esm({
           text.inputEl.style.width = "100%";
           return text;
         });
-        new import_obsidian14.Setting(containerEl).setName("Expand Linked Notes Recursively").setDesc("If enabled, when fetching a note, also fetch and expand links within that note recursively (prevents infinite loops).").addToggle((toggle) => {
+        new import_obsidian20.Setting(containerEl).setName("Expand Linked Notes Recursively").setDesc("If enabled, when fetching a note, also fetch and expand links within that note recursively (prevents infinite loops).").addToggle((toggle) => {
           var _a2;
           return toggle.setValue((_a2 = this.plugin.settings.expandLinkedNotesRecursively) != null ? _a2 : false).onChange(async (value) => {
             this.plugin.settings.expandLinkedNotesRecursively = value;
@@ -16972,7 +16980,7 @@ var init_SettingsSections = __esm({
           this.plugin.settings.availableModels = await aiDispatcher.getAllUnifiedModels();
           await this.plugin.saveSettings();
         }
-        new import_obsidian14.Setting(containerEl).setName("Selected Model").setDesc("Choose from all available models across all configured providers").addDropdown((dropdown) => {
+        new import_obsidian20.Setting(containerEl).setName("Selected Model").setDesc("Choose from all available models across all configured providers").addDropdown((dropdown) => {
           if (!this.plugin.settings.availableModels || this.plugin.settings.availableModels.length === 0) {
             dropdown.addOption("", "No models available - configure providers below");
           } else {
@@ -17072,7 +17080,7 @@ var init_SettingsSections = __esm({
        */
       renderOpenAIConfig(containerEl) {
         this._renderCollapsibleProviderConfig(containerEl, "openai", "OpenAI", (contentEl) => {
-          new import_obsidian14.Setting(contentEl).setName("OpenAI Base URL").setDesc("Custom base URL for OpenAI API (optional)").addText((text) => {
+          new import_obsidian20.Setting(contentEl).setName("OpenAI Base URL").setDesc("Custom base URL for OpenAI API (optional)").addText((text) => {
             text.setPlaceholder("https://api.openai.com/v1").setValue(this.plugin.settings.openaiSettings.baseUrl || "").onChange((value) => {
               this.plugin.settings.openaiSettings.baseUrl = value;
             });
@@ -17123,7 +17131,7 @@ var init_SettingsSections = __esm({
        */
       renderProviderTestSection(containerEl, provider, displayName) {
         const settings = this.plugin.settings[`${provider}Settings`];
-        new import_obsidian14.Setting(containerEl).setName("Test Connection").setDesc(`Verify your API key and fetch available models for ${displayName}`).addButton((button) => button.setButtonText("Test").onClick(async () => {
+        new import_obsidian20.Setting(containerEl).setName("Test Connection").setDesc(`Verify your API key and fetch available models for ${displayName}`).addButton((button) => button.setButtonText("Test").onClick(async () => {
           button.setButtonText("Testing...");
           button.setDisabled(true);
           try {
@@ -17139,17 +17147,17 @@ var init_SettingsSections = __esm({
               await this.plugin.saveSettings();
               this.plugin.settings.availableModels = await aiDispatcher.getAllUnifiedModels();
               await this.plugin.saveSettings();
-              new import_obsidian14.Notice(result.message);
+              new import_obsidian20.Notice(result.message);
             } else {
               settings.lastTestResult = {
                 timestamp: Date.now(),
                 success: false,
                 message: result.message
               };
-              new import_obsidian14.Notice(result.message);
+              new import_obsidian20.Notice(result.message);
             }
           } catch (error) {
-            new import_obsidian14.Notice(`Error: ${error.message}`);
+            new import_obsidian20.Notice(`Error: ${error.message}`);
             settings.lastTestResult = {
               timestamp: Date.now(),
               success: false,
@@ -17180,7 +17188,7 @@ var init_SettingsSections = __esm({
        * @param containerEl The HTML element to render the section into.
        */
       renderDebugModeSettings(containerEl) {
-        new import_obsidian14.Setting(containerEl).setName("Debug Mode").setDesc("Enable verbose logging and debug UI features").addToggle((toggle) => {
+        new import_obsidian20.Setting(containerEl).setName("Debug Mode").setDesc("Enable verbose logging and debug UI features").addToggle((toggle) => {
           var _a2;
           return toggle.setValue((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false).onChange(async (value) => {
             this.plugin.settings.debugMode = value;
@@ -17210,12 +17218,12 @@ var SettingsModal_exports = {};
 __export(SettingsModal_exports, {
   SettingsModal: () => SettingsModal
 });
-var import_obsidian15, SettingsModal;
+var import_obsidian21, SettingsModal;
 var init_SettingsModal = __esm({
   "src/components/chat/SettingsModal.ts"() {
-    import_obsidian15 = require("obsidian");
+    import_obsidian21 = require("obsidian");
     init_SettingsSections();
-    SettingsModal = class extends import_obsidian15.Modal {
+    SettingsModal = class extends import_obsidian21.Modal {
       /**
        * Constructs a SettingsModal instance.
        * @param app The Obsidian App instance.
@@ -17316,7 +17324,7 @@ function handleClearChat(messagesContainer, chatHistoryManager) {
     try {
       await chatHistoryManager.clearHistory();
     } catch (e) {
-      new import_obsidian16.Notice("Failed to clear chat history.");
+      new import_obsidian22.Notice("Failed to clear chat history.");
     }
   };
 }
@@ -17348,11 +17356,11 @@ function handleCopyMessage(messageEl, plugin) {
       contentToCopy = messageEl.dataset.rawContent || "";
     }
     if (contentToCopy.trim() === "") {
-      new import_obsidian16.Notice("No content to copy");
+      new import_obsidian22.Notice("No content to copy");
       return;
     }
     await copyToClipboard(contentToCopy);
-    new import_obsidian16.Notice("Message copied to clipboard");
+    new import_obsidian22.Notice("Message copied to clipboard");
   };
 }
 function handleEditMessage(messageEl, chatHistoryManager, plugin) {
@@ -17401,14 +17409,14 @@ function handleEditMessage(messageEl, chatHistoryManager, plugin) {
               toolResults: enhancedData.toolResults
             }, messageEl, void 0);
           } else {
-            await import_obsidian16.MarkdownRenderer.render(plugin.app, newContent, contentEl, "", void 0);
+            await import_obsidian22.MarkdownRenderer.render(plugin.app, newContent, contentEl, "", void 0);
           }
           contentEl.removeClass("editing");
         } catch (e) {
-          new import_obsidian16.Notice("Failed to save edited message.");
+          new import_obsidian22.Notice("Failed to save edited message.");
           messageEl.dataset.rawContent = oldContent || "";
           contentEl.empty();
-          await import_obsidian16.MarkdownRenderer.render(plugin.app, oldContent || "", contentEl, "", void 0);
+          await import_obsidian22.MarkdownRenderer.render(plugin.app, oldContent || "", contentEl, "", void 0);
           contentEl.removeClass("editing");
         }
       });
@@ -17426,7 +17434,7 @@ function handleDeleteMessage(messageEl, chatHistoryManager, app) {
         ).then(() => {
           messageEl.remove();
         }).catch(() => {
-          new import_obsidian16.Notice("Failed to delete message from history.");
+          new import_obsidian22.Notice("Failed to delete message from history.");
         });
       }
     });
@@ -17438,13 +17446,13 @@ function handleRegenerateMessage(messageEl, regenerateCallback) {
     regenerateCallback(messageEl);
   };
 }
-var import_obsidian16;
+var import_obsidian22;
 var init_eventHandlers = __esm({
   "src/components/chat/eventHandlers.ts"() {
     init_Buttons();
     init_chatPersistence();
     init_ChatHelpModal();
-    import_obsidian16 = require("obsidian");
+    import_obsidian22 = require("obsidian");
     init_MessageRenderer();
     init_ConfirmationModal();
   }
@@ -17455,12 +17463,12 @@ var BotMessage_exports = {};
 __export(BotMessage_exports, {
   BotMessage: () => BotMessage
 });
-var import_obsidian21, BotMessage;
+var import_obsidian27, BotMessage;
 var init_BotMessage = __esm({
   "src/components/chat/BotMessage.ts"() {
-    import_obsidian21 = require("obsidian");
+    import_obsidian27 = require("obsidian");
     init_Buttons();
-    BotMessage = class extends import_obsidian21.Component {
+    BotMessage = class extends import_obsidian27.Component {
       /**
        * Constructs a BotMessage instance.
        * @param app Obsidian App instance
@@ -17499,7 +17507,7 @@ var init_BotMessage = __esm({
         this.content = content;
         this.element.dataset.rawContent = content;
         this.contentEl.empty();
-        await import_obsidian21.MarkdownRenderer.render(
+        await import_obsidian27.MarkdownRenderer.render(
           this.app,
           content,
           this.contentEl,
@@ -17517,7 +17525,7 @@ var init_BotMessage = __esm({
         messageEl.dataset.rawContent = this.content;
         const messageContainer = messageEl.createDiv("message-container");
         this.contentEl = messageContainer.createDiv("message-content");
-        import_obsidian21.MarkdownRenderer.render(
+        import_obsidian27.MarkdownRenderer.render(
           this.app,
           this.content,
           this.contentEl,
@@ -17650,30 +17658,16 @@ var init_inputHandler = __esm({
   }
 });
 
-// src/utils/clearAICallLogs.ts
-var clearAICallLogs_exports = {};
-__export(clearAICallLogs_exports, {
-  clearAICallLogs: () => clearAICallLogs
-});
-async function clearAICallLogs(pluginFolder, subfolder = "ai-calls") {
-  const targetFolder = path2.join(pluginFolder, subfolder);
-  if (!fs2.existsSync(targetFolder)) return 0;
-  const files = fs2.readdirSync(targetFolder);
-  let deleted = 0;
-  for (const file of files) {
-    const filePath = path2.join(targetFolder, file);
-    if (fs2.lstatSync(filePath).isFile()) {
-      fs2.unlinkSync(filePath);
-      deleted++;
-    }
+// src/utils/pluginUtils.ts
+function registerCommand(plugin, options, ribbonIcon, ribbonTitle) {
+  plugin.addCommand(options);
+  if (ribbonIcon && ribbonTitle) {
+    plugin.addRibbonIcon(ribbonIcon, ribbonTitle, options.callback || (() => {
+    }));
   }
-  return deleted;
 }
-var fs2, path2;
-var init_clearAICallLogs = __esm({
-  "src/utils/clearAICallLogs.ts"() {
-    fs2 = __toESM(require("fs"), 1);
-    path2 = __toESM(require("path"), 1);
+var init_pluginUtils = __esm({
+  "src/utils/pluginUtils.ts"() {
   }
 });
 
@@ -17701,7 +17695,7 @@ async function generateNoteTitle(app, settings, processMessages2, dispatcher) {
   debugLog(DEBUG, "debug", "Starting generateNoteTitle");
   const activeFile = app.workspace.getActiveFile();
   if (!activeFile) {
-    new import_obsidian32.Notice("No active note found.");
+    new import_obsidian31.Notice("No active note found.");
     return;
   }
   let noteContent = await app.vault.cachedRead(activeFile);
@@ -17730,7 +17724,7 @@ async function generateNoteTitle(app, settings, processMessages2, dispatcher) {
     debugLog(DEBUG, "debug", "Processed messages:", JSON.stringify(processedMessages));
     if (!processedMessages || processedMessages.length === 0) {
       debugLog(DEBUG, "debug", "No processed messages!");
-      new import_obsidian32.Notice("No valid messages to send to the model. Please check your note content.");
+      new import_obsidian31.Notice("No valid messages to send to the model. Please check your note content.");
       return;
     }
     debugLog(DEBUG, "debug", "Calling dispatcher.getCompletion");
@@ -17758,38 +17752,38 @@ async function generateNoteTitle(app, settings, processMessages2, dispatcher) {
           const newPath = parentPath ? parentPath + "/" + sanitized + ext : sanitized + ext;
           if (file.path !== newPath) {
             await app.fileManager.renameFile(file, newPath);
-            new import_obsidian32.Notice(`Note renamed to: ${sanitized}${ext}`);
+            new import_obsidian31.Notice(`Note renamed to: ${sanitized}${ext}`);
           } else {
-            new import_obsidian32.Notice(`Note title is already: ${sanitized}${ext}`);
+            new import_obsidian31.Notice(`Note title is already: ${sanitized}${ext}`);
           }
         }
       } else if (outputMode === "metadata") {
         const file = app.workspace.getActiveFile();
         if (file) {
           await upsertYamlField(app, file, "title", title);
-          new import_obsidian32.Notice(`Inserted title into metadata: ${title}`);
+          new import_obsidian31.Notice(`Inserted title into metadata: ${title}`);
         }
       } else {
         try {
           await navigator.clipboard.writeText(title);
-          new import_obsidian32.Notice(`Generated title (copied): ${title}`);
+          new import_obsidian31.Notice(`Generated title (copied): ${title}`);
         } catch (e) {
-          new import_obsidian32.Notice(`Generated title: ${title}`);
+          new import_obsidian31.Notice(`Generated title: ${title}`);
         }
       }
     } else {
       debugLog(DEBUG, "debug", "No title generated after sanitization.");
-      new import_obsidian32.Notice("No title generated.");
+      new import_obsidian31.Notice("No title generated.");
     }
   } catch (err) {
-    new import_obsidian32.Notice("Error generating title: " + ((_b = err == null ? void 0 : err.message) != null ? _b : err));
+    new import_obsidian31.Notice("Error generating title: " + ((_b = err == null ? void 0 : err.message) != null ? _b : err));
   }
 }
 async function generateYamlAttribute(app, settings, processMessages2, attributeName, prompt, outputMode = "metadata", dispatcher) {
   debugLog(DEBUG, "debug", `Starting generateYamlAttribute for ${attributeName}`);
   const activeFile = app.workspace.getActiveFile();
   if (!activeFile) {
-    new import_obsidian32.Notice("No active note found.");
+    new import_obsidian31.Notice("No active note found.");
     return;
   }
   let noteContent = await app.vault.cachedRead(activeFile);
@@ -17812,7 +17806,7 @@ async function generateYamlAttribute(app, settings, processMessages2, attributeN
     debugLog(DEBUG, "debug", "Processed messages:", JSON.stringify(processedMessages));
     if (!processedMessages || processedMessages.length === 0) {
       debugLog(DEBUG, "debug", "No processed messages!");
-      new import_obsidian32.Notice("No valid messages to send to the model. Please check your note content.");
+      new import_obsidian31.Notice("No valid messages to send to the model. Please check your note content.");
       return;
     }
     debugLog(DEBUG, "debug", "Calling dispatcher.getCompletion");
@@ -17835,18 +17829,18 @@ async function generateYamlAttribute(app, settings, processMessages2, attributeN
       debugLog(DEBUG, "debug", "Output mode:", outputMode);
       if (outputMode === "metadata") {
         await upsertYamlField(app, activeFile, attributeName, value);
-        new import_obsidian32.Notice(`Inserted ${attributeName} into metadata: ${value}`);
+        new import_obsidian31.Notice(`Inserted ${attributeName} into metadata: ${value}`);
       } else {
         try {
           await navigator.clipboard.writeText(value);
-          new import_obsidian32.Notice(`Generated ${attributeName} (copied): ${value}`);
+          new import_obsidian31.Notice(`Generated ${attributeName} (copied): ${value}`);
         } catch (e) {
-          new import_obsidian32.Notice(`Generated ${attributeName}: ${value}`);
+          new import_obsidian31.Notice(`Generated ${attributeName}: ${value}`);
         }
       }
     } else {
       debugLog(DEBUG, "debug", `No value generated for ${attributeName} after sanitization.`);
-      new import_obsidian32.Notice(`No value generated for ${attributeName}.`);
+      new import_obsidian31.Notice(`No value generated for ${attributeName}.`);
     }
   } catch (processError) {
     debugLog(DEBUG, "debug", "Error in processMessages or provider.getCompletion:", processError);
@@ -17912,10 +17906,10 @@ function registerYamlAttributeCommands(plugin, settings, processMessages2, yamlA
   }
   return newCommandIds;
 }
-var import_obsidian32, DEBUG;
+var import_obsidian31, DEBUG;
 var init_YAMLHandler = __esm({
   "src/YAMLHandler.ts"() {
-    import_obsidian32 = require("obsidian");
+    import_obsidian31 = require("obsidian");
     init_aiDispatcher();
     init_promptConstants();
     init_pluginUtils();
@@ -19886,11 +19880,11 @@ function registerTestCommands(plugin) {
     name: "Test: Basic IndexedDB Functionality",
     callback: async () => {
       try {
-        new import_obsidian35.Notice("Testing basic IndexedDB functionality...");
+        new import_obsidian34.Notice("Testing basic IndexedDB functionality...");
         await runBasicIndexedDBTest();
-        new import_obsidian35.Notice("\u2705 IndexedDB test completed successfully!");
+        new import_obsidian34.Notice("\u2705 IndexedDB test completed successfully!");
       } catch (error) {
-        new import_obsidian35.Notice(`\u274C IndexedDB test failed: ${error.message}`);
+        new import_obsidian34.Notice(`\u274C IndexedDB test failed: ${error.message}`);
         console.error("IndexedDB test failed:", error);
       }
     }
@@ -19931,10 +19925,10 @@ function registerTestCommands(plugin) {
   }
   console.log("Test commands registered for basic functionality debugging");
 }
-var import_obsidian35;
+var import_obsidian34;
 var init_testRunner = __esm({
   "tests/testRunner.ts"() {
-    import_obsidian35 = require("obsidian");
+    import_obsidian34 = require("obsidian");
   }
 });
 
@@ -19944,33 +19938,2016 @@ __export(main_exports, {
   default: () => MyPlugin
 });
 module.exports = __toCommonJS(main_exports);
-var import_obsidian36 = require("obsidian");
+var import_obsidian35 = require("obsidian");
 init_types();
 
 // src/settings/SettingTab.ts
-var import_obsidian30 = require("obsidian");
+var import_obsidian12 = require("obsidian");
 
-// src/components/commands/viewCommands.ts
-init_pluginUtils();
-
-// src/utils/viewManager.ts
-async function activateView(app, viewType, reveal = true) {
-  app.workspace.detachLeavesOfType(viewType);
-  let leaf = app.workspace.getRightLeaf(false) || app.workspace.getLeaf(true);
-  await leaf.setViewState({
-    type: viewType,
-    active: true
-  });
-  if (reveal) {
-    app.workspace.revealLeaf(leaf);
+// src/utils/CollapsibleSection.ts
+var CollapsibleSectionRenderer = class {
+  /**
+   * Creates a collapsible section with a header that can be toggled.
+   * The expanded/collapsed state is persisted in plugin settings.
+   * 
+   * @param containerEl The parent container element to append the section to.
+   * @param title The title of the collapsible section.
+   * @param contentCallback Callback to populate the section content (receives the content element).
+   * @param plugin The plugin instance (for settings and saving state).
+   * @param settingsType The key in MyPluginSettings where expand/collapse state is stored.
+   */
+  static createCollapsibleSection(containerEl, title, contentCallback, plugin, settingsType) {
+    var _a2;
+    plugin.settings[settingsType] = plugin.settings[settingsType] || {};
+    let isExpanded = (_a2 = (plugin.settings[settingsType] || {})[title]) != null ? _a2 : false;
+    const collapsibleContainer = containerEl.createEl("div");
+    collapsibleContainer.addClass("ai-collapsible-section");
+    const headerEl = collapsibleContainer.createEl("div");
+    headerEl.addClass("ai-collapsible-header");
+    const arrow = headerEl.createEl("span");
+    arrow.addClass("ai-collapsible-arrow");
+    arrow.textContent = isExpanded ? "\u25BC" : "\u25B6";
+    const titleSpan = headerEl.createEl("span");
+    titleSpan.textContent = title;
+    const contentEl = collapsibleContainer.createEl("div");
+    contentEl.addClass("ai-collapsible-content");
+    contentEl.style.display = isExpanded ? "block" : "none";
+    headerEl.addEventListener("click", async () => {
+      isExpanded = !isExpanded;
+      contentEl.style.display = isExpanded ? "block" : "none";
+      arrow.textContent = isExpanded ? "\u25BC" : "\u25B6";
+      (plugin.settings[settingsType] || {})[title] = isExpanded;
+      await plugin.saveSettings();
+    });
+    const result = contentCallback(contentEl);
+    if (result instanceof Promise) {
+      result.catch((error) => console.error("Error in collapsible section:", error));
+    }
   }
-}
+};
+
+// src/settings/SettingTab.ts
+init_logger();
+
+// src/settings/components/SettingCreators.ts
+var import_obsidian6 = require("obsidian");
+var SettingCreators = class {
+  /**
+   * @param plugin The plugin instance, used for saving settings.
+   * @param reRenderCallback A callback function to re-render the settings tab/modal.
+   */
+  constructor(plugin, reRenderCallback) {
+    __publicField(this, "plugin");
+    __publicField(this, "reRenderCallback");
+    this.plugin = plugin;
+    this.reRenderCallback = reRenderCallback;
+  }
+  /**
+   * Creates a text input setting (either single-line or multi-line).
+   * @param containerEl The HTML element to append the setting to.
+   * @param name The name of the setting.
+   * @param desc The description of the setting.
+   * @param placeholder The placeholder text for the input.
+   * @param getValue A function to get the current value of the setting.
+   * @param setValue A function to set the new value of the setting.
+   * @param options Additional options for the text input (e.g., trim, undefinedIfEmpty, isTextArea).
+   */
+  createTextSetting(containerEl, name, desc, placeholder, getValue, setValue, options) {
+    new import_obsidian6.Setting(containerEl).setName(name).setDesc(desc).then((setting) => {
+      const textInputOptions = {
+        trim: options == null ? void 0 : options.trim,
+        undefinedIfEmpty: options == null ? void 0 : options.undefinedIfEmpty
+      };
+      if (options == null ? void 0 : options.isTextArea) {
+        setting.addTextArea((text) => this.configureTextInput(text, placeholder, getValue, setValue, textInputOptions));
+      } else {
+        setting.addText((text) => this.configureTextInput(text, placeholder, getValue, setValue, textInputOptions));
+      }
+    });
+  }
+  /**
+   * Configures a text input (either single-line or multi-line).
+   * Handles value processing (trimming, setting to undefined if empty) and saving on blur.
+   * @param textComponent The TextComponent or TextAreaComponent to configure.
+   * @param placeholder The placeholder text.
+   * @param getValue A function to get the current value.
+   * @param setValue A function to set the new value.
+   * @param options Additional options for processing the input value (e.g., trim, undefinedIfEmpty).
+   */
+  configureTextInput(textComponent, placeholder, getValue, setValue, options) {
+    var _a2;
+    textComponent.setPlaceholder(placeholder).setValue((_a2 = getValue()) != null ? _a2 : "").onChange((value) => {
+      let processedValue = value;
+      if ((options == null ? void 0 : options.trim) && processedValue) {
+        processedValue = processedValue.trim();
+      }
+      if ((options == null ? void 0 : options.undefinedIfEmpty) && processedValue === "") {
+        processedValue = void 0;
+      }
+      this.updateSettingValueOnly(setValue, processedValue);
+    });
+    textComponent.inputEl.addEventListener("blur", async () => {
+      await this.plugin.saveSettings();
+      this.reRenderCallback();
+    });
+  }
+  /**
+   * Helper method to update setting value without triggering a full save to disk immediately.
+   * This is useful for inputs where changes are frequent (e.g., textareas) and saving should be debounced or on blur.
+   * @param setValue The function to call to update the setting's value.
+   * @param value The new value for the setting.
+   */
+  updateSettingValueOnly(setValue, value) {
+    const originalSaveSettings = this.plugin.saveSettings;
+    this.plugin.saveSettings = async () => {
+    };
+    try {
+      setValue(value);
+    } catch (e) {
+      console.warn("Error updating setting value:", e);
+    } finally {
+      this.plugin.saveSettings = originalSaveSettings;
+    }
+  }
+  /**
+   * Creates a dropdown setting.
+   * @param containerEl The HTML element to append the setting to.
+   * @param name The name of the setting.
+   * @param desc The description of the setting.
+   * @param options A record of option values to display names.
+   * @param getValue A function to get the current value of the setting.
+   * @param setValue A function to set the new value of the setting.
+   */
+  createDropdownSetting(containerEl, name, desc, options, getValue, setValue) {
+    new import_obsidian6.Setting(containerEl).setName(name).setDesc(desc).addDropdown((drop) => {
+      Object.entries(options).forEach(([key, display]) => drop.addOption(key, display));
+      drop.setValue(getValue());
+      drop.onChange(async (value) => {
+        await setValue(value);
+        this.reRenderCallback();
+      });
+    });
+  }
+  /**
+   * Creates a toggle (checkbox) setting.
+   * @param containerEl The HTML element to append the setting to.
+   * @param name The name of the setting.
+   * @param desc The description of the setting.
+   * @param getValue A function to get the current boolean value.
+   * @param setValue A function to set the new boolean value.
+   * @param onChangeCallback An optional callback to run after the value changes and settings are saved.
+   */
+  createToggleSetting(containerEl, name, desc, getValue, setValue, onChangeCallback) {
+    new import_obsidian6.Setting(containerEl).setName(name).setDesc(desc).addToggle((toggle) => toggle.setValue(getValue()).onChange(async (value) => {
+      await setValue(value);
+      if (onChangeCallback) {
+        onChangeCallback();
+      }
+      this.reRenderCallback();
+    }));
+  }
+  /**
+   * Creates a slider setting.
+   * @param containerEl The HTML element to append the setting to.
+   * @param name The name of the setting.
+   * @param desc The description of the setting.
+   * @param limits An object defining min, max, and step for the slider.
+   * @param getValue A function to get the current numeric value.
+   * @param setValue A function to set the new numeric value.
+   */
+  createSliderSetting(containerEl, name, desc, limits, getValue, setValue) {
+    new import_obsidian6.Setting(containerEl).setName(name).setDesc(desc).addSlider((slider) => {
+      slider.setLimits(limits.min, limits.max, limits.step).setValue(getValue()).setDynamicTooltip().onChange(async (value) => {
+        await setValue(value);
+        this.reRenderCallback();
+      });
+    });
+  }
+};
+
+// src/settings/sections/GeneralSettingsSection.ts
+var import_obsidian7 = require("obsidian");
+var GeneralSettingsSection = class {
+  /**
+   * @param plugin The main plugin instance.
+   * @param settingCreators An instance of SettingCreators for consistent UI element creation.
+   */
+  constructor(plugin, settingCreators) {
+    __publicField(this, "plugin");
+    __publicField(this, "settingCreators");
+    this.plugin = plugin;
+    this.settingCreators = settingCreators;
+  }
+  /**
+   * Renders the General Settings sections (Plugin Behavior, Date & Time, Debug) into the provided container element.
+   * @param containerEl The HTML element to render the sections into.
+   */
+  async render(containerEl) {
+    CollapsibleSectionRenderer.createCollapsibleSection(
+      containerEl,
+      "Plugin Behavior",
+      (sectionEl) => {
+        sectionEl.createEl("div", {
+          text: "Additional plugin behavior settings will be available here.",
+          cls: "setting-item-description"
+        });
+      },
+      this.plugin,
+      "generalSectionsExpanded"
+    );
+    CollapsibleSectionRenderer.createCollapsibleSection(
+      containerEl,
+      "Date & Time Settings",
+      (sectionEl) => {
+        this.settingCreators.createToggleSetting(
+          sectionEl,
+          "Include Time with System Message",
+          "Add the current time along with the date to the system message",
+          () => this.plugin.settings.includeTimeWithSystemMessage,
+          async (value) => {
+            this.plugin.settings.includeTimeWithSystemMessage = value;
+            await this.plugin.saveSettings();
+          }
+        );
+      },
+      this.plugin,
+      "generalSectionsExpanded"
+    );
+    CollapsibleSectionRenderer.createCollapsibleSection(
+      containerEl,
+      "Debug Settings",
+      (sectionEl) => {
+        this.settingCreators.createToggleSetting(
+          sectionEl,
+          "Debug Mode",
+          "Enable verbose logging and debug UI features",
+          () => {
+            var _a2;
+            return (_a2 = this.plugin.settings.debugMode) != null ? _a2 : false;
+          },
+          async (value) => {
+            this.plugin.settings.debugMode = value;
+            await this.plugin.saveSettings();
+          }
+        );
+      },
+      this.plugin,
+      "generalSectionsExpanded"
+    );
+    CollapsibleSectionRenderer.createCollapsibleSection(
+      containerEl,
+      "AI Call Log Management",
+      (sectionEl) => {
+        new import_obsidian7.Setting(sectionEl).setName("Clear AI Call Logs").setDesc("Delete all AI call log files from the plugin's ai-calls folder.").addButton((btn) => {
+          btn.setButtonText("Clear Logs").setCta().onClick(async () => {
+            const { clearAICallLogs: clearAICallLogs2 } = await Promise.resolve().then(() => (init_clearAICallLogs(), clearAICallLogs_exports));
+            const pluginFolder = __dirname;
+            const deleted = await clearAICallLogs2(pluginFolder, "ai-calls");
+            new window.Notice(`Cleared ${deleted} AI call log file(s).`);
+          });
+        });
+      },
+      this.plugin,
+      "generalSectionsExpanded"
+    );
+  }
+};
+
+// src/settings/sections/AIModelConfigurationSection.ts
+var import_obsidian9 = require("obsidian");
+init_aiDispatcher();
+init_validationUtils();
+var AIModelConfigurationSection = class {
+  /**
+   * @param plugin The main plugin instance.
+   * @param settingCreators An instance of SettingCreators for consistent UI element creation.
+   */
+  constructor(plugin, settingCreators) {
+    __publicField(this, "plugin");
+    __publicField(this, "settingCreators");
+    this.plugin = plugin;
+    this.settingCreators = settingCreators;
+  }
+  /**
+   * Renders the AI Model Configuration section into the provided container element.
+   * @param containerEl The HTML element to render the section into.
+   */
+  async render(containerEl) {
+    CollapsibleSectionRenderer.createCollapsibleSection(
+      containerEl,
+      "API Keys & Providers",
+      async (sectionEl) => {
+        CollapsibleSectionRenderer.createCollapsibleSection(
+          sectionEl,
+          "OpenAI Configuration",
+          async (subSectionEl) => {
+            this.settingCreators.createTextSetting(
+              subSectionEl,
+              "OpenAI API Key",
+              "Enter your OpenAI API key",
+              "Enter your API key",
+              () => this.plugin.settings.openaiSettings.apiKey,
+              async (value) => {
+                if (value && !isValidOpenAIApiKey(value)) {
+                  new import_obsidian9.Notice("Invalid OpenAI API Key format. Please check your key.");
+                  return;
+                }
+                this.plugin.settings.openaiSettings.apiKey = value != null ? value : "";
+                await this.plugin.saveSettings();
+              }
+            );
+            this.settingCreators.createTextSetting(
+              sectionEl,
+              "OpenAI Base URL",
+              "Custom base URL for OpenAI API (optional, leave empty for default)",
+              "https://api.openai.com/v1",
+              () => this.plugin.settings.openaiSettings.baseUrl || "",
+              async (value) => {
+                this.plugin.settings.openaiSettings.baseUrl = value;
+                await this.plugin.saveSettings();
+              },
+              { trim: true, undefinedIfEmpty: true }
+            );
+            this.renderProviderTestSection(sectionEl, "openai", "OpenAI");
+          },
+          this.plugin,
+          "providerConfigExpanded"
+        );
+        CollapsibleSectionRenderer.createCollapsibleSection(
+          containerEl,
+          "Anthropic Configuration",
+          async (sectionEl2) => {
+            this.settingCreators.createTextSetting(
+              sectionEl2,
+              "Anthropic API Key",
+              "Enter your Anthropic API key",
+              "Enter your API key",
+              () => this.plugin.settings.anthropicSettings.apiKey,
+              async (value) => {
+                if (value && !isValidAnthropicApiKey(value)) {
+                  new import_obsidian9.Notice("Invalid Anthropic API Key format. Please check your key.");
+                  return;
+                }
+                this.plugin.settings.anthropicSettings.apiKey = value != null ? value : "";
+                await this.plugin.saveSettings();
+              }
+            );
+            this.renderProviderTestSection(sectionEl2, "anthropic", "Anthropic");
+          },
+          this.plugin,
+          "providerConfigExpanded"
+        );
+        CollapsibleSectionRenderer.createCollapsibleSection(
+          containerEl,
+          "Google Gemini Configuration",
+          async (sectionEl2) => {
+            this.settingCreators.createTextSetting(
+              sectionEl2,
+              "Google API Key",
+              "Enter your Google API key",
+              "Enter your API key",
+              () => this.plugin.settings.geminiSettings.apiKey,
+              async (value) => {
+                if (value && !isValidGoogleApiKey(value)) {
+                  new import_obsidian9.Notice("Invalid Google API Key format. Please check your key.");
+                  return;
+                }
+                this.plugin.settings.geminiSettings.apiKey = value != null ? value : "";
+                await this.plugin.saveSettings();
+              }
+            );
+            this.renderProviderTestSection(sectionEl2, "gemini", "Google Gemini");
+          },
+          this.plugin,
+          "providerConfigExpanded"
+        );
+        CollapsibleSectionRenderer.createCollapsibleSection(
+          containerEl,
+          "Ollama Configuration",
+          async (sectionEl2) => {
+            this.settingCreators.createTextSetting(
+              sectionEl2,
+              "Ollama Server URL",
+              "Enter your Ollama server URL (default: http://localhost:11434)",
+              "http://localhost:11434",
+              () => this.plugin.settings.ollamaSettings.serverUrl,
+              async (value) => {
+                if (value && !isValidUrl(value)) {
+                  new import_obsidian9.Notice("Invalid Ollama Server URL format. Please enter a valid URL.");
+                  return;
+                }
+                this.plugin.settings.ollamaSettings.serverUrl = value != null ? value : "";
+                await this.plugin.saveSettings();
+              }
+            );
+            sectionEl2.createEl("div", {
+              cls: "setting-item-description",
+              text: "To use Ollama:"
+            });
+            const steps = sectionEl2.createEl("ol");
+            steps.createEl("li", { text: "Install Ollama from https://ollama.ai" });
+            steps.createEl("li", { text: "Start the Ollama server" });
+            steps.createEl("li", { text: 'Pull models using "ollama pull model-name"' });
+            steps.createEl("li", { text: "Test connection to see available models" });
+            this.renderProviderTestSection(sectionEl2, "ollama", "Ollama");
+          },
+          this.plugin,
+          "providerConfigExpanded"
+        );
+      },
+      this.plugin,
+      "providerConfigExpanded"
+    );
+    CollapsibleSectionRenderer.createCollapsibleSection(
+      containerEl,
+      "Default AI Model Settings",
+      async (sectionEl) => {
+        await this.renderAIModelSettings(sectionEl);
+      },
+      this.plugin,
+      "generalSectionsExpanded"
+    );
+    CollapsibleSectionRenderer.createCollapsibleSection(
+      containerEl,
+      "Model Management",
+      async (sectionEl) => {
+        sectionEl.createEl("h4", { text: "Available Models" });
+        await this.renderAvailableModelsSection(sectionEl);
+        sectionEl.createEl("h4", { text: "Model Setting Presets" });
+        this.renderModelSettingPresets(sectionEl);
+      },
+      this.plugin,
+      "generalSectionsExpanded"
+    );
+  }
+  /**
+   * Renders the provider connection test section.
+   * Allows users to test their API key and fetch available models for a given provider.
+   * @param containerEl The HTML element to append the section to.
+   * @param provider The ID of the provider (e.g., 'openai', 'anthropic').
+   * @param displayName The display name of the provider (e.g., 'OpenAI', 'Anthropic').
+   */
+  renderProviderTestSection(containerEl, provider, displayName) {
+    const settings = this.plugin.settings[`${provider}Settings`];
+    new import_obsidian9.Setting(containerEl).setName("Test Connection").setDesc(`Verify your API key and fetch available models for ${displayName}`).addButton((button) => button.setButtonText("Test").onClick(async () => {
+      button.setButtonText("Testing...");
+      button.setDisabled(true);
+      try {
+        const aiDispatcher = new AIDispatcher(this.plugin.app.vault, this.plugin);
+        const result = await aiDispatcher.testConnection(provider);
+        if (result.success && result.models) {
+          settings.availableModels = result.models;
+          settings.lastTestResult = {
+            timestamp: Date.now(),
+            success: true,
+            message: result.message
+          };
+          await this.plugin.saveSettings();
+          this.plugin.settings.availableModels = await aiDispatcher.getAllUnifiedModels();
+          await this.plugin.saveSettings();
+          new import_obsidian9.Notice(result.message);
+        } else {
+          settings.lastTestResult = {
+            timestamp: Date.now(),
+            success: false,
+            message: result.message
+          };
+          new import_obsidian9.Notice(result.message);
+        }
+      } catch (error) {
+        new import_obsidian9.Notice(`Error: ${error.message}`);
+      } finally {
+        button.setButtonText("Test");
+        button.setDisabled(false);
+      }
+    }));
+    if (settings.lastTestResult) {
+      const date = new Date(settings.lastTestResult.timestamp);
+      containerEl.createEl("div", {
+        text: `Last test: ${date.toLocaleString()} - ${settings.lastTestResult.message}`,
+        cls: settings.lastTestResult.success ? "success" : "error"
+      });
+    }
+    if (settings.availableModels && settings.availableModels.length > 0) {
+      containerEl.createEl("div", {
+        text: `Available models: ${settings.availableModels.map((m) => m.name || m.id).join(", ")}`,
+        cls: "setting-item-description"
+      });
+    }
+  }
+  /**
+   * Renders the AI Model Settings section.
+   * This includes system message, streaming, temperature, and model selection.
+   * @param containerEl The HTML element to append the section to.
+   */
+  async renderAIModelSettings(containerEl) {
+    if (this.plugin.settings.modelSettingPresets && this.plugin.settings.modelSettingPresets.length > 0) {
+      const presetContainer = containerEl.createDiv();
+      presetContainer.addClass("model-preset-buttons");
+      presetContainer.createEl("div", { text: "Quick Presets:", cls: "setting-item-name" });
+      this.plugin.settings.modelSettingPresets.forEach((preset, idx) => {
+        const btn = presetContainer.createEl("button", { text: preset.name });
+        btn.style.marginRight = "0.5em";
+        btn.onclick = async () => {
+          if (preset.selectedModel !== void 0) this.plugin.settings.selectedModel = preset.selectedModel;
+          if (preset.systemMessage !== void 0) this.plugin.settings.systemMessage = preset.systemMessage;
+          if (preset.temperature !== void 0) this.plugin.settings.temperature = preset.temperature;
+          if (preset.enableStreaming !== void 0) this.plugin.settings.enableStreaming = preset.enableStreaming;
+          await this.plugin.saveSettings();
+          new import_obsidian9.Notice(`Applied preset: ${preset.name}`);
+        };
+      });
+    }
+    new import_obsidian9.Setting(containerEl).setName("System Message").setDesc("Set the system message for the AI").addTextArea((text) => {
+      text.setPlaceholder("You are a helpful assistant.").setValue(this.plugin.settings.systemMessage).onChange((value) => {
+        this.plugin.settings.systemMessage = value;
+      });
+      text.inputEl.addEventListener("blur", async () => {
+        await this.plugin.saveSettings();
+      });
+      return text;
+    });
+    new import_obsidian9.Setting(containerEl).setName("Enable Streaming").setDesc("Enable or disable streaming for completions").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableStreaming).onChange(async (value) => {
+      this.plugin.settings.enableStreaming = value;
+      await this.plugin.saveSettings();
+    }));
+    new import_obsidian9.Setting(containerEl).setName("Temperature").setDesc("Set the randomness of the model's output (0-1)").addSlider((slider) => slider.setLimits(0, 1, 0.1).setValue(this.plugin.settings.temperature).setDynamicTooltip().onChange(async (value) => {
+      this.plugin.settings.temperature = value;
+      await this.plugin.saveSettings();
+    }));
+    new import_obsidian9.Setting(containerEl).setName("Refresh Available Models").setDesc("Test connections to all configured providers and refresh available models").addButton((button) => button.setButtonText("Refresh Models").onClick(async () => {
+      button.setButtonText("Refreshing...");
+      button.setDisabled(true);
+      try {
+        await this.refreshAllAvailableModels();
+        new import_obsidian9.Notice("Successfully refreshed available models");
+      } catch (error) {
+        new import_obsidian9.Notice(`Error refreshing models: ${error.message}`);
+      } finally {
+        button.setButtonText("Refresh Models");
+        button.setDisabled(false);
+      }
+    }));
+    await this.renderUnifiedModelDropdown(containerEl);
+  }
+  /**
+   * Renders the unified model selection dropdown.
+   * This dropdown allows users to select from all available models across all configured providers.
+   * @param containerEl The HTML element to append the dropdown to.
+   */
+  async renderUnifiedModelDropdown(containerEl) {
+    if (!this.plugin.settings.availableModels || this.plugin.settings.availableModels.length === 0) {
+      const aiDispatcher = new AIDispatcher(this.plugin.app.vault, this.plugin);
+      this.plugin.settings.availableModels = await aiDispatcher.getAllUnifiedModels();
+      await this.plugin.saveSettings();
+    }
+    new import_obsidian9.Setting(containerEl).setName("Selected Model").setDesc("Choose from all available models across all configured providers").addDropdown((dropdown) => {
+      if (!this.plugin.settings.availableModels || this.plugin.settings.availableModels.length === 0) {
+        dropdown.addOption("", "No models available - configure providers above");
+      } else {
+        dropdown.addOption("", "Select a model...");
+        const modelsByProvider = {};
+        const enabledModels = this.plugin.settings.enabledModels || {};
+        const filteredModels = this.plugin.settings.availableModels.filter((model) => enabledModels[model.id] !== false);
+        filteredModels.forEach((model) => {
+          if (!modelsByProvider[model.provider]) {
+            modelsByProvider[model.provider] = [];
+          }
+          modelsByProvider[model.provider].push(model);
+        });
+        Object.entries(modelsByProvider).forEach(([provider, models]) => {
+          models.forEach((model) => {
+            dropdown.addOption(model.id, model.name);
+          });
+        });
+      }
+      dropdown.setValue(this.plugin.settings.selectedModel || "").onChange(async (value) => {
+        this.plugin.settings.selectedModel = value;
+        if (value) {
+          const [provider] = value.split(":", 2);
+          this.plugin.settings.provider = provider;
+        }
+        await this.plugin.saveSettings();
+      });
+    });
+    if (this.plugin.settings.selectedModel && this.plugin.settings.availableModels) {
+      const selectedModel = this.plugin.settings.availableModels.find(
+        (model) => model.id === this.plugin.settings.selectedModel
+      );
+      if (selectedModel) {
+        const infoEl = containerEl.createEl("div", { cls: "setting-item-description" });
+        infoEl.setText(`Currently using: ${selectedModel.name}`);
+      }
+    }
+  }
+  /**
+   * Refreshes available models from all configured providers using the dispatcher.
+   * This function uses the dispatcher to refresh models from all providers.
+   */
+  async refreshAllAvailableModels() {
+    const aiDispatcher = new AIDispatcher(this.plugin.app.vault, this.plugin);
+    try {
+      await aiDispatcher.refreshAllProviderModels();
+      this.plugin.settings.availableModels = await aiDispatcher.getAllUnifiedModels();
+      await this.plugin.saveSettings();
+    } catch (error) {
+      console.error("Error refreshing all available models:", error);
+    }
+  }
+  /**
+   * Renders the Available Models section in the Model Management settings.
+   * This section displays all models available from configured providers and allows
+   * enabling/disabling models and deleting local copies of models.
+   * @param containerEl The HTML element to append the section to.
+   */
+  async renderAvailableModelsSection(containerEl) {
+    const availableModels = this.plugin.settings.availableModels || [];
+    if (availableModels.length === 0) {
+      containerEl.createEl("div", { text: "No models available. Configure providers and refresh to load models.", cls: "setting-item-description" });
+      return;
+    }
+    const table = containerEl.createEl("table");
+    const thead = table.createEl("thead");
+    const tbody = table.createEl("tbody");
+    const headerRow = thead.createEl("tr");
+    headerRow.createEl("th", { text: "Model" });
+    headerRow.createEl("th", { text: "Provider" });
+    headerRow.createEl("th", { text: "Enabled" });
+    headerRow.createEl("th", { text: "Actions" });
+    for (const model of availableModels) {
+      const row = tbody.createEl("tr");
+      row.createEl("td", { text: model.name });
+      row.createEl("td", { text: model.provider });
+      const enabledToggle = new import_obsidian9.Setting(row.createEl("td")).setName("").setDesc("Enable or disable this model").addToggle((toggle) => {
+        var _a2;
+        return toggle.setValue(((_a2 = this.plugin.settings.enabledModels) == null ? void 0 : _a2[model.id]) !== false).onChange(async (value) => {
+          const enabledModels = this.plugin.settings.enabledModels || {};
+          enabledModels[model.id] = value ? true : false;
+          this.plugin.settings.enabledModels = enabledModels;
+          await this.plugin.saveSettings();
+        });
+      });
+      const actionsCell = row.createEl("td");
+      new import_obsidian9.Setting(actionsCell).setName("").setDesc("Delete local copy of this model").addButton((button) => button.setButtonText("Delete").setWarning().onClick(async () => {
+        const confirmed = confirm(`Are you sure you want to delete the local copy of the model "${model.name}"?`);
+        if (confirmed) {
+          try {
+            await this.plugin.app.vault.adapter.remove(`ai-models/${model.id}.json`);
+            const aiDispatcher = new AIDispatcher(this.plugin.app.vault, this.plugin);
+            this.plugin.settings.availableModels = await aiDispatcher.getAllUnifiedModels();
+            await this.plugin.saveSettings();
+            new import_obsidian9.Notice(`Deleted model "${model.name}"`);
+            containerEl.empty();
+            await this.renderAvailableModelsSection(containerEl);
+          } catch (error) {
+            new import_obsidian9.Notice(`Error deleting model: ${error.message}`);
+          }
+        }
+      })).addButton((button) => button.setButtonText("Re-download").onClick(async () => {
+        const confirmed = confirm(`Are you sure you want to re-download the model "${model.name}"?`);
+        if (confirmed) {
+          try {
+            new import_obsidian9.Notice(`Re-download feature is not yet implemented. Please pull the model again using the provider settings.`);
+          } catch (error) {
+            new import_obsidian9.Notice(`Error re-downloading model: ${error.message}`);
+          }
+        }
+      }));
+    }
+  }
+  /**
+   * Renders the Model Setting Presets section.
+   * This section allows users to create, edit, and delete model setting presets.
+   * @param containerEl The HTML element to append the section to.
+   */
+  renderModelSettingPresets(containerEl) {
+    containerEl.createEl("div", {
+      text: "Presets let you save and quickly apply common model settings (model, temperature, system message, etc). You can add, edit, or remove presets here. In the AI Model Settings panel, you will see buttons for each preset above the model selection. Clicking a preset button will instantly apply those settings. This is useful for switching between different model configurations with one click.",
+      cls: "setting-item-description",
+      attr: { style: "margin-bottom: 0.5em;" }
+    });
+    const presetList = this.plugin.settings.modelSettingPresets || [];
+    presetList.forEach((preset, idx) => {
+      new import_obsidian9.Setting(containerEl).setName("Preset Name").setDesc("Edit the name of this preset").addText((text) => {
+        text.setPlaceholder("Preset Name").setValue(preset.name).onChange((value) => {
+          preset.name = value != null ? value : "";
+        });
+        text.inputEl.addEventListener("blur", async () => {
+          await this.plugin.saveSettings();
+        });
+      });
+      new import_obsidian9.Setting(containerEl).setName("Model ID (provider:model)").setDesc("Edit the model for this preset").addText((text) => {
+        text.setPlaceholder("Model ID (provider:model)").setValue(preset.selectedModel || "").onChange((value) => {
+          preset.selectedModel = value != null ? value : "";
+        });
+        text.inputEl.addEventListener("blur", async () => {
+          await this.plugin.saveSettings();
+        });
+      });
+      new import_obsidian9.Setting(containerEl).setName("System Message").setDesc("Edit the system message for this preset").addTextArea((text) => {
+        text.setPlaceholder("System message").setValue(preset.systemMessage || "").onChange((value) => {
+          preset.systemMessage = value != null ? value : "";
+        });
+        text.inputEl.addEventListener("blur", async () => {
+          await this.plugin.saveSettings();
+        });
+      });
+      this.settingCreators.createSliderSetting(containerEl, "Temperature", "", { min: 0, max: 1, step: 0.1 }, () => {
+        var _a2;
+        return (_a2 = preset.temperature) != null ? _a2 : 0.7;
+      }, async (value) => {
+        preset.temperature = value;
+        await this.plugin.saveSettings();
+      });
+      this.settingCreators.createToggleSetting(containerEl, "Enable Streaming", "", () => {
+        var _a2;
+        return (_a2 = preset.enableStreaming) != null ? _a2 : true;
+      }, async (value) => {
+        preset.enableStreaming = value;
+        await this.plugin.saveSettings();
+      });
+      new import_obsidian9.Setting(containerEl).addExtraButton(
+        (btn) => btn.setIcon("cross").setTooltip("Delete").onClick(async () => {
+          var _a2;
+          (_a2 = this.plugin.settings.modelSettingPresets) == null ? void 0 : _a2.splice(idx, 1);
+          await this.plugin.saveSettings();
+        })
+      );
+    });
+    new import_obsidian9.Setting(containerEl).addButton(
+      (btn) => btn.setButtonText("Add Preset").setCta().onClick(async () => {
+        if (!this.plugin.settings.modelSettingPresets) this.plugin.settings.modelSettingPresets = [];
+        this.plugin.settings.modelSettingPresets.push(JSON.parse(JSON.stringify({
+          name: `Preset ${this.plugin.settings.modelSettingPresets.length + 1}`,
+          selectedModel: this.plugin.settings.selectedModel,
+          systemMessage: this.plugin.settings.systemMessage,
+          temperature: this.plugin.settings.temperature,
+          enableStreaming: this.plugin.settings.enableStreaming
+        })));
+        await this.plugin.saveSettings();
+      })
+    );
+  }
+};
+
+// src/settings/sections/AgentSettingsSection.ts
+init_toolcollect();
+init_promptConstants();
+var AgentSettingsSection = class {
+  /**
+   * @param app The Obsidian App instance.
+   * @param plugin The main plugin instance.
+   * @param settingCreators An instance of SettingCreators for consistent UI element creation.
+   */
+  constructor(app, plugin, settingCreators) {
+    __publicField(this, "app");
+    __publicField(this, "plugin");
+    __publicField(this, "settingCreators");
+    this.app = app;
+    this.plugin = plugin;
+    this.settingCreators = settingCreators;
+    if (this.plugin && typeof this.plugin.debugLog === "function") {
+      this.plugin.debugLog("debug", "[AgentSettingsSection] constructor called");
+    }
+  }
+  /**
+   * Renders the Agent Mode settings section into the provided container element.
+   * @param containerEl The HTML element to render the section into.
+   */
+  async render(containerEl) {
+    if (this.plugin && typeof this.plugin.debugLog === "function") {
+      this.plugin.debugLog("info", "[AgentSettingsSection] render called");
+    }
+    CollapsibleSectionRenderer.createCollapsibleSection(
+      containerEl,
+      "Agent Mode Settings",
+      (sectionEl) => {
+        sectionEl.createEl("div", {
+          text: "Agent Mode allows the AI to use tools like file creation, reading, and modification. Configure the limits and behavior for tool usage.",
+          cls: "setting-item-description",
+          attr: { style: "margin-bottom: 1em;" }
+        });
+        this.settingCreators.createToggleSetting(
+          sectionEl,
+          "Enable Agent Mode by Default",
+          "Start new conversations with Agent Mode enabled.",
+          () => {
+            var _a2, _b;
+            return (_b = (_a2 = this.plugin.settings.agentMode) == null ? void 0 : _a2.enabled) != null ? _b : false;
+          },
+          async (value) => {
+            if (!this.plugin.settings.agentMode) {
+              this.plugin.settings.agentMode = { enabled: false, maxToolCalls: 10, timeoutMs: 3e4, maxIterations: 10 };
+            }
+            this.plugin.settings.agentMode.enabled = value;
+            await this.plugin.saveSettings();
+          }
+        );
+        this.settingCreators.createSliderSetting(
+          sectionEl,
+          "Max Tool Calls per Conversation",
+          "Maximum number of tools the AI can use in a single conversation to prevent runaway execution.",
+          { min: 1, max: 50, step: 1 },
+          () => {
+            var _a2, _b;
+            return (_b = (_a2 = this.plugin.settings.agentMode) == null ? void 0 : _a2.maxToolCalls) != null ? _b : 10;
+          },
+          async (value) => {
+            if (!this.plugin.settings.agentMode) {
+              this.plugin.settings.agentMode = { enabled: false, maxToolCalls: 10, timeoutMs: 3e4, maxIterations: 10 };
+            }
+            this.plugin.settings.agentMode.maxToolCalls = value;
+            await this.plugin.saveSettings();
+          }
+        );
+        this.settingCreators.createSliderSetting(
+          sectionEl,
+          "Tool Execution Timeout (seconds)",
+          "Maximum time to wait for each tool to complete before timing out.",
+          { min: 5, max: 300, step: 5 },
+          () => {
+            var _a2, _b;
+            return ((_b = (_a2 = this.plugin.settings.agentMode) == null ? void 0 : _a2.timeoutMs) != null ? _b : 3e4) / 1e3;
+          },
+          async (value) => {
+            if (!this.plugin.settings.agentMode) {
+              this.plugin.settings.agentMode = { enabled: false, maxToolCalls: 10, timeoutMs: 3e4, maxIterations: 10 };
+            }
+            this.plugin.settings.agentMode.timeoutMs = value * 1e3;
+            await this.plugin.saveSettings();
+          }
+        );
+        this.settingCreators.createSliderSetting(
+          sectionEl,
+          "Max Iterations per Task Continuation",
+          "Maximum number of times the agent can iterate in a single task continuation to prevent infinite loops.",
+          { min: 1, max: 20, step: 1 },
+          () => {
+            var _a2, _b;
+            return (_b = (_a2 = this.plugin.settings.agentMode) == null ? void 0 : _a2.maxIterations) != null ? _b : 10;
+          },
+          async (value) => {
+            if (!this.plugin.settings.agentMode) {
+              this.plugin.settings.agentMode = { enabled: false, maxToolCalls: 10, timeoutMs: 3e4, maxIterations: 10 };
+            }
+            this.plugin.settings.agentMode.maxIterations = value;
+            await this.plugin.saveSettings();
+          }
+        );
+      },
+      this.plugin,
+      "generalSectionsExpanded"
+    );
+    CollapsibleSectionRenderer.createCollapsibleSection(
+      containerEl,
+      "Agent System Message",
+      (sectionEl) => {
+        sectionEl.createEl("div", {
+          text: "Customize the system message used when Agent Mode is enabled. Use {{TOOL_DESCRIPTIONS}} to include the available tools list.",
+          cls: "setting-item-description",
+          attr: { style: "margin-bottom: 0.5em;" }
+        });
+        const agentMessageContainer = sectionEl.createDiv("agent-message-container");
+        agentMessageContainer.style.display = "flex";
+        agentMessageContainer.style.gap = "0.5em";
+        agentMessageContainer.style.alignItems = "flex-start";
+        agentMessageContainer.style.marginBottom = "1em";
+        const textareaContainer = agentMessageContainer.createDiv();
+        textareaContainer.style.flex = "1";
+        const textarea = textareaContainer.createEl("textarea");
+        textarea.rows = 8;
+        textarea.style.width = "100%";
+        textarea.style.minHeight = "120px";
+        textarea.style.fontFamily = "monospace";
+        textarea.style.fontSize = "0.9em";
+        textarea.placeholder = "Enter custom agent system message template...";
+        textarea.value = this.plugin.settings.customAgentSystemMessage || "";
+        const buttonContainer = agentMessageContainer.createDiv();
+        buttonContainer.style.display = "flex";
+        buttonContainer.style.flexDirection = "column";
+        buttonContainer.style.gap = "0.25em";
+        const resetButton = buttonContainer.createEl("button", { text: "Reset to Default" });
+        resetButton.style.padding = "0.25em 0.5em";
+        resetButton.style.fontSize = "0.8em";
+        resetButton.addEventListener("click", async () => {
+          textarea.value = AGENT_SYSTEM_PROMPT_TEMPLATE;
+          this.plugin.settings.customAgentSystemMessage = AGENT_SYSTEM_PROMPT_TEMPLATE;
+          await this.plugin.saveSettings();
+        });
+        const clearButton = buttonContainer.createEl("button", { text: "Use Default" });
+        clearButton.style.padding = "0.25em 0.5em";
+        clearButton.style.fontSize = "0.8em";
+        clearButton.addEventListener("click", async () => {
+          textarea.value = "";
+          this.plugin.settings.customAgentSystemMessage = void 0;
+          await this.plugin.saveSettings();
+        });
+        textarea.addEventListener("input", async () => {
+          const value = textarea.value.trim();
+          this.plugin.settings.customAgentSystemMessage = value || void 0;
+          await this.plugin.saveSettings();
+        });
+      },
+      this.plugin,
+      "generalSectionsExpanded"
+    );
+    CollapsibleSectionRenderer.createCollapsibleSection(
+      containerEl,
+      "Agent Tools",
+      (sectionEl) => {
+        this.renderToolToggles(sectionEl);
+      },
+      this.plugin,
+      "generalSectionsExpanded"
+    );
+  }
+  /**
+   * Renders the Tool Enable/Disable section.
+   * Allows users to enable or disable individual tools available to the agent.
+   * @param containerEl The HTML element to append the section to.
+   */
+  renderToolToggles(containerEl) {
+    containerEl.createEl("div", {
+      text: "Enable or disable individual agent tools. Disabled tools will not be available to the agent or appear in the system prompt.",
+      cls: "setting-item-description",
+      attr: { style: "margin-bottom: 0.5em;" }
+    });
+    const tools = createToolInstances(this.app, this.plugin);
+    if (!this.plugin.settings.enabledTools) {
+      this.plugin.settings.enabledTools = {};
+    }
+    tools.forEach((tool) => {
+      if (!tool) {
+        console.error("[AI Assistant] Settings: Encountered an undefined tool object in tools array!");
+        return;
+      }
+      if (typeof tool.name === "undefined") {
+        console.error("[AI Assistant] Settings: CRITICAL - Tool object has undefined name:", tool);
+      }
+      if (tool.name === "thought") {
+        if (!this.plugin.settings.enabledTools) {
+          this.plugin.settings.enabledTools = {};
+        }
+        this.plugin.settings.enabledTools["thought"] = true;
+        return;
+      }
+      this.settingCreators.createToggleSetting(
+        containerEl,
+        `${tool.name} (${tool.description})`,
+        `Enable or disable the "${tool.name}" tool.`,
+        () => {
+          if (typeof tool.name === "undefined") {
+            console.error("[AI Assistant] Settings: CRITICAL - Trying to get toggle state for tool with undefined name!");
+            return false;
+          }
+          return !!this.plugin.settings.enabledTools && this.plugin.settings.enabledTools[tool.name] !== false;
+        },
+        async (value) => {
+          if (typeof tool.name === "undefined") {
+            console.error("[AI Assistant] Settings: CRITICAL - Trying to set toggle state for tool with undefined name! Skipping save.");
+            return;
+          }
+          if (!this.plugin.settings.enabledTools) {
+            this.plugin.settings.enabledTools = {};
+          }
+          this.plugin.settings.enabledTools[tool.name] = value;
+          await this.plugin.saveSettings();
+        }
+      );
+    });
+  }
+};
+
+// src/settings/sections/ContentNoteHandlingSection.ts
+var import_obsidian10 = require("obsidian");
+var ContentNoteHandlingSection = class {
+  /**
+   * @param plugin The main plugin instance.
+   * @param settingCreators An instance of SettingCreators for consistent UI element creation.
+   */
+  constructor(plugin, settingCreators) {
+    __publicField(this, "plugin");
+    __publicField(this, "settingCreators");
+    this.plugin = plugin;
+    this.settingCreators = settingCreators;
+  }
+  /**
+   * Renders the Content & Note Handling settings sections into the provided container element.
+   * This includes chat customization, note reference settings, data handling, and YAML attribute generators.
+   * @param containerEl The HTML element to render the sections into.
+   */
+  async render(containerEl) {
+    CollapsibleSectionRenderer.createCollapsibleSection(
+      containerEl,
+      "Chat Customization",
+      (sectionEl) => {
+        this.settingCreators.createTextSetting(
+          sectionEl,
+          "Chat Separator",
+          "The string used to separate chat messages.",
+          "----",
+          () => {
+            var _a2;
+            return (_a2 = this.plugin.settings.chatSeparator) != null ? _a2 : "";
+          },
+          async (value) => {
+            this.plugin.settings.chatSeparator = value != null ? value : "";
+            await this.plugin.saveSettings();
+          }
+        );
+        this.settingCreators.createTextSetting(
+          sectionEl,
+          "Chat Start String",
+          "The string that indicates where to start taking the note for context.",
+          "===START===",
+          () => {
+            var _a2;
+            return (_a2 = this.plugin.settings.chatStartString) != null ? _a2 : "";
+          },
+          async (value) => {
+            this.plugin.settings.chatStartString = value != null ? value : "";
+            await this.plugin.saveSettings();
+          }
+        );
+        this.settingCreators.createTextSetting(
+          sectionEl,
+          "Chat End String",
+          "The string that indicates where to end taking the note for context.",
+          "===END===",
+          () => {
+            var _a2;
+            return (_a2 = this.plugin.settings.chatEndString) != null ? _a2 : "";
+          },
+          async (value) => {
+            this.plugin.settings.chatEndString = value != null ? value : "";
+            await this.plugin.saveSettings();
+          }
+        );
+        this.settingCreators.createTextSetting(
+          sectionEl,
+          "Title Prompt",
+          "The prompt used for generating note titles.",
+          "You are a title generator...",
+          () => this.plugin.settings.titlePrompt,
+          async (value) => {
+            this.plugin.settings.titlePrompt = value != null ? value : "";
+            await this.plugin.saveSettings();
+          },
+          { isTextArea: true }
+        );
+        this.settingCreators.createDropdownSetting(
+          sectionEl,
+          "Title Output Mode",
+          "Choose what to do with the generated note title.",
+          { "clipboard": "Copy to clipboard", "replace-filename": "Replace note filename", "metadata": "Insert into metadata" },
+          () => {
+            var _a2;
+            return (_a2 = this.plugin.settings.titleOutputMode) != null ? _a2 : "clipboard";
+          },
+          async (value) => {
+            this.plugin.settings.titleOutputMode = value;
+            await this.plugin.saveSettings();
+          }
+        );
+        this.settingCreators.createDropdownSetting(
+          sectionEl,
+          "Summary Output Mode",
+          "Choose what to do with the generated note summary.",
+          { "clipboard": "Copy to clipboard", "metadata": "Insert into metadata" },
+          () => {
+            var _a2;
+            return (_a2 = this.plugin.settings.summaryOutputMode) != null ? _a2 : "clipboard";
+          },
+          async (value) => {
+            this.plugin.settings.summaryOutputMode = value;
+            await this.plugin.saveSettings();
+          }
+        );
+      },
+      this.plugin,
+      "generalSectionsExpanded"
+    );
+    CollapsibleSectionRenderer.createCollapsibleSection(
+      containerEl,
+      "Note Reference Settings",
+      (sectionEl) => {
+        this.settingCreators.createToggleSetting(
+          sectionEl,
+          "Enable Obsidian Links",
+          "Read Obsidian links in messages using [[filename]] syntax",
+          () => this.plugin.settings.enableObsidianLinks,
+          async (value) => {
+            this.plugin.settings.enableObsidianLinks = value;
+            await this.plugin.saveSettings();
+          }
+        );
+        this.settingCreators.createToggleSetting(
+          sectionEl,
+          "Enable Context Notes",
+          "Attach specified note content to chat messages",
+          () => this.plugin.settings.enableContextNotes,
+          async (value) => {
+            this.plugin.settings.enableContextNotes = value;
+            await this.plugin.saveSettings();
+          }
+        );
+        const contextNotesContainer = sectionEl.createDiv("context-notes-container");
+        contextNotesContainer.style.marginBottom = "24px";
+        new import_obsidian10.Setting(contextNotesContainer).setName("Context Notes").setDesc("Notes to attach as context (supports [[filename]] and [[another note#header]] syntax)").addTextArea((text) => {
+          text.setPlaceholder("[[Note Name]]\n[[Another Note#Header]]").setValue(this.plugin.settings.contextNotes || "").onChange((value) => {
+            this.plugin.settings.contextNotes = value;
+          });
+          text.inputEl.addEventListener("blur", async () => {
+            await this.plugin.saveSettings();
+          });
+          text.inputEl.rows = 4;
+          text.inputEl.style.width = "100%";
+        });
+      },
+      this.plugin,
+      "generalSectionsExpanded"
+    );
+    CollapsibleSectionRenderer.createCollapsibleSection(
+      containerEl,
+      "Data Handling",
+      (sectionEl) => {
+        this.settingCreators.createToggleSetting(
+          sectionEl,
+          "Expand Linked Notes Recursively",
+          "If enabled, when fetching a note, also fetch and expand links within that note recursively (prevents infinite loops).",
+          () => {
+            var _a2;
+            return (_a2 = this.plugin.settings.expandLinkedNotesRecursively) != null ? _a2 : false;
+          },
+          async (value) => {
+            this.plugin.settings.expandLinkedNotesRecursively = value;
+            await this.plugin.saveSettings();
+          }
+        );
+        if (this.plugin.settings.expandLinkedNotesRecursively) {
+          this.settingCreators.createSliderSetting(
+            sectionEl,
+            "Max Link Expansion Depth",
+            "Maximum depth for recursively expanding linked notes (1-3).",
+            { min: 1, max: 3, step: 1 },
+            () => {
+              var _a2;
+              return (_a2 = this.plugin.settings.maxLinkExpansionDepth) != null ? _a2 : 2;
+            },
+            async (value) => {
+              this.plugin.settings.maxLinkExpansionDepth = value;
+              await this.plugin.saveSettings();
+            }
+          );
+        }
+        this.settingCreators.createTextSetting(
+          sectionEl,
+          "Chat Note Folder",
+          "Folder to save exported chat notes (relative to vault root, leave blank for root)",
+          "e.g. AI Chats",
+          () => {
+            var _a2;
+            return (_a2 = this.plugin.settings.chatNoteFolder) != null ? _a2 : "";
+          },
+          async (value) => {
+            this.plugin.settings.chatNoteFolder = value != null ? value : "";
+            await this.plugin.saveSettings();
+          },
+          { trim: true }
+        );
+      },
+      this.plugin,
+      "generalSectionsExpanded"
+    );
+    CollapsibleSectionRenderer.createCollapsibleSection(
+      containerEl,
+      "YAML Attribute Generators",
+      (sectionEl) => {
+        this.renderYamlAttributeGenerators(sectionEl);
+      },
+      this.plugin,
+      "generalSectionsExpanded"
+    );
+  }
+  /**
+   * Renders the YAML Attribute Generators section.
+   * This section allows users to define custom YAML attributes that can be generated by the AI
+   * and inserted into notes.
+   * @param containerEl The HTML element to append the section to.
+   */
+  renderYamlAttributeGenerators(containerEl) {
+    var _a2;
+    containerEl.createEl("div", {
+      text: "Configure custom YAML attribute generators. Each entry will create a command to generate and insert/update a YAML field in your notes.",
+      cls: "setting-item-description",
+      attr: { style: "margin-bottom: 1em;" }
+    });
+    const yamlGens = (_a2 = this.plugin.settings.yamlAttributeGenerators) != null ? _a2 : [];
+    yamlGens.forEach((gen, idx) => {
+      const autoCommandName = gen.attributeName ? `Generate YAML: ${gen.attributeName}` : `YAML Generator #${idx + 1}`;
+      const genContainer = containerEl.createDiv({ cls: "yaml-generator-container" });
+      genContainer.style.border = "1px solid var(--background-modifier-border)";
+      genContainer.style.borderRadius = "6px";
+      genContainer.style.padding = "1em";
+      genContainer.style.marginBottom = "1em";
+      genContainer.createEl("h4", { text: autoCommandName });
+      new import_obsidian10.Setting(genContainer).setName("YAML Attribute Name").setDesc("The YAML field name to insert/update").addText((text) => {
+        text.setPlaceholder("YAML Attribute Name").setValue(gen.attributeName).onChange((value) => {
+          if (this.plugin.settings.yamlAttributeGenerators) {
+            this.plugin.settings.yamlAttributeGenerators[idx].attributeName = value != null ? value : "";
+            this.plugin.settings.yamlAttributeGenerators[idx].commandName = value ? `Generate YAML: ${value}` : "";
+          }
+        });
+        text.inputEl.addEventListener("blur", async () => {
+          await this.plugin.saveSettings();
+        });
+      });
+      new import_obsidian10.Setting(genContainer).setName("Prompt for LLM").setDesc("The prompt to send to the AI for generating the YAML value").addTextArea((text) => {
+        text.setPlaceholder("Prompt for LLM").setValue(gen.prompt).onChange((value) => {
+          if (this.plugin.settings.yamlAttributeGenerators) {
+            this.plugin.settings.yamlAttributeGenerators[idx].prompt = value != null ? value : "";
+          }
+        });
+        text.inputEl.addEventListener("blur", async () => {
+          await this.plugin.saveSettings();
+        });
+        text.inputEl.rows = 3;
+        text.inputEl.style.width = "100%";
+      });
+      new import_obsidian10.Setting(genContainer).setName("Output Mode").setDesc("Where to put the generated YAML attribute").addDropdown((drop) => {
+        drop.addOption("clipboard", "Copy to clipboard");
+        drop.addOption("metadata", "Insert into metadata");
+        drop.setValue(gen.outputMode);
+        drop.onChange(async (value) => {
+          if (this.plugin.settings.yamlAttributeGenerators) {
+            this.plugin.settings.yamlAttributeGenerators[idx].outputMode = value;
+            await this.plugin.saveSettings();
+          }
+        });
+      });
+      new import_obsidian10.Setting(genContainer).addExtraButton((btn) => {
+        btn.setIcon("cross").setTooltip("Delete this YAML generator").onClick(async () => {
+          if (this.plugin.settings.yamlAttributeGenerators) {
+            this.plugin.settings.yamlAttributeGenerators.splice(idx, 1);
+            await this.plugin.saveSettings();
+          }
+        });
+      });
+    });
+    new import_obsidian10.Setting(containerEl).addButton((btn) => {
+      btn.setButtonText("Add YAML Attribute Generator").setCta().onClick(async () => {
+        if (!this.plugin.settings.yamlAttributeGenerators) this.plugin.settings.yamlAttributeGenerators = [];
+        this.plugin.settings.yamlAttributeGenerators.push(JSON.parse(JSON.stringify({
+          attributeName: "",
+          prompt: "",
+          outputMode: "metadata",
+          commandName: "New YAML Generator"
+        })));
+        await this.plugin.saveSettings();
+      });
+    });
+  }
+};
+
+// src/settings/sections/BackupManagementSection.ts
+var import_obsidian11 = require("obsidian");
+
+// src/settings/components/DialogHelpers.ts
+var DialogHelpers = class {
+  /**
+   * Shows a confirmation dialog to the user.
+   * This is a custom modal implementation, not using Obsidian's built-in Modal class directly.
+   * @param title The title of the confirmation dialog.
+   * @param message The message to display in the dialog.
+   * @returns A Promise that resolves to true if the user confirms, false otherwise.
+   */
+  static showConfirmationDialog(title, message) {
+    return new Promise((resolve) => {
+      const modal = document.createElement("div");
+      modal.className = "ai-assistant-modal";
+      const content = modal.createDiv();
+      content.className = "ai-assistant-modal-content";
+      content.createEl("h3", { text: title });
+      content.createEl("p", { text: message });
+      const buttonContainer = content.createDiv();
+      buttonContainer.className = "ai-assistant-modal-buttons";
+      const cancelBtn = buttonContainer.createEl("button", { text: "Cancel" });
+      cancelBtn.onclick = () => {
+        document.body.removeChild(modal);
+        resolve(false);
+      };
+      const confirmBtn = buttonContainer.createEl("button", { text: "Confirm", cls: "mod-cta" });
+      confirmBtn.onclick = () => {
+        document.body.removeChild(modal);
+        resolve(true);
+      };
+      document.body.appendChild(modal);
+      modal.onclick = (e) => {
+        if (e.target === modal) {
+          document.body.removeChild(modal);
+          resolve(false);
+        }
+      };
+    });
+  }
+};
+
+// src/settings/sections/BackupManagementSection.ts
+init_typeguards();
+var BackupManagementSection = class {
+  constructor(plugin, settingCreators) {
+    __publicField(this, "plugin");
+    __publicField(this, "settingCreators");
+    this.plugin = plugin;
+    this.settingCreators = settingCreators;
+  }
+  /**
+   * Render both Backup and Trash Management sections
+   */
+  async render(containerEl) {
+    await this.renderBackupManagement(containerEl);
+    await this.renderTrashManagement(containerEl);
+  }
+  /**
+   * Render the Backup Management section
+   */
+  async renderBackupManagement(containerEl) {
+    this.renderSectionHeader(
+      containerEl,
+      "Backup Management",
+      "Manage backups created when files are modified by AI tools. Backups are stored in the plugin data folder, not in your vault.",
+      async (sectionEl) => {
+        const backupManager = this.plugin.backupManager;
+        const [totalBackups, totalSize, backupFiles] = await Promise.all([
+          backupManager.getTotalBackupCount(),
+          backupManager.getTotalBackupSize(),
+          backupManager.getAllBackupFiles()
+        ]);
+        const sizeInKB = Math.round(totalSize / 1024);
+        sectionEl.createEl("div", {
+          text: `Total backups: ${totalBackups} (${sizeInKB} KB)`,
+          cls: "setting-item-description",
+          attr: { style: "margin-bottom: 1em; font-weight: bold;" }
+        });
+        this.renderBackupActions(sectionEl, backupFiles.length > 0, async () => {
+          await this.renderBackupManagement(containerEl);
+        }, async () => {
+          const confirmed = await DialogHelpers.showConfirmationDialog(
+            "Delete All Backups",
+            `Are you sure you want to delete ALL ${totalBackups} backups for ALL files? This action cannot be undone and will permanently remove all backup data.`
+          );
+          if (confirmed) {
+            try {
+              await backupManager.deleteAllBackups();
+              new import_obsidian11.Notice("Deleted all backups successfully");
+              await this.renderBackupManagement(containerEl);
+            } catch (error) {
+              new import_obsidian11.Notice(`Error deleting all backups: ${error.message}`);
+            }
+          }
+        });
+        if (backupFiles.length === 0) {
+          sectionEl.createEl("div", {
+            text: "No backups found.",
+            cls: "setting-item-description"
+          });
+          return;
+        }
+        CollapsibleSectionRenderer.createCollapsibleSection(
+          containerEl,
+          "Backup Files List",
+          (backupListEl) => {
+            this.renderBackupFilesList(backupListEl, backupFiles, backupManager);
+          },
+          this.plugin,
+          "backupManagementExpanded"
+        );
+      }
+    );
+  }
+  /**
+   * Render header and description for a section using CollapsibleSectionRenderer
+   */
+  renderSectionHeader(containerEl, title, description, contentCallback) {
+    CollapsibleSectionRenderer.createCollapsibleSection(
+      containerEl,
+      title,
+      (sectionEl) => {
+        sectionEl.createEl("div", {
+          text: description,
+          cls: "setting-item-description",
+          attr: { style: "margin-bottom: 1em;" }
+        });
+        const result = contentCallback(sectionEl);
+        if (result instanceof Promise) {
+          result.catch((error) => console.error("Error in collapsible section:", error));
+        }
+      },
+      this.plugin,
+      "generalSectionsExpanded"
+    );
+  }
+  /**
+   * Render action buttons for backup management
+   */
+  renderBackupActions(containerEl, hasBackups, onRefresh, onDeleteAll) {
+    const actionsContainer = containerEl.createDiv({ attr: { style: "margin-bottom: 1em;" } });
+    const refreshButton = actionsContainer.createEl("button", {
+      text: "Refresh Backup List",
+      cls: "mod-cta"
+    });
+    refreshButton.style.marginRight = "0.5em";
+    refreshButton.onclick = onRefresh;
+    if (hasBackups) {
+      const deleteAllBtn = actionsContainer.createEl("button", {
+        text: "Delete All Backups",
+        cls: "mod-warning"
+      });
+      deleteAllBtn.onclick = onDeleteAll;
+    }
+  }
+  /**
+   * Render the list of backup files and their actions
+   */
+  async renderBackupFilesList(containerEl, backupFiles, backupManager) {
+    for (const filePath of backupFiles) {
+      const backups = await backupManager.getBackupsForFile(filePath);
+      if (backups.length === 0) continue;
+      const fileSection = containerEl.createDiv({ cls: "backup-file-section" });
+      fileSection.createEl("h4", { text: filePath, cls: "backup-file-path" });
+      const backupList = fileSection.createDiv({ cls: "backup-list" });
+      backups.forEach((backup) => {
+        const backupItem = backupList.createDiv({ cls: "backup-item" });
+        const backupInfo = backupItem.createDiv({ cls: "backup-info" });
+        const sizeKB = backup.fileSize ? Math.round(backup.fileSize / 1024) : 0;
+        const fileType = backup.isBinary ? "Binary" : "Text";
+        backupInfo.createEl("span", {
+          text: `${backup.readableTimestamp} (${sizeKB} KB, ${fileType})`,
+          cls: "backup-timestamp"
+        });
+        const backupActions = backupItem.createDiv({ cls: "backup-actions" });
+        this.renderBackupActionButtons(backupActions, backup, filePath, backupManager, containerEl, backupFiles);
+      });
+      this.renderDeleteAllBackupsForFileButton(fileSection, filePath, backups.length, backupManager, containerEl, backupFiles);
+    }
+  }
+  /**
+   * Render action buttons for each backup
+   */
+  renderBackupActionButtons(backupActions, backup, filePath, backupManager, containerEl, backupFiles) {
+    const restoreBtn = backupActions.createEl("button", {
+      text: "Restore",
+      cls: "mod-cta"
+    });
+    restoreBtn.onclick = async () => {
+      const confirmed = await DialogHelpers.showConfirmationDialog(
+        "Restore Backup",
+        `Are you sure you want to restore the backup from ${backup.readableTimestamp}? This will overwrite the current file content.`
+      );
+      if (confirmed) {
+        try {
+          const result = await backupManager.restoreBackup(backup);
+          if (result.success) {
+            new import_obsidian11.Notice(`Successfully restored backup for ${filePath}`);
+          } else {
+            new import_obsidian11.Notice(`Failed to restore backup: ${result.error}`);
+          }
+        } catch (error) {
+          new import_obsidian11.Notice(`Error restoring backup: ${error.message}`);
+        }
+      }
+    };
+    const deleteBtn = backupActions.createEl("button", {
+      text: "Delete",
+      cls: "mod-warning"
+    });
+    deleteBtn.onclick = async () => {
+      const confirmed = await DialogHelpers.showConfirmationDialog(
+        "Delete Backup",
+        `Are you sure you want to delete the backup from ${backup.readableTimestamp}?`
+      );
+      if (confirmed) {
+        try {
+          await backupManager.deleteSpecificBackup(filePath, backup.timestamp);
+          new import_obsidian11.Notice(`Deleted backup for ${filePath}`);
+          containerEl.empty();
+          await this.renderBackupFilesList(containerEl, backupFiles, backupManager);
+        } catch (error) {
+          new import_obsidian11.Notice(`Error deleting backup: ${error.message}`);
+        }
+      }
+    };
+    if (!backup.isBinary && backup.content) {
+      const previewBtn = backupActions.createEl("button", {
+        text: "Preview",
+        cls: "mod-muted"
+      });
+      previewBtn.onclick = () => {
+        const preview = backup.content.substring(0, 200);
+        const truncated = backup.content.length > 200 ? "..." : "";
+        new import_obsidian11.Notice(`Preview: ${preview}${truncated}`, 1e4);
+      };
+    } else if (backup.isBinary) {
+      const infoBtn = backupActions.createEl("button", {
+        text: "File Info",
+        cls: "mod-muted"
+      });
+      infoBtn.onclick = () => {
+        const sizeKB = backup.fileSize ? Math.round(backup.fileSize / 1024) : 0;
+        new import_obsidian11.Notice(`Binary file backup: ${sizeKB} KB
+Stored at: ${backup.backupFilePath || "Unknown location"}`, 5e3);
+      };
+    }
+  }
+  /**
+   * Render delete all backups for a file button
+   */
+  renderDeleteAllBackupsForFileButton(fileSection, filePath, backupCount, backupManager, containerEl, backupFiles) {
+    const deleteAllBtn = fileSection.createEl("button", {
+      text: `Delete All Backups for ${filePath}`,
+      cls: "mod-warning"
+    });
+    deleteAllBtn.onclick = async () => {
+      const confirmed = await DialogHelpers.showConfirmationDialog(
+        "Delete All Backups",
+        `Are you sure you want to delete all ${backupCount} backups for ${filePath}?`
+      );
+      if (confirmed) {
+        try {
+          await backupManager.deleteBackupsForFile(filePath);
+          new import_obsidian11.Notice(`Deleted all backups for ${filePath}`);
+          containerEl.empty();
+          await this.renderBackupFilesList(containerEl, backupFiles, backupManager);
+        } catch (error) {
+          new import_obsidian11.Notice(`Error deleting backups: ${error.message}`);
+        }
+      }
+    };
+  }
+  /**
+   * Render the Trash Management section
+   */
+  async renderTrashManagement(containerEl) {
+    containerEl.createEl("div", { attr: { style: "margin-top: 2em; border-top: 1px solid var(--background-modifier-border); padding-top: 1em;" } });
+    this.renderSectionHeader(
+      containerEl,
+      "Trash Management",
+      "Manage files and folders moved to the .trash folder. Files in trash can be restored or permanently deleted.",
+      async (sectionEl) => {
+        const trashPath = ".trash";
+        let trashFolder = this.plugin.app.vault.getAbstractFileByPath(trashPath);
+        let trashItems = [];
+        let fallbackUsed = false;
+        if (!trashFolder) {
+          fallbackUsed = true;
+          try {
+            const adapter = this.plugin.app.vault.adapter;
+            if (await adapter.exists(trashPath)) {
+              const files = await adapter.list(trashPath);
+              trashItems = [
+                ...files.files.map((f) => ({ name: f.substring(f.lastIndexOf("/") + 1), isFolder: false })),
+                ...files.folders.map((f) => ({ name: f.substring(f.lastIndexOf("/") + 1), isFolder: true }))
+              ];
+            } else {
+              sectionEl.createEl("div", {
+                text: "No trash folder found. Trash folder will be created automatically when files are deleted with soft delete.",
+                cls: "setting-item-description"
+              });
+              return;
+            }
+          } catch (e) {
+            sectionEl.createEl("div", {
+              text: "Error reading trash folder from file system.",
+              cls: "setting-item-description"
+            });
+            return;
+          }
+        } else if (trashFolder instanceof import_obsidian11.TFolder) {
+          trashItems = trashFolder.children.map((item) => ({
+            name: item.name,
+            isFolder: item instanceof import_obsidian11.TFolder,
+            size: isTFile(item) && item.stat ? item.stat.size : void 0
+          }));
+        } else {
+          sectionEl.createEl("div", {
+            text: "Error: .trash exists but is not a folder.",
+            cls: "setting-item-description"
+          });
+          return;
+        }
+        const fileCount = trashItems.filter((item) => !item.isFolder).length;
+        const folderCount = trashItems.filter((item) => item.isFolder).length;
+        sectionEl.createEl("div", {
+          text: `Trash contains: ${fileCount} files, ${folderCount} folders${fallbackUsed ? " (filesystem fallback)" : ""}`,
+          cls: "setting-item-description",
+          attr: { style: "margin-bottom: 1em; font-weight: bold;" }
+        });
+        this.renderTrashActions(sectionEl, trashItems.length > 0, async () => {
+          await this.renderTrashManagement(containerEl);
+        }, async () => {
+          const confirmed = await DialogHelpers.showConfirmationDialog(
+            "Empty Trash",
+            `Are you sure you want to permanently delete all ${trashItems.length} items in trash? This cannot be undone.`
+          );
+          if (confirmed) {
+            try {
+              const adapter = this.plugin.app.vault.adapter;
+              for (const item of trashItems) {
+                const fullPath = `${trashPath}/${item.name}`;
+                if (item.isFolder) {
+                  await adapter.rmdir(fullPath, true);
+                } else {
+                  await adapter.remove(fullPath);
+                }
+              }
+              new import_obsidian11.Notice(`Emptied trash - permanently deleted ${trashItems.length} items`);
+              await this.renderTrashManagement(containerEl);
+            } catch (error) {
+              new import_obsidian11.Notice(`Error emptying trash: ${error.message}`);
+            }
+          }
+        });
+        if (trashItems.length === 0) {
+          sectionEl.createEl("div", {
+            text: "Trash is empty.",
+            cls: "setting-item-description"
+          });
+          return;
+        }
+        this.renderTrashList(sectionEl, trashItems, fallbackUsed);
+      }
+    );
+  }
+  /**
+   * Render action buttons for trash management
+   */
+  renderTrashActions(containerEl, hasTrash, onRefresh, onEmpty) {
+    const actionsContainer = containerEl.createDiv({ attr: { style: "margin-bottom: 1em;" } });
+    const refreshBtn = actionsContainer.createEl("button", {
+      text: "Refresh Trash",
+      cls: "mod-cta"
+    });
+    refreshBtn.style.marginRight = "0.5em";
+    refreshBtn.onclick = onRefresh;
+    if (hasTrash) {
+      const emptyTrashBtn = actionsContainer.createEl("button", {
+        text: "Empty Trash",
+        cls: "mod-warning"
+      });
+      emptyTrashBtn.style.marginRight = "0.5em";
+      emptyTrashBtn.onclick = onEmpty;
+    }
+  }
+  /**
+   * Render the list of trash items and their actions
+   */
+  renderTrashList(containerEl, trashItems, fallbackUsed) {
+    const trashList = containerEl.createDiv({ cls: "trash-list" });
+    const maxItems = 20;
+    for (const item of trashItems.slice(0, maxItems)) {
+      const trashItem = trashList.createDiv({ cls: "trash-item", attr: { style: "margin-bottom: 0.5em; padding: 0.5em; border: 1px solid var(--background-modifier-border); border-radius: 4px;" } });
+      const itemInfo = trashItem.createDiv({ cls: "trash-item-info" });
+      const icon = item.isFolder ? "\u{1F4C1}" : "\u{1F4C4}";
+      const size = !item.isFolder && item.size ? ` (${Math.round(item.size / 1024)} KB)` : "";
+      itemInfo.createEl("span", {
+        text: `${icon} ${item.name}${size}`,
+        cls: "trash-item-name"
+      });
+      const itemActions = trashItem.createDiv({ cls: "trash-item-actions", attr: { style: "margin-top: 0.5em;" } });
+      if (!fallbackUsed) {
+        this.renderRestoreTrashButton(itemActions, item.name, item.isFolder, containerEl);
+      }
+      this.renderDeleteTrashButton(itemActions, item.name, item.isFolder, containerEl);
+    }
+    if (trashItems.length > maxItems) {
+      containerEl.createEl("div", {
+        text: `... and ${trashItems.length - maxItems} more items. Empty trash to remove all items.`,
+        cls: "setting-item-description",
+        attr: { style: "margin-top: 1em; font-style: italic;" }
+      });
+    }
+  }
+  /**
+   * Render restore button for trash item
+   */
+  renderRestoreTrashButton(itemActions, name, isFolder, containerEl) {
+    const restoreBtn = itemActions.createEl("button", {
+      text: "Restore",
+      cls: "mod-cta"
+    });
+    restoreBtn.style.marginRight = "0.5em";
+    restoreBtn.onclick = async () => {
+      const confirmed = await DialogHelpers.showConfirmationDialog(
+        "Restore Item",
+        `Restore "${name}" to vault root? If an item with the same name exists, it will be overwritten.`
+      );
+      if (confirmed) {
+        try {
+          const trashFolderObj = this.plugin.app.vault.getAbstractFileByPath(".trash");
+          if (trashFolderObj instanceof import_obsidian11.TFolder) {
+            const fileObj = trashFolderObj.children.find((child) => child.name === name);
+            if (fileObj) {
+              const newPath = name;
+              await this.plugin.app.fileManager.renameFile(fileObj, newPath);
+              new import_obsidian11.Notice(`Restored "${name}" to vault root`);
+              await this.renderTrashManagement(containerEl.parentElement);
+            }
+          }
+        } catch (error) {
+          new import_obsidian11.Notice(`Error restoring item: ${error.message}`);
+        }
+      }
+    };
+  }
+  /**
+   * Render delete button for trash item
+   */
+  renderDeleteTrashButton(itemActions, name, isFolder, containerEl) {
+    const deleteBtn = itemActions.createEl("button", {
+      text: "Delete Permanently",
+      cls: "mod-warning"
+    });
+    deleteBtn.onclick = async () => {
+      const confirmed = await DialogHelpers.showConfirmationDialog(
+        "Delete Permanently",
+        `Permanently delete "${name}"? This cannot be undone.`
+      );
+      if (confirmed) {
+        try {
+          const adapter = this.plugin.app.vault.adapter;
+          const fullPath = `.trash/${name}`;
+          if (isFolder) {
+            await adapter.rmdir(fullPath, true);
+          } else {
+            await adapter.remove(fullPath);
+          }
+          new import_obsidian11.Notice(`Permanently deleted "${name}"`);
+          await this.renderTrashManagement(containerEl.parentElement);
+        } catch (error) {
+          new import_obsidian11.Notice(`Error deleting item: ${error.message}`);
+        }
+      }
+    };
+  }
+};
+
+// src/settings/sections/ChatHistorySettingsSection.ts
+var ChatHistorySettingsSection = class {
+  /**
+   * @param plugin The main plugin instance.
+   * @param settingCreators An instance of SettingCreators for consistent UI element creation.
+   */
+  constructor(plugin, settingCreators) {
+    __publicField(this, "plugin");
+    __publicField(this, "settingCreators");
+    this.plugin = plugin;
+    this.settingCreators = settingCreators;
+  }
+  /**
+   * Renders the Chat History & Sessions and UI Behavior settings sections into the provided container element.
+   * @param containerEl The HTML element to render the sections into.
+   */
+  async render(containerEl) {
+    CollapsibleSectionRenderer.createCollapsibleSection(
+      containerEl,
+      "Chat History & Sessions",
+      (sectionEl) => {
+        this.settingCreators.createSliderSetting(
+          sectionEl,
+          "Max Chat Sessions",
+          "Maximum number of chat sessions to keep in history.",
+          { min: 1, max: 50, step: 1 },
+          () => this.plugin.settings.maxSessions,
+          async (value) => {
+            this.plugin.settings.maxSessions = value;
+            await this.plugin.saveSettings();
+          }
+        );
+        this.settingCreators.createToggleSetting(
+          sectionEl,
+          "Auto-Save Sessions",
+          "Automatically save chat sessions as you use them.",
+          () => this.plugin.settings.autoSaveSessions,
+          async (value) => {
+            this.plugin.settings.autoSaveSessions = value;
+            await this.plugin.saveSettings();
+          }
+        );
+      },
+      this.plugin,
+      "generalSectionsExpanded"
+    );
+    CollapsibleSectionRenderer.createCollapsibleSection(
+      containerEl,
+      "UI Behavior",
+      (sectionEl) => {
+        this.settingCreators.createToggleSetting(
+          sectionEl,
+          "Collapse Old Reasoning",
+          "Automatically collapse reasoning sections in older messages to keep the UI clean",
+          () => {
+            var _a2, _b;
+            return (_b = (_a2 = this.plugin.settings.uiBehavior) == null ? void 0 : _a2.collapseOldReasoning) != null ? _b : true;
+          },
+          async (value) => {
+            if (!this.plugin.settings.uiBehavior) {
+              this.plugin.settings.uiBehavior = {};
+            }
+            this.plugin.settings.uiBehavior.collapseOldReasoning = value;
+            await this.plugin.saveSettings();
+          }
+        );
+        this.settingCreators.createToggleSetting(
+          sectionEl,
+          "Show Completion Notifications",
+          "Show notifications when AI responses are completed",
+          () => {
+            var _a2, _b;
+            return (_b = (_a2 = this.plugin.settings.uiBehavior) == null ? void 0 : _a2.showCompletionNotifications) != null ? _b : true;
+          },
+          async (value) => {
+            if (!this.plugin.settings.uiBehavior) {
+              this.plugin.settings.uiBehavior = {};
+            }
+            this.plugin.settings.uiBehavior.showCompletionNotifications = value;
+            await this.plugin.saveSettings();
+          }
+        );
+        this.settingCreators.createToggleSetting(
+          sectionEl,
+          "Include Reasoning in Exports",
+          "Include reasoning sections when copying or exporting chat content",
+          () => {
+            var _a2, _b;
+            return (_b = (_a2 = this.plugin.settings.uiBehavior) == null ? void 0 : _a2.includeReasoningInExports) != null ? _b : true;
+          },
+          async (value) => {
+            if (!this.plugin.settings.uiBehavior) {
+              this.plugin.settings.uiBehavior = {};
+            }
+            this.plugin.settings.uiBehavior.includeReasoningInExports = value;
+            await this.plugin.saveSettings();
+          }
+        );
+      },
+      this.plugin,
+      "generalSectionsExpanded"
+    );
+  }
+};
+
+// src/settings/SettingTab.ts
+init_promptConstants();
+var MyPluginSettingTab = class extends import_obsidian12.PluginSettingTab {
+  /**
+   * Constructs the settings tab and initializes all settings sections.
+   *
+   * @param app - The Obsidian app instance.
+   * @param plugin - The plugin instance.
+   */
+  constructor(app, plugin) {
+    var _a2;
+    super(app, plugin);
+    /** Reference to the plugin instance. */
+    __publicField(this, "plugin");
+    /** Helper for creating settings UI elements. */
+    __publicField(this, "settingCreators");
+    // Section managers for each logical group of settings
+    /** General plugin settings section. */
+    __publicField(this, "generalSettingsSection");
+    /** AI model configuration section. */
+    __publicField(this, "aiModelConfigurationSection");
+    /** Agent settings section. */
+    __publicField(this, "agentSettingsSection");
+    /** Content and note handling section. */
+    __publicField(this, "contentNoteHandlingSection");
+    /** Backup and trash management section. */
+    __publicField(this, "backupManagementSection");
+    /** Chat history and UI section. */
+    __publicField(this, "chatHistorySettingsSection");
+    /** Listener for settings changes, used to refresh the UI when settings are updated elsewhere. */
+    __publicField(this, "settingsChangeListener", null);
+    /** Flag to track if settings changes are coming from the UI to prevent unnecessary re-renders. */
+    __publicField(this, "isUpdatingFromUI", false);
+    this.plugin = plugin;
+    debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "debug", "[MyPluginSettingTab] constructor called");
+    this.settingCreators = new SettingCreators(this.plugin, () => this.display());
+    this.generalSettingsSection = new GeneralSettingsSection(this.plugin, this.settingCreators);
+    this.aiModelConfigurationSection = new AIModelConfigurationSection(this.plugin, this.settingCreators);
+    this.agentSettingsSection = new AgentSettingsSection(this.app, this.plugin, this.settingCreators);
+    this.contentNoteHandlingSection = new ContentNoteHandlingSection(this.plugin, this.settingCreators);
+    this.backupManagementSection = new BackupManagementSection(this.plugin, this.settingCreators);
+    this.chatHistorySettingsSection = new ChatHistorySettingsSection(this.plugin, this.settingCreators);
+    this.settingsChangeListener = () => {
+      if (this.containerEl.isConnected && !this.isUpdatingFromUI) {
+        this.display();
+      }
+    };
+    this.plugin.onSettingsChange(this.settingsChangeListener);
+  }
+  /**
+   * Called when the settings tab is hidden.
+   * Cleans up the settings change listener to avoid memory leaks.
+   */
+  hide() {
+    if (this.settingsChangeListener) {
+      this.plugin.offSettingsChange(this.settingsChangeListener);
+      this.settingsChangeListener = null;
+    }
+    super.hide();
+  }
+  /**
+   * Renders the settings tab UI.
+   *
+   * This method orchestrates the rendering of all collapsible settings sections and the reset-to-defaults button.
+   * It is called automatically when the tab is shown, and can be called to refresh the UI after changes.
+   */
+  display() {
+    var _a2;
+    const { containerEl } = this;
+    containerEl.empty();
+    debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", "[MyPluginSettingTab] display called");
+    containerEl.createEl("h2", { text: "AI Assistant Settings" });
+    CollapsibleSectionRenderer.createCollapsibleSection(
+      containerEl,
+      "General Settings",
+      (sectionEl) => this.generalSettingsSection.render(sectionEl),
+      this.plugin,
+      "generalSectionsExpanded"
+    );
+    CollapsibleSectionRenderer.createCollapsibleSection(
+      containerEl,
+      "AI Model Configuration",
+      (sectionEl) => this.aiModelConfigurationSection.render(sectionEl),
+      this.plugin,
+      "generalSectionsExpanded"
+    );
+    CollapsibleSectionRenderer.createCollapsibleSection(
+      containerEl,
+      "Agent Settings",
+      (sectionEl) => this.agentSettingsSection.render(sectionEl),
+      this.plugin,
+      "agentConfigExpanded"
+    );
+    CollapsibleSectionRenderer.createCollapsibleSection(
+      containerEl,
+      "Content & Note Handling",
+      (sectionEl) => this.contentNoteHandlingSection.render(sectionEl),
+      this.plugin,
+      "contentChatExpanded"
+    );
+    CollapsibleSectionRenderer.createCollapsibleSection(
+      containerEl,
+      "Chat History & UI",
+      (sectionEl) => this.chatHistorySettingsSection.render(sectionEl),
+      this.plugin,
+      "dataHandlingExpanded"
+    );
+    CollapsibleSectionRenderer.createCollapsibleSection(
+      containerEl,
+      "Backup & Trash Management",
+      (sectionEl) => this.backupManagementSection.render(sectionEl),
+      this.plugin,
+      "backupManagementExpanded"
+    );
+    new import_obsidian12.Setting(containerEl).setName("Reset All Settings to Default").setDesc("Reset all plugin settings (except API keys) to their original default values.").addButton((button) => button.setButtonText("Reset").onClick(async () => {
+      const { DEFAULT_SETTINGS: DEFAULT_SETTINGS2 } = await Promise.resolve().then(() => (init_types(), types_exports));
+      const preservedApiKeys = {
+        openai: this.plugin.settings.openaiSettings.apiKey,
+        anthropic: this.plugin.settings.anthropicSettings.apiKey,
+        gemini: this.plugin.settings.geminiSettings.apiKey
+      };
+      this.plugin.settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS2));
+      this.plugin.settings.openaiSettings.apiKey = preservedApiKeys.openai;
+      this.plugin.settings.anthropicSettings.apiKey = preservedApiKeys.anthropic;
+      this.plugin.settings.geminiSettings.apiKey = preservedApiKeys.gemini;
+      this.plugin.settings.titlePrompt = DEFAULT_TITLE_PROMPT;
+      await this.plugin.saveSettings();
+      this.display();
+      new import_obsidian12.Notice("All settings (except API keys) reset to default.");
+    }));
+  }
+  /**
+   * Saves settings from the UI without triggering a re-render of the settings tab.
+   * This prevents the issue where typing in input fields causes focus loss due to UI refresh.
+   */
+  async saveSettingsFromUI() {
+    this.isUpdatingFromUI = true;
+    try {
+      await this.plugin.saveSettings();
+    } finally {
+      setTimeout(() => {
+        this.isUpdatingFromUI = false;
+      }, 50);
+    }
+  }
+};
 
 // src/chat.ts
-var import_obsidian24 = require("obsidian");
+var import_obsidian30 = require("obsidian");
 
 // src/components/chat/ChatHistoryManager.ts
-var import_obsidian6 = require("obsidian");
+var import_obsidian13 = require("obsidian");
 var ChatHistoryManager = class {
   /**
    * @param vault The Obsidian Vault instance
@@ -19989,7 +21966,7 @@ var ChatHistoryManager = class {
       effectivePluginId = "unknown-plugin-id-error";
     }
     const fPath = historyFilePath || "chat-history.json";
-    this.historyFilePath = (0, import_obsidian6.normalizePath)(`.obsidian/plugins/${effectivePluginId}/${fPath}`);
+    this.historyFilePath = (0, import_obsidian13.normalizePath)(`.obsidian/plugins/${effectivePluginId}/${fPath}`);
     if (typeof window !== "undefined" && window.Notice) {
     }
   }
@@ -20003,7 +21980,7 @@ var ChatHistoryManager = class {
       const abstractFile = this.vault.getAbstractFileByPath(dirPath);
       if (abstractFile === null) {
         await this.vault.createFolder(dirPath);
-      } else if (!(abstractFile instanceof import_obsidian6.TFolder)) {
+      } else if (!(abstractFile instanceof import_obsidian13.TFolder)) {
         console.error(`Path ${dirPath} exists but is not a folder.`);
         throw new Error(`Path ${dirPath} exists but is not a folder.`);
       }
@@ -20114,11 +22091,11 @@ var ChatHistoryManager = class {
       await this.ensureDirectoryExists();
       const data = JSON.stringify(this.history, null, 2);
       const abstractTarget = this.vault.getAbstractFileByPath(this.historyFilePath);
-      if (abstractTarget instanceof import_obsidian6.TFolder) {
+      if (abstractTarget instanceof import_obsidian13.TFolder) {
         throw new Error(`Path ${this.historyFilePath} is a directory, not a file.`);
       }
       await this.vault.adapter.write(this.historyFilePath, data);
-      if (!abstractTarget || !(abstractTarget instanceof import_obsidian6.TFile)) {
+      if (!abstractTarget || !(abstractTarget instanceof import_obsidian13.TFile)) {
         await this.vault.adapter.exists(this.historyFilePath);
       }
     } catch (e) {
@@ -20129,7 +22106,7 @@ var ChatHistoryManager = class {
 };
 
 // src/components/chat/Message.ts
-var import_obsidian17 = require("obsidian");
+var import_obsidian23 = require("obsidian");
 init_Buttons();
 init_MessageRenderer();
 init_eventHandlers();
@@ -20167,14 +22144,14 @@ async function createMessageElement(app, role, content, chatHistoryManager, plug
       if (!contentEl) {
         contentEl = messageContainer.createDiv("message-content");
       }
-      await import_obsidian17.MarkdownRenderer.render(app, content, contentEl, "", parentComponent);
+      await import_obsidian23.MarkdownRenderer.render(app, content, contentEl, "", parentComponent);
     }
   } else {
     contentEl = messageEl.querySelector(".message-content");
     if (!contentEl) {
       contentEl = messageContainer.createDiv("message-content");
     }
-    await import_obsidian17.MarkdownRenderer.render(app, content, contentEl, "", parentComponent);
+    await import_obsidian23.MarkdownRenderer.render(app, content, contentEl, "", parentComponent);
   }
   if (!contentEl) {
     contentEl = messageEl.querySelector(".message-content");
@@ -22016,13 +23993,13 @@ The current time is ${currentDate} ${currentTime} ${timeZoneString}.`;
 }
 
 // src/utils/noteUtils.ts
-var import_obsidian19 = require("obsidian");
+var import_obsidian25 = require("obsidian");
 
 // src/utils/generalUtils.ts
-var import_obsidian18 = require("obsidian");
+var import_obsidian24 = require("obsidian");
 init_logger();
 function showNotice(message) {
-  new import_obsidian18.Notice(message);
+  new import_obsidian24.Notice(message);
 }
 async function copyToClipboard3(text, successMsg = "Copied to clipboard", failMsg = "Failed to copy to clipboard") {
   try {
@@ -22138,10 +24115,10 @@ ${extractedContent}
 `
           );
         } else {
-          new import_obsidian19.Notice(`File not found: ${filePath}. Ensure the file name and path are correct.`);
+          new import_obsidian25.Notice(`File not found: ${filePath}. Ensure the file name and path are correct.`);
         }
       } catch (error) {
-        new import_obsidian19.Notice(`Error processing link for ${filePath}: ${error.message}`);
+        new import_obsidian25.Notice(`Error processing link for ${filePath}: ${error.message}`);
       }
     }
   }
@@ -22434,15 +24411,15 @@ ${currentNoteContent}`
 }
 
 // src/components/chat/MessageRegenerator.ts
-var import_obsidian23 = require("obsidian");
+var import_obsidian29 = require("obsidian");
 
 // src/components/chat/ResponseStreamer.ts
-var import_obsidian22 = require("obsidian");
+var import_obsidian28 = require("obsidian");
 init_aiDispatcher();
 init_MessageRenderer();
 
 // src/components/agent/TaskContinuation.ts
-var import_obsidian20 = require("obsidian");
+var import_obsidian26 = require("obsidian");
 var TaskContinuation = class {
   /**
    * @param plugin The main plugin instance (for settings and logging)
@@ -22606,7 +24583,7 @@ var TaskContinuation = class {
     const contentEl = container.querySelector(".message-content");
     if (contentEl) {
       contentEl.empty();
-      await import_obsidian20.MarkdownRenderer.render(
+      await import_obsidian26.MarkdownRenderer.render(
         this.plugin.app,
         content,
         contentEl,
@@ -22803,7 +24780,7 @@ var ResponseStreamer = class {
     if (!contentEl) return;
     this.updateContainerDataset(container, content);
     contentEl.empty();
-    await import_obsidian22.MarkdownRenderer.render(
+    await import_obsidian28.MarkdownRenderer.render(
       this.plugin.app,
       content,
       contentEl,
@@ -23311,7 +25288,7 @@ var MessageRegenerator = class {
       );
     } catch (error) {
       if (error.name !== "AbortError") {
-        new import_obsidian23.Notice(`Error: ${error.message}`);
+        new import_obsidian29.Notice(`Error: ${error.message}`);
         assistantContainer.remove();
       }
     } finally {
@@ -23420,7 +25397,7 @@ var globalDOMBatcher = new DOMBatcher();
 init_errorHandler();
 init_asyncOptimizer();
 var VIEW_TYPE_CHAT = "chat-view";
-var ChatView = class extends import_obsidian24.ItemView {
+var ChatView = class extends import_obsidian30.ItemView {
   constructor(leaf, plugin) {
     super(leaf);
     __publicField(this, "plugin");
@@ -23589,14 +25566,14 @@ var ChatView = class extends import_obsidian24.ItemView {
       if (this.plugin.agentModeManager.isAgentModeEnabled()) {
         agentButton2.classList.add("active");
         agentButton2.setAttribute("title", "Agent Mode: ON - AI can use tools");
-        new import_obsidian24.Notice("Agent Mode enabled - AI can now use tools");
+        new import_obsidian30.Notice("Agent Mode enabled - AI can now use tools");
         if (this.agentResponseHandler) {
           this.agentResponseHandler.resetExecutionCount();
         }
       } else {
         agentButton2.classList.remove("active");
         agentButton2.setAttribute("title", "Agent Mode: OFF - Regular chat");
-        new import_obsidian24.Notice("Agent Mode disabled");
+        new import_obsidian30.Notice("Agent Mode disabled");
       }
     });
     const agentButton = this.domElementCache.agentModeButton;
@@ -24010,2080 +25987,21 @@ var ChatView = class extends import_obsidian24.ItemView {
   }
 };
 
-// src/components/commands/viewCommands.ts
-var VIEW_TYPE_MODEL_SETTINGS = "model-settings-view";
-function registerViewCommands(plugin) {
-  registerCommand(
-    plugin,
-    {
-      id: "show-ai-settings",
-      name: "Show AI Settings",
-      callback: () => activateView(plugin.app, VIEW_TYPE_MODEL_SETTINGS)
-    },
-    "file-sliders",
-    // Icon ID for the command palette
-    "Open AI Settings"
-    // Display name in the command palette
-  );
-  registerCommand(
-    plugin,
-    {
-      id: "show-ai-chat",
-      name: "Show AI Chat",
-      callback: () => activateView(plugin.app, VIEW_TYPE_CHAT)
-    },
-    "message-square",
-    // Icon ID for the command palette
-    "Open AI Chat"
-    // Display name in the command palette
-  );
-}
-
-// src/utils/CollapsibleSection.ts
-var CollapsibleSectionRenderer = class {
-  /**
-   * Creates a collapsible section with a header that can be toggled.
-   * The expanded/collapsed state is persisted in plugin settings.
-   * 
-   * @param containerEl The parent container element to append the section to.
-   * @param title The title of the collapsible section.
-   * @param contentCallback Callback to populate the section content (receives the content element).
-   * @param plugin The plugin instance (for settings and saving state).
-   * @param settingsType The key in MyPluginSettings where expand/collapse state is stored.
-   */
-  static createCollapsibleSection(containerEl, title, contentCallback, plugin, settingsType) {
-    var _a2;
-    plugin.settings[settingsType] = plugin.settings[settingsType] || {};
-    let isExpanded = (_a2 = (plugin.settings[settingsType] || {})[title]) != null ? _a2 : false;
-    const collapsibleContainer = containerEl.createEl("div");
-    collapsibleContainer.addClass("ai-collapsible-section");
-    const headerEl = collapsibleContainer.createEl("div");
-    headerEl.addClass("ai-collapsible-header");
-    const arrow = headerEl.createEl("span");
-    arrow.addClass("ai-collapsible-arrow");
-    arrow.textContent = isExpanded ? "\u25BC" : "\u25B6";
-    const titleSpan = headerEl.createEl("span");
-    titleSpan.textContent = title;
-    const contentEl = collapsibleContainer.createEl("div");
-    contentEl.addClass("ai-collapsible-content");
-    contentEl.style.display = isExpanded ? "block" : "none";
-    headerEl.addEventListener("click", async () => {
-      isExpanded = !isExpanded;
-      contentEl.style.display = isExpanded ? "block" : "none";
-      arrow.textContent = isExpanded ? "\u25BC" : "\u25B6";
-      (plugin.settings[settingsType] || {})[title] = isExpanded;
-      await plugin.saveSettings();
-    });
-    const result = contentCallback(contentEl);
-    if (result instanceof Promise) {
-      result.catch((error) => console.error("Error in collapsible section:", error));
-    }
-  }
-};
-
-// src/settings/SettingTab.ts
-init_logger();
-
-// src/settings/components/SettingCreators.ts
-var import_obsidian25 = require("obsidian");
-var SettingCreators = class {
-  /**
-   * @param plugin The plugin instance, used for saving settings.
-   * @param reRenderCallback A callback function to re-render the settings tab/modal.
-   */
-  constructor(plugin, reRenderCallback) {
-    __publicField(this, "plugin");
-    __publicField(this, "reRenderCallback");
-    this.plugin = plugin;
-    this.reRenderCallback = reRenderCallback;
-  }
-  /**
-   * Creates a text input setting (either single-line or multi-line).
-   * @param containerEl The HTML element to append the setting to.
-   * @param name The name of the setting.
-   * @param desc The description of the setting.
-   * @param placeholder The placeholder text for the input.
-   * @param getValue A function to get the current value of the setting.
-   * @param setValue A function to set the new value of the setting.
-   * @param options Additional options for the text input (e.g., trim, undefinedIfEmpty, isTextArea).
-   */
-  createTextSetting(containerEl, name, desc, placeholder, getValue, setValue, options) {
-    new import_obsidian25.Setting(containerEl).setName(name).setDesc(desc).then((setting) => {
-      const textInputOptions = {
-        trim: options == null ? void 0 : options.trim,
-        undefinedIfEmpty: options == null ? void 0 : options.undefinedIfEmpty
-      };
-      if (options == null ? void 0 : options.isTextArea) {
-        setting.addTextArea((text) => this.configureTextInput(text, placeholder, getValue, setValue, textInputOptions));
-      } else {
-        setting.addText((text) => this.configureTextInput(text, placeholder, getValue, setValue, textInputOptions));
-      }
-    });
-  }
-  /**
-   * Configures a text input (either single-line or multi-line).
-   * Handles value processing (trimming, setting to undefined if empty) and saving on blur.
-   * @param textComponent The TextComponent or TextAreaComponent to configure.
-   * @param placeholder The placeholder text.
-   * @param getValue A function to get the current value.
-   * @param setValue A function to set the new value.
-   * @param options Additional options for processing the input value (e.g., trim, undefinedIfEmpty).
-   */
-  configureTextInput(textComponent, placeholder, getValue, setValue, options) {
-    var _a2;
-    textComponent.setPlaceholder(placeholder).setValue((_a2 = getValue()) != null ? _a2 : "").onChange((value) => {
-      let processedValue = value;
-      if ((options == null ? void 0 : options.trim) && processedValue) {
-        processedValue = processedValue.trim();
-      }
-      if ((options == null ? void 0 : options.undefinedIfEmpty) && processedValue === "") {
-        processedValue = void 0;
-      }
-      this.updateSettingValueOnly(setValue, processedValue);
-    });
-    textComponent.inputEl.addEventListener("blur", async () => {
-      await this.plugin.saveSettings();
-      this.reRenderCallback();
-    });
-  }
-  /**
-   * Helper method to update setting value without triggering a full save to disk immediately.
-   * This is useful for inputs where changes are frequent (e.g., textareas) and saving should be debounced or on blur.
-   * @param setValue The function to call to update the setting's value.
-   * @param value The new value for the setting.
-   */
-  updateSettingValueOnly(setValue, value) {
-    const originalSaveSettings = this.plugin.saveSettings;
-    this.plugin.saveSettings = async () => {
-    };
-    try {
-      setValue(value);
-    } catch (e) {
-      console.warn("Error updating setting value:", e);
-    } finally {
-      this.plugin.saveSettings = originalSaveSettings;
-    }
-  }
-  /**
-   * Creates a dropdown setting.
-   * @param containerEl The HTML element to append the setting to.
-   * @param name The name of the setting.
-   * @param desc The description of the setting.
-   * @param options A record of option values to display names.
-   * @param getValue A function to get the current value of the setting.
-   * @param setValue A function to set the new value of the setting.
-   */
-  createDropdownSetting(containerEl, name, desc, options, getValue, setValue) {
-    new import_obsidian25.Setting(containerEl).setName(name).setDesc(desc).addDropdown((drop) => {
-      Object.entries(options).forEach(([key, display]) => drop.addOption(key, display));
-      drop.setValue(getValue());
-      drop.onChange(async (value) => {
-        await setValue(value);
-        this.reRenderCallback();
-      });
-    });
-  }
-  /**
-   * Creates a toggle (checkbox) setting.
-   * @param containerEl The HTML element to append the setting to.
-   * @param name The name of the setting.
-   * @param desc The description of the setting.
-   * @param getValue A function to get the current boolean value.
-   * @param setValue A function to set the new boolean value.
-   * @param onChangeCallback An optional callback to run after the value changes and settings are saved.
-   */
-  createToggleSetting(containerEl, name, desc, getValue, setValue, onChangeCallback) {
-    new import_obsidian25.Setting(containerEl).setName(name).setDesc(desc).addToggle((toggle) => toggle.setValue(getValue()).onChange(async (value) => {
-      await setValue(value);
-      if (onChangeCallback) {
-        onChangeCallback();
-      }
-      this.reRenderCallback();
-    }));
-  }
-  /**
-   * Creates a slider setting.
-   * @param containerEl The HTML element to append the setting to.
-   * @param name The name of the setting.
-   * @param desc The description of the setting.
-   * @param limits An object defining min, max, and step for the slider.
-   * @param getValue A function to get the current numeric value.
-   * @param setValue A function to set the new numeric value.
-   */
-  createSliderSetting(containerEl, name, desc, limits, getValue, setValue) {
-    new import_obsidian25.Setting(containerEl).setName(name).setDesc(desc).addSlider((slider) => {
-      slider.setLimits(limits.min, limits.max, limits.step).setValue(getValue()).setDynamicTooltip().onChange(async (value) => {
-        await setValue(value);
-        this.reRenderCallback();
-      });
-    });
-  }
-};
-
-// src/settings/sections/GeneralSettingsSection.ts
-var import_obsidian26 = require("obsidian");
-var GeneralSettingsSection = class {
-  /**
-   * @param plugin The main plugin instance.
-   * @param settingCreators An instance of SettingCreators for consistent UI element creation.
-   */
-  constructor(plugin, settingCreators) {
-    __publicField(this, "plugin");
-    __publicField(this, "settingCreators");
-    this.plugin = plugin;
-    this.settingCreators = settingCreators;
-  }
-  /**
-   * Renders the General Settings sections (Plugin Behavior, Date & Time, Debug) into the provided container element.
-   * @param containerEl The HTML element to render the sections into.
-   */
-  async render(containerEl) {
-    CollapsibleSectionRenderer.createCollapsibleSection(
-      containerEl,
-      "Plugin Behavior",
-      (sectionEl) => {
-        this.settingCreators.createToggleSetting(
-          sectionEl,
-          "Auto-Open Model Settings",
-          "Automatically open the AI model settings panel when the plugin loads.",
-          () => this.plugin.settings.autoOpenModelSettings,
-          async (value) => {
-            this.plugin.settings.autoOpenModelSettings = value;
-            await this.plugin.saveSettings();
-          }
-        );
-      },
-      this.plugin,
-      "generalSectionsExpanded"
-    );
-    CollapsibleSectionRenderer.createCollapsibleSection(
-      containerEl,
-      "Date & Time Settings",
-      (sectionEl) => {
-        this.settingCreators.createToggleSetting(
-          sectionEl,
-          "Include Time with System Message",
-          "Add the current time along with the date to the system message",
-          () => this.plugin.settings.includeTimeWithSystemMessage,
-          async (value) => {
-            this.plugin.settings.includeTimeWithSystemMessage = value;
-            await this.plugin.saveSettings();
-          }
-        );
-      },
-      this.plugin,
-      "generalSectionsExpanded"
-    );
-    CollapsibleSectionRenderer.createCollapsibleSection(
-      containerEl,
-      "Debug Settings",
-      (sectionEl) => {
-        this.settingCreators.createToggleSetting(
-          sectionEl,
-          "Debug Mode",
-          "Enable verbose logging and debug UI features",
-          () => {
-            var _a2;
-            return (_a2 = this.plugin.settings.debugMode) != null ? _a2 : false;
-          },
-          async (value) => {
-            this.plugin.settings.debugMode = value;
-            await this.plugin.saveSettings();
-          }
-        );
-      },
-      this.plugin,
-      "generalSectionsExpanded"
-    );
-    CollapsibleSectionRenderer.createCollapsibleSection(
-      containerEl,
-      "AI Call Log Management",
-      (sectionEl) => {
-        new import_obsidian26.Setting(sectionEl).setName("Clear AI Call Logs").setDesc("Delete all AI call log files from the plugin's ai-calls folder.").addButton((btn) => {
-          btn.setButtonText("Clear Logs").setCta().onClick(async () => {
-            const { clearAICallLogs: clearAICallLogs2 } = await Promise.resolve().then(() => (init_clearAICallLogs(), clearAICallLogs_exports));
-            const pluginFolder = __dirname;
-            const deleted = await clearAICallLogs2(pluginFolder, "ai-calls");
-            new window.Notice(`Cleared ${deleted} AI call log file(s).`);
-          });
-        });
-      },
-      this.plugin,
-      "generalSectionsExpanded"
-    );
-  }
-};
-
-// src/settings/sections/AIModelConfigurationSection.ts
-var import_obsidian27 = require("obsidian");
-init_aiDispatcher();
-init_validationUtils();
-var AIModelConfigurationSection = class {
-  /**
-   * @param plugin The main plugin instance.
-   * @param settingCreators An instance of SettingCreators for consistent UI element creation.
-   */
-  constructor(plugin, settingCreators) {
-    __publicField(this, "plugin");
-    __publicField(this, "settingCreators");
-    this.plugin = plugin;
-    this.settingCreators = settingCreators;
-  }
-  /**
-   * Renders the AI Model Configuration section into the provided container element.
-   * @param containerEl The HTML element to render the section into.
-   */
-  async render(containerEl) {
-    CollapsibleSectionRenderer.createCollapsibleSection(
-      containerEl,
-      "API Keys & Providers",
-      async (sectionEl) => {
-        CollapsibleSectionRenderer.createCollapsibleSection(
-          sectionEl,
-          "OpenAI Configuration",
-          async (subSectionEl) => {
-            this.settingCreators.createTextSetting(
-              subSectionEl,
-              "OpenAI API Key",
-              "Enter your OpenAI API key",
-              "Enter your API key",
-              () => this.plugin.settings.openaiSettings.apiKey,
-              async (value) => {
-                if (value && !isValidOpenAIApiKey(value)) {
-                  new import_obsidian27.Notice("Invalid OpenAI API Key format. Please check your key.");
-                  return;
-                }
-                this.plugin.settings.openaiSettings.apiKey = value != null ? value : "";
-                await this.plugin.saveSettings();
-              }
-            );
-            this.settingCreators.createTextSetting(
-              sectionEl,
-              "OpenAI Base URL",
-              "Custom base URL for OpenAI API (optional, leave empty for default)",
-              "https://api.openai.com/v1",
-              () => this.plugin.settings.openaiSettings.baseUrl || "",
-              async (value) => {
-                this.plugin.settings.openaiSettings.baseUrl = value;
-                await this.plugin.saveSettings();
-              },
-              { trim: true, undefinedIfEmpty: true }
-            );
-            this.renderProviderTestSection(sectionEl, "openai", "OpenAI");
-          },
-          this.plugin,
-          "providerConfigExpanded"
-        );
-        CollapsibleSectionRenderer.createCollapsibleSection(
-          containerEl,
-          "Anthropic Configuration",
-          async (sectionEl2) => {
-            this.settingCreators.createTextSetting(
-              sectionEl2,
-              "Anthropic API Key",
-              "Enter your Anthropic API key",
-              "Enter your API key",
-              () => this.plugin.settings.anthropicSettings.apiKey,
-              async (value) => {
-                if (value && !isValidAnthropicApiKey(value)) {
-                  new import_obsidian27.Notice("Invalid Anthropic API Key format. Please check your key.");
-                  return;
-                }
-                this.plugin.settings.anthropicSettings.apiKey = value != null ? value : "";
-                await this.plugin.saveSettings();
-              }
-            );
-            this.renderProviderTestSection(sectionEl2, "anthropic", "Anthropic");
-          },
-          this.plugin,
-          "providerConfigExpanded"
-        );
-        CollapsibleSectionRenderer.createCollapsibleSection(
-          containerEl,
-          "Google Gemini Configuration",
-          async (sectionEl2) => {
-            this.settingCreators.createTextSetting(
-              sectionEl2,
-              "Google API Key",
-              "Enter your Google API key",
-              "Enter your API key",
-              () => this.plugin.settings.geminiSettings.apiKey,
-              async (value) => {
-                if (value && !isValidGoogleApiKey(value)) {
-                  new import_obsidian27.Notice("Invalid Google API Key format. Please check your key.");
-                  return;
-                }
-                this.plugin.settings.geminiSettings.apiKey = value != null ? value : "";
-                await this.plugin.saveSettings();
-              }
-            );
-            this.renderProviderTestSection(sectionEl2, "gemini", "Google Gemini");
-          },
-          this.plugin,
-          "providerConfigExpanded"
-        );
-        CollapsibleSectionRenderer.createCollapsibleSection(
-          containerEl,
-          "Ollama Configuration",
-          async (sectionEl2) => {
-            this.settingCreators.createTextSetting(
-              sectionEl2,
-              "Ollama Server URL",
-              "Enter your Ollama server URL (default: http://localhost:11434)",
-              "http://localhost:11434",
-              () => this.plugin.settings.ollamaSettings.serverUrl,
-              async (value) => {
-                if (value && !isValidUrl(value)) {
-                  new import_obsidian27.Notice("Invalid Ollama Server URL format. Please enter a valid URL.");
-                  return;
-                }
-                this.plugin.settings.ollamaSettings.serverUrl = value != null ? value : "";
-                await this.plugin.saveSettings();
-              }
-            );
-            sectionEl2.createEl("div", {
-              cls: "setting-item-description",
-              text: "To use Ollama:"
-            });
-            const steps = sectionEl2.createEl("ol");
-            steps.createEl("li", { text: "Install Ollama from https://ollama.ai" });
-            steps.createEl("li", { text: "Start the Ollama server" });
-            steps.createEl("li", { text: 'Pull models using "ollama pull model-name"' });
-            steps.createEl("li", { text: "Test connection to see available models" });
-            this.renderProviderTestSection(sectionEl2, "ollama", "Ollama");
-          },
-          this.plugin,
-          "providerConfigExpanded"
-        );
-      },
-      this.plugin,
-      "providerConfigExpanded"
-    );
-    CollapsibleSectionRenderer.createCollapsibleSection(
-      containerEl,
-      "Default AI Model Settings",
-      async (sectionEl) => {
-        await this.renderAIModelSettings(sectionEl);
-      },
-      this.plugin,
-      "generalSectionsExpanded"
-    );
-    CollapsibleSectionRenderer.createCollapsibleSection(
-      containerEl,
-      "Model Management",
-      async (sectionEl) => {
-        sectionEl.createEl("h4", { text: "Available Models" });
-        await this.renderAvailableModelsSection(sectionEl);
-        sectionEl.createEl("h4", { text: "Model Setting Presets" });
-        this.renderModelSettingPresets(sectionEl);
-      },
-      this.plugin,
-      "generalSectionsExpanded"
-    );
-  }
-  /**
-   * Renders the provider connection test section.
-   * Allows users to test their API key and fetch available models for a given provider.
-   * @param containerEl The HTML element to append the section to.
-   * @param provider The ID of the provider (e.g., 'openai', 'anthropic').
-   * @param displayName The display name of the provider (e.g., 'OpenAI', 'Anthropic').
-   */
-  renderProviderTestSection(containerEl, provider, displayName) {
-    const settings = this.plugin.settings[`${provider}Settings`];
-    new import_obsidian27.Setting(containerEl).setName("Test Connection").setDesc(`Verify your API key and fetch available models for ${displayName}`).addButton((button) => button.setButtonText("Test").onClick(async () => {
-      button.setButtonText("Testing...");
-      button.setDisabled(true);
-      try {
-        const aiDispatcher = new AIDispatcher(this.plugin.app.vault, this.plugin);
-        const result = await aiDispatcher.testConnection(provider);
-        if (result.success && result.models) {
-          settings.availableModels = result.models;
-          settings.lastTestResult = {
-            timestamp: Date.now(),
-            success: true,
-            message: result.message
-          };
-          await this.plugin.saveSettings();
-          this.plugin.settings.availableModels = await aiDispatcher.getAllUnifiedModels();
-          await this.plugin.saveSettings();
-          new import_obsidian27.Notice(result.message);
-        } else {
-          settings.lastTestResult = {
-            timestamp: Date.now(),
-            success: false,
-            message: result.message
-          };
-          new import_obsidian27.Notice(result.message);
-        }
-      } catch (error) {
-        new import_obsidian27.Notice(`Error: ${error.message}`);
-      } finally {
-        button.setButtonText("Test");
-        button.setDisabled(false);
-      }
-    }));
-    if (settings.lastTestResult) {
-      const date = new Date(settings.lastTestResult.timestamp);
-      containerEl.createEl("div", {
-        text: `Last test: ${date.toLocaleString()} - ${settings.lastTestResult.message}`,
-        cls: settings.lastTestResult.success ? "success" : "error"
-      });
-    }
-    if (settings.availableModels && settings.availableModels.length > 0) {
-      containerEl.createEl("div", {
-        text: `Available models: ${settings.availableModels.map((m) => m.name || m.id).join(", ")}`,
-        cls: "setting-item-description"
-      });
-    }
-  }
-  /**
-   * Renders the AI Model Settings section.
-   * This includes system message, streaming, temperature, and model selection.
-   * @param containerEl The HTML element to append the section to.
-   */
-  async renderAIModelSettings(containerEl) {
-    if (this.plugin.settings.modelSettingPresets && this.plugin.settings.modelSettingPresets.length > 0) {
-      const presetContainer = containerEl.createDiv();
-      presetContainer.addClass("model-preset-buttons");
-      presetContainer.createEl("div", { text: "Quick Presets:", cls: "setting-item-name" });
-      this.plugin.settings.modelSettingPresets.forEach((preset, idx) => {
-        const btn = presetContainer.createEl("button", { text: preset.name });
-        btn.style.marginRight = "0.5em";
-        btn.onclick = async () => {
-          if (preset.selectedModel !== void 0) this.plugin.settings.selectedModel = preset.selectedModel;
-          if (preset.systemMessage !== void 0) this.plugin.settings.systemMessage = preset.systemMessage;
-          if (preset.temperature !== void 0) this.plugin.settings.temperature = preset.temperature;
-          if (preset.enableStreaming !== void 0) this.plugin.settings.enableStreaming = preset.enableStreaming;
-          await this.plugin.saveSettings();
-          new import_obsidian27.Notice(`Applied preset: ${preset.name}`);
-        };
-      });
-    }
-    new import_obsidian27.Setting(containerEl).setName("System Message").setDesc("Set the system message for the AI").addTextArea((text) => {
-      text.setPlaceholder("You are a helpful assistant.").setValue(this.plugin.settings.systemMessage).onChange((value) => {
-        this.plugin.settings.systemMessage = value;
-      });
-      text.inputEl.addEventListener("blur", async () => {
-        await this.plugin.saveSettings();
-      });
-      return text;
-    });
-    new import_obsidian27.Setting(containerEl).setName("Enable Streaming").setDesc("Enable or disable streaming for completions").addToggle((toggle) => toggle.setValue(this.plugin.settings.enableStreaming).onChange(async (value) => {
-      this.plugin.settings.enableStreaming = value;
-      await this.plugin.saveSettings();
-    }));
-    new import_obsidian27.Setting(containerEl).setName("Temperature").setDesc("Set the randomness of the model's output (0-1)").addSlider((slider) => slider.setLimits(0, 1, 0.1).setValue(this.plugin.settings.temperature).setDynamicTooltip().onChange(async (value) => {
-      this.plugin.settings.temperature = value;
-      await this.plugin.saveSettings();
-    }));
-    new import_obsidian27.Setting(containerEl).setName("Refresh Available Models").setDesc("Test connections to all configured providers and refresh available models").addButton((button) => button.setButtonText("Refresh Models").onClick(async () => {
-      button.setButtonText("Refreshing...");
-      button.setDisabled(true);
-      try {
-        await this.refreshAllAvailableModels();
-        new import_obsidian27.Notice("Successfully refreshed available models");
-      } catch (error) {
-        new import_obsidian27.Notice(`Error refreshing models: ${error.message}`);
-      } finally {
-        button.setButtonText("Refresh Models");
-        button.setDisabled(false);
-      }
-    }));
-    await this.renderUnifiedModelDropdown(containerEl);
-  }
-  /**
-   * Renders the unified model selection dropdown.
-   * This dropdown allows users to select from all available models across all configured providers.
-   * @param containerEl The HTML element to append the dropdown to.
-   */
-  async renderUnifiedModelDropdown(containerEl) {
-    if (!this.plugin.settings.availableModels || this.plugin.settings.availableModels.length === 0) {
-      const aiDispatcher = new AIDispatcher(this.plugin.app.vault, this.plugin);
-      this.plugin.settings.availableModels = await aiDispatcher.getAllUnifiedModels();
-      await this.plugin.saveSettings();
-    }
-    new import_obsidian27.Setting(containerEl).setName("Selected Model").setDesc("Choose from all available models across all configured providers").addDropdown((dropdown) => {
-      if (!this.plugin.settings.availableModels || this.plugin.settings.availableModels.length === 0) {
-        dropdown.addOption("", "No models available - configure providers above");
-      } else {
-        dropdown.addOption("", "Select a model...");
-        const modelsByProvider = {};
-        const enabledModels = this.plugin.settings.enabledModels || {};
-        const filteredModels = this.plugin.settings.availableModels.filter((model) => enabledModels[model.id] !== false);
-        filteredModels.forEach((model) => {
-          if (!modelsByProvider[model.provider]) {
-            modelsByProvider[model.provider] = [];
-          }
-          modelsByProvider[model.provider].push(model);
-        });
-        Object.entries(modelsByProvider).forEach(([provider, models]) => {
-          models.forEach((model) => {
-            dropdown.addOption(model.id, model.name);
-          });
-        });
-      }
-      dropdown.setValue(this.plugin.settings.selectedModel || "").onChange(async (value) => {
-        this.plugin.settings.selectedModel = value;
-        if (value) {
-          const [provider] = value.split(":", 2);
-          this.plugin.settings.provider = provider;
-        }
-        await this.plugin.saveSettings();
-      });
-    });
-    if (this.plugin.settings.selectedModel && this.plugin.settings.availableModels) {
-      const selectedModel = this.plugin.settings.availableModels.find(
-        (model) => model.id === this.plugin.settings.selectedModel
-      );
-      if (selectedModel) {
-        const infoEl = containerEl.createEl("div", { cls: "setting-item-description" });
-        infoEl.setText(`Currently using: ${selectedModel.name}`);
-      }
-    }
-  }
-  /**
-   * Refreshes available models from all configured providers using the dispatcher.
-   * This function uses the dispatcher to refresh models from all providers.
-   */
-  async refreshAllAvailableModels() {
-    const aiDispatcher = new AIDispatcher(this.plugin.app.vault, this.plugin);
-    try {
-      await aiDispatcher.refreshAllProviderModels();
-      this.plugin.settings.availableModels = await aiDispatcher.getAllUnifiedModels();
-      await this.plugin.saveSettings();
-    } catch (error) {
-      console.error("Error refreshing all available models:", error);
-    }
-  }
-  /**
-   * Renders the Available Models section in the Model Management settings.
-   * This section displays all models available from configured providers and allows
-   * enabling/disabling models and deleting local copies of models.
-   * @param containerEl The HTML element to append the section to.
-   */
-  async renderAvailableModelsSection(containerEl) {
-    const availableModels = this.plugin.settings.availableModels || [];
-    if (availableModels.length === 0) {
-      containerEl.createEl("div", { text: "No models available. Configure providers and refresh to load models.", cls: "setting-item-description" });
-      return;
-    }
-    const table = containerEl.createEl("table");
-    const thead = table.createEl("thead");
-    const tbody = table.createEl("tbody");
-    const headerRow = thead.createEl("tr");
-    headerRow.createEl("th", { text: "Model" });
-    headerRow.createEl("th", { text: "Provider" });
-    headerRow.createEl("th", { text: "Enabled" });
-    headerRow.createEl("th", { text: "Actions" });
-    for (const model of availableModels) {
-      const row = tbody.createEl("tr");
-      row.createEl("td", { text: model.name });
-      row.createEl("td", { text: model.provider });
-      const enabledToggle = new import_obsidian27.Setting(row.createEl("td")).setName("").setDesc("Enable or disable this model").addToggle((toggle) => {
-        var _a2;
-        return toggle.setValue(((_a2 = this.plugin.settings.enabledModels) == null ? void 0 : _a2[model.id]) !== false).onChange(async (value) => {
-          const enabledModels = this.plugin.settings.enabledModels || {};
-          enabledModels[model.id] = value ? true : false;
-          this.plugin.settings.enabledModels = enabledModels;
-          await this.plugin.saveSettings();
-        });
-      });
-      const actionsCell = row.createEl("td");
-      new import_obsidian27.Setting(actionsCell).setName("").setDesc("Delete local copy of this model").addButton((button) => button.setButtonText("Delete").setWarning().onClick(async () => {
-        const confirmed = confirm(`Are you sure you want to delete the local copy of the model "${model.name}"?`);
-        if (confirmed) {
-          try {
-            await this.plugin.app.vault.adapter.remove(`ai-models/${model.id}.json`);
-            const aiDispatcher = new AIDispatcher(this.plugin.app.vault, this.plugin);
-            this.plugin.settings.availableModels = await aiDispatcher.getAllUnifiedModels();
-            await this.plugin.saveSettings();
-            new import_obsidian27.Notice(`Deleted model "${model.name}"`);
-            containerEl.empty();
-            await this.renderAvailableModelsSection(containerEl);
-          } catch (error) {
-            new import_obsidian27.Notice(`Error deleting model: ${error.message}`);
-          }
-        }
-      })).addButton((button) => button.setButtonText("Re-download").onClick(async () => {
-        const confirmed = confirm(`Are you sure you want to re-download the model "${model.name}"?`);
-        if (confirmed) {
-          try {
-            new import_obsidian27.Notice(`Re-download feature is not yet implemented. Please pull the model again using the provider settings.`);
-          } catch (error) {
-            new import_obsidian27.Notice(`Error re-downloading model: ${error.message}`);
-          }
-        }
-      }));
-    }
-  }
-  /**
-   * Renders the Model Setting Presets section.
-   * This section allows users to create, edit, and delete model setting presets.
-   * @param containerEl The HTML element to append the section to.
-   */
-  renderModelSettingPresets(containerEl) {
-    containerEl.createEl("div", {
-      text: "Presets let you save and quickly apply common model settings (model, temperature, system message, etc). You can add, edit, or remove presets here. In the AI Model Settings panel, you will see buttons for each preset above the model selection. Clicking a preset button will instantly apply those settings. This is useful for switching between different model configurations with one click.",
-      cls: "setting-item-description",
-      attr: { style: "margin-bottom: 0.5em;" }
-    });
-    const presetList = this.plugin.settings.modelSettingPresets || [];
-    presetList.forEach((preset, idx) => {
-      new import_obsidian27.Setting(containerEl).setName("Preset Name").setDesc("Edit the name of this preset").addText((text) => {
-        text.setPlaceholder("Preset Name").setValue(preset.name).onChange((value) => {
-          preset.name = value != null ? value : "";
-        });
-        text.inputEl.addEventListener("blur", async () => {
-          await this.plugin.saveSettings();
-        });
-      });
-      new import_obsidian27.Setting(containerEl).setName("Model ID (provider:model)").setDesc("Edit the model for this preset").addText((text) => {
-        text.setPlaceholder("Model ID (provider:model)").setValue(preset.selectedModel || "").onChange((value) => {
-          preset.selectedModel = value != null ? value : "";
-        });
-        text.inputEl.addEventListener("blur", async () => {
-          await this.plugin.saveSettings();
-        });
-      });
-      new import_obsidian27.Setting(containerEl).setName("System Message").setDesc("Edit the system message for this preset").addTextArea((text) => {
-        text.setPlaceholder("System message").setValue(preset.systemMessage || "").onChange((value) => {
-          preset.systemMessage = value != null ? value : "";
-        });
-        text.inputEl.addEventListener("blur", async () => {
-          await this.plugin.saveSettings();
-        });
-      });
-      this.settingCreators.createSliderSetting(containerEl, "Temperature", "", { min: 0, max: 1, step: 0.1 }, () => {
-        var _a2;
-        return (_a2 = preset.temperature) != null ? _a2 : 0.7;
-      }, async (value) => {
-        preset.temperature = value;
-        await this.plugin.saveSettings();
-      });
-      this.settingCreators.createToggleSetting(containerEl, "Enable Streaming", "", () => {
-        var _a2;
-        return (_a2 = preset.enableStreaming) != null ? _a2 : true;
-      }, async (value) => {
-        preset.enableStreaming = value;
-        await this.plugin.saveSettings();
-      });
-      new import_obsidian27.Setting(containerEl).addExtraButton(
-        (btn) => btn.setIcon("cross").setTooltip("Delete").onClick(async () => {
-          var _a2;
-          (_a2 = this.plugin.settings.modelSettingPresets) == null ? void 0 : _a2.splice(idx, 1);
-          await this.plugin.saveSettings();
-        })
-      );
-    });
-    new import_obsidian27.Setting(containerEl).addButton(
-      (btn) => btn.setButtonText("Add Preset").setCta().onClick(async () => {
-        if (!this.plugin.settings.modelSettingPresets) this.plugin.settings.modelSettingPresets = [];
-        this.plugin.settings.modelSettingPresets.push(JSON.parse(JSON.stringify({
-          name: `Preset ${this.plugin.settings.modelSettingPresets.length + 1}`,
-          selectedModel: this.plugin.settings.selectedModel,
-          systemMessage: this.plugin.settings.systemMessage,
-          temperature: this.plugin.settings.temperature,
-          enableStreaming: this.plugin.settings.enableStreaming
-        })));
-        await this.plugin.saveSettings();
-      })
-    );
-  }
-};
-
-// src/settings/sections/AgentSettingsSection.ts
-init_toolcollect();
-init_promptConstants();
-var AgentSettingsSection = class {
-  /**
-   * @param app The Obsidian App instance.
-   * @param plugin The main plugin instance.
-   * @param settingCreators An instance of SettingCreators for consistent UI element creation.
-   */
-  constructor(app, plugin, settingCreators) {
-    __publicField(this, "app");
-    __publicField(this, "plugin");
-    __publicField(this, "settingCreators");
-    this.app = app;
-    this.plugin = plugin;
-    this.settingCreators = settingCreators;
-    if (this.plugin && typeof this.plugin.debugLog === "function") {
-      this.plugin.debugLog("debug", "[AgentSettingsSection] constructor called");
-    }
-  }
-  /**
-   * Renders the Agent Mode settings section into the provided container element.
-   * @param containerEl The HTML element to render the section into.
-   */
-  async render(containerEl) {
-    if (this.plugin && typeof this.plugin.debugLog === "function") {
-      this.plugin.debugLog("info", "[AgentSettingsSection] render called");
-    }
-    CollapsibleSectionRenderer.createCollapsibleSection(
-      containerEl,
-      "Agent Mode Settings",
-      (sectionEl) => {
-        sectionEl.createEl("div", {
-          text: "Agent Mode allows the AI to use tools like file creation, reading, and modification. Configure the limits and behavior for tool usage.",
-          cls: "setting-item-description",
-          attr: { style: "margin-bottom: 1em;" }
-        });
-        this.settingCreators.createToggleSetting(
-          sectionEl,
-          "Enable Agent Mode by Default",
-          "Start new conversations with Agent Mode enabled.",
-          () => {
-            var _a2, _b;
-            return (_b = (_a2 = this.plugin.settings.agentMode) == null ? void 0 : _a2.enabled) != null ? _b : false;
-          },
-          async (value) => {
-            if (!this.plugin.settings.agentMode) {
-              this.plugin.settings.agentMode = { enabled: false, maxToolCalls: 10, timeoutMs: 3e4, maxIterations: 10 };
-            }
-            this.plugin.settings.agentMode.enabled = value;
-            await this.plugin.saveSettings();
-          }
-        );
-        this.settingCreators.createSliderSetting(
-          sectionEl,
-          "Max Tool Calls per Conversation",
-          "Maximum number of tools the AI can use in a single conversation to prevent runaway execution.",
-          { min: 1, max: 50, step: 1 },
-          () => {
-            var _a2, _b;
-            return (_b = (_a2 = this.plugin.settings.agentMode) == null ? void 0 : _a2.maxToolCalls) != null ? _b : 10;
-          },
-          async (value) => {
-            if (!this.plugin.settings.agentMode) {
-              this.plugin.settings.agentMode = { enabled: false, maxToolCalls: 10, timeoutMs: 3e4, maxIterations: 10 };
-            }
-            this.plugin.settings.agentMode.maxToolCalls = value;
-            await this.plugin.saveSettings();
-          }
-        );
-        this.settingCreators.createSliderSetting(
-          sectionEl,
-          "Tool Execution Timeout (seconds)",
-          "Maximum time to wait for each tool to complete before timing out.",
-          { min: 5, max: 300, step: 5 },
-          () => {
-            var _a2, _b;
-            return ((_b = (_a2 = this.plugin.settings.agentMode) == null ? void 0 : _a2.timeoutMs) != null ? _b : 3e4) / 1e3;
-          },
-          async (value) => {
-            if (!this.plugin.settings.agentMode) {
-              this.plugin.settings.agentMode = { enabled: false, maxToolCalls: 10, timeoutMs: 3e4, maxIterations: 10 };
-            }
-            this.plugin.settings.agentMode.timeoutMs = value * 1e3;
-            await this.plugin.saveSettings();
-          }
-        );
-        this.settingCreators.createSliderSetting(
-          sectionEl,
-          "Max Iterations per Task Continuation",
-          "Maximum number of times the agent can iterate in a single task continuation to prevent infinite loops.",
-          { min: 1, max: 20, step: 1 },
-          () => {
-            var _a2, _b;
-            return (_b = (_a2 = this.plugin.settings.agentMode) == null ? void 0 : _a2.maxIterations) != null ? _b : 10;
-          },
-          async (value) => {
-            if (!this.plugin.settings.agentMode) {
-              this.plugin.settings.agentMode = { enabled: false, maxToolCalls: 10, timeoutMs: 3e4, maxIterations: 10 };
-            }
-            this.plugin.settings.agentMode.maxIterations = value;
-            await this.plugin.saveSettings();
-          }
-        );
-      },
-      this.plugin,
-      "generalSectionsExpanded"
-    );
-    CollapsibleSectionRenderer.createCollapsibleSection(
-      containerEl,
-      "Agent System Message",
-      (sectionEl) => {
-        sectionEl.createEl("div", {
-          text: "Customize the system message used when Agent Mode is enabled. Use {{TOOL_DESCRIPTIONS}} to include the available tools list.",
-          cls: "setting-item-description",
-          attr: { style: "margin-bottom: 0.5em;" }
-        });
-        const agentMessageContainer = sectionEl.createDiv("agent-message-container");
-        agentMessageContainer.style.display = "flex";
-        agentMessageContainer.style.gap = "0.5em";
-        agentMessageContainer.style.alignItems = "flex-start";
-        agentMessageContainer.style.marginBottom = "1em";
-        const textareaContainer = agentMessageContainer.createDiv();
-        textareaContainer.style.flex = "1";
-        const textarea = textareaContainer.createEl("textarea");
-        textarea.rows = 8;
-        textarea.style.width = "100%";
-        textarea.style.minHeight = "120px";
-        textarea.style.fontFamily = "monospace";
-        textarea.style.fontSize = "0.9em";
-        textarea.placeholder = "Enter custom agent system message template...";
-        textarea.value = this.plugin.settings.customAgentSystemMessage || "";
-        const buttonContainer = agentMessageContainer.createDiv();
-        buttonContainer.style.display = "flex";
-        buttonContainer.style.flexDirection = "column";
-        buttonContainer.style.gap = "0.25em";
-        const resetButton = buttonContainer.createEl("button", { text: "Reset to Default" });
-        resetButton.style.padding = "0.25em 0.5em";
-        resetButton.style.fontSize = "0.8em";
-        resetButton.addEventListener("click", async () => {
-          textarea.value = AGENT_SYSTEM_PROMPT_TEMPLATE;
-          this.plugin.settings.customAgentSystemMessage = AGENT_SYSTEM_PROMPT_TEMPLATE;
-          await this.plugin.saveSettings();
-        });
-        const clearButton = buttonContainer.createEl("button", { text: "Use Default" });
-        clearButton.style.padding = "0.25em 0.5em";
-        clearButton.style.fontSize = "0.8em";
-        clearButton.addEventListener("click", async () => {
-          textarea.value = "";
-          this.plugin.settings.customAgentSystemMessage = void 0;
-          await this.plugin.saveSettings();
-        });
-        textarea.addEventListener("input", async () => {
-          const value = textarea.value.trim();
-          this.plugin.settings.customAgentSystemMessage = value || void 0;
-          await this.plugin.saveSettings();
-        });
-      },
-      this.plugin,
-      "generalSectionsExpanded"
-    );
-    CollapsibleSectionRenderer.createCollapsibleSection(
-      containerEl,
-      "Agent Tools",
-      (sectionEl) => {
-        this.renderToolToggles(sectionEl);
-      },
-      this.plugin,
-      "generalSectionsExpanded"
-    );
-  }
-  /**
-   * Renders the Tool Enable/Disable section.
-   * Allows users to enable or disable individual tools available to the agent.
-   * @param containerEl The HTML element to append the section to.
-   */
-  renderToolToggles(containerEl) {
-    containerEl.createEl("div", {
-      text: "Enable or disable individual agent tools. Disabled tools will not be available to the agent or appear in the system prompt.",
-      cls: "setting-item-description",
-      attr: { style: "margin-bottom: 0.5em;" }
-    });
-    const tools = createToolInstances(this.app, this.plugin);
-    if (!this.plugin.settings.enabledTools) {
-      this.plugin.settings.enabledTools = {};
-    }
-    tools.forEach((tool) => {
-      if (!tool) {
-        console.error("[AI Assistant] Settings: Encountered an undefined tool object in tools array!");
-        return;
-      }
-      if (typeof tool.name === "undefined") {
-        console.error("[AI Assistant] Settings: CRITICAL - Tool object has undefined name:", tool);
-      }
-      if (tool.name === "thought") {
-        if (!this.plugin.settings.enabledTools) {
-          this.plugin.settings.enabledTools = {};
-        }
-        this.plugin.settings.enabledTools["thought"] = true;
-        return;
-      }
-      this.settingCreators.createToggleSetting(
-        containerEl,
-        `${tool.name} (${tool.description})`,
-        `Enable or disable the "${tool.name}" tool.`,
-        () => {
-          if (typeof tool.name === "undefined") {
-            console.error("[AI Assistant] Settings: CRITICAL - Trying to get toggle state for tool with undefined name!");
-            return false;
-          }
-          return !!this.plugin.settings.enabledTools && this.plugin.settings.enabledTools[tool.name] !== false;
-        },
-        async (value) => {
-          if (typeof tool.name === "undefined") {
-            console.error("[AI Assistant] Settings: CRITICAL - Trying to set toggle state for tool with undefined name! Skipping save.");
-            return;
-          }
-          if (!this.plugin.settings.enabledTools) {
-            this.plugin.settings.enabledTools = {};
-          }
-          this.plugin.settings.enabledTools[tool.name] = value;
-          await this.plugin.saveSettings();
-        }
-      );
-    });
-  }
-};
-
-// src/settings/sections/ContentNoteHandlingSection.ts
-var import_obsidian28 = require("obsidian");
-var ContentNoteHandlingSection = class {
-  /**
-   * @param plugin The main plugin instance.
-   * @param settingCreators An instance of SettingCreators for consistent UI element creation.
-   */
-  constructor(plugin, settingCreators) {
-    __publicField(this, "plugin");
-    __publicField(this, "settingCreators");
-    this.plugin = plugin;
-    this.settingCreators = settingCreators;
-  }
-  /**
-   * Renders the Content & Note Handling settings sections into the provided container element.
-   * This includes chat customization, note reference settings, data handling, and YAML attribute generators.
-   * @param containerEl The HTML element to render the sections into.
-   */
-  async render(containerEl) {
-    CollapsibleSectionRenderer.createCollapsibleSection(
-      containerEl,
-      "Chat Customization",
-      (sectionEl) => {
-        this.settingCreators.createTextSetting(
-          sectionEl,
-          "Chat Separator",
-          "The string used to separate chat messages.",
-          "----",
-          () => {
-            var _a2;
-            return (_a2 = this.plugin.settings.chatSeparator) != null ? _a2 : "";
-          },
-          async (value) => {
-            this.plugin.settings.chatSeparator = value != null ? value : "";
-            await this.plugin.saveSettings();
-          }
-        );
-        this.settingCreators.createTextSetting(
-          sectionEl,
-          "Chat Start String",
-          "The string that indicates where to start taking the note for context.",
-          "===START===",
-          () => {
-            var _a2;
-            return (_a2 = this.plugin.settings.chatStartString) != null ? _a2 : "";
-          },
-          async (value) => {
-            this.plugin.settings.chatStartString = value != null ? value : "";
-            await this.plugin.saveSettings();
-          }
-        );
-        this.settingCreators.createTextSetting(
-          sectionEl,
-          "Chat End String",
-          "The string that indicates where to end taking the note for context.",
-          "===END===",
-          () => {
-            var _a2;
-            return (_a2 = this.plugin.settings.chatEndString) != null ? _a2 : "";
-          },
-          async (value) => {
-            this.plugin.settings.chatEndString = value != null ? value : "";
-            await this.plugin.saveSettings();
-          }
-        );
-        this.settingCreators.createTextSetting(
-          sectionEl,
-          "Title Prompt",
-          "The prompt used for generating note titles.",
-          "You are a title generator...",
-          () => this.plugin.settings.titlePrompt,
-          async (value) => {
-            this.plugin.settings.titlePrompt = value != null ? value : "";
-            await this.plugin.saveSettings();
-          },
-          { isTextArea: true }
-        );
-        this.settingCreators.createDropdownSetting(
-          sectionEl,
-          "Title Output Mode",
-          "Choose what to do with the generated note title.",
-          { "clipboard": "Copy to clipboard", "replace-filename": "Replace note filename", "metadata": "Insert into metadata" },
-          () => {
-            var _a2;
-            return (_a2 = this.plugin.settings.titleOutputMode) != null ? _a2 : "clipboard";
-          },
-          async (value) => {
-            this.plugin.settings.titleOutputMode = value;
-            await this.plugin.saveSettings();
-          }
-        );
-        this.settingCreators.createDropdownSetting(
-          sectionEl,
-          "Summary Output Mode",
-          "Choose what to do with the generated note summary.",
-          { "clipboard": "Copy to clipboard", "metadata": "Insert into metadata" },
-          () => {
-            var _a2;
-            return (_a2 = this.plugin.settings.summaryOutputMode) != null ? _a2 : "clipboard";
-          },
-          async (value) => {
-            this.plugin.settings.summaryOutputMode = value;
-            await this.plugin.saveSettings();
-          }
-        );
-      },
-      this.plugin,
-      "generalSectionsExpanded"
-    );
-    CollapsibleSectionRenderer.createCollapsibleSection(
-      containerEl,
-      "Note Reference Settings",
-      (sectionEl) => {
-        this.settingCreators.createToggleSetting(
-          sectionEl,
-          "Enable Obsidian Links",
-          "Read Obsidian links in messages using [[filename]] syntax",
-          () => this.plugin.settings.enableObsidianLinks,
-          async (value) => {
-            this.plugin.settings.enableObsidianLinks = value;
-            await this.plugin.saveSettings();
-          }
-        );
-        this.settingCreators.createToggleSetting(
-          sectionEl,
-          "Enable Context Notes",
-          "Attach specified note content to chat messages",
-          () => this.plugin.settings.enableContextNotes,
-          async (value) => {
-            this.plugin.settings.enableContextNotes = value;
-            await this.plugin.saveSettings();
-          }
-        );
-        const contextNotesContainer = sectionEl.createDiv("context-notes-container");
-        contextNotesContainer.style.marginBottom = "24px";
-        new import_obsidian28.Setting(contextNotesContainer).setName("Context Notes").setDesc("Notes to attach as context (supports [[filename]] and [[another note#header]] syntax)").addTextArea((text) => {
-          text.setPlaceholder("[[Note Name]]\n[[Another Note#Header]]").setValue(this.plugin.settings.contextNotes || "").onChange((value) => {
-            this.plugin.settings.contextNotes = value;
-          });
-          text.inputEl.addEventListener("blur", async () => {
-            await this.plugin.saveSettings();
-          });
-          text.inputEl.rows = 4;
-          text.inputEl.style.width = "100%";
-        });
-      },
-      this.plugin,
-      "generalSectionsExpanded"
-    );
-    CollapsibleSectionRenderer.createCollapsibleSection(
-      containerEl,
-      "Data Handling",
-      (sectionEl) => {
-        this.settingCreators.createToggleSetting(
-          sectionEl,
-          "Expand Linked Notes Recursively",
-          "If enabled, when fetching a note, also fetch and expand links within that note recursively (prevents infinite loops).",
-          () => {
-            var _a2;
-            return (_a2 = this.plugin.settings.expandLinkedNotesRecursively) != null ? _a2 : false;
-          },
-          async (value) => {
-            this.plugin.settings.expandLinkedNotesRecursively = value;
-            await this.plugin.saveSettings();
-          }
-        );
-        if (this.plugin.settings.expandLinkedNotesRecursively) {
-          this.settingCreators.createSliderSetting(
-            sectionEl,
-            "Max Link Expansion Depth",
-            "Maximum depth for recursively expanding linked notes (1-3).",
-            { min: 1, max: 3, step: 1 },
-            () => {
-              var _a2;
-              return (_a2 = this.plugin.settings.maxLinkExpansionDepth) != null ? _a2 : 2;
-            },
-            async (value) => {
-              this.plugin.settings.maxLinkExpansionDepth = value;
-              await this.plugin.saveSettings();
-            }
-          );
-        }
-        this.settingCreators.createTextSetting(
-          sectionEl,
-          "Chat Note Folder",
-          "Folder to save exported chat notes (relative to vault root, leave blank for root)",
-          "e.g. AI Chats",
-          () => {
-            var _a2;
-            return (_a2 = this.plugin.settings.chatNoteFolder) != null ? _a2 : "";
-          },
-          async (value) => {
-            this.plugin.settings.chatNoteFolder = value != null ? value : "";
-            await this.plugin.saveSettings();
-          },
-          { trim: true }
-        );
-      },
-      this.plugin,
-      "generalSectionsExpanded"
-    );
-    CollapsibleSectionRenderer.createCollapsibleSection(
-      containerEl,
-      "YAML Attribute Generators",
-      (sectionEl) => {
-        this.renderYamlAttributeGenerators(sectionEl);
-      },
-      this.plugin,
-      "generalSectionsExpanded"
-    );
-  }
-  /**
-   * Renders the YAML Attribute Generators section.
-   * This section allows users to define custom YAML attributes that can be generated by the AI
-   * and inserted into notes.
-   * @param containerEl The HTML element to append the section to.
-   */
-  renderYamlAttributeGenerators(containerEl) {
-    var _a2;
-    containerEl.createEl("div", {
-      text: "Configure custom YAML attribute generators. Each entry will create a command to generate and insert/update a YAML field in your notes.",
-      cls: "setting-item-description",
-      attr: { style: "margin-bottom: 1em;" }
-    });
-    const yamlGens = (_a2 = this.plugin.settings.yamlAttributeGenerators) != null ? _a2 : [];
-    yamlGens.forEach((gen, idx) => {
-      const autoCommandName = gen.attributeName ? `Generate YAML: ${gen.attributeName}` : `YAML Generator #${idx + 1}`;
-      const genContainer = containerEl.createDiv({ cls: "yaml-generator-container" });
-      genContainer.style.border = "1px solid var(--background-modifier-border)";
-      genContainer.style.borderRadius = "6px";
-      genContainer.style.padding = "1em";
-      genContainer.style.marginBottom = "1em";
-      genContainer.createEl("h4", { text: autoCommandName });
-      new import_obsidian28.Setting(genContainer).setName("YAML Attribute Name").setDesc("The YAML field name to insert/update").addText((text) => {
-        text.setPlaceholder("YAML Attribute Name").setValue(gen.attributeName).onChange((value) => {
-          if (this.plugin.settings.yamlAttributeGenerators) {
-            this.plugin.settings.yamlAttributeGenerators[idx].attributeName = value != null ? value : "";
-            this.plugin.settings.yamlAttributeGenerators[idx].commandName = value ? `Generate YAML: ${value}` : "";
-          }
-        });
-        text.inputEl.addEventListener("blur", async () => {
-          await this.plugin.saveSettings();
-        });
-      });
-      new import_obsidian28.Setting(genContainer).setName("Prompt for LLM").setDesc("The prompt to send to the AI for generating the YAML value").addTextArea((text) => {
-        text.setPlaceholder("Prompt for LLM").setValue(gen.prompt).onChange((value) => {
-          if (this.plugin.settings.yamlAttributeGenerators) {
-            this.plugin.settings.yamlAttributeGenerators[idx].prompt = value != null ? value : "";
-          }
-        });
-        text.inputEl.addEventListener("blur", async () => {
-          await this.plugin.saveSettings();
-        });
-        text.inputEl.rows = 3;
-        text.inputEl.style.width = "100%";
-      });
-      new import_obsidian28.Setting(genContainer).setName("Output Mode").setDesc("Where to put the generated YAML attribute").addDropdown((drop) => {
-        drop.addOption("clipboard", "Copy to clipboard");
-        drop.addOption("metadata", "Insert into metadata");
-        drop.setValue(gen.outputMode);
-        drop.onChange(async (value) => {
-          if (this.plugin.settings.yamlAttributeGenerators) {
-            this.plugin.settings.yamlAttributeGenerators[idx].outputMode = value;
-            await this.plugin.saveSettings();
-          }
-        });
-      });
-      new import_obsidian28.Setting(genContainer).addExtraButton((btn) => {
-        btn.setIcon("cross").setTooltip("Delete this YAML generator").onClick(async () => {
-          if (this.plugin.settings.yamlAttributeGenerators) {
-            this.plugin.settings.yamlAttributeGenerators.splice(idx, 1);
-            await this.plugin.saveSettings();
-          }
-        });
-      });
-    });
-    new import_obsidian28.Setting(containerEl).addButton((btn) => {
-      btn.setButtonText("Add YAML Attribute Generator").setCta().onClick(async () => {
-        if (!this.plugin.settings.yamlAttributeGenerators) this.plugin.settings.yamlAttributeGenerators = [];
-        this.plugin.settings.yamlAttributeGenerators.push(JSON.parse(JSON.stringify({
-          attributeName: "",
-          prompt: "",
-          outputMode: "metadata",
-          commandName: "New YAML Generator"
-        })));
-        await this.plugin.saveSettings();
-      });
-    });
-  }
-};
-
-// src/settings/sections/BackupManagementSection.ts
-var import_obsidian29 = require("obsidian");
-
-// src/settings/components/DialogHelpers.ts
-var DialogHelpers = class {
-  /**
-   * Shows a confirmation dialog to the user.
-   * This is a custom modal implementation, not using Obsidian's built-in Modal class directly.
-   * @param title The title of the confirmation dialog.
-   * @param message The message to display in the dialog.
-   * @returns A Promise that resolves to true if the user confirms, false otherwise.
-   */
-  static showConfirmationDialog(title, message) {
-    return new Promise((resolve) => {
-      const modal = document.createElement("div");
-      modal.className = "ai-assistant-modal";
-      const content = modal.createDiv();
-      content.className = "ai-assistant-modal-content";
-      content.createEl("h3", { text: title });
-      content.createEl("p", { text: message });
-      const buttonContainer = content.createDiv();
-      buttonContainer.className = "ai-assistant-modal-buttons";
-      const cancelBtn = buttonContainer.createEl("button", { text: "Cancel" });
-      cancelBtn.onclick = () => {
-        document.body.removeChild(modal);
-        resolve(false);
-      };
-      const confirmBtn = buttonContainer.createEl("button", { text: "Confirm", cls: "mod-cta" });
-      confirmBtn.onclick = () => {
-        document.body.removeChild(modal);
-        resolve(true);
-      };
-      document.body.appendChild(modal);
-      modal.onclick = (e) => {
-        if (e.target === modal) {
-          document.body.removeChild(modal);
-          resolve(false);
-        }
-      };
-    });
-  }
-};
-
-// src/settings/sections/BackupManagementSection.ts
-init_typeguards();
-var BackupManagementSection = class {
-  constructor(plugin, settingCreators) {
-    __publicField(this, "plugin");
-    __publicField(this, "settingCreators");
-    this.plugin = plugin;
-    this.settingCreators = settingCreators;
-  }
-  /**
-   * Render both Backup and Trash Management sections
-   */
-  async render(containerEl) {
-    await this.renderBackupManagement(containerEl);
-    await this.renderTrashManagement(containerEl);
-  }
-  /**
-   * Render the Backup Management section
-   */
-  async renderBackupManagement(containerEl) {
-    this.renderSectionHeader(
-      containerEl,
-      "Backup Management",
-      "Manage backups created when files are modified by AI tools. Backups are stored in the plugin data folder, not in your vault.",
-      async (sectionEl) => {
-        const backupManager = this.plugin.backupManager;
-        const [totalBackups, totalSize, backupFiles] = await Promise.all([
-          backupManager.getTotalBackupCount(),
-          backupManager.getTotalBackupSize(),
-          backupManager.getAllBackupFiles()
-        ]);
-        const sizeInKB = Math.round(totalSize / 1024);
-        sectionEl.createEl("div", {
-          text: `Total backups: ${totalBackups} (${sizeInKB} KB)`,
-          cls: "setting-item-description",
-          attr: { style: "margin-bottom: 1em; font-weight: bold;" }
-        });
-        this.renderBackupActions(sectionEl, backupFiles.length > 0, async () => {
-          await this.renderBackupManagement(containerEl);
-        }, async () => {
-          const confirmed = await DialogHelpers.showConfirmationDialog(
-            "Delete All Backups",
-            `Are you sure you want to delete ALL ${totalBackups} backups for ALL files? This action cannot be undone and will permanently remove all backup data.`
-          );
-          if (confirmed) {
-            try {
-              await backupManager.deleteAllBackups();
-              new import_obsidian29.Notice("Deleted all backups successfully");
-              await this.renderBackupManagement(containerEl);
-            } catch (error) {
-              new import_obsidian29.Notice(`Error deleting all backups: ${error.message}`);
-            }
-          }
-        });
-        if (backupFiles.length === 0) {
-          sectionEl.createEl("div", {
-            text: "No backups found.",
-            cls: "setting-item-description"
-          });
-          return;
-        }
-        CollapsibleSectionRenderer.createCollapsibleSection(
-          containerEl,
-          "Backup Files List",
-          (backupListEl) => {
-            this.renderBackupFilesList(backupListEl, backupFiles, backupManager);
-          },
-          this.plugin,
-          "backupManagementExpanded"
-        );
-      }
-    );
-  }
-  /**
-   * Render header and description for a section using CollapsibleSectionRenderer
-   */
-  renderSectionHeader(containerEl, title, description, contentCallback) {
-    CollapsibleSectionRenderer.createCollapsibleSection(
-      containerEl,
-      title,
-      (sectionEl) => {
-        sectionEl.createEl("div", {
-          text: description,
-          cls: "setting-item-description",
-          attr: { style: "margin-bottom: 1em;" }
-        });
-        const result = contentCallback(sectionEl);
-        if (result instanceof Promise) {
-          result.catch((error) => console.error("Error in collapsible section:", error));
-        }
-      },
-      this.plugin,
-      "generalSectionsExpanded"
-    );
-  }
-  /**
-   * Render action buttons for backup management
-   */
-  renderBackupActions(containerEl, hasBackups, onRefresh, onDeleteAll) {
-    const actionsContainer = containerEl.createDiv({ attr: { style: "margin-bottom: 1em;" } });
-    const refreshButton = actionsContainer.createEl("button", {
-      text: "Refresh Backup List",
-      cls: "mod-cta"
-    });
-    refreshButton.style.marginRight = "0.5em";
-    refreshButton.onclick = onRefresh;
-    if (hasBackups) {
-      const deleteAllBtn = actionsContainer.createEl("button", {
-        text: "Delete All Backups",
-        cls: "mod-warning"
-      });
-      deleteAllBtn.onclick = onDeleteAll;
-    }
-  }
-  /**
-   * Render the list of backup files and their actions
-   */
-  async renderBackupFilesList(containerEl, backupFiles, backupManager) {
-    for (const filePath of backupFiles) {
-      const backups = await backupManager.getBackupsForFile(filePath);
-      if (backups.length === 0) continue;
-      const fileSection = containerEl.createDiv({ cls: "backup-file-section" });
-      fileSection.createEl("h4", { text: filePath, cls: "backup-file-path" });
-      const backupList = fileSection.createDiv({ cls: "backup-list" });
-      backups.forEach((backup) => {
-        const backupItem = backupList.createDiv({ cls: "backup-item" });
-        const backupInfo = backupItem.createDiv({ cls: "backup-info" });
-        const sizeKB = backup.fileSize ? Math.round(backup.fileSize / 1024) : 0;
-        const fileType = backup.isBinary ? "Binary" : "Text";
-        backupInfo.createEl("span", {
-          text: `${backup.readableTimestamp} (${sizeKB} KB, ${fileType})`,
-          cls: "backup-timestamp"
-        });
-        const backupActions = backupItem.createDiv({ cls: "backup-actions" });
-        this.renderBackupActionButtons(backupActions, backup, filePath, backupManager, containerEl, backupFiles);
-      });
-      this.renderDeleteAllBackupsForFileButton(fileSection, filePath, backups.length, backupManager, containerEl, backupFiles);
-    }
-  }
-  /**
-   * Render action buttons for each backup
-   */
-  renderBackupActionButtons(backupActions, backup, filePath, backupManager, containerEl, backupFiles) {
-    const restoreBtn = backupActions.createEl("button", {
-      text: "Restore",
-      cls: "mod-cta"
-    });
-    restoreBtn.onclick = async () => {
-      const confirmed = await DialogHelpers.showConfirmationDialog(
-        "Restore Backup",
-        `Are you sure you want to restore the backup from ${backup.readableTimestamp}? This will overwrite the current file content.`
-      );
-      if (confirmed) {
-        try {
-          const result = await backupManager.restoreBackup(backup);
-          if (result.success) {
-            new import_obsidian29.Notice(`Successfully restored backup for ${filePath}`);
-          } else {
-            new import_obsidian29.Notice(`Failed to restore backup: ${result.error}`);
-          }
-        } catch (error) {
-          new import_obsidian29.Notice(`Error restoring backup: ${error.message}`);
-        }
-      }
-    };
-    const deleteBtn = backupActions.createEl("button", {
-      text: "Delete",
-      cls: "mod-warning"
-    });
-    deleteBtn.onclick = async () => {
-      const confirmed = await DialogHelpers.showConfirmationDialog(
-        "Delete Backup",
-        `Are you sure you want to delete the backup from ${backup.readableTimestamp}?`
-      );
-      if (confirmed) {
-        try {
-          await backupManager.deleteSpecificBackup(filePath, backup.timestamp);
-          new import_obsidian29.Notice(`Deleted backup for ${filePath}`);
-          containerEl.empty();
-          await this.renderBackupFilesList(containerEl, backupFiles, backupManager);
-        } catch (error) {
-          new import_obsidian29.Notice(`Error deleting backup: ${error.message}`);
-        }
-      }
-    };
-    if (!backup.isBinary && backup.content) {
-      const previewBtn = backupActions.createEl("button", {
-        text: "Preview",
-        cls: "mod-muted"
-      });
-      previewBtn.onclick = () => {
-        const preview = backup.content.substring(0, 200);
-        const truncated = backup.content.length > 200 ? "..." : "";
-        new import_obsidian29.Notice(`Preview: ${preview}${truncated}`, 1e4);
-      };
-    } else if (backup.isBinary) {
-      const infoBtn = backupActions.createEl("button", {
-        text: "File Info",
-        cls: "mod-muted"
-      });
-      infoBtn.onclick = () => {
-        const sizeKB = backup.fileSize ? Math.round(backup.fileSize / 1024) : 0;
-        new import_obsidian29.Notice(`Binary file backup: ${sizeKB} KB
-Stored at: ${backup.backupFilePath || "Unknown location"}`, 5e3);
-      };
-    }
-  }
-  /**
-   * Render delete all backups for a file button
-   */
-  renderDeleteAllBackupsForFileButton(fileSection, filePath, backupCount, backupManager, containerEl, backupFiles) {
-    const deleteAllBtn = fileSection.createEl("button", {
-      text: `Delete All Backups for ${filePath}`,
-      cls: "mod-warning"
-    });
-    deleteAllBtn.onclick = async () => {
-      const confirmed = await DialogHelpers.showConfirmationDialog(
-        "Delete All Backups",
-        `Are you sure you want to delete all ${backupCount} backups for ${filePath}?`
-      );
-      if (confirmed) {
-        try {
-          await backupManager.deleteBackupsForFile(filePath);
-          new import_obsidian29.Notice(`Deleted all backups for ${filePath}`);
-          containerEl.empty();
-          await this.renderBackupFilesList(containerEl, backupFiles, backupManager);
-        } catch (error) {
-          new import_obsidian29.Notice(`Error deleting backups: ${error.message}`);
-        }
-      }
-    };
-  }
-  /**
-   * Render the Trash Management section
-   */
-  async renderTrashManagement(containerEl) {
-    containerEl.createEl("div", { attr: { style: "margin-top: 2em; border-top: 1px solid var(--background-modifier-border); padding-top: 1em;" } });
-    this.renderSectionHeader(
-      containerEl,
-      "Trash Management",
-      "Manage files and folders moved to the .trash folder. Files in trash can be restored or permanently deleted.",
-      async (sectionEl) => {
-        const trashPath = ".trash";
-        let trashFolder = this.plugin.app.vault.getAbstractFileByPath(trashPath);
-        let trashItems = [];
-        let fallbackUsed = false;
-        if (!trashFolder) {
-          fallbackUsed = true;
-          try {
-            const adapter = this.plugin.app.vault.adapter;
-            if (await adapter.exists(trashPath)) {
-              const files = await adapter.list(trashPath);
-              trashItems = [
-                ...files.files.map((f) => ({ name: f.substring(f.lastIndexOf("/") + 1), isFolder: false })),
-                ...files.folders.map((f) => ({ name: f.substring(f.lastIndexOf("/") + 1), isFolder: true }))
-              ];
-            } else {
-              sectionEl.createEl("div", {
-                text: "No trash folder found. Trash folder will be created automatically when files are deleted with soft delete.",
-                cls: "setting-item-description"
-              });
-              return;
-            }
-          } catch (e) {
-            sectionEl.createEl("div", {
-              text: "Error reading trash folder from file system.",
-              cls: "setting-item-description"
-            });
-            return;
-          }
-        } else if (trashFolder instanceof import_obsidian29.TFolder) {
-          trashItems = trashFolder.children.map((item) => ({
-            name: item.name,
-            isFolder: item instanceof import_obsidian29.TFolder,
-            size: isTFile(item) && item.stat ? item.stat.size : void 0
-          }));
-        } else {
-          sectionEl.createEl("div", {
-            text: "Error: .trash exists but is not a folder.",
-            cls: "setting-item-description"
-          });
-          return;
-        }
-        const fileCount = trashItems.filter((item) => !item.isFolder).length;
-        const folderCount = trashItems.filter((item) => item.isFolder).length;
-        sectionEl.createEl("div", {
-          text: `Trash contains: ${fileCount} files, ${folderCount} folders${fallbackUsed ? " (filesystem fallback)" : ""}`,
-          cls: "setting-item-description",
-          attr: { style: "margin-bottom: 1em; font-weight: bold;" }
-        });
-        this.renderTrashActions(sectionEl, trashItems.length > 0, async () => {
-          await this.renderTrashManagement(containerEl);
-        }, async () => {
-          const confirmed = await DialogHelpers.showConfirmationDialog(
-            "Empty Trash",
-            `Are you sure you want to permanently delete all ${trashItems.length} items in trash? This cannot be undone.`
-          );
-          if (confirmed) {
-            try {
-              const adapter = this.plugin.app.vault.adapter;
-              for (const item of trashItems) {
-                const fullPath = `${trashPath}/${item.name}`;
-                if (item.isFolder) {
-                  await adapter.rmdir(fullPath, true);
-                } else {
-                  await adapter.remove(fullPath);
-                }
-              }
-              new import_obsidian29.Notice(`Emptied trash - permanently deleted ${trashItems.length} items`);
-              await this.renderTrashManagement(containerEl);
-            } catch (error) {
-              new import_obsidian29.Notice(`Error emptying trash: ${error.message}`);
-            }
-          }
-        });
-        if (trashItems.length === 0) {
-          sectionEl.createEl("div", {
-            text: "Trash is empty.",
-            cls: "setting-item-description"
-          });
-          return;
-        }
-        this.renderTrashList(sectionEl, trashItems, fallbackUsed);
-      }
-    );
-  }
-  /**
-   * Render action buttons for trash management
-   */
-  renderTrashActions(containerEl, hasTrash, onRefresh, onEmpty) {
-    const actionsContainer = containerEl.createDiv({ attr: { style: "margin-bottom: 1em;" } });
-    const refreshBtn = actionsContainer.createEl("button", {
-      text: "Refresh Trash",
-      cls: "mod-cta"
-    });
-    refreshBtn.style.marginRight = "0.5em";
-    refreshBtn.onclick = onRefresh;
-    if (hasTrash) {
-      const emptyTrashBtn = actionsContainer.createEl("button", {
-        text: "Empty Trash",
-        cls: "mod-warning"
-      });
-      emptyTrashBtn.style.marginRight = "0.5em";
-      emptyTrashBtn.onclick = onEmpty;
-    }
-  }
-  /**
-   * Render the list of trash items and their actions
-   */
-  renderTrashList(containerEl, trashItems, fallbackUsed) {
-    const trashList = containerEl.createDiv({ cls: "trash-list" });
-    const maxItems = 20;
-    for (const item of trashItems.slice(0, maxItems)) {
-      const trashItem = trashList.createDiv({ cls: "trash-item", attr: { style: "margin-bottom: 0.5em; padding: 0.5em; border: 1px solid var(--background-modifier-border); border-radius: 4px;" } });
-      const itemInfo = trashItem.createDiv({ cls: "trash-item-info" });
-      const icon = item.isFolder ? "\u{1F4C1}" : "\u{1F4C4}";
-      const size = !item.isFolder && item.size ? ` (${Math.round(item.size / 1024)} KB)` : "";
-      itemInfo.createEl("span", {
-        text: `${icon} ${item.name}${size}`,
-        cls: "trash-item-name"
-      });
-      const itemActions = trashItem.createDiv({ cls: "trash-item-actions", attr: { style: "margin-top: 0.5em;" } });
-      if (!fallbackUsed) {
-        this.renderRestoreTrashButton(itemActions, item.name, item.isFolder, containerEl);
-      }
-      this.renderDeleteTrashButton(itemActions, item.name, item.isFolder, containerEl);
-    }
-    if (trashItems.length > maxItems) {
-      containerEl.createEl("div", {
-        text: `... and ${trashItems.length - maxItems} more items. Empty trash to remove all items.`,
-        cls: "setting-item-description",
-        attr: { style: "margin-top: 1em; font-style: italic;" }
-      });
-    }
-  }
-  /**
-   * Render restore button for trash item
-   */
-  renderRestoreTrashButton(itemActions, name, isFolder, containerEl) {
-    const restoreBtn = itemActions.createEl("button", {
-      text: "Restore",
-      cls: "mod-cta"
-    });
-    restoreBtn.style.marginRight = "0.5em";
-    restoreBtn.onclick = async () => {
-      const confirmed = await DialogHelpers.showConfirmationDialog(
-        "Restore Item",
-        `Restore "${name}" to vault root? If an item with the same name exists, it will be overwritten.`
-      );
-      if (confirmed) {
-        try {
-          const trashFolderObj = this.plugin.app.vault.getAbstractFileByPath(".trash");
-          if (trashFolderObj instanceof import_obsidian29.TFolder) {
-            const fileObj = trashFolderObj.children.find((child) => child.name === name);
-            if (fileObj) {
-              const newPath = name;
-              await this.plugin.app.fileManager.renameFile(fileObj, newPath);
-              new import_obsidian29.Notice(`Restored "${name}" to vault root`);
-              await this.renderTrashManagement(containerEl.parentElement);
-            }
-          }
-        } catch (error) {
-          new import_obsidian29.Notice(`Error restoring item: ${error.message}`);
-        }
-      }
-    };
-  }
-  /**
-   * Render delete button for trash item
-   */
-  renderDeleteTrashButton(itemActions, name, isFolder, containerEl) {
-    const deleteBtn = itemActions.createEl("button", {
-      text: "Delete Permanently",
-      cls: "mod-warning"
-    });
-    deleteBtn.onclick = async () => {
-      const confirmed = await DialogHelpers.showConfirmationDialog(
-        "Delete Permanently",
-        `Permanently delete "${name}"? This cannot be undone.`
-      );
-      if (confirmed) {
-        try {
-          const adapter = this.plugin.app.vault.adapter;
-          const fullPath = `.trash/${name}`;
-          if (isFolder) {
-            await adapter.rmdir(fullPath, true);
-          } else {
-            await adapter.remove(fullPath);
-          }
-          new import_obsidian29.Notice(`Permanently deleted "${name}"`);
-          await this.renderTrashManagement(containerEl.parentElement);
-        } catch (error) {
-          new import_obsidian29.Notice(`Error deleting item: ${error.message}`);
-        }
-      }
-    };
-  }
-};
-
-// src/settings/sections/ChatHistorySettingsSection.ts
-var ChatHistorySettingsSection = class {
-  /**
-   * @param plugin The main plugin instance.
-   * @param settingCreators An instance of SettingCreators for consistent UI element creation.
-   */
-  constructor(plugin, settingCreators) {
-    __publicField(this, "plugin");
-    __publicField(this, "settingCreators");
-    this.plugin = plugin;
-    this.settingCreators = settingCreators;
-  }
-  /**
-   * Renders the Chat History & Sessions and UI Behavior settings sections into the provided container element.
-   * @param containerEl The HTML element to render the sections into.
-   */
-  async render(containerEl) {
-    CollapsibleSectionRenderer.createCollapsibleSection(
-      containerEl,
-      "Chat History & Sessions",
-      (sectionEl) => {
-        this.settingCreators.createSliderSetting(
-          sectionEl,
-          "Max Chat Sessions",
-          "Maximum number of chat sessions to keep in history.",
-          { min: 1, max: 50, step: 1 },
-          () => this.plugin.settings.maxSessions,
-          async (value) => {
-            this.plugin.settings.maxSessions = value;
-            await this.plugin.saveSettings();
-          }
-        );
-        this.settingCreators.createToggleSetting(
-          sectionEl,
-          "Auto-Save Sessions",
-          "Automatically save chat sessions as you use them.",
-          () => this.plugin.settings.autoSaveSessions,
-          async (value) => {
-            this.plugin.settings.autoSaveSessions = value;
-            await this.plugin.saveSettings();
-          }
-        );
-      },
-      this.plugin,
-      "generalSectionsExpanded"
-    );
-    CollapsibleSectionRenderer.createCollapsibleSection(
-      containerEl,
-      "UI Behavior",
-      (sectionEl) => {
-        this.settingCreators.createToggleSetting(
-          sectionEl,
-          "Collapse Old Reasoning",
-          "Automatically collapse reasoning sections in older messages to keep the UI clean",
-          () => {
-            var _a2, _b;
-            return (_b = (_a2 = this.plugin.settings.uiBehavior) == null ? void 0 : _a2.collapseOldReasoning) != null ? _b : true;
-          },
-          async (value) => {
-            if (!this.plugin.settings.uiBehavior) {
-              this.plugin.settings.uiBehavior = {};
-            }
-            this.plugin.settings.uiBehavior.collapseOldReasoning = value;
-            await this.plugin.saveSettings();
-          }
-        );
-        this.settingCreators.createToggleSetting(
-          sectionEl,
-          "Show Completion Notifications",
-          "Show notifications when AI responses are completed",
-          () => {
-            var _a2, _b;
-            return (_b = (_a2 = this.plugin.settings.uiBehavior) == null ? void 0 : _a2.showCompletionNotifications) != null ? _b : true;
-          },
-          async (value) => {
-            if (!this.plugin.settings.uiBehavior) {
-              this.plugin.settings.uiBehavior = {};
-            }
-            this.plugin.settings.uiBehavior.showCompletionNotifications = value;
-            await this.plugin.saveSettings();
-          }
-        );
-        this.settingCreators.createToggleSetting(
-          sectionEl,
-          "Include Reasoning in Exports",
-          "Include reasoning sections when copying or exporting chat content",
-          () => {
-            var _a2, _b;
-            return (_b = (_a2 = this.plugin.settings.uiBehavior) == null ? void 0 : _a2.includeReasoningInExports) != null ? _b : true;
-          },
-          async (value) => {
-            if (!this.plugin.settings.uiBehavior) {
-              this.plugin.settings.uiBehavior = {};
-            }
-            this.plugin.settings.uiBehavior.includeReasoningInExports = value;
-            await this.plugin.saveSettings();
-          }
-        );
-      },
-      this.plugin,
-      "generalSectionsExpanded"
-    );
-  }
-};
-
-// src/settings/SettingTab.ts
-init_promptConstants();
-var MyPluginSettingTab = class extends import_obsidian30.PluginSettingTab {
-  /**
-   * Constructs the settings tab and initializes all settings sections.
-   *
-   * @param app - The Obsidian app instance.
-   * @param plugin - The plugin instance.
-   */
-  constructor(app, plugin) {
-    var _a2;
-    super(app, plugin);
-    /** Reference to the plugin instance. */
-    __publicField(this, "plugin");
-    /** Helper for creating settings UI elements. */
-    __publicField(this, "settingCreators");
-    // Section managers for each logical group of settings
-    /** General plugin settings section. */
-    __publicField(this, "generalSettingsSection");
-    /** AI model configuration section. */
-    __publicField(this, "aiModelConfigurationSection");
-    /** Agent settings section. */
-    __publicField(this, "agentSettingsSection");
-    /** Content and note handling section. */
-    __publicField(this, "contentNoteHandlingSection");
-    /** Backup and trash management section. */
-    __publicField(this, "backupManagementSection");
-    /** Chat history and UI section. */
-    __publicField(this, "chatHistorySettingsSection");
-    /** Listener for settings changes, used to refresh the UI when settings are updated elsewhere. */
-    __publicField(this, "settingsChangeListener", null);
-    /** Flag to track if settings changes are coming from the UI to prevent unnecessary re-renders. */
-    __publicField(this, "isUpdatingFromUI", false);
-    this.plugin = plugin;
-    debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "debug", "[MyPluginSettingTab] constructor called");
-    this.settingCreators = new SettingCreators(this.plugin, () => this.display());
-    this.generalSettingsSection = new GeneralSettingsSection(this.plugin, this.settingCreators);
-    this.aiModelConfigurationSection = new AIModelConfigurationSection(this.plugin, this.settingCreators);
-    this.agentSettingsSection = new AgentSettingsSection(this.app, this.plugin, this.settingCreators);
-    this.contentNoteHandlingSection = new ContentNoteHandlingSection(this.plugin, this.settingCreators);
-    this.backupManagementSection = new BackupManagementSection(this.plugin, this.settingCreators);
-    this.chatHistorySettingsSection = new ChatHistorySettingsSection(this.plugin, this.settingCreators);
-    this.settingsChangeListener = () => {
-      if (this.containerEl.isConnected && !this.isUpdatingFromUI) {
-        this.display();
-      }
-    };
-    this.plugin.onSettingsChange(this.settingsChangeListener);
-  }
-  /**
-   * Called when the settings tab is hidden.
-   * Cleans up the settings change listener to avoid memory leaks.
-   */
-  hide() {
-    if (this.settingsChangeListener) {
-      this.plugin.offSettingsChange(this.settingsChangeListener);
-      this.settingsChangeListener = null;
-    }
-    super.hide();
-  }
-  /**
-   * Renders the settings tab UI.
-   *
-   * This method orchestrates the rendering of all collapsible settings sections and the reset-to-defaults button.
-   * It is called automatically when the tab is shown, and can be called to refresh the UI after changes.
-   */
-  display() {
-    var _a2;
-    const { containerEl } = this;
-    containerEl.empty();
-    debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", "[MyPluginSettingTab] display called");
-    containerEl.createEl("h2", { text: "AI Assistant Settings" });
-    CollapsibleSectionRenderer.createCollapsibleSection(
-      containerEl,
-      "General Settings",
-      (sectionEl) => this.generalSettingsSection.render(sectionEl),
-      this.plugin,
-      "generalSectionsExpanded"
-    );
-    CollapsibleSectionRenderer.createCollapsibleSection(
-      containerEl,
-      "AI Model Configuration",
-      (sectionEl) => this.aiModelConfigurationSection.render(sectionEl),
-      this.plugin,
-      "generalSectionsExpanded"
-    );
-    CollapsibleSectionRenderer.createCollapsibleSection(
-      containerEl,
-      "Agent Settings",
-      (sectionEl) => this.agentSettingsSection.render(sectionEl),
-      this.plugin,
-      "agentConfigExpanded"
-    );
-    CollapsibleSectionRenderer.createCollapsibleSection(
-      containerEl,
-      "Content & Note Handling",
-      (sectionEl) => this.contentNoteHandlingSection.render(sectionEl),
-      this.plugin,
-      "contentChatExpanded"
-    );
-    CollapsibleSectionRenderer.createCollapsibleSection(
-      containerEl,
-      "Chat History & UI",
-      (sectionEl) => this.chatHistorySettingsSection.render(sectionEl),
-      this.plugin,
-      "dataHandlingExpanded"
-    );
-    CollapsibleSectionRenderer.createCollapsibleSection(
-      containerEl,
-      "Backup & Trash Management",
-      (sectionEl) => this.backupManagementSection.render(sectionEl),
-      this.plugin,
-      "backupManagementExpanded"
-    );
-    new import_obsidian30.Setting(containerEl).setName("Reset All Settings to Default").setDesc("Reset all plugin settings (except API keys) to their original default values.").addButton((button) => button.setButtonText("Reset").onClick(async () => {
-      const { DEFAULT_SETTINGS: DEFAULT_SETTINGS2 } = await Promise.resolve().then(() => (init_types(), types_exports));
-      const preservedApiKeys = {
-        openai: this.plugin.settings.openaiSettings.apiKey,
-        anthropic: this.plugin.settings.anthropicSettings.apiKey,
-        gemini: this.plugin.settings.geminiSettings.apiKey
-      };
-      this.plugin.settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS2));
-      this.plugin.settings.openaiSettings.apiKey = preservedApiKeys.openai;
-      this.plugin.settings.anthropicSettings.apiKey = preservedApiKeys.anthropic;
-      this.plugin.settings.geminiSettings.apiKey = preservedApiKeys.gemini;
-      this.plugin.settings.titlePrompt = DEFAULT_TITLE_PROMPT;
-      await this.plugin.saveSettings();
-      this.display();
-      setTimeout(() => {
-        activateView(this.plugin.app, VIEW_TYPE_MODEL_SETTINGS);
-      }, 100);
-      new import_obsidian30.Notice("All settings (except API keys) reset to default.");
-    }));
-  }
-  /**
-   * Saves settings from the UI without triggering a re-render of the settings tab.
-   * This prevents the issue where typing in input fields causes focus loss due to UI refresh.
-   */
-  async saveSettingsFromUI() {
-    this.isUpdatingFromUI = true;
-    try {
-      await this.plugin.saveSettings();
-    } finally {
-      setTimeout(() => {
-        this.isUpdatingFromUI = false;
-      }, 50);
-    }
-  }
-};
-
-// src/components/ModelSettingsView.ts
-var import_obsidian31 = require("obsidian");
-var VIEW_TYPE_MODEL_SETTINGS2 = "model-settings-view";
-var ModelSettingsView = class extends import_obsidian31.ItemView {
-  constructor(leaf, plugin) {
-    super(leaf);
-    __publicField(this, "plugin");
-    __publicField(this, "_onSettingsChange", () => {
-      this.onOpen();
-    });
-    this.plugin = plugin;
-  }
-  getViewType() {
-    return VIEW_TYPE_MODEL_SETTINGS2;
-  }
-  getDisplayText() {
-    return "AI Model Settings";
-  }
-  getIcon() {
-    return "file-sliders";
-  }
-  async onOpen() {
-    const { contentEl } = this;
-    contentEl.empty();
-    this.plugin.offSettingsChange(this._onSettingsChange);
-    this.plugin.onSettingsChange(this._onSettingsChange);
-    const settingsSections = new (await Promise.resolve().then(() => (init_SettingsSections(), SettingsSections_exports))).SettingsSections(this.plugin);
-    await settingsSections.renderAllSettings(contentEl, { onRefresh: () => this.onOpen() });
-  }
-  async onClose() {
-    this.plugin.offSettingsChange(this._onSettingsChange);
-    this.contentEl.empty();
-  }
-};
-
 // src/main.ts
 init_logger();
+
+// src/utils/viewManager.ts
+async function activateView(app, viewType, reveal = true) {
+  app.workspace.detachLeavesOfType(viewType);
+  let leaf = app.workspace.getRightLeaf(false) || app.workspace.getLeaf(true);
+  await leaf.setViewState({
+    type: viewType,
+    active: true
+  });
+  if (reveal) {
+    app.workspace.revealLeaf(leaf);
+  }
+}
 
 // src/components/agent/agentModeManager.ts
 init_logger();
@@ -26146,6 +26064,23 @@ var AgentModeManager = class {
 // src/main.ts
 init_BackupManager();
 init_ToolRichDisplay();
+
+// src/components/commands/viewCommands.ts
+init_pluginUtils();
+function registerViewCommands(plugin) {
+  registerCommand(
+    plugin,
+    {
+      id: "show-ai-chat",
+      name: "Show AI Chat",
+      callback: () => activateView(plugin.app, VIEW_TYPE_CHAT)
+    },
+    "message-square",
+    // Icon ID for the command palette
+    "Open AI Chat"
+    // Display name in the command palette
+  );
+}
 
 // src/components/commands/aiStreamCommands.ts
 init_pluginUtils();
@@ -26588,7 +26523,7 @@ init_aiDispatcher();
 init_objectPool();
 
 // src/integration/priority3Integration.ts
-var import_obsidian33 = require("obsidian");
+var import_obsidian32 = require("obsidian");
 init_dependencyInjection();
 init_stateManager();
 init_streamManager();
@@ -26900,7 +26835,7 @@ var Priority3IntegrationManager = class {
 init_typeguards();
 
 // src/utils/PerformanceDashboard.ts
-var import_obsidian34 = require("obsidian");
+var import_obsidian33 = require("obsidian");
 init_performanceMonitor();
 init_APICircuitBreaker();
 init_logger();
@@ -27228,7 +27163,7 @@ ${Array.from(this.activeAlerts.values()).sort((a, b) => b.timestamp - a.timestam
 };
 __publicField(_PerformanceDashboard, "instance");
 var PerformanceDashboard = _PerformanceDashboard;
-var PerformanceDashboardModal = class extends import_obsidian34.Modal {
+var PerformanceDashboardModal = class extends import_obsidian33.Modal {
   constructor(plugin) {
     super(plugin.app);
     __publicField(this, "dashboard");
@@ -27367,17 +27302,13 @@ var PerformanceDashboardModal = class extends import_obsidian34.Modal {
 var performanceDashboard = PerformanceDashboard.getInstance();
 
 // src/main.ts
-var _MyPlugin = class _MyPlugin extends import_obsidian36.Plugin {
+var _MyPlugin = class _MyPlugin extends import_obsidian35.Plugin {
   constructor() {
     super(...arguments);
     /**
      * Plugin settings object, loaded from disk or defaults.
      */
     __publicField(this, "settings");
-    /**
-     * Reference to the model settings view, if open.
-     */
-    __publicField(this, "modelSettingsView", null);
     /**
      * Reference to the current active streaming controller (for aborting AI responses).
      */
@@ -27522,7 +27453,6 @@ var _MyPlugin = class _MyPlugin extends import_obsidian36.Plugin {
     debugLog((_c = this.settings.debugMode) != null ? _c : false, "info", "Priority 3 optimizations initialized");
     this.addSettingTab(new MyPluginSettingTab(this.app, this));
     this.registerPluginView(VIEW_TYPE_CHAT, (leaf) => new ChatView(leaf, this));
-    this.registerPluginView(VIEW_TYPE_MODEL_SETTINGS, (leaf) => new ModelSettingsView(leaf, this));
     this._yamlAttributeCommandIds = registerAllCommands(
       this,
       this.settings,
@@ -27534,11 +27464,6 @@ var _MyPlugin = class _MyPlugin extends import_obsidian36.Plugin {
       },
       this._yamlAttributeCommandIds
     );
-    this.app.workspace.onLayoutReady(() => {
-      if (this.settings.autoOpenModelSettings) {
-        activateView(this.app, VIEW_TYPE_MODEL_SETTINGS);
-      }
-    });
     this.registerMarkdownPostProcessor((element, context) => {
       this.processToolExecutionBlocks(element, context);
     });
@@ -27636,7 +27561,6 @@ var _MyPlugin = class _MyPlugin extends import_obsidian36.Plugin {
    * Unregisters views to prevent issues on reload.
    */
   onunload() {
-    _MyPlugin.registeredViewTypes.delete(VIEW_TYPE_MODEL_SETTINGS);
     _MyPlugin.registeredViewTypes.delete(VIEW_TYPE_CHAT);
     if (this.priority3Manager) {
       this.priority3Manager.dispose();

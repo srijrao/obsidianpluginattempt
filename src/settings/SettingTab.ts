@@ -1,8 +1,6 @@
 import { App, PluginSettingTab, Setting, Notice } from 'obsidian';
 import MyPlugin from '../main';
-import { VIEW_TYPE_MODEL_SETTINGS } from '../components/commands/viewCommands'; // Corrected import path
 import { CollapsibleSectionRenderer } from '../utils/CollapsibleSection';
-import { activateView } from '../utils/viewManager';
 import { debugLog } from '../utils/logger'; // Import debugLog
 
 import { SettingCreators } from './components/SettingCreators';
@@ -188,10 +186,6 @@ export class MyPluginSettingTab extends PluginSettingTab {
                     await this.plugin.saveSettings();
                     this.display(); // Refresh UI
 
-                    // Optionally re-activate the settings view for user feedback
-                    setTimeout(() => {
-                        activateView(this.plugin.app, VIEW_TYPE_MODEL_SETTINGS);
-                    }, 100);
                     new Notice('All settings (except API keys) reset to default.');
                 }));
     }

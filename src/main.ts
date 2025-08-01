@@ -2,7 +2,6 @@ import { Plugin } from 'obsidian';
 import { MyPluginSettings, Message, DEFAULT_SETTINGS, AgentModeSettings } from './types';
 import { MyPluginSettingTab } from './settings';
 import { ChatView, VIEW_TYPE_CHAT } from './chat';
-import { ModelSettingsView } from './components/ModelSettingsView';
 import { processMessages } from './utils/noteUtils'; // Removed getContextNotesContent
 import { showNotice } from './utils/generalUtils';
 import { debugLog } from './utils/logger'; // Changed from log to debugLog
@@ -11,7 +10,6 @@ import { AgentModeManager } from './components/agent/agentModeManager';
 import { BackupManager } from './components/BackupManager';
 import { ToolRichDisplay } from './components/agent/ToolRichDisplay';
 import { registerAllCommands } from './components/commands/commandRegistry';
-import { VIEW_TYPE_MODEL_SETTINGS } from './components/commands/viewCommands';
 import { registerYamlAttributeCommands } from './YAMLHandler';
 import { AIDispatcher } from './utils/aiDispatcher';
 import { MessageContextPool, PreAllocatedArrays } from './utils/objectPool';
@@ -42,10 +40,6 @@ export default class MyPlugin extends Plugin {
      * Plugin settings object, loaded from disk or defaults.
      */
     settings: MyPluginSettings;
-    /**
-     * Reference to the model settings view, if open.
-     */
-    modelSettingsView: ModelSettingsView | null = null;
     /**
      * Reference to the current active streaming controller (for aborting AI responses).
      */
@@ -214,9 +208,8 @@ export default class MyPlugin extends Plugin {
         // Add the plugin's settings tab to Obsidian's settings UI
         this.addSettingTab(new MyPluginSettingTab(this.app, this));
 
-        // Register custom views for model settings and chat
+        // Register custom views for chat
         this.registerPluginView(VIEW_TYPE_CHAT, (leaf) => new ChatView(leaf, this));
-        this.registerPluginView(VIEW_TYPE_MODEL_SETTINGS, (leaf) => new ModelSettingsView(leaf, this));
 
         // Register all commands using the new centralized function
         this._yamlAttributeCommandIds = registerAllCommands(
@@ -228,13 +221,6 @@ export default class MyPlugin extends Plugin {
             (stream: AbortController | null) => { this.activeStream = stream; },
             this._yamlAttributeCommandIds
         );
-
-        // Optionally auto-open the model settings view on layout ready
-        this.app.workspace.onLayoutReady(() => {
-            if (this.settings.autoOpenModelSettings) {
-                activateView(this.app, VIEW_TYPE_MODEL_SETTINGS);
-            }
-        });
 
         // Register a markdown post-processor to handle tool execution blocks in preview/live mode
         this.registerMarkdownPostProcessor((element, context) => {
@@ -350,7 +336,6 @@ export default class MyPlugin extends Plugin {
      * Unregisters views to prevent issues on reload.
      */
     onunload() {
-        MyPlugin.registeredViewTypes.delete(VIEW_TYPE_MODEL_SETTINGS);
         MyPlugin.registeredViewTypes.delete(VIEW_TYPE_CHAT);
         
         // Clean up Priority 3 optimizations

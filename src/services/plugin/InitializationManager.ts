@@ -361,28 +361,16 @@ export class InitializationManager implements IInitializationManager {
      */
     private async registerViews(): Promise<void> {
         const { ChatView, VIEW_TYPE_CHAT } = await import('../../chat');
-        const { ModelSettingsView } = await import('../../components/ModelSettingsView');
-        const { VIEW_TYPE_MODEL_SETTINGS } = await import('../../components/commands/viewCommands');
 
         // Register views with Obsidian
         this.plugin.registerView(VIEW_TYPE_CHAT, (leaf) => new ChatView(leaf, this.plugin));
-        this.plugin.registerView(VIEW_TYPE_MODEL_SETTINGS, (leaf) => new ModelSettingsView(leaf, this.plugin));
     }
 
     /**
      * Sets up workspace event listeners
      */
     private async setupWorkspaceEvents(): Promise<void> {
-        // Auto-open model settings if configured
-        // Note: onLayoutReady returns void, so we'll handle this differently
-        if (this.plugin.settings.autoOpenModelSettings) {
-            // Use a timeout to ensure layout is ready
-            setTimeout(() => {
-                const { activateView } = require('../../utils/viewManager');
-                const { VIEW_TYPE_MODEL_SETTINGS } = require('../../components/commands/viewCommands');
-                activateView(this.app, VIEW_TYPE_MODEL_SETTINGS);
-            }, 100);
-        }
+        // No workspace events needed currently
     }
 
     /**
