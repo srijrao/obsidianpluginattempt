@@ -280,6 +280,9 @@ export class ChatView extends ItemView {
                 { fallbackMessage: 'Failed to save user message' }
             );
             try {
+                // Small delay to ensure DOM is updated after user message is appended
+                await new Promise(resolve => setTimeout(resolve, 10));
+                
                 const messages = await this.buildContextMessages();
                 this.addVisibleMessagesToContext(messages);
                 const tempContainer = document.createElement('div');

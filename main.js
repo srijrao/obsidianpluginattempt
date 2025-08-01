@@ -25615,6 +25615,7 @@ var ChatView = class extends import_obsidian30.ItemView {
         { fallbackMessage: "Failed to save user message" }
       );
       try {
+        await new Promise((resolve) => setTimeout(resolve, 10));
         const messages = await this.buildContextMessages();
         this.addVisibleMessagesToContext(messages);
         const tempContainer = document.createElement("div");
