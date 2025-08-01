@@ -26777,9 +26777,6 @@ var Priority3IntegrationManager = class {
     if (streamStats.activeStreams > 50) {
       warnings.push("High number of active streams");
     }
-    if (streamStats.averageThroughput < 1e3) {
-      warnings.push("Low stream throughput");
-    }
     if (warnings.length > 0) {
       globalStateManager.setState("plugin.performance.warnings", warnings);
       console.warn("Performance warnings:", warnings);

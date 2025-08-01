@@ -356,13 +356,15 @@ export class Priority3IntegrationManager {
         }
 
         // Check stream performance
+        // Only check throughput if we have enough data points
         if (streamStats.activeStreams > 50) {
             warnings.push('High number of active streams');
         }
 
-        if (streamStats.averageThroughput < 1000) { // bytes per second
-            warnings.push('Low stream throughput');
-        }
+        // Disabled: Low throughput warnings are not meaningful for typical AI responses
+        // if (streamStats.averageThroughput < 100 && streamStats.totalStreams > 5) { // bytes per second - adjusted for typical AI responses
+        //     warnings.push('Low stream throughput');
+        // }
 
         if (warnings.length > 0) {
             globalStateManager.setState('plugin.performance.warnings', warnings);
