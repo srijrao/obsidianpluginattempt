@@ -152,7 +152,7 @@ export class ResponseStreamer {
             content,
             contentEl,
             '',
-            this.component || null as any
+            this.component || new Component()
         );
         // Scroll to bottom
         this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;

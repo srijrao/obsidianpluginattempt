@@ -117,7 +117,7 @@ export class MessageRegenerator {
             this.chatHistoryManager, 
             this.plugin, 
             (el) => this.regenerateResponse(el, buildContextMessages), 
-            this.component || null as any
+            this.component || new Component()
         );
         assistantContainer.dataset.timestamp = originalTimestamp;
 

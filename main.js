@@ -17407,16 +17407,16 @@ function handleEditMessage(messageEl, chatHistoryManager, plugin) {
               role: messageEl.classList.contains("user") ? "user" : "assistant",
               content: newContent,
               toolResults: enhancedData.toolResults
-            }, messageEl, void 0);
+            }, messageEl, new import_obsidian22.Component());
           } else {
-            await import_obsidian22.MarkdownRenderer.render(plugin.app, newContent, contentEl, "", void 0);
+            await import_obsidian22.MarkdownRenderer.render(plugin.app, newContent, contentEl, "", new import_obsidian22.Component());
           }
           contentEl.removeClass("editing");
         } catch (e) {
           new import_obsidian22.Notice("Failed to save edited message.");
           messageEl.dataset.rawContent = oldContent || "";
           contentEl.empty();
-          await import_obsidian22.MarkdownRenderer.render(plugin.app, oldContent || "", contentEl, "", void 0);
+          await import_obsidian22.MarkdownRenderer.render(plugin.app, oldContent || "", contentEl, "", new import_obsidian22.Component());
           contentEl.removeClass("editing");
         }
       });
@@ -23978,7 +23978,7 @@ function getSystemMessage(settings) {
   let systemMessage = settings.systemMessage;
   if (settings.includeTimeWithSystemMessage) {
     const now = /* @__PURE__ */ new Date();
-    const currentDate = now.toISOString().split("T")[0];
+    const currentDate = now.toLocaleDateString("en-CA");
     const timeZoneOffset = now.getTimezoneOffset();
     const offsetHours = Math.abs(Math.floor(timeZoneOffset / 60));
     const offsetMinutes = Math.abs(timeZoneOffset) % 60;
@@ -24588,7 +24588,7 @@ var TaskContinuation = class {
         content,
         contentEl,
         "",
-        this.component || null
+        this.component || new import_obsidian26.Component()
       );
       this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
     }
@@ -24785,7 +24785,7 @@ var ResponseStreamer = class {
       content,
       contentEl,
       "",
-      this.component || null
+      this.component || new import_obsidian28.Component()
     );
     this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
   }
@@ -25270,7 +25270,7 @@ var MessageRegenerator = class {
       this.chatHistoryManager,
       this.plugin,
       (el) => this.regenerateResponse(el, buildContextMessages2),
-      this.component || null
+      this.component || new import_obsidian29.Component()
     );
     assistantContainer.dataset.timestamp = originalTimestamp;
     if (insertAfterNode && insertAfterNode.nextSibling) {

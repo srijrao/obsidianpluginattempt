@@ -219,7 +219,7 @@ export class TaskContinuation {
                 content,
                 contentEl,
                 '',
-                this.component || null as any
+                this.component || new Component()
             );
             this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
         }

@@ -1,7 +1,7 @@
 import { copyToClipboard } from './Buttons';
 import { saveChatAsNote, loadChatYamlAndApplySettings } from './chatPersistence';
 import { ChatHelpModal } from './ChatHelpModal';
-import { Notice, App, MarkdownRenderer } from 'obsidian';
+import { Notice, App, MarkdownRenderer, Component } from 'obsidian';
 import MyPlugin from '../../main';
 import { ChatHistoryManager } from './ChatHistoryManager';
 import { MessageRenderer } from '../agent/MessageRenderer';
@@ -199,16 +199,16 @@ export function handleEditMessage(messageEl: HTMLElement, chatHistoryManager: Ch
                             role: messageEl.classList.contains('user') ? 'user' : 'assistant',
                             content: newContent,
                             toolResults: enhancedData.toolResults
-                        } as any, messageEl, undefined);
+                        } as any, messageEl, new Component());
                     } else {
-                        await MarkdownRenderer.render(plugin.app, newContent, contentEl, '', undefined as any);
+                        await MarkdownRenderer.render(plugin.app, newContent, contentEl, '', new Component());
                     }
                     contentEl.removeClass('editing');
                 } catch (e) {
                     new Notice('Failed to save edited message.');
                     messageEl.dataset.rawContent = oldContent || '';
                     contentEl.empty();
-                    await MarkdownRenderer.render(plugin.app, oldContent || '', contentEl, '', undefined as any);
+                    await MarkdownRenderer.render(plugin.app, oldContent || '', contentEl, '', new Component());
                     contentEl.removeClass('editing');
                 }
             });
