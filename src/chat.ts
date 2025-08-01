@@ -283,6 +283,10 @@ export class ChatView extends ItemView {
                 // Small delay to ensure DOM is updated after user message is appended
                 await new Promise(resolve => setTimeout(resolve, 10));
                 
+                // Clear cache to ensure fresh DOM query
+                this.cachedMessageElements = [];
+                this.lastScrollHeight = 0;
+                
                 const messages = await this.buildContextMessages();
                 this.addVisibleMessagesToContext(messages);
                 const tempContainer = document.createElement('div');

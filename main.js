@@ -25616,6 +25616,8 @@ var ChatView = class extends import_obsidian30.ItemView {
       );
       try {
         await new Promise((resolve) => setTimeout(resolve, 10));
+        this.cachedMessageElements = [];
+        this.lastScrollHeight = 0;
         const messages = await this.buildContextMessages();
         this.addVisibleMessagesToContext(messages);
         const tempContainer = document.createElement("div");

@@ -77,6 +77,39 @@ try {
 - Preserves all existing caching and optimization benefits
 - Maintains DOM-based approach which is 5-10x faster than file I/O alternatives
 
+## ADDITIONAL FIX APPLIED ✅
+
+### Cache Invalidation Issue Discovered
+
+**Date**: July 31, 2025 (Additional Fix)
+**Problem**: After initial testing, user messages were being included but **wrong message content** was being sent (e.g., asking "time in india" but sending "time in houston").
+
+**Root Cause**: The DOM element cache (`cachedMessageElements`) was not being invalidated after new messages were added, causing the system to query old cached DOM elements instead of the fresh DOM state.
+
+**Additional Fix Applied**:
+```typescript
+// In src/chat.ts sendMessage method (lines 283-290)
+try {
+    // Small delay to ensure DOM is updated after user message is appended
+    await new Promise(resolve => setTimeout(resolve, 10));
+    
+    // Clear cache to ensure fresh DOM query - CRITICAL FIX
+    this.cachedMessageElements = [];
+    this.lastScrollHeight = 0;
+    
+    const messages = await this.buildContextMessages();
+    this.addVisibleMessagesToContext(messages);
+    // ... rest of AI call logic
+}
+```
+
+**Why This Additional Fix Was Needed**:
+1. **Cache Poisoning**: Old message elements were being reused from cache
+2. **Scroll Height Detection Failure**: DOM height wasn't changing enough to trigger cache invalidation
+3. **Stale Content**: Wrong message content was being extracted from cached elements
+
+**Result**: Now both the timing issue AND the cache invalidation issue are resolved.
+
 ## Previous Analysis - Recommended Fixes
 
 ### Fix 1: Ensure User Message is Included in Context
