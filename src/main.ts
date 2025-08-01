@@ -17,7 +17,7 @@ import { AIDispatcher } from './utils/aiDispatcher';
 import { MessageContextPool, PreAllocatedArrays } from './utils/objectPool';
 import { Priority3IntegrationManager } from './integration/priority3Integration';
 import { parseToolDataFromContent, cleanContentFromToolData } from './utils/messageContentParser';
-import { isVaultAdapterWithBasePath, validatePluginSettings } from './utils/typeGuards';
+import { isVaultAdapterWithBasePath, validatePluginSettings } from './utils/typeguards';
 import { RecentlyOpenedFilesManager } from './utils/recently-opened-files';
 import { PerformanceDashboardModal } from './utils/PerformanceDashboard';
 

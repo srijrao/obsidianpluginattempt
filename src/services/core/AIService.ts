@@ -16,7 +16,7 @@ import { BaseProvider } from '../../../providers/base';
 import { createProvider, createProviderFromUnifiedModel, getAllAvailableModels } from '../../../providers';
 import { saveAICallToFolder } from '../../utils/saveAICalls';
 import { debugLog } from '../../utils/logger';
-import { isValidProviderName, ValidProviderName, getProviderSettings, getPluginApp } from '../../utils/typeGuards';
+import { isValidProviderName, ValidProviderName, getProviderSettings, getPluginApp } from '../../utils/typeguards';
 import type { MyPluginSettings } from '../../types';
 
 /**

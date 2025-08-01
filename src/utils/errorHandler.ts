@@ -8,7 +8,7 @@
 import { Notice } from 'obsidian';
 import { debugLog } from './logger';
 import { performanceMonitor } from './performanceMonitor';
-import { isValidProviderName, ValidProviderName } from './typeGuards';
+import { isValidProviderName, ValidProviderName } from './typeguards';
 
 export interface ErrorContext {
     component: string;

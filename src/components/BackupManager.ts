@@ -1,6 +1,6 @@
 import { App, TFile } from 'obsidian';
 import { FileBackup, BackupData } from '../types';
-import { isTFile } from '../utils/typeGuards';
+import { isTFile } from '../utils/typeguards';
 
 /**
  * Manages file backups stored in the plugin's data folder.

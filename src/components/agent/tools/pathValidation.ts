@@ -1,6 +1,6 @@
 import { App } from 'obsidian';
 import { join, normalize, isAbsolute, relative } from 'path';
-import { getVaultBasePath } from '../../../utils/typeGuards';
+import { getVaultBasePath } from '../../../utils/typeguards';
 
 /**
  * Utility class for validating and normalizing file paths within the vault.

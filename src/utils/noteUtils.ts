@@ -7,7 +7,7 @@
 import { Notice, App } from 'obsidian';
 import { Message, MyPluginSettings } from '../types';
 import { findFile, extractContentUnderHeader } from './generalUtils';
-import { isTFile } from './typeGuards';
+import { isTFile } from './typeguards';
 
 /**
  * Process a single message content to include Obsidian note contents, recursively if enabled.

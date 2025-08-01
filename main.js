@@ -206,7 +206,7 @@ var init_FileSearchTool = __esm({
   }
 });
 
-// src/utils/typeGuards.ts
+// src/utils/typeguards.ts
 function isValidProviderName(value) {
   return typeof value === "string" && VALID_PROVIDER_NAMES.includes(value);
 }
@@ -285,8 +285,8 @@ function getPluginApp(plugin) {
   return void 0;
 }
 var VALID_PROVIDER_NAMES;
-var init_typeGuards = __esm({
-  "src/utils/typeGuards.ts"() {
+var init_typeguards = __esm({
+  "src/utils/typeguards.ts"() {
     VALID_PROVIDER_NAMES = ["openai", "anthropic", "gemini", "ollama"];
   }
 });
@@ -296,7 +296,7 @@ var import_path, PathValidator;
 var init_pathValidation = __esm({
   "src/components/agent/tools/pathValidation.ts"() {
     import_path = require("path");
-    init_typeGuards();
+    init_typeguards();
     PathValidator = class {
       /**
        * Constructs a PathValidator for the given Obsidian app.
@@ -485,7 +485,7 @@ var init_fileUtils = __esm({
   "src/utils/fileUtils.ts"() {
     import_obsidian = require("obsidian");
     init_logger();
-    init_typeGuards();
+    init_typeguards();
   }
 });
 
@@ -591,7 +591,7 @@ var init_FileReadTool = __esm({
 var BackupManager;
 var init_BackupManager = __esm({
   "src/components/BackupManager.ts"() {
-    init_typeGuards();
+    init_typeguards();
     BackupManager = class {
       // Maximum number of backups to keep per file
       /**
@@ -2400,7 +2400,7 @@ var init_FileDeleteTool = __esm({
   "src/components/agent/tools/FileDeleteTool.ts"() {
     init_BackupManager();
     init_pathValidation();
-    init_typeGuards();
+    init_typeguards();
     init_fileUtils();
     init_logger();
     FileDeleteTool = class {
@@ -14978,7 +14978,7 @@ var init_errorHandler = __esm({
     import_obsidian13 = require("obsidian");
     init_logger();
     init_performanceMonitor();
-    init_typeGuards();
+    init_typeguards();
     _ErrorHandler = class _ErrorHandler {
       constructor() {
         __publicField(this, "errorCounts", /* @__PURE__ */ new Map());
@@ -15903,7 +15903,7 @@ var init_aiDispatcher = __esm({
     init_asyncOptimizer();
     init_performanceMonitor();
     init_APICircuitBreaker();
-    init_typeGuards();
+    init_typeguards();
     init_validationUtils();
     AIDispatcher = class {
       // Maximum cache entries
@@ -17921,7 +17921,7 @@ var init_YAMLHandler = __esm({
     init_pluginUtils();
     init_js_yaml();
     init_logger();
-    init_typeGuards();
+    init_typeguards();
     DEBUG = true;
   }
 });
@@ -22096,7 +22096,7 @@ function extractContentUnderHeader(content, headerText) {
 }
 
 // src/utils/noteUtils.ts
-init_typeGuards();
+init_typeguards();
 async function processObsidianLinks(content, app, settings, visitedNotes = /* @__PURE__ */ new Set(), currentDepth = 0) {
   var _a2;
   if (!settings.enableObsidianLinks) return content;
@@ -25354,7 +25354,7 @@ var DialogHelpers = class {
 };
 
 // src/settings/sections/BackupManagementSection.ts
-init_typeGuards();
+init_typeguards();
 var BackupManagementSection = class {
   constructor(plugin, settingCreators) {
     __publicField(this, "plugin");
@@ -26897,7 +26897,7 @@ var Priority3IntegrationManager = class {
 };
 
 // src/main.ts
-init_typeGuards();
+init_typeguards();
 
 // src/utils/PerformanceDashboard.ts
 var import_obsidian34 = require("obsidian");

@@ -2,7 +2,7 @@ import { App, TFile, TFolder } from 'obsidian';
 import { Tool, ToolResult } from '../ToolRegistry';
 import { BackupManager } from '../../BackupManager';
 import { PathValidator } from './pathValidation';
-import { isTFile, isTFolder } from '../../../utils/typeGuards';
+import { isTFile, isTFolder } from '../../../utils/typeguards';
 import { getTFileByPath, getTFolderByPath, ensureFolderExists } from '../../../utils/fileUtils';
 import { debugLog } from '../../../utils/logger';
 

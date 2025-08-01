@@ -1,6 +1,6 @@
 import { App, TAbstractFile, TFile, TFolder } from 'obsidian';
 import { debugLog } from './logger';
-import { isTFile, isTFolder } from './typeGuards';
+import { isTFile, isTFolder } from './typeguards';
 
 /**
  * Retrieves a TFile or TFolder object from the vault based on its path.

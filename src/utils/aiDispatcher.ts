@@ -19,7 +19,7 @@ import {
     isNonEmptyString,
     getProviderSettings,
     getPluginApp
-} from './typeGuards';
+} from './typeguards';
 import { sanitizeInput, } from './validationUtils';
 
 // Types for new features

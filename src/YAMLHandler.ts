@@ -5,7 +5,7 @@ import { DEFAULT_TITLE_PROMPT, DEFAULT_SUMMARY_PROMPT, DEFAULT_YAML_SYSTEM_MESSA
 import { registerCommand } from "./utils/pluginUtils";
 import * as yaml from "js-yaml";
 import { debugLog } from "./utils/logger";
-import { withTemporarySetting } from "./utils/typeGuards";
+import { withTemporarySetting } from "./utils/typeguards";
 
 /**
  * Generates a Table of Contents from all headers in the note content.

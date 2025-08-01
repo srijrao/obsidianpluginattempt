@@ -4,7 +4,7 @@ import { SettingCreators } from '../components/SettingCreators';
 import { CollapsibleSectionRenderer } from '../../utils/CollapsibleSection';
 import { DialogHelpers } from '../components/DialogHelpers';
 import { FileBackup } from '../../types/backup';
-import { isTFile } from '../../utils/typeGuards';
+import { isTFile } from '../../utils/typeguards';
 
 /**
  * BackupManagementSection is responsible for rendering settings related to file backups and trash management.

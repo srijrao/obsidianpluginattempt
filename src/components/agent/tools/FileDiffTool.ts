@@ -4,7 +4,7 @@ import type { Change } from 'diff';
 import { Tool, ToolResult } from '../ToolRegistry';
 import { PathValidator } from './pathValidation';
 import { debugLog } from '../../../utils/logger';
-import { isTFile } from '../../../utils/typeGuards';
+import { isTFile } from '../../../utils/typeguards';
 import { getOrOpenFileEditor } from '../../../utils/editorUtils';
 import { getTFileByPath } from '../../../utils/fileUtils'; // Import the new utility
 

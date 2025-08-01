@@ -1,7 +1,7 @@
 import { App, TFile, TFolder } from 'obsidian';
 import { Tool, ToolResult } from '../ToolRegistry';
 import { PathValidator } from './pathValidation';
-import { isTFile } from '../../../utils/typeGuards';
+import { isTFile } from '../../../utils/typeguards';
 import { getTFileByPath, getTFolderByPath } from '../../../utils/fileUtils'; // Import the new utilities
 import { debugLog } from '../../../utils/logger';
 
