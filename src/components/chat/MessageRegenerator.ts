@@ -47,9 +47,17 @@ export class MessageRegenerator {
      * @param buildContextMessages Function to build the initial context messages (system/context notes/etc.)
      */
     async regenerateResponse(messageEl: HTMLElement, buildContextMessages: () => Promise<Message[]>): Promise<void> {
+        // Get UI elements for state management
+        const stopButton = this.inputContainer.querySelector('.stop-button') as HTMLElement;
+        const sendButton = this.inputContainer.querySelector('.send-button') as HTMLElement;
+        
         // Disable the input textarea during regeneration
         const textarea = this.inputContainer.querySelector('textarea');
         if (textarea) textarea.disabled = true;
+        
+        // Show stop button and hide send button during regeneration
+        if (stopButton) stopButton.classList.remove('hidden');
+        if (sendButton) sendButton.classList.add('hidden');
 
         // Get all chat message elements and find the index of the clicked message
         const allMessages = Array.from(this.messagesContainer.querySelectorAll('.ai-chat-message'));
@@ -143,11 +151,19 @@ export class MessageRegenerator {
                 assistantContainer.remove();
             }
         } finally {
-            // Re-enable the input textarea
+            // Re-enable the input textarea and restore UI state
+            const stopButton = this.inputContainer.querySelector('.stop-button') as HTMLElement;
+            const sendButton = this.inputContainer.querySelector('.send-button') as HTMLElement;
+            
             if (textarea) {
                 textarea.disabled = false;
                 textarea.focus();
             }
+            
+            // Hide stop button and show send button when regeneration completes
+            if (stopButton) stopButton.classList.add('hidden');
+            if (sendButton) sendButton.classList.remove('hidden');
+            
             this.activeStream = null;
         }
     }

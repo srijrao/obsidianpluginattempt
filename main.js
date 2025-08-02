@@ -12325,7 +12325,11 @@ var init_aiDispatcher = __esm({
             }
             this.recordRequest(providerName);
             const streamId = Math.random().toString(36).substr(2, 9);
-            abortController = new AbortController();
+            if (options.abortController) {
+              abortController = options.abortController;
+            } else {
+              abortController = new AbortController();
+            }
             this.activeStreams.set(streamId, abortController);
             const requestData = {
               provider: providerName,
@@ -24719,7 +24723,7 @@ var ResponseStreamer = class {
    * @param plugin The main plugin instance (for settings, logging, etc.)
    * @param agentResponseHandler Handler for agent responses and tool execution (null if agent mode is off)
    * @param messagesContainer The container element for chat messages
-   * @param activeStream The current AbortController for streaming (shared reference)
+   * @param activeStream The current AbortController for streaming (shared reference) - may be updated by this class
    * @param component Optional parent component for Markdown rendering context
    */
   constructor(plugin, agentResponseHandler, messagesContainer, activeStream, component) {
@@ -24729,6 +24733,7 @@ var ResponseStreamer = class {
     this.activeStream = activeStream;
     this.component = component;
     __publicField(this, "messageRenderer");
+    __publicField(this, "streamId", null);
     this.messageRenderer = new MessageRenderer(plugin.app);
   }
   /**
@@ -24745,17 +24750,21 @@ var ResponseStreamer = class {
     var _a2;
     this.plugin.debugLog("info", "[ResponseStreamer] streamAssistantResponse called", { messages, originalTimestamp });
     let responseContent = "";
-    this.activeStream = new AbortController();
+    const bridgeController = new AbortController();
+    this.activeStream = bridgeController;
+    this.plugin.debugLog("info", "[ResponseStreamer] Created bridge AbortController", { streamId: this.streamId });
+    const aiDispatcher = new AIDispatcher(this.plugin.app.vault, this.plugin);
+    this.streamId = Math.random().toString(36).substr(2, 9);
     await this.addAgentSystemPrompt(messages);
     try {
-      const aiDispatcher = new AIDispatcher(this.plugin.app.vault, this.plugin);
       await aiDispatcher.getCompletion(messages, {
         temperature: this.plugin.settings.temperature,
         streamCallback: async (chunk) => {
           responseContent += chunk;
           await this.updateMessageContent(container, responseContent);
         },
-        abortController: this.activeStream || void 0
+        abortController: bridgeController
+        // Pass our bridge controller to AIDispatcher
       });
       if (this.plugin.agentModeManager.isAgentModeEnabled() && this.agentResponseHandler) {
         responseContent = await this.processAgentResponse(responseContent, container, messages, "streamer-main", chatHistory);
@@ -24768,7 +24777,15 @@ var ResponseStreamer = class {
       return "";
     } finally {
       (_a2 = this.agentResponseHandler) == null ? void 0 : _a2.hideTaskProgress();
+      this.streamId = null;
+      this.activeStream = null;
     }
+  }
+  /**
+   * Check if this ResponseStreamer has an active stream
+   */
+  isStreaming() {
+    return this.streamId !== null;
   }
   /**
    * Adds agent system prompt to messages if agent mode is enabled.
@@ -25240,8 +25257,12 @@ var MessageRegenerator = class {
    * @param buildContextMessages Function to build the initial context messages (system/context notes/etc.)
    */
   async regenerateResponse(messageEl, buildContextMessages2) {
+    const stopButton = this.inputContainer.querySelector(".stop-button");
+    const sendButton = this.inputContainer.querySelector(".send-button");
     const textarea = this.inputContainer.querySelector("textarea");
     if (textarea) textarea.disabled = true;
+    if (stopButton) stopButton.classList.remove("hidden");
+    if (sendButton) sendButton.classList.add("hidden");
     const allMessages = Array.from(this.messagesContainer.querySelectorAll(".ai-chat-message"));
     const currentIndex = allMessages.indexOf(messageEl);
     const isUserClicked = messageEl.classList.contains("user");
@@ -25316,12 +25337,369 @@ var MessageRegenerator = class {
         assistantContainer.remove();
       }
     } finally {
+      const stopButton2 = this.inputContainer.querySelector(".stop-button");
+      const sendButton2 = this.inputContainer.querySelector(".send-button");
       if (textarea) {
         textarea.disabled = false;
         textarea.focus();
       }
+      if (stopButton2) stopButton2.classList.add("hidden");
+      if (sendButton2) sendButton2.classList.remove("hidden");
       this.activeStream = null;
     }
+  }
+};
+
+// src/services/chat/StreamCoordinator.ts
+var StreamCoordinator = class {
+  constructor(plugin, eventBus, aiService) {
+    this.plugin = plugin;
+    this.eventBus = eventBus;
+    this.aiService = aiService;
+    __publicField(this, "activeStreams", /* @__PURE__ */ new Map());
+    __publicField(this, "streamState", {
+      isStreaming: false,
+      totalChunks: 0,
+      totalCharacters: 0
+    });
+    __publicField(this, "uiUpdateCallbacks", /* @__PURE__ */ new Set());
+    __publicField(this, "activeContainer", null);
+    this.setupEventListeners();
+  }
+  /**
+   * Register a UI update callback for stream state changes
+   */
+  onUIStateChange(callback) {
+    this.uiUpdateCallbacks.add(callback);
+  }
+  /**
+   * Unregister a UI update callback
+   */
+  offUIStateChange(callback) {
+    this.uiUpdateCallbacks.delete(callback);
+  }
+  /**
+   * Set the active UI container for stream updates
+   */
+  setActiveContainer(container) {
+    this.activeContainer = container;
+  }
+  /**
+   * Get the current active container
+   */
+  getActiveContainer() {
+    return this.activeContainer;
+  }
+  /**
+   * Notify all UI callbacks of stream state change
+   */
+  notifyUIStateChange() {
+    const isStreaming = this.streamState.isStreaming;
+    this.uiUpdateCallbacks.forEach((callback) => {
+      try {
+        callback(isStreaming);
+      } catch (error) {
+        console.error("Error in UI state change callback:", error);
+      }
+    });
+  }
+  /**
+   * Starts a new streaming response
+   */
+  async startStream(messages, options = {}) {
+    if (this.streamState.isStreaming) {
+      this.eventBus.publish("stream.start_blocked", {
+        reason: "A stream is already active or cleaning up.",
+        timestamp: Date.now()
+      });
+      throw new Error("A stream is already active. Stop the current stream before starting a new one.");
+    }
+    const streamId = this.generateStreamId();
+    const abortController = new AbortController();
+    let aborted = false;
+    if (options.uiContainer) {
+      this.setActiveContainer(options.uiContainer);
+    }
+    this.activeStreams.set(streamId, abortController);
+    this.updateStreamState({
+      isStreaming: true,
+      currentStreamId: streamId,
+      startTime: Date.now(),
+      totalChunks: 0,
+      totalCharacters: 0
+    });
+    this.notifyUIStateChange();
+    abortController.signal.addEventListener("abort", () => {
+      aborted = true;
+    });
+    try {
+      this.eventBus.publish("stream.started", {
+        streamId,
+        provider: this.determineProvider(),
+        messageCount: messages.length,
+        timestamp: Date.now()
+      });
+      const contextMessages = await this.buildContextMessages();
+      const allMessages = [...contextMessages, ...messages];
+      let fullResponse = "";
+      let chunkCount = 0;
+      const streamCallback = async (chunk) => {
+        if (aborted) return;
+        fullResponse += chunk;
+        chunkCount++;
+        this.updateStreamState({
+          ...this.streamState,
+          totalChunks: chunkCount,
+          totalCharacters: fullResponse.length
+        });
+        if (options.onChunk) {
+          try {
+            await options.onChunk(chunk, fullResponse);
+          } catch (error) {
+            console.error("Error in custom chunk callback:", error);
+          }
+        }
+        this.eventBus.publish("stream.chunk", {
+          streamId,
+          chunk,
+          totalLength: fullResponse.length,
+          chunkIndex: chunkCount,
+          timestamp: Date.now()
+        });
+      };
+      const response = await this.aiService.getCompletion({
+        messages: allMessages,
+        options: {
+          temperature: options.temperature,
+          streamCallback,
+          abortController
+        }
+      });
+      const duration = Date.now() - this.streamState.startTime;
+      this.eventBus.publish("stream.completed", {
+        streamId,
+        content: fullResponse,
+        duration,
+        chunkCount,
+        characterCount: fullResponse.length,
+        timestamp: Date.now()
+      });
+      return fullResponse;
+    } catch (error) {
+      const duration = this.streamState.startTime ? Date.now() - this.streamState.startTime : 0;
+      if (error.name === "AbortError") {
+        this.eventBus.publish("stream.aborted", {
+          streamId,
+          reason: "user_requested",
+          duration,
+          timestamp: Date.now()
+        });
+      } else {
+        this.eventBus.publish("stream.error", {
+          streamId,
+          error: error.message,
+          duration,
+          timestamp: Date.now()
+        });
+      }
+      throw error;
+    } finally {
+      this.cleanupStream(streamId);
+    }
+  }
+  /**
+   * Stops the current stream
+   */
+  stopStream() {
+    if (!this.streamState.isStreaming || !this.streamState.currentStreamId) {
+      return;
+    }
+    const streamId = this.streamState.currentStreamId;
+    const abortController = this.activeStreams.get(streamId);
+    if (abortController) {
+      abortController.abort();
+      this.cleanupStream(streamId);
+      this.eventBus.publish("stream.stopped", {
+        streamId,
+        reason: "user_requested",
+        timestamp: Date.now()
+      });
+    }
+  }
+  /**
+   * Checks if currently streaming
+   */
+  isStreaming() {
+    return this.streamState.isStreaming;
+  }
+  /**
+   * Gets all active stream IDs
+   */
+  getActiveStreams() {
+    return Array.from(this.activeStreams.keys());
+  }
+  /**
+   * Aborts a specific stream
+   */
+  abortStream(streamId) {
+    const abortController = this.activeStreams.get(streamId);
+    if (abortController) {
+      abortController.abort();
+      this.cleanupStream(streamId);
+      this.eventBus.publish("stream.aborted", {
+        streamId,
+        reason: "manual_abort",
+        timestamp: Date.now()
+      });
+    }
+  }
+  /**
+   * Gets current stream state
+   */
+  getStreamState() {
+    return { ...this.streamState };
+  }
+  /**
+   * Gets stream statistics
+   */
+  getStreamStats() {
+    return {
+      totalStreams: 0,
+      // Would track across sessions
+      activeStreams: this.activeStreams.size,
+      averageStreamDuration: 0,
+      // Would calculate from historical data
+      totalCharactersStreamed: this.streamState.totalCharacters,
+      totalChunksProcessed: this.streamState.totalChunks
+    };
+  }
+  /**
+   * Sets stream options for future streams
+   */
+  setDefaultStreamOptions(options) {
+    this.eventBus.publish("stream.options_updated", {
+      options,
+      timestamp: Date.now()
+    });
+  }
+  /**
+   * Pauses the current stream (if supported by provider)
+   */
+  pauseStream() {
+    if (!this.streamState.isStreaming) {
+      return;
+    }
+    this.eventBus.publish("stream.pause_requested", {
+      streamId: this.streamState.currentStreamId,
+      timestamp: Date.now()
+    });
+  }
+  /**
+   * Resumes a paused stream (if supported by provider)
+   */
+  resumeStream() {
+    if (!this.streamState.isStreaming) {
+      return;
+    }
+    this.eventBus.publish("stream.resume_requested", {
+      streamId: this.streamState.currentStreamId,
+      timestamp: Date.now()
+    });
+  }
+  /**
+   * Generates a unique stream ID
+   */
+  generateStreamId() {
+    return `stream_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  }
+  /**
+   * Updates the stream state
+   */
+  updateStreamState(newState) {
+    this.streamState = { ...this.streamState, ...newState };
+  }
+  /**
+   * Cleans up a stream
+   */
+  cleanupStream(streamId) {
+    this.activeStreams.delete(streamId);
+    if (this.streamState.currentStreamId === streamId) {
+      this.updateStreamState({
+        isStreaming: false,
+        currentStreamId: void 0,
+        startTime: void 0
+      });
+      this.notifyUIStateChange();
+    }
+  }
+  /**
+   * Builds context messages for the request
+   */
+  async buildContextMessages() {
+    try {
+      return await buildContextMessages({
+        app: this.plugin.app,
+        plugin: this.plugin
+      });
+    } catch (error) {
+      console.warn("Failed to build context messages:", error);
+      return [];
+    }
+  }
+  /**
+   * Determines the current provider
+   */
+  determineProvider() {
+    if (this.plugin.settings.selectedModel) {
+      return this.plugin.settings.selectedModel.split(":")[0];
+    }
+    return this.plugin.settings.provider;
+  }
+  /**
+   * Sets up event listeners
+   */
+  setupEventListeners() {
+    this.eventBus.subscribe("stream.abort_all", () => {
+      this.abortAllStreams();
+    });
+    this.eventBus.subscribe("settings.changed", (data) => {
+      if (data.key === "selectedModel" || data.key === "provider") {
+        if (this.streamState.isStreaming) {
+          this.eventBus.publish("stream.provider_changed", {
+            streamId: this.streamState.currentStreamId,
+            newProvider: this.determineProvider(),
+            timestamp: Date.now()
+          });
+        }
+      }
+    });
+  }
+  /**
+   * Aborts all active streams
+   */
+  abortAllStreams() {
+    const streamIds = Array.from(this.activeStreams.keys());
+    for (const streamId of streamIds) {
+      this.abortStream(streamId);
+    }
+    this.notifyUIStateChange();
+    this.eventBus.publish("stream.all_aborted", {
+      abortedCount: streamIds.length,
+      timestamp: Date.now()
+    });
+  }
+  /**
+   * Cleanup method for disposing the service
+   */
+  dispose() {
+    this.abortAllStreams();
+    this.updateStreamState({
+      isStreaming: false,
+      currentStreamId: void 0,
+      startTime: void 0,
+      totalChunks: 0,
+      totalCharacters: 0
+    });
   }
 };
 
@@ -25436,6 +25814,8 @@ var ChatView = class extends import_obsidian30.ItemView {
     __publicField(this, "agentResponseHandler", null);
     __publicField(this, "messageRegenerator", null);
     __publicField(this, "responseStreamer", null);
+    // Keep for backward compatibility during transition
+    __publicField(this, "streamCoordinator", null);
     __publicField(this, "messageRenderer");
     __publicField(this, "messagePool");
     __publicField(this, "domCache");
@@ -25448,6 +25828,8 @@ var ChatView = class extends import_obsidian30.ItemView {
     // Priority 2 Optimization: Async optimization
     __publicField(this, "scrollDebouncer");
     __publicField(this, "updateDebouncer");
+    // UI state synchronization
+    __publicField(this, "uiSyncInterval", null);
     this.plugin = plugin;
     this.chatHistoryManager = new ChatHistoryManager(this.app.vault, this.plugin.manifest.id, "chat-history.json");
     this.messageRenderer = new MessageRenderer(this.app);
@@ -25457,6 +25839,7 @@ var ChatView = class extends import_obsidian30.ItemView {
     this.domBatcher = new DOMBatcher();
     this.scrollDebouncer = AsyncOptimizerFactory.createInputDebouncer();
     this.updateDebouncer = AsyncOptimizerFactory.createInputDebouncer();
+    this.startUIStateSynchronization();
   }
   addEventListenerWithCleanup(element, event, handler) {
     element.addEventListener(event, handler);
@@ -25578,6 +25961,39 @@ var ChatView = class extends import_obsidian30.ItemView {
     });
   }
   setupResponseStreamerAndRegenerator() {
+    const eventBus = {
+      publish: async (event, data) => {
+        console.debug(`[EventBus] ${event}:`, data);
+      },
+      subscribe: (event, handler) => {
+        return () => {
+        };
+      },
+      subscribeOnce: (event, handler) => {
+        return () => {
+        };
+      },
+      unsubscribe: (event, handler) => {
+      },
+      clear: () => {
+      },
+      getSubscriptionCount: (event) => {
+        return 0;
+      }
+    };
+    const aiService = {
+      async getCompletion(request) {
+        return await this.plugin.aiDispatcher.getCompletion(request.messages, request.options);
+      }
+    };
+    this.streamCoordinator = new StreamCoordinator(
+      this.plugin,
+      eventBus,
+      aiService
+    );
+    this.streamCoordinator.onUIStateChange((isStreaming) => {
+      this.syncStopSendButtonState(isStreaming);
+    });
     this.responseStreamer = new ResponseStreamer(
       this.plugin,
       this.agentResponseHandler,
@@ -25720,17 +26136,22 @@ var ChatView = class extends import_obsidian30.ItemView {
     this.addEventListenerWithCleanup(sendButton, "click", sendMessage);
     this.addEventListenerWithCleanup(stopButton, "click", () => {
       const myPlugin = this.plugin;
-      if (myPlugin.stopAllAIStreams && typeof myPlugin.stopAllAIStreams === "function") {
+      if (myPlugin.hasActiveAIStreams && myPlugin.hasActiveAIStreams()) {
+        this.plugin.debugLog("info", "[ChatView] Stop button clicked - stopping all active streams");
         myPlugin.stopAllAIStreams();
-      }
-      if (this.activeStream) {
-        this.activeStream.abort();
-        this.activeStream = null;
+      } else {
+        this.plugin.debugLog("info", "[ChatView] Stop button clicked - no active streams found");
+        if (this.activeStream) {
+          this.activeStream.abort();
+          this.activeStream = null;
+        }
+        showNotice("No active AI stream to end");
       }
       textarea.disabled = false;
       textarea.focus();
       stopButton.classList.add("hidden");
       sendButton.classList.remove("hidden");
+      this.plugin.debugLog("info", "[ChatView] Stop button clicked - UI state restored");
     });
   }
   setupInputHandler(ui) {
@@ -25823,6 +26244,10 @@ var ChatView = class extends import_obsidian30.ItemView {
     );
   }
   async onClose() {
+    if (this.uiSyncInterval) {
+      clearInterval(this.uiSyncInterval);
+      this.uiSyncInterval = null;
+    }
     if (this.activeStream) {
       this.activeStream.abort();
       this.activeStream = null;
@@ -25969,6 +26394,13 @@ var ChatView = class extends import_obsidian30.ItemView {
     }
   }
   async streamAssistantResponse(messages, container, originalTimestamp, originalContent) {
+    if (this.streamCoordinator) {
+      try {
+        return await this.streamCoordinatorResponse(messages, container);
+      } catch (error) {
+        this.plugin.debugLog("warn", "[ChatView] StreamCoordinator failed, falling back to ResponseStreamer:", error);
+      }
+    }
     if (!this.responseStreamer) {
       throw new Error("ResponseStreamer not initialized");
     }
@@ -25998,6 +26430,28 @@ var ChatView = class extends import_obsidian30.ItemView {
     }
     return responseContent;
   }
+  /**
+   * New streaming method using StreamCoordinator
+   */
+  async streamCoordinatorResponse(messages, container) {
+    if (!this.streamCoordinator) {
+      throw new Error("StreamCoordinator not initialized");
+    }
+    this.streamCoordinator.setActiveContainer(container);
+    const onChunk = async (chunk, fullContent) => {
+      const messageDiv = container.querySelector(".message-content");
+      if (messageDiv) {
+        messageDiv.textContent = fullContent;
+        this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+      }
+    };
+    const responseContent = await this.streamCoordinator.startStream(messages, {
+      temperature: this.plugin.settings.temperature,
+      uiContainer: container,
+      onChunk
+    });
+    return responseContent;
+  }
   clearMessages() {
     this.messagesContainer.empty();
     if (this.agentResponseHandler) {
@@ -26008,6 +26462,9 @@ var ChatView = class extends import_obsidian30.ItemView {
     this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
   }
   stopActiveStream() {
+    if (this.streamCoordinator) {
+      this.streamCoordinator.stopStream();
+    }
     if (this.activeStream) {
       this.activeStream.abort();
       this.activeStream = null;
@@ -26018,6 +26475,9 @@ var ChatView = class extends import_obsidian30.ItemView {
     }
   }
   hasActiveStream() {
+    if (this.streamCoordinator && this.streamCoordinator.isStreaming()) {
+      return true;
+    }
     if (this.activeStream !== null) {
       return true;
     }
@@ -26044,6 +26504,62 @@ var ChatView = class extends import_obsidian30.ItemView {
       parent
     }));
     this.domBatcher.addElements(operations);
+  }
+  /**
+   * Synchronizes the stop/send button state with global plugin stream state
+   */
+  startUIStateSynchronization() {
+    this.uiSyncInterval = setInterval(() => {
+      this.syncUIWithGlobalStreamState();
+    }, 500);
+  }
+  /**
+   * Synchronizes UI state with global plugin stream state
+   */
+  syncUIWithGlobalStreamState() {
+    if (!this.domElementCache.stopButton || !this.domElementCache.sendButton) {
+      return;
+    }
+    const hasGlobalStreams = this.plugin.hasActiveAIStreams && this.plugin.hasActiveAIStreams();
+    const stopButton = this.domElementCache.stopButton;
+    const sendButton = this.domElementCache.sendButton;
+    if (hasGlobalStreams) {
+      if (stopButton.classList.contains("hidden")) {
+        stopButton.classList.remove("hidden");
+        sendButton.classList.add("hidden");
+        this.plugin.debugLog("debug", "[ChatView] UI synchronized - showing stop button (global streams detected)");
+      }
+    } else {
+      if (!stopButton.classList.contains("hidden")) {
+        stopButton.classList.add("hidden");
+        sendButton.classList.remove("hidden");
+        this.plugin.debugLog("debug", "[ChatView] UI synchronized - showing send button (no global streams)");
+      }
+    }
+  }
+  /**
+   * Sync stop/send button state based on StreamCoordinator streaming state
+   */
+  syncStopSendButtonState(isStreaming) {
+    const stopButton = this.domElementCache.stopButton;
+    const sendButton = this.domElementCache.sendButton;
+    if (!stopButton || !sendButton) {
+      this.plugin.debugLog("warn", "[ChatView] Stop/send buttons not found in DOM cache");
+      return;
+    }
+    if (isStreaming) {
+      if (stopButton.classList.contains("hidden")) {
+        stopButton.classList.remove("hidden");
+        sendButton.classList.add("hidden");
+        this.plugin.debugLog("debug", "[ChatView] StreamCoordinator - showing stop button");
+      }
+    } else {
+      if (!stopButton.classList.contains("hidden")) {
+        stopButton.classList.add("hidden");
+        sendButton.classList.remove("hidden");
+        this.plugin.debugLog("debug", "[ChatView] StreamCoordinator - showing send button");
+      }
+    }
   }
 };
 
@@ -27703,7 +28219,39 @@ var _MyPlugin = class _MyPlugin extends import_obsidian35.Plugin {
     if (this.aiDispatcher && this.aiDispatcher.hasActiveStreams()) {
       return true;
     }
+    const chatLeaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_CHAT);
+    for (const leaf of chatLeaves) {
+      const chatView = leaf.view;
+      if (chatView && chatView.streamCoordinator) {
+        const streamCoordinator = chatView.streamCoordinator;
+        if (streamCoordinator.isStreaming()) {
+          return true;
+        }
+      }
+    }
     return false;
+  }
+  /**
+   * Get total count of active streams across all systems
+   * @returns number of active streams
+   */
+  getActiveStreamCount() {
+    let count = 0;
+    if (this.activeStream) {
+      count += 1;
+    }
+    if (this.aiDispatcher) {
+      count += this.aiDispatcher.getActiveStreamCount();
+    }
+    const chatLeaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_CHAT);
+    for (const leaf of chatLeaves) {
+      const chatView = leaf.view;
+      if (chatView && chatView.streamCoordinator) {
+        const streamCoordinator = chatView.streamCoordinator;
+        count += streamCoordinator.getActiveStreams().length;
+      }
+    }
+    return count;
   }
   /**
    * Stop all active AI streams across the plugin.
@@ -27718,6 +28266,22 @@ var _MyPlugin = class _MyPlugin extends import_obsidian35.Plugin {
     if (this.aiDispatcher) {
       this.aiDispatcher.abortAllStreams();
     }
+    const chatLeaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_CHAT);
+    chatLeaves.forEach((leaf) => {
+      const chatView = leaf.view;
+      if (chatView && chatView.streamCoordinator) {
+        const streamCoordinator = chatView.streamCoordinator;
+        if (streamCoordinator.isStreaming()) {
+          streamCoordinator.stopStream();
+        }
+      }
+    });
+    chatLeaves.forEach((leaf) => {
+      const chatView = leaf.view;
+      if (chatView && typeof chatView.stopActiveStream === "function") {
+        chatView.stopActiveStream();
+      }
+    });
     debugLog((_a2 = this.settings.debugMode) != null ? _a2 : false, "info", "[MyPlugin] All AI streams stopped");
   }
   /**

@@ -204,14 +204,14 @@ export function createChatUI(app: App, contentEl: HTMLElement): ChatUIElements {
         text: 'Stop',
     });
     stopButton.classList.add('hidden');
-    // --- Fix: Ensure stopButton is always clickable and visible when needed ---
+    // --- Ensure stopButton is always clickable and visible when needed ---
     stopButton.disabled = false;
     stopButton.style.pointerEvents = '';
     stopButton.tabIndex = 0;
     stopButton.onclick = null;
     stopButton.style.zIndex = '10';
     stopButton.title = 'Stop AI response';
-    // --- End fix ---
+    // -----
 
     // Help button (?)
     const helpButton = inputContainer.createEl('button', {

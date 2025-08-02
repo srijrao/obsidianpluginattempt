@@ -692,7 +692,13 @@ export class AIDispatcher {
 
                 // Create abort controller for this request
                 const streamId = Math.random().toString(36).substr(2, 9);
-                abortController = new AbortController();
+                
+                // Use provided abortController if available, otherwise create new one
+                if (options.abortController) {
+                    abortController = options.abortController;
+                } else {
+                    abortController = new AbortController();
+                }
                 this.activeStreams.set(streamId, abortController);
 
                 // Prepare request data for logging

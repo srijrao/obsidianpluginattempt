@@ -26,12 +26,13 @@ interface ContinuationParams {
  */
 export class ResponseStreamer {
     private messageRenderer: MessageRenderer;
+    private streamId: string | null = null;
 
     /**
      * @param plugin The main plugin instance (for settings, logging, etc.)
      * @param agentResponseHandler Handler for agent responses and tool execution (null if agent mode is off)
      * @param messagesContainer The container element for chat messages
-     * @param activeStream The current AbortController for streaming (shared reference)
+     * @param activeStream The current AbortController for streaming (shared reference) - may be updated by this class
      * @param component Optional parent component for Markdown rendering context
      */
     constructor(
@@ -63,15 +64,20 @@ export class ResponseStreamer {
     ): Promise<string> {
         this.plugin.debugLog('info', '[ResponseStreamer] streamAssistantResponse called', { messages, originalTimestamp });
         let responseContent = '';
-        // Create a new AbortController for this stream
-        this.activeStream = new AbortController();
-
+        
+        // Create a bridge AbortController to maintain compatibility with legacy stop button
+        const bridgeController = new AbortController();
+        this.activeStream = bridgeController; // Update the shared reference for legacy compatibility
+        this.plugin.debugLog('info', '[ResponseStreamer] Created bridge AbortController', { streamId: this.streamId });
+        
+        // Use AIDispatcher's stream management with centralized abort control
+        const aiDispatcher = new AIDispatcher(this.plugin.app.vault, this.plugin);
+        this.streamId = Math.random().toString(36).substr(2, 9); // Generate unique stream ID
+        
         // Add agent system prompt if agent mode is enabled
         await this.addAgentSystemPrompt(messages);
 
         try {
-            // Use AIDispatcher for all completions
-            const aiDispatcher = new AIDispatcher(this.plugin.app.vault, this.plugin);
             await aiDispatcher.getCompletion(messages, {
                 temperature: this.plugin.settings.temperature,
                 streamCallback: async (chunk: string) => {
@@ -79,7 +85,7 @@ export class ResponseStreamer {
                     // Update the UI with the streamed chunk
                     await this.updateMessageContent(container, responseContent);
                 },
-                abortController: this.activeStream || undefined
+                abortController: bridgeController // Pass our bridge controller to AIDispatcher
             });
 
             // If agent mode is enabled, process the full response for tools/reasoning
@@ -98,7 +104,17 @@ export class ResponseStreamer {
         } finally {
             // Hide task progress indicator when streaming finishes (either success or error)
             this.agentResponseHandler?.hideTaskProgress();
+            // Clear stream ID and activeStream reference
+            this.streamId = null;
+            this.activeStream = null;
         }
+    }
+
+    /**
+     * Check if this ResponseStreamer has an active stream
+     */
+    isStreaming(): boolean {
+        return this.streamId !== null;
     }
 
     /**

@@ -152,6 +152,20 @@ export class ChatEventCoordinator implements IChatEventCoordinator {
      * Handles stopping the current stream
      */
     handleStopStream(): void {
+        if (!this.streamCoordinator.isStreaming()) {
+            // Show feedback if stop is pressed but nothing is running
+            if (this.uiManager && typeof (window as any).Notice === 'function') {
+                new (window as any).Notice('No stream is currently running.');
+            } else {
+                // Fallback: log to console
+                console.info('[AI Assistant] Stop pressed, but no stream is running.');
+            }
+            this.eventBus.publish('chat.stream.stop_ignored', {
+                reason: 'No stream running',
+                timestamp: Date.now()
+            });
+            return;
+        }
         this.streamCoordinator.stopStream();
         this.uiManager.updateStreamingState(false);
         this.uiManager.hideTypingIndicator();

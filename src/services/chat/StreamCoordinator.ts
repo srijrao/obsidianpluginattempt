@@ -16,6 +16,8 @@ export interface StreamOptions {
     maxTokens?: number;
     stopSequences?: string[];
     timeout?: number;
+    uiContainer?: HTMLElement;
+    onChunk?: (chunk: string, fullContent: string) => Promise<void>;
 }
 
 export interface StreamState {
@@ -36,6 +38,8 @@ export class StreamCoordinator implements IStreamCoordinator {
         totalChunks: 0,
         totalCharacters: 0
     };
+    private uiUpdateCallbacks = new Set<(isStreaming: boolean) => void>();
+    private activeContainer: HTMLElement | null = null;
 
     constructor(
         private plugin: MyPlugin,
@@ -46,16 +50,69 @@ export class StreamCoordinator implements IStreamCoordinator {
     }
 
     /**
+     * Register a UI update callback for stream state changes
+     */
+    onUIStateChange(callback: (isStreaming: boolean) => void): void {
+        this.uiUpdateCallbacks.add(callback);
+    }
+
+    /**
+     * Unregister a UI update callback
+     */
+    offUIStateChange(callback: (isStreaming: boolean) => void): void {
+        this.uiUpdateCallbacks.delete(callback);
+    }
+
+    /**
+     * Set the active UI container for stream updates
+     */
+    setActiveContainer(container: HTMLElement | null): void {
+        this.activeContainer = container;
+    }
+
+    /**
+     * Get the current active container
+     */
+    getActiveContainer(): HTMLElement | null {
+        return this.activeContainer;
+    }
+
+    /**
+     * Notify all UI callbacks of stream state change
+     */
+    private notifyUIStateChange(): void {
+        const isStreaming = this.streamState.isStreaming;
+        this.uiUpdateCallbacks.forEach(callback => {
+            try {
+                callback(isStreaming);
+            } catch (error) {
+                console.error('Error in UI state change callback:', error);
+            }
+        });
+    }
+
+    /**
      * Starts a new streaming response
      */
     async startStream(messages: Message[], options: StreamOptions = {}): Promise<string> {
         if (this.streamState.isStreaming) {
+            // Defensive: If a stream is still cleaning up, prevent new streams (agent mode safety)
+            this.eventBus.publish('stream.start_blocked', {
+                reason: 'A stream is already active or cleaning up.',
+                timestamp: Date.now()
+            });
             throw new Error('A stream is already active. Stop the current stream before starting a new one.');
         }
 
         const streamId = this.generateStreamId();
         const abortController = new AbortController();
-        
+        let aborted = false;
+
+        // Set UI container if provided
+        if (options.uiContainer) {
+            this.setActiveContainer(options.uiContainer);
+        }
+
         this.activeStreams.set(streamId, abortController);
         this.updateStreamState({
             isStreaming: true,
@@ -63,6 +120,14 @@ export class StreamCoordinator implements IStreamCoordinator {
             startTime: Date.now(),
             totalChunks: 0,
             totalCharacters: 0
+        });
+
+        // Notify UI of stream start
+        this.notifyUIStateChange();
+
+        // Defensive: mark aborted if abortController is triggered
+        abortController.signal.addEventListener('abort', () => {
+            aborted = true;
         });
 
         try {
@@ -81,15 +146,24 @@ export class StreamCoordinator implements IStreamCoordinator {
             let fullResponse = '';
             let chunkCount = 0;
 
-            const streamCallback = (chunk: string) => {
+            const streamCallback = async (chunk: string) => {
+                if (aborted) return; // Defensive: ignore chunks after abort
                 fullResponse += chunk;
                 chunkCount++;
-                
                 this.updateStreamState({
                     ...this.streamState,
                     totalChunks: chunkCount,
                     totalCharacters: fullResponse.length
                 });
+
+                // Call custom UI update callback if provided
+                if (options.onChunk) {
+                    try {
+                        await options.onChunk(chunk, fullResponse);
+                    } catch (error) {
+                        console.error('Error in custom chunk callback:', error);
+                    }
+                }
 
                 this.eventBus.publish('stream.chunk', {
                     streamId,
@@ -125,7 +199,6 @@ export class StreamCoordinator implements IStreamCoordinator {
 
         } catch (error: any) {
             const duration = this.streamState.startTime ? Date.now() - this.streamState.startTime : 0;
-            
             if (error.name === 'AbortError') {
                 this.eventBus.publish('stream.aborted', {
                     streamId,
@@ -141,9 +214,7 @@ export class StreamCoordinator implements IStreamCoordinator {
                     timestamp: Date.now()
                 });
             }
-
             throw error;
-
         } finally {
             this.cleanupStream(streamId);
         }
@@ -300,6 +371,8 @@ export class StreamCoordinator implements IStreamCoordinator {
                 currentStreamId: undefined,
                 startTime: undefined
             });
+            // Notify UI of stream end
+            this.notifyUIStateChange();
         }
     }
 
@@ -361,6 +434,9 @@ export class StreamCoordinator implements IStreamCoordinator {
         for (const streamId of streamIds) {
             this.abortStream(streamId);
         }
+
+        // Ensure UI is notified even if no streams were active
+        this.notifyUIStateChange();
 
         this.eventBus.publish('stream.all_aborted', {
             abortedCount: streamIds.length,

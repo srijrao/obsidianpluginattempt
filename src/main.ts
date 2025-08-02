@@ -443,7 +443,47 @@ export default class MyPlugin extends Plugin {
             return true;
         }
         
+        // Check ChatView StreamCoordinators (new system)
+        const chatLeaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_CHAT);
+        for (const leaf of chatLeaves) {
+            const chatView = leaf.view as ChatView;
+            if (chatView && (chatView as any).streamCoordinator) {
+                const streamCoordinator = (chatView as any).streamCoordinator;
+                if (streamCoordinator.isStreaming()) {
+                    return true;
+                }
+            }
+        }
+        
         return false;
+    }
+
+    /**
+     * Get total count of active streams across all systems
+     * @returns number of active streams
+     */
+    getActiveStreamCount(): number {
+        let count = 0;
+        
+        if (this.activeStream) {
+            count += 1;
+        }
+        
+        if (this.aiDispatcher) {
+            count += this.aiDispatcher.getActiveStreamCount();
+        }
+        
+        // Count StreamCoordinator streams (new system)
+        const chatLeaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_CHAT);
+        for (const leaf of chatLeaves) {
+            const chatView = leaf.view as ChatView;
+            if (chatView && (chatView as any).streamCoordinator) {
+                const streamCoordinator = (chatView as any).streamCoordinator;
+                count += streamCoordinator.getActiveStreams().length;
+            }
+        }
+        
+        return count;
     }
 
     /**
@@ -461,6 +501,26 @@ export default class MyPlugin extends Plugin {
         if (this.aiDispatcher) {
             this.aiDispatcher.abortAllStreams();
         }
+        
+        // Stop StreamCoordinator streams (new system)
+        const chatLeaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_CHAT);
+        chatLeaves.forEach((leaf) => {
+            const chatView = leaf.view as ChatView;
+            if (chatView && (chatView as any).streamCoordinator) {
+                const streamCoordinator = (chatView as any).streamCoordinator;
+                if (streamCoordinator.isStreaming()) {
+                    streamCoordinator.stopStream();
+                }
+            }
+        });
+        
+        // Defensive: Also directly stop any ChatView streams
+        chatLeaves.forEach((leaf) => {
+            const chatView = leaf.view as ChatView;
+            if (chatView && typeof chatView.stopActiveStream === 'function') {
+                chatView.stopActiveStream();
+            }
+        });
         
         debugLog(this.settings.debugMode ?? false, 'info', '[MyPlugin] All AI streams stopped');
     }

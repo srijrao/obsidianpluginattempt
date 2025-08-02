@@ -272,6 +272,7 @@ export class ChatUIManager implements IChatUIManager {
     updateStreamingState(isStreaming: boolean): void {
         this.uiState.isStreaming = isStreaming;
 
+
         if (!this.uiElements) return;
 
         const sendButton = this.uiElements.sendButton;
@@ -280,11 +281,17 @@ export class ChatUIManager implements IChatUIManager {
 
         if (isStreaming) {
             sendButton?.classList.add('hidden');
-            stopButton?.classList.remove('hidden');
+            if (stopButton) {
+                stopButton.classList.remove('hidden');
+                stopButton.disabled = false;
+            }
             if (textarea) textarea.disabled = true;
         } else {
             sendButton?.classList.remove('hidden');
-            stopButton?.classList.add('hidden');
+            if (stopButton) {
+                stopButton.classList.add('hidden');
+                stopButton.disabled = true;
+            }
             if (textarea) {
                 textarea.disabled = false;
                 textarea.focus();
