@@ -53,6 +53,7 @@ export class ChatView extends ItemView {
     private messageRegenerator: MessageRegenerator | null = null;
     private responseStreamer: ResponseStreamer | null = null; // Keep for backward compatibility during transition
     private streamCoordinator: StreamCoordinator | null = null;
+    private deferredStreamCoordinatorInit: (() => void) | null = null;
     private messageRenderer: MessageRenderer;
     private messagePool: MessageContextPool;
     private domCache: WeakCache<HTMLElement, any>;
@@ -84,8 +85,16 @@ export class ChatView extends ItemView {
     // Priority 2 Optimization: Async optimization
     private scrollDebouncer: AsyncDebouncer<void>;
     private updateDebouncer: AsyncDebouncer<void>;
-    // UI state synchronization
-    private uiSyncInterval: NodeJS.Timeout | null = null;
+    // Centralized stream state management
+    private centralStreamState: {
+        isStreaming: boolean;
+        streamSource: 'coordinator' | 'legacy' | null;
+        lastUpdate: number;
+    } = {
+        isStreaming: false,
+        streamSource: null,
+        lastUpdate: 0
+    };
     constructor(leaf: WorkspaceLeaf, plugin: MyPlugin) {
         super(leaf);
         this.plugin = plugin;
@@ -100,8 +109,8 @@ export class ChatView extends ItemView {
         this.scrollDebouncer = AsyncOptimizerFactory.createInputDebouncer();
         this.updateDebouncer = AsyncOptimizerFactory.createInputDebouncer();
         
-        // Start UI state synchronization with global plugin state
-        this.startUIStateSynchronization();
+        // Initialize centralized stream state management
+        this.initializeCentralizedStreamState();
     }
     private addEventListenerWithCleanup(element: HTMLElement, event: string, handler: EventListener): void {
         element.addEventListener(event, handler);
@@ -141,6 +150,7 @@ export class ChatView extends ItemView {
         this.setupEventHandlers(ui);
         this.setupAgentResponseHandler();
         this.setupResponseStreamerAndRegenerator();
+        this.initializeStreamCoordinatorIfReady(); // Initialize StreamCoordinator if aiDispatcher is ready
         this.setupAgentModeButton();
         this.setupSendAndStopButtons();
         this.setupInputHandler(ui);
@@ -257,24 +267,104 @@ export class ChatView extends ItemView {
         };
 
         // Create minimal AI service wrapper using existing AIDispatcher
+        // FIX: Bind `this` properly and handle the aiDispatcher reference correctly
+        const self = this; // Capture `this` reference for closure
         const aiService = {
             async getCompletion(request: any): Promise<string> {
-                // Use existing plugin AIDispatcher for now
-                return await this.plugin.aiDispatcher.getCompletion(request.messages, request.options);
+                // DIAGNOSTIC: Add comprehensive logging to debug aiDispatcher issue
+                self.plugin.debugLog('debug', '[ChatView] aiService.getCompletion called', {
+                    hasPlugin: !!self.plugin,
+                    hasAiDispatcher: !!self.plugin?.aiDispatcher,
+                    aiDispatcherType: typeof self.plugin?.aiDispatcher,
+                    requestMessages: request?.messages?.length || 0,
+                    requestOptions: !!request?.options
+                });
+                
+                // Enhanced safety check with detailed error information
+                if (!self.plugin) {
+                    const error = new Error('Plugin instance is null/undefined in aiService.getCompletion');
+                    console.error('[ChatView] Plugin instance missing', error);
+                    throw error;
+                }
+                
+                if (!self.plugin.aiDispatcher) {
+                    const error = new Error('AIDispatcher not initialized yet - this is the root cause of the stop button issue');
+                    self.plugin.debugLog('error', '[ChatView] AIDispatcher missing when getCompletion called', {
+                        error,
+                        pluginExists: !!self.plugin,
+                        aiDispatcherExists: !!self.plugin.aiDispatcher,
+                        stackTrace: new Error().stack
+                    });
+                    throw error;
+                }
+                
+                self.plugin.debugLog('debug', '[ChatView] About to call aiDispatcher.getCompletion', {
+                    aiDispatcherMethods: Object.getOwnPropertyNames(self.plugin.aiDispatcher),
+                    messagesCount: request.messages?.length
+                });
+                
+                // FIX: The aiDispatcher.getCompletion returns Promise<void>, but we need to return the response
+                // We need to capture the response from the streamCallback using a Promise-based approach
+                return new Promise<string>((resolve, reject) => {
+                    let fullResponse = '';
+                    let hasResolved = false;
+                    const originalStreamCallback = request.options?.streamCallback;
+                    
+                    // Wrap the stream callback to capture the full response
+                    const wrappedOptions = {
+                        ...request.options,
+                        streamCallback: (chunk: string) => {
+                            fullResponse += chunk;
+                            if (originalStreamCallback) {
+                                originalStreamCallback(chunk);
+                            }
+                        },
+                        // Add completion callback to properly resolve the Promise
+                        onComplete: () => {
+                            if (!hasResolved) {
+                                hasResolved = true;
+                                self.plugin.debugLog('debug', '[ChatView] aiService.getCompletion completed', {
+                                    responseLength: fullResponse.length,
+                                    responsePreview: fullResponse.substring(0, 100)
+                                });
+                                resolve(fullResponse);
+                            }
+                        },
+                        onError: (error: Error) => {
+                            if (!hasResolved) {
+                                hasResolved = true;
+                                self.plugin.debugLog('error', '[ChatView] aiService.getCompletion failed', error);
+                                reject(error);
+                            }
+                        }
+                    };
+                    
+                    // Call aiDispatcher.getCompletion with wrapped options
+                    // We already validated aiDispatcher exists above, so this is safe
+                    self.plugin.aiDispatcher!.getCompletion(request.messages, wrappedOptions)
+                        .then(() => {
+                            // If aiDispatcher completes but onComplete wasn't called, resolve with what we have
+                            if (!hasResolved) {
+                                hasResolved = true;
+                                self.plugin.debugLog('debug', '[ChatView] aiDispatcher completed without onComplete callback', {
+                                    responseLength: fullResponse.length
+                                });
+                                resolve(fullResponse);
+                            }
+                        })
+                        .catch((error) => {
+                            if (!hasResolved) {
+                                hasResolved = true;
+                                self.plugin.debugLog('error', '[ChatView] aiDispatcher.getCompletion rejected', error);
+                                reject(error);
+                            }
+                        });
+                });
             }
         };
 
-        // Initialize StreamCoordinator
-        this.streamCoordinator = new StreamCoordinator(
-            this.plugin,
-            eventBus,
-            aiService as any
-        );
-
-        // Set up UI state callback
-        this.streamCoordinator.onUIStateChange((isStreaming: boolean) => {
-            this.syncStopSendButtonState(isStreaming);
-        });
+        // Initialize StreamCoordinator with dependency validation and retry mechanism
+        this.initializeStreamCoordinatorWithRetry(eventBus, aiService);
 
         // Keep ResponseStreamer for backward compatibility during transition
         this.responseStreamer = new ResponseStreamer(
@@ -292,6 +382,69 @@ export class ChatView extends ItemView {
             this.agentResponseHandler,
             this.activeStream
         );
+    }
+
+    /**
+     * Initialize StreamCoordinator with dependency validation and retry mechanism
+     */
+    private async initializeStreamCoordinatorWithRetry(eventBus: any, aiService: any, maxRetries: number = 3): Promise<void> {
+        let retryCount = 0;
+        
+        while (retryCount < maxRetries && !this.streamCoordinator) {
+            try {
+                // Validate dependencies
+                if (!this.plugin.aiDispatcher) {
+                    throw new Error('AIDispatcher not available');
+                }
+                
+                this.plugin.debugLog('info', `[ChatView] Initializing StreamCoordinator (attempt ${retryCount + 1}/${maxRetries}) - aiDispatcher available`);
+                
+                this.streamCoordinator = new StreamCoordinator(
+                    this.plugin,
+                    eventBus,
+                    aiService as any
+                );
+
+                // Set up UI state callback
+                this.streamCoordinator.onUIStateChange((isStreaming: boolean) => {
+                    this.onStreamCoordinatorStateChange(isStreaming);
+                });
+                
+                this.plugin.debugLog('info', '[ChatView] StreamCoordinator initialized successfully');
+                return; // Success, exit retry loop
+                
+            } catch (error) {
+                retryCount++;
+                this.plugin.debugLog('warn', `[ChatView] StreamCoordinator initialization failed (attempt ${retryCount}/${maxRetries}):`, error);
+                
+                if (retryCount < maxRetries) {
+                    // Wait before retrying (exponential backoff)
+                    const delay = Math.min(100 * Math.pow(2, retryCount - 1), 1000);
+                    this.plugin.debugLog('info', `[ChatView] Retrying StreamCoordinator initialization in ${delay}ms`);
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                } else {
+                    this.plugin.debugLog('error', '[ChatView] StreamCoordinator initialization failed after all retries, setting up deferred initialization');
+                    // Set up deferred initialization as fallback
+                    this.deferredStreamCoordinatorInit = () => {
+                        this.initializeStreamCoordinatorWithRetry(eventBus, aiService, 1); // Single retry for deferred
+                    };
+                }
+            }
+        }
+    }
+
+    private initializeStreamCoordinatorIfReady() {
+        // If StreamCoordinator is not yet initialized and aiDispatcher is now ready
+        if (!this.streamCoordinator && this.plugin.aiDispatcher && this.deferredStreamCoordinatorInit) {
+            this.plugin.debugLog('info', '[ChatView] Initializing StreamCoordinator - aiDispatcher is now ready');
+            this.deferredStreamCoordinatorInit();
+            this.deferredStreamCoordinatorInit = null; // Clear the deferred init
+        } else if (!this.streamCoordinator) {
+            this.plugin.debugLog('debug', '[ChatView] StreamCoordinator not ready yet', {
+                hasAiDispatcher: !!this.plugin.aiDispatcher,
+                hasDeferredInit: !!this.deferredStreamCoordinatorInit
+            });
+        }
     }
 
     private setupAgentModeButton() {
@@ -423,31 +576,7 @@ export class ChatView extends ItemView {
         };
         this.addEventListenerWithCleanup(sendButton, 'click', sendMessage);
         this.addEventListenerWithCleanup(stopButton, 'click', () => {
-            const myPlugin = this.plugin as any;
-            
-            // Use the same logic as the stop command for consistency
-            if (myPlugin.hasActiveAIStreams && myPlugin.hasActiveAIStreams()) {
-                this.plugin.debugLog('info', '[ChatView] Stop button clicked - stopping all active streams');
-                myPlugin.stopAllAIStreams();
-                // Don't show notice here as user can see the UI change
-            } else {
-                this.plugin.debugLog('info', '[ChatView] Stop button clicked - no active streams found');
-                // Fallback to legacy behavior for immediate UI response
-                if (this.activeStream) {
-                    this.activeStream.abort();
-                    this.activeStream = null;
-                }
-                // Show notice that nothing was running (like the command does)
-                showNotice('No active AI stream to end');
-            }
-            
-            // Always restore UI state when stop is pressed
-            textarea.disabled = false;
-            textarea.focus();
-            stopButton.classList.add('hidden');
-            sendButton.classList.remove('hidden');
-            
-            this.plugin.debugLog('info', '[ChatView] Stop button clicked - UI state restored');
+            this.handleStopButtonClick();
         });
     }
 
@@ -543,12 +672,6 @@ export class ChatView extends ItemView {
         );
     }
     async onClose() {
-        // Clean up UI sync interval
-        if (this.uiSyncInterval) {
-            clearInterval(this.uiSyncInterval);
-            this.uiSyncInterval = null;
-        }
-        
         if (this.activeStream) {
             this.activeStream.abort();
             this.activeStream = null;
@@ -711,6 +834,9 @@ export class ChatView extends ItemView {
         originalTimestamp?: string,
         originalContent?: string
     ): Promise<string> {
+        // Try to initialize StreamCoordinator if it's not ready yet
+        this.initializeStreamCoordinatorIfReady();
+        
         // Try to use StreamCoordinator first (new system)
         if (this.streamCoordinator) {
             try {
@@ -794,37 +920,92 @@ export class ChatView extends ItemView {
     public scrollMessagesToBottom() {
         this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
     }
-    stopActiveStream(): void {
-        // Try StreamCoordinator first (new system)
-        if (this.streamCoordinator) {
-            this.streamCoordinator.stopStream();
-        }
+    /**
+     * Consolidated stop button click handler
+     */
+    private handleStopButtonClick(): void {
+        this.plugin.debugLog('info', '[ChatView] Stop button clicked - stopping all active streams');
+        
+        // Use centralized stop logic
+        this.stopAllActiveStreams();
+        
+        // Always restore UI state when stop is pressed
+        this.restoreUIAfterStop();
+        
+        this.plugin.debugLog('info', '[ChatView] Stop button clicked - UI state restored');
+    }
 
-        // Legacy system cleanup
+    /**
+     * Centralized method to stop all active streams
+     */
+    private stopAllActiveStreams(): void {
+        let streamsStopped = false;
+        
+        // Try StreamCoordinator first (preferred system)
+        if (this.streamCoordinator && this.streamCoordinator.isStreaming()) {
+            this.plugin.debugLog('info', '[ChatView] Stopping StreamCoordinator stream');
+            this.streamCoordinator.stopStream();
+            streamsStopped = true;
+        }
+        
+        // Stop legacy streams
         if (this.activeStream) {
+            this.plugin.debugLog('info', '[ChatView] Stopping legacy activeStream');
             this.activeStream.abort();
             this.activeStream = null;
+            streamsStopped = true;
         }
+        
+        // Stop global plugin streams
         const myPlugin = this.plugin as any;
-        if (myPlugin.aiDispatcher && typeof myPlugin.aiDispatcher.abortAllStreams === 'function') {
-            myPlugin.aiDispatcher.abortAllStreams();
+        if (myPlugin.hasActiveAIStreams && myPlugin.hasActiveAIStreams()) {
+            this.plugin.debugLog('info', '[ChatView] Stopping global plugin streams');
+            myPlugin.stopAllAIStreams();
+            streamsStopped = true;
+        }
+        
+        // Update central state immediately
+        this.centralStreamState = {
+            isStreaming: false,
+            streamSource: null,
+            lastUpdate: Date.now()
+        };
+        
+        if (!streamsStopped) {
+            this.plugin.debugLog('info', '[ChatView] No active streams found to stop');
+            showNotice('No active AI stream to end');
         }
     }
-    hasActiveStream(): boolean {
-        // Check StreamCoordinator first (new system)
-        if (this.streamCoordinator && this.streamCoordinator.isStreaming()) {
-            return true;
-        }
 
-        // Legacy checks
-        if (this.activeStream !== null) {
-            return true;
+    /**
+     * Restore UI state after stopping streams
+     */
+    private restoreUIAfterStop(): void {
+        const textarea = this.domElementCache.textarea;
+        const sendButton = this.domElementCache.sendButton;
+        const stopButton = this.domElementCache.stopButton;
+        
+        if (textarea) {
+            textarea.disabled = false;
+            textarea.focus();
         }
-        const myPlugin = this.plugin as any;
-        if (myPlugin.aiDispatcher && typeof myPlugin.aiDispatcher.hasActiveStreams === 'function') {
-            return myPlugin.aiDispatcher.hasActiveStreams();
+        
+        if (stopButton && sendButton) {
+            stopButton.classList.add('hidden');
+            sendButton.classList.remove('hidden');
         }
-        return false;
+        
+        // Force UI sync with central state
+        this.syncUIWithCentralState();
+    }
+
+    stopActiveStream(): void {
+        // Use the consolidated stop logic
+        this.stopAllActiveStreams();
+    }
+    hasActiveStream(): boolean {
+        // Use centralized stream state as single source of truth
+        return this.centralStreamState.isStreaming;
     }
 
     /**
@@ -849,70 +1030,111 @@ export class ChatView extends ItemView {
     }
 
     /**
-     * Synchronizes the stop/send button state with global plugin stream state
+     * Initialize centralized stream state management
      */
-    private startUIStateSynchronization(): void {
-        // Check global stream state every 500ms and update UI accordingly
-        this.uiSyncInterval = setInterval(() => {
-            this.syncUIWithGlobalStreamState();
-        }, 500);
-    }
-
-    /**
-     * Synchronizes UI state with global plugin stream state
-     */
-    private syncUIWithGlobalStreamState(): void {
-        if (!this.domElementCache.stopButton || !this.domElementCache.sendButton) {
-            return; // UI not initialized yet
-        }
-
-        const hasGlobalStreams = (this.plugin as any).hasActiveAIStreams && (this.plugin as any).hasActiveAIStreams();
-        const stopButton = this.domElementCache.stopButton;
-        const sendButton = this.domElementCache.sendButton;
+    private initializeCentralizedStreamState(): void {
+        this.plugin.debugLog('info', '[ChatView] Initializing centralized stream state management');
         
-        if (hasGlobalStreams) {
-            // Show stop button, hide send button
-            if (stopButton.classList.contains('hidden')) {
-                stopButton.classList.remove('hidden');
-                sendButton.classList.add('hidden');
-                this.plugin.debugLog('debug', '[ChatView] UI synchronized - showing stop button (global streams detected)');
-            }
-        } else {
-            // Show send button, hide stop button
-            if (!stopButton.classList.contains('hidden')) {
-                stopButton.classList.add('hidden');
-                sendButton.classList.remove('hidden');
-                this.plugin.debugLog('debug', '[ChatView] UI synchronized - showing send button (no global streams)');
-            }
+        // Set up periodic state synchronization (less frequent, more efficient)
+        setInterval(() => {
+            this.updateCentralStreamState();
+        }, 250); // Reduced from 500ms for better responsiveness
+    }
+
+    /**
+     * Update central stream state from all sources
+     */
+    private updateCentralStreamState(): void {
+        const previousState = { ...this.centralStreamState };
+        let isStreaming = false;
+        let streamSource: 'coordinator' | 'legacy' | null = null;
+
+        // Check StreamCoordinator first (preferred)
+        if (this.streamCoordinator && this.streamCoordinator.isStreaming()) {
+            isStreaming = true;
+            streamSource = 'coordinator';
+        }
+        // Check legacy systems as fallback
+        else if (this.hasLegacyActiveStreams()) {
+            isStreaming = true;
+            streamSource = 'legacy';
+        }
+
+        // Update state if changed
+        if (isStreaming !== previousState.isStreaming || streamSource !== previousState.streamSource) {
+            this.centralStreamState = {
+                isStreaming,
+                streamSource,
+                lastUpdate: Date.now()
+            };
+
+            this.plugin.debugLog('debug', '[ChatView] Central stream state updated', {
+                isStreaming,
+                streamSource,
+                previousState: previousState.isStreaming
+            });
+
+            // Update UI based on new state
+            this.syncUIWithCentralState();
         }
     }
 
     /**
-     * Sync stop/send button state based on StreamCoordinator streaming state
+     * Check for legacy active streams
      */
-    private syncStopSendButtonState(isStreaming: boolean): void {
+    private hasLegacyActiveStreams(): boolean {
+        // Check legacy activeStream
+        if (this.activeStream) {
+            return true;
+        }
+        
+        // Check global plugin streams
+        const hasGlobalStreams = (this.plugin as any).hasActiveAIStreams && (this.plugin as any).hasActiveAIStreams();
+        return hasGlobalStreams;
+    }
+
+    /**
+     * Sync UI with central stream state (single source of truth)
+     */
+    private syncUIWithCentralState(): void {
         const stopButton = this.domElementCache.stopButton;
         const sendButton = this.domElementCache.sendButton;
         
         if (!stopButton || !sendButton) {
-            this.plugin.debugLog('warn', '[ChatView] Stop/send buttons not found in DOM cache');
-            return;
+            return; // UI not initialized yet
         }
+
+        const { isStreaming, streamSource } = this.centralStreamState;
         
         if (isStreaming) {
             // Show stop button, hide send button
             if (stopButton.classList.contains('hidden')) {
                 stopButton.classList.remove('hidden');
                 sendButton.classList.add('hidden');
-                this.plugin.debugLog('debug', '[ChatView] StreamCoordinator - showing stop button');
+                this.plugin.debugLog('debug', `[ChatView] Central state - showing stop button (source: ${streamSource})`);
             }
         } else {
             // Show send button, hide stop button
             if (!stopButton.classList.contains('hidden')) {
                 stopButton.classList.add('hidden');
                 sendButton.classList.remove('hidden');
-                this.plugin.debugLog('debug', '[ChatView] StreamCoordinator - showing send button');
+                this.plugin.debugLog('debug', '[ChatView] Central state - showing send button (no active streams)');
             }
         }
+    }
+
+    /**
+     * Simplified callback for StreamCoordinator state changes
+     */
+    private onStreamCoordinatorStateChange(isStreaming: boolean): void {
+        // Force immediate state update when StreamCoordinator changes
+        this.centralStreamState = {
+            isStreaming,
+            streamSource: isStreaming ? 'coordinator' : null,
+            lastUpdate: Date.now()
+        };
+        
+        this.plugin.debugLog('debug', '[ChatView] StreamCoordinator state change', { isStreaming });
+        this.syncUIWithCentralState();
     }
 }

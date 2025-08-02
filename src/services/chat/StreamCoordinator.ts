@@ -46,7 +46,34 @@ export class StreamCoordinator implements IStreamCoordinator {
         private eventBus: IEventBus,
         private aiService: AIService
     ) {
+        // Validate dependencies during construction
+        this.validateDependencies();
         this.setupEventListeners();
+        
+        this.plugin.debugLog('info', '[StreamCoordinator] Initialized successfully with all dependencies');
+    }
+
+    /**
+     * Validate that all required dependencies are available
+     */
+    private validateDependencies(): void {
+        if (!this.plugin) {
+            throw new Error('StreamCoordinator: Plugin instance is required');
+        }
+        
+        if (!this.plugin.aiDispatcher) {
+            throw new Error('StreamCoordinator: AIDispatcher is not available on plugin instance');
+        }
+        
+        if (!this.eventBus) {
+            throw new Error('StreamCoordinator: EventBus is required');
+        }
+        
+        if (!this.aiService) {
+            throw new Error('StreamCoordinator: AIService is required');
+        }
+        
+        this.plugin.debugLog('debug', '[StreamCoordinator] All dependencies validated successfully');
     }
 
     /**

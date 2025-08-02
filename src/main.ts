@@ -178,6 +178,11 @@ export default class MyPlugin extends Plugin {
             debugLog(this.settings.debugMode ?? false, 'error', '[main.ts] Failed to get vault path:', error);
         }
 
+        // CRITICAL: Initialize central AI dispatcher FIRST - before any views that depend on it
+        debugLog(this.settings.debugMode ?? false, 'info', '[main.ts] Initializing AIDispatcher early to prevent race conditions');
+        this.aiDispatcher = new AIDispatcher(this.app.vault, this);
+        debugLog(this.settings.debugMode ?? false, 'info', '[main.ts] AIDispatcher initialized successfully');
+
         // Compute the plugin data path for storing backups
         const pluginDataPath = this.app.vault.configDir + '/plugins/ai-assistant-for-obsidian';
         this.backupManager = new BackupManager(this.app, pluginDataPath);
@@ -193,9 +198,6 @@ export default class MyPlugin extends Plugin {
             (level, ...args) => debugLog(this.settings.debugMode ?? false, level, ...args) // Changed from log to debugLog
         );
         
-        // Initialize central AI dispatcher for managing all AI requests and streams
-        this.aiDispatcher = new AIDispatcher(this.app.vault, this);
-        
         // Initialize Priority 3 optimizations (dependency injection, state management, stream management)
         this.priority3Manager = new Priority3IntegrationManager(this);
         await this.priority3Manager.initialize();
@@ -208,7 +210,8 @@ export default class MyPlugin extends Plugin {
         // Add the plugin's settings tab to Obsidian's settings UI
         this.addSettingTab(new MyPluginSettingTab(this.app, this));
 
-        // Register custom views for chat
+        // Register custom views for chat - aiDispatcher is now guaranteed to be available
+        debugLog(this.settings.debugMode ?? false, 'info', '[main.ts] Registering ChatView - aiDispatcher is ready');
         this.registerPluginView(VIEW_TYPE_CHAT, (leaf) => new ChatView(leaf, this));
 
         // Register all commands using the new centralized function

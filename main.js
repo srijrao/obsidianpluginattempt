@@ -25364,7 +25364,27 @@ var StreamCoordinator = class {
     });
     __publicField(this, "uiUpdateCallbacks", /* @__PURE__ */ new Set());
     __publicField(this, "activeContainer", null);
+    this.validateDependencies();
     this.setupEventListeners();
+    this.plugin.debugLog("info", "[StreamCoordinator] Initialized successfully with all dependencies");
+  }
+  /**
+   * Validate that all required dependencies are available
+   */
+  validateDependencies() {
+    if (!this.plugin) {
+      throw new Error("StreamCoordinator: Plugin instance is required");
+    }
+    if (!this.plugin.aiDispatcher) {
+      throw new Error("StreamCoordinator: AIDispatcher is not available on plugin instance");
+    }
+    if (!this.eventBus) {
+      throw new Error("StreamCoordinator: EventBus is required");
+    }
+    if (!this.aiService) {
+      throw new Error("StreamCoordinator: AIService is required");
+    }
+    this.plugin.debugLog("debug", "[StreamCoordinator] All dependencies validated successfully");
   }
   /**
    * Register a UI update callback for stream state changes
@@ -25816,6 +25836,7 @@ var ChatView = class extends import_obsidian30.ItemView {
     __publicField(this, "responseStreamer", null);
     // Keep for backward compatibility during transition
     __publicField(this, "streamCoordinator", null);
+    __publicField(this, "deferredStreamCoordinatorInit", null);
     __publicField(this, "messageRenderer");
     __publicField(this, "messagePool");
     __publicField(this, "domCache");
@@ -25828,8 +25849,12 @@ var ChatView = class extends import_obsidian30.ItemView {
     // Priority 2 Optimization: Async optimization
     __publicField(this, "scrollDebouncer");
     __publicField(this, "updateDebouncer");
-    // UI state synchronization
-    __publicField(this, "uiSyncInterval", null);
+    // Centralized stream state management
+    __publicField(this, "centralStreamState", {
+      isStreaming: false,
+      streamSource: null,
+      lastUpdate: 0
+    });
     this.plugin = plugin;
     this.chatHistoryManager = new ChatHistoryManager(this.app.vault, this.plugin.manifest.id, "chat-history.json");
     this.messageRenderer = new MessageRenderer(this.app);
@@ -25839,7 +25864,7 @@ var ChatView = class extends import_obsidian30.ItemView {
     this.domBatcher = new DOMBatcher();
     this.scrollDebouncer = AsyncOptimizerFactory.createInputDebouncer();
     this.updateDebouncer = AsyncOptimizerFactory.createInputDebouncer();
-    this.startUIStateSynchronization();
+    this.initializeCentralizedStreamState();
   }
   addEventListenerWithCleanup(element, event, handler) {
     element.addEventListener(event, handler);
@@ -25878,6 +25903,7 @@ var ChatView = class extends import_obsidian30.ItemView {
     this.setupEventHandlers(ui);
     this.setupAgentResponseHandler();
     this.setupResponseStreamerAndRegenerator();
+    this.initializeStreamCoordinatorIfReady();
     this.setupAgentModeButton();
     this.setupSendAndStopButtons();
     this.setupInputHandler(ui);
@@ -25981,19 +26007,87 @@ var ChatView = class extends import_obsidian30.ItemView {
         return 0;
       }
     };
+    const self = this;
     const aiService = {
       async getCompletion(request) {
-        return await this.plugin.aiDispatcher.getCompletion(request.messages, request.options);
+        var _a2, _b, _c, _d;
+        self.plugin.debugLog("debug", "[ChatView] aiService.getCompletion called", {
+          hasPlugin: !!self.plugin,
+          hasAiDispatcher: !!((_a2 = self.plugin) == null ? void 0 : _a2.aiDispatcher),
+          aiDispatcherType: typeof ((_b = self.plugin) == null ? void 0 : _b.aiDispatcher),
+          requestMessages: ((_c = request == null ? void 0 : request.messages) == null ? void 0 : _c.length) || 0,
+          requestOptions: !!(request == null ? void 0 : request.options)
+        });
+        if (!self.plugin) {
+          const error = new Error("Plugin instance is null/undefined in aiService.getCompletion");
+          console.error("[ChatView] Plugin instance missing", error);
+          throw error;
+        }
+        if (!self.plugin.aiDispatcher) {
+          const error = new Error("AIDispatcher not initialized yet - this is the root cause of the stop button issue");
+          self.plugin.debugLog("error", "[ChatView] AIDispatcher missing when getCompletion called", {
+            error,
+            pluginExists: !!self.plugin,
+            aiDispatcherExists: !!self.plugin.aiDispatcher,
+            stackTrace: new Error().stack
+          });
+          throw error;
+        }
+        self.plugin.debugLog("debug", "[ChatView] About to call aiDispatcher.getCompletion", {
+          aiDispatcherMethods: Object.getOwnPropertyNames(self.plugin.aiDispatcher),
+          messagesCount: (_d = request.messages) == null ? void 0 : _d.length
+        });
+        return new Promise((resolve, reject) => {
+          var _a3;
+          let fullResponse = "";
+          let hasResolved = false;
+          const originalStreamCallback = (_a3 = request.options) == null ? void 0 : _a3.streamCallback;
+          const wrappedOptions = {
+            ...request.options,
+            streamCallback: (chunk) => {
+              fullResponse += chunk;
+              if (originalStreamCallback) {
+                originalStreamCallback(chunk);
+              }
+            },
+            // Add completion callback to properly resolve the Promise
+            onComplete: () => {
+              if (!hasResolved) {
+                hasResolved = true;
+                self.plugin.debugLog("debug", "[ChatView] aiService.getCompletion completed", {
+                  responseLength: fullResponse.length,
+                  responsePreview: fullResponse.substring(0, 100)
+                });
+                resolve(fullResponse);
+              }
+            },
+            onError: (error) => {
+              if (!hasResolved) {
+                hasResolved = true;
+                self.plugin.debugLog("error", "[ChatView] aiService.getCompletion failed", error);
+                reject(error);
+              }
+            }
+          };
+          self.plugin.aiDispatcher.getCompletion(request.messages, wrappedOptions).then(() => {
+            if (!hasResolved) {
+              hasResolved = true;
+              self.plugin.debugLog("debug", "[ChatView] aiDispatcher completed without onComplete callback", {
+                responseLength: fullResponse.length
+              });
+              resolve(fullResponse);
+            }
+          }).catch((error) => {
+            if (!hasResolved) {
+              hasResolved = true;
+              self.plugin.debugLog("error", "[ChatView] aiDispatcher.getCompletion rejected", error);
+              reject(error);
+            }
+          });
+        });
       }
     };
-    this.streamCoordinator = new StreamCoordinator(
-      this.plugin,
-      eventBus,
-      aiService
-    );
-    this.streamCoordinator.onUIStateChange((isStreaming) => {
-      this.syncStopSendButtonState(isStreaming);
-    });
+    this.initializeStreamCoordinatorWithRetry(eventBus, aiService);
     this.responseStreamer = new ResponseStreamer(
       this.plugin,
       this.agentResponseHandler,
@@ -26009,6 +26103,55 @@ var ChatView = class extends import_obsidian30.ItemView {
       this.agentResponseHandler,
       this.activeStream
     );
+  }
+  /**
+   * Initialize StreamCoordinator with dependency validation and retry mechanism
+   */
+  async initializeStreamCoordinatorWithRetry(eventBus, aiService, maxRetries = 3) {
+    let retryCount = 0;
+    while (retryCount < maxRetries && !this.streamCoordinator) {
+      try {
+        if (!this.plugin.aiDispatcher) {
+          throw new Error("AIDispatcher not available");
+        }
+        this.plugin.debugLog("info", `[ChatView] Initializing StreamCoordinator (attempt ${retryCount + 1}/${maxRetries}) - aiDispatcher available`);
+        this.streamCoordinator = new StreamCoordinator(
+          this.plugin,
+          eventBus,
+          aiService
+        );
+        this.streamCoordinator.onUIStateChange((isStreaming) => {
+          this.onStreamCoordinatorStateChange(isStreaming);
+        });
+        this.plugin.debugLog("info", "[ChatView] StreamCoordinator initialized successfully");
+        return;
+      } catch (error) {
+        retryCount++;
+        this.plugin.debugLog("warn", `[ChatView] StreamCoordinator initialization failed (attempt ${retryCount}/${maxRetries}):`, error);
+        if (retryCount < maxRetries) {
+          const delay = Math.min(100 * Math.pow(2, retryCount - 1), 1e3);
+          this.plugin.debugLog("info", `[ChatView] Retrying StreamCoordinator initialization in ${delay}ms`);
+          await new Promise((resolve) => setTimeout(resolve, delay));
+        } else {
+          this.plugin.debugLog("error", "[ChatView] StreamCoordinator initialization failed after all retries, setting up deferred initialization");
+          this.deferredStreamCoordinatorInit = () => {
+            this.initializeStreamCoordinatorWithRetry(eventBus, aiService, 1);
+          };
+        }
+      }
+    }
+  }
+  initializeStreamCoordinatorIfReady() {
+    if (!this.streamCoordinator && this.plugin.aiDispatcher && this.deferredStreamCoordinatorInit) {
+      this.plugin.debugLog("info", "[ChatView] Initializing StreamCoordinator - aiDispatcher is now ready");
+      this.deferredStreamCoordinatorInit();
+      this.deferredStreamCoordinatorInit = null;
+    } else if (!this.streamCoordinator) {
+      this.plugin.debugLog("debug", "[ChatView] StreamCoordinator not ready yet", {
+        hasAiDispatcher: !!this.plugin.aiDispatcher,
+        hasDeferredInit: !!this.deferredStreamCoordinatorInit
+      });
+    }
   }
   setupAgentModeButton() {
     this.addEventListenerWithCleanup(this.domElementCache.agentModeButton, "click", async () => {
@@ -26135,23 +26278,7 @@ var ChatView = class extends import_obsidian30.ItemView {
     };
     this.addEventListenerWithCleanup(sendButton, "click", sendMessage);
     this.addEventListenerWithCleanup(stopButton, "click", () => {
-      const myPlugin = this.plugin;
-      if (myPlugin.hasActiveAIStreams && myPlugin.hasActiveAIStreams()) {
-        this.plugin.debugLog("info", "[ChatView] Stop button clicked - stopping all active streams");
-        myPlugin.stopAllAIStreams();
-      } else {
-        this.plugin.debugLog("info", "[ChatView] Stop button clicked - no active streams found");
-        if (this.activeStream) {
-          this.activeStream.abort();
-          this.activeStream = null;
-        }
-        showNotice("No active AI stream to end");
-      }
-      textarea.disabled = false;
-      textarea.focus();
-      stopButton.classList.add("hidden");
-      sendButton.classList.remove("hidden");
-      this.plugin.debugLog("info", "[ChatView] Stop button clicked - UI state restored");
+      this.handleStopButtonClick();
     });
   }
   setupInputHandler(ui) {
@@ -26244,10 +26371,6 @@ var ChatView = class extends import_obsidian30.ItemView {
     );
   }
   async onClose() {
-    if (this.uiSyncInterval) {
-      clearInterval(this.uiSyncInterval);
-      this.uiSyncInterval = null;
-    }
     if (this.activeStream) {
       this.activeStream.abort();
       this.activeStream = null;
@@ -26394,6 +26517,7 @@ var ChatView = class extends import_obsidian30.ItemView {
     }
   }
   async streamAssistantResponse(messages, container, originalTimestamp, originalContent) {
+    this.initializeStreamCoordinatorIfReady();
     if (this.streamCoordinator) {
       try {
         return await this.streamCoordinatorResponse(messages, container);
@@ -26461,31 +26585,69 @@ var ChatView = class extends import_obsidian30.ItemView {
   scrollMessagesToBottom() {
     this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
   }
-  stopActiveStream() {
-    if (this.streamCoordinator) {
+  /**
+   * Consolidated stop button click handler
+   */
+  handleStopButtonClick() {
+    this.plugin.debugLog("info", "[ChatView] Stop button clicked - stopping all active streams");
+    this.stopAllActiveStreams();
+    this.restoreUIAfterStop();
+    this.plugin.debugLog("info", "[ChatView] Stop button clicked - UI state restored");
+  }
+  /**
+   * Centralized method to stop all active streams
+   */
+  stopAllActiveStreams() {
+    let streamsStopped = false;
+    if (this.streamCoordinator && this.streamCoordinator.isStreaming()) {
+      this.plugin.debugLog("info", "[ChatView] Stopping StreamCoordinator stream");
       this.streamCoordinator.stopStream();
+      streamsStopped = true;
     }
     if (this.activeStream) {
+      this.plugin.debugLog("info", "[ChatView] Stopping legacy activeStream");
       this.activeStream.abort();
       this.activeStream = null;
+      streamsStopped = true;
     }
     const myPlugin = this.plugin;
-    if (myPlugin.aiDispatcher && typeof myPlugin.aiDispatcher.abortAllStreams === "function") {
-      myPlugin.aiDispatcher.abortAllStreams();
+    if (myPlugin.hasActiveAIStreams && myPlugin.hasActiveAIStreams()) {
+      this.plugin.debugLog("info", "[ChatView] Stopping global plugin streams");
+      myPlugin.stopAllAIStreams();
+      streamsStopped = true;
+    }
+    this.centralStreamState = {
+      isStreaming: false,
+      streamSource: null,
+      lastUpdate: Date.now()
+    };
+    if (!streamsStopped) {
+      this.plugin.debugLog("info", "[ChatView] No active streams found to stop");
+      showNotice("No active AI stream to end");
     }
   }
+  /**
+   * Restore UI state after stopping streams
+   */
+  restoreUIAfterStop() {
+    const textarea = this.domElementCache.textarea;
+    const sendButton = this.domElementCache.sendButton;
+    const stopButton = this.domElementCache.stopButton;
+    if (textarea) {
+      textarea.disabled = false;
+      textarea.focus();
+    }
+    if (stopButton && sendButton) {
+      stopButton.classList.add("hidden");
+      sendButton.classList.remove("hidden");
+    }
+    this.syncUIWithCentralState();
+  }
+  stopActiveStream() {
+    this.stopAllActiveStreams();
+  }
   hasActiveStream() {
-    if (this.streamCoordinator && this.streamCoordinator.isStreaming()) {
-      return true;
-    }
-    if (this.activeStream !== null) {
-      return true;
-    }
-    const myPlugin = this.plugin;
-    if (myPlugin.aiDispatcher && typeof myPlugin.aiDispatcher.hasActiveStreams === "function") {
-      return myPlugin.aiDispatcher.hasActiveStreams();
-    }
-    return false;
+    return this.centralStreamState.isStreaming;
   }
   /**
    * Priority 2 Optimization: Debounced scroll to bottom
@@ -26506,60 +26668,87 @@ var ChatView = class extends import_obsidian30.ItemView {
     this.domBatcher.addElements(operations);
   }
   /**
-   * Synchronizes the stop/send button state with global plugin stream state
+   * Initialize centralized stream state management
    */
-  startUIStateSynchronization() {
-    this.uiSyncInterval = setInterval(() => {
-      this.syncUIWithGlobalStreamState();
-    }, 500);
+  initializeCentralizedStreamState() {
+    this.plugin.debugLog("info", "[ChatView] Initializing centralized stream state management");
+    setInterval(() => {
+      this.updateCentralStreamState();
+    }, 250);
   }
   /**
-   * Synchronizes UI state with global plugin stream state
+   * Update central stream state from all sources
    */
-  syncUIWithGlobalStreamState() {
-    if (!this.domElementCache.stopButton || !this.domElementCache.sendButton) {
-      return;
+  updateCentralStreamState() {
+    const previousState = { ...this.centralStreamState };
+    let isStreaming = false;
+    let streamSource = null;
+    if (this.streamCoordinator && this.streamCoordinator.isStreaming()) {
+      isStreaming = true;
+      streamSource = "coordinator";
+    } else if (this.hasLegacyActiveStreams()) {
+      isStreaming = true;
+      streamSource = "legacy";
+    }
+    if (isStreaming !== previousState.isStreaming || streamSource !== previousState.streamSource) {
+      this.centralStreamState = {
+        isStreaming,
+        streamSource,
+        lastUpdate: Date.now()
+      };
+      this.plugin.debugLog("debug", "[ChatView] Central stream state updated", {
+        isStreaming,
+        streamSource,
+        previousState: previousState.isStreaming
+      });
+      this.syncUIWithCentralState();
+    }
+  }
+  /**
+   * Check for legacy active streams
+   */
+  hasLegacyActiveStreams() {
+    if (this.activeStream) {
+      return true;
     }
     const hasGlobalStreams = this.plugin.hasActiveAIStreams && this.plugin.hasActiveAIStreams();
-    const stopButton = this.domElementCache.stopButton;
-    const sendButton = this.domElementCache.sendButton;
-    if (hasGlobalStreams) {
-      if (stopButton.classList.contains("hidden")) {
-        stopButton.classList.remove("hidden");
-        sendButton.classList.add("hidden");
-        this.plugin.debugLog("debug", "[ChatView] UI synchronized - showing stop button (global streams detected)");
-      }
-    } else {
-      if (!stopButton.classList.contains("hidden")) {
-        stopButton.classList.add("hidden");
-        sendButton.classList.remove("hidden");
-        this.plugin.debugLog("debug", "[ChatView] UI synchronized - showing send button (no global streams)");
-      }
-    }
+    return hasGlobalStreams;
   }
   /**
-   * Sync stop/send button state based on StreamCoordinator streaming state
+   * Sync UI with central stream state (single source of truth)
    */
-  syncStopSendButtonState(isStreaming) {
+  syncUIWithCentralState() {
     const stopButton = this.domElementCache.stopButton;
     const sendButton = this.domElementCache.sendButton;
     if (!stopButton || !sendButton) {
-      this.plugin.debugLog("warn", "[ChatView] Stop/send buttons not found in DOM cache");
       return;
     }
+    const { isStreaming, streamSource } = this.centralStreamState;
     if (isStreaming) {
       if (stopButton.classList.contains("hidden")) {
         stopButton.classList.remove("hidden");
         sendButton.classList.add("hidden");
-        this.plugin.debugLog("debug", "[ChatView] StreamCoordinator - showing stop button");
+        this.plugin.debugLog("debug", `[ChatView] Central state - showing stop button (source: ${streamSource})`);
       }
     } else {
       if (!stopButton.classList.contains("hidden")) {
         stopButton.classList.add("hidden");
         sendButton.classList.remove("hidden");
-        this.plugin.debugLog("debug", "[ChatView] StreamCoordinator - showing send button");
+        this.plugin.debugLog("debug", "[ChatView] Central state - showing send button (no active streams)");
       }
     }
+  }
+  /**
+   * Simplified callback for StreamCoordinator state changes
+   */
+  onStreamCoordinatorStateChange(isStreaming) {
+    this.centralStreamState = {
+      isStreaming,
+      streamSource: isStreaming ? "coordinator" : null,
+      lastUpdate: Date.now()
+    };
+    this.plugin.debugLog("debug", "[ChatView] StreamCoordinator state change", { isStreaming });
+    this.syncUIWithCentralState();
   }
 };
 
@@ -27993,7 +28182,7 @@ var _MyPlugin = class _MyPlugin extends import_obsidian35.Plugin {
    * Handles initialization, settings, view registration, and command registration.
    */
   async onload() {
-    var _a2, _b, _c, _d, _e, _f, _g, _h;
+    var _a2, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k;
     await this.loadSettings();
     let vaultPath = "";
     try {
@@ -28006,6 +28195,9 @@ var _MyPlugin = class _MyPlugin extends import_obsidian35.Plugin {
     } catch (error) {
       debugLog((_b = this.settings.debugMode) != null ? _b : false, "error", "[main.ts] Failed to get vault path:", error);
     }
+    debugLog((_c = this.settings.debugMode) != null ? _c : false, "info", "[main.ts] Initializing AIDispatcher early to prevent race conditions");
+    this.aiDispatcher = new AIDispatcher(this.app.vault, this);
+    debugLog((_d = this.settings.debugMode) != null ? _d : false, "info", "[main.ts] AIDispatcher initialized successfully");
     const pluginDataPath = this.app.vault.configDir + "/plugins/ai-assistant-for-obsidian";
     this.backupManager = new BackupManager(this.app, pluginDataPath);
     await this.backupManager.initialize();
@@ -28019,12 +28211,12 @@ var _MyPlugin = class _MyPlugin extends import_obsidian35.Plugin {
       }
       // Changed from log to debugLog
     );
-    this.aiDispatcher = new AIDispatcher(this.app.vault, this);
     this.priority3Manager = new Priority3IntegrationManager(this);
     await this.priority3Manager.initialize();
     this.recentlyOpenedFilesManager = RecentlyOpenedFilesManager.getInstance(this.app);
-    debugLog((_c = this.settings.debugMode) != null ? _c : false, "info", "Priority 3 optimizations initialized");
+    debugLog((_e = this.settings.debugMode) != null ? _e : false, "info", "Priority 3 optimizations initialized");
     this.addSettingTab(new MyPluginSettingTab(this.app, this));
+    debugLog((_f = this.settings.debugMode) != null ? _f : false, "info", "[main.ts] Registering ChatView - aiDispatcher is ready");
     this.registerPluginView(VIEW_TYPE_CHAT, (leaf) => new ChatView(leaf, this));
     this._yamlAttributeCommandIds = registerAllCommands(
       this,
@@ -28057,21 +28249,21 @@ var _MyPlugin = class _MyPlugin extends import_obsidian35.Plugin {
       try {
         const { registerTestCommands: registerTestCommands2 } = await Promise.resolve().then(() => (init_testRunner(), testRunner_exports));
         registerTestCommands2(this);
-        debugLog((_d = this.settings.debugMode) != null ? _d : false, "info", "Test commands registered");
+        debugLog((_g = this.settings.debugMode) != null ? _g : false, "info", "Test commands registered");
       } catch (error) {
-        debugLog((_e = this.settings.debugMode) != null ? _e : false, "warn", "Failed to register test commands:", error);
+        debugLog((_h = this.settings.debugMode) != null ? _h : false, "warn", "Failed to register test commands:", error);
       }
     }
     if (this.settings.debugMode) {
       try {
         const { archiveAICallsByDate: archiveAICallsByDate2 } = await Promise.resolve().then(() => (init_saveAICalls(), saveAICalls_exports));
         await archiveAICallsByDate2(this);
-        debugLog((_f = this.settings.debugMode) != null ? _f : false, "info", "AI call archival completed");
+        debugLog((_i = this.settings.debugMode) != null ? _i : false, "info", "AI call archival completed");
       } catch (error) {
-        debugLog((_g = this.settings.debugMode) != null ? _g : false, "warn", "AI call archival failed:", error);
+        debugLog((_j = this.settings.debugMode) != null ? _j : false, "warn", "AI call archival failed:", error);
       }
     }
-    debugLog((_h = this.settings.debugMode) != null ? _h : false, "info", "AI Assistant Plugin loaded.");
+    debugLog((_k = this.settings.debugMode) != null ? _k : false, "info", "AI Assistant Plugin loaded.");
   }
   /**
    * Enhanced debug logger for the plugin.
