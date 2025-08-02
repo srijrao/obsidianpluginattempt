@@ -508,9 +508,14 @@ export class ChatView extends ItemView {
                 stopButtonHidden: stopButton.classList.contains('hidden')
             });
             const userMessageEl = await createMessageElement(this.app, 'user', content, this.chatHistoryManager, this.plugin, (el: HTMLElement) => this.regenerateResponse(el), this);
+            // FIX: Ensure rawContent is stored in dataset for proper context building
+            userMessageEl.dataset.rawContent = content;
             this.messagesContainer.appendChild(userMessageEl);
             this.debouncedScrollToBottom();
             textarea.value = '';
+            
+            // FIX: Invalidate message cache to ensure fresh DOM reads include this new message
+            this.invalidateMessageCache();
             await withErrorHandling(
                 () => this.chatHistoryManager.addMessage({
                     timestamp: userMessageEl.dataset.timestamp || new Date().toISOString(),
@@ -530,8 +535,21 @@ export class ChatView extends ItemView {
                 this.cachedMessageElements = [];
                 this.lastScrollHeight = 0;
                 
-                const messages = await this.buildContextMessages();
-                this.addVisibleMessagesToContext(messages);
+                const contextMessages = await this.buildContextMessages();
+                this.plugin.debugLog('debug', '[ChatView] Context messages built', {
+                    contextMessageCount: contextMessages.length
+                });
+                
+                // Add visible chat messages to context
+                this.addVisibleMessagesToContext(contextMessages);
+                
+                this.plugin.debugLog('debug', '[ChatView] Final message array for AI call', {
+                    totalMessages: contextMessages.length,
+                    messageRoles: contextMessages.map(m => m.role),
+                    lastUserMessage: contextMessages.filter(m => m.role === 'user').slice(-1)[0]?.content?.substring(0, 100)
+                });
+                
+                const messages = contextMessages;
                 const tempContainer = document.createElement('div');
                 tempContainer.addClass('ai-chat-message', 'assistant');
                 tempContainer.createDiv('message-content');
@@ -561,7 +579,12 @@ export class ChatView extends ItemView {
                         this,
                         enhancedMessageData
                     );
+                    // FIX: Ensure rawContent is stored in dataset for proper context building
+                    messageEl.dataset.rawContent = responseContent;
                     this.messagesContainer.appendChild(messageEl);
+                    
+                    // FIX: Invalidate message cache to ensure fresh DOM reads include this new message
+                    this.invalidateMessageCache();
                     this.plugin.debugLog('debug', '[chat.ts] About to save message to history with toolResults:', !!enhancedMessageData?.toolResults);
                     await this.chatHistoryManager.addMessage({
                         timestamp: messageEl.dataset.timestamp || new Date().toISOString(),
@@ -691,8 +714,13 @@ export class ChatView extends ItemView {
     private async addMessage(role: 'user' | 'assistant', content: string, isError: boolean = false, enhancedData?: Partial<Pick<Message, 'reasoning' | 'taskStatus' | 'toolResults'>>): Promise<void> {
         const messageEl = await createMessageElement(this.app, role, content, this.chatHistoryManager, this.plugin, (el: HTMLElement) => this.regenerateResponse(el), this, enhancedData ? { role, content, ...enhancedData } : undefined);
         const uiTimestamp = messageEl.dataset.timestamp || new Date().toISOString();
+        // FIX: Ensure rawContent is stored in dataset for proper context building
+        messageEl.dataset.rawContent = content;
         this.messagesContainer.appendChild(messageEl);
         this.debouncedScrollToBottom();
+        
+        // FIX: Invalidate message cache to ensure fresh DOM reads include this new message
+        this.invalidateMessageCache();
         await withErrorHandling(
             () => this.chatHistoryManager.addMessage({
                 timestamp: uiTimestamp,
@@ -843,15 +871,15 @@ export class ChatView extends ItemView {
         return await buildContextMessages({ app: this.app, plugin: this.plugin });
     }
     private addVisibleMessagesToContext(messages: Message[]): void {
-        const currentScrollHeight = this.messagesContainer.scrollHeight;
-        let messageElements: NodeListOf<Element>;
-        if (this.lastScrollHeight === currentScrollHeight && this.cachedMessageElements.length > 0) {
-            messageElements = this.cachedMessageElements as any;
-        } else {
-            messageElements = this.messagesContainer.querySelectorAll('.ai-chat-message');
-            this.cachedMessageElements = Array.from(messageElements) as HTMLElement[];
-            this.lastScrollHeight = currentScrollHeight;
-        }
+        // FORCE fresh DOM read to ensure we capture all messages, including those added after stream interruption
+        this.invalidateMessageCache();
+        
+        const messageElements = this.messagesContainer.querySelectorAll('.ai-chat-message');
+        this.plugin.debugLog('debug', '[ChatView] Fresh DOM read for context building', {
+            messageCount: messageElements.length,
+            reason: 'Ensuring all messages including post-stream-stop messages are captured'
+        });
+        
         for (let i = 0; i < messageElements.length; i++) {
             const el = messageElements[i] as HTMLElement;
             const role = el.classList.contains('user') ? 'user' : 'assistant';
@@ -865,7 +893,8 @@ export class ChatView extends ItemView {
                 this.plugin.debugLog('debug', '[ChatView] Using rawContent from dataset for context', {
                     role,
                     contentLength: content.length,
-                    hasRawContent: true
+                    hasRawContent: true,
+                    messageIndex: i
                 });
             } else {
                 // Fallback to reading from DOM (for backward compatibility)
@@ -874,8 +903,18 @@ export class ChatView extends ItemView {
                 this.plugin.debugLog('debug', '[ChatView] Using textContent from DOM for context (fallback)', {
                     role,
                     contentLength: content.length,
-                    hasRawContent: false
+                    hasRawContent: false,
+                    messageIndex: i
                 });
+            }
+            
+            // Skip empty messages
+            if (!content.trim()) {
+                this.plugin.debugLog('warn', '[ChatView] Skipping empty message in context', {
+                    role,
+                    messageIndex: i
+                });
+                continue;
             }
             
             const messageObj = this.messagePool.acquireMessage();
@@ -883,6 +922,11 @@ export class ChatView extends ItemView {
             messageObj.content = content;
             messages.push(messageObj as Message);
         }
+        
+        this.plugin.debugLog('info', '[ChatView] Context messages built from DOM', {
+            totalMessages: messages.length,
+            domElements: messageElements.length
+        });
     }
     public async streamAssistantResponse(
         messages: Message[],
@@ -1232,6 +1276,13 @@ export class ChatView extends ItemView {
     public invalidateMessageCache(): void {
         this.cachedMessageElements = [];
         this.lastScrollHeight = 0;
+        
+        // FIX: Also invalidate AIDispatcher cache to prevent stale responses
+        if (this.plugin.aiDispatcher) {
+            this.plugin.aiDispatcher.invalidateMessageCache();
+            this.plugin.debugLog('debug', '[ChatView] AIDispatcher message cache invalidated');
+        }
+        
         this.plugin.debugLog('debug', '[ChatView] Message cache invalidated - will force fresh DOM reads');
     }
 }

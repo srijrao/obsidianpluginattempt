@@ -420,10 +420,17 @@ export class AIDispatcher {
                 messageArray[i] = pooledMsg;
             }
 
+            // FIX: Include message count and last message timestamp to prevent cache hits when new messages are added
+            const lastMessage = messages[messages.length - 1];
+            const lastMessageHash = lastMessage ? `${lastMessage.role}:${lastMessage.content.substring(0, 50)}` : '';
+            
             const key = JSON.stringify({
                 messages: messageArray,
                 temperature: options.temperature,
-                provider: providerOverride || this.plugin.settings.selectedModel || this.plugin.settings.provider
+                provider: providerOverride || this.plugin.settings.selectedModel || this.plugin.settings.provider,
+                messageCount: messages.length,
+                lastMessageHash: lastMessageHash,
+                timestamp: Date.now() // Add timestamp to ensure cache invalidation for new conversations
             });
 
             // Use Unicode-safe base64 encoding
@@ -887,6 +894,16 @@ export class AIDispatcher {
         this.providerCache.clear();
         performanceMonitor.clearMetrics(); // Clear performance metrics as well
         debugLog(this.plugin.settings.debugMode ?? false, 'info', '[AIDispatcher] All caches cleared');
+    }
+
+    /**
+     * Invalidate cache entries that might be affected by new messages
+     * This helps ensure fresh responses when new messages are added after stream interruption
+     */
+    invalidateMessageCache(): void {
+        // Clear all cache entries since message context has changed
+        this.cache.clear();
+        debugLog(this.plugin.settings.debugMode ?? false, 'info', '[AIDispatcher] Message cache invalidated due to context change');
     }
 
     /**

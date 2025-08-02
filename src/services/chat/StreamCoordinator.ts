@@ -140,12 +140,23 @@ export class StreamCoordinator implements IStreamCoordinator {
                 lastStateUpdate: this.streamState.startTime
             });
 
-            // Defensive: If a stream is still cleaning up, prevent new streams (agent mode safety)
-            this.eventBus.publish('stream.start_blocked', {
-                reason: 'A stream is already active or cleaning up.',
-                timestamp: Date.now()
-            });
-            throw new Error('A stream is already active. Stop the current stream before starting a new one.');
+            // FIX: Check if there are actually any active streams - if not, force reset the state
+            if (this.activeStreams.size === 0) {
+                this.plugin.debugLog('warn', '[StreamCoordinator] Force resetting stream state - no active streams found');
+                this.updateStreamState({
+                    isStreaming: false,
+                    currentStreamId: undefined,
+                    startTime: undefined
+                });
+                // Continue with the new stream instead of blocking
+            } else {
+                // Defensive: If a stream is still cleaning up, prevent new streams (agent mode safety)
+                this.eventBus.publish('stream.start_blocked', {
+                    reason: 'A stream is already active or cleaning up.',
+                    timestamp: Date.now()
+                });
+                throw new Error('A stream is already active. Stop the current stream before starting a new one.');
+            }
         }
 
         const streamId = this.generateStreamId();

@@ -12105,10 +12105,16 @@ var init_aiDispatcher = __esm({
             pooledMsg.content = messages[i].content;
             messageArray[i] = pooledMsg;
           }
+          const lastMessage = messages[messages.length - 1];
+          const lastMessageHash = lastMessage ? `${lastMessage.role}:${lastMessage.content.substring(0, 50)}` : "";
           const key = JSON.stringify({
             messages: messageArray,
             temperature: options.temperature,
-            provider: providerOverride || this.plugin.settings.selectedModel || this.plugin.settings.provider
+            provider: providerOverride || this.plugin.settings.selectedModel || this.plugin.settings.provider,
+            messageCount: messages.length,
+            lastMessageHash,
+            timestamp: Date.now()
+            // Add timestamp to ensure cache invalidation for new conversations
           });
           return btoaUnicode(key).substring(0, 32);
         } finally {
@@ -12489,6 +12495,15 @@ var init_aiDispatcher = __esm({
         this.providerCache.clear();
         performanceMonitor.clearMetrics();
         debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", "[AIDispatcher] All caches cleared");
+      }
+      /**
+       * Invalidate cache entries that might be affected by new messages
+       * This helps ensure fresh responses when new messages are added after stream interruption
+       */
+      invalidateMessageCache() {
+        var _a2;
+        this.cache.clear();
+        debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", "[AIDispatcher] Message cache invalidated due to context change");
       }
       /**
        * Logs current performance metrics.
@@ -21272,11 +21287,20 @@ var init_StreamCoordinator = __esm({
             activeStreamIds: Array.from(this.activeStreams.keys()),
             lastStateUpdate: this.streamState.startTime
           });
-          this.eventBus.publish("stream.start_blocked", {
-            reason: "A stream is already active or cleaning up.",
-            timestamp: Date.now()
-          });
-          throw new Error("A stream is already active. Stop the current stream before starting a new one.");
+          if (this.activeStreams.size === 0) {
+            this.plugin.debugLog("warn", "[StreamCoordinator] Force resetting stream state - no active streams found");
+            this.updateStreamState({
+              isStreaming: false,
+              currentStreamId: void 0,
+              startTime: void 0
+            });
+          } else {
+            this.eventBus.publish("stream.start_blocked", {
+              reason: "A stream is already active or cleaning up.",
+              timestamp: Date.now()
+            });
+            throw new Error("A stream is already active. Stop the current stream before starting a new one.");
+          }
         }
         const streamId = this.generateStreamId();
         const abortController = new AbortController();
@@ -22172,7 +22196,7 @@ var init_chat = __esm({
         const sendButton = this.domElementCache.sendButton;
         const stopButton = this.domElementCache.stopButton;
         const sendMessage = async () => {
-          var _a2, _b;
+          var _a2, _b, _c, _d;
           const content = textarea.value.trim();
           if (!content) return;
           this.plugin.debugLog("info", "[ChatView] Send message attempt", {
@@ -22195,9 +22219,11 @@ var init_chat = __esm({
             stopButtonHidden: stopButton.classList.contains("hidden")
           });
           const userMessageEl = await createMessageElement(this.app, "user", content, this.chatHistoryManager, this.plugin, (el) => this.regenerateResponse(el), this);
+          userMessageEl.dataset.rawContent = content;
           this.messagesContainer.appendChild(userMessageEl);
           this.debouncedScrollToBottom();
           textarea.value = "";
+          this.invalidateMessageCache();
           await withErrorHandling(
             () => this.chatHistoryManager.addMessage({
               timestamp: userMessageEl.dataset.timestamp || (/* @__PURE__ */ new Date()).toISOString(),
@@ -22213,8 +22239,17 @@ var init_chat = __esm({
             await new Promise((resolve) => setTimeout(resolve, 10));
             this.cachedMessageElements = [];
             this.lastScrollHeight = 0;
-            const messages = await this.buildContextMessages();
-            this.addVisibleMessagesToContext(messages);
+            const contextMessages = await this.buildContextMessages();
+            this.plugin.debugLog("debug", "[ChatView] Context messages built", {
+              contextMessageCount: contextMessages.length
+            });
+            this.addVisibleMessagesToContext(contextMessages);
+            this.plugin.debugLog("debug", "[ChatView] Final message array for AI call", {
+              totalMessages: contextMessages.length,
+              messageRoles: contextMessages.map((m) => m.role),
+              lastUserMessage: (_c = (_b = contextMessages.filter((m) => m.role === "user").slice(-1)[0]) == null ? void 0 : _b.content) == null ? void 0 : _c.substring(0, 100)
+            });
+            const messages = contextMessages;
             const tempContainer = document.createElement("div");
             tempContainer.addClass("ai-chat-message", "assistant");
             tempContainer.createDiv("message-content");
@@ -22226,7 +22261,7 @@ var init_chat = __esm({
             if (tempContainer.dataset.messageData) {
               try {
                 enhancedMessageData = JSON.parse(tempContainer.dataset.messageData);
-                this.plugin.debugLog("debug", "[chat.ts] enhancedMessageData parsed, toolResults count:", ((_b = enhancedMessageData.toolResults) == null ? void 0 : _b.length) || 0);
+                this.plugin.debugLog("debug", "[chat.ts] enhancedMessageData parsed, toolResults count:", ((_d = enhancedMessageData.toolResults) == null ? void 0 : _d.length) || 0);
               } catch (e) {
                 this.plugin.debugLog("warn", "[chat.ts] Failed to parse enhanced message data:", e);
               }
@@ -22244,7 +22279,9 @@ var init_chat = __esm({
                 this,
                 enhancedMessageData
               );
+              messageEl.dataset.rawContent = responseContent;
               this.messagesContainer.appendChild(messageEl);
+              this.invalidateMessageCache();
               this.plugin.debugLog("debug", "[chat.ts] About to save message to history with toolResults:", !!(enhancedMessageData == null ? void 0 : enhancedMessageData.toolResults));
               await this.chatHistoryManager.addMessage({
                 timestamp: messageEl.dataset.timestamp || (/* @__PURE__ */ new Date()).toISOString(),
@@ -22367,8 +22404,10 @@ var init_chat = __esm({
       async addMessage(role, content, isError = false, enhancedData) {
         const messageEl = await createMessageElement(this.app, role, content, this.chatHistoryManager, this.plugin, (el) => this.regenerateResponse(el), this, enhancedData ? { role, content, ...enhancedData } : void 0);
         const uiTimestamp = messageEl.dataset.timestamp || (/* @__PURE__ */ new Date()).toISOString();
+        messageEl.dataset.rawContent = content;
         this.messagesContainer.appendChild(messageEl);
         this.debouncedScrollToBottom();
+        this.invalidateMessageCache();
         await withErrorHandling(
           () => this.chatHistoryManager.addMessage({
             timestamp: uiTimestamp,
@@ -22508,15 +22547,12 @@ var init_chat = __esm({
         return await buildContextMessages({ app: this.app, plugin: this.plugin });
       }
       addVisibleMessagesToContext(messages) {
-        const currentScrollHeight = this.messagesContainer.scrollHeight;
-        let messageElements;
-        if (this.lastScrollHeight === currentScrollHeight && this.cachedMessageElements.length > 0) {
-          messageElements = this.cachedMessageElements;
-        } else {
-          messageElements = this.messagesContainer.querySelectorAll(".ai-chat-message");
-          this.cachedMessageElements = Array.from(messageElements);
-          this.lastScrollHeight = currentScrollHeight;
-        }
+        this.invalidateMessageCache();
+        const messageElements = this.messagesContainer.querySelectorAll(".ai-chat-message");
+        this.plugin.debugLog("debug", "[ChatView] Fresh DOM read for context building", {
+          messageCount: messageElements.length,
+          reason: "Ensuring all messages including post-stream-stop messages are captured"
+        });
         for (let i = 0; i < messageElements.length; i++) {
           const el = messageElements[i];
           const role = el.classList.contains("user") ? "user" : "assistant";
@@ -22526,7 +22562,8 @@ var init_chat = __esm({
             this.plugin.debugLog("debug", "[ChatView] Using rawContent from dataset for context", {
               role,
               contentLength: content.length,
-              hasRawContent: true
+              hasRawContent: true,
+              messageIndex: i
             });
           } else {
             const contentEl = el.querySelector(".message-content");
@@ -22534,14 +22571,26 @@ var init_chat = __esm({
             this.plugin.debugLog("debug", "[ChatView] Using textContent from DOM for context (fallback)", {
               role,
               contentLength: content.length,
-              hasRawContent: false
+              hasRawContent: false,
+              messageIndex: i
             });
+          }
+          if (!content.trim()) {
+            this.plugin.debugLog("warn", "[ChatView] Skipping empty message in context", {
+              role,
+              messageIndex: i
+            });
+            continue;
           }
           const messageObj = this.messagePool.acquireMessage();
           messageObj.role = role;
           messageObj.content = content;
           messages.push(messageObj);
         }
+        this.plugin.debugLog("info", "[ChatView] Context messages built from DOM", {
+          totalMessages: messages.length,
+          domElements: messageElements.length
+        });
       }
       async streamAssistantResponse(messages, container, originalTimestamp, originalContent) {
         this.initializeStreamCoordinatorIfReady();
@@ -22812,6 +22861,10 @@ var init_chat = __esm({
       invalidateMessageCache() {
         this.cachedMessageElements = [];
         this.lastScrollHeight = 0;
+        if (this.plugin.aiDispatcher) {
+          this.plugin.aiDispatcher.invalidateMessageCache();
+          this.plugin.debugLog("debug", "[ChatView] AIDispatcher message cache invalidated");
+        }
         this.plugin.debugLog("debug", "[ChatView] Message cache invalidated - will force fresh DOM reads");
       }
     };
