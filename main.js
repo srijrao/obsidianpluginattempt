@@ -10849,6 +10849,8 @@ Object Pool Efficiency: ${metrics.objectPoolEfficiency.toFixed(2)}%
        */
       cleanupOldMetrics() {
         const cutoffTime = Date.now() - 10 * 60 * 1e3;
+        const initialCount = this.metrics.length;
+        const initialAggregatedCount = this.aggregatedMetrics.size;
         this.metrics = this.metrics.filter((metric) => metric.timestamp >= cutoffTime);
         for (const [name, metrics] of this.aggregatedMetrics.entries()) {
           const filteredMetrics = metrics.filter((metric) => metric.timestamp >= cutoffTime);
@@ -10859,7 +10861,11 @@ Object Pool Efficiency: ${metrics.objectPoolEfficiency.toFixed(2)}%
           }
         }
         if (this.debugMode) {
-          console.log(`[PerformanceMonitor] Cleaned up old metrics. Current count: ${this.metrics.length}`);
+          const metricsRemoved = initialCount - this.metrics.length;
+          const aggregatedGroupsRemoved = initialAggregatedCount - this.aggregatedMetrics.size;
+          if (metricsRemoved > 0 || aggregatedGroupsRemoved > 0) {
+            console.log(`[PerformanceMonitor] Cleaned up ${metricsRemoved} old metrics and ${aggregatedGroupsRemoved} metric groups. Current count: ${this.metrics.length}`);
+          }
         }
       }
       /**
@@ -12740,6 +12746,170 @@ var init_aiDispatcher = __esm({
         if (this.isProviderConfigured("gemini")) providers.push("gemini");
         if (this.isProviderConfigured("ollama")) providers.push("ollama");
         return providers;
+      }
+    };
+  }
+});
+
+// src/components/chat/ChatHistoryManager.ts
+var import_obsidian13, ChatHistoryManager;
+var init_ChatHistoryManager = __esm({
+  "src/components/chat/ChatHistoryManager.ts"() {
+    import_obsidian13 = require("obsidian");
+    ChatHistoryManager = class {
+      /**
+       * @param vault The Obsidian Vault instance
+       * @param pluginId The plugin ID (used for folder path)
+       * @param historyFilePath Optional custom file path for history storage
+       */
+      constructor(vault, pluginId, historyFilePath) {
+        __publicField(this, "vault");
+        __publicField(this, "historyFilePath");
+        __publicField(this, "history", []);
+        __publicField(this, "isLoaded", false);
+        this.vault = vault;
+        let effectivePluginId = pluginId;
+        if (!pluginId) {
+          console.error("CRITICAL: ChatHistoryManager instantiated without pluginId! Using placeholder. This will likely lead to incorrect file paths.");
+          effectivePluginId = "unknown-plugin-id-error";
+        }
+        const fPath = historyFilePath || "chat-history.json";
+        this.historyFilePath = (0, import_obsidian13.normalizePath)(`.obsidian/plugins/${effectivePluginId}/${fPath}`);
+        if (typeof window !== "undefined" && window.Notice) {
+        }
+      }
+      /**
+       * Ensures the directory for the history file exists, creating it if needed.
+       */
+      async ensureDirectoryExists() {
+        const dirPath = this.historyFilePath.substring(0, this.historyFilePath.lastIndexOf("/"));
+        if (!dirPath) return;
+        try {
+          const abstractFile = this.vault.getAbstractFileByPath(dirPath);
+          if (abstractFile === null) {
+            await this.vault.createFolder(dirPath);
+          } else if (!(abstractFile instanceof import_obsidian13.TFolder)) {
+            console.error(`Path ${dirPath} exists but is not a folder.`);
+            throw new Error(`Path ${dirPath} exists but is not a folder.`);
+          }
+        } catch (e) {
+          if (e.message && e.message.toLowerCase().includes("folder already exists")) {
+            return;
+          }
+          console.error(`Failed to ensure directory ${dirPath} exists:`, e);
+          throw e;
+        }
+      }
+      /**
+       * Loads chat history from the history file.
+       * If the file does not exist or is invalid, returns an empty array.
+       * @returns Promise resolving to the chat history array
+       */
+      async loadHistory() {
+        try {
+          const exists = await this.vault.adapter.exists(this.historyFilePath);
+          if (exists) {
+            const data = await this.vault.adapter.read(this.historyFilePath);
+            try {
+              this.history = JSON.parse(data);
+            } catch (parseError) {
+              console.error("Failed to parse chat history:", parseError);
+              this.history = [];
+            }
+          } else {
+            this.history = [];
+          }
+        } catch (e) {
+          console.error("Failed to load chat history:", e);
+          this.history = [];
+        }
+        return this.history;
+      }
+      /**
+       * Adds a new message to the chat history and saves it.
+       * @param message The ChatMessage to add
+       */
+      async addMessage(message) {
+        const currentHistory = await this.loadHistory();
+        currentHistory.push(message);
+        this.history = currentHistory;
+        await this.saveHistory();
+      }
+      /**
+       * Returns the current chat history (loads from disk if needed).
+       * @returns Promise resolving to the chat history array
+       */
+      async getHistory() {
+        return await this.loadHistory();
+      }
+      /**
+       * Clears the chat history and saves the empty history.
+       */
+      async clearHistory() {
+        this.history = [];
+        await this.saveHistory();
+      }
+      /**
+       * Deletes a specific message from the chat history by timestamp, sender, and content.
+       * @param timestamp The timestamp of the message to delete
+       * @param sender The sender of the message to delete
+       * @param content The content of the message to delete
+       */
+      async deleteMessage(timestamp2, sender, content) {
+        await this.loadHistory();
+        const index = this.history.findIndex(
+          (msg) => msg.timestamp === timestamp2 && msg.sender === sender && msg.content === content
+        );
+        if (index !== -1) {
+          this.history.splice(index, 1);
+          await this.saveHistory();
+        }
+      }
+      /**
+       * Updates a specific message in the chat history.
+       * Optionally updates reasoning, taskStatus, and toolResults.
+       * @param timestamp The timestamp of the message to update
+       * @param sender The sender of the message to update
+       * @param oldContent The old content to match
+       * @param newContent The new content to set
+       * @param enhancedData Optional additional fields to update
+       */
+      async updateMessage(timestamp2, sender, oldContent, newContent, enhancedData) {
+        await this.loadHistory();
+        const message = this.history.find(
+          (msg) => msg.timestamp === timestamp2 && msg.sender === sender && msg.content === oldContent
+        );
+        if (message) {
+          message.content = newContent;
+          if (enhancedData) {
+            if ("reasoning" in enhancedData) message.reasoning = enhancedData.reasoning;
+            if ("taskStatus" in enhancedData) message.taskStatus = enhancedData.taskStatus;
+            if ("toolResults" in enhancedData) message.toolResults = enhancedData.toolResults;
+          }
+          await this.saveHistory();
+        } else {
+        }
+      }
+      /**
+       * Saves the current chat history to the history file.
+       * Ensures the directory exists before writing.
+       */
+      async saveHistory() {
+        try {
+          await this.ensureDirectoryExists();
+          const data = JSON.stringify(this.history, null, 2);
+          const abstractTarget = this.vault.getAbstractFileByPath(this.historyFilePath);
+          if (abstractTarget instanceof import_obsidian13.TFolder) {
+            throw new Error(`Path ${this.historyFilePath} is a directory, not a file.`);
+          }
+          await this.vault.adapter.write(this.historyFilePath, data);
+          if (!abstractTarget || !(abstractTarget instanceof import_obsidian13.TFile)) {
+            await this.vault.adapter.exists(this.historyFilePath);
+          }
+        } catch (e) {
+          console.error(`Failed to save history to ${this.historyFilePath}:`, e);
+          throw e;
+        }
       }
     };
   }
@@ -17371,14 +17541,28 @@ function handleEditMessage(messageEl, chatHistoryManager, plugin) {
   return async () => {
     const contentEl = messageEl.querySelector(".message-content");
     if (!contentEl) return;
+    plugin.debugLog("debug", "[EventHandlers] Edit message clicked", {
+      hasContentEl: !!contentEl,
+      isEditing: contentEl.hasClass("editing"),
+      rawContent: messageEl.dataset.rawContent,
+      hasMessageData: !!messageEl.dataset.messageData
+    });
     if (!contentEl.hasClass("editing")) {
+      const originalContent = messageEl.dataset.rawContent || "";
+      const originalMessageData = messageEl.dataset.messageData;
       const textarea = document.createElement("textarea");
-      textarea.value = messageEl.dataset.rawContent || "";
+      textarea.value = originalContent;
       textarea.className = "message-content editing";
+      const originalHTML = contentEl.innerHTML;
+      contentEl.dataset.originalHTML = originalHTML;
       contentEl.empty();
       contentEl.appendChild(textarea);
       textarea.focus();
       contentEl.addClass("editing");
+      plugin.debugLog("debug", "[EventHandlers] Entered edit mode", {
+        originalContentLength: originalContent.length,
+        hasOriginalHTML: !!originalHTML
+      });
       textarea.addEventListener("keydown", async (e) => {
         if (e.key === "Enter" && !e.shiftKey) {
           e.preventDefault();
@@ -17388,11 +17572,18 @@ function handleEditMessage(messageEl, chatHistoryManager, plugin) {
       textarea.addEventListener("blur", async () => {
         const oldContent = messageEl.dataset.rawContent;
         const newContent = textarea.value;
+        const originalHTML2 = contentEl.dataset.originalHTML;
         let enhancedData = void 0;
+        plugin.debugLog("debug", "[EventHandlers] Edit blur - saving changes", {
+          oldContentLength: (oldContent == null ? void 0 : oldContent.length) || 0,
+          newContentLength: newContent.length,
+          hasEnhancedData: !!messageEl.dataset.messageData
+        });
         if (messageEl.dataset.messageData) {
           try {
             enhancedData = JSON.parse(messageEl.dataset.messageData);
           } catch (e) {
+            plugin.debugLog("warn", "[EventHandlers] Failed to parse message data", e);
           }
         }
         try {
@@ -17405,24 +17596,37 @@ function handleEditMessage(messageEl, chatHistoryManager, plugin) {
           );
           messageEl.dataset.rawContent = newContent;
           contentEl.empty();
-          if (enhancedData && enhancedData.toolResults) {
+          contentEl.removeClass("editing");
+          if (enhancedData && enhancedData.toolResults && enhancedData.toolResults.length > 0) {
+            plugin.debugLog("debug", "[EventHandlers] Rendering with tool results");
             const renderer = new MessageRenderer(plugin.app);
             await renderer.renderMessage({
               role: messageEl.classList.contains("user") ? "user" : "assistant",
               content: newContent,
-              toolResults: enhancedData.toolResults
+              toolResults: enhancedData.toolResults,
+              reasoning: enhancedData.reasoning,
+              taskStatus: enhancedData.taskStatus
             }, messageEl, new import_obsidian22.Component());
           } else {
+            plugin.debugLog("debug", "[EventHandlers] Rendering as markdown");
             await import_obsidian22.MarkdownRenderer.render(plugin.app, newContent, contentEl, "", new import_obsidian22.Component());
           }
-          contentEl.removeClass("editing");
+          plugin.debugLog("debug", "[EventHandlers] Edit saved successfully");
         } catch (e) {
+          plugin.debugLog("error", "[EventHandlers] Failed to save edited message", e);
           new import_obsidian22.Notice("Failed to save edited message.");
-          messageEl.dataset.rawContent = oldContent || "";
           contentEl.empty();
-          await import_obsidian22.MarkdownRenderer.render(plugin.app, oldContent || "", contentEl, "", new import_obsidian22.Component());
           contentEl.removeClass("editing");
+          if (originalHTML2) {
+            plugin.debugLog("debug", "[EventHandlers] Restoring original HTML content");
+            contentEl.innerHTML = originalHTML2;
+          } else {
+            plugin.debugLog("debug", "[EventHandlers] Restoring old content as markdown");
+            await import_obsidian22.MarkdownRenderer.render(plugin.app, oldContent || "", contentEl, "", new import_obsidian22.Component());
+          }
+          messageEl.dataset.rawContent = oldContent || "";
         }
+        delete contentEl.dataset.originalHTML;
       });
     }
   };
@@ -17462,17 +17666,2877 @@ var init_eventHandlers = __esm({
   }
 });
 
+// src/components/chat/Message.ts
+async function createMessageElement(app, role, content, chatHistoryManager, plugin, regenerateCallback, parentComponent, messageData) {
+  const messageEl = document.createElement("div");
+  messageEl.addClass("ai-chat-message", role);
+  const messageContainer = messageEl.createDiv("message-container");
+  messageEl.dataset.rawContent = content;
+  messageEl.dataset.timestamp = (/* @__PURE__ */ new Date()).toISOString();
+  if (messageData) {
+    messageEl.dataset.messageData = JSON.stringify(messageData);
+  }
+  const messageRenderer = new MessageRenderer(app);
+  let contentEl = null;
+  if (role === "assistant") {
+    if (messageData && (messageData.reasoning || messageData.taskStatus)) {
+      messageRenderer.updateMessageWithEnhancedData(messageEl, {
+        ...messageData,
+        role: "assistant",
+        content
+      }, parentComponent);
+    }
+    if (messageData && messageData.toolResults && messageData.toolResults.length > 0) {
+      contentEl = messageEl.querySelector(".message-content");
+      if (!contentEl) {
+        contentEl = messageContainer.createDiv("message-content");
+      }
+      await messageRenderer.renderMessage({
+        ...messageData,
+        role: "assistant",
+        content
+      }, messageEl, parentComponent);
+    } else if (!(messageData == null ? void 0 : messageData.reasoning) && !(messageData == null ? void 0 : messageData.taskStatus)) {
+      contentEl = messageEl.querySelector(".message-content");
+      if (!contentEl) {
+        contentEl = messageContainer.createDiv("message-content");
+      }
+      await import_obsidian23.MarkdownRenderer.render(app, content, contentEl, "", parentComponent);
+    }
+  } else {
+    contentEl = messageEl.querySelector(".message-content");
+    if (!contentEl) {
+      contentEl = messageContainer.createDiv("message-content");
+    }
+    await import_obsidian23.MarkdownRenderer.render(app, content, contentEl, "", parentComponent);
+  }
+  if (!contentEl) {
+    contentEl = messageEl.querySelector(".message-content");
+    if (!contentEl) {
+      contentEl = messageContainer.createDiv("message-content");
+    }
+  }
+  const actionsEl = messageContainer.createDiv("message-actions");
+  actionsEl.classList.add("hidden");
+  messageEl.addEventListener("mouseenter", () => {
+    actionsEl.classList.remove("hidden");
+    actionsEl.classList.add("visible");
+  });
+  messageEl.addEventListener("mouseleave", () => {
+    actionsEl.classList.remove("visible");
+    actionsEl.classList.add("hidden");
+  });
+  actionsEl.appendChild(createActionButton("Copy", "Copy message (including tool results)", handleCopyMessage(messageEl, plugin)));
+  actionsEl.appendChild(createActionButton("Edit", "Edit message", handleEditMessage(messageEl, chatHistoryManager, plugin)));
+  actionsEl.appendChild(createActionButton("Delete", "Delete message", handleDeleteMessage(messageEl, chatHistoryManager, app)));
+  if (role === "assistant") {
+    actionsEl.appendChild(createActionButton("Regenerate", "Regenerate this response", handleRegenerateMessage(messageEl, regenerateCallback)));
+  }
+  messageContainer.appendChild(actionsEl);
+  return messageEl;
+}
+var import_obsidian23;
+var init_Message = __esm({
+  "src/components/chat/Message.ts"() {
+    import_obsidian23 = require("obsidian");
+    init_Buttons();
+    init_MessageRenderer();
+    init_eventHandlers();
+  }
+});
+
+// src/components/chat/ui.ts
+function createChatUI(app, contentEl) {
+  function createIconButton(options) {
+    const btn = document.createElement("button");
+    btn.setText(options.text);
+    btn.setAttribute("aria-label", options.ariaLabel);
+    btn.style.fontSize = "0.85em";
+    btn.style.fontFamily = "inherit";
+    btn.style.width = "1.8em";
+    btn.style.height = "1.8em";
+    btn.style.marginBottom = "0.2em";
+    btn.style.opacity = "0.7";
+    if (options.className) btn.className = options.className;
+    if (options.addClass) btn.classList.add(options.addClass);
+    return btn;
+  }
+  function createIndicator(options) {
+    const div = document.createElement("div");
+    div.className = options.className;
+    div.style.textAlign = "center";
+    div.style.opacity = "0.5";
+    div.style.fontSize = "0.85em";
+    div.style.margin = "0.1em 0 0.2em 0";
+    div.style.display = "none";
+    div.style.whiteSpace = "normal";
+    div.style.wordBreak = "break-word";
+    div.style.overflowWrap = "break-word";
+    div.style.maxWidth = "100%";
+    return div;
+  }
+  const topRowContainer = contentEl.createDiv("ai-chat-top-row");
+  topRowContainer.style.display = "flex";
+  topRowContainer.style.flexDirection = "row";
+  topRowContainer.style.alignItems = "flex-start";
+  topRowContainer.style.justifyContent = "space-between";
+  topRowContainer.style.gap = "1em";
+  topRowContainer.style.margin = "0.5em 0 0.2em 0";
+  const fadedHelp = document.createElement("div");
+  fadedHelp.setText("Tip: Type /help or press Ctrl+Shift+H for chat commands and shortcuts. Use Ctrl+Shift+X to clear chat and Ctrl+Shift+C to copy.");
+  fadedHelp.style.textAlign = "left";
+  fadedHelp.style.opacity = "0.6";
+  fadedHelp.style.fontSize = "0.95em";
+  fadedHelp.style.flex = "1 1 0";
+  fadedHelp.style.minWidth = "0";
+  topRowContainer.appendChild(fadedHelp);
+  const buttonColumn = document.createElement("div");
+  buttonColumn.style.display = "flex";
+  buttonColumn.style.flexDirection = "column";
+  buttonColumn.style.alignItems = "flex-end";
+  buttonColumn.style.gap = "0.2em";
+  buttonColumn.style.flex = "0 0 auto";
+  const topButtonContainer = document.createElement("div");
+  topButtonContainer.className = "ai-chat-buttons";
+  topButtonContainer.style.display = "flex";
+  topButtonContainer.style.gap = "0.5em";
+  buttonColumn.appendChild(topButtonContainer);
+  const secondaryButtonContainer = document.createElement("div");
+  secondaryButtonContainer.className = "ai-chat-secondary-buttons";
+  secondaryButtonContainer.style.display = "flex";
+  secondaryButtonContainer.style.justifyContent = "flex-end";
+  secondaryButtonContainer.style.gap = "0.5em";
+  buttonColumn.appendChild(secondaryButtonContainer);
+  topRowContainer.appendChild(buttonColumn);
+  contentEl.appendChild(topRowContainer);
+  const mainTopButtons = [
+    { key: "settingsButton", text: "\u2699\uFE0F", ariaLabel: "Toggle model settings" },
+    { key: "copyAllButton", text: "\u{1F4CB}", ariaLabel: "Copy all messages" },
+    { key: "saveNoteButton", text: "\u{1F4BE}", ariaLabel: "Save chat as note" },
+    { key: "clearButton", text: "\u{1F5D1}\uFE0F", ariaLabel: "Clear chat history" }
+  ];
+  const secondaryTopButtons = [
+    { key: "referenceNoteButton", text: "\u{1F4DD}", ariaLabel: "Toggle referencing current note", addClass: "ai-chat-reference-button" },
+    { key: "obsidianLinksButton", text: "\u{1F517}", ariaLabel: "Toggle Obsidian links", addClass: "ai-chat-obsidian-links-button" },
+    { key: "contextNotesButton", text: "\u{1F4DA}", ariaLabel: "Toggle context notes", addClass: "ai-chat-context-notes-button" }
+  ];
+  const buttonRefs = {};
+  for (const btnCfg of mainTopButtons) {
+    const btn = createIconButton(btnCfg);
+    topButtonContainer.appendChild(btn);
+    buttonRefs[btnCfg.key] = btn;
+  }
+  for (const btnCfg of secondaryTopButtons) {
+    const btn = createIconButton(btnCfg);
+    secondaryButtonContainer.appendChild(btn);
+    buttonRefs[btnCfg.key] = btn;
+  }
+  const referenceNoteIndicator = createIndicator({ className: "ai-reference-note-indicator" });
+  const obsidianLinksIndicator = createIndicator({ className: "ai-obsidian-links-indicator" });
+  const contextNotesIndicator = createIndicator({ className: "ai-context-notes-indicator" });
+  const modelDisplayContainer = contentEl.createDiv("ai-model-display-container");
+  modelDisplayContainer.style.textAlign = "center";
+  modelDisplayContainer.style.margin = "0.5em 0";
+  modelDisplayContainer.style.borderBottom = "1px solid var(--background-modifier-border)";
+  modelDisplayContainer.style.paddingBottom = "0.5em";
+  const modelNameDisplay = document.createElement("div");
+  modelNameDisplay.className = "ai-model-name-display";
+  modelNameDisplay.style.textAlign = "center";
+  modelNameDisplay.style.opacity = "0.7";
+  modelNameDisplay.style.fontSize = "0.75em";
+  modelNameDisplay.style.margin = "0";
+  modelNameDisplay.style.fontWeight = "bold";
+  modelDisplayContainer.appendChild(modelNameDisplay);
+  modelDisplayContainer.appendChild(referenceNoteIndicator);
+  modelDisplayContainer.appendChild(obsidianLinksIndicator);
+  modelDisplayContainer.appendChild(contextNotesIndicator);
+  const messagesContainer = contentEl.createDiv("ai-chat-messages");
+  messagesContainer.setAttribute("tabindex", "0");
+  const toolContinuationContainer = contentEl.createDiv("ai-tool-continuation-container");
+  toolContinuationContainer.style.display = "none";
+  const inputContainer = contentEl.createDiv("ai-chat-input-container");
+  const textarea = inputContainer.createEl("textarea", {
+    cls: "ai-chat-input",
+    attr: {
+      placeholder: "Type your message...",
+      rows: "3"
+    }
+  });
+  const sendButton = inputContainer.createEl("button", {
+    text: "Send",
+    cls: "mod-cta"
+  });
+  const stopButton = inputContainer.createEl("button", {
+    text: "Stop"
+  });
+  stopButton.classList.add("hidden");
+  stopButton.disabled = false;
+  stopButton.style.pointerEvents = "";
+  stopButton.tabIndex = 0;
+  stopButton.onclick = null;
+  stopButton.style.zIndex = "10";
+  stopButton.title = "Stop AI response";
+  const helpButton = inputContainer.createEl("button", {
+    text: "?"
+  });
+  helpButton.setAttr("aria-label", "Show chat help");
+  helpButton.style.fontSize = "0.9em";
+  helpButton.style.width = "1.8em";
+  helpButton.style.height = "1.8em";
+  helpButton.style.marginBottom = "0.2em";
+  helpButton.style.opacity = "0.7";
+  helpButton.style.position = "absolute";
+  helpButton.style.right = "0.5em";
+  helpButton.style.top = "-2.2em";
+  helpButton.style.zIndex = "2";
+  const agentModeButton = inputContainer.createEl("button", {
+    text: "\u{1F916}"
+  });
+  agentModeButton.setAttr("aria-label", "Toggle Agent Mode");
+  agentModeButton.style.fontSize = "0.9em";
+  agentModeButton.style.width = "1.8em";
+  agentModeButton.style.height = "1.8em";
+  agentModeButton.style.marginBottom = "0.2em";
+  agentModeButton.style.opacity = "0.7";
+  agentModeButton.style.position = "absolute";
+  agentModeButton.style.right = "2.8em";
+  agentModeButton.style.top = "-2.2em";
+  agentModeButton.style.zIndex = "2";
+  agentModeButton.classList.add("ai-agent-mode-btn");
+  function setAgentModeActive(isActive) {
+    if (isActive) {
+      agentModeButton.classList.add("active");
+    } else {
+      agentModeButton.classList.remove("active");
+    }
+  }
+  agentModeButton.setActive = setAgentModeActive;
+  inputContainer.appendChild(agentModeButton);
+  inputContainer.style.position = "relative";
+  return {
+    contentEl,
+    fadedHelp,
+    topButtonContainer,
+    settingsButton: buttonRefs.settingsButton,
+    copyAllButton: buttonRefs.copyAllButton,
+    saveNoteButton: buttonRefs.saveNoteButton,
+    clearButton: buttonRefs.clearButton,
+    messagesContainer,
+    toolContinuationContainer,
+    inputContainer,
+    textarea,
+    sendButton,
+    stopButton,
+    helpButton,
+    agentModeButton,
+    referenceNoteButton: buttonRefs.referenceNoteButton,
+    obsidianLinksButton: buttonRefs.obsidianLinksButton,
+    contextNotesButton: buttonRefs.contextNotesButton,
+    referenceNoteIndicator,
+    obsidianLinksIndicator,
+    contextNotesIndicator,
+    modelNameDisplay
+  };
+}
+var init_ui = __esm({
+  "src/components/chat/ui.ts"() {
+  }
+});
+
+// src/utils/messageContentParser.ts
+function parseToolDataFromContent(content) {
+  const toolDataRegex = /```ai-tool-execution\n([\s\S]*?)\n```/g;
+  const match = toolDataRegex.exec(content);
+  if (match) {
+    try {
+      return JSON.parse(match[1]);
+    } catch (e) {
+      console.error("Failed to parse tool data:", e);
+    }
+  }
+  return null;
+}
+function cleanContentFromToolData(content) {
+  let cleanContent = content.replace(/```ai-tool-execution\n[\s\S]*?\n```\n?/g, "");
+  cleanContent = cleanContent.replace(/\n\n\*\*Tool Execution:\*\*[\s\S]*?(?=\n\n\*\*Tool Execution:\*\*|\n\n[^*]|$)/g, "");
+  return cleanContent.trim();
+}
+var init_messageContentParser = __esm({
+  "src/utils/messageContentParser.ts"() {
+  }
+});
+
+// src/components/chat/chatHistoryUtils.ts
+async function renderChatHistory({
+  messagesContainer,
+  loadedHistory,
+  chatHistoryManager,
+  plugin,
+  regenerateResponse,
+  scrollToBottom = true
+}) {
+  messagesContainer.empty();
+  for (const msg of loadedHistory) {
+    if (msg.sender === "user" || msg.sender === "assistant") {
+      const toolData = parseToolDataFromContent(msg.content);
+      let messageData = msg;
+      let cleanContent = msg.content;
+      if (toolData) {
+        messageData = {
+          ...msg,
+          toolResults: toolData.toolResults,
+          reasoning: toolData.reasoning,
+          taskStatus: toolData.taskStatus
+        };
+        cleanContent = cleanContentFromToolData(msg.content);
+        messageData.content = cleanContent;
+      }
+      const messageEl = await createMessageElement(
+        plugin.app,
+        msg.sender,
+        cleanContent,
+        chatHistoryManager,
+        plugin,
+        regenerateResponse,
+        plugin,
+        // Pass plugin again for legacy compatibility
+        messageData
+        // Pass the full message data for enhanced rendering
+      );
+      messageEl.dataset.timestamp = msg.timestamp;
+      messagesContainer.appendChild(messageEl);
+    }
+  }
+  if (scrollToBottom) {
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+  }
+}
+var init_chatHistoryUtils = __esm({
+  "src/components/chat/chatHistoryUtils.ts"() {
+    init_Message();
+    init_messageContentParser();
+  }
+});
+
+// src/components/agent/CommandParser.ts
+var CommandParser;
+var init_CommandParser = __esm({
+  "src/components/agent/CommandParser.ts"() {
+    init_toolcollect();
+    CommandParser = class {
+      /**
+       * @param plugin Optional plugin instance for debug logging.
+       */
+      constructor(plugin) {
+        this.plugin = plugin;
+        __publicField(this, "validActions");
+        this.validActions = getAllToolNames();
+        if (this.plugin) {
+          this.plugin.debugLog("debug", "[CommandParser] Constructor - Valid actions loaded:", this.validActions);
+        }
+      }
+      /**
+       * Parse AI response to extract tool commands and regular text.
+       * @param response The AI response string.
+       * @returns Object containing separated text and commands.
+       */
+      parseResponse(response) {
+        const commands = [];
+        let cleanText = response;
+        if (this.plugin) {
+          this.plugin.debugLog("debug", "[CommandParser] Parsing response:", response);
+          this.plugin.debugLog("debug", "[CommandParser] Valid actions:", this.validActions);
+        }
+        const extractedCommands = this.extractCommands(response);
+        if (this.plugin) {
+          this.plugin.debugLog("debug", "[CommandParser] Extracted commands:", extractedCommands);
+        }
+        for (const command of extractedCommands) {
+          if (this.plugin) {
+            this.plugin.debugLog("debug", "[CommandParser] Validating command:", command.command);
+          }
+          if (this.validateCommand(command.command)) {
+            if (this.plugin) {
+              this.plugin.debugLog("debug", "[CommandParser] Command is valid, adding to commands");
+            }
+            commands.push(command.command);
+            cleanText = cleanText.replace(command.originalText, "").trim();
+          } else {
+            if (this.plugin) {
+              this.plugin.debugLog("debug", "[CommandParser] Command is invalid");
+            }
+          }
+        }
+        if (this.plugin) {
+          this.plugin.debugLog("debug", "[CommandParser] Final commands:", commands);
+        }
+        return {
+          text: cleanText,
+          commands
+        };
+      }
+      /**
+       * Validate that a command has the required structure and is a known action.
+       * @param command The command to validate.
+       * @returns True if command is valid.
+       */
+      validateCommand(command) {
+        if (this.plugin) {
+          this.plugin.debugLog("debug", "[CommandParser] validateCommand called with:", command);
+        }
+        if (!command || typeof command !== "object") {
+          if (this.plugin) {
+            this.plugin.debugLog("debug", "[CommandParser] Command is not an object");
+          }
+          return false;
+        }
+        if (!command.action || typeof command.action !== "string") {
+          if (this.plugin) {
+            this.plugin.debugLog("debug", "[CommandParser] Command missing action field:", command.action);
+          }
+          return false;
+        }
+        if (!command.parameters || typeof command.parameters !== "object") {
+          if (this.plugin) {
+            this.plugin.debugLog("debug", "[CommandParser] Command missing parameters field:", command.parameters);
+          }
+          return false;
+        }
+        if (!this.validActions.includes(command.action)) {
+          if (this.plugin) {
+            this.plugin.debugLog("debug", "[CommandParser] Command action not in valid actions:", command.action, "Valid actions:", this.validActions);
+          }
+          return false;
+        }
+        if (this.plugin) {
+          this.plugin.debugLog("debug", "[CommandParser] Command is valid");
+        }
+        return true;
+      }
+      /**
+       * Extract JSON commands from text using several patterns.
+       * Handles both inline and code block JSON, as well as "thought" objects.
+       * @param text The text to extract commands from.
+       * @returns Array of extracted commands with their original text.
+       */
+      extractCommands(text) {
+        var _a2, _b, _c, _d;
+        const commands = [];
+        try {
+          const parsed = JSON.parse(text.trim());
+          if (Array.isArray(parsed)) {
+            for (const item of parsed) {
+              if (item && typeof item === "object" && item.action) {
+                let parameters = item.parameters;
+                if (!parameters) {
+                  parameters = { ...item };
+                  delete parameters.action;
+                  delete parameters.requestId;
+                }
+                commands.push({
+                  command: {
+                    action: item.action,
+                    parameters,
+                    requestId: item.requestId || this.generateRequestId(),
+                    finished: item.finished || false
+                  },
+                  originalText: JSON.stringify(item)
+                });
+              } else if (item && typeof item === "object" && item.thought && item.nextTool) {
+                commands.push({
+                  command: {
+                    action: "thought",
+                    parameters: {
+                      thought: item.thought,
+                      nextTool: item.nextTool,
+                      nextActionDescription: item.nextActionDescription,
+                      step: item.step,
+                      totalSteps: item.totalSteps
+                    },
+                    requestId: this.generateRequestId(),
+                    finished: ((_a2 = item.nextTool) == null ? void 0 : _a2.toLowerCase()) === "finished"
+                  },
+                  originalText: JSON.stringify(item)
+                });
+              }
+            }
+            return commands;
+          } else if (parsed.action) {
+            let parameters = parsed.parameters;
+            if (!parameters) {
+              parameters = { ...parsed };
+              delete parameters.action;
+              delete parameters.requestId;
+            }
+            commands.push({
+              command: {
+                action: parsed.action,
+                parameters,
+                requestId: parsed.requestId || this.generateRequestId(),
+                finished: parsed.finished || false
+              },
+              originalText: text.trim()
+            });
+            return commands;
+          } else if (parsed.thought && parsed.nextTool) {
+            commands.push({
+              command: {
+                action: "thought",
+                parameters: {
+                  thought: parsed.thought,
+                  nextTool: parsed.nextTool,
+                  nextActionDescription: parsed.nextActionDescription,
+                  step: parsed.step,
+                  totalSteps: parsed.totalSteps
+                },
+                requestId: this.generateRequestId(),
+                finished: ((_b = parsed.nextTool) == null ? void 0 : _b.toLowerCase()) === "finished"
+              },
+              originalText: text.trim()
+            });
+            return commands;
+          }
+        } catch (error) {
+        }
+        if (commands.length === 0) {
+          const jsonObjects = this.extractIndividualJsonObjects(text);
+          for (const jsonText of jsonObjects) {
+            try {
+              const parsed = JSON.parse(jsonText);
+              if (parsed.action) {
+                let parameters = parsed.parameters;
+                if (!parameters) {
+                  parameters = { ...parsed };
+                  delete parameters.action;
+                  delete parameters.requestId;
+                }
+                commands.push({
+                  command: {
+                    action: parsed.action,
+                    parameters,
+                    requestId: parsed.requestId || this.generateRequestId(),
+                    finished: parsed.finished || false
+                  },
+                  originalText: jsonText
+                });
+              } else if (parsed.thought && parsed.nextTool) {
+                commands.push({
+                  command: {
+                    action: "thought",
+                    parameters: {
+                      thought: parsed.thought,
+                      nextTool: parsed.nextTool,
+                      nextActionDescription: parsed.nextActionDescription,
+                      step: parsed.step,
+                      totalSteps: parsed.totalSteps
+                    },
+                    requestId: this.generateRequestId(),
+                    finished: ((_c = parsed.nextTool) == null ? void 0 : _c.toLowerCase()) === "finished"
+                  },
+                  originalText: jsonText
+                });
+              }
+            } catch (error) {
+              continue;
+            }
+          }
+        }
+        const patterns = [
+          /```json\s*(\{[\s\S]*?\})\s*```/g,
+          // ```json ... ```
+          /```\s*(\{[\s\S]*?\})\s*```/g,
+          // ``` ... ```
+          /(\{[\s\S]*?\})/g
+          // Inline {...}
+        ];
+        for (const pattern of patterns) {
+          let match;
+          while ((match = pattern.exec(text)) !== null) {
+            const jsonText = match[1];
+            const originalText = match[0];
+            try {
+              const parsed = JSON.parse(jsonText);
+              if (parsed.action) {
+                let parameters = parsed.parameters;
+                if (!parameters) {
+                  parameters = { ...parsed };
+                  delete parameters.action;
+                  delete parameters.requestId;
+                }
+                commands.push({
+                  command: {
+                    action: parsed.action,
+                    parameters,
+                    requestId: parsed.requestId || this.generateRequestId(),
+                    finished: parsed.finished || false
+                  },
+                  originalText
+                });
+              } else if (parsed.thought && parsed.nextTool) {
+                commands.push({
+                  command: {
+                    action: "thought",
+                    parameters: {
+                      thought: parsed.thought,
+                      nextTool: parsed.nextTool,
+                      nextActionDescription: parsed.nextActionDescription,
+                      step: parsed.step,
+                      totalSteps: parsed.totalSteps
+                    },
+                    requestId: this.generateRequestId(),
+                    finished: ((_d = parsed.nextTool) == null ? void 0 : _d.toLowerCase()) === "finished"
+                  },
+                  originalText
+                });
+              }
+            } catch (error) {
+              continue;
+            }
+          }
+          pattern.lastIndex = 0;
+        }
+        return commands;
+      }
+      /**
+       * Extract individual JSON objects from text with proper brace balancing.
+       * @param text The text containing multiple JSON objects.
+       * @returns Array of individual JSON object strings.
+       */
+      extractIndividualJsonObjects(text) {
+        const jsonObjects = [];
+        let braceCount = 0;
+        let currentObject = "";
+        let inString = false;
+        let escapeNext = false;
+        for (let i = 0; i < text.length; i++) {
+          const char = text[i];
+          if (escapeNext) {
+            currentObject += char;
+            escapeNext = false;
+            continue;
+          }
+          if (char === "\\" && inString) {
+            currentObject += char;
+            escapeNext = true;
+            continue;
+          }
+          if (char === '"' && !escapeNext) {
+            inString = !inString;
+            currentObject += char;
+            continue;
+          }
+          if (!inString) {
+            if (char === "{") {
+              if (braceCount === 0) {
+                currentObject = char;
+              } else {
+                currentObject += char;
+              }
+              braceCount++;
+            } else if (char === "}") {
+              currentObject += char;
+              braceCount--;
+              if (braceCount === 0 && currentObject.trim()) {
+                jsonObjects.push(currentObject.trim());
+                currentObject = "";
+              }
+            } else if (braceCount > 0) {
+              currentObject += char;
+            }
+          } else {
+            currentObject += char;
+          }
+        }
+        return jsonObjects;
+      }
+      /**
+       * Generate a unique request ID for tool commands.
+       * @returns A unique request ID string.
+       */
+      generateRequestId() {
+        return `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      }
+    };
+  }
+});
+
+// src/components/agent/ToolRegistry.ts
+var ToolRegistry;
+var init_ToolRegistry = __esm({
+  "src/components/agent/ToolRegistry.ts"() {
+    init_logger();
+    ToolRegistry = class {
+      /**
+       * @param plugin The plugin instance (for settings, logging, and app access)
+       */
+      constructor(plugin) {
+        __publicField(this, "tools", /* @__PURE__ */ new Map());
+        __publicField(this, "plugin");
+        this.plugin = plugin;
+      }
+      /**
+       * Registers a tool instance by its name.
+       * @param tool The tool instance to register
+       */
+      register(tool) {
+        var _a2;
+        this.tools.set(tool.name, tool);
+        if (this.plugin && this.plugin.settings) {
+          debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "debug", "[ToolRegistry] Registering tool:", tool.name);
+        }
+      }
+      /**
+       * Executes a tool command by looking up the tool and calling its execute method.
+       * Handles special context injection for certain tools (e.g., file_diff/editor).
+       * @param command The ToolCommand to execute
+       * @returns ToolResult with the result or error
+       */
+      async execute(command) {
+        var _a2, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r;
+        const tool = this.tools.get(command.action);
+        if (!tool) {
+          if (this.plugin && this.plugin.settings) {
+            debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "debug", "[ToolRegistry] Tool not found", { action: command.action });
+          }
+          return {
+            success: false,
+            error: `Tool not found: ${command.action}`,
+            requestId: command.requestId
+          };
+        }
+        try {
+          if (this.plugin && this.plugin.settings) {
+            debugLog((_b = this.plugin.settings.debugMode) != null ? _b : false, "debug", "[ToolRegistry] Executing tool", { command });
+          }
+          let parameters = { ...command.parameters };
+          if (tool.name === "file_diff" && !parameters.editor) {
+            const app = (_c = this.plugin) == null ? void 0 : _c.app;
+            let editor = null;
+            try {
+              if ((_f = (_e = (_d = app == null ? void 0 : app.workspace) == null ? void 0 : _d.activeLeaf) == null ? void 0 : _e.view) == null ? void 0 : _f.editor) {
+                editor = app.workspace.activeLeaf.view.editor;
+              }
+            } catch (error) {
+            }
+            if (!editor) {
+              try {
+                const activeView = (_k = (_g = app == null ? void 0 : app.workspace) == null ? void 0 : _g.getActiveViewOfType) == null ? void 0 : _k.call(_g, (_j = (_i = (_h = app == null ? void 0 : app.workspace) == null ? void 0 : _h.viewRegistry) == null ? void 0 : _i.getTypeByID) == null ? void 0 : _j.call(_i, "markdown"));
+                if (activeView == null ? void 0 : activeView.editor) {
+                  editor = activeView.editor;
+                }
+              } catch (error) {
+              }
+            }
+            if (!editor) {
+              try {
+                const leaves = (_m = (_l = app == null ? void 0 : app.workspace) == null ? void 0 : _l.getLeavesOfType) == null ? void 0 : _m.call(_l, "markdown");
+                if (leaves && leaves.length > 0) {
+                  for (const leaf of leaves) {
+                    if ((_n = leaf.view) == null ? void 0 : _n.editor) {
+                      editor = leaf.view.editor;
+                      break;
+                    }
+                  }
+                }
+              } catch (error) {
+              }
+            }
+            if (editor) {
+              parameters.editor = editor;
+              if (this.plugin && this.plugin.settings) {
+                debugLog((_o = this.plugin.settings.debugMode) != null ? _o : false, "debug", "[ToolRegistry] Injected editor for file_diff tool");
+              }
+            } else {
+              if (this.plugin && this.plugin.settings) {
+                debugLog((_p = this.plugin.settings.debugMode) != null ? _p : false, "debug", "[ToolRegistry] No editor available for file_diff tool, will use fallback mode");
+              }
+            }
+          }
+          const result = await tool.execute(parameters, {});
+          if (this.plugin && this.plugin.settings) {
+            debugLog((_q = this.plugin.settings.debugMode) != null ? _q : false, "debug", "[ToolRegistry] Tool execution result", { command, result });
+          }
+          return {
+            ...result,
+            requestId: command.requestId
+          };
+        } catch (error) {
+          if (this.plugin && this.plugin.settings) {
+            debugLog((_r = this.plugin.settings.debugMode) != null ? _r : false, "error", "[ToolRegistry] Tool execution error", { command, error });
+          }
+          return {
+            success: false,
+            error: error.message || String(error),
+            requestId: command.requestId
+          };
+        }
+      }
+      /**
+       * Returns an array of all registered tool instances.
+       * @returns Array of Tool objects
+       */
+      getAvailableTools() {
+        return Array.from(this.tools.values());
+      }
+    };
+  }
+});
+
+// src/components/agent/AgentResponseHandler/constants.ts
+var CONSTANTS;
+var init_constants = __esm({
+  "src/components/agent/AgentResponseHandler/constants.ts"() {
+    CONSTANTS = {
+      NOTIFICATION_DISPLAY_DELAY: 100,
+      NOTIFICATION_AUTO_REMOVE_DELAY: 5e3,
+      NOTIFICATION_FADE_DELAY: 300,
+      MAX_ADDITIONAL_TOOLS: 100,
+      REASONING_ID_PREFIX: "reasoning-",
+      TOOL_DISPLAY_ID_SEPARATOR: "-",
+      ERROR_MESSAGES: {
+        TOOL_EXECUTION_FAILED: "Tool execution failed",
+        TOOL_EXECUTION_TIMEOUT: "Tool execution timed out",
+        COPY_FAILED: "Failed to copy tool result",
+        RERUN_FAILED: "Failed to re-run tool"
+      },
+      JSON_INDENT: 2,
+      MD_EXTENSION: ".md",
+      PATH_SEPARATOR: "/",
+      COMMAND_KEY_SEPARATOR: ":"
+    };
+  }
+});
+
+// src/components/agent/AgentResponseHandler/utils.ts
+function stringifyJson(obj) {
+  return JSON.stringify(obj, null, CONSTANTS.JSON_INDENT);
+}
+var init_utils = __esm({
+  "src/components/agent/AgentResponseHandler/utils.ts"() {
+    init_constants();
+  }
+});
+
+// src/components/agent/AgentResponseHandler/TaskNotificationManager.ts
+var TaskNotificationManager;
+var init_TaskNotificationManager = __esm({
+  "src/components/agent/AgentResponseHandler/TaskNotificationManager.ts"() {
+    init_constants();
+    TaskNotificationManager = class {
+      /**
+       * Constructs a TaskNotificationManager with the given context.
+       * @param context The plugin context, including settings.
+       */
+      constructor(context) {
+        // Context containing plugin instance and settings.
+        __publicField(this, "context");
+        this.context = context;
+      }
+      /**
+       * Creates a DOM element representing a task completion notification.
+       * @param message The message to display.
+       * @param type The notification type ("success", "error", "warning").
+       * @returns The notification HTMLElement.
+       */
+      createTaskCompletionNotification(message, type2 = "success") {
+        const notification = document.createElement("div");
+        notification.className = `task-completion-notification ${type2}`;
+        const icon = this.getNotificationIcon(type2);
+        notification.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <span>${icon}</span>
+                <span>${message}</span>
+            </div>
+        `;
+        this.setupNotificationAutoRemoval(notification);
+        return notification;
+      }
+      /**
+       * Shows a task completion notification if enabled in settings.
+       * @param message The message to display.
+       * @param type The notification type.
+       */
+      showTaskCompletionNotification(message, type2 = "success") {
+        var _a2;
+        if (!((_a2 = this.context.plugin.settings.uiBehavior) == null ? void 0 : _a2.showCompletionNotifications)) {
+          return;
+        }
+        const notification = this.createTaskCompletionNotification(message, type2);
+        document.body.appendChild(notification);
+      }
+      /**
+       * Updates the task progress indicator (not implemented).
+       * @param current The current progress value.
+       * @param total The total value for completion (optional).
+       * @param description Optional description of the progress.
+       */
+      updateTaskProgress(current, total, description) {
+      }
+      /**
+       * Hides the task progress indicator (not implemented).
+       */
+      hideTaskProgress() {
+      }
+      /**
+       * Returns an icon string for the given notification type.
+       * @param type The notification type.
+       * @returns The icon as a string.
+       */
+      getNotificationIcon(type2) {
+        const icons = {
+          success: "\u2705",
+          error: "\u274C",
+          warning: "\u26A0\uFE0F"
+        };
+        return icons[type2];
+      }
+      /**
+       * Sets up automatic removal of the notification element after a delay,
+       * including a fade-out effect.
+       * @param notification The notification HTMLElement.
+       */
+      setupNotificationAutoRemoval(notification) {
+        setTimeout(() => {
+          notification.classList.add("show");
+        }, CONSTANTS.NOTIFICATION_DISPLAY_DELAY);
+        setTimeout(() => {
+          notification.classList.remove("show");
+          setTimeout(() => notification.remove(), CONSTANTS.NOTIFICATION_FADE_DELAY);
+        }, CONSTANTS.NOTIFICATION_AUTO_REMOVE_DELAY);
+      }
+    };
+  }
+});
+
+// src/components/agent/AgentResponseHandler/ToolResultFormatter.ts
+var ToolResultFormatter;
+var init_ToolResultFormatter = __esm({
+  "src/components/agent/AgentResponseHandler/ToolResultFormatter.ts"() {
+    init_utils();
+    ToolResultFormatter = class {
+      /**
+       * Returns a status icon or label based on success and style.
+       * @param success Whether the tool execution was successful.
+       * @param style The formatting style ("markdown", "copy", or "plain").
+       */
+      getStatusIcon(success, style) {
+        if (success) {
+          return style === "markdown" ? "\u2705" : style === "copy" ? "SUCCESS" : "\u2713";
+        } else {
+          return style === "markdown" ? "\u274C" : style === "copy" ? "ERROR" : "\u2717";
+        }
+      }
+      /**
+       * Formats a single tool result for display in the specified style.
+       * @param command The tool command.
+       * @param result The tool result.
+       * @param opts Optional formatting options.
+       */
+      formatToolResult(command, result, opts) {
+        const style = (opts == null ? void 0 : opts.style) || "plain";
+        const status = this.getStatusIcon(result.success, style);
+        const action = command.action.replace("_", " ");
+        const context = this.getResultContext(command, result);
+        switch (style) {
+          case "markdown":
+            return `${status} **${action}** completed successfully${context}`;
+          case "copy":
+            return this.formatToolResultForCopy(command, result, status);
+          default:
+            return this.formatToolResultPlain(command, result, status);
+        }
+      }
+      /**
+       * Returns additional context for a tool result, such as file path or summary.
+       * @param command The tool command.
+       * @param result The tool result.
+       */
+      getResultContext(command, result) {
+        var _a2;
+        if (!result.success || !result.data) return "";
+        switch (command.action) {
+          case "file_write":
+          case "file_read":
+          case "file_diff":
+            if (result.data.filePath) {
+              return ` [[${result.data.filePath}]]`;
+            }
+            break;
+          case "file_select":
+            if (result.data.count !== void 0) {
+              return ` [[${result.data.count} files found]]`;
+            }
+            break;
+          case "thought":
+            if ((_a2 = result.data) == null ? void 0 : _a2.formattedThought) {
+              return result.data.formattedThought;
+            }
+            break;
+        }
+        return "";
+      }
+      /**
+       * Formats a tool result for copying (machine-readable).
+       * @param command The tool command.
+       * @param result The tool result.
+       * @param status The status label.
+       */
+      formatToolResultForCopy(command, result, status) {
+        const params = stringifyJson(command.parameters);
+        const resultData = result.success ? stringifyJson(result.data) : result.error;
+        return `TOOL EXECUTION: ${command.action}
+STATUS: ${status}
+PARAMETERS:
+${params}
+RESULT:
+${resultData}`;
+      }
+      /**
+       * Formats a tool result as plain text.
+       * @param command The tool command.
+       * @param result The tool result.
+       * @param status The status icon or label.
+       */
+      formatToolResultPlain(command, result, status) {
+        const data = result.success ? stringifyJson(result.data) : result.error;
+        return `${status} Tool: ${command.action}
+Parameters: ${stringifyJson(command.parameters)}
+Result: ${data}`;
+      }
+      /**
+       * Formats an array of tool results for display in markdown.
+       * @param toolResults Array of tool command/result pairs.
+       * @returns Markdown string for display.
+       */
+      formatToolResultsForDisplay(toolResults) {
+        if (toolResults.length === 0) {
+          return "";
+        }
+        const resultText = toolResults.map(
+          ({ command, result }) => this.formatToolResult(command, result, { style: "markdown" })
+        ).join("\n");
+        return `
+
+**Tool Execution:**
+${resultText}`;
+      }
+      /**
+       * Creates a system message summarizing tool execution results.
+       * @param toolResults Array of tool command/result pairs.
+       * @returns A Message object or null if no results.
+       */
+      createToolResultMessage(toolResults) {
+        if (toolResults.length === 0) {
+          return null;
+        }
+        const resultText = toolResults.map(
+          ({ command, result }) => this.formatToolResult(command, result, { style: "plain" })
+        ).join("\n\n");
+        return {
+          role: "system",
+          content: `Tool execution results:
+
+${resultText}`
+        };
+      }
+    };
+  }
+});
+
+// src/components/agent/AgentResponseHandler/ToolExecutor.ts
+var ToolExecutor;
+var init_ToolExecutor = __esm({
+  "src/components/agent/AgentResponseHandler/ToolExecutor.ts"() {
+    init_constants();
+    ToolExecutor = class {
+      /**
+       * Constructs a ToolExecutor.
+       * @param toolRegistry The registry of available tools.
+       * @param onToolResult Callback for handling tool results.
+       * @param createToolDisplay Callback for displaying tool results.
+       */
+      constructor(toolRegistry, onToolResult, createToolDisplay) {
+        // Registry of available tools.
+        __publicField(this, "toolRegistry");
+        // Counter for the number of tool executions.
+        __publicField(this, "executionCount", 0);
+        // Callback to handle tool results.
+        __publicField(this, "onToolResult");
+        // Callback to create a display for tool results.
+        __publicField(this, "createToolDisplay");
+        this.toolRegistry = toolRegistry;
+        this.onToolResult = onToolResult;
+        this.createToolDisplay = createToolDisplay;
+      }
+      /**
+       * Executes a tool with logging and timing.
+       * @param command The tool command to execute.
+       * @param timeoutMs Timeout in milliseconds.
+       * @param contextLabel Context label for logging.
+       * @param debugLog Optional debug logging function.
+       * @returns The result of the tool execution.
+       */
+      async executeToolWithLogging(command, timeoutMs, contextLabel, debugLog2) {
+        const startTime = Date.now();
+        if (debugLog2) debugLog2("Executing tool", { command }, contextLabel);
+        const result = await this.executeToolWithTimeout(command, timeoutMs);
+        const executionTime = Date.now() - startTime;
+        if (debugLog2) debugLog2("Tool execution result", { command, result, executionTime }, contextLabel);
+        return result;
+      }
+      /**
+       * Executes a tool with a timeout.
+       * @param command The tool command to execute.
+       * @param timeoutMs Timeout in milliseconds.
+       * @returns A promise resolving to the tool result.
+       */
+      async executeToolWithTimeout(command, timeoutMs) {
+        return new Promise((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            reject(new Error(`${CONSTANTS.ERROR_MESSAGES.TOOL_EXECUTION_TIMEOUT} after ${timeoutMs}ms`));
+          }, timeoutMs);
+          this.toolRegistry.execute(command).then((result) => {
+            clearTimeout(timeout);
+            resolve(result);
+          }).catch((error) => {
+            clearTimeout(timeout);
+            reject(error);
+          });
+        });
+      }
+      /**
+       * Handles successful tool execution.
+       * Adds result to toolResults, updates count, displays result, and triggers callback.
+       * @param command The executed tool command.
+       * @param result The result of execution.
+       * @param toolResults Array to store results.
+       */
+      handleToolExecutionSuccess(command, result, toolResults) {
+        toolResults.push({ command, result });
+        this.executionCount++;
+        this.createToolDisplay(command, result);
+        this.onToolResult(result, command);
+      }
+      /**
+       * Handles tool execution errors.
+       * Logs error, creates error result, and processes as a success.
+       * @param command The tool command.
+       * @param error The error thrown.
+       * @param toolResults Array to store results.
+       * @param contextLabel Context label for logging.
+       * @param debugLog Optional debug logging function.
+       */
+      handleToolExecutionError(command, error, toolResults, contextLabel, debugLog2) {
+        if (debugLog2) debugLog2("Tool execution error", { command, error }, contextLabel);
+        console.error(`ToolExecutor: Tool '${command.action}' failed with error:`, error);
+        const errorResult = this.createErrorResult(command, error);
+        this.handleToolExecutionSuccess(command, errorResult, toolResults);
+      }
+      /**
+       * Creates a ToolResult object representing an error.
+       * @param command The tool command.
+       * @param error The error thrown.
+       * @returns A ToolResult indicating failure.
+       */
+      createErrorResult(command, error) {
+        return {
+          success: false,
+          error: `${CONSTANTS.ERROR_MESSAGES.TOOL_EXECUTION_FAILED}: ${error.message}`,
+          requestId: command.requestId
+        };
+      }
+      /**
+       * Reruns a tool command and displays the result.
+       * @param originalCommand The original tool command.
+       * @param timeoutMs Timeout in milliseconds.
+       */
+      async rerunTool(originalCommand, timeoutMs) {
+        try {
+          const result = await this.executeToolWithTimeout(originalCommand, timeoutMs);
+          this.createToolDisplay(originalCommand, result);
+          this.onToolResult(result, originalCommand);
+        } catch (error) {
+          console.error(`${CONSTANTS.ERROR_MESSAGES.RERUN_FAILED} ${originalCommand.action}:`, error);
+        }
+      }
+      /**
+       * Gets the number of tool executions performed.
+       * @returns The execution count.
+       */
+      getExecutionCount() {
+        return this.executionCount;
+      }
+      /**
+       * Resets the execution count to zero.
+       */
+      resetExecutionCount() {
+        this.executionCount = 0;
+      }
+    };
+  }
+});
+
+// src/components/agent/AgentResponseHandler/ReasoningProcessor.ts
+var ReasoningProcessor;
+var init_ReasoningProcessor = __esm({
+  "src/components/agent/AgentResponseHandler/ReasoningProcessor.ts"() {
+    ReasoningProcessor = class {
+      /**
+       * Constructs a ReasoningProcessor with the given agent context.
+       * @param context The agent context, including plugin settings.
+       */
+      constructor(context) {
+        // Context containing plugin settings and environment.
+        __publicField(this, "context");
+        this.context = context;
+      }
+      /**
+       * Processes an array of tool results for a chat message.
+       * Extracts reasoning data if a "thought" tool result is present,
+       * and collects all tool execution results with timestamps.
+       *
+       * @param toolResults Array of objects containing a ToolCommand and its ToolResult.
+       * @returns An object containing optional reasoning data and an array of tool execution results.
+       */
+      processToolResultsForMessage(toolResults) {
+        const toolExecutionResults = toolResults.map(({ command, result }) => ({
+          command,
+          result,
+          timestamp: (/* @__PURE__ */ new Date()).toISOString()
+        }));
+        let reasoning;
+        for (const { command, result } of toolResults) {
+          if (command.action === "thought" && result.success && result.data) {
+            reasoning = this.convertThoughtToolResultToReasoning(result.data);
+            break;
+          }
+        }
+        return {
+          reasoning,
+          toolExecutionResults
+        };
+      }
+      /**
+       * Converts the data from a "thought" tool result into ReasoningData.
+       * Handles both structured and simple reasoning formats.
+       *
+       * @param thoughtData The data from the thought tool result.
+       * @returns A ReasoningData object.
+       */
+      convertThoughtToolResultToReasoning(thoughtData) {
+        var _a2;
+        const reasoningId = this.generateReasoningId();
+        const baseData = {
+          id: reasoningId,
+          timestamp: thoughtData.timestamp || (/* @__PURE__ */ new Date()).toISOString(),
+          isCollapsed: ((_a2 = this.context.plugin.settings.uiBehavior) == null ? void 0 : _a2.collapseOldReasoning) || false
+        };
+        if (thoughtData.reasoning === "structured" && thoughtData.steps) {
+          return {
+            ...baseData,
+            type: "structured",
+            problem: thoughtData.problem,
+            steps: thoughtData.steps.map((step) => ({
+              step: step.step,
+              title: step.title,
+              content: step.content
+            })),
+            depth: thoughtData.depth
+          };
+        } else {
+          return {
+            ...baseData,
+            type: "simple",
+            summary: thoughtData.thought || thoughtData.formattedThought
+          };
+        }
+      }
+      /**
+       * Generates a unique identifier for a reasoning instance.
+       * Combines the current timestamp and a random string.
+       *
+       * @returns A unique reasoning ID string.
+       */
+      generateReasoningId() {
+        const timestamp2 = Date.now();
+        const random = Math.random().toString(36).substr(2, 9);
+        return `reasoning-${timestamp2}-${random}`;
+      }
+    };
+  }
+});
+
+// src/components/agent/AgentResponseHandler/ToolLimitWarningUI.ts
+var ToolLimitWarningUI;
+var init_ToolLimitWarningUI = __esm({
+  "src/components/agent/AgentResponseHandler/ToolLimitWarningUI.ts"() {
+    init_constants();
+    ToolLimitWarningUI = class {
+      /**
+       * Constructs the ToolLimitWarningUI with the given context.
+       * @param context The agent context with tool limit and UI references.
+       */
+      constructor(context) {
+        // Context containing plugin, execution state, and UI containers.
+        __publicField(this, "context");
+        this.context = context;
+      }
+      /**
+       * Creates the warning UI element for when the tool execution limit is reached.
+       * @returns The warning HTMLElement.
+       */
+      createToolLimitWarning() {
+        const warning = document.createElement("div");
+        warning.className = "tool-limit-warning";
+        const agentSettings = this.context.plugin.agentModeManager.getAgentModeSettings();
+        const effectiveLimit = this.getEffectiveToolLimit();
+        const executionCount = this.context.getExecutionCount();
+        warning.innerHTML = this.createToolLimitWarningHTML(executionCount, effectiveLimit, agentSettings.maxToolCalls);
+        this.attachToolLimitWarningHandlers(warning, agentSettings);
+        return warning;
+      }
+      /**
+       * Generates the HTML for the tool limit warning UI.
+       * @param executionCount Number of tool executions used.
+       * @param effectiveLimit The current effective tool limit.
+       * @param maxToolCalls The default max tool calls from settings.
+       * @returns HTML string for the warning.
+       */
+      createToolLimitWarningHTML(executionCount, effectiveLimit, maxToolCalls) {
+        return `
+            <div class="tool-limit-warning-text">
+                <strong>\u26A0\uFE0F Tool execution limit reached</strong><br>
+                Used ${executionCount}/${effectiveLimit} tool calls. 
+                Choose how to proceed:
+            </div>
+            <div class="tool-limit-warning-actions">
+                <div class="tool-limit-input-group">
+                    <label for="additional-tools">Add more executions:</label>
+                    <input type="number" id="additional-tools" min="1" max="${CONSTANTS.MAX_ADDITIONAL_TOOLS}" value="${maxToolCalls}" placeholder="5">
+                    <button class="ai-chat-add-tools-button">Add & Continue</button>
+                </div>
+                <div class="tool-limit-button-group">
+                    <button class="ai-chat-continue-button">Reset & Continue</button>
+                    <span class="tool-limit-settings-link">Open Settings</span>
+                </div>
+            </div>
+        `;
+      }
+      /**
+       * Attaches event handlers for all warning UI actions.
+       * @param warning The warning HTMLElement.
+       * @param agentSettings The agent's settings object.
+       */
+      attachToolLimitWarningHandlers(warning, agentSettings) {
+        this.attachSettingsHandler(warning);
+        this.attachAddToolsHandler(warning, agentSettings);
+        this.attachContinueHandler(warning);
+      }
+      /**
+       * Attaches the handler for the "Open Settings" link.
+       * @param warning The warning HTMLElement.
+       */
+      attachSettingsHandler(warning) {
+        const settingsLink = warning.querySelector(".tool-limit-settings-link");
+        if (settingsLink) {
+          settingsLink.onclick = () => {
+            this.context.app.setting.open();
+            this.context.app.setting.openTabById(this.context.plugin.manifest.id);
+          };
+        }
+      }
+      /**
+       * Attaches the handler for the "Add & Continue" button.
+       * @param warning The warning HTMLElement.
+       * @param agentSettings The agent's settings object.
+       */
+      attachAddToolsHandler(warning, agentSettings) {
+        const addToolsButton = warning.querySelector(".ai-chat-add-tools-button");
+        if (addToolsButton) {
+          addToolsButton.onclick = () => {
+            const input = warning.querySelector("#additional-tools");
+            const additionalTools = parseInt(input.value) || agentSettings.maxToolCalls;
+            if (additionalTools > 0) {
+              this.context.addToolExecutions(additionalTools);
+              this.removeWarningAndTriggerContinuation(warning, "continueTaskWithAdditionalTools", { additionalTools });
+            }
+          };
+        }
+      }
+      /**
+       * Attaches the handler for the "Reset & Continue" button.
+       * @param warning The warning HTMLElement.
+       */
+      attachContinueHandler(warning) {
+        const continueButton = warning.querySelector(".ai-chat-continue-button");
+        if (continueButton) {
+          continueButton.onclick = () => {
+            this.context.resetExecutionCount();
+            this.removeWarningAndTriggerContinuation(warning, "continueTask");
+          };
+        }
+      }
+      /**
+       * Removes the warning UI and triggers a continuation event.
+       * @param warning The warning HTMLElement.
+       * @param eventType The event type to dispatch.
+       * @param detail Optional event detail.
+       */
+      removeWarningAndTriggerContinuation(warning, eventType, detail) {
+        warning.remove();
+        this.hideToolContinuationContainerIfEmpty();
+        const event = detail ? new CustomEvent(eventType, { detail }) : new CustomEvent(eventType);
+        this.context.messagesContainer.dispatchEvent(event);
+      }
+      /**
+       * Hides the tool continuation container if it is empty.
+       */
+      hideToolContinuationContainerIfEmpty() {
+        if (this.context.toolContinuationContainer) {
+          if (this.context.toolContinuationContainer.children.length === 0) {
+            this.context.toolContinuationContainer.style.display = "none";
+          }
+        }
+      }
+      /**
+       * Gets the current effective tool execution limit, considering temporary overrides.
+       * @returns The effective tool limit.
+       */
+      getEffectiveToolLimit() {
+        const agentSettings = this.context.plugin.agentModeManager.getAgentModeSettings();
+        return this.context.getTemporaryMaxToolCalls() || agentSettings.maxToolCalls;
+      }
+    };
+  }
+});
+
+// src/components/agent/AgentResponseHandler/AgentResponseHandler.ts
+var AgentResponseHandler;
+var init_AgentResponseHandler = __esm({
+  "src/components/agent/AgentResponseHandler/AgentResponseHandler.ts"() {
+    init_CommandParser();
+    init_ToolRegistry();
+    init_ToolRichDisplay();
+    init_toolcollect();
+    init_constants();
+    init_utils();
+    init_TaskNotificationManager();
+    init_ToolResultFormatter();
+    init_ToolExecutor();
+    init_ReasoningProcessor();
+    init_ToolLimitWarningUI();
+    AgentResponseHandler = class {
+      /**
+       * Constructs a new AgentResponseHandler.
+       * @param context AgentContext containing plugin, app, and callback references.
+       */
+      constructor(context) {
+        this.context = context;
+        // Command parser for extracting tool commands from responses
+        __publicField(this, "commandParser");
+        // Registry of available tools
+        __publicField(this, "toolRegistry");
+        // Number of tool executions in the current session
+        __publicField(this, "executionCount", 0);
+        // Temporary override for max tool calls (optional)
+        __publicField(this, "temporaryMaxToolCalls");
+        // Map of tool display IDs to ToolRichDisplay instances
+        __publicField(this, "toolDisplays", /* @__PURE__ */ new Map());
+        // Cache of tool markdown outputs by display ID
+        __publicField(this, "toolMarkdownCache", /* @__PURE__ */ new Map());
+        // Notification manager for task progress and completion
+        __publicField(this, "notificationManager");
+        // Formatter for tool results
+        __publicField(this, "toolResultFormatter");
+        // Executor for running tools
+        __publicField(this, "toolExecutor");
+        // Processor for reasoning data
+        __publicField(this, "reasoningProcessor");
+        // UI for tool limit warnings
+        __publicField(this, "toolLimitWarningUI");
+        this.debugLog("constructor called");
+        this.commandParser = new CommandParser(this.context.plugin);
+        this.toolRegistry = new ToolRegistry(this.context.plugin);
+        this.notificationManager = new TaskNotificationManager(context);
+        this.toolResultFormatter = new ToolResultFormatter();
+        this.toolExecutor = new ToolExecutor(
+          this.toolRegistry,
+          (result, command) => this.context.onToolResult(result, command),
+          (command, result) => this.createToolDisplay(command, result)
+        );
+        this.reasoningProcessor = new ReasoningProcessor(context);
+        this.toolLimitWarningUI = new ToolLimitWarningUI(this);
+        this.initializeTools();
+      }
+      /**
+       * Returns the agent context.
+       */
+      getContext() {
+        return this.context;
+      }
+      /**
+       * Logs debug messages if debug mode is enabled.
+       * @param message The message to log.
+       * @param data Optional data to log.
+       * @param contextLabel Optional label for the log context.
+       */
+      debugLog(message, data, contextLabel = "AgentResponseHandler") {
+        var _a2, _b;
+        if (((_b = (_a2 = this.context.plugin) == null ? void 0 : _a2.settings) == null ? void 0 : _b.debugMode) && typeof this.context.plugin.debugLog === "function") {
+          this.context.plugin.debugLog("debug", `[${contextLabel}] ${message}`, data);
+        }
+      }
+      /**
+       * Initializes and registers all available tools.
+       */
+      initializeTools() {
+        this.debugLog("initializeTools called");
+        const tools = createToolInstances(this.context.app, this.context.plugin);
+        for (const tool of tools) {
+          this.toolRegistry.register(tool);
+        }
+      }
+      /**
+       * Processes a response string, parses tool commands, executes them if needed,
+       * and returns processed text and tool results.
+       * @param response The response string from the agent.
+       * @param contextLabel Optional label for logging context.
+       * @param chatHistory Optional chat history for deduplication.
+       */
+      async processResponse(response, contextLabel = "main", chatHistory) {
+        this.debugLog("Processing response", { response }, contextLabel);
+        if (!this.context.plugin.agentModeManager.isAgentModeEnabled()) {
+          return this.createProcessResponseResult(response, [], false);
+        }
+        const { text, commands } = this.commandParser.parseResponse(response);
+        if (commands.length === 0) {
+          this.debugLog("No tool commands found in response", void 0, contextLabel);
+          return this.createProcessResponseResult(text, [], false);
+        }
+        const commandsToExecute = chatHistory ? this.filterAlreadyExecutedCommands(commands, chatHistory, contextLabel) : commands;
+        if (commandsToExecute.length === 0) {
+          this.debugLog("All commands already executed, skipping", void 0, contextLabel);
+          const existingResults = this.getExistingToolResults(commands, chatHistory || []);
+          return this.createProcessResponseResult(text, existingResults, true);
+        }
+        const effectiveLimit = this.getEffectiveToolLimit();
+        if (this.executionCount >= effectiveLimit) {
+          this.debugLog("Tool execution limit reached", { executionCount: this.executionCount, effectiveLimit }, contextLabel);
+          this.notificationManager.showTaskCompletionNotification(`Agent mode: Maximum tool calls (${effectiveLimit}) reached`, "warning");
+          return this.createProcessResponseResult(
+            text + `
+
+*${effectiveLimit} [Tool execution limit reached]*`,
+            [],
+            true
+          );
+        }
+        return await this.executeToolCommands(commandsToExecute, text, contextLabel);
+      }
+      /**
+       * Helper to create the result object for processResponse.
+       */
+      createProcessResponseResult(text, toolResults, hasTools) {
+        return {
+          processedText: text,
+          toolResults,
+          hasTools
+        };
+      }
+      /**
+       * Executes a list of tool commands, respecting the tool execution limit.
+       * @param commands Array of ToolCommand objects to execute.
+       * @param text The processed text to return.
+       * @param contextLabel Logging context label.
+       */
+      async executeToolCommands(commands, text, contextLabel) {
+        const toolResults = [];
+        const agentSettings = this.context.plugin.agentModeManager.getAgentModeSettings();
+        const effectiveLimit = this.getEffectiveToolLimit();
+        for (const command of commands) {
+          try {
+            const result = await this.toolExecutor.executeToolWithLogging(command, agentSettings.timeoutMs, contextLabel, this.debugLog.bind(this));
+            toolResults.push({ command, result });
+            this.executionCount++;
+            this.createToolDisplay(command, result);
+            this.context.onToolResult(result, command);
+            if (this.executionCount >= effectiveLimit) {
+              break;
+            }
+          } catch (error) {
+            this.debugLog("Tool execution error", { command, error }, contextLabel);
+            console.error(`AgentResponseHandler: Tool '${command.action}' failed with error:`, error);
+            const errorResult = {
+              success: false,
+              error: `${CONSTANTS.ERROR_MESSAGES.TOOL_EXECUTION_FAILED}: ${error.message}`,
+              requestId: command.requestId
+            };
+            toolResults.push({ command, result: errorResult });
+            this.createToolDisplay(command, errorResult);
+            this.context.onToolResult(errorResult, command);
+          }
+        }
+        return this.createProcessResponseResult(text, toolResults, true);
+      }
+      /**
+       * Returns the current execution count.
+       */
+      getExecutionCount() {
+        return this.executionCount;
+      }
+      /**
+       * Temporarily increases the max tool call limit by a given count.
+       * @param count Number of additional executions allowed.
+       */
+      addToolExecutions(count) {
+        const agentSettings = this.context.plugin.agentModeManager.getAgentModeSettings();
+        this.temporaryMaxToolCalls = (this.temporaryMaxToolCalls || agentSettings.maxToolCalls) + count;
+      }
+      /**
+       * Resets the execution count and clears temporary limits and caches.
+       */
+      resetExecutionCount() {
+        this.executionCount = 0;
+        this.temporaryMaxToolCalls = void 0;
+        this.toolDisplays.clear();
+        this.toolMarkdownCache.clear();
+      }
+      /**
+       * Returns the temporary max tool calls value, if set.
+       */
+      getTemporaryMaxToolCalls() {
+        return this.temporaryMaxToolCalls;
+      }
+      /**
+       * Returns the list of available tools.
+       */
+      getAvailableTools() {
+        return this.toolRegistry.getAvailableTools();
+      }
+      /**
+       * Returns a copy of the current tool displays map.
+       */
+      getToolDisplays() {
+        return new Map(this.toolDisplays);
+      }
+      /**
+       * Clears all tool displays and markdown caches.
+       */
+      clearToolDisplays() {
+        this.toolDisplays.clear();
+        this.toolMarkdownCache.clear();
+      }
+      /**
+       * Returns an array of all tool markdown outputs.
+       */
+      getToolMarkdown() {
+        return Array.from(this.toolMarkdownCache.values());
+      }
+      /**
+       * Returns a single string combining all tool markdown outputs.
+       */
+      getCombinedToolMarkdown() {
+        return this.getToolMarkdown().join("\n");
+      }
+      /**
+       * Returns stats about tool executions and limits.
+       */
+      getExecutionStats() {
+        const effectiveLimit = this.getEffectiveToolLimit();
+        return {
+          executionCount: this.executionCount,
+          maxToolCalls: effectiveLimit,
+          remaining: Math.max(0, effectiveLimit - this.executionCount)
+        };
+      }
+      /**
+       * Creates and stores a ToolRichDisplay for a tool command/result.
+       * @param command The tool command.
+       * @param result The tool result.
+       */
+      createToolDisplay(command, result) {
+        const displayId = this.generateDisplayId(command);
+        const toolDisplay = new ToolRichDisplay({
+          command,
+          result,
+          onRerun: () => this.rerunTool(command),
+          onCopy: () => this.copyToolResult(command, result)
+        });
+        this.toolDisplays.set(displayId, toolDisplay);
+        this.toolMarkdownCache.set(displayId, toolDisplay.toMarkdown());
+        if (this.context.onToolDisplay) {
+          this.context.onToolDisplay(toolDisplay);
+        }
+        this.cacheToolMarkdown(command, result);
+      }
+      /**
+       * Generates a unique display ID for a tool command.
+       * @param command The tool command.
+       */
+      generateDisplayId(command) {
+        return `${command.action}${CONSTANTS.TOOL_DISPLAY_ID_SEPARATOR}${command.requestId || Date.now()}`;
+      }
+      /**
+       * Copies the formatted tool result to the clipboard.
+       * @param command The tool command.
+       * @param result The tool result.
+       */
+      async copyToolResult(command, result) {
+        const displayText = this.toolResultFormatter.formatToolResult(command, result, { style: "copy" });
+        try {
+          await navigator.clipboard.writeText(displayText);
+        } catch (error) {
+          console.error(CONSTANTS.ERROR_MESSAGES.COPY_FAILED, error);
+        }
+      }
+      /**
+       * Caches the markdown representation of a tool command/result.
+       * @param command The tool command.
+       * @param result The tool result.
+       */
+      cacheToolMarkdown(command, result) {
+        const cacheKey = `${command.action}-${command.requestId}`;
+        const statusText = result.success ? "SUCCESS" : "ERROR";
+        const resultData = result.success ? stringifyJson(result.data) : result.error;
+        const markdown = `### TOOL EXECUTION: ${command.action}
+**Status:** ${statusText}
+
+**Parameters:**
+\`\`\`json
+${stringifyJson(command.parameters)}
+\`\`\`
+
+**Result:**
+\`\`\`json
+${resultData}
+\`\`\`
+`;
+        this.toolMarkdownCache.set(cacheKey, markdown);
+      }
+      /**
+       * Reruns a tool command and updates the display/result.
+       * @param originalCommand The original tool command to rerun.
+       */
+      async rerunTool(originalCommand) {
+        try {
+          const agentSettings = this.context.plugin.agentModeManager.getAgentModeSettings();
+          const result = await this.toolExecutor.executeToolWithLogging(originalCommand, agentSettings.timeoutMs, "rerun", this.debugLog.bind(this));
+          this.createToolDisplay(originalCommand, result);
+          this.context.onToolResult(result, originalCommand);
+        } catch (error) {
+          console.error(`${CONSTANTS.ERROR_MESSAGES.RERUN_FAILED} ${originalCommand.action}:`, error);
+        }
+      }
+      /**
+       * Returns the effective tool execution limit (temporary or default).
+       */
+      getEffectiveToolLimit() {
+        const agentSettings = this.context.plugin.agentModeManager.getAgentModeSettings();
+        return this.temporaryMaxToolCalls || agentSettings.maxToolCalls;
+      }
+      /**
+       * Filters out tool commands that have already been executed, based on the chat history.
+       * Only commands that have not been executed yet are returned.
+       * 
+       * @param commands - Array of ToolCommand objects to check.
+       * @param chatHistory - The chat history array, containing previous messages and tool results.
+       * @param contextLabel - A label for debugging/logging context.
+       * @returns Array of ToolCommand objects that have not been executed yet.
+       */
+      filterAlreadyExecutedCommands(commands, chatHistory, contextLabel) {
+        const filteredCommands = [];
+        for (const command of commands) {
+          const commandKey = this.generateCommandKey(command);
+          const alreadyExecuted = this.isCommandInChatHistory(commandKey, chatHistory);
+          if (alreadyExecuted) {
+            if (this.context.plugin.settings.debugMode) {
+              this.context.plugin.debugLog(
+                "debug",
+                `[AgentResponseHandler][${contextLabel}] Skipping already executed command`,
+                { command, commandKey }
+              );
+            }
+          } else {
+            filteredCommands.push(command);
+          }
+        }
+        return filteredCommands;
+      }
+      /**
+       * Retrieves the existing tool results for the given commands from the chat history.
+       * This is used to avoid re-executing commands and to provide their previous results.
+       * 
+       * @param commands - Array of ToolCommand objects to look up.
+       * @param chatHistory - The chat history array, containing previous messages and tool results.
+       * @returns Array of objects containing the command and its corresponding ToolResult.
+       */
+      getExistingToolResults(commands, chatHistory) {
+        const existingResults = [];
+        for (const command of commands) {
+          const commandKey = this.generateCommandKey(command);
+          const existingResult = this.findToolResultInChatHistory(commandKey, chatHistory);
+          if (existingResult) {
+            existingResults.push({ command, result: existingResult });
+          }
+        }
+        return existingResults;
+      }
+      /**
+       * Generates a unique key for a tool command based on action, parameters, and requestId.
+       * @param command The tool command.
+       */
+      generateCommandKey(command) {
+        const params = stringifyJson(command.parameters || {});
+        return [
+          command.action,
+          params,
+          command.requestId || "no-id"
+        ].join(CONSTANTS.COMMAND_KEY_SEPARATOR);
+      }
+      /**
+       * Checks if a command (by key) is present in the chat history.
+       * @param commandKey The unique command key.
+       * @param chatHistory The chat history array.
+       */
+      isCommandInChatHistory(commandKey, chatHistory) {
+        for (const message of chatHistory) {
+          if (message.sender === "assistant" && message.toolResults) {
+            for (const toolResult of message.toolResults) {
+              const existingKey = this.generateCommandKey(toolResult.command);
+              if (existingKey === commandKey) {
+                return true;
+              }
+            }
+          }
+        }
+        return false;
+      }
+      /**
+       * Finds the tool result for a command key in the chat history.
+       * @param commandKey The unique command key.
+       * @param chatHistory The chat history array.
+       */
+      findToolResultInChatHistory(commandKey, chatHistory) {
+        for (const message of chatHistory) {
+          if (message.sender === "assistant" && message.toolResults) {
+            for (const toolResult of message.toolResults) {
+              const existingKey = this.generateCommandKey(toolResult.command);
+              if (existingKey === commandKey) {
+                return toolResult.result;
+              }
+            }
+          }
+        }
+        return null;
+      }
+      /**
+       * Returns true if the tool execution limit has been reached.
+       */
+      isToolLimitReached() {
+        const effectiveLimit = this.getEffectiveToolLimit();
+        return this.executionCount >= effectiveLimit;
+      }
+      /**
+       * Creates a Message object for tool results, or null if none.
+       * @param toolResults Array of tool command/result pairs.
+       */
+      createToolResultMessage(toolResults) {
+        return this.toolResultFormatter.createToolResultMessage(toolResults);
+      }
+      /**
+       * Hides any task progress notifications.
+       */
+      hideTaskProgress() {
+        this.notificationManager.hideTaskProgress();
+      }
+      /**
+       * Processes a response and returns UI-related data, including reasoning and task status.
+       * @param response The response string.
+       * @param contextLabel Optional context label.
+       * @param chatHistory Optional chat history.
+       */
+      processResponseWithUI(response, contextLabel = "ui", chatHistory) {
+        return (async () => {
+          const result = await this.processResponse(response, contextLabel, chatHistory);
+          let status = "completed";
+          if (result.hasTools) {
+            const hasPendingFeedback = result.toolResults.some(
+              (tr) => {
+                var _a2;
+                return tr.command.action === "get_user_feedback" && tr.result.success && ((_a2 = tr.result.data) == null ? void 0 : _a2.status) === "pending";
+              }
+            );
+            if (hasPendingFeedback) {
+              status = "waiting_for_user";
+            } else if (this.isToolLimitReached()) {
+              status = "limit_reached";
+            } else {
+              status = "running";
+            }
+          }
+          const taskStatus = this.createTaskStatus(status);
+          const { reasoning } = this.reasoningProcessor.processToolResultsForMessage(result.toolResults);
+          const shouldShowLimitWarning = this.isToolLimitReached() && result.hasTools;
+          return {
+            ...result,
+            reasoning,
+            taskStatus,
+            shouldShowLimitWarning
+          };
+        })();
+      }
+      /**
+       * Creates a TaskStatus object with the given status and current execution state.
+       * @param status The task status
+       * @returns TaskStatus object
+       */
+      createTaskStatus(status) {
+        const agentSettings = this.context.plugin.agentModeManager.getAgentModeSettings();
+        return {
+          status,
+          toolExecutionCount: this.executionCount,
+          maxToolExecutions: this.getEffectiveToolLimit(),
+          canContinue: status === "running" || status === "waiting_for_user",
+          lastUpdateTime: (/* @__PURE__ */ new Date()).toISOString()
+        };
+      }
+      /**
+       * Shows a task completion notification.
+       * @param message The message to display.
+       * @param type Notification type ("success", "warning", etc).
+       */
+      showTaskCompletionNotification(message, type2 = "success") {
+        this.notificationManager.showTaskCompletionNotification(message, type2);
+      }
+      /**
+       * Creates a tool limit warning UI element.
+       * @returns HTMLElement containing the tool limit warning interface
+       */
+      createToolLimitWarning() {
+        return this.toolLimitWarningUI.createToolLimitWarning();
+      }
+      /**
+       * Updates an existing tool display with a new result.
+       * @param command The tool command
+       * @param result The updated result
+       */
+      updateToolDisplay(command, result) {
+        const displayId = this.generateDisplayId(command);
+        const existingDisplay = this.toolDisplays.get(displayId);
+        if (existingDisplay) {
+          existingDisplay.updateResult(result);
+          this.toolMarkdownCache.set(displayId, existingDisplay.toMarkdown());
+        } else {
+          this.createToolDisplay(command, result);
+        }
+      }
+    };
+  }
+});
+
+// src/components/agent/AgentResponseHandler/types.ts
+var init_types2 = __esm({
+  "src/components/agent/AgentResponseHandler/types.ts"() {
+  }
+});
+
+// src/components/agent/AgentResponseHandler/index.ts
+var init_AgentResponseHandler2 = __esm({
+  "src/components/agent/AgentResponseHandler/index.ts"() {
+    init_AgentResponseHandler();
+    init_types2();
+    init_TaskNotificationManager();
+    init_ToolResultFormatter();
+    init_ToolExecutor();
+    init_ReasoningProcessor();
+    init_ToolLimitWarningUI();
+  }
+});
+
+// src/utils/systemMessage.ts
+function getSystemMessage(settings) {
+  let systemMessage = settings.systemMessage;
+  if (settings.includeTimeWithSystemMessage) {
+    const now = /* @__PURE__ */ new Date();
+    const currentDate = now.toLocaleDateString("en-CA");
+    const timeZoneOffset = now.getTimezoneOffset();
+    const offsetHours = Math.abs(Math.floor(timeZoneOffset / 60));
+    const offsetMinutes = Math.abs(timeZoneOffset) % 60;
+    const sign = timeZoneOffset > 0 ? "-" : "+";
+    const currentTime = now.toLocaleTimeString();
+    const timeZoneString = `UTC${sign}${offsetHours.toString().padStart(2, "0")}:${offsetMinutes.toString().padStart(2, "0")}`;
+    systemMessage = `${systemMessage}
+
+The current time is ${currentDate} ${currentTime} ${timeZoneString}.`;
+  }
+  return systemMessage;
+}
+var init_systemMessage = __esm({
+  "src/utils/systemMessage.ts"() {
+  }
+});
+
+// src/utils/generalUtils.ts
+function showNotice(message) {
+  new import_obsidian24.Notice(message);
+}
+async function copyToClipboard3(text, successMsg = "Copied to clipboard", failMsg = "Failed to copy to clipboard") {
+  try {
+    await navigator.clipboard.writeText(text);
+    showNotice(successMsg);
+  } catch (error) {
+    showNotice(failMsg);
+    debugLog(true, "error", "Clipboard error:", error);
+  }
+}
+function moveCursorAfterInsert(editor, startPos, insertText) {
+  const lines = insertText.split("\n");
+  if (lines.length === 1) {
+    editor.setCursor({
+      line: startPos.line,
+      ch: startPos.ch + insertText.length
+    });
+  } else {
+    editor.setCursor({
+      line: startPos.line + lines.length - 1,
+      ch: lines[lines.length - 1].length
+    });
+  }
+}
+function insertSeparator(editor, position, separator) {
+  var _a2;
+  const lineContent = (_a2 = editor.getLine(position.line)) != null ? _a2 : "";
+  const prefix = lineContent.trim() !== "" ? "\n" : "";
+  editor.replaceRange(`${prefix}
+${separator}
+`, position);
+  return position.line + (prefix ? 1 : 0) + 2;
+}
+function findFile(app, filePath) {
+  let file = app.vault.getAbstractFileByPath(filePath) || app.vault.getAbstractFileByPath(`${filePath}.md`);
+  if (!file) {
+    const allFiles = app.vault.getFiles();
+    file = allFiles.find(
+      (f) => f.name === filePath || f.name === `${filePath}.md` || f.basename.toLowerCase() === filePath.toLowerCase() || f.path === filePath || f.path === `${filePath}.md`
+    ) || null;
+  }
+  return file;
+}
+function extractContentUnderHeader(content, headerText) {
+  const lines = content.split("\n");
+  let foundHeader = false;
+  let extractedContent = [];
+  let headerLevel = 0;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const headerMatch = line.match(/^(#+)\s+(.*?)$/);
+    if (headerMatch) {
+      const currentHeaderLevel = headerMatch[1].length;
+      const currentHeaderText = headerMatch[2].trim();
+      if (foundHeader) {
+        if (currentHeaderLevel <= headerLevel) {
+          break;
+        }
+      } else if (currentHeaderText.toLowerCase() === headerText.toLowerCase()) {
+        foundHeader = true;
+        headerLevel = currentHeaderLevel;
+        extractedContent.push(line);
+        continue;
+      }
+    }
+    if (foundHeader) {
+      extractedContent.push(line);
+    }
+  }
+  return extractedContent.join("\n");
+}
+var import_obsidian24;
+var init_generalUtils = __esm({
+  "src/utils/generalUtils.ts"() {
+    import_obsidian24 = require("obsidian");
+    init_logger();
+  }
+});
+
+// src/utils/noteUtils.ts
+async function processObsidianLinks(content, app, settings, visitedNotes = /* @__PURE__ */ new Set(), currentDepth = 0) {
+  var _a2;
+  if (!settings.enableObsidianLinks) return content;
+  const linkRegex = /\[\[(.*?)\]\]/g;
+  let match;
+  let processedContent = content;
+  while ((match = linkRegex.exec(content)) !== null) {
+    if (match && match[0] && match[1]) {
+      const parts = match[1].split("|");
+      const filePath = parts[0].trim();
+      try {
+        let file = findFile(app, filePath);
+        const headerMatch = filePath.match(/(.*?)#(.*)/);
+        let extractedContent = "";
+        if (file && isTFile(file)) {
+          if (visitedNotes.has(file.path)) {
+            extractedContent = "[Recursive link omitted: already included]";
+          } else {
+            visitedNotes.add(file.path);
+            const noteContent = await app.vault.cachedRead(file);
+            if (headerMatch) {
+              extractedContent = extractContentUnderHeader(noteContent, headerMatch[2].trim());
+            } else {
+              extractedContent = noteContent;
+            }
+            if (settings.expandLinkedNotesRecursively && currentDepth < ((_a2 = settings.maxLinkExpansionDepth) != null ? _a2 : 2)) {
+              extractedContent = await processObsidianLinks(extractedContent, app, settings, visitedNotes, currentDepth + 1);
+            }
+          }
+          processedContent = processedContent.replace(
+            match[0],
+            `${match[0]}
+
+---
+Note Name: ${filePath}
+Content:
+${extractedContent}
+---
+`
+          );
+        } else {
+          new import_obsidian25.Notice(`File not found: ${filePath}. Ensure the file name and path are correct.`);
+        }
+      } catch (error) {
+        new import_obsidian25.Notice(`Error processing link for ${filePath}: ${error.message}`);
+      }
+    }
+  }
+  return processedContent;
+}
+async function processContextNotes(contextNotesText, app) {
+  const linkRegex = /\[\[(.*?)\]\]/g;
+  let match;
+  let contextContent = "";
+  while ((match = linkRegex.exec(contextNotesText)) !== null) {
+    if (match && match[1]) {
+      const originalLink = match[0];
+      const [fileAndHeader, alias] = match[1].split("|").map((s) => s.trim());
+      const headerMatch = fileAndHeader.match(/(.*?)#(.*)/);
+      const baseFileName = headerMatch ? headerMatch[1].trim() : fileAndHeader;
+      const headerName = headerMatch ? headerMatch[2].trim() : null;
+      try {
+        let file = findFile(app, baseFileName);
+        if (file && isTFile(file)) {
+          const noteContent = await app.vault.cachedRead(file);
+          contextContent += `---
+Attached: ${originalLink}
+
+`;
+          if (headerName) {
+            const headerContent = extractContentUnderHeader(noteContent, headerName);
+            contextContent += headerContent;
+          } else {
+            contextContent += noteContent;
+          }
+          contextContent += "\n\n";
+        } else {
+          contextContent += `Note not found: ${originalLink}
+
+`;
+        }
+      } catch (error) {
+        contextContent += `Error processing note ${originalLink}: ${error.message}
+
+`;
+      }
+    }
+  }
+  return contextContent;
+}
+async function processMessages(messages, app, settings) {
+  const processedMessages = [];
+  if (settings.enableContextNotes && settings.contextNotes) {
+    const contextContent = await processContextNotes(settings.contextNotes, app);
+    if (contextContent) {
+      if (messages.length > 0 && messages[0].role === "system") {
+        processedMessages.push({
+          role: "system",
+          content: `${messages[0].content}
+
+Here is additional context:
+${contextContent}`
+        });
+        messages = messages.slice(1);
+      } else {
+        processedMessages.push({
+          role: "system",
+          content: `Here is context for our conversation:
+${contextContent}`
+        });
+      }
+    }
+  }
+  for (const message of messages) {
+    const processedContent = await processObsidianLinks(message.content, app, settings, /* @__PURE__ */ new Set());
+    processedMessages.push({
+      role: message.role,
+      content: processedContent
+    });
+  }
+  return processedMessages;
+}
+var import_obsidian25;
+var init_noteUtils = __esm({
+  "src/utils/noteUtils.ts"() {
+    import_obsidian25 = require("obsidian");
+    init_generalUtils();
+    init_typeguards();
+  }
+});
+
+// src/utils/recently-opened-files.ts
+async function getRecentlyOpenedFiles(app) {
+  const manager = RecentlyOpenedFilesManager.getInstance(app);
+  return manager.getRecentlyOpenedFiles();
+}
+var _RecentlyOpenedFilesManager, RecentlyOpenedFilesManager;
+var init_recently_opened_files = __esm({
+  "src/utils/recently-opened-files.ts"() {
+    init_logger();
+    _RecentlyOpenedFilesManager = class _RecentlyOpenedFilesManager {
+      constructor(app) {
+        __publicField(this, "app");
+        __publicField(this, "listenerRef", null);
+        __publicField(this, "FILENAME", "recently-opened-files.json");
+        __publicField(this, "MAX_FILES", 100);
+        this.app = app;
+        this.setupFileListener();
+      }
+      static getInstance(app) {
+        if (!_RecentlyOpenedFilesManager.instance) {
+          if (!app) {
+            throw new Error("App instance required for first initialization");
+          }
+          _RecentlyOpenedFilesManager.instance = new _RecentlyOpenedFilesManager(app);
+        }
+        return _RecentlyOpenedFilesManager.instance;
+      }
+      setupFileListener() {
+        if (this.listenerRef) {
+          return;
+        }
+        this.listenerRef = this.app.workspace.on("file-open", (file) => {
+          if (file) {
+            this.recordFileOpened(file);
+          }
+        });
+      }
+      getFilePath() {
+        return `${this.app.vault.configDir}/${this.FILENAME}`;
+      }
+      async recordFileOpened(file, debugMode = false) {
+        const filePath = this.getFilePath();
+        let data = {
+          recentFiles: [],
+          omittedPaths: [],
+          omittedTags: [],
+          updateOn: "file-open",
+          omitBookmarks: false,
+          maxLength: null
+        };
+        try {
+          if (await this.app.vault.adapter.exists(filePath)) {
+            const raw = await this.app.vault.adapter.read(filePath);
+            const parsed = JSON.parse(raw);
+            if (this.isValidDataJson(parsed)) {
+              data = parsed;
+            }
+          }
+        } catch (e) {
+          debugLog(debugMode, "warn", "[recently-opened-files] Failed to read existing records", e);
+        }
+        data.recentFiles = data.recentFiles.filter((r) => r.path !== file.path);
+        data.recentFiles.unshift({
+          path: file.path,
+          basename: file.basename
+        });
+        if (data.recentFiles.length > this.MAX_FILES) {
+          data.recentFiles = data.recentFiles.slice(0, this.MAX_FILES);
+        }
+        try {
+          await this.app.vault.adapter.write(filePath, JSON.stringify(data, null, 2));
+        } catch (e) {
+          debugLog(debugMode, "error", "[recently-opened-files] Failed to write records", e);
+        }
+      }
+      isValidDataJson(data) {
+        return typeof data === "object" && data !== null && Array.isArray(data.recentFiles) && Array.isArray(data.omittedPaths) && Array.isArray(data.omittedTags) && typeof data.updateOn === "string" && typeof data.omitBookmarks === "boolean" && (typeof data.maxLength === "number" || data.maxLength === null);
+      }
+      async getRecentlyOpenedFiles() {
+        const pluginFiles = await this.getRecentFilesFromPlugin();
+        if (pluginFiles.length > 0) {
+          return pluginFiles;
+        }
+        return this.getRecentFilesFromOwnFile();
+      }
+      async getRecentFilesFromPlugin() {
+        const pluginId = "recent-files-obsidian";
+        const pluginDataPath = `${this.app.vault.configDir}/plugins/${pluginId}/data.json`;
+        try {
+          if (await this.app.vault.adapter.exists(pluginDataPath)) {
+            const raw = await this.app.vault.adapter.read(pluginDataPath);
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed.recentFiles)) {
+              await this.syncWithOwnFile(parsed.recentFiles);
+              return parsed.recentFiles.map((f) => ({
+                path: f.path,
+                basename: f.basename
+              }));
+            }
+          }
+        } catch (e) {
+          debugLog(true, "warn", "[recently-opened-files] Failed to read recent-files-obsidian plugin data", e);
+        }
+        return [];
+      }
+      async syncWithOwnFile(pluginFiles) {
+        const filePath = this.getFilePath();
+        let data = {
+          recentFiles: [],
+          omittedPaths: [],
+          omittedTags: [],
+          updateOn: "file-open",
+          omitBookmarks: false,
+          maxLength: null
+        };
+        try {
+          if (await this.app.vault.adapter.exists(filePath)) {
+            const raw = await this.app.vault.adapter.read(filePath);
+            const parsed = JSON.parse(raw);
+            if (this.isValidDataJson(parsed)) {
+              data = parsed;
+            }
+          }
+        } catch (e) {
+        }
+        const seen = new Set(data.recentFiles.map((f) => f.path));
+        for (const file of pluginFiles) {
+          if (!seen.has(file.path)) {
+            data.recentFiles.push({
+              path: file.path,
+              basename: file.basename
+            });
+          }
+        }
+        if (data.recentFiles.length > this.MAX_FILES) {
+          data.recentFiles = data.recentFiles.slice(0, this.MAX_FILES);
+        }
+        try {
+          await this.app.vault.adapter.write(filePath, JSON.stringify(data, null, 2));
+        } catch (e) {
+        }
+      }
+      async getRecentFilesFromOwnFile() {
+        const filePath = this.getFilePath();
+        try {
+          if (await this.app.vault.adapter.exists(filePath)) {
+            const raw = await this.app.vault.adapter.read(filePath);
+            const parsed = JSON.parse(raw);
+            if (this.isValidDataJson(parsed)) {
+              return parsed.recentFiles;
+            }
+          }
+        } catch (e) {
+          debugLog(true, "warn", "[recently-opened-files] Failed to read own file", e);
+        }
+        return [];
+      }
+      destroy() {
+        if (this.listenerRef) {
+          this.app.workspace.offref(this.listenerRef);
+          this.listenerRef = null;
+        }
+      }
+    };
+    __publicField(_RecentlyOpenedFilesManager, "instance");
+    RecentlyOpenedFilesManager = _RecentlyOpenedFilesManager;
+  }
+});
+
+// src/utils/contextBuilder.ts
+async function buildContextMessages({
+  app,
+  plugin,
+  includeCurrentNote = true,
+  includeContextNotes = true,
+  debug: debug2 = false,
+  forceNoCurrentNote = false
+}) {
+  var _a2;
+  const messages = [
+    { role: "system", content: getSystemMessage(plugin.settings) }
+  ];
+  const recentlyOpenedFiles = await getRecentlyOpenedFiles(app);
+  if (recentlyOpenedFiles.length > 0) {
+    messages[0].content += `
+
+Recently Opened Files:
+${recentlyOpenedFiles.slice(0, 5).map((f) => f.path).join("\n")}`;
+  }
+  if (includeContextNotes && plugin.settings.enableContextNotes && plugin.settings.contextNotes) {
+    const contextContent = await processContextNotes(plugin.settings.contextNotes, app);
+    messages[0].content += `
+
+Context Notes:
+${contextContent}`;
+  }
+  if (!forceNoCurrentNote && includeCurrentNote && plugin.settings.referenceCurrentNote) {
+    const currentFile = app.workspace.getActiveFile();
+    if (currentFile) {
+      const currentNoteContent = await app.vault.cachedRead(currentFile);
+      messages.push({
+        role: "system",
+        content: `Here is the content of the current note (${currentFile.path}):
+
+${currentNoteContent}`
+      });
+    }
+  }
+  if (debug2 || plugin.settings.debugMode) {
+    (_a2 = plugin.debugLog) == null ? void 0 : _a2.call(plugin, "debug", "[contextBuilder] Building context messages", {
+      enableContextNotes: plugin.settings.enableContextNotes,
+      contextNotes: plugin.settings.contextNotes,
+      referenceCurrentNote: plugin.settings.referenceCurrentNote
+    });
+  }
+  return messages;
+}
+var init_contextBuilder = __esm({
+  "src/utils/contextBuilder.ts"() {
+    init_systemMessage();
+    init_noteUtils();
+    init_recently_opened_files();
+  }
+});
+
+// src/components/chat/MessageRegenerator.ts
+var import_obsidian26, MessageRegenerator;
+var init_MessageRegenerator = __esm({
+  "src/components/chat/MessageRegenerator.ts"() {
+    import_obsidian26 = require("obsidian");
+    init_Message();
+    MessageRegenerator = class {
+      /**
+       * @param plugin The plugin instance
+       * @param messagesContainer The chat messages container element
+       * @param inputContainer The chat input container element (for disabling input during regeneration)
+       * @param chatHistoryManager The chat history manager instance
+       * @param agentResponseHandler The agent response handler (for agent mode)
+       * @param activeStream The current AbortController for streaming (shared reference) - kept for backward compatibility
+       * @param chatView The parent ChatView instance for accessing streamAssistantResponse method
+       * @param component Optional parent component for Markdown rendering context
+       */
+      constructor(plugin, messagesContainer, inputContainer, chatHistoryManager, agentResponseHandler, activeStream, chatView, component) {
+        this.plugin = plugin;
+        this.messagesContainer = messagesContainer;
+        this.inputContainer = inputContainer;
+        this.chatHistoryManager = chatHistoryManager;
+        this.agentResponseHandler = agentResponseHandler;
+        this.activeStream = activeStream;
+        this.chatView = chatView;
+        this.component = component;
+        this.plugin.debugLog("info", "[MessageRegenerator] Initialized with ChatView integration for StreamCoordinator support");
+      }
+      /**
+       * Regenerates an assistant response for a given message element.
+       * Finds the correct user/assistant message pair, builds the context, and streams a new response.
+       * @param messageEl The message element to regenerate (user or assistant)
+       * @param buildContextMessages Function to build the initial context messages (system/context notes/etc.)
+       */
+      async regenerateResponse(messageEl, buildContextMessages2) {
+        const stopButton = this.inputContainer.querySelector(".stop-button");
+        const sendButton = this.inputContainer.querySelector(".send-button");
+        const textarea = this.inputContainer.querySelector("textarea");
+        if (textarea) textarea.disabled = true;
+        if (stopButton) stopButton.classList.remove("hidden");
+        if (sendButton) sendButton.classList.add("hidden");
+        const allMessages = Array.from(this.messagesContainer.querySelectorAll(".ai-chat-message"));
+        const currentIndex = allMessages.indexOf(messageEl);
+        const isUserClicked = messageEl.classList.contains("user");
+        let targetIndex = -1;
+        if (isUserClicked) {
+          for (let i = currentIndex + 1; i < allMessages.length; i++) {
+            if (allMessages[i].classList.contains("assistant")) {
+              targetIndex = i;
+              break;
+            }
+            if (allMessages[i].classList.contains("user")) {
+              break;
+            }
+          }
+        } else {
+          targetIndex = currentIndex;
+        }
+        let userMsgIndex = currentIndex;
+        if (!isUserClicked) {
+          userMsgIndex = currentIndex - 1;
+          while (userMsgIndex >= 0 && !allMessages[userMsgIndex].classList.contains("user")) {
+            userMsgIndex--;
+          }
+        }
+        const messages = await buildContextMessages2();
+        for (let i = 0; i <= userMsgIndex; i++) {
+          const el = allMessages[i];
+          const role = el.classList.contains("user") ? "user" : "assistant";
+          const content = el.dataset.rawContent || "";
+          messages.push({ role, content });
+        }
+        let originalTimestamp = (/* @__PURE__ */ new Date()).toISOString();
+        let originalContent = "";
+        let insertAfterNode = null;
+        if (targetIndex !== -1) {
+          const targetEl = allMessages[targetIndex];
+          originalTimestamp = targetEl.dataset.timestamp || originalTimestamp;
+          originalContent = targetEl.dataset.rawContent || "";
+          insertAfterNode = targetEl.previousElementSibling;
+          targetEl.remove();
+        } else if (isUserClicked) {
+          insertAfterNode = messageEl;
+        } else {
+          insertAfterNode = null;
+        }
+        const assistantContainer = await createMessageElement(
+          this.plugin.app,
+          "assistant",
+          "",
+          this.chatHistoryManager,
+          this.plugin,
+          (el) => this.regenerateResponse(el, buildContextMessages2),
+          this.component || new import_obsidian26.Component()
+        );
+        assistantContainer.dataset.timestamp = originalTimestamp;
+        if (insertAfterNode && insertAfterNode.nextSibling) {
+          this.messagesContainer.insertBefore(assistantContainer, insertAfterNode.nextSibling);
+        } else {
+          this.messagesContainer.appendChild(assistantContainer);
+        }
+        this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+        try {
+          this.plugin.debugLog("info", "[MessageRegenerator] Using ChatView.streamAssistantResponse for regeneration");
+          await this.chatView.streamAssistantResponse(
+            messages,
+            assistantContainer,
+            originalTimestamp,
+            originalContent
+          );
+        } catch (error) {
+          if (error.name !== "AbortError") {
+            new import_obsidian26.Notice(`Error: ${error.message}`);
+            assistantContainer.remove();
+          }
+        } finally {
+          const stopButton2 = this.inputContainer.querySelector(".stop-button");
+          const sendButton2 = this.inputContainer.querySelector(".send-button");
+          if (textarea) {
+            textarea.disabled = false;
+            textarea.focus();
+          }
+          if (stopButton2) stopButton2.classList.add("hidden");
+          if (sendButton2) sendButton2.classList.remove("hidden");
+          if (this.chatView && typeof this.chatView.invalidateMessageCache === "function") {
+            this.chatView.invalidateMessageCache();
+            this.plugin.debugLog("debug", "[MessageRegenerator] Invalidated ChatView message cache after regeneration");
+          }
+          this.activeStream = null;
+        }
+      }
+    };
+  }
+});
+
+// src/components/agent/TaskContinuation.ts
+var import_obsidian27, TaskContinuation;
+var init_TaskContinuation = __esm({
+  "src/components/agent/TaskContinuation.ts"() {
+    import_obsidian27 = require("obsidian");
+    TaskContinuation = class {
+      /**
+       * @param plugin The main plugin instance (for settings and logging)
+       * @param agentResponseHandler Handler for agent responses and tool execution
+       * @param messagesContainer The container element for chat messages
+       * @param component Optional Obsidian component for Markdown rendering context
+       */
+      constructor(plugin, agentResponseHandler, messagesContainer, component) {
+        this.plugin = plugin;
+        this.agentResponseHandler = agentResponseHandler;
+        this.messagesContainer = messagesContainer;
+        this.component = component;
+      }
+      /**
+       * Continues task execution until the task is finished or a limit is reached.
+       * Iteratively processes tool results and agent responses.
+       * @param messages The conversation history/messages
+       * @param container The chat message container element
+       * @param initialResponseContent The initial assistant response content
+       * @param currentContent The current content to display
+       * @param initialToolResults Initial tool results to process
+       * @param chatHistory Optional chat history for context
+       * @returns An object with the final content and a flag if the tool limit was reached
+       */
+      async continueTaskUntilFinished(messages, container, initialResponseContent, currentContent, initialToolResults, chatHistory) {
+        var _a2, _b, _c, _d, _e;
+        let responseContent = currentContent;
+        let maxIterations = (_b = (_a2 = this.plugin.settings.agentMode) == null ? void 0 : _a2.maxIterations) != null ? _b : 10;
+        let iteration = 0;
+        let limitReachedDuringContinuation = false;
+        let allToolResults = [...initialToolResults];
+        let isFinished = this.checkIfTaskFinished(allToolResults);
+        if ((_c = this.agentResponseHandler) == null ? void 0 : _c.isToolLimitReached()) {
+          return {
+            content: responseContent + "\n\n*[Tool execution limit reached - task continuation stopped]*",
+            limitReachedDuringContinuation: true
+          };
+        }
+        if (this.plugin.settings.debugMode) {
+          this.plugin.debugLog("debug", "[TaskContinuation] continueTaskUntilFinished", {
+            initialResponseContent,
+            currentContent,
+            initialToolResults,
+            maxIterations
+          });
+        }
+        while (!isFinished && iteration < maxIterations) {
+          iteration++;
+          if ((_d = this.agentResponseHandler) == null ? void 0 : _d.isToolLimitReached()) {
+            responseContent += "\n\n*[Tool execution limit reached during continuation]*";
+            limitReachedDuringContinuation = true;
+            break;
+          }
+          const toolResultMessage = (_e = this.agentResponseHandler) == null ? void 0 : _e.createToolResultMessage(allToolResults);
+          if (toolResultMessage) {
+            const continuationMessages = [
+              ...messages,
+              { role: "assistant", content: initialResponseContent },
+              toolResultMessage
+            ];
+            const continuationContent = await this.getContinuationResponse(continuationMessages, container);
+            if (continuationContent.trim()) {
+              let processingResult;
+              if (this.agentResponseHandler) {
+                processingResult = await this.agentResponseHandler.processResponse(continuationContent, "task-continuation", chatHistory);
+                if (processingResult.toolResults && processingResult.toolResults.length > 0) {
+                  allToolResults = [...allToolResults, ...processingResult.toolResults];
+                }
+              }
+              const continuationResult = await this.processContinuation(
+                continuationContent,
+                responseContent,
+                container,
+                allToolResults,
+                chatHistory,
+                processingResult
+              );
+              responseContent = continuationResult.responseContent;
+              isFinished = continuationResult.isFinished;
+              initialResponseContent = continuationContent;
+            } else {
+              isFinished = true;
+            }
+          } else {
+            isFinished = true;
+          }
+          if (this.plugin.settings.debugMode) {
+            this.plugin.debugLog("debug", "[TaskContinuation] Iteration", {
+              iteration,
+              isFinished,
+              toolResults: allToolResults
+            });
+          }
+        }
+        if (iteration >= maxIterations) {
+          if (this.plugin.settings.debugMode) {
+            this.plugin.debugLog("debug", "[TaskContinuation] Maximum iterations reached", { iteration });
+          }
+          responseContent += "\n\n*[Task continuation reached maximum iterations - stopping to prevent infinite loop]*";
+        }
+        return { content: responseContent, limitReachedDuringContinuation };
+      }
+      /**
+       * Processes the agent's continuation response and updates the UI.
+       * Handles both tool-based and plain responses.
+       * @param continuationContent The agent's response content
+       * @param responseContent The current response content
+       * @param container The chat message container element
+       * @param initialToolResults Tool results so far
+       * @param chatHistory Optional chat history
+       * @param processingResult Optional pre-processed agent result
+       * @returns Object with updated response content and finished flag
+       */
+      async processContinuation(continuationContent, responseContent, container, initialToolResults, chatHistory, processingResult) {
+        let continuationResult;
+        if (processingResult) {
+          continuationResult = processingResult;
+        } else if (this.agentResponseHandler) {
+          continuationResult = await this.agentResponseHandler.processResponse(continuationContent, "main", chatHistory);
+        } else {
+          const updatedContent = responseContent + "\n\n" + continuationContent;
+          await this.updateContainerContent(container, updatedContent);
+          return { responseContent: updatedContent, isFinished: true };
+        }
+        if (continuationResult.hasTools) {
+          const cleanContinuationContent = continuationResult.processedText;
+          const isFinished = this.checkIfTaskFinished(continuationResult.toolResults);
+          const allToolResults = initialToolResults;
+          const updatedContent = responseContent + "\n\n" + cleanContinuationContent;
+          const enhancedMessageData = this.createEnhancedMessageData(
+            updatedContent,
+            continuationResult,
+            allToolResults
+          );
+          this.updateContainerWithMessageData(container, enhancedMessageData, updatedContent);
+          return { responseContent: updatedContent, isFinished };
+        } else {
+          let isFinished = false;
+          try {
+            const parsed = JSON.parse(continuationContent);
+            if (parsed && parsed.finished === true) {
+              isFinished = true;
+            }
+          } catch (e) {
+            if (initialToolResults.length > 0) {
+              isFinished = this.checkIfTaskFinished(initialToolResults);
+            }
+          }
+          const updatedContent = responseContent + "\n\n" + continuationContent;
+          await this.updateContainerContent(container, updatedContent);
+          return { responseContent: updatedContent, isFinished };
+        }
+      }
+      /**
+       * Updates the chat container with new Markdown-rendered content.
+       * @param container The chat message container element
+       * @param content The new content to render
+       */
+      async updateContainerContent(container, content) {
+        container.dataset.rawContent = content;
+        const contentEl = container.querySelector(".message-content");
+        if (contentEl) {
+          contentEl.empty();
+          await import_obsidian27.MarkdownRenderer.render(
+            this.plugin.app,
+            content,
+            contentEl,
+            "",
+            this.component || new import_obsidian27.Component()
+          );
+          this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+        }
+      }
+      /**
+       * Checks if any tool results indicate the task is finished.
+       * Looks for a 'finished' flag or a 'thought' tool with nextTool 'finished'.
+       * @param toolResults Array of tool command/result pairs
+       * @returns True if the task is finished, false otherwise
+       */
+      checkIfTaskFinished(toolResults) {
+        return toolResults.some(({ command, result }) => {
+          if (command.finished === true) {
+            return true;
+          }
+          if (command.action === "thought" && result.success && result.data) {
+            return result.data.nextTool === "finished" || result.data.finished === true;
+          }
+          return false;
+        });
+      }
+      /**
+       * Gets the agent's continuation response after tool execution.
+       * Calls the provider's getCompletion method and streams the result.
+       * @param messages The conversation history/messages
+       * @param container The chat message container element
+       * @returns The agent's response content as a string
+       */
+      async getContinuationResponse(messages, container) {
+        var _a2;
+        try {
+          if (this.plugin.settings.debugMode) {
+            this.plugin.debugLog("debug", "[TaskContinuation] getContinuationResponse", { messages });
+          }
+          if ((_a2 = this.agentResponseHandler) == null ? void 0 : _a2.isToolLimitReached()) {
+            return "*[Tool execution limit reached - no continuation response]*";
+          }
+          const { AIDispatcher: AIDispatcher2 } = await Promise.resolve().then(() => (init_aiDispatcher(), aiDispatcher_exports));
+          const aiDispatcher = new AIDispatcher2(this.plugin.app.vault, this.plugin);
+          let continuationContent = "";
+          await aiDispatcher.getCompletion(
+            messages,
+            {
+              temperature: this.plugin.settings.temperature,
+              streamCallback: async (chunk) => {
+                continuationContent += chunk;
+              }
+            }
+          );
+          if (this.plugin.settings.debugMode) {
+            this.plugin.debugLog("debug", "[TaskContinuation] Continuation response received", { continuationContent });
+          }
+          return continuationContent;
+        } catch (error) {
+          if (this.plugin.settings.debugMode) {
+            this.plugin.debugLog("debug", "[TaskContinuation] Error getting continuation response", { error });
+          }
+          console.error("TaskContinuation: Error getting continuation response:", error);
+          if (error.name !== "AbortError") {
+            return `*[Error getting continuation: ${error.message}]*`;
+          }
+          return "";
+        }
+      }
+      /**
+       * Creates an enhanced message data structure for UI or logging.
+       * Includes reasoning, task status, and tool results.
+       * @param content The message content
+       * @param agentResult The agent's result object
+       * @param toolResults Optional array of tool results
+       * @returns Message object with additional metadata
+       */
+      createEnhancedMessageData(content, agentResult, toolResults) {
+        const messageData = {
+          role: "assistant",
+          content,
+          reasoning: agentResult.reasoning,
+          taskStatus: agentResult.taskStatus
+        };
+        if (toolResults) {
+          messageData.toolResults = toolResults.map(({ command, result }) => ({
+            command,
+            result,
+            timestamp: (/* @__PURE__ */ new Date()).toISOString()
+          }));
+        }
+        return messageData;
+      }
+      /**
+       * Updates the chat container with enhanced message data and raw content.
+       * @param container The chat message container element
+       * @param messageData The message data object to store
+       * @param rawContent The raw content string
+       */
+      updateContainerWithMessageData(container, messageData, rawContent) {
+        container.dataset.messageData = JSON.stringify(messageData);
+        container.dataset.rawContent = rawContent;
+      }
+    };
+  }
+});
+
 // src/components/chat/BotMessage.ts
 var BotMessage_exports = {};
 __export(BotMessage_exports, {
   BotMessage: () => BotMessage
 });
-var import_obsidian27, BotMessage;
+var import_obsidian28, BotMessage;
 var init_BotMessage = __esm({
   "src/components/chat/BotMessage.ts"() {
-    import_obsidian27 = require("obsidian");
+    import_obsidian28 = require("obsidian");
     init_Buttons();
-    BotMessage = class extends import_obsidian27.Component {
+    BotMessage = class extends import_obsidian28.Component {
       /**
        * Constructs a BotMessage instance.
        * @param app Obsidian App instance
@@ -17511,7 +20575,7 @@ var init_BotMessage = __esm({
         this.content = content;
         this.element.dataset.rawContent = content;
         this.contentEl.empty();
-        await import_obsidian27.MarkdownRenderer.render(
+        await import_obsidian28.MarkdownRenderer.render(
           this.app,
           content,
           this.contentEl,
@@ -17529,7 +20593,7 @@ var init_BotMessage = __esm({
         messageEl.dataset.rawContent = this.content;
         const messageContainer = messageEl.createDiv("message-container");
         this.contentEl = messageContainer.createDiv("message-content");
-        import_obsidian27.MarkdownRenderer.render(
+        import_obsidian28.MarkdownRenderer.render(
           this.app,
           this.content,
           this.contentEl,
@@ -17597,6 +20661,1054 @@ var init_BotMessage = __esm({
   }
 });
 
+// src/components/chat/ResponseStreamer.ts
+var import_obsidian29, ResponseStreamer;
+var init_ResponseStreamer = __esm({
+  "src/components/chat/ResponseStreamer.ts"() {
+    import_obsidian29 = require("obsidian");
+    init_aiDispatcher();
+    init_MessageRenderer();
+    init_TaskContinuation();
+    ResponseStreamer = class {
+      /**
+       * @param plugin The main plugin instance (for settings, logging, etc.)
+       * @param agentResponseHandler Handler for agent responses and tool execution (null if agent mode is off)
+       * @param messagesContainer The container element for chat messages
+       * @param activeStream The current AbortController for streaming (shared reference) - may be updated by this class
+       * @param component Optional parent component for Markdown rendering context
+       */
+      constructor(plugin, agentResponseHandler, messagesContainer, activeStream, component) {
+        this.plugin = plugin;
+        this.agentResponseHandler = agentResponseHandler;
+        this.messagesContainer = messagesContainer;
+        this.activeStream = activeStream;
+        this.component = component;
+        __publicField(this, "messageRenderer");
+        __publicField(this, "streamId", null);
+        this.messageRenderer = new MessageRenderer(plugin.app);
+      }
+      /**
+       * Streams AI assistant response with optional agent processing.
+       * Handles agent mode integration, tool execution, and task continuation.
+       * @param messages The conversation history/messages to send to the provider
+       * @param container The message container element to update with the streamed response
+       * @param originalTimestamp Optional timestamp for history update
+       * @param originalContent Optional original content for history update
+       * @param chatHistory Optional chat history for context
+       * @returns Promise resolving to the final response content string
+       */
+      async streamAssistantResponse(messages, container, originalTimestamp, originalContent, chatHistory) {
+        var _a2;
+        this.plugin.debugLog("info", "[ResponseStreamer] streamAssistantResponse called", { messages, originalTimestamp });
+        let responseContent = "";
+        const bridgeController = new AbortController();
+        this.activeStream = bridgeController;
+        this.plugin.debugLog("info", "[ResponseStreamer] Created bridge AbortController", { streamId: this.streamId });
+        const aiDispatcher = new AIDispatcher(this.plugin.app.vault, this.plugin);
+        this.streamId = Math.random().toString(36).substr(2, 9);
+        await this.addAgentSystemPrompt(messages);
+        try {
+          await aiDispatcher.getCompletion(messages, {
+            temperature: this.plugin.settings.temperature,
+            streamCallback: async (chunk) => {
+              responseContent += chunk;
+              await this.updateMessageContent(container, responseContent);
+            },
+            abortController: bridgeController
+            // Pass our bridge controller to AIDispatcher
+          });
+          if (this.plugin.agentModeManager.isAgentModeEnabled() && this.agentResponseHandler) {
+            responseContent = await this.processAgentResponse(responseContent, container, messages, "streamer-main", chatHistory);
+          }
+          return responseContent;
+        } catch (error) {
+          if (error.name !== "AbortError") {
+            throw error;
+          }
+          return "";
+        } finally {
+          (_a2 = this.agentResponseHandler) == null ? void 0 : _a2.hideTaskProgress();
+          this.streamId = null;
+          this.activeStream = null;
+        }
+      }
+      /**
+       * Check if this ResponseStreamer has an active stream
+       */
+      isStreaming() {
+        return this.streamId !== null;
+      }
+      /**
+       * Adds agent system prompt to messages if agent mode is enabled.
+       * Prepends the agent prompt to the existing system message or adds a new one.
+       * @param messages The message array to modify
+       */
+      async addAgentSystemPrompt(messages) {
+        this.plugin.debugLog("debug", "[ResponseStreamer] addAgentSystemPrompt called", { messages });
+        if (!this.plugin.agentModeManager.isAgentModeEnabled()) return;
+        const { buildAgentSystemPrompt: buildAgentSystemPrompt2 } = await Promise.resolve().then(() => (init_promptConstants(), promptConstants_exports));
+        const agentPrompt = buildAgentSystemPrompt2(
+          this.plugin.settings.enabledTools,
+          this.plugin.settings.customAgentSystemMessage
+        );
+        const systemMessageIndex = messages.findIndex((msg) => msg.role === "system");
+        if (systemMessageIndex !== -1) {
+          const originalContent = messages[systemMessageIndex].content;
+          messages[systemMessageIndex].content = agentPrompt + "\n\n" + originalContent;
+        } else {
+          messages.unshift({
+            role: "system",
+            content: agentPrompt
+          });
+        }
+      }
+      /**
+       * Updates message content in the UI with markdown rendering.
+       * @param container The message DOM element
+       * @param content The new content string
+       */
+      async updateMessageContent(container, content) {
+        const contentEl = container.querySelector(".message-content");
+        if (!contentEl) return;
+        this.updateContainerDataset(container, content);
+        contentEl.empty();
+        await import_obsidian29.MarkdownRenderer.render(
+          this.plugin.app,
+          content,
+          contentEl,
+          "",
+          this.component || new import_obsidian29.Component()
+        );
+        this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+      }
+      /**
+       * Processes agent response and handles tool execution or reasoning.
+       * Calls the AgentResponseHandler to parse and execute tools.
+       * @param responseContent The raw response content from the AI
+       * @param container The message DOM element
+       * @param messages The message history
+       * @param contextLabel Label for the processing context
+       * @param chatHistory Optional chat history
+       * @returns Promise resolving to the final content after processing
+       */
+      async processAgentResponse(responseContent, container, messages, contextLabel = "streamer", chatHistory) {
+        if (!this.agentResponseHandler) {
+          return responseContent;
+        }
+        try {
+          const agentResult = await this.agentResponseHandler.processResponseWithUI(responseContent, contextLabel, chatHistory);
+          return agentResult.hasTools ? await this.handleToolExecution(agentResult, container, responseContent, messages, chatHistory) : await this.handleNonToolResponse(agentResult, container, responseContent, messages, chatHistory);
+        } catch (error) {
+          console.error("ResponseStreamer: Error processing agent response:", error);
+          return responseContent;
+        }
+      }
+      /**
+       * Handles responses that include tool execution.
+       * Updates the message with rich tool displays and handles task completion/continuation.
+       * @param agentResult The result from AgentResponseHandler
+       * @param container The message DOM element
+       * @param responseContent The raw response content
+       * @param messages The message history
+       * @param chatHistory Optional chat history
+       * @returns Promise resolving to the final content after handling
+       */
+      async handleToolExecution(agentResult, container, responseContent, messages, chatHistory) {
+        const finalContent = agentResult.processedText;
+        const enhancedMessageData = this.createEnhancedMessageData(
+          finalContent,
+          agentResult,
+          agentResult.toolResults
+        );
+        this.updateContainerWithMessageData(container, enhancedMessageData, finalContent);
+        return this.handleTaskCompletion(agentResult, finalContent, responseContent, messages, container, chatHistory);
+      }
+      /**
+       * Handles responses without tool execution but potentially with reasoning.
+       * Updates the message with reasoning display and checks for reasoning continuation.
+       * @param agentResult The result from AgentResponseHandler
+       * @param container The message DOM element
+       * @param responseContent The raw response content
+       * @param messages The message history
+       * @param chatHistory Optional chat history
+       * @returns Promise resolving to the final content after handling
+       */
+      async handleNonToolResponse(agentResult, container, responseContent, messages, chatHistory) {
+        if (agentResult.reasoning) {
+          const enhancedMessageData = this.createEnhancedMessageData(responseContent, agentResult);
+          this.updateContainerWithMessageData(container, enhancedMessageData, responseContent);
+        }
+        if (this.isReasoningStep(responseContent)) {
+          return await this.handleReasoningContinuation(responseContent, messages, container, chatHistory);
+        }
+        return responseContent;
+      }
+      /**
+       * Creates enhanced message data structure including reasoning, task status, and tool results.
+       * @param content The main message content
+       * @param agentResult The agent's processing result
+       * @param toolResults Optional array of tool execution results
+       * @returns Message object with additional metadata
+       */
+      createEnhancedMessageData(content, agentResult, toolResults) {
+        const messageData = {
+          role: "assistant",
+          content,
+          reasoning: agentResult.reasoning,
+          taskStatus: agentResult.taskStatus
+        };
+        if (toolResults) {
+          messageData.toolResults = toolResults.map(({ command, result }) => ({
+            command,
+            result,
+            timestamp: (/* @__PURE__ */ new Date()).toISOString()
+          }));
+        }
+        return messageData;
+      }
+      /**
+       * Updates container with enhanced message data and re-renders using MessageRenderer.
+       * @param container The message DOM element
+       * @param messageData The enhanced message data
+       * @param rawContent The raw content string
+       */
+      updateContainerWithMessageData(container, messageData, rawContent) {
+        container.dataset.messageData = JSON.stringify(messageData);
+        container.dataset.rawContent = rawContent;
+        this.messageRenderer.updateMessageWithEnhancedData(container, messageData);
+      }
+      /**
+       * DRY helper: Updates container dataset values for rawContent and messageData.
+       * @param container The message DOM element
+       * @param rawContent The raw content string
+       * @param messageData Optional enhanced message data
+       */
+      updateContainerDataset(container, rawContent, messageData) {
+        if (!container.dataset.rawContent || rawContent.length >= container.dataset.rawContent.length) {
+          container.dataset.rawContent = rawContent;
+        }
+        if (messageData) {
+          container.dataset.messageData = JSON.stringify(messageData);
+        }
+      }
+      /**
+       * Checks if response content indicates a reasoning step (heuristic based on thought tool JSON).
+       * @param responseContent The response content string
+       * @returns True if it seems like a reasoning step, false otherwise
+       */
+      isReasoningStep(responseContent) {
+        return responseContent.includes('"action"') && responseContent.includes('"thought"');
+      }
+      /**
+       * Handles task completion, continuation, and tool limit management.
+       * Determines if the task is finished, if continuation is needed, or if limits are reached.
+       * @param agentResult The result from AgentResponseHandler
+       * @param finalContent The processed content (without tool JSON)
+       * @param responseContent The raw response content
+       * @param messages The message history
+       * @param container The message DOM element
+       * @param chatHistory Optional chat history
+       * @returns Promise resolving to the final content after handling
+       */
+      async handleTaskCompletion(agentResult, finalContent, responseContent, messages, container, chatHistory) {
+        if (agentResult.shouldShowLimitWarning) {
+          return this.handleToolLimitReached(messages, container, responseContent, finalContent, agentResult.toolResults, chatHistory);
+        }
+        if (agentResult.taskStatus.status === "completed") {
+          this.agentResponseHandler.showTaskCompletionNotification(
+            `Task completed successfully! Used ${agentResult.taskStatus.toolExecutionCount} tools.`,
+            "success"
+          );
+          return finalContent;
+        }
+        return await this.continueTaskIfPossible(
+          agentResult,
+          messages,
+          container,
+          responseContent,
+          finalContent,
+          chatHistory
+        );
+      }
+      /**
+       * Handles tool limit reached scenario.
+       * Displays a warning and sets up event listeners for user-driven continuation.
+       * @param messages The message history
+       * @param container The message DOM element
+       * @param responseContent The raw response content
+       * @param finalContent The processed content
+       * @param toolResults Tool results from the last step
+       * @param chatHistory Optional chat history
+       * @returns The final content with the warning appended
+       */
+      handleToolLimitReached(messages, container, responseContent, finalContent, toolResults, chatHistory) {
+        const warning = this.agentResponseHandler.createToolLimitWarning();
+        const targetContainer = this.agentResponseHandler.getContext().toolContinuationContainer || this.messagesContainer;
+        targetContainer.appendChild(warning);
+        if (this.agentResponseHandler.getContext().toolContinuationContainer) {
+          this.agentResponseHandler.getContext().toolContinuationContainer.style.display = "block";
+        }
+        this.setupContinuationEventListeners(messages, container, responseContent, finalContent, toolResults, chatHistory);
+        this.agentResponseHandler.showTaskCompletionNotification(
+          "Tool execution limit reached. Choose how to continue above.",
+          "warning"
+        );
+        return finalContent;
+      }
+      /**
+       * Sets up event listeners on the messages container for task continuation actions.
+       * @param messages The message history
+       * @param container The message DOM element
+       * @param responseContent The raw response content
+       * @param finalContent The processed content
+       * @param toolResults Tool results from the last step
+       * @param chatHistory Optional chat history
+       */
+      setupContinuationEventListeners(messages, container, responseContent, finalContent, toolResults, chatHistory) {
+        const continuationParams = {
+          messages,
+          container,
+          responseContent,
+          finalContent,
+          toolResults,
+          chatHistory
+        };
+        this.messagesContainer.addEventListener("continueTask", () => {
+          this.executeContinuation(continuationParams);
+        });
+        this.messagesContainer.addEventListener("continueTaskWithAdditionalTools", (event) => {
+          this.executeContinuation({
+            ...continuationParams,
+            additionalTools: event.detail.additionalTools
+          });
+        });
+      }
+      /**
+       * Continues task if no limits are reached and the task is not completed.
+       * Creates a TaskContinuation instance and runs the continuation loop.
+       * @param agentResult The result from AgentResponseHandler
+       * @param messages The message history
+       * @param container The message DOM element
+       * @param responseContent The raw response content
+       * @param finalContent The processed content
+       * @param chatHistory Optional chat history
+       * @returns Promise resolving to the final content after continuation
+       */
+      async continueTaskIfPossible(agentResult, messages, container, responseContent, finalContent, chatHistory) {
+        var _a2;
+        if (agentResult.shouldShowLimitWarning || ((_a2 = this.agentResponseHandler) == null ? void 0 : _a2.isToolLimitReached())) {
+          return finalContent;
+        }
+        const taskContinuation = this.createTaskContinuation();
+        const continuationResult = await taskContinuation.continueTaskUntilFinished(
+          messages,
+          container,
+          responseContent,
+          finalContent,
+          agentResult.toolResults,
+          chatHistory || []
+        );
+        if (continuationResult.limitReachedDuringContinuation) {
+          this.handleToolLimitReached(
+            messages,
+            container,
+            responseContent,
+            continuationResult.content,
+            agentResult.toolResults,
+            chatHistory
+          );
+        }
+        return continuationResult.content;
+      }
+      /**
+       * Creates a TaskContinuation instance.
+       */
+      createTaskContinuation() {
+        return new TaskContinuation(
+          this.plugin,
+          this.agentResponseHandler,
+          this.messagesContainer,
+          this.component
+        );
+      }
+      /**
+       * Handles reasoning continuation when AI response contains reasoning steps.
+       * Adds a system message to prompt the agent to continue with execution.
+       * @param responseContent The raw response content (containing reasoning)
+       * @param messages The message history
+       * @param container The message DOM element
+       * @param chatHistory Optional chat history
+       * @returns Promise resolving to the updated content after continuation
+       */
+      async handleReasoningContinuation(responseContent, messages, container, chatHistory) {
+        var _a2;
+        if ((_a2 = this.agentResponseHandler) == null ? void 0 : _a2.isToolLimitReached()) {
+          return responseContent + "\n\n*[Tool execution limit reached - reasoning continuation stopped]*";
+        }
+        messages.push(
+          { role: "assistant", content: responseContent },
+          { role: "system", content: "Please continue with the actual task execution based on your reasoning." }
+        );
+        const continuationContent = await this.getContinuationResponse(messages, container);
+        if (continuationContent.trim()) {
+          const updatedContent = responseContent + "\n\n" + continuationContent;
+          await this.updateMessageContent(container, updatedContent);
+          return updatedContent;
+        }
+        return responseContent;
+      }
+      /**
+       * Gets continuation response after tool execution with error handling.
+       * Used internally for task continuation loops.
+       * @param messages The message history for the continuation request
+       * @param container The message DOM element
+       * @returns Promise resolving to the continuation response content string
+       */
+      async getContinuationResponse(messages, container) {
+        var _a2;
+        try {
+          if ((_a2 = this.agentResponseHandler) == null ? void 0 : _a2.isToolLimitReached()) {
+            return "*[Tool execution limit reached - no continuation response]*";
+          }
+          const aiDispatcher = new AIDispatcher(this.plugin.app.vault, this.plugin);
+          let continuationContent = "";
+          await aiDispatcher.getCompletion(messages, {
+            temperature: this.plugin.settings.temperature,
+            streamCallback: async (chunk) => {
+              continuationContent += chunk;
+            },
+            abortController: this.activeStream || void 0
+          });
+          return continuationContent;
+        } catch (error) {
+          console.error("ResponseStreamer: Error getting continuation response:", error);
+          return error.name !== "AbortError" ? `*[Error getting continuation: ${error.message}]*` : "";
+        }
+      }
+      /**
+       * Executes task continuation with proper setup and error handling.
+       * Called when the user triggers continuation from the UI after a limit is reached.
+       * @param params ContinuationParams
+       */
+      async executeContinuation(params) {
+        if (!this.agentResponseHandler) return;
+        const { messages, container, responseContent, finalContent, toolResults, additionalTools, chatHistory } = params;
+        if (additionalTools) {
+        } else {
+          this.agentResponseHandler.resetExecutionCount();
+        }
+        const continueMessage = this.createContinuationMessage(additionalTools);
+        await this.addContinuationNotice(continueMessage);
+        messages.push({ role: "assistant", content: finalContent }, continueMessage);
+        const newBotMessage = await this.createNewBotMessage();
+        const continuationResult = await this.executeTaskContinuation(
+          messages,
+          newBotMessage.getElement(),
+          responseContent,
+          toolResults,
+          chatHistory
+        );
+        if (continuationResult.limitReachedDuringContinuation) {
+          this.handleToolLimitReached(
+            messages,
+            newBotMessage.getElement(),
+            responseContent,
+            continuationResult.content,
+            toolResults,
+            chatHistory
+          );
+        }
+        newBotMessage.setContent(continuationResult.content);
+      }
+      /**
+       * Creates continuation message based on type (reset limit vs add tools).
+       * @param additionalTools Optional number of additional tools
+       * @returns Message object for the continuation notice
+       */
+      createContinuationMessage(additionalTools) {
+        const content = additionalTools ? `Added ${additionalTools} additional tool executions. Continuing with the task...` : "Tool execution limit was reset. Continuing with the task...";
+        return { role: "system", content };
+      }
+      /**
+       * Adds continuation notice to chat UI.
+       * @param continueMessage The message object for the notice
+       */
+      async addContinuationNotice(continueMessage) {
+        const { BotMessage: BotMessage2 } = await Promise.resolve().then(() => (init_BotMessage(), BotMessage_exports));
+        const continuationNotice = new BotMessage2(this.plugin.app, this.plugin, continueMessage.content);
+        const element = continuationNotice.getElement();
+        element.style.opacity = "0.8";
+        element.style.fontStyle = "italic";
+        this.messagesContainer.appendChild(element);
+        this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+      }
+      /**
+       * Creates new bot message for continuation response.
+       * @returns Promise resolving to the new BotMessage instance
+       */
+      async createNewBotMessage() {
+        const { BotMessage: BotMessage2 } = await Promise.resolve().then(() => (init_BotMessage(), BotMessage_exports));
+        const newBotMessage = new BotMessage2(this.plugin.app, this.plugin, "");
+        this.messagesContainer.appendChild(newBotMessage.getElement());
+        this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+        return newBotMessage;
+      }
+      /**
+       * Executes task continuation logic using TaskContinuation.
+       * @param messages The message history
+       * @param container The message DOM element
+       * @param responseContent The raw response content
+       * @param toolResults Tool results from the last step
+       * @param chatHistory Optional chat history
+       * @returns Promise resolving to the result from TaskContinuation
+       */
+      async executeTaskContinuation(messages, container, responseContent, toolResults, chatHistory) {
+        const taskContinuation = this.createTaskContinuation();
+        return await taskContinuation.continueTaskUntilFinished(
+          messages,
+          container,
+          responseContent,
+          "",
+          toolResults,
+          chatHistory || []
+        );
+      }
+    };
+  }
+});
+
+// src/services/chat/StreamCoordinator.ts
+var StreamCoordinator;
+var init_StreamCoordinator = __esm({
+  "src/services/chat/StreamCoordinator.ts"() {
+    init_contextBuilder();
+    StreamCoordinator = class {
+      constructor(plugin, eventBus, aiService) {
+        this.plugin = plugin;
+        this.eventBus = eventBus;
+        this.aiService = aiService;
+        __publicField(this, "activeStreams", /* @__PURE__ */ new Map());
+        __publicField(this, "streamState", {
+          isStreaming: false,
+          totalChunks: 0,
+          totalCharacters: 0
+        });
+        __publicField(this, "uiUpdateCallbacks", /* @__PURE__ */ new Set());
+        __publicField(this, "activeContainer", null);
+        this.validateDependencies();
+        this.setupEventListeners();
+        this.plugin.debugLog("info", "[StreamCoordinator] Initialized successfully with all dependencies");
+      }
+      /**
+       * Validate that all required dependencies are available
+       */
+      validateDependencies() {
+        if (!this.plugin) {
+          throw new Error("StreamCoordinator: Plugin instance is required");
+        }
+        if (!this.plugin.aiDispatcher) {
+          throw new Error("StreamCoordinator: AIDispatcher is not available on plugin instance");
+        }
+        if (!this.eventBus) {
+          throw new Error("StreamCoordinator: EventBus is required");
+        }
+        if (!this.aiService) {
+          throw new Error("StreamCoordinator: AIService is required");
+        }
+        this.plugin.debugLog("debug", "[StreamCoordinator] All dependencies validated successfully");
+      }
+      /**
+       * Register a UI update callback for stream state changes
+       */
+      onUIStateChange(callback) {
+        this.uiUpdateCallbacks.add(callback);
+      }
+      /**
+       * Unregister a UI update callback
+       */
+      offUIStateChange(callback) {
+        this.uiUpdateCallbacks.delete(callback);
+      }
+      /**
+       * Set the active UI container for stream updates
+       */
+      setActiveContainer(container) {
+        this.activeContainer = container;
+      }
+      /**
+       * Get the current active container
+       */
+      getActiveContainer() {
+        return this.activeContainer;
+      }
+      /**
+       * Notify all UI callbacks of stream state change
+       */
+      notifyUIStateChange() {
+        const isStreaming = this.streamState.isStreaming;
+        this.uiUpdateCallbacks.forEach((callback) => {
+          try {
+            callback(isStreaming);
+          } catch (error) {
+            console.error("Error in UI state change callback:", error);
+          }
+        });
+      }
+      /**
+       * Starts a new streaming response
+       */
+      async startStream(messages, options = {}) {
+        this.plugin.debugLog("debug", "[StreamCoordinator] startStream called", {
+          currentlyStreaming: this.streamState.isStreaming,
+          currentStreamId: this.streamState.currentStreamId,
+          activeStreamsCount: this.activeStreams.size,
+          streamState: this.streamState
+        });
+        if (this.streamState.isStreaming) {
+          this.plugin.debugLog("error", "[StreamCoordinator] BLOCKING NEW STREAM - State not properly reset", {
+            isStreaming: this.streamState.isStreaming,
+            currentStreamId: this.streamState.currentStreamId,
+            activeStreamsCount: this.activeStreams.size,
+            activeStreamIds: Array.from(this.activeStreams.keys()),
+            lastStateUpdate: this.streamState.startTime
+          });
+          this.eventBus.publish("stream.start_blocked", {
+            reason: "A stream is already active or cleaning up.",
+            timestamp: Date.now()
+          });
+          throw new Error("A stream is already active. Stop the current stream before starting a new one.");
+        }
+        const streamId = this.generateStreamId();
+        const abortController = new AbortController();
+        let aborted = false;
+        if (options.uiContainer) {
+          this.setActiveContainer(options.uiContainer);
+        }
+        this.activeStreams.set(streamId, abortController);
+        this.updateStreamState({
+          isStreaming: true,
+          currentStreamId: streamId,
+          startTime: Date.now(),
+          totalChunks: 0,
+          totalCharacters: 0
+        });
+        this.notifyUIStateChange();
+        abortController.signal.addEventListener("abort", () => {
+          aborted = true;
+        });
+        try {
+          this.eventBus.publish("stream.started", {
+            streamId,
+            provider: this.determineProvider(),
+            messageCount: messages.length,
+            timestamp: Date.now()
+          });
+          const contextMessages = await this.buildContextMessages();
+          const allMessages = [...contextMessages, ...messages];
+          let fullResponse = "";
+          let chunkCount = 0;
+          const streamCallback = async (chunk) => {
+            if (aborted) return;
+            fullResponse += chunk;
+            chunkCount++;
+            this.updateStreamState({
+              ...this.streamState,
+              totalChunks: chunkCount,
+              totalCharacters: fullResponse.length
+            });
+            if (options.onChunk) {
+              try {
+                await options.onChunk(chunk, fullResponse);
+              } catch (error) {
+                console.error("Error in custom chunk callback:", error);
+              }
+            }
+            this.eventBus.publish("stream.chunk", {
+              streamId,
+              chunk,
+              totalLength: fullResponse.length,
+              chunkIndex: chunkCount,
+              timestamp: Date.now()
+            });
+          };
+          const response = await this.aiService.getCompletion({
+            messages: allMessages,
+            options: {
+              temperature: options.temperature,
+              streamCallback,
+              abortController
+            }
+          });
+          const duration = Date.now() - this.streamState.startTime;
+          this.eventBus.publish("stream.completed", {
+            streamId,
+            content: fullResponse,
+            duration,
+            chunkCount,
+            characterCount: fullResponse.length,
+            timestamp: Date.now()
+          });
+          return fullResponse;
+        } catch (error) {
+          const duration = this.streamState.startTime ? Date.now() - this.streamState.startTime : 0;
+          if (error.name === "AbortError") {
+            this.eventBus.publish("stream.aborted", {
+              streamId,
+              reason: "user_requested",
+              duration,
+              timestamp: Date.now()
+            });
+          } else {
+            this.eventBus.publish("stream.error", {
+              streamId,
+              error: error.message,
+              duration,
+              timestamp: Date.now()
+            });
+          }
+          throw error;
+        } finally {
+          this.plugin.debugLog("debug", "[StreamCoordinator] Finally block - cleaning up stream", {
+            streamId,
+            currentState: this.streamState,
+            wasAborted: aborted
+          });
+          this.cleanupStream(streamId);
+          this.plugin.debugLog("debug", "[StreamCoordinator] Finally block complete", {
+            finalState: this.streamState,
+            activeStreamsCount: this.activeStreams.size
+          });
+        }
+      }
+      /**
+       * Stops the current stream
+       */
+      stopStream() {
+        this.plugin.debugLog("info", "[StreamCoordinator] stopStream called", {
+          isStreaming: this.streamState.isStreaming,
+          currentStreamId: this.streamState.currentStreamId,
+          activeStreamsCount: this.activeStreams.size
+        });
+        if (!this.streamState.isStreaming || !this.streamState.currentStreamId) {
+          this.plugin.debugLog("warn", "[StreamCoordinator] stopStream called but no active stream", {
+            isStreaming: this.streamState.isStreaming,
+            currentStreamId: this.streamState.currentStreamId
+          });
+          return;
+        }
+        const streamId = this.streamState.currentStreamId;
+        const abortController = this.activeStreams.get(streamId);
+        this.plugin.debugLog("info", "[StreamCoordinator] Stopping stream", {
+          streamId,
+          hasAbortController: !!abortController
+        });
+        if (abortController) {
+          abortController.abort();
+          this.cleanupStream(streamId);
+          this.eventBus.publish("stream.stopped", {
+            streamId,
+            reason: "user_requested",
+            timestamp: Date.now()
+          });
+          this.plugin.debugLog("info", "[StreamCoordinator] Stream stopped successfully", {
+            streamId,
+            finalState: this.streamState
+          });
+        }
+      }
+      /**
+       * Checks if currently streaming
+       */
+      isStreaming() {
+        return this.streamState.isStreaming;
+      }
+      /**
+       * Gets all active stream IDs
+       */
+      getActiveStreams() {
+        return Array.from(this.activeStreams.keys());
+      }
+      /**
+       * Aborts a specific stream
+       */
+      abortStream(streamId) {
+        const abortController = this.activeStreams.get(streamId);
+        if (abortController) {
+          abortController.abort();
+          this.cleanupStream(streamId);
+          this.eventBus.publish("stream.aborted", {
+            streamId,
+            reason: "manual_abort",
+            timestamp: Date.now()
+          });
+        }
+      }
+      /**
+       * Gets current stream state
+       */
+      getStreamState() {
+        return { ...this.streamState };
+      }
+      /**
+       * Gets stream statistics
+       */
+      getStreamStats() {
+        return {
+          totalStreams: 0,
+          // Would track across sessions
+          activeStreams: this.activeStreams.size,
+          averageStreamDuration: 0,
+          // Would calculate from historical data
+          totalCharactersStreamed: this.streamState.totalCharacters,
+          totalChunksProcessed: this.streamState.totalChunks
+        };
+      }
+      /**
+       * Sets stream options for future streams
+       */
+      setDefaultStreamOptions(options) {
+        this.eventBus.publish("stream.options_updated", {
+          options,
+          timestamp: Date.now()
+        });
+      }
+      /**
+       * Pauses the current stream (if supported by provider)
+       */
+      pauseStream() {
+        if (!this.streamState.isStreaming) {
+          return;
+        }
+        this.eventBus.publish("stream.pause_requested", {
+          streamId: this.streamState.currentStreamId,
+          timestamp: Date.now()
+        });
+      }
+      /**
+       * Resumes a paused stream (if supported by provider)
+       */
+      resumeStream() {
+        if (!this.streamState.isStreaming) {
+          return;
+        }
+        this.eventBus.publish("stream.resume_requested", {
+          streamId: this.streamState.currentStreamId,
+          timestamp: Date.now()
+        });
+      }
+      /**
+       * Generates a unique stream ID
+       */
+      generateStreamId() {
+        return `stream_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      }
+      /**
+       * Updates the stream state
+       */
+      updateStreamState(newState) {
+        this.streamState = { ...this.streamState, ...newState };
+      }
+      /**
+       * Cleans up a stream
+       */
+      cleanupStream(streamId) {
+        this.plugin.debugLog("debug", "[StreamCoordinator] cleanupStream called", {
+          streamId,
+          currentStreamId: this.streamState.currentStreamId,
+          activeStreamsBeforeCleanup: this.activeStreams.size,
+          isCurrentStream: this.streamState.currentStreamId === streamId
+        });
+        this.activeStreams.delete(streamId);
+        if (this.streamState.currentStreamId === streamId) {
+          const previousState = { ...this.streamState };
+          this.updateStreamState({
+            isStreaming: false,
+            currentStreamId: void 0,
+            startTime: void 0
+          });
+          this.plugin.debugLog("info", "[StreamCoordinator] Stream state reset in cleanup", {
+            previousState,
+            newState: this.streamState,
+            activeStreamsAfterCleanup: this.activeStreams.size
+          });
+          this.notifyUIStateChange();
+          this.plugin.debugLog("debug", "[StreamCoordinator] UI state change notification sent", {
+            isStreaming: this.streamState.isStreaming,
+            callbackCount: this.uiUpdateCallbacks.size
+          });
+        } else {
+          this.plugin.debugLog("warn", "[StreamCoordinator] Cleanup called for non-current stream", {
+            cleanupStreamId: streamId,
+            currentStreamId: this.streamState.currentStreamId
+          });
+        }
+      }
+      /**
+       * Builds context messages for the request
+       */
+      async buildContextMessages() {
+        try {
+          return await buildContextMessages({
+            app: this.plugin.app,
+            plugin: this.plugin
+          });
+        } catch (error) {
+          console.warn("Failed to build context messages:", error);
+          return [];
+        }
+      }
+      /**
+       * Determines the current provider
+       */
+      determineProvider() {
+        if (this.plugin.settings.selectedModel) {
+          return this.plugin.settings.selectedModel.split(":")[0];
+        }
+        return this.plugin.settings.provider;
+      }
+      /**
+       * Sets up event listeners
+       */
+      setupEventListeners() {
+        this.eventBus.subscribe("stream.abort_all", () => {
+          this.abortAllStreams();
+        });
+        this.eventBus.subscribe("settings.changed", (data) => {
+          if (data.key === "selectedModel" || data.key === "provider") {
+            if (this.streamState.isStreaming) {
+              this.eventBus.publish("stream.provider_changed", {
+                streamId: this.streamState.currentStreamId,
+                newProvider: this.determineProvider(),
+                timestamp: Date.now()
+              });
+            }
+          }
+        });
+      }
+      /**
+       * Aborts all active streams
+       */
+      abortAllStreams() {
+        const streamIds = Array.from(this.activeStreams.keys());
+        for (const streamId of streamIds) {
+          this.abortStream(streamId);
+        }
+        this.notifyUIStateChange();
+        this.eventBus.publish("stream.all_aborted", {
+          abortedCount: streamIds.length,
+          timestamp: Date.now()
+        });
+      }
+      /**
+       * Cleanup method for disposing the service
+       */
+      dispose() {
+        this.abortAllStreams();
+        this.updateStreamState({
+          isStreaming: false,
+          currentStreamId: void 0,
+          startTime: void 0,
+          totalChunks: 0,
+          totalCharacters: 0
+        });
+      }
+    };
+  }
+});
+
+// src/utils/domBatcher.ts
+var DOMBatcher, globalDOMBatcher;
+var init_domBatcher = __esm({
+  "src/utils/domBatcher.ts"() {
+    DOMBatcher = class {
+      constructor() {
+        __publicField(this, "operations", []);
+        __publicField(this, "scheduledFlush", false);
+      }
+      /**
+       * Add an element to be inserted in the next batch
+       */
+      addElement(element, parent, insertBefore) {
+        this.operations.push({ element, parent, insertBefore });
+        this.scheduleFlush();
+      }
+      /**
+       * Add multiple elements to be inserted in the next batch
+       */
+      addElements(operations) {
+        this.operations.push(...operations);
+        this.scheduleFlush();
+      }
+      /**
+       * Schedule a flush operation using requestAnimationFrame for optimal timing
+       */
+      scheduleFlush() {
+        if (!this.scheduledFlush) {
+          this.scheduledFlush = true;
+          requestAnimationFrame(() => {
+            this.flush();
+            this.scheduledFlush = false;
+          });
+        }
+      }
+      /**
+       * Immediately flush all pending operations
+       */
+      flush() {
+        if (this.operations.length === 0) return;
+        const operationsByParent = /* @__PURE__ */ new Map();
+        for (const operation of this.operations) {
+          if (!operationsByParent.has(operation.parent)) {
+            operationsByParent.set(operation.parent, []);
+          }
+          operationsByParent.get(operation.parent).push(operation);
+        }
+        for (const [parent, parentOperations] of operationsByParent) {
+          this.flushForParent(parent, parentOperations);
+        }
+        this.operations.length = 0;
+      }
+      /**
+       * Flush operations for a specific parent using DocumentFragment
+       */
+      flushForParent(parent, operations) {
+        const appendOperations = [];
+        const insertOperations = [];
+        for (const operation of operations) {
+          if (operation.insertBefore) {
+            insertOperations.push(operation);
+          } else {
+            appendOperations.push(operation);
+          }
+        }
+        if (appendOperations.length > 0) {
+          const fragment = document.createDocumentFragment();
+          for (const operation of appendOperations) {
+            fragment.appendChild(operation.element);
+          }
+          parent.appendChild(fragment);
+        }
+        for (const operation of insertOperations) {
+          parent.insertBefore(operation.element, operation.insertBefore);
+        }
+      }
+      /**
+       * Get the number of pending operations
+       */
+      getPendingCount() {
+        return this.operations.length;
+      }
+      /**
+       * Clear all pending operations without executing them
+       */
+      clear() {
+        this.operations.length = 0;
+      }
+    };
+    globalDOMBatcher = new DOMBatcher();
+  }
+});
+
 // src/components/chat/inputHandler.ts
 var inputHandler_exports = {};
 __export(inputHandler_exports, {
@@ -17659,6 +21771,1050 @@ function setupInputHandler(textarea, messagesContainer, sendMessage, handleSlash
 var init_inputHandler = __esm({
   "src/components/chat/inputHandler.ts"() {
     init_eventHandlers();
+  }
+});
+
+// src/chat.ts
+var chat_exports = {};
+__export(chat_exports, {
+  ChatView: () => ChatView,
+  VIEW_TYPE_CHAT: () => VIEW_TYPE_CHAT
+});
+var import_obsidian30, VIEW_TYPE_CHAT, ChatView;
+var init_chat = __esm({
+  "src/chat.ts"() {
+    import_obsidian30 = require("obsidian");
+    init_ChatHistoryManager();
+    init_Message();
+    init_ui();
+    init_eventHandlers();
+    init_chatPersistence();
+    init_chatHistoryUtils();
+    init_AgentResponseHandler2();
+    init_contextBuilder();
+    init_MessageRegenerator();
+    init_generalUtils();
+    init_ResponseStreamer();
+    init_StreamCoordinator();
+    init_MessageRenderer();
+    init_objectPool();
+    init_domBatcher();
+    init_errorHandler();
+    init_asyncOptimizer();
+    VIEW_TYPE_CHAT = "chat-view";
+    ChatView = class extends import_obsidian30.ItemView {
+      constructor(leaf, plugin) {
+        super(leaf);
+        __publicField(this, "plugin");
+        __publicField(this, "chatHistoryManager");
+        __publicField(this, "messagesContainer");
+        __publicField(this, "inputContainer");
+        __publicField(this, "activeStream", null);
+        __publicField(this, "referenceNoteIndicator");
+        __publicField(this, "obsidianLinksIndicator");
+        __publicField(this, "contextNotesIndicator");
+        __publicField(this, "modelNameDisplay");
+        __publicField(this, "agentResponseHandler", null);
+        __publicField(this, "messageRegenerator", null);
+        __publicField(this, "responseStreamer", null);
+        // Keep for backward compatibility during transition
+        __publicField(this, "streamCoordinator", null);
+        __publicField(this, "deferredStreamCoordinatorInit", null);
+        __publicField(this, "messageRenderer");
+        __publicField(this, "messagePool");
+        __publicField(this, "domCache");
+        __publicField(this, "arrayManager");
+        __publicField(this, "cachedMessageElements", []);
+        __publicField(this, "lastScrollHeight", 0);
+        __publicField(this, "domElementCache", {});
+        __publicField(this, "eventListeners", []);
+        __publicField(this, "domBatcher");
+        // Priority 2 Optimization: Async optimization
+        __publicField(this, "scrollDebouncer");
+        __publicField(this, "updateDebouncer");
+        // Centralized stream state management
+        __publicField(this, "centralStreamState", {
+          isStreaming: false,
+          streamSource: null,
+          lastUpdate: 0
+        });
+        this.plugin = plugin;
+        this.chatHistoryManager = new ChatHistoryManager(this.app.vault, this.plugin.manifest.id, "chat-history.json");
+        this.messageRenderer = new MessageRenderer(this.app);
+        this.messagePool = MessageContextPool.getInstance();
+        this.domCache = new WeakCache();
+        this.arrayManager = PreAllocatedArrays.getInstance();
+        this.domBatcher = new DOMBatcher();
+        this.scrollDebouncer = AsyncOptimizerFactory.createInputDebouncer();
+        this.updateDebouncer = AsyncOptimizerFactory.createInputDebouncer();
+        this.initializeCentralizedStreamState();
+      }
+      addEventListenerWithCleanup(element, event, handler) {
+        element.addEventListener(event, handler);
+        this.eventListeners.push({ element, event, handler });
+      }
+      cacheUIElements(ui) {
+        this.domElementCache.textarea = ui.textarea;
+        this.domElementCache.sendButton = ui.sendButton;
+        this.domElementCache.stopButton = ui.stopButton;
+        this.domElementCache.copyAllButton = ui.copyAllButton;
+        this.domElementCache.clearButton = ui.clearButton;
+        this.domElementCache.settingsButton = ui.settingsButton;
+        this.domElementCache.helpButton = ui.helpButton;
+        this.domElementCache.saveNoteButton = ui.saveNoteButton;
+        this.domElementCache.referenceNoteButton = ui.referenceNoteButton;
+        this.domElementCache.agentModeButton = ui.agentModeButton;
+        this.domElementCache.toolContinuationContainer = ui.toolContinuationContainer;
+        this.domElementCache.obsidianLinksButton = ui.obsidianLinksButton;
+        this.domElementCache.contextNotesButton = ui.contextNotesButton;
+      }
+      getViewType() {
+        return VIEW_TYPE_CHAT;
+      }
+      getDisplayText() {
+        return "AI Chat";
+      }
+      getIcon() {
+        return "message-square";
+      }
+      async onOpen() {
+        const { contentEl } = this;
+        this.prepareChatView(contentEl);
+        const loadedHistory = await this.loadChatHistory();
+        const ui = createChatUI(this.app, contentEl);
+        this.initializeUIElements(ui);
+        this.setupEventHandlers(ui);
+        this.setupAgentResponseHandler();
+        this.setupResponseStreamerAndRegenerator();
+        this.initializeStreamCoordinatorIfReady();
+        this.setupAgentModeButton();
+        this.setupSendAndStopButtons();
+        this.setupInputHandler(ui);
+        await this.loadAndRenderHistory(loadedHistory);
+        this.updateReferenceNoteIndicator();
+        this.registerWorkspaceAndSettingsEvents();
+      }
+      prepareChatView(contentEl) {
+        contentEl.empty();
+        contentEl.addClass("ai-chat-view");
+      }
+      async loadChatHistory() {
+        return await withErrorHandling(
+          () => this.chatHistoryManager.getHistory(),
+          "ChatView",
+          "loadChatHistory",
+          { fallbackMessage: "Failed to load chat history" }
+        ) || [];
+      }
+      initializeUIElements(ui) {
+        this.messagesContainer = ui.messagesContainer;
+        this.inputContainer = ui.inputContainer;
+        this.referenceNoteIndicator = ui.referenceNoteIndicator;
+        this.obsidianLinksIndicator = ui.obsidianLinksIndicator;
+        this.contextNotesIndicator = ui.contextNotesIndicator;
+        this.modelNameDisplay = ui.modelNameDisplay;
+        this.cacheUIElements(ui);
+        this.updateReferenceNoteIndicator();
+        this.updateObsidianLinksIndicator();
+        this.updateContextNotesIndicator();
+        this.updateModelNameDisplay();
+      }
+      setupEventHandlers(ui) {
+        this.addEventListenerWithCleanup(this.domElementCache.copyAllButton, "click", handleCopyAll(this.messagesContainer, this.plugin));
+        this.addEventListenerWithCleanup(this.domElementCache.clearButton, "click", handleClearChat(this.messagesContainer, this.chatHistoryManager));
+        this.addEventListenerWithCleanup(this.domElementCache.settingsButton, "click", handleSettings(this.app, this.plugin));
+        this.addEventListenerWithCleanup(this.domElementCache.helpButton, "click", handleHelp(this.app));
+        this.addEventListenerWithCleanup(this.domElementCache.referenceNoteButton, "click", () => {
+          this.plugin.settings.referenceCurrentNote = !this.plugin.settings.referenceCurrentNote;
+          this.plugin.saveSettings();
+          this.updateReferenceNoteIndicator();
+        });
+        this.addEventListenerWithCleanup(this.domElementCache.saveNoteButton, "click", handleSaveNote(this.messagesContainer, this.plugin, this.app, this.agentResponseHandler));
+        this.addEventListenerWithCleanup(this.domElementCache.obsidianLinksButton, "click", () => {
+          this.plugin.settings.enableObsidianLinks = !this.plugin.settings.enableObsidianLinks;
+          this.plugin.saveSettings();
+          this.updateObsidianLinksIndicator();
+        });
+        this.addEventListenerWithCleanup(this.domElementCache.contextNotesButton, "click", () => {
+          this.plugin.settings.enableContextNotes = !this.plugin.settings.enableContextNotes;
+          this.plugin.saveSettings();
+          this.updateContextNotesIndicator();
+        });
+      }
+      setupAgentResponseHandler() {
+        this.agentResponseHandler = new AgentResponseHandler({
+          app: this.app,
+          plugin: this.plugin,
+          messagesContainer: this.messagesContainer,
+          toolContinuationContainer: this.domElementCache.toolContinuationContainer,
+          onToolResult: (toolResult, command) => {
+            if (toolResult.success) {
+              this.plugin.debugLog("info", `[chat.ts] Tool ${command.action} completed successfully`, toolResult.data);
+            } else {
+              this.plugin.debugLog("error", `[chat.ts] Tool ${command.action} failed:`, toolResult.error);
+            }
+          },
+          onToolDisplay: (display) => {
+            const toolWrapper = document.createElement("div");
+            toolWrapper.className = "real-time-tool-display";
+            toolWrapper.appendChild(display.getElement());
+            const tempContainer = this.messagesContainer.querySelector(".ai-chat-message.assistant:last-child");
+            if (tempContainer) {
+              const messageContent = tempContainer.querySelector(".message-content");
+              if (messageContent) {
+                messageContent.appendChild(toolWrapper);
+                this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+              }
+            }
+          }
+        });
+      }
+      setupResponseStreamerAndRegenerator() {
+        const eventBus = {
+          publish: async (event, data) => {
+            console.debug(`[EventBus] ${event}:`, data);
+          },
+          subscribe: (event, handler) => {
+            return () => {
+            };
+          },
+          subscribeOnce: (event, handler) => {
+            return () => {
+            };
+          },
+          unsubscribe: (event, handler) => {
+          },
+          clear: () => {
+          },
+          getSubscriptionCount: (event) => {
+            return 0;
+          }
+        };
+        const self = this;
+        const aiService = {
+          async getCompletion(request) {
+            var _a2, _b, _c, _d;
+            self.plugin.debugLog("debug", "[ChatView] aiService.getCompletion called", {
+              hasPlugin: !!self.plugin,
+              hasAiDispatcher: !!((_a2 = self.plugin) == null ? void 0 : _a2.aiDispatcher),
+              aiDispatcherType: typeof ((_b = self.plugin) == null ? void 0 : _b.aiDispatcher),
+              requestMessages: ((_c = request == null ? void 0 : request.messages) == null ? void 0 : _c.length) || 0,
+              requestOptions: !!(request == null ? void 0 : request.options)
+            });
+            if (!self.plugin) {
+              const error = new Error("Plugin instance is null/undefined in aiService.getCompletion");
+              console.error("[ChatView] Plugin instance missing", error);
+              throw error;
+            }
+            if (!self.plugin.aiDispatcher) {
+              const error = new Error("AIDispatcher not initialized yet - this is the root cause of the stop button issue");
+              self.plugin.debugLog("error", "[ChatView] AIDispatcher missing when getCompletion called", {
+                error,
+                pluginExists: !!self.plugin,
+                aiDispatcherExists: !!self.plugin.aiDispatcher,
+                stackTrace: new Error().stack
+              });
+              throw error;
+            }
+            self.plugin.debugLog("debug", "[ChatView] About to call aiDispatcher.getCompletion", {
+              aiDispatcherMethods: Object.getOwnPropertyNames(self.plugin.aiDispatcher),
+              messagesCount: (_d = request.messages) == null ? void 0 : _d.length
+            });
+            return new Promise((resolve, reject) => {
+              var _a3;
+              let fullResponse = "";
+              let hasResolved = false;
+              const originalStreamCallback = (_a3 = request.options) == null ? void 0 : _a3.streamCallback;
+              const wrappedOptions = {
+                ...request.options,
+                streamCallback: (chunk) => {
+                  fullResponse += chunk;
+                  if (originalStreamCallback) {
+                    originalStreamCallback(chunk);
+                  }
+                },
+                // Add completion callback to properly resolve the Promise
+                onComplete: () => {
+                  if (!hasResolved) {
+                    hasResolved = true;
+                    self.plugin.debugLog("debug", "[ChatView] aiService.getCompletion completed", {
+                      responseLength: fullResponse.length,
+                      responsePreview: fullResponse.substring(0, 100)
+                    });
+                    resolve(fullResponse);
+                  }
+                },
+                onError: (error) => {
+                  if (!hasResolved) {
+                    hasResolved = true;
+                    self.plugin.debugLog("error", "[ChatView] aiService.getCompletion failed", error);
+                    reject(error);
+                  }
+                }
+              };
+              self.plugin.aiDispatcher.getCompletion(request.messages, wrappedOptions).then(() => {
+                if (!hasResolved) {
+                  hasResolved = true;
+                  self.plugin.debugLog("debug", "[ChatView] aiDispatcher completed without onComplete callback", {
+                    responseLength: fullResponse.length
+                  });
+                  resolve(fullResponse);
+                }
+              }).catch((error) => {
+                if (!hasResolved) {
+                  hasResolved = true;
+                  self.plugin.debugLog("error", "[ChatView] aiDispatcher.getCompletion rejected", error);
+                  reject(error);
+                }
+              });
+            });
+          }
+        };
+        this.initializeStreamCoordinatorWithRetry(eventBus, aiService);
+        this.responseStreamer = new ResponseStreamer(
+          this.plugin,
+          this.agentResponseHandler,
+          this.messagesContainer,
+          this.activeStream,
+          this
+        );
+        this.messageRegenerator = new MessageRegenerator(
+          this.plugin,
+          this.messagesContainer,
+          this.inputContainer,
+          this.chatHistoryManager,
+          this.agentResponseHandler,
+          this.activeStream,
+          this,
+          // Pass ChatView reference for StreamCoordinator integration
+          this
+          // Pass ChatView as component for Markdown rendering context
+        );
+      }
+      /**
+       * Initialize StreamCoordinator with dependency validation and retry mechanism
+       */
+      async initializeStreamCoordinatorWithRetry(eventBus, aiService, maxRetries = 3) {
+        let retryCount = 0;
+        while (retryCount < maxRetries && !this.streamCoordinator) {
+          try {
+            if (!this.plugin.aiDispatcher) {
+              throw new Error("AIDispatcher not available");
+            }
+            this.plugin.debugLog("info", `[ChatView] Initializing StreamCoordinator (attempt ${retryCount + 1}/${maxRetries}) - aiDispatcher available`);
+            this.streamCoordinator = new StreamCoordinator(
+              this.plugin,
+              eventBus,
+              aiService
+            );
+            this.streamCoordinator.onUIStateChange((isStreaming) => {
+              this.onStreamCoordinatorStateChange(isStreaming);
+            });
+            this.plugin.debugLog("info", "[ChatView] StreamCoordinator initialized successfully");
+            return;
+          } catch (error) {
+            retryCount++;
+            this.plugin.debugLog("warn", `[ChatView] StreamCoordinator initialization failed (attempt ${retryCount}/${maxRetries}):`, error);
+            if (retryCount < maxRetries) {
+              const delay = Math.min(100 * Math.pow(2, retryCount - 1), 1e3);
+              this.plugin.debugLog("info", `[ChatView] Retrying StreamCoordinator initialization in ${delay}ms`);
+              await new Promise((resolve) => setTimeout(resolve, delay));
+            } else {
+              this.plugin.debugLog("error", "[ChatView] StreamCoordinator initialization failed after all retries, setting up deferred initialization");
+              this.deferredStreamCoordinatorInit = () => {
+                this.initializeStreamCoordinatorWithRetry(eventBus, aiService, 1);
+              };
+            }
+          }
+        }
+      }
+      initializeStreamCoordinatorIfReady() {
+        if (!this.streamCoordinator && this.plugin.aiDispatcher && this.deferredStreamCoordinatorInit) {
+          this.plugin.debugLog("info", "[ChatView] Initializing StreamCoordinator - aiDispatcher is now ready");
+          this.deferredStreamCoordinatorInit();
+          this.deferredStreamCoordinatorInit = null;
+        } else if (!this.streamCoordinator) {
+          this.plugin.debugLog("debug", "[ChatView] StreamCoordinator not ready yet", {
+            hasAiDispatcher: !!this.plugin.aiDispatcher,
+            hasDeferredInit: !!this.deferredStreamCoordinatorInit
+          });
+        }
+      }
+      setupAgentModeButton() {
+        this.addEventListenerWithCleanup(this.domElementCache.agentModeButton, "click", async () => {
+          const isCurrentlyEnabled = this.plugin.agentModeManager.isAgentModeEnabled();
+          await this.plugin.agentModeManager.setAgentModeEnabled(!isCurrentlyEnabled);
+          const agentButton2 = this.domElementCache.agentModeButton;
+          if (this.plugin.agentModeManager.isAgentModeEnabled()) {
+            agentButton2.classList.add("active");
+            agentButton2.setAttribute("title", "Agent Mode: ON - AI can use tools");
+            new import_obsidian30.Notice("Agent Mode enabled - AI can now use tools");
+            if (this.agentResponseHandler) {
+              this.agentResponseHandler.resetExecutionCount();
+            }
+          } else {
+            agentButton2.classList.remove("active");
+            agentButton2.setAttribute("title", "Agent Mode: OFF - Regular chat");
+            new import_obsidian30.Notice("Agent Mode disabled");
+          }
+        });
+        const agentButton = this.domElementCache.agentModeButton;
+        if (this.plugin.agentModeManager.isAgentModeEnabled()) {
+          agentButton.classList.add("active");
+          agentButton.setAttribute("title", "Agent Mode: ON - AI can use tools");
+        } else {
+          agentButton.classList.remove("active");
+          agentButton.setAttribute("title", "Agent Mode: OFF - Regular chat");
+        }
+      }
+      setupSendAndStopButtons() {
+        const textarea = this.domElementCache.textarea;
+        const sendButton = this.domElementCache.sendButton;
+        const stopButton = this.domElementCache.stopButton;
+        const sendMessage = async () => {
+          var _a2, _b;
+          const content = textarea.value.trim();
+          if (!content) return;
+          this.plugin.debugLog("info", "[ChatView] Send message attempt", {
+            contentLength: content.length,
+            centralStreamState: this.centralStreamState,
+            hasStreamCoordinator: !!this.streamCoordinator,
+            streamCoordinatorIsStreaming: (_a2 = this.streamCoordinator) == null ? void 0 : _a2.isStreaming(),
+            textareaDisabled: textarea.disabled,
+            sendButtonHidden: sendButton.classList.contains("hidden")
+          });
+          if (this.agentResponseHandler) {
+            this.agentResponseHandler.resetExecutionCount();
+          }
+          textarea.disabled = true;
+          sendButton.classList.add("hidden");
+          stopButton.classList.remove("hidden");
+          this.plugin.debugLog("debug", "[ChatView] UI state set for sending", {
+            textareaDisabled: textarea.disabled,
+            sendButtonHidden: sendButton.classList.contains("hidden"),
+            stopButtonHidden: stopButton.classList.contains("hidden")
+          });
+          const userMessageEl = await createMessageElement(this.app, "user", content, this.chatHistoryManager, this.plugin, (el) => this.regenerateResponse(el), this);
+          this.messagesContainer.appendChild(userMessageEl);
+          this.debouncedScrollToBottom();
+          textarea.value = "";
+          await withErrorHandling(
+            () => this.chatHistoryManager.addMessage({
+              timestamp: userMessageEl.dataset.timestamp || (/* @__PURE__ */ new Date()).toISOString(),
+              sender: "user",
+              role: "user",
+              content
+            }),
+            "ChatView",
+            "saveUserMessage",
+            { fallbackMessage: "Failed to save user message" }
+          );
+          try {
+            await new Promise((resolve) => setTimeout(resolve, 10));
+            this.cachedMessageElements = [];
+            this.lastScrollHeight = 0;
+            const messages = await this.buildContextMessages();
+            this.addVisibleMessagesToContext(messages);
+            const tempContainer = document.createElement("div");
+            tempContainer.addClass("ai-chat-message", "assistant");
+            tempContainer.createDiv("message-content");
+            this.messagesContainer.appendChild(tempContainer);
+            this.debouncedScrollToBottom();
+            const responseContent = await this.streamAssistantResponse(messages, tempContainer);
+            let enhancedMessageData = void 0;
+            this.plugin.debugLog("debug", "[chat.ts] tempContainer.dataset.messageData exists:", !!tempContainer.dataset.messageData);
+            if (tempContainer.dataset.messageData) {
+              try {
+                enhancedMessageData = JSON.parse(tempContainer.dataset.messageData);
+                this.plugin.debugLog("debug", "[chat.ts] enhancedMessageData parsed, toolResults count:", ((_b = enhancedMessageData.toolResults) == null ? void 0 : _b.length) || 0);
+              } catch (e) {
+                this.plugin.debugLog("warn", "[chat.ts] Failed to parse enhanced message data:", e);
+              }
+            }
+            this.plugin.debugLog("debug", "[chat.ts] responseContent length:", responseContent.length, "trimmed length:", responseContent.trim().length);
+            tempContainer.remove();
+            if (responseContent.trim() !== "" || enhancedMessageData && enhancedMessageData.toolResults && enhancedMessageData.toolResults.length > 0) {
+              const messageEl = await createMessageElement(
+                this.app,
+                "assistant",
+                responseContent,
+                this.chatHistoryManager,
+                this.plugin,
+                (el) => this.regenerateResponse(el),
+                this,
+                enhancedMessageData
+              );
+              this.messagesContainer.appendChild(messageEl);
+              this.plugin.debugLog("debug", "[chat.ts] About to save message to history with toolResults:", !!(enhancedMessageData == null ? void 0 : enhancedMessageData.toolResults));
+              await this.chatHistoryManager.addMessage({
+                timestamp: messageEl.dataset.timestamp || (/* @__PURE__ */ new Date()).toISOString(),
+                sender: "assistant",
+                content: responseContent,
+                ...enhancedMessageData && {
+                  toolResults: enhancedMessageData.toolResults,
+                  reasoning: enhancedMessageData.reasoning,
+                  taskStatus: enhancedMessageData.taskStatus
+                }
+              });
+              this.plugin.debugLog("debug", "[chat.ts] Message saved to history successfully");
+            } else {
+              this.plugin.debugLog("debug", "[chat.ts] responseContent is empty and no toolResults, not saving message");
+            }
+          } catch (error) {
+            if (error.name !== "AbortError") {
+              handleChatError(error, "sendMessage", {
+                messageLength: content.length,
+                agentMode: this.plugin.agentModeManager.isAgentModeEnabled()
+              });
+              await createMessageElement(this.app, "assistant", `Error: ${error.message}`, this.chatHistoryManager, this.plugin, (el) => this.regenerateResponse(el), this);
+            }
+          } finally {
+            this.plugin.debugLog("debug", "[ChatView] Send message finally block", {
+              textareaDisabledBefore: textarea.disabled,
+              sendButtonHiddenBefore: sendButton.classList.contains("hidden"),
+              stopButtonHiddenBefore: stopButton.classList.contains("hidden"),
+              centralStreamStateBefore: this.centralStreamState
+            });
+            textarea.disabled = false;
+            textarea.focus();
+            stopButton.classList.add("hidden");
+            sendButton.classList.remove("hidden");
+            this.activeStream = null;
+            this.plugin.debugLog("info", "[ChatView] Send message complete - UI restored", {
+              textareaDisabledAfter: textarea.disabled,
+              sendButtonHiddenAfter: sendButton.classList.contains("hidden"),
+              stopButtonHiddenAfter: stopButton.classList.contains("hidden"),
+              centralStreamStateAfter: this.centralStreamState
+            });
+          }
+        };
+        this.addEventListenerWithCleanup(sendButton, "click", sendMessage);
+        this.addEventListenerWithCleanup(stopButton, "click", () => {
+          this.handleStopButtonClick();
+        });
+      }
+      setupInputHandler(ui) {
+        const textarea = this.domElementCache.textarea;
+        const sendButton = this.domElementCache.sendButton;
+        const stopButton = this.domElementCache.stopButton;
+        Promise.resolve().then(() => (init_inputHandler(), inputHandler_exports)).then(({ setupInputHandler: setupInputHandler2 }) => {
+          setupInputHandler2(
+            textarea,
+            this.messagesContainer,
+            async () => sendButton.click(),
+            async (cmd) => {
+              switch (cmd) {
+                case "/clear":
+                  ui.clearButton.click();
+                  break;
+                case "/copy":
+                  ui.copyAllButton.click();
+                  break;
+                case "/save":
+                  ui.saveNoteButton.click();
+                  break;
+                case "/settings":
+                  ui.settingsButton.click();
+                  break;
+                case "/help":
+                  ui.helpButton.click();
+                  break;
+                case "/ref":
+                  ui.referenceNoteButton.click();
+                  break;
+              }
+            },
+            this.app,
+            this.plugin,
+            sendButton,
+            stopButton
+          );
+        });
+      }
+      async loadAndRenderHistory(loadedHistory) {
+        if (loadedHistory.length > 0) {
+          this.messagesContainer.empty();
+          const file = this.app.workspace.getActiveFile();
+          if (file) {
+            await loadChatYamlAndApplySettings({
+              app: this.app,
+              plugin: this.plugin,
+              settings: this.plugin.settings,
+              file
+            });
+          }
+          await renderChatHistory({
+            messagesContainer: this.messagesContainer,
+            loadedHistory,
+            chatHistoryManager: this.chatHistoryManager,
+            plugin: this.plugin,
+            regenerateResponse: (el) => this.regenerateResponse(el),
+            scrollToBottom: true
+          });
+        }
+      }
+      registerWorkspaceAndSettingsEvents() {
+        this.registerEvent(this.app.workspace.on("active-leaf-change", () => {
+          this.updateReferenceNoteIndicator();
+        }));
+        this.plugin.onSettingsChange(() => {
+          this.updateReferenceNoteIndicator();
+          this.updateObsidianLinksIndicator();
+          this.updateContextNotesIndicator();
+          this.updateModelNameDisplay();
+        });
+      }
+      async addMessage(role, content, isError = false, enhancedData) {
+        const messageEl = await createMessageElement(this.app, role, content, this.chatHistoryManager, this.plugin, (el) => this.regenerateResponse(el), this, enhancedData ? { role, content, ...enhancedData } : void 0);
+        const uiTimestamp = messageEl.dataset.timestamp || (/* @__PURE__ */ new Date()).toISOString();
+        this.messagesContainer.appendChild(messageEl);
+        this.debouncedScrollToBottom();
+        await withErrorHandling(
+          () => this.chatHistoryManager.addMessage({
+            timestamp: uiTimestamp,
+            sender: role,
+            role,
+            content,
+            ...enhancedData || {}
+          }),
+          "ChatView",
+          "addMessage",
+          { fallbackMessage: "Failed to save chat message" }
+        );
+      }
+      async onClose() {
+        if (this.activeStream) {
+          this.activeStream.abort();
+          this.activeStream = null;
+        }
+        this.cleanupEventListeners();
+        this.cleanupMemoryResources();
+      }
+      cleanupEventListeners() {
+        for (const { element, event, handler } of this.eventListeners) {
+          element.removeEventListener(event, handler);
+        }
+        this.eventListeners.length = 0;
+      }
+      cleanupMemoryResources() {
+        this.cachedMessageElements.length = 0;
+        this.lastScrollHeight = 0;
+        this.domElementCache = {};
+        if (this.domBatcher) {
+          this.domBatcher.clear();
+        }
+      }
+      async regenerateResponse(messageEl) {
+        if (this.messageRegenerator) {
+          await this.messageRegenerator.regenerateResponse(messageEl, () => this.buildContextMessages());
+        }
+      }
+      updateReferenceNoteIndicator() {
+        this.updateDebouncer.debounce(async () => {
+          const currentFile = this.app.workspace.getActiveFile();
+          const isReferenceEnabled = this.plugin.settings.referenceCurrentNote;
+          const button = this.referenceNoteIndicator.previousElementSibling;
+          if (isReferenceEnabled && currentFile) {
+            this.referenceNoteIndicator.setText(`\u{1F4DD} Referencing: ${currentFile.basename}`);
+            this.referenceNoteIndicator.style.display = "block";
+            if (button && button.getAttribute("aria-label") === "Toggle referencing current note") {
+              button.setText("\u{1F4DD}");
+              button.classList.add("active");
+            }
+          } else {
+            this.referenceNoteIndicator.style.display = "none";
+            if (button && button.getAttribute("aria-label") === "Toggle referencing current note") {
+              button.setText("\u{1F4DD}");
+              button.classList.remove("active");
+            }
+          }
+        });
+      }
+      updateModelNameDisplay() {
+        if (!this.modelNameDisplay) return;
+        let modelName = "Unknown Model";
+        const settings = this.plugin.settings;
+        if (settings.selectedModel && settings.availableModels) {
+          const found = settings.availableModels.find((m) => m.id === settings.selectedModel);
+          if (found) modelName = found.name;
+          else modelName = settings.selectedModel;
+        } else if (settings.selectedModel) {
+          modelName = settings.selectedModel;
+        }
+        this.modelNameDisplay.textContent = `Model: ${modelName}`;
+      }
+      updateObsidianLinksIndicator() {
+        if (!this.obsidianLinksIndicator) return;
+        const isObsidianLinksEnabled = this.plugin.settings.enableObsidianLinks;
+        const button = this.domElementCache.obsidianLinksButton;
+        if (isObsidianLinksEnabled) {
+          this.obsidianLinksIndicator.setText("\u{1F517} Obsidian Links: ON");
+          this.obsidianLinksIndicator.style.display = "block";
+          this.obsidianLinksIndicator.classList.add("active");
+          if (button) {
+            button.classList.add("active");
+          }
+        } else {
+          this.obsidianLinksIndicator.style.display = "none";
+          this.obsidianLinksIndicator.classList.remove("active");
+          if (button) {
+            button.classList.remove("active");
+          }
+        }
+      }
+      updateContextNotesIndicator() {
+        if (!this.contextNotesIndicator) return;
+        const isContextNotesEnabled = this.plugin.settings.enableContextNotes;
+        const contextNotesText = this.plugin.settings.contextNotes || "";
+        const button = this.domElementCache.contextNotesButton;
+        if (isContextNotesEnabled) {
+          if (button) {
+            button.classList.add("active");
+          }
+          if (contextNotesText.trim()) {
+            const linkRegex = /\[\[([^\]]+)\]\]/g;
+            const noteNames = [];
+            let match;
+            while ((match = linkRegex.exec(contextNotesText)) !== null) {
+              const noteName = match[1];
+              const displayName = noteName.split("/").pop() || noteName;
+              noteNames.push(displayName);
+            }
+            if (noteNames.length > 0) {
+              const notesList = noteNames.join(", ");
+              const displayText = `\u{1F4DA} Context: ${notesList}`;
+              this.contextNotesIndicator.setText(displayText);
+              this.contextNotesIndicator.style.display = "block";
+              this.contextNotesIndicator.classList.add("active");
+            } else {
+              this.contextNotesIndicator.setText("\u{1F4DA} Context Notes: ON");
+              this.contextNotesIndicator.style.display = "block";
+              this.contextNotesIndicator.classList.add("active");
+            }
+          } else {
+            this.contextNotesIndicator.setText("\u{1F4DA} Context Notes: ON");
+            this.contextNotesIndicator.style.display = "block";
+            this.contextNotesIndicator.classList.add("active");
+          }
+        } else {
+          this.contextNotesIndicator.style.display = "none";
+          this.contextNotesIndicator.classList.remove("active");
+          if (button) {
+            button.classList.remove("active");
+          }
+        }
+      }
+      async buildContextMessages() {
+        return await buildContextMessages({ app: this.app, plugin: this.plugin });
+      }
+      addVisibleMessagesToContext(messages) {
+        const currentScrollHeight = this.messagesContainer.scrollHeight;
+        let messageElements;
+        if (this.lastScrollHeight === currentScrollHeight && this.cachedMessageElements.length > 0) {
+          messageElements = this.cachedMessageElements;
+        } else {
+          messageElements = this.messagesContainer.querySelectorAll(".ai-chat-message");
+          this.cachedMessageElements = Array.from(messageElements);
+          this.lastScrollHeight = currentScrollHeight;
+        }
+        for (let i = 0; i < messageElements.length; i++) {
+          const el = messageElements[i];
+          const role = el.classList.contains("user") ? "user" : "assistant";
+          let content = "";
+          if (el.dataset.rawContent) {
+            content = el.dataset.rawContent;
+            this.plugin.debugLog("debug", "[ChatView] Using rawContent from dataset for context", {
+              role,
+              contentLength: content.length,
+              hasRawContent: true
+            });
+          } else {
+            const contentEl = el.querySelector(".message-content");
+            content = (contentEl == null ? void 0 : contentEl.textContent) || "";
+            this.plugin.debugLog("debug", "[ChatView] Using textContent from DOM for context (fallback)", {
+              role,
+              contentLength: content.length,
+              hasRawContent: false
+            });
+          }
+          const messageObj = this.messagePool.acquireMessage();
+          messageObj.role = role;
+          messageObj.content = content;
+          messages.push(messageObj);
+        }
+      }
+      async streamAssistantResponse(messages, container, originalTimestamp, originalContent) {
+        this.initializeStreamCoordinatorIfReady();
+        if (this.streamCoordinator) {
+          try {
+            return await this.streamCoordinatorResponse(messages, container);
+          } catch (error) {
+            this.plugin.debugLog("warn", "[ChatView] StreamCoordinator failed, falling back to ResponseStreamer:", error);
+          }
+        }
+        if (!this.responseStreamer) {
+          throw new Error("ResponseStreamer not initialized");
+        }
+        const chatHistory = await this.chatHistoryManager.getHistory();
+        const responseContent = await this.responseStreamer.streamAssistantResponse(
+          messages,
+          container,
+          originalTimestamp,
+          originalContent,
+          chatHistory
+        );
+        if (originalTimestamp && responseContent.trim() !== "") {
+          let messageData = void 0;
+          if (container.dataset.messageData) {
+            try {
+              messageData = JSON.parse(container.dataset.messageData);
+            } catch (e) {
+            }
+          }
+          await this.chatHistoryManager.updateMessage(
+            originalTimestamp,
+            "assistant",
+            originalContent || "",
+            responseContent,
+            messageData
+          );
+        }
+        return responseContent;
+      }
+      /**
+       * New streaming method using StreamCoordinator
+       */
+      async streamCoordinatorResponse(messages, container) {
+        if (!this.streamCoordinator) {
+          throw new Error("StreamCoordinator not initialized");
+        }
+        this.streamCoordinator.setActiveContainer(container);
+        const onChunk = async (chunk, fullContent) => {
+          const messageDiv = container.querySelector(".message-content");
+          if (messageDiv) {
+            messageDiv.textContent = fullContent;
+            container.dataset.rawContent = fullContent;
+            this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+          }
+        };
+        const responseContent = await this.streamCoordinator.startStream(messages, {
+          temperature: this.plugin.settings.temperature,
+          uiContainer: container,
+          onChunk
+        });
+        return responseContent;
+      }
+      clearMessages() {
+        this.messagesContainer.empty();
+        if (this.agentResponseHandler) {
+          this.agentResponseHandler.resetExecutionCount();
+        }
+      }
+      scrollMessagesToBottom() {
+        this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+      }
+      /**
+       * Consolidated stop button click handler
+       */
+      handleStopButtonClick() {
+        var _a2, _b, _c, _d;
+        this.plugin.debugLog("info", "[ChatView] Stop button clicked - stopping all active streams", {
+          centralStreamState: this.centralStreamState,
+          hasStreamCoordinator: !!this.streamCoordinator,
+          streamCoordinatorIsStreaming: (_a2 = this.streamCoordinator) == null ? void 0 : _a2.isStreaming(),
+          hasActiveStream: !!this.activeStream
+        });
+        this.stopAllActiveStreams();
+        this.restoreUIAfterStop();
+        this.plugin.debugLog("info", "[ChatView] Stop button clicked - UI state restored", {
+          finalCentralState: this.centralStreamState,
+          textareaDisabled: (_b = this.domElementCache.textarea) == null ? void 0 : _b.disabled,
+          sendButtonHidden: (_c = this.domElementCache.sendButton) == null ? void 0 : _c.classList.contains("hidden"),
+          stopButtonHidden: (_d = this.domElementCache.stopButton) == null ? void 0 : _d.classList.contains("hidden")
+        });
+      }
+      /**
+       * Centralized method to stop all active streams
+       */
+      stopAllActiveStreams() {
+        let streamsStopped = false;
+        if (this.streamCoordinator && this.streamCoordinator.isStreaming()) {
+          this.plugin.debugLog("info", "[ChatView] Stopping StreamCoordinator stream");
+          this.streamCoordinator.stopStream();
+          streamsStopped = true;
+        }
+        if (this.activeStream) {
+          this.plugin.debugLog("info", "[ChatView] Stopping legacy activeStream");
+          this.activeStream.abort();
+          this.activeStream = null;
+          streamsStopped = true;
+        }
+        const myPlugin = this.plugin;
+        if (myPlugin.hasActiveAIStreams && myPlugin.hasActiveAIStreams()) {
+          this.plugin.debugLog("info", "[ChatView] Stopping global plugin streams");
+          myPlugin.stopAllAIStreams();
+          streamsStopped = true;
+        }
+        this.centralStreamState = {
+          isStreaming: false,
+          streamSource: null,
+          lastUpdate: Date.now()
+        };
+        if (!streamsStopped) {
+          this.plugin.debugLog("info", "[ChatView] No active streams found to stop");
+          showNotice("No active AI stream to end");
+        }
+      }
+      /**
+       * Restore UI state after stopping streams
+       */
+      restoreUIAfterStop() {
+        const textarea = this.domElementCache.textarea;
+        const sendButton = this.domElementCache.sendButton;
+        const stopButton = this.domElementCache.stopButton;
+        this.plugin.debugLog("debug", "[ChatView] Restoring UI after stop", {
+          hasTextarea: !!textarea,
+          hasSendButton: !!sendButton,
+          hasStopButton: !!stopButton,
+          textareaDisabledBefore: textarea == null ? void 0 : textarea.disabled,
+          sendButtonHiddenBefore: sendButton == null ? void 0 : sendButton.classList.contains("hidden"),
+          stopButtonHiddenBefore: stopButton == null ? void 0 : stopButton.classList.contains("hidden")
+        });
+        if (textarea) {
+          textarea.disabled = false;
+          textarea.focus();
+          this.plugin.debugLog("debug", "[ChatView] Textarea re-enabled and focused");
+        }
+        if (stopButton && sendButton) {
+          stopButton.classList.add("hidden");
+          sendButton.classList.remove("hidden");
+          this.plugin.debugLog("debug", "[ChatView] Button visibility restored - stop hidden, send visible");
+        }
+        this.syncUIWithCentralState();
+        this.plugin.debugLog("debug", "[ChatView] UI restoration complete", {
+          textareaDisabledAfter: textarea == null ? void 0 : textarea.disabled,
+          sendButtonHiddenAfter: sendButton == null ? void 0 : sendButton.classList.contains("hidden"),
+          stopButtonHiddenAfter: stopButton == null ? void 0 : stopButton.classList.contains("hidden"),
+          centralStreamState: this.centralStreamState
+        });
+      }
+      stopActiveStream() {
+        this.stopAllActiveStreams();
+      }
+      hasActiveStream() {
+        return this.centralStreamState.isStreaming;
+      }
+      /**
+       * Priority 2 Optimization: Debounced scroll to bottom
+       */
+      debouncedScrollToBottom() {
+        this.scrollDebouncer.debounce(async () => {
+          this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+        });
+      }
+      /**
+       * Priority 2 Optimization: Batch DOM updates for better performance
+       */
+      batchDOMUpdates(elements, parent) {
+        const operations = elements.map((element) => ({
+          element,
+          parent
+        }));
+        this.domBatcher.addElements(operations);
+      }
+      /**
+       * Initialize centralized stream state management
+       */
+      initializeCentralizedStreamState() {
+        this.plugin.debugLog("info", "[ChatView] Initializing centralized stream state management");
+        setInterval(() => {
+          this.updateCentralStreamState();
+        }, 250);
+      }
+      /**
+       * Update central stream state from all sources
+       */
+      updateCentralStreamState() {
+        const previousState = { ...this.centralStreamState };
+        let isStreaming = false;
+        let streamSource = null;
+        if (this.streamCoordinator && this.streamCoordinator.isStreaming()) {
+          isStreaming = true;
+          streamSource = "coordinator";
+        } else if (this.hasLegacyActiveStreams()) {
+          isStreaming = true;
+          streamSource = "legacy";
+        }
+        if (isStreaming !== previousState.isStreaming || streamSource !== previousState.streamSource) {
+          this.centralStreamState = {
+            isStreaming,
+            streamSource,
+            lastUpdate: Date.now()
+          };
+          this.plugin.debugLog("debug", "[ChatView] Central stream state updated", {
+            isStreaming,
+            streamSource,
+            previousState: previousState.isStreaming
+          });
+          this.syncUIWithCentralState();
+        }
+      }
+      /**
+       * Check for legacy active streams
+       */
+      hasLegacyActiveStreams() {
+        if (this.activeStream) {
+          return true;
+        }
+        const hasGlobalStreams = this.plugin.hasActiveAIStreams && this.plugin.hasActiveAIStreams();
+        return hasGlobalStreams;
+      }
+      /**
+       * Sync UI with central stream state (single source of truth)
+       */
+      syncUIWithCentralState() {
+        const stopButton = this.domElementCache.stopButton;
+        const sendButton = this.domElementCache.sendButton;
+        if (!stopButton || !sendButton) {
+          return;
+        }
+        const { isStreaming, streamSource } = this.centralStreamState;
+        if (isStreaming) {
+          if (stopButton.classList.contains("hidden")) {
+            stopButton.classList.remove("hidden");
+            sendButton.classList.add("hidden");
+            this.plugin.debugLog("debug", `[ChatView] Central state - showing stop button (source: ${streamSource})`);
+          }
+        } else {
+          if (!stopButton.classList.contains("hidden")) {
+            stopButton.classList.add("hidden");
+            sendButton.classList.remove("hidden");
+            this.plugin.debugLog("debug", "[ChatView] Central state - showing send button (no active streams)");
+          }
+        }
+      }
+      /**
+       * Simplified callback for StreamCoordinator state changes
+       */
+      onStreamCoordinatorStateChange(isStreaming) {
+        this.centralStreamState = {
+          isStreaming,
+          streamSource: isStreaming ? "coordinator" : null,
+          lastUpdate: Date.now()
+        };
+        this.plugin.debugLog("debug", "[ChatView] StreamCoordinator state change", { isStreaming });
+        this.syncUIWithCentralState();
+      }
+      /**
+       * Invalidate the message cache to force fresh DOM reads
+       * Called after message regeneration to ensure updated content is read
+       */
+      invalidateMessageCache() {
+        this.cachedMessageElements = [];
+        this.lastScrollHeight = 0;
+        this.plugin.debugLog("debug", "[ChatView] Message cache invalidated - will force fresh DOM reads");
+      }
+    };
   }
 });
 
@@ -21947,4812 +27103,10 @@ var MyPluginSettingTab = class extends import_obsidian12.PluginSettingTab {
   }
 };
 
-// src/chat.ts
-var import_obsidian30 = require("obsidian");
-
-// src/components/chat/ChatHistoryManager.ts
-var import_obsidian13 = require("obsidian");
-var ChatHistoryManager = class {
-  /**
-   * @param vault The Obsidian Vault instance
-   * @param pluginId The plugin ID (used for folder path)
-   * @param historyFilePath Optional custom file path for history storage
-   */
-  constructor(vault, pluginId, historyFilePath) {
-    __publicField(this, "vault");
-    __publicField(this, "historyFilePath");
-    __publicField(this, "history", []);
-    __publicField(this, "isLoaded", false);
-    this.vault = vault;
-    let effectivePluginId = pluginId;
-    if (!pluginId) {
-      console.error("CRITICAL: ChatHistoryManager instantiated without pluginId! Using placeholder. This will likely lead to incorrect file paths.");
-      effectivePluginId = "unknown-plugin-id-error";
-    }
-    const fPath = historyFilePath || "chat-history.json";
-    this.historyFilePath = (0, import_obsidian13.normalizePath)(`.obsidian/plugins/${effectivePluginId}/${fPath}`);
-    if (typeof window !== "undefined" && window.Notice) {
-    }
-  }
-  /**
-   * Ensures the directory for the history file exists, creating it if needed.
-   */
-  async ensureDirectoryExists() {
-    const dirPath = this.historyFilePath.substring(0, this.historyFilePath.lastIndexOf("/"));
-    if (!dirPath) return;
-    try {
-      const abstractFile = this.vault.getAbstractFileByPath(dirPath);
-      if (abstractFile === null) {
-        await this.vault.createFolder(dirPath);
-      } else if (!(abstractFile instanceof import_obsidian13.TFolder)) {
-        console.error(`Path ${dirPath} exists but is not a folder.`);
-        throw new Error(`Path ${dirPath} exists but is not a folder.`);
-      }
-    } catch (e) {
-      if (e.message && e.message.toLowerCase().includes("folder already exists")) {
-        return;
-      }
-      console.error(`Failed to ensure directory ${dirPath} exists:`, e);
-      throw e;
-    }
-  }
-  /**
-   * Loads chat history from the history file.
-   * If the file does not exist or is invalid, returns an empty array.
-   * @returns Promise resolving to the chat history array
-   */
-  async loadHistory() {
-    try {
-      const exists = await this.vault.adapter.exists(this.historyFilePath);
-      if (exists) {
-        const data = await this.vault.adapter.read(this.historyFilePath);
-        try {
-          this.history = JSON.parse(data);
-        } catch (parseError) {
-          console.error("Failed to parse chat history:", parseError);
-          this.history = [];
-        }
-      } else {
-        this.history = [];
-      }
-    } catch (e) {
-      console.error("Failed to load chat history:", e);
-      this.history = [];
-    }
-    return this.history;
-  }
-  /**
-   * Adds a new message to the chat history and saves it.
-   * @param message The ChatMessage to add
-   */
-  async addMessage(message) {
-    const currentHistory = await this.loadHistory();
-    currentHistory.push(message);
-    this.history = currentHistory;
-    await this.saveHistory();
-  }
-  /**
-   * Returns the current chat history (loads from disk if needed).
-   * @returns Promise resolving to the chat history array
-   */
-  async getHistory() {
-    return await this.loadHistory();
-  }
-  /**
-   * Clears the chat history and saves the empty history.
-   */
-  async clearHistory() {
-    this.history = [];
-    await this.saveHistory();
-  }
-  /**
-   * Deletes a specific message from the chat history by timestamp, sender, and content.
-   * @param timestamp The timestamp of the message to delete
-   * @param sender The sender of the message to delete
-   * @param content The content of the message to delete
-   */
-  async deleteMessage(timestamp2, sender, content) {
-    await this.loadHistory();
-    const index = this.history.findIndex(
-      (msg) => msg.timestamp === timestamp2 && msg.sender === sender && msg.content === content
-    );
-    if (index !== -1) {
-      this.history.splice(index, 1);
-      await this.saveHistory();
-    }
-  }
-  /**
-   * Updates a specific message in the chat history.
-   * Optionally updates reasoning, taskStatus, and toolResults.
-   * @param timestamp The timestamp of the message to update
-   * @param sender The sender of the message to update
-   * @param oldContent The old content to match
-   * @param newContent The new content to set
-   * @param enhancedData Optional additional fields to update
-   */
-  async updateMessage(timestamp2, sender, oldContent, newContent, enhancedData) {
-    await this.loadHistory();
-    const message = this.history.find(
-      (msg) => msg.timestamp === timestamp2 && msg.sender === sender && msg.content === oldContent
-    );
-    if (message) {
-      message.content = newContent;
-      if (enhancedData) {
-        if ("reasoning" in enhancedData) message.reasoning = enhancedData.reasoning;
-        if ("taskStatus" in enhancedData) message.taskStatus = enhancedData.taskStatus;
-        if ("toolResults" in enhancedData) message.toolResults = enhancedData.toolResults;
-      }
-      await this.saveHistory();
-    } else {
-    }
-  }
-  /**
-   * Saves the current chat history to the history file.
-   * Ensures the directory exists before writing.
-   */
-  async saveHistory() {
-    try {
-      await this.ensureDirectoryExists();
-      const data = JSON.stringify(this.history, null, 2);
-      const abstractTarget = this.vault.getAbstractFileByPath(this.historyFilePath);
-      if (abstractTarget instanceof import_obsidian13.TFolder) {
-        throw new Error(`Path ${this.historyFilePath} is a directory, not a file.`);
-      }
-      await this.vault.adapter.write(this.historyFilePath, data);
-      if (!abstractTarget || !(abstractTarget instanceof import_obsidian13.TFile)) {
-        await this.vault.adapter.exists(this.historyFilePath);
-      }
-    } catch (e) {
-      console.error(`Failed to save history to ${this.historyFilePath}:`, e);
-      throw e;
-    }
-  }
-};
-
-// src/components/chat/Message.ts
-var import_obsidian23 = require("obsidian");
-init_Buttons();
-init_MessageRenderer();
-init_eventHandlers();
-async function createMessageElement(app, role, content, chatHistoryManager, plugin, regenerateCallback, parentComponent, messageData) {
-  const messageEl = document.createElement("div");
-  messageEl.addClass("ai-chat-message", role);
-  const messageContainer = messageEl.createDiv("message-container");
-  messageEl.dataset.rawContent = content;
-  messageEl.dataset.timestamp = (/* @__PURE__ */ new Date()).toISOString();
-  if (messageData) {
-    messageEl.dataset.messageData = JSON.stringify(messageData);
-  }
-  const messageRenderer = new MessageRenderer(app);
-  let contentEl = null;
-  if (role === "assistant") {
-    if (messageData && (messageData.reasoning || messageData.taskStatus)) {
-      messageRenderer.updateMessageWithEnhancedData(messageEl, {
-        ...messageData,
-        role: "assistant",
-        content
-      }, parentComponent);
-    }
-    if (messageData && messageData.toolResults && messageData.toolResults.length > 0) {
-      contentEl = messageEl.querySelector(".message-content");
-      if (!contentEl) {
-        contentEl = messageContainer.createDiv("message-content");
-      }
-      await messageRenderer.renderMessage({
-        ...messageData,
-        role: "assistant",
-        content
-      }, messageEl, parentComponent);
-    } else if (!(messageData == null ? void 0 : messageData.reasoning) && !(messageData == null ? void 0 : messageData.taskStatus)) {
-      contentEl = messageEl.querySelector(".message-content");
-      if (!contentEl) {
-        contentEl = messageContainer.createDiv("message-content");
-      }
-      await import_obsidian23.MarkdownRenderer.render(app, content, contentEl, "", parentComponent);
-    }
-  } else {
-    contentEl = messageEl.querySelector(".message-content");
-    if (!contentEl) {
-      contentEl = messageContainer.createDiv("message-content");
-    }
-    await import_obsidian23.MarkdownRenderer.render(app, content, contentEl, "", parentComponent);
-  }
-  if (!contentEl) {
-    contentEl = messageEl.querySelector(".message-content");
-    if (!contentEl) {
-      contentEl = messageContainer.createDiv("message-content");
-    }
-  }
-  const actionsEl = messageContainer.createDiv("message-actions");
-  actionsEl.classList.add("hidden");
-  messageEl.addEventListener("mouseenter", () => {
-    actionsEl.classList.remove("hidden");
-    actionsEl.classList.add("visible");
-  });
-  messageEl.addEventListener("mouseleave", () => {
-    actionsEl.classList.remove("visible");
-    actionsEl.classList.add("hidden");
-  });
-  actionsEl.appendChild(createActionButton("Copy", "Copy message (including tool results)", handleCopyMessage(messageEl, plugin)));
-  actionsEl.appendChild(createActionButton("Edit", "Edit message", handleEditMessage(messageEl, chatHistoryManager, plugin)));
-  actionsEl.appendChild(createActionButton("Delete", "Delete message", handleDeleteMessage(messageEl, chatHistoryManager, app)));
-  if (role === "assistant") {
-    actionsEl.appendChild(createActionButton("Regenerate", "Regenerate this response", handleRegenerateMessage(messageEl, regenerateCallback)));
-  }
-  messageContainer.appendChild(actionsEl);
-  return messageEl;
-}
-
-// src/components/chat/ui.ts
-function createChatUI(app, contentEl) {
-  function createIconButton(options) {
-    const btn = document.createElement("button");
-    btn.setText(options.text);
-    btn.setAttribute("aria-label", options.ariaLabel);
-    btn.style.fontSize = "0.85em";
-    btn.style.fontFamily = "inherit";
-    btn.style.width = "1.8em";
-    btn.style.height = "1.8em";
-    btn.style.marginBottom = "0.2em";
-    btn.style.opacity = "0.7";
-    if (options.className) btn.className = options.className;
-    if (options.addClass) btn.classList.add(options.addClass);
-    return btn;
-  }
-  function createIndicator(options) {
-    const div = document.createElement("div");
-    div.className = options.className;
-    div.style.textAlign = "center";
-    div.style.opacity = "0.5";
-    div.style.fontSize = "0.85em";
-    div.style.margin = "0.1em 0 0.2em 0";
-    div.style.display = "none";
-    div.style.whiteSpace = "normal";
-    div.style.wordBreak = "break-word";
-    div.style.overflowWrap = "break-word";
-    div.style.maxWidth = "100%";
-    return div;
-  }
-  const topRowContainer = contentEl.createDiv("ai-chat-top-row");
-  topRowContainer.style.display = "flex";
-  topRowContainer.style.flexDirection = "row";
-  topRowContainer.style.alignItems = "flex-start";
-  topRowContainer.style.justifyContent = "space-between";
-  topRowContainer.style.gap = "1em";
-  topRowContainer.style.margin = "0.5em 0 0.2em 0";
-  const fadedHelp = document.createElement("div");
-  fadedHelp.setText("Tip: Type /help or press Ctrl+Shift+H for chat commands and shortcuts. Use Ctrl+Shift+X to clear chat and Ctrl+Shift+C to copy.");
-  fadedHelp.style.textAlign = "left";
-  fadedHelp.style.opacity = "0.6";
-  fadedHelp.style.fontSize = "0.95em";
-  fadedHelp.style.flex = "1 1 0";
-  fadedHelp.style.minWidth = "0";
-  topRowContainer.appendChild(fadedHelp);
-  const buttonColumn = document.createElement("div");
-  buttonColumn.style.display = "flex";
-  buttonColumn.style.flexDirection = "column";
-  buttonColumn.style.alignItems = "flex-end";
-  buttonColumn.style.gap = "0.2em";
-  buttonColumn.style.flex = "0 0 auto";
-  const topButtonContainer = document.createElement("div");
-  topButtonContainer.className = "ai-chat-buttons";
-  topButtonContainer.style.display = "flex";
-  topButtonContainer.style.gap = "0.5em";
-  buttonColumn.appendChild(topButtonContainer);
-  const secondaryButtonContainer = document.createElement("div");
-  secondaryButtonContainer.className = "ai-chat-secondary-buttons";
-  secondaryButtonContainer.style.display = "flex";
-  secondaryButtonContainer.style.justifyContent = "flex-end";
-  secondaryButtonContainer.style.gap = "0.5em";
-  buttonColumn.appendChild(secondaryButtonContainer);
-  topRowContainer.appendChild(buttonColumn);
-  contentEl.appendChild(topRowContainer);
-  const mainTopButtons = [
-    { key: "settingsButton", text: "\u2699\uFE0F", ariaLabel: "Toggle model settings" },
-    { key: "copyAllButton", text: "\u{1F4CB}", ariaLabel: "Copy all messages" },
-    { key: "saveNoteButton", text: "\u{1F4BE}", ariaLabel: "Save chat as note" },
-    { key: "clearButton", text: "\u{1F5D1}\uFE0F", ariaLabel: "Clear chat history" }
-  ];
-  const secondaryTopButtons = [
-    { key: "referenceNoteButton", text: "\u{1F4DD}", ariaLabel: "Toggle referencing current note", addClass: "ai-chat-reference-button" },
-    { key: "obsidianLinksButton", text: "\u{1F517}", ariaLabel: "Toggle Obsidian links", addClass: "ai-chat-obsidian-links-button" },
-    { key: "contextNotesButton", text: "\u{1F4DA}", ariaLabel: "Toggle context notes", addClass: "ai-chat-context-notes-button" }
-  ];
-  const buttonRefs = {};
-  for (const btnCfg of mainTopButtons) {
-    const btn = createIconButton(btnCfg);
-    topButtonContainer.appendChild(btn);
-    buttonRefs[btnCfg.key] = btn;
-  }
-  for (const btnCfg of secondaryTopButtons) {
-    const btn = createIconButton(btnCfg);
-    secondaryButtonContainer.appendChild(btn);
-    buttonRefs[btnCfg.key] = btn;
-  }
-  const referenceNoteIndicator = createIndicator({ className: "ai-reference-note-indicator" });
-  const obsidianLinksIndicator = createIndicator({ className: "ai-obsidian-links-indicator" });
-  const contextNotesIndicator = createIndicator({ className: "ai-context-notes-indicator" });
-  const modelDisplayContainer = contentEl.createDiv("ai-model-display-container");
-  modelDisplayContainer.style.textAlign = "center";
-  modelDisplayContainer.style.margin = "0.5em 0";
-  modelDisplayContainer.style.borderBottom = "1px solid var(--background-modifier-border)";
-  modelDisplayContainer.style.paddingBottom = "0.5em";
-  const modelNameDisplay = document.createElement("div");
-  modelNameDisplay.className = "ai-model-name-display";
-  modelNameDisplay.style.textAlign = "center";
-  modelNameDisplay.style.opacity = "0.7";
-  modelNameDisplay.style.fontSize = "0.75em";
-  modelNameDisplay.style.margin = "0";
-  modelNameDisplay.style.fontWeight = "bold";
-  modelDisplayContainer.appendChild(modelNameDisplay);
-  modelDisplayContainer.appendChild(referenceNoteIndicator);
-  modelDisplayContainer.appendChild(obsidianLinksIndicator);
-  modelDisplayContainer.appendChild(contextNotesIndicator);
-  const messagesContainer = contentEl.createDiv("ai-chat-messages");
-  messagesContainer.setAttribute("tabindex", "0");
-  const toolContinuationContainer = contentEl.createDiv("ai-tool-continuation-container");
-  toolContinuationContainer.style.display = "none";
-  const inputContainer = contentEl.createDiv("ai-chat-input-container");
-  const textarea = inputContainer.createEl("textarea", {
-    cls: "ai-chat-input",
-    attr: {
-      placeholder: "Type your message...",
-      rows: "3"
-    }
-  });
-  const sendButton = inputContainer.createEl("button", {
-    text: "Send",
-    cls: "mod-cta"
-  });
-  const stopButton = inputContainer.createEl("button", {
-    text: "Stop"
-  });
-  stopButton.classList.add("hidden");
-  stopButton.disabled = false;
-  stopButton.style.pointerEvents = "";
-  stopButton.tabIndex = 0;
-  stopButton.onclick = null;
-  stopButton.style.zIndex = "10";
-  stopButton.title = "Stop AI response";
-  const helpButton = inputContainer.createEl("button", {
-    text: "?"
-  });
-  helpButton.setAttr("aria-label", "Show chat help");
-  helpButton.style.fontSize = "0.9em";
-  helpButton.style.width = "1.8em";
-  helpButton.style.height = "1.8em";
-  helpButton.style.marginBottom = "0.2em";
-  helpButton.style.opacity = "0.7";
-  helpButton.style.position = "absolute";
-  helpButton.style.right = "0.5em";
-  helpButton.style.top = "-2.2em";
-  helpButton.style.zIndex = "2";
-  const agentModeButton = inputContainer.createEl("button", {
-    text: "\u{1F916}"
-  });
-  agentModeButton.setAttr("aria-label", "Toggle Agent Mode");
-  agentModeButton.style.fontSize = "0.9em";
-  agentModeButton.style.width = "1.8em";
-  agentModeButton.style.height = "1.8em";
-  agentModeButton.style.marginBottom = "0.2em";
-  agentModeButton.style.opacity = "0.7";
-  agentModeButton.style.position = "absolute";
-  agentModeButton.style.right = "2.8em";
-  agentModeButton.style.top = "-2.2em";
-  agentModeButton.style.zIndex = "2";
-  agentModeButton.classList.add("ai-agent-mode-btn");
-  function setAgentModeActive(isActive) {
-    if (isActive) {
-      agentModeButton.classList.add("active");
-    } else {
-      agentModeButton.classList.remove("active");
-    }
-  }
-  agentModeButton.setActive = setAgentModeActive;
-  inputContainer.appendChild(agentModeButton);
-  inputContainer.style.position = "relative";
-  return {
-    contentEl,
-    fadedHelp,
-    topButtonContainer,
-    settingsButton: buttonRefs.settingsButton,
-    copyAllButton: buttonRefs.copyAllButton,
-    saveNoteButton: buttonRefs.saveNoteButton,
-    clearButton: buttonRefs.clearButton,
-    messagesContainer,
-    toolContinuationContainer,
-    inputContainer,
-    textarea,
-    sendButton,
-    stopButton,
-    helpButton,
-    agentModeButton,
-    referenceNoteButton: buttonRefs.referenceNoteButton,
-    obsidianLinksButton: buttonRefs.obsidianLinksButton,
-    contextNotesButton: buttonRefs.contextNotesButton,
-    referenceNoteIndicator,
-    obsidianLinksIndicator,
-    contextNotesIndicator,
-    modelNameDisplay
-  };
-}
-
-// src/chat.ts
-init_eventHandlers();
-init_chatPersistence();
-
-// src/utils/messageContentParser.ts
-function parseToolDataFromContent(content) {
-  const toolDataRegex = /```ai-tool-execution\n([\s\S]*?)\n```/g;
-  const match = toolDataRegex.exec(content);
-  if (match) {
-    try {
-      return JSON.parse(match[1]);
-    } catch (e) {
-      console.error("Failed to parse tool data:", e);
-    }
-  }
-  return null;
-}
-function cleanContentFromToolData(content) {
-  let cleanContent = content.replace(/```ai-tool-execution\n[\s\S]*?\n```\n?/g, "");
-  cleanContent = cleanContent.replace(/\n\n\*\*Tool Execution:\*\*[\s\S]*?(?=\n\n\*\*Tool Execution:\*\*|\n\n[^*]|$)/g, "");
-  return cleanContent.trim();
-}
-
-// src/components/chat/chatHistoryUtils.ts
-async function renderChatHistory({
-  messagesContainer,
-  loadedHistory,
-  chatHistoryManager,
-  plugin,
-  regenerateResponse,
-  scrollToBottom = true
-}) {
-  messagesContainer.empty();
-  for (const msg of loadedHistory) {
-    if (msg.sender === "user" || msg.sender === "assistant") {
-      const toolData = parseToolDataFromContent(msg.content);
-      let messageData = msg;
-      let cleanContent = msg.content;
-      if (toolData) {
-        messageData = {
-          ...msg,
-          toolResults: toolData.toolResults,
-          reasoning: toolData.reasoning,
-          taskStatus: toolData.taskStatus
-        };
-        cleanContent = cleanContentFromToolData(msg.content);
-        messageData.content = cleanContent;
-      }
-      const messageEl = await createMessageElement(
-        plugin.app,
-        msg.sender,
-        cleanContent,
-        chatHistoryManager,
-        plugin,
-        regenerateResponse,
-        plugin,
-        // Pass plugin again for legacy compatibility
-        messageData
-        // Pass the full message data for enhanced rendering
-      );
-      messageEl.dataset.timestamp = msg.timestamp;
-      messagesContainer.appendChild(messageEl);
-    }
-  }
-  if (scrollToBottom) {
-    messagesContainer.scrollTop = messagesContainer.scrollHeight;
-  }
-}
-
-// src/components/agent/CommandParser.ts
-init_toolcollect();
-var CommandParser = class {
-  /**
-   * @param plugin Optional plugin instance for debug logging.
-   */
-  constructor(plugin) {
-    this.plugin = plugin;
-    __publicField(this, "validActions");
-    this.validActions = getAllToolNames();
-    if (this.plugin) {
-      this.plugin.debugLog("debug", "[CommandParser] Constructor - Valid actions loaded:", this.validActions);
-    }
-  }
-  /**
-   * Parse AI response to extract tool commands and regular text.
-   * @param response The AI response string.
-   * @returns Object containing separated text and commands.
-   */
-  parseResponse(response) {
-    const commands = [];
-    let cleanText = response;
-    if (this.plugin) {
-      this.plugin.debugLog("debug", "[CommandParser] Parsing response:", response);
-      this.plugin.debugLog("debug", "[CommandParser] Valid actions:", this.validActions);
-    }
-    const extractedCommands = this.extractCommands(response);
-    if (this.plugin) {
-      this.plugin.debugLog("debug", "[CommandParser] Extracted commands:", extractedCommands);
-    }
-    for (const command of extractedCommands) {
-      if (this.plugin) {
-        this.plugin.debugLog("debug", "[CommandParser] Validating command:", command.command);
-      }
-      if (this.validateCommand(command.command)) {
-        if (this.plugin) {
-          this.plugin.debugLog("debug", "[CommandParser] Command is valid, adding to commands");
-        }
-        commands.push(command.command);
-        cleanText = cleanText.replace(command.originalText, "").trim();
-      } else {
-        if (this.plugin) {
-          this.plugin.debugLog("debug", "[CommandParser] Command is invalid");
-        }
-      }
-    }
-    if (this.plugin) {
-      this.plugin.debugLog("debug", "[CommandParser] Final commands:", commands);
-    }
-    return {
-      text: cleanText,
-      commands
-    };
-  }
-  /**
-   * Validate that a command has the required structure and is a known action.
-   * @param command The command to validate.
-   * @returns True if command is valid.
-   */
-  validateCommand(command) {
-    if (this.plugin) {
-      this.plugin.debugLog("debug", "[CommandParser] validateCommand called with:", command);
-    }
-    if (!command || typeof command !== "object") {
-      if (this.plugin) {
-        this.plugin.debugLog("debug", "[CommandParser] Command is not an object");
-      }
-      return false;
-    }
-    if (!command.action || typeof command.action !== "string") {
-      if (this.plugin) {
-        this.plugin.debugLog("debug", "[CommandParser] Command missing action field:", command.action);
-      }
-      return false;
-    }
-    if (!command.parameters || typeof command.parameters !== "object") {
-      if (this.plugin) {
-        this.plugin.debugLog("debug", "[CommandParser] Command missing parameters field:", command.parameters);
-      }
-      return false;
-    }
-    if (!this.validActions.includes(command.action)) {
-      if (this.plugin) {
-        this.plugin.debugLog("debug", "[CommandParser] Command action not in valid actions:", command.action, "Valid actions:", this.validActions);
-      }
-      return false;
-    }
-    if (this.plugin) {
-      this.plugin.debugLog("debug", "[CommandParser] Command is valid");
-    }
-    return true;
-  }
-  /**
-   * Extract JSON commands from text using several patterns.
-   * Handles both inline and code block JSON, as well as "thought" objects.
-   * @param text The text to extract commands from.
-   * @returns Array of extracted commands with their original text.
-   */
-  extractCommands(text) {
-    var _a2, _b, _c, _d;
-    const commands = [];
-    try {
-      const parsed = JSON.parse(text.trim());
-      if (Array.isArray(parsed)) {
-        for (const item of parsed) {
-          if (item && typeof item === "object" && item.action) {
-            let parameters = item.parameters;
-            if (!parameters) {
-              parameters = { ...item };
-              delete parameters.action;
-              delete parameters.requestId;
-            }
-            commands.push({
-              command: {
-                action: item.action,
-                parameters,
-                requestId: item.requestId || this.generateRequestId(),
-                finished: item.finished || false
-              },
-              originalText: JSON.stringify(item)
-            });
-          } else if (item && typeof item === "object" && item.thought && item.nextTool) {
-            commands.push({
-              command: {
-                action: "thought",
-                parameters: {
-                  thought: item.thought,
-                  nextTool: item.nextTool,
-                  nextActionDescription: item.nextActionDescription,
-                  step: item.step,
-                  totalSteps: item.totalSteps
-                },
-                requestId: this.generateRequestId(),
-                finished: ((_a2 = item.nextTool) == null ? void 0 : _a2.toLowerCase()) === "finished"
-              },
-              originalText: JSON.stringify(item)
-            });
-          }
-        }
-        return commands;
-      } else if (parsed.action) {
-        let parameters = parsed.parameters;
-        if (!parameters) {
-          parameters = { ...parsed };
-          delete parameters.action;
-          delete parameters.requestId;
-        }
-        commands.push({
-          command: {
-            action: parsed.action,
-            parameters,
-            requestId: parsed.requestId || this.generateRequestId(),
-            finished: parsed.finished || false
-          },
-          originalText: text.trim()
-        });
-        return commands;
-      } else if (parsed.thought && parsed.nextTool) {
-        commands.push({
-          command: {
-            action: "thought",
-            parameters: {
-              thought: parsed.thought,
-              nextTool: parsed.nextTool,
-              nextActionDescription: parsed.nextActionDescription,
-              step: parsed.step,
-              totalSteps: parsed.totalSteps
-            },
-            requestId: this.generateRequestId(),
-            finished: ((_b = parsed.nextTool) == null ? void 0 : _b.toLowerCase()) === "finished"
-          },
-          originalText: text.trim()
-        });
-        return commands;
-      }
-    } catch (error) {
-    }
-    if (commands.length === 0) {
-      const jsonObjects = this.extractIndividualJsonObjects(text);
-      for (const jsonText of jsonObjects) {
-        try {
-          const parsed = JSON.parse(jsonText);
-          if (parsed.action) {
-            let parameters = parsed.parameters;
-            if (!parameters) {
-              parameters = { ...parsed };
-              delete parameters.action;
-              delete parameters.requestId;
-            }
-            commands.push({
-              command: {
-                action: parsed.action,
-                parameters,
-                requestId: parsed.requestId || this.generateRequestId(),
-                finished: parsed.finished || false
-              },
-              originalText: jsonText
-            });
-          } else if (parsed.thought && parsed.nextTool) {
-            commands.push({
-              command: {
-                action: "thought",
-                parameters: {
-                  thought: parsed.thought,
-                  nextTool: parsed.nextTool,
-                  nextActionDescription: parsed.nextActionDescription,
-                  step: parsed.step,
-                  totalSteps: parsed.totalSteps
-                },
-                requestId: this.generateRequestId(),
-                finished: ((_c = parsed.nextTool) == null ? void 0 : _c.toLowerCase()) === "finished"
-              },
-              originalText: jsonText
-            });
-          }
-        } catch (error) {
-          continue;
-        }
-      }
-    }
-    const patterns = [
-      /```json\s*(\{[\s\S]*?\})\s*```/g,
-      // ```json ... ```
-      /```\s*(\{[\s\S]*?\})\s*```/g,
-      // ``` ... ```
-      /(\{[\s\S]*?\})/g
-      // Inline {...}
-    ];
-    for (const pattern of patterns) {
-      let match;
-      while ((match = pattern.exec(text)) !== null) {
-        const jsonText = match[1];
-        const originalText = match[0];
-        try {
-          const parsed = JSON.parse(jsonText);
-          if (parsed.action) {
-            let parameters = parsed.parameters;
-            if (!parameters) {
-              parameters = { ...parsed };
-              delete parameters.action;
-              delete parameters.requestId;
-            }
-            commands.push({
-              command: {
-                action: parsed.action,
-                parameters,
-                requestId: parsed.requestId || this.generateRequestId(),
-                finished: parsed.finished || false
-              },
-              originalText
-            });
-          } else if (parsed.thought && parsed.nextTool) {
-            commands.push({
-              command: {
-                action: "thought",
-                parameters: {
-                  thought: parsed.thought,
-                  nextTool: parsed.nextTool,
-                  nextActionDescription: parsed.nextActionDescription,
-                  step: parsed.step,
-                  totalSteps: parsed.totalSteps
-                },
-                requestId: this.generateRequestId(),
-                finished: ((_d = parsed.nextTool) == null ? void 0 : _d.toLowerCase()) === "finished"
-              },
-              originalText
-            });
-          }
-        } catch (error) {
-          continue;
-        }
-      }
-      pattern.lastIndex = 0;
-    }
-    return commands;
-  }
-  /**
-   * Extract individual JSON objects from text with proper brace balancing.
-   * @param text The text containing multiple JSON objects.
-   * @returns Array of individual JSON object strings.
-   */
-  extractIndividualJsonObjects(text) {
-    const jsonObjects = [];
-    let braceCount = 0;
-    let currentObject = "";
-    let inString = false;
-    let escapeNext = false;
-    for (let i = 0; i < text.length; i++) {
-      const char = text[i];
-      if (escapeNext) {
-        currentObject += char;
-        escapeNext = false;
-        continue;
-      }
-      if (char === "\\" && inString) {
-        currentObject += char;
-        escapeNext = true;
-        continue;
-      }
-      if (char === '"' && !escapeNext) {
-        inString = !inString;
-        currentObject += char;
-        continue;
-      }
-      if (!inString) {
-        if (char === "{") {
-          if (braceCount === 0) {
-            currentObject = char;
-          } else {
-            currentObject += char;
-          }
-          braceCount++;
-        } else if (char === "}") {
-          currentObject += char;
-          braceCount--;
-          if (braceCount === 0 && currentObject.trim()) {
-            jsonObjects.push(currentObject.trim());
-            currentObject = "";
-          }
-        } else if (braceCount > 0) {
-          currentObject += char;
-        }
-      } else {
-        currentObject += char;
-      }
-    }
-    return jsonObjects;
-  }
-  /**
-   * Generate a unique request ID for tool commands.
-   * @returns A unique request ID string.
-   */
-  generateRequestId() {
-    return `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-  }
-};
-
-// src/components/agent/ToolRegistry.ts
-init_logger();
-var ToolRegistry = class {
-  /**
-   * @param plugin The plugin instance (for settings, logging, and app access)
-   */
-  constructor(plugin) {
-    __publicField(this, "tools", /* @__PURE__ */ new Map());
-    __publicField(this, "plugin");
-    this.plugin = plugin;
-  }
-  /**
-   * Registers a tool instance by its name.
-   * @param tool The tool instance to register
-   */
-  register(tool) {
-    var _a2;
-    this.tools.set(tool.name, tool);
-    if (this.plugin && this.plugin.settings) {
-      debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "debug", "[ToolRegistry] Registering tool:", tool.name);
-    }
-  }
-  /**
-   * Executes a tool command by looking up the tool and calling its execute method.
-   * Handles special context injection for certain tools (e.g., file_diff/editor).
-   * @param command The ToolCommand to execute
-   * @returns ToolResult with the result or error
-   */
-  async execute(command) {
-    var _a2, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r;
-    const tool = this.tools.get(command.action);
-    if (!tool) {
-      if (this.plugin && this.plugin.settings) {
-        debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "debug", "[ToolRegistry] Tool not found", { action: command.action });
-      }
-      return {
-        success: false,
-        error: `Tool not found: ${command.action}`,
-        requestId: command.requestId
-      };
-    }
-    try {
-      if (this.plugin && this.plugin.settings) {
-        debugLog((_b = this.plugin.settings.debugMode) != null ? _b : false, "debug", "[ToolRegistry] Executing tool", { command });
-      }
-      let parameters = { ...command.parameters };
-      if (tool.name === "file_diff" && !parameters.editor) {
-        const app = (_c = this.plugin) == null ? void 0 : _c.app;
-        let editor = null;
-        try {
-          if ((_f = (_e = (_d = app == null ? void 0 : app.workspace) == null ? void 0 : _d.activeLeaf) == null ? void 0 : _e.view) == null ? void 0 : _f.editor) {
-            editor = app.workspace.activeLeaf.view.editor;
-          }
-        } catch (error) {
-        }
-        if (!editor) {
-          try {
-            const activeView = (_k = (_g = app == null ? void 0 : app.workspace) == null ? void 0 : _g.getActiveViewOfType) == null ? void 0 : _k.call(_g, (_j = (_i = (_h = app == null ? void 0 : app.workspace) == null ? void 0 : _h.viewRegistry) == null ? void 0 : _i.getTypeByID) == null ? void 0 : _j.call(_i, "markdown"));
-            if (activeView == null ? void 0 : activeView.editor) {
-              editor = activeView.editor;
-            }
-          } catch (error) {
-          }
-        }
-        if (!editor) {
-          try {
-            const leaves = (_m = (_l = app == null ? void 0 : app.workspace) == null ? void 0 : _l.getLeavesOfType) == null ? void 0 : _m.call(_l, "markdown");
-            if (leaves && leaves.length > 0) {
-              for (const leaf of leaves) {
-                if ((_n = leaf.view) == null ? void 0 : _n.editor) {
-                  editor = leaf.view.editor;
-                  break;
-                }
-              }
-            }
-          } catch (error) {
-          }
-        }
-        if (editor) {
-          parameters.editor = editor;
-          if (this.plugin && this.plugin.settings) {
-            debugLog((_o = this.plugin.settings.debugMode) != null ? _o : false, "debug", "[ToolRegistry] Injected editor for file_diff tool");
-          }
-        } else {
-          if (this.plugin && this.plugin.settings) {
-            debugLog((_p = this.plugin.settings.debugMode) != null ? _p : false, "debug", "[ToolRegistry] No editor available for file_diff tool, will use fallback mode");
-          }
-        }
-      }
-      const result = await tool.execute(parameters, {});
-      if (this.plugin && this.plugin.settings) {
-        debugLog((_q = this.plugin.settings.debugMode) != null ? _q : false, "debug", "[ToolRegistry] Tool execution result", { command, result });
-      }
-      return {
-        ...result,
-        requestId: command.requestId
-      };
-    } catch (error) {
-      if (this.plugin && this.plugin.settings) {
-        debugLog((_r = this.plugin.settings.debugMode) != null ? _r : false, "error", "[ToolRegistry] Tool execution error", { command, error });
-      }
-      return {
-        success: false,
-        error: error.message || String(error),
-        requestId: command.requestId
-      };
-    }
-  }
-  /**
-   * Returns an array of all registered tool instances.
-   * @returns Array of Tool objects
-   */
-  getAvailableTools() {
-    return Array.from(this.tools.values());
-  }
-};
-
-// src/components/agent/AgentResponseHandler/AgentResponseHandler.ts
-init_ToolRichDisplay();
-init_toolcollect();
-
-// src/components/agent/AgentResponseHandler/constants.ts
-var CONSTANTS = {
-  NOTIFICATION_DISPLAY_DELAY: 100,
-  NOTIFICATION_AUTO_REMOVE_DELAY: 5e3,
-  NOTIFICATION_FADE_DELAY: 300,
-  MAX_ADDITIONAL_TOOLS: 100,
-  REASONING_ID_PREFIX: "reasoning-",
-  TOOL_DISPLAY_ID_SEPARATOR: "-",
-  ERROR_MESSAGES: {
-    TOOL_EXECUTION_FAILED: "Tool execution failed",
-    TOOL_EXECUTION_TIMEOUT: "Tool execution timed out",
-    COPY_FAILED: "Failed to copy tool result",
-    RERUN_FAILED: "Failed to re-run tool"
-  },
-  JSON_INDENT: 2,
-  MD_EXTENSION: ".md",
-  PATH_SEPARATOR: "/",
-  COMMAND_KEY_SEPARATOR: ":"
-};
-
-// src/components/agent/AgentResponseHandler/utils.ts
-function stringifyJson(obj) {
-  return JSON.stringify(obj, null, CONSTANTS.JSON_INDENT);
-}
-
-// src/components/agent/AgentResponseHandler/TaskNotificationManager.ts
-var TaskNotificationManager = class {
-  /**
-   * Constructs a TaskNotificationManager with the given context.
-   * @param context The plugin context, including settings.
-   */
-  constructor(context) {
-    // Context containing plugin instance and settings.
-    __publicField(this, "context");
-    this.context = context;
-  }
-  /**
-   * Creates a DOM element representing a task completion notification.
-   * @param message The message to display.
-   * @param type The notification type ("success", "error", "warning").
-   * @returns The notification HTMLElement.
-   */
-  createTaskCompletionNotification(message, type2 = "success") {
-    const notification = document.createElement("div");
-    notification.className = `task-completion-notification ${type2}`;
-    const icon = this.getNotificationIcon(type2);
-    notification.innerHTML = `
-            <div style="display: flex; align-items: center; gap: 8px;">
-                <span>${icon}</span>
-                <span>${message}</span>
-            </div>
-        `;
-    this.setupNotificationAutoRemoval(notification);
-    return notification;
-  }
-  /**
-   * Shows a task completion notification if enabled in settings.
-   * @param message The message to display.
-   * @param type The notification type.
-   */
-  showTaskCompletionNotification(message, type2 = "success") {
-    var _a2;
-    if (!((_a2 = this.context.plugin.settings.uiBehavior) == null ? void 0 : _a2.showCompletionNotifications)) {
-      return;
-    }
-    const notification = this.createTaskCompletionNotification(message, type2);
-    document.body.appendChild(notification);
-  }
-  /**
-   * Updates the task progress indicator (not implemented).
-   * @param current The current progress value.
-   * @param total The total value for completion (optional).
-   * @param description Optional description of the progress.
-   */
-  updateTaskProgress(current, total, description) {
-  }
-  /**
-   * Hides the task progress indicator (not implemented).
-   */
-  hideTaskProgress() {
-  }
-  /**
-   * Returns an icon string for the given notification type.
-   * @param type The notification type.
-   * @returns The icon as a string.
-   */
-  getNotificationIcon(type2) {
-    const icons = {
-      success: "\u2705",
-      error: "\u274C",
-      warning: "\u26A0\uFE0F"
-    };
-    return icons[type2];
-  }
-  /**
-   * Sets up automatic removal of the notification element after a delay,
-   * including a fade-out effect.
-   * @param notification The notification HTMLElement.
-   */
-  setupNotificationAutoRemoval(notification) {
-    setTimeout(() => {
-      notification.classList.add("show");
-    }, CONSTANTS.NOTIFICATION_DISPLAY_DELAY);
-    setTimeout(() => {
-      notification.classList.remove("show");
-      setTimeout(() => notification.remove(), CONSTANTS.NOTIFICATION_FADE_DELAY);
-    }, CONSTANTS.NOTIFICATION_AUTO_REMOVE_DELAY);
-  }
-};
-
-// src/components/agent/AgentResponseHandler/ToolResultFormatter.ts
-var ToolResultFormatter = class {
-  /**
-   * Returns a status icon or label based on success and style.
-   * @param success Whether the tool execution was successful.
-   * @param style The formatting style ("markdown", "copy", or "plain").
-   */
-  getStatusIcon(success, style) {
-    if (success) {
-      return style === "markdown" ? "\u2705" : style === "copy" ? "SUCCESS" : "\u2713";
-    } else {
-      return style === "markdown" ? "\u274C" : style === "copy" ? "ERROR" : "\u2717";
-    }
-  }
-  /**
-   * Formats a single tool result for display in the specified style.
-   * @param command The tool command.
-   * @param result The tool result.
-   * @param opts Optional formatting options.
-   */
-  formatToolResult(command, result, opts) {
-    const style = (opts == null ? void 0 : opts.style) || "plain";
-    const status = this.getStatusIcon(result.success, style);
-    const action = command.action.replace("_", " ");
-    const context = this.getResultContext(command, result);
-    switch (style) {
-      case "markdown":
-        return `${status} **${action}** completed successfully${context}`;
-      case "copy":
-        return this.formatToolResultForCopy(command, result, status);
-      default:
-        return this.formatToolResultPlain(command, result, status);
-    }
-  }
-  /**
-   * Returns additional context for a tool result, such as file path or summary.
-   * @param command The tool command.
-   * @param result The tool result.
-   */
-  getResultContext(command, result) {
-    var _a2;
-    if (!result.success || !result.data) return "";
-    switch (command.action) {
-      case "file_write":
-      case "file_read":
-      case "file_diff":
-        if (result.data.filePath) {
-          return ` [[${result.data.filePath}]]`;
-        }
-        break;
-      case "file_select":
-        if (result.data.count !== void 0) {
-          return ` [[${result.data.count} files found]]`;
-        }
-        break;
-      case "thought":
-        if ((_a2 = result.data) == null ? void 0 : _a2.formattedThought) {
-          return result.data.formattedThought;
-        }
-        break;
-    }
-    return "";
-  }
-  /**
-   * Formats a tool result for copying (machine-readable).
-   * @param command The tool command.
-   * @param result The tool result.
-   * @param status The status label.
-   */
-  formatToolResultForCopy(command, result, status) {
-    const params = stringifyJson(command.parameters);
-    const resultData = result.success ? stringifyJson(result.data) : result.error;
-    return `TOOL EXECUTION: ${command.action}
-STATUS: ${status}
-PARAMETERS:
-${params}
-RESULT:
-${resultData}`;
-  }
-  /**
-   * Formats a tool result as plain text.
-   * @param command The tool command.
-   * @param result The tool result.
-   * @param status The status icon or label.
-   */
-  formatToolResultPlain(command, result, status) {
-    const data = result.success ? stringifyJson(result.data) : result.error;
-    return `${status} Tool: ${command.action}
-Parameters: ${stringifyJson(command.parameters)}
-Result: ${data}`;
-  }
-  /**
-   * Formats an array of tool results for display in markdown.
-   * @param toolResults Array of tool command/result pairs.
-   * @returns Markdown string for display.
-   */
-  formatToolResultsForDisplay(toolResults) {
-    if (toolResults.length === 0) {
-      return "";
-    }
-    const resultText = toolResults.map(
-      ({ command, result }) => this.formatToolResult(command, result, { style: "markdown" })
-    ).join("\n");
-    return `
-
-**Tool Execution:**
-${resultText}`;
-  }
-  /**
-   * Creates a system message summarizing tool execution results.
-   * @param toolResults Array of tool command/result pairs.
-   * @returns A Message object or null if no results.
-   */
-  createToolResultMessage(toolResults) {
-    if (toolResults.length === 0) {
-      return null;
-    }
-    const resultText = toolResults.map(
-      ({ command, result }) => this.formatToolResult(command, result, { style: "plain" })
-    ).join("\n\n");
-    return {
-      role: "system",
-      content: `Tool execution results:
-
-${resultText}`
-    };
-  }
-};
-
-// src/components/agent/AgentResponseHandler/ToolExecutor.ts
-var ToolExecutor = class {
-  /**
-   * Constructs a ToolExecutor.
-   * @param toolRegistry The registry of available tools.
-   * @param onToolResult Callback for handling tool results.
-   * @param createToolDisplay Callback for displaying tool results.
-   */
-  constructor(toolRegistry, onToolResult, createToolDisplay) {
-    // Registry of available tools.
-    __publicField(this, "toolRegistry");
-    // Counter for the number of tool executions.
-    __publicField(this, "executionCount", 0);
-    // Callback to handle tool results.
-    __publicField(this, "onToolResult");
-    // Callback to create a display for tool results.
-    __publicField(this, "createToolDisplay");
-    this.toolRegistry = toolRegistry;
-    this.onToolResult = onToolResult;
-    this.createToolDisplay = createToolDisplay;
-  }
-  /**
-   * Executes a tool with logging and timing.
-   * @param command The tool command to execute.
-   * @param timeoutMs Timeout in milliseconds.
-   * @param contextLabel Context label for logging.
-   * @param debugLog Optional debug logging function.
-   * @returns The result of the tool execution.
-   */
-  async executeToolWithLogging(command, timeoutMs, contextLabel, debugLog2) {
-    const startTime = Date.now();
-    if (debugLog2) debugLog2("Executing tool", { command }, contextLabel);
-    const result = await this.executeToolWithTimeout(command, timeoutMs);
-    const executionTime = Date.now() - startTime;
-    if (debugLog2) debugLog2("Tool execution result", { command, result, executionTime }, contextLabel);
-    return result;
-  }
-  /**
-   * Executes a tool with a timeout.
-   * @param command The tool command to execute.
-   * @param timeoutMs Timeout in milliseconds.
-   * @returns A promise resolving to the tool result.
-   */
-  async executeToolWithTimeout(command, timeoutMs) {
-    return new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        reject(new Error(`${CONSTANTS.ERROR_MESSAGES.TOOL_EXECUTION_TIMEOUT} after ${timeoutMs}ms`));
-      }, timeoutMs);
-      this.toolRegistry.execute(command).then((result) => {
-        clearTimeout(timeout);
-        resolve(result);
-      }).catch((error) => {
-        clearTimeout(timeout);
-        reject(error);
-      });
-    });
-  }
-  /**
-   * Handles successful tool execution.
-   * Adds result to toolResults, updates count, displays result, and triggers callback.
-   * @param command The executed tool command.
-   * @param result The result of execution.
-   * @param toolResults Array to store results.
-   */
-  handleToolExecutionSuccess(command, result, toolResults) {
-    toolResults.push({ command, result });
-    this.executionCount++;
-    this.createToolDisplay(command, result);
-    this.onToolResult(result, command);
-  }
-  /**
-   * Handles tool execution errors.
-   * Logs error, creates error result, and processes as a success.
-   * @param command The tool command.
-   * @param error The error thrown.
-   * @param toolResults Array to store results.
-   * @param contextLabel Context label for logging.
-   * @param debugLog Optional debug logging function.
-   */
-  handleToolExecutionError(command, error, toolResults, contextLabel, debugLog2) {
-    if (debugLog2) debugLog2("Tool execution error", { command, error }, contextLabel);
-    console.error(`ToolExecutor: Tool '${command.action}' failed with error:`, error);
-    const errorResult = this.createErrorResult(command, error);
-    this.handleToolExecutionSuccess(command, errorResult, toolResults);
-  }
-  /**
-   * Creates a ToolResult object representing an error.
-   * @param command The tool command.
-   * @param error The error thrown.
-   * @returns A ToolResult indicating failure.
-   */
-  createErrorResult(command, error) {
-    return {
-      success: false,
-      error: `${CONSTANTS.ERROR_MESSAGES.TOOL_EXECUTION_FAILED}: ${error.message}`,
-      requestId: command.requestId
-    };
-  }
-  /**
-   * Reruns a tool command and displays the result.
-   * @param originalCommand The original tool command.
-   * @param timeoutMs Timeout in milliseconds.
-   */
-  async rerunTool(originalCommand, timeoutMs) {
-    try {
-      const result = await this.executeToolWithTimeout(originalCommand, timeoutMs);
-      this.createToolDisplay(originalCommand, result);
-      this.onToolResult(result, originalCommand);
-    } catch (error) {
-      console.error(`${CONSTANTS.ERROR_MESSAGES.RERUN_FAILED} ${originalCommand.action}:`, error);
-    }
-  }
-  /**
-   * Gets the number of tool executions performed.
-   * @returns The execution count.
-   */
-  getExecutionCount() {
-    return this.executionCount;
-  }
-  /**
-   * Resets the execution count to zero.
-   */
-  resetExecutionCount() {
-    this.executionCount = 0;
-  }
-};
-
-// src/components/agent/AgentResponseHandler/ReasoningProcessor.ts
-var ReasoningProcessor = class {
-  /**
-   * Constructs a ReasoningProcessor with the given agent context.
-   * @param context The agent context, including plugin settings.
-   */
-  constructor(context) {
-    // Context containing plugin settings and environment.
-    __publicField(this, "context");
-    this.context = context;
-  }
-  /**
-   * Processes an array of tool results for a chat message.
-   * Extracts reasoning data if a "thought" tool result is present,
-   * and collects all tool execution results with timestamps.
-   *
-   * @param toolResults Array of objects containing a ToolCommand and its ToolResult.
-   * @returns An object containing optional reasoning data and an array of tool execution results.
-   */
-  processToolResultsForMessage(toolResults) {
-    const toolExecutionResults = toolResults.map(({ command, result }) => ({
-      command,
-      result,
-      timestamp: (/* @__PURE__ */ new Date()).toISOString()
-    }));
-    let reasoning;
-    for (const { command, result } of toolResults) {
-      if (command.action === "thought" && result.success && result.data) {
-        reasoning = this.convertThoughtToolResultToReasoning(result.data);
-        break;
-      }
-    }
-    return {
-      reasoning,
-      toolExecutionResults
-    };
-  }
-  /**
-   * Converts the data from a "thought" tool result into ReasoningData.
-   * Handles both structured and simple reasoning formats.
-   *
-   * @param thoughtData The data from the thought tool result.
-   * @returns A ReasoningData object.
-   */
-  convertThoughtToolResultToReasoning(thoughtData) {
-    var _a2;
-    const reasoningId = this.generateReasoningId();
-    const baseData = {
-      id: reasoningId,
-      timestamp: thoughtData.timestamp || (/* @__PURE__ */ new Date()).toISOString(),
-      isCollapsed: ((_a2 = this.context.plugin.settings.uiBehavior) == null ? void 0 : _a2.collapseOldReasoning) || false
-    };
-    if (thoughtData.reasoning === "structured" && thoughtData.steps) {
-      return {
-        ...baseData,
-        type: "structured",
-        problem: thoughtData.problem,
-        steps: thoughtData.steps.map((step) => ({
-          step: step.step,
-          title: step.title,
-          content: step.content
-        })),
-        depth: thoughtData.depth
-      };
-    } else {
-      return {
-        ...baseData,
-        type: "simple",
-        summary: thoughtData.thought || thoughtData.formattedThought
-      };
-    }
-  }
-  /**
-   * Generates a unique identifier for a reasoning instance.
-   * Combines the current timestamp and a random string.
-   *
-   * @returns A unique reasoning ID string.
-   */
-  generateReasoningId() {
-    const timestamp2 = Date.now();
-    const random = Math.random().toString(36).substr(2, 9);
-    return `reasoning-${timestamp2}-${random}`;
-  }
-};
-
-// src/components/agent/AgentResponseHandler/ToolLimitWarningUI.ts
-var ToolLimitWarningUI = class {
-  /**
-   * Constructs the ToolLimitWarningUI with the given context.
-   * @param context The agent context with tool limit and UI references.
-   */
-  constructor(context) {
-    // Context containing plugin, execution state, and UI containers.
-    __publicField(this, "context");
-    this.context = context;
-  }
-  /**
-   * Creates the warning UI element for when the tool execution limit is reached.
-   * @returns The warning HTMLElement.
-   */
-  createToolLimitWarning() {
-    const warning = document.createElement("div");
-    warning.className = "tool-limit-warning";
-    const agentSettings = this.context.plugin.agentModeManager.getAgentModeSettings();
-    const effectiveLimit = this.getEffectiveToolLimit();
-    const executionCount = this.context.getExecutionCount();
-    warning.innerHTML = this.createToolLimitWarningHTML(executionCount, effectiveLimit, agentSettings.maxToolCalls);
-    this.attachToolLimitWarningHandlers(warning, agentSettings);
-    return warning;
-  }
-  /**
-   * Generates the HTML for the tool limit warning UI.
-   * @param executionCount Number of tool executions used.
-   * @param effectiveLimit The current effective tool limit.
-   * @param maxToolCalls The default max tool calls from settings.
-   * @returns HTML string for the warning.
-   */
-  createToolLimitWarningHTML(executionCount, effectiveLimit, maxToolCalls) {
-    return `
-            <div class="tool-limit-warning-text">
-                <strong>\u26A0\uFE0F Tool execution limit reached</strong><br>
-                Used ${executionCount}/${effectiveLimit} tool calls. 
-                Choose how to proceed:
-            </div>
-            <div class="tool-limit-warning-actions">
-                <div class="tool-limit-input-group">
-                    <label for="additional-tools">Add more executions:</label>
-                    <input type="number" id="additional-tools" min="1" max="${CONSTANTS.MAX_ADDITIONAL_TOOLS}" value="${maxToolCalls}" placeholder="5">
-                    <button class="ai-chat-add-tools-button">Add & Continue</button>
-                </div>
-                <div class="tool-limit-button-group">
-                    <button class="ai-chat-continue-button">Reset & Continue</button>
-                    <span class="tool-limit-settings-link">Open Settings</span>
-                </div>
-            </div>
-        `;
-  }
-  /**
-   * Attaches event handlers for all warning UI actions.
-   * @param warning The warning HTMLElement.
-   * @param agentSettings The agent's settings object.
-   */
-  attachToolLimitWarningHandlers(warning, agentSettings) {
-    this.attachSettingsHandler(warning);
-    this.attachAddToolsHandler(warning, agentSettings);
-    this.attachContinueHandler(warning);
-  }
-  /**
-   * Attaches the handler for the "Open Settings" link.
-   * @param warning The warning HTMLElement.
-   */
-  attachSettingsHandler(warning) {
-    const settingsLink = warning.querySelector(".tool-limit-settings-link");
-    if (settingsLink) {
-      settingsLink.onclick = () => {
-        this.context.app.setting.open();
-        this.context.app.setting.openTabById(this.context.plugin.manifest.id);
-      };
-    }
-  }
-  /**
-   * Attaches the handler for the "Add & Continue" button.
-   * @param warning The warning HTMLElement.
-   * @param agentSettings The agent's settings object.
-   */
-  attachAddToolsHandler(warning, agentSettings) {
-    const addToolsButton = warning.querySelector(".ai-chat-add-tools-button");
-    if (addToolsButton) {
-      addToolsButton.onclick = () => {
-        const input = warning.querySelector("#additional-tools");
-        const additionalTools = parseInt(input.value) || agentSettings.maxToolCalls;
-        if (additionalTools > 0) {
-          this.context.addToolExecutions(additionalTools);
-          this.removeWarningAndTriggerContinuation(warning, "continueTaskWithAdditionalTools", { additionalTools });
-        }
-      };
-    }
-  }
-  /**
-   * Attaches the handler for the "Reset & Continue" button.
-   * @param warning The warning HTMLElement.
-   */
-  attachContinueHandler(warning) {
-    const continueButton = warning.querySelector(".ai-chat-continue-button");
-    if (continueButton) {
-      continueButton.onclick = () => {
-        this.context.resetExecutionCount();
-        this.removeWarningAndTriggerContinuation(warning, "continueTask");
-      };
-    }
-  }
-  /**
-   * Removes the warning UI and triggers a continuation event.
-   * @param warning The warning HTMLElement.
-   * @param eventType The event type to dispatch.
-   * @param detail Optional event detail.
-   */
-  removeWarningAndTriggerContinuation(warning, eventType, detail) {
-    warning.remove();
-    this.hideToolContinuationContainerIfEmpty();
-    const event = detail ? new CustomEvent(eventType, { detail }) : new CustomEvent(eventType);
-    this.context.messagesContainer.dispatchEvent(event);
-  }
-  /**
-   * Hides the tool continuation container if it is empty.
-   */
-  hideToolContinuationContainerIfEmpty() {
-    if (this.context.toolContinuationContainer) {
-      if (this.context.toolContinuationContainer.children.length === 0) {
-        this.context.toolContinuationContainer.style.display = "none";
-      }
-    }
-  }
-  /**
-   * Gets the current effective tool execution limit, considering temporary overrides.
-   * @returns The effective tool limit.
-   */
-  getEffectiveToolLimit() {
-    const agentSettings = this.context.plugin.agentModeManager.getAgentModeSettings();
-    return this.context.getTemporaryMaxToolCalls() || agentSettings.maxToolCalls;
-  }
-};
-
-// src/components/agent/AgentResponseHandler/AgentResponseHandler.ts
-var AgentResponseHandler = class {
-  /**
-   * Constructs a new AgentResponseHandler.
-   * @param context AgentContext containing plugin, app, and callback references.
-   */
-  constructor(context) {
-    this.context = context;
-    // Command parser for extracting tool commands from responses
-    __publicField(this, "commandParser");
-    // Registry of available tools
-    __publicField(this, "toolRegistry");
-    // Number of tool executions in the current session
-    __publicField(this, "executionCount", 0);
-    // Temporary override for max tool calls (optional)
-    __publicField(this, "temporaryMaxToolCalls");
-    // Map of tool display IDs to ToolRichDisplay instances
-    __publicField(this, "toolDisplays", /* @__PURE__ */ new Map());
-    // Cache of tool markdown outputs by display ID
-    __publicField(this, "toolMarkdownCache", /* @__PURE__ */ new Map());
-    // Notification manager for task progress and completion
-    __publicField(this, "notificationManager");
-    // Formatter for tool results
-    __publicField(this, "toolResultFormatter");
-    // Executor for running tools
-    __publicField(this, "toolExecutor");
-    // Processor for reasoning data
-    __publicField(this, "reasoningProcessor");
-    // UI for tool limit warnings
-    __publicField(this, "toolLimitWarningUI");
-    this.debugLog("constructor called");
-    this.commandParser = new CommandParser(this.context.plugin);
-    this.toolRegistry = new ToolRegistry(this.context.plugin);
-    this.notificationManager = new TaskNotificationManager(context);
-    this.toolResultFormatter = new ToolResultFormatter();
-    this.toolExecutor = new ToolExecutor(
-      this.toolRegistry,
-      (result, command) => this.context.onToolResult(result, command),
-      (command, result) => this.createToolDisplay(command, result)
-    );
-    this.reasoningProcessor = new ReasoningProcessor(context);
-    this.toolLimitWarningUI = new ToolLimitWarningUI(this);
-    this.initializeTools();
-  }
-  /**
-   * Returns the agent context.
-   */
-  getContext() {
-    return this.context;
-  }
-  /**
-   * Logs debug messages if debug mode is enabled.
-   * @param message The message to log.
-   * @param data Optional data to log.
-   * @param contextLabel Optional label for the log context.
-   */
-  debugLog(message, data, contextLabel = "AgentResponseHandler") {
-    var _a2, _b;
-    if (((_b = (_a2 = this.context.plugin) == null ? void 0 : _a2.settings) == null ? void 0 : _b.debugMode) && typeof this.context.plugin.debugLog === "function") {
-      this.context.plugin.debugLog("debug", `[${contextLabel}] ${message}`, data);
-    }
-  }
-  /**
-   * Initializes and registers all available tools.
-   */
-  initializeTools() {
-    this.debugLog("initializeTools called");
-    const tools = createToolInstances(this.context.app, this.context.plugin);
-    for (const tool of tools) {
-      this.toolRegistry.register(tool);
-    }
-  }
-  /**
-   * Processes a response string, parses tool commands, executes them if needed,
-   * and returns processed text and tool results.
-   * @param response The response string from the agent.
-   * @param contextLabel Optional label for logging context.
-   * @param chatHistory Optional chat history for deduplication.
-   */
-  async processResponse(response, contextLabel = "main", chatHistory) {
-    this.debugLog("Processing response", { response }, contextLabel);
-    if (!this.context.plugin.agentModeManager.isAgentModeEnabled()) {
-      return this.createProcessResponseResult(response, [], false);
-    }
-    const { text, commands } = this.commandParser.parseResponse(response);
-    if (commands.length === 0) {
-      this.debugLog("No tool commands found in response", void 0, contextLabel);
-      return this.createProcessResponseResult(text, [], false);
-    }
-    const commandsToExecute = chatHistory ? this.filterAlreadyExecutedCommands(commands, chatHistory, contextLabel) : commands;
-    if (commandsToExecute.length === 0) {
-      this.debugLog("All commands already executed, skipping", void 0, contextLabel);
-      const existingResults = this.getExistingToolResults(commands, chatHistory || []);
-      return this.createProcessResponseResult(text, existingResults, true);
-    }
-    const effectiveLimit = this.getEffectiveToolLimit();
-    if (this.executionCount >= effectiveLimit) {
-      this.debugLog("Tool execution limit reached", { executionCount: this.executionCount, effectiveLimit }, contextLabel);
-      this.notificationManager.showTaskCompletionNotification(`Agent mode: Maximum tool calls (${effectiveLimit}) reached`, "warning");
-      return this.createProcessResponseResult(
-        text + `
-
-*${effectiveLimit} [Tool execution limit reached]*`,
-        [],
-        true
-      );
-    }
-    return await this.executeToolCommands(commandsToExecute, text, contextLabel);
-  }
-  /**
-   * Helper to create the result object for processResponse.
-   */
-  createProcessResponseResult(text, toolResults, hasTools) {
-    return {
-      processedText: text,
-      toolResults,
-      hasTools
-    };
-  }
-  /**
-   * Executes a list of tool commands, respecting the tool execution limit.
-   * @param commands Array of ToolCommand objects to execute.
-   * @param text The processed text to return.
-   * @param contextLabel Logging context label.
-   */
-  async executeToolCommands(commands, text, contextLabel) {
-    const toolResults = [];
-    const agentSettings = this.context.plugin.agentModeManager.getAgentModeSettings();
-    const effectiveLimit = this.getEffectiveToolLimit();
-    for (const command of commands) {
-      try {
-        const result = await this.toolExecutor.executeToolWithLogging(command, agentSettings.timeoutMs, contextLabel, this.debugLog.bind(this));
-        toolResults.push({ command, result });
-        this.executionCount++;
-        this.createToolDisplay(command, result);
-        this.context.onToolResult(result, command);
-        if (this.executionCount >= effectiveLimit) {
-          break;
-        }
-      } catch (error) {
-        this.debugLog("Tool execution error", { command, error }, contextLabel);
-        console.error(`AgentResponseHandler: Tool '${command.action}' failed with error:`, error);
-        const errorResult = {
-          success: false,
-          error: `${CONSTANTS.ERROR_MESSAGES.TOOL_EXECUTION_FAILED}: ${error.message}`,
-          requestId: command.requestId
-        };
-        toolResults.push({ command, result: errorResult });
-        this.createToolDisplay(command, errorResult);
-        this.context.onToolResult(errorResult, command);
-      }
-    }
-    return this.createProcessResponseResult(text, toolResults, true);
-  }
-  /**
-   * Returns the current execution count.
-   */
-  getExecutionCount() {
-    return this.executionCount;
-  }
-  /**
-   * Temporarily increases the max tool call limit by a given count.
-   * @param count Number of additional executions allowed.
-   */
-  addToolExecutions(count) {
-    const agentSettings = this.context.plugin.agentModeManager.getAgentModeSettings();
-    this.temporaryMaxToolCalls = (this.temporaryMaxToolCalls || agentSettings.maxToolCalls) + count;
-  }
-  /**
-   * Resets the execution count and clears temporary limits and caches.
-   */
-  resetExecutionCount() {
-    this.executionCount = 0;
-    this.temporaryMaxToolCalls = void 0;
-    this.toolDisplays.clear();
-    this.toolMarkdownCache.clear();
-  }
-  /**
-   * Returns the temporary max tool calls value, if set.
-   */
-  getTemporaryMaxToolCalls() {
-    return this.temporaryMaxToolCalls;
-  }
-  /**
-   * Returns the list of available tools.
-   */
-  getAvailableTools() {
-    return this.toolRegistry.getAvailableTools();
-  }
-  /**
-   * Returns a copy of the current tool displays map.
-   */
-  getToolDisplays() {
-    return new Map(this.toolDisplays);
-  }
-  /**
-   * Clears all tool displays and markdown caches.
-   */
-  clearToolDisplays() {
-    this.toolDisplays.clear();
-    this.toolMarkdownCache.clear();
-  }
-  /**
-   * Returns an array of all tool markdown outputs.
-   */
-  getToolMarkdown() {
-    return Array.from(this.toolMarkdownCache.values());
-  }
-  /**
-   * Returns a single string combining all tool markdown outputs.
-   */
-  getCombinedToolMarkdown() {
-    return this.getToolMarkdown().join("\n");
-  }
-  /**
-   * Returns stats about tool executions and limits.
-   */
-  getExecutionStats() {
-    const effectiveLimit = this.getEffectiveToolLimit();
-    return {
-      executionCount: this.executionCount,
-      maxToolCalls: effectiveLimit,
-      remaining: Math.max(0, effectiveLimit - this.executionCount)
-    };
-  }
-  /**
-   * Creates and stores a ToolRichDisplay for a tool command/result.
-   * @param command The tool command.
-   * @param result The tool result.
-   */
-  createToolDisplay(command, result) {
-    const displayId = this.generateDisplayId(command);
-    const toolDisplay = new ToolRichDisplay({
-      command,
-      result,
-      onRerun: () => this.rerunTool(command),
-      onCopy: () => this.copyToolResult(command, result)
-    });
-    this.toolDisplays.set(displayId, toolDisplay);
-    this.toolMarkdownCache.set(displayId, toolDisplay.toMarkdown());
-    if (this.context.onToolDisplay) {
-      this.context.onToolDisplay(toolDisplay);
-    }
-    this.cacheToolMarkdown(command, result);
-  }
-  /**
-   * Generates a unique display ID for a tool command.
-   * @param command The tool command.
-   */
-  generateDisplayId(command) {
-    return `${command.action}${CONSTANTS.TOOL_DISPLAY_ID_SEPARATOR}${command.requestId || Date.now()}`;
-  }
-  /**
-   * Copies the formatted tool result to the clipboard.
-   * @param command The tool command.
-   * @param result The tool result.
-   */
-  async copyToolResult(command, result) {
-    const displayText = this.toolResultFormatter.formatToolResult(command, result, { style: "copy" });
-    try {
-      await navigator.clipboard.writeText(displayText);
-    } catch (error) {
-      console.error(CONSTANTS.ERROR_MESSAGES.COPY_FAILED, error);
-    }
-  }
-  /**
-   * Caches the markdown representation of a tool command/result.
-   * @param command The tool command.
-   * @param result The tool result.
-   */
-  cacheToolMarkdown(command, result) {
-    const cacheKey = `${command.action}-${command.requestId}`;
-    const statusText = result.success ? "SUCCESS" : "ERROR";
-    const resultData = result.success ? stringifyJson(result.data) : result.error;
-    const markdown = `### TOOL EXECUTION: ${command.action}
-**Status:** ${statusText}
-
-**Parameters:**
-\`\`\`json
-${stringifyJson(command.parameters)}
-\`\`\`
-
-**Result:**
-\`\`\`json
-${resultData}
-\`\`\`
-`;
-    this.toolMarkdownCache.set(cacheKey, markdown);
-  }
-  /**
-   * Reruns a tool command and updates the display/result.
-   * @param originalCommand The original tool command to rerun.
-   */
-  async rerunTool(originalCommand) {
-    try {
-      const agentSettings = this.context.plugin.agentModeManager.getAgentModeSettings();
-      const result = await this.toolExecutor.executeToolWithLogging(originalCommand, agentSettings.timeoutMs, "rerun", this.debugLog.bind(this));
-      this.createToolDisplay(originalCommand, result);
-      this.context.onToolResult(result, originalCommand);
-    } catch (error) {
-      console.error(`${CONSTANTS.ERROR_MESSAGES.RERUN_FAILED} ${originalCommand.action}:`, error);
-    }
-  }
-  /**
-   * Returns the effective tool execution limit (temporary or default).
-   */
-  getEffectiveToolLimit() {
-    const agentSettings = this.context.plugin.agentModeManager.getAgentModeSettings();
-    return this.temporaryMaxToolCalls || agentSettings.maxToolCalls;
-  }
-  /**
-   * Filters out tool commands that have already been executed, based on the chat history.
-   * Only commands that have not been executed yet are returned.
-   * 
-   * @param commands - Array of ToolCommand objects to check.
-   * @param chatHistory - The chat history array, containing previous messages and tool results.
-   * @param contextLabel - A label for debugging/logging context.
-   * @returns Array of ToolCommand objects that have not been executed yet.
-   */
-  filterAlreadyExecutedCommands(commands, chatHistory, contextLabel) {
-    const filteredCommands = [];
-    for (const command of commands) {
-      const commandKey = this.generateCommandKey(command);
-      const alreadyExecuted = this.isCommandInChatHistory(commandKey, chatHistory);
-      if (alreadyExecuted) {
-        if (this.context.plugin.settings.debugMode) {
-          this.context.plugin.debugLog(
-            "debug",
-            `[AgentResponseHandler][${contextLabel}] Skipping already executed command`,
-            { command, commandKey }
-          );
-        }
-      } else {
-        filteredCommands.push(command);
-      }
-    }
-    return filteredCommands;
-  }
-  /**
-   * Retrieves the existing tool results for the given commands from the chat history.
-   * This is used to avoid re-executing commands and to provide their previous results.
-   * 
-   * @param commands - Array of ToolCommand objects to look up.
-   * @param chatHistory - The chat history array, containing previous messages and tool results.
-   * @returns Array of objects containing the command and its corresponding ToolResult.
-   */
-  getExistingToolResults(commands, chatHistory) {
-    const existingResults = [];
-    for (const command of commands) {
-      const commandKey = this.generateCommandKey(command);
-      const existingResult = this.findToolResultInChatHistory(commandKey, chatHistory);
-      if (existingResult) {
-        existingResults.push({ command, result: existingResult });
-      }
-    }
-    return existingResults;
-  }
-  /**
-   * Generates a unique key for a tool command based on action, parameters, and requestId.
-   * @param command The tool command.
-   */
-  generateCommandKey(command) {
-    const params = stringifyJson(command.parameters || {});
-    return [
-      command.action,
-      params,
-      command.requestId || "no-id"
-    ].join(CONSTANTS.COMMAND_KEY_SEPARATOR);
-  }
-  /**
-   * Checks if a command (by key) is present in the chat history.
-   * @param commandKey The unique command key.
-   * @param chatHistory The chat history array.
-   */
-  isCommandInChatHistory(commandKey, chatHistory) {
-    for (const message of chatHistory) {
-      if (message.sender === "assistant" && message.toolResults) {
-        for (const toolResult of message.toolResults) {
-          const existingKey = this.generateCommandKey(toolResult.command);
-          if (existingKey === commandKey) {
-            return true;
-          }
-        }
-      }
-    }
-    return false;
-  }
-  /**
-   * Finds the tool result for a command key in the chat history.
-   * @param commandKey The unique command key.
-   * @param chatHistory The chat history array.
-   */
-  findToolResultInChatHistory(commandKey, chatHistory) {
-    for (const message of chatHistory) {
-      if (message.sender === "assistant" && message.toolResults) {
-        for (const toolResult of message.toolResults) {
-          const existingKey = this.generateCommandKey(toolResult.command);
-          if (existingKey === commandKey) {
-            return toolResult.result;
-          }
-        }
-      }
-    }
-    return null;
-  }
-  /**
-   * Returns true if the tool execution limit has been reached.
-   */
-  isToolLimitReached() {
-    const effectiveLimit = this.getEffectiveToolLimit();
-    return this.executionCount >= effectiveLimit;
-  }
-  /**
-   * Creates a Message object for tool results, or null if none.
-   * @param toolResults Array of tool command/result pairs.
-   */
-  createToolResultMessage(toolResults) {
-    return this.toolResultFormatter.createToolResultMessage(toolResults);
-  }
-  /**
-   * Hides any task progress notifications.
-   */
-  hideTaskProgress() {
-    this.notificationManager.hideTaskProgress();
-  }
-  /**
-   * Processes a response and returns UI-related data, including reasoning and task status.
-   * @param response The response string.
-   * @param contextLabel Optional context label.
-   * @param chatHistory Optional chat history.
-   */
-  processResponseWithUI(response, contextLabel = "ui", chatHistory) {
-    return (async () => {
-      const result = await this.processResponse(response, contextLabel, chatHistory);
-      let status = "completed";
-      if (result.hasTools) {
-        const hasPendingFeedback = result.toolResults.some(
-          (tr) => {
-            var _a2;
-            return tr.command.action === "get_user_feedback" && tr.result.success && ((_a2 = tr.result.data) == null ? void 0 : _a2.status) === "pending";
-          }
-        );
-        if (hasPendingFeedback) {
-          status = "waiting_for_user";
-        } else if (this.isToolLimitReached()) {
-          status = "limit_reached";
-        } else {
-          status = "running";
-        }
-      }
-      const taskStatus = this.createTaskStatus(status);
-      const { reasoning } = this.reasoningProcessor.processToolResultsForMessage(result.toolResults);
-      const shouldShowLimitWarning = this.isToolLimitReached() && result.hasTools;
-      return {
-        ...result,
-        reasoning,
-        taskStatus,
-        shouldShowLimitWarning
-      };
-    })();
-  }
-  /**
-   * Creates a TaskStatus object with the given status and current execution state.
-   * @param status The task status
-   * @returns TaskStatus object
-   */
-  createTaskStatus(status) {
-    const agentSettings = this.context.plugin.agentModeManager.getAgentModeSettings();
-    return {
-      status,
-      toolExecutionCount: this.executionCount,
-      maxToolExecutions: this.getEffectiveToolLimit(),
-      canContinue: status === "running" || status === "waiting_for_user",
-      lastUpdateTime: (/* @__PURE__ */ new Date()).toISOString()
-    };
-  }
-  /**
-   * Shows a task completion notification.
-   * @param message The message to display.
-   * @param type Notification type ("success", "warning", etc).
-   */
-  showTaskCompletionNotification(message, type2 = "success") {
-    this.notificationManager.showTaskCompletionNotification(message, type2);
-  }
-  /**
-   * Creates a tool limit warning UI element.
-   * @returns HTMLElement containing the tool limit warning interface
-   */
-  createToolLimitWarning() {
-    return this.toolLimitWarningUI.createToolLimitWarning();
-  }
-  /**
-   * Updates an existing tool display with a new result.
-   * @param command The tool command
-   * @param result The updated result
-   */
-  updateToolDisplay(command, result) {
-    const displayId = this.generateDisplayId(command);
-    const existingDisplay = this.toolDisplays.get(displayId);
-    if (existingDisplay) {
-      existingDisplay.updateResult(result);
-      this.toolMarkdownCache.set(displayId, existingDisplay.toMarkdown());
-    } else {
-      this.createToolDisplay(command, result);
-    }
-  }
-};
-
-// src/utils/systemMessage.ts
-function getSystemMessage(settings) {
-  let systemMessage = settings.systemMessage;
-  if (settings.includeTimeWithSystemMessage) {
-    const now = /* @__PURE__ */ new Date();
-    const currentDate = now.toLocaleDateString("en-CA");
-    const timeZoneOffset = now.getTimezoneOffset();
-    const offsetHours = Math.abs(Math.floor(timeZoneOffset / 60));
-    const offsetMinutes = Math.abs(timeZoneOffset) % 60;
-    const sign = timeZoneOffset > 0 ? "-" : "+";
-    const currentTime = now.toLocaleTimeString();
-    const timeZoneString = `UTC${sign}${offsetHours.toString().padStart(2, "0")}:${offsetMinutes.toString().padStart(2, "0")}`;
-    systemMessage = `${systemMessage}
-
-The current time is ${currentDate} ${currentTime} ${timeZoneString}.`;
-  }
-  return systemMessage;
-}
-
-// src/utils/noteUtils.ts
-var import_obsidian25 = require("obsidian");
-
-// src/utils/generalUtils.ts
-var import_obsidian24 = require("obsidian");
-init_logger();
-function showNotice(message) {
-  new import_obsidian24.Notice(message);
-}
-async function copyToClipboard3(text, successMsg = "Copied to clipboard", failMsg = "Failed to copy to clipboard") {
-  try {
-    await navigator.clipboard.writeText(text);
-    showNotice(successMsg);
-  } catch (error) {
-    showNotice(failMsg);
-    debugLog(true, "error", "Clipboard error:", error);
-  }
-}
-function moveCursorAfterInsert(editor, startPos, insertText) {
-  const lines = insertText.split("\n");
-  if (lines.length === 1) {
-    editor.setCursor({
-      line: startPos.line,
-      ch: startPos.ch + insertText.length
-    });
-  } else {
-    editor.setCursor({
-      line: startPos.line + lines.length - 1,
-      ch: lines[lines.length - 1].length
-    });
-  }
-}
-function insertSeparator(editor, position, separator) {
-  var _a2;
-  const lineContent = (_a2 = editor.getLine(position.line)) != null ? _a2 : "";
-  const prefix = lineContent.trim() !== "" ? "\n" : "";
-  editor.replaceRange(`${prefix}
-${separator}
-`, position);
-  return position.line + (prefix ? 1 : 0) + 2;
-}
-function findFile(app, filePath) {
-  let file = app.vault.getAbstractFileByPath(filePath) || app.vault.getAbstractFileByPath(`${filePath}.md`);
-  if (!file) {
-    const allFiles = app.vault.getFiles();
-    file = allFiles.find(
-      (f) => f.name === filePath || f.name === `${filePath}.md` || f.basename.toLowerCase() === filePath.toLowerCase() || f.path === filePath || f.path === `${filePath}.md`
-    ) || null;
-  }
-  return file;
-}
-function extractContentUnderHeader(content, headerText) {
-  const lines = content.split("\n");
-  let foundHeader = false;
-  let extractedContent = [];
-  let headerLevel = 0;
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    const headerMatch = line.match(/^(#+)\s+(.*?)$/);
-    if (headerMatch) {
-      const currentHeaderLevel = headerMatch[1].length;
-      const currentHeaderText = headerMatch[2].trim();
-      if (foundHeader) {
-        if (currentHeaderLevel <= headerLevel) {
-          break;
-        }
-      } else if (currentHeaderText.toLowerCase() === headerText.toLowerCase()) {
-        foundHeader = true;
-        headerLevel = currentHeaderLevel;
-        extractedContent.push(line);
-        continue;
-      }
-    }
-    if (foundHeader) {
-      extractedContent.push(line);
-    }
-  }
-  return extractedContent.join("\n");
-}
-
-// src/utils/noteUtils.ts
-init_typeguards();
-async function processObsidianLinks(content, app, settings, visitedNotes = /* @__PURE__ */ new Set(), currentDepth = 0) {
-  var _a2;
-  if (!settings.enableObsidianLinks) return content;
-  const linkRegex = /\[\[(.*?)\]\]/g;
-  let match;
-  let processedContent = content;
-  while ((match = linkRegex.exec(content)) !== null) {
-    if (match && match[0] && match[1]) {
-      const parts = match[1].split("|");
-      const filePath = parts[0].trim();
-      try {
-        let file = findFile(app, filePath);
-        const headerMatch = filePath.match(/(.*?)#(.*)/);
-        let extractedContent = "";
-        if (file && isTFile(file)) {
-          if (visitedNotes.has(file.path)) {
-            extractedContent = "[Recursive link omitted: already included]";
-          } else {
-            visitedNotes.add(file.path);
-            const noteContent = await app.vault.cachedRead(file);
-            if (headerMatch) {
-              extractedContent = extractContentUnderHeader(noteContent, headerMatch[2].trim());
-            } else {
-              extractedContent = noteContent;
-            }
-            if (settings.expandLinkedNotesRecursively && currentDepth < ((_a2 = settings.maxLinkExpansionDepth) != null ? _a2 : 2)) {
-              extractedContent = await processObsidianLinks(extractedContent, app, settings, visitedNotes, currentDepth + 1);
-            }
-          }
-          processedContent = processedContent.replace(
-            match[0],
-            `${match[0]}
-
----
-Note Name: ${filePath}
-Content:
-${extractedContent}
----
-`
-          );
-        } else {
-          new import_obsidian25.Notice(`File not found: ${filePath}. Ensure the file name and path are correct.`);
-        }
-      } catch (error) {
-        new import_obsidian25.Notice(`Error processing link for ${filePath}: ${error.message}`);
-      }
-    }
-  }
-  return processedContent;
-}
-async function processContextNotes(contextNotesText, app) {
-  const linkRegex = /\[\[(.*?)\]\]/g;
-  let match;
-  let contextContent = "";
-  while ((match = linkRegex.exec(contextNotesText)) !== null) {
-    if (match && match[1]) {
-      const originalLink = match[0];
-      const [fileAndHeader, alias] = match[1].split("|").map((s) => s.trim());
-      const headerMatch = fileAndHeader.match(/(.*?)#(.*)/);
-      const baseFileName = headerMatch ? headerMatch[1].trim() : fileAndHeader;
-      const headerName = headerMatch ? headerMatch[2].trim() : null;
-      try {
-        let file = findFile(app, baseFileName);
-        if (file && isTFile(file)) {
-          const noteContent = await app.vault.cachedRead(file);
-          contextContent += `---
-Attached: ${originalLink}
-
-`;
-          if (headerName) {
-            const headerContent = extractContentUnderHeader(noteContent, headerName);
-            contextContent += headerContent;
-          } else {
-            contextContent += noteContent;
-          }
-          contextContent += "\n\n";
-        } else {
-          contextContent += `Note not found: ${originalLink}
-
-`;
-        }
-      } catch (error) {
-        contextContent += `Error processing note ${originalLink}: ${error.message}
-
-`;
-      }
-    }
-  }
-  return contextContent;
-}
-async function processMessages(messages, app, settings) {
-  const processedMessages = [];
-  if (settings.enableContextNotes && settings.contextNotes) {
-    const contextContent = await processContextNotes(settings.contextNotes, app);
-    if (contextContent) {
-      if (messages.length > 0 && messages[0].role === "system") {
-        processedMessages.push({
-          role: "system",
-          content: `${messages[0].content}
-
-Here is additional context:
-${contextContent}`
-        });
-        messages = messages.slice(1);
-      } else {
-        processedMessages.push({
-          role: "system",
-          content: `Here is context for our conversation:
-${contextContent}`
-        });
-      }
-    }
-  }
-  for (const message of messages) {
-    const processedContent = await processObsidianLinks(message.content, app, settings, /* @__PURE__ */ new Set());
-    processedMessages.push({
-      role: message.role,
-      content: processedContent
-    });
-  }
-  return processedMessages;
-}
-
-// src/utils/recently-opened-files.ts
-init_logger();
-var _RecentlyOpenedFilesManager = class _RecentlyOpenedFilesManager {
-  constructor(app) {
-    __publicField(this, "app");
-    __publicField(this, "listenerRef", null);
-    __publicField(this, "FILENAME", "recently-opened-files.json");
-    __publicField(this, "MAX_FILES", 100);
-    this.app = app;
-    this.setupFileListener();
-  }
-  static getInstance(app) {
-    if (!_RecentlyOpenedFilesManager.instance) {
-      if (!app) {
-        throw new Error("App instance required for first initialization");
-      }
-      _RecentlyOpenedFilesManager.instance = new _RecentlyOpenedFilesManager(app);
-    }
-    return _RecentlyOpenedFilesManager.instance;
-  }
-  setupFileListener() {
-    if (this.listenerRef) {
-      return;
-    }
-    this.listenerRef = this.app.workspace.on("file-open", (file) => {
-      if (file) {
-        this.recordFileOpened(file);
-      }
-    });
-  }
-  getFilePath() {
-    return `${this.app.vault.configDir}/${this.FILENAME}`;
-  }
-  async recordFileOpened(file, debugMode = false) {
-    const filePath = this.getFilePath();
-    let data = {
-      recentFiles: [],
-      omittedPaths: [],
-      omittedTags: [],
-      updateOn: "file-open",
-      omitBookmarks: false,
-      maxLength: null
-    };
-    try {
-      if (await this.app.vault.adapter.exists(filePath)) {
-        const raw = await this.app.vault.adapter.read(filePath);
-        const parsed = JSON.parse(raw);
-        if (this.isValidDataJson(parsed)) {
-          data = parsed;
-        }
-      }
-    } catch (e) {
-      debugLog(debugMode, "warn", "[recently-opened-files] Failed to read existing records", e);
-    }
-    data.recentFiles = data.recentFiles.filter((r) => r.path !== file.path);
-    data.recentFiles.unshift({
-      path: file.path,
-      basename: file.basename
-    });
-    if (data.recentFiles.length > this.MAX_FILES) {
-      data.recentFiles = data.recentFiles.slice(0, this.MAX_FILES);
-    }
-    try {
-      await this.app.vault.adapter.write(filePath, JSON.stringify(data, null, 2));
-    } catch (e) {
-      debugLog(debugMode, "error", "[recently-opened-files] Failed to write records", e);
-    }
-  }
-  isValidDataJson(data) {
-    return typeof data === "object" && data !== null && Array.isArray(data.recentFiles) && Array.isArray(data.omittedPaths) && Array.isArray(data.omittedTags) && typeof data.updateOn === "string" && typeof data.omitBookmarks === "boolean" && (typeof data.maxLength === "number" || data.maxLength === null);
-  }
-  async getRecentlyOpenedFiles() {
-    const pluginFiles = await this.getRecentFilesFromPlugin();
-    if (pluginFiles.length > 0) {
-      return pluginFiles;
-    }
-    return this.getRecentFilesFromOwnFile();
-  }
-  async getRecentFilesFromPlugin() {
-    const pluginId = "recent-files-obsidian";
-    const pluginDataPath = `${this.app.vault.configDir}/plugins/${pluginId}/data.json`;
-    try {
-      if (await this.app.vault.adapter.exists(pluginDataPath)) {
-        const raw = await this.app.vault.adapter.read(pluginDataPath);
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed.recentFiles)) {
-          await this.syncWithOwnFile(parsed.recentFiles);
-          return parsed.recentFiles.map((f) => ({
-            path: f.path,
-            basename: f.basename
-          }));
-        }
-      }
-    } catch (e) {
-      debugLog(true, "warn", "[recently-opened-files] Failed to read recent-files-obsidian plugin data", e);
-    }
-    return [];
-  }
-  async syncWithOwnFile(pluginFiles) {
-    const filePath = this.getFilePath();
-    let data = {
-      recentFiles: [],
-      omittedPaths: [],
-      omittedTags: [],
-      updateOn: "file-open",
-      omitBookmarks: false,
-      maxLength: null
-    };
-    try {
-      if (await this.app.vault.adapter.exists(filePath)) {
-        const raw = await this.app.vault.adapter.read(filePath);
-        const parsed = JSON.parse(raw);
-        if (this.isValidDataJson(parsed)) {
-          data = parsed;
-        }
-      }
-    } catch (e) {
-    }
-    const seen = new Set(data.recentFiles.map((f) => f.path));
-    for (const file of pluginFiles) {
-      if (!seen.has(file.path)) {
-        data.recentFiles.push({
-          path: file.path,
-          basename: file.basename
-        });
-      }
-    }
-    if (data.recentFiles.length > this.MAX_FILES) {
-      data.recentFiles = data.recentFiles.slice(0, this.MAX_FILES);
-    }
-    try {
-      await this.app.vault.adapter.write(filePath, JSON.stringify(data, null, 2));
-    } catch (e) {
-    }
-  }
-  async getRecentFilesFromOwnFile() {
-    const filePath = this.getFilePath();
-    try {
-      if (await this.app.vault.adapter.exists(filePath)) {
-        const raw = await this.app.vault.adapter.read(filePath);
-        const parsed = JSON.parse(raw);
-        if (this.isValidDataJson(parsed)) {
-          return parsed.recentFiles;
-        }
-      }
-    } catch (e) {
-      debugLog(true, "warn", "[recently-opened-files] Failed to read own file", e);
-    }
-    return [];
-  }
-  destroy() {
-    if (this.listenerRef) {
-      this.app.workspace.offref(this.listenerRef);
-      this.listenerRef = null;
-    }
-  }
-};
-__publicField(_RecentlyOpenedFilesManager, "instance");
-var RecentlyOpenedFilesManager = _RecentlyOpenedFilesManager;
-async function getRecentlyOpenedFiles(app) {
-  const manager = RecentlyOpenedFilesManager.getInstance(app);
-  return manager.getRecentlyOpenedFiles();
-}
-
-// src/utils/contextBuilder.ts
-async function buildContextMessages({
-  app,
-  plugin,
-  includeCurrentNote = true,
-  includeContextNotes = true,
-  debug: debug2 = false,
-  forceNoCurrentNote = false
-}) {
-  var _a2;
-  const messages = [
-    { role: "system", content: getSystemMessage(plugin.settings) }
-  ];
-  const recentlyOpenedFiles = await getRecentlyOpenedFiles(app);
-  if (recentlyOpenedFiles.length > 0) {
-    messages[0].content += `
-
-Recently Opened Files:
-${recentlyOpenedFiles.slice(0, 5).map((f) => f.path).join("\n")}`;
-  }
-  if (includeContextNotes && plugin.settings.enableContextNotes && plugin.settings.contextNotes) {
-    const contextContent = await processContextNotes(plugin.settings.contextNotes, app);
-    messages[0].content += `
-
-Context Notes:
-${contextContent}`;
-  }
-  if (!forceNoCurrentNote && includeCurrentNote && plugin.settings.referenceCurrentNote) {
-    const currentFile = app.workspace.getActiveFile();
-    if (currentFile) {
-      const currentNoteContent = await app.vault.cachedRead(currentFile);
-      messages.push({
-        role: "system",
-        content: `Here is the content of the current note (${currentFile.path}):
-
-${currentNoteContent}`
-      });
-    }
-  }
-  if (debug2 || plugin.settings.debugMode) {
-    (_a2 = plugin.debugLog) == null ? void 0 : _a2.call(plugin, "debug", "[contextBuilder] Building context messages", {
-      enableContextNotes: plugin.settings.enableContextNotes,
-      contextNotes: plugin.settings.contextNotes,
-      referenceCurrentNote: plugin.settings.referenceCurrentNote
-    });
-  }
-  return messages;
-}
-
-// src/components/chat/MessageRegenerator.ts
-var import_obsidian29 = require("obsidian");
-
-// src/components/chat/ResponseStreamer.ts
-var import_obsidian28 = require("obsidian");
-init_aiDispatcher();
-init_MessageRenderer();
-
-// src/components/agent/TaskContinuation.ts
-var import_obsidian26 = require("obsidian");
-var TaskContinuation = class {
-  /**
-   * @param plugin The main plugin instance (for settings and logging)
-   * @param agentResponseHandler Handler for agent responses and tool execution
-   * @param messagesContainer The container element for chat messages
-   * @param component Optional Obsidian component for Markdown rendering context
-   */
-  constructor(plugin, agentResponseHandler, messagesContainer, component) {
-    this.plugin = plugin;
-    this.agentResponseHandler = agentResponseHandler;
-    this.messagesContainer = messagesContainer;
-    this.component = component;
-  }
-  /**
-   * Continues task execution until the task is finished or a limit is reached.
-   * Iteratively processes tool results and agent responses.
-   * @param messages The conversation history/messages
-   * @param container The chat message container element
-   * @param initialResponseContent The initial assistant response content
-   * @param currentContent The current content to display
-   * @param initialToolResults Initial tool results to process
-   * @param chatHistory Optional chat history for context
-   * @returns An object with the final content and a flag if the tool limit was reached
-   */
-  async continueTaskUntilFinished(messages, container, initialResponseContent, currentContent, initialToolResults, chatHistory) {
-    var _a2, _b, _c, _d, _e;
-    let responseContent = currentContent;
-    let maxIterations = (_b = (_a2 = this.plugin.settings.agentMode) == null ? void 0 : _a2.maxIterations) != null ? _b : 10;
-    let iteration = 0;
-    let limitReachedDuringContinuation = false;
-    let allToolResults = [...initialToolResults];
-    let isFinished = this.checkIfTaskFinished(allToolResults);
-    if ((_c = this.agentResponseHandler) == null ? void 0 : _c.isToolLimitReached()) {
-      return {
-        content: responseContent + "\n\n*[Tool execution limit reached - task continuation stopped]*",
-        limitReachedDuringContinuation: true
-      };
-    }
-    if (this.plugin.settings.debugMode) {
-      this.plugin.debugLog("debug", "[TaskContinuation] continueTaskUntilFinished", {
-        initialResponseContent,
-        currentContent,
-        initialToolResults,
-        maxIterations
-      });
-    }
-    while (!isFinished && iteration < maxIterations) {
-      iteration++;
-      if ((_d = this.agentResponseHandler) == null ? void 0 : _d.isToolLimitReached()) {
-        responseContent += "\n\n*[Tool execution limit reached during continuation]*";
-        limitReachedDuringContinuation = true;
-        break;
-      }
-      const toolResultMessage = (_e = this.agentResponseHandler) == null ? void 0 : _e.createToolResultMessage(allToolResults);
-      if (toolResultMessage) {
-        const continuationMessages = [
-          ...messages,
-          { role: "assistant", content: initialResponseContent },
-          toolResultMessage
-        ];
-        const continuationContent = await this.getContinuationResponse(continuationMessages, container);
-        if (continuationContent.trim()) {
-          let processingResult;
-          if (this.agentResponseHandler) {
-            processingResult = await this.agentResponseHandler.processResponse(continuationContent, "task-continuation", chatHistory);
-            if (processingResult.toolResults && processingResult.toolResults.length > 0) {
-              allToolResults = [...allToolResults, ...processingResult.toolResults];
-            }
-          }
-          const continuationResult = await this.processContinuation(
-            continuationContent,
-            responseContent,
-            container,
-            allToolResults,
-            chatHistory,
-            processingResult
-          );
-          responseContent = continuationResult.responseContent;
-          isFinished = continuationResult.isFinished;
-          initialResponseContent = continuationContent;
-        } else {
-          isFinished = true;
-        }
-      } else {
-        isFinished = true;
-      }
-      if (this.plugin.settings.debugMode) {
-        this.plugin.debugLog("debug", "[TaskContinuation] Iteration", {
-          iteration,
-          isFinished,
-          toolResults: allToolResults
-        });
-      }
-    }
-    if (iteration >= maxIterations) {
-      if (this.plugin.settings.debugMode) {
-        this.plugin.debugLog("debug", "[TaskContinuation] Maximum iterations reached", { iteration });
-      }
-      responseContent += "\n\n*[Task continuation reached maximum iterations - stopping to prevent infinite loop]*";
-    }
-    return { content: responseContent, limitReachedDuringContinuation };
-  }
-  /**
-   * Processes the agent's continuation response and updates the UI.
-   * Handles both tool-based and plain responses.
-   * @param continuationContent The agent's response content
-   * @param responseContent The current response content
-   * @param container The chat message container element
-   * @param initialToolResults Tool results so far
-   * @param chatHistory Optional chat history
-   * @param processingResult Optional pre-processed agent result
-   * @returns Object with updated response content and finished flag
-   */
-  async processContinuation(continuationContent, responseContent, container, initialToolResults, chatHistory, processingResult) {
-    let continuationResult;
-    if (processingResult) {
-      continuationResult = processingResult;
-    } else if (this.agentResponseHandler) {
-      continuationResult = await this.agentResponseHandler.processResponse(continuationContent, "main", chatHistory);
-    } else {
-      const updatedContent = responseContent + "\n\n" + continuationContent;
-      await this.updateContainerContent(container, updatedContent);
-      return { responseContent: updatedContent, isFinished: true };
-    }
-    if (continuationResult.hasTools) {
-      const cleanContinuationContent = continuationResult.processedText;
-      const isFinished = this.checkIfTaskFinished(continuationResult.toolResults);
-      const allToolResults = initialToolResults;
-      const updatedContent = responseContent + "\n\n" + cleanContinuationContent;
-      const enhancedMessageData = this.createEnhancedMessageData(
-        updatedContent,
-        continuationResult,
-        allToolResults
-      );
-      this.updateContainerWithMessageData(container, enhancedMessageData, updatedContent);
-      return { responseContent: updatedContent, isFinished };
-    } else {
-      let isFinished = false;
-      try {
-        const parsed = JSON.parse(continuationContent);
-        if (parsed && parsed.finished === true) {
-          isFinished = true;
-        }
-      } catch (e) {
-        if (initialToolResults.length > 0) {
-          isFinished = this.checkIfTaskFinished(initialToolResults);
-        }
-      }
-      const updatedContent = responseContent + "\n\n" + continuationContent;
-      await this.updateContainerContent(container, updatedContent);
-      return { responseContent: updatedContent, isFinished };
-    }
-  }
-  /**
-   * Updates the chat container with new Markdown-rendered content.
-   * @param container The chat message container element
-   * @param content The new content to render
-   */
-  async updateContainerContent(container, content) {
-    container.dataset.rawContent = content;
-    const contentEl = container.querySelector(".message-content");
-    if (contentEl) {
-      contentEl.empty();
-      await import_obsidian26.MarkdownRenderer.render(
-        this.plugin.app,
-        content,
-        contentEl,
-        "",
-        this.component || new import_obsidian26.Component()
-      );
-      this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
-    }
-  }
-  /**
-   * Checks if any tool results indicate the task is finished.
-   * Looks for a 'finished' flag or a 'thought' tool with nextTool 'finished'.
-   * @param toolResults Array of tool command/result pairs
-   * @returns True if the task is finished, false otherwise
-   */
-  checkIfTaskFinished(toolResults) {
-    return toolResults.some(({ command, result }) => {
-      if (command.finished === true) {
-        return true;
-      }
-      if (command.action === "thought" && result.success && result.data) {
-        return result.data.nextTool === "finished" || result.data.finished === true;
-      }
-      return false;
-    });
-  }
-  /**
-   * Gets the agent's continuation response after tool execution.
-   * Calls the provider's getCompletion method and streams the result.
-   * @param messages The conversation history/messages
-   * @param container The chat message container element
-   * @returns The agent's response content as a string
-   */
-  async getContinuationResponse(messages, container) {
-    var _a2;
-    try {
-      if (this.plugin.settings.debugMode) {
-        this.plugin.debugLog("debug", "[TaskContinuation] getContinuationResponse", { messages });
-      }
-      if ((_a2 = this.agentResponseHandler) == null ? void 0 : _a2.isToolLimitReached()) {
-        return "*[Tool execution limit reached - no continuation response]*";
-      }
-      const { AIDispatcher: AIDispatcher2 } = await Promise.resolve().then(() => (init_aiDispatcher(), aiDispatcher_exports));
-      const aiDispatcher = new AIDispatcher2(this.plugin.app.vault, this.plugin);
-      let continuationContent = "";
-      await aiDispatcher.getCompletion(
-        messages,
-        {
-          temperature: this.plugin.settings.temperature,
-          streamCallback: async (chunk) => {
-            continuationContent += chunk;
-          }
-        }
-      );
-      if (this.plugin.settings.debugMode) {
-        this.plugin.debugLog("debug", "[TaskContinuation] Continuation response received", { continuationContent });
-      }
-      return continuationContent;
-    } catch (error) {
-      if (this.plugin.settings.debugMode) {
-        this.plugin.debugLog("debug", "[TaskContinuation] Error getting continuation response", { error });
-      }
-      console.error("TaskContinuation: Error getting continuation response:", error);
-      if (error.name !== "AbortError") {
-        return `*[Error getting continuation: ${error.message}]*`;
-      }
-      return "";
-    }
-  }
-  /**
-   * Creates an enhanced message data structure for UI or logging.
-   * Includes reasoning, task status, and tool results.
-   * @param content The message content
-   * @param agentResult The agent's result object
-   * @param toolResults Optional array of tool results
-   * @returns Message object with additional metadata
-   */
-  createEnhancedMessageData(content, agentResult, toolResults) {
-    const messageData = {
-      role: "assistant",
-      content,
-      reasoning: agentResult.reasoning,
-      taskStatus: agentResult.taskStatus
-    };
-    if (toolResults) {
-      messageData.toolResults = toolResults.map(({ command, result }) => ({
-        command,
-        result,
-        timestamp: (/* @__PURE__ */ new Date()).toISOString()
-      }));
-    }
-    return messageData;
-  }
-  /**
-   * Updates the chat container with enhanced message data and raw content.
-   * @param container The chat message container element
-   * @param messageData The message data object to store
-   * @param rawContent The raw content string
-   */
-  updateContainerWithMessageData(container, messageData, rawContent) {
-    container.dataset.messageData = JSON.stringify(messageData);
-    container.dataset.rawContent = rawContent;
-  }
-};
-
-// src/components/chat/ResponseStreamer.ts
-var ResponseStreamer = class {
-  /**
-   * @param plugin The main plugin instance (for settings, logging, etc.)
-   * @param agentResponseHandler Handler for agent responses and tool execution (null if agent mode is off)
-   * @param messagesContainer The container element for chat messages
-   * @param activeStream The current AbortController for streaming (shared reference) - may be updated by this class
-   * @param component Optional parent component for Markdown rendering context
-   */
-  constructor(plugin, agentResponseHandler, messagesContainer, activeStream, component) {
-    this.plugin = plugin;
-    this.agentResponseHandler = agentResponseHandler;
-    this.messagesContainer = messagesContainer;
-    this.activeStream = activeStream;
-    this.component = component;
-    __publicField(this, "messageRenderer");
-    __publicField(this, "streamId", null);
-    this.messageRenderer = new MessageRenderer(plugin.app);
-  }
-  /**
-   * Streams AI assistant response with optional agent processing.
-   * Handles agent mode integration, tool execution, and task continuation.
-   * @param messages The conversation history/messages to send to the provider
-   * @param container The message container element to update with the streamed response
-   * @param originalTimestamp Optional timestamp for history update
-   * @param originalContent Optional original content for history update
-   * @param chatHistory Optional chat history for context
-   * @returns Promise resolving to the final response content string
-   */
-  async streamAssistantResponse(messages, container, originalTimestamp, originalContent, chatHistory) {
-    var _a2;
-    this.plugin.debugLog("info", "[ResponseStreamer] streamAssistantResponse called", { messages, originalTimestamp });
-    let responseContent = "";
-    const bridgeController = new AbortController();
-    this.activeStream = bridgeController;
-    this.plugin.debugLog("info", "[ResponseStreamer] Created bridge AbortController", { streamId: this.streamId });
-    const aiDispatcher = new AIDispatcher(this.plugin.app.vault, this.plugin);
-    this.streamId = Math.random().toString(36).substr(2, 9);
-    await this.addAgentSystemPrompt(messages);
-    try {
-      await aiDispatcher.getCompletion(messages, {
-        temperature: this.plugin.settings.temperature,
-        streamCallback: async (chunk) => {
-          responseContent += chunk;
-          await this.updateMessageContent(container, responseContent);
-        },
-        abortController: bridgeController
-        // Pass our bridge controller to AIDispatcher
-      });
-      if (this.plugin.agentModeManager.isAgentModeEnabled() && this.agentResponseHandler) {
-        responseContent = await this.processAgentResponse(responseContent, container, messages, "streamer-main", chatHistory);
-      }
-      return responseContent;
-    } catch (error) {
-      if (error.name !== "AbortError") {
-        throw error;
-      }
-      return "";
-    } finally {
-      (_a2 = this.agentResponseHandler) == null ? void 0 : _a2.hideTaskProgress();
-      this.streamId = null;
-      this.activeStream = null;
-    }
-  }
-  /**
-   * Check if this ResponseStreamer has an active stream
-   */
-  isStreaming() {
-    return this.streamId !== null;
-  }
-  /**
-   * Adds agent system prompt to messages if agent mode is enabled.
-   * Prepends the agent prompt to the existing system message or adds a new one.
-   * @param messages The message array to modify
-   */
-  async addAgentSystemPrompt(messages) {
-    this.plugin.debugLog("debug", "[ResponseStreamer] addAgentSystemPrompt called", { messages });
-    if (!this.plugin.agentModeManager.isAgentModeEnabled()) return;
-    const { buildAgentSystemPrompt: buildAgentSystemPrompt2 } = await Promise.resolve().then(() => (init_promptConstants(), promptConstants_exports));
-    const agentPrompt = buildAgentSystemPrompt2(
-      this.plugin.settings.enabledTools,
-      this.plugin.settings.customAgentSystemMessage
-    );
-    const systemMessageIndex = messages.findIndex((msg) => msg.role === "system");
-    if (systemMessageIndex !== -1) {
-      const originalContent = messages[systemMessageIndex].content;
-      messages[systemMessageIndex].content = agentPrompt + "\n\n" + originalContent;
-    } else {
-      messages.unshift({
-        role: "system",
-        content: agentPrompt
-      });
-    }
-  }
-  /**
-   * Updates message content in the UI with markdown rendering.
-   * @param container The message DOM element
-   * @param content The new content string
-   */
-  async updateMessageContent(container, content) {
-    const contentEl = container.querySelector(".message-content");
-    if (!contentEl) return;
-    this.updateContainerDataset(container, content);
-    contentEl.empty();
-    await import_obsidian28.MarkdownRenderer.render(
-      this.plugin.app,
-      content,
-      contentEl,
-      "",
-      this.component || new import_obsidian28.Component()
-    );
-    this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
-  }
-  /**
-   * Processes agent response and handles tool execution or reasoning.
-   * Calls the AgentResponseHandler to parse and execute tools.
-   * @param responseContent The raw response content from the AI
-   * @param container The message DOM element
-   * @param messages The message history
-   * @param contextLabel Label for the processing context
-   * @param chatHistory Optional chat history
-   * @returns Promise resolving to the final content after processing
-   */
-  async processAgentResponse(responseContent, container, messages, contextLabel = "streamer", chatHistory) {
-    if (!this.agentResponseHandler) {
-      return responseContent;
-    }
-    try {
-      const agentResult = await this.agentResponseHandler.processResponseWithUI(responseContent, contextLabel, chatHistory);
-      return agentResult.hasTools ? await this.handleToolExecution(agentResult, container, responseContent, messages, chatHistory) : await this.handleNonToolResponse(agentResult, container, responseContent, messages, chatHistory);
-    } catch (error) {
-      console.error("ResponseStreamer: Error processing agent response:", error);
-      return responseContent;
-    }
-  }
-  /**
-   * Handles responses that include tool execution.
-   * Updates the message with rich tool displays and handles task completion/continuation.
-   * @param agentResult The result from AgentResponseHandler
-   * @param container The message DOM element
-   * @param responseContent The raw response content
-   * @param messages The message history
-   * @param chatHistory Optional chat history
-   * @returns Promise resolving to the final content after handling
-   */
-  async handleToolExecution(agentResult, container, responseContent, messages, chatHistory) {
-    const finalContent = agentResult.processedText;
-    const enhancedMessageData = this.createEnhancedMessageData(
-      finalContent,
-      agentResult,
-      agentResult.toolResults
-    );
-    this.updateContainerWithMessageData(container, enhancedMessageData, finalContent);
-    return this.handleTaskCompletion(agentResult, finalContent, responseContent, messages, container, chatHistory);
-  }
-  /**
-   * Handles responses without tool execution but potentially with reasoning.
-   * Updates the message with reasoning display and checks for reasoning continuation.
-   * @param agentResult The result from AgentResponseHandler
-   * @param container The message DOM element
-   * @param responseContent The raw response content
-   * @param messages The message history
-   * @param chatHistory Optional chat history
-   * @returns Promise resolving to the final content after handling
-   */
-  async handleNonToolResponse(agentResult, container, responseContent, messages, chatHistory) {
-    if (agentResult.reasoning) {
-      const enhancedMessageData = this.createEnhancedMessageData(responseContent, agentResult);
-      this.updateContainerWithMessageData(container, enhancedMessageData, responseContent);
-    }
-    if (this.isReasoningStep(responseContent)) {
-      return await this.handleReasoningContinuation(responseContent, messages, container, chatHistory);
-    }
-    return responseContent;
-  }
-  /**
-   * Creates enhanced message data structure including reasoning, task status, and tool results.
-   * @param content The main message content
-   * @param agentResult The agent's processing result
-   * @param toolResults Optional array of tool execution results
-   * @returns Message object with additional metadata
-   */
-  createEnhancedMessageData(content, agentResult, toolResults) {
-    const messageData = {
-      role: "assistant",
-      content,
-      reasoning: agentResult.reasoning,
-      taskStatus: agentResult.taskStatus
-    };
-    if (toolResults) {
-      messageData.toolResults = toolResults.map(({ command, result }) => ({
-        command,
-        result,
-        timestamp: (/* @__PURE__ */ new Date()).toISOString()
-      }));
-    }
-    return messageData;
-  }
-  /**
-   * Updates container with enhanced message data and re-renders using MessageRenderer.
-   * @param container The message DOM element
-   * @param messageData The enhanced message data
-   * @param rawContent The raw content string
-   */
-  updateContainerWithMessageData(container, messageData, rawContent) {
-    container.dataset.messageData = JSON.stringify(messageData);
-    container.dataset.rawContent = rawContent;
-    this.messageRenderer.updateMessageWithEnhancedData(container, messageData);
-  }
-  /**
-   * DRY helper: Updates container dataset values for rawContent and messageData.
-   * @param container The message DOM element
-   * @param rawContent The raw content string
-   * @param messageData Optional enhanced message data
-   */
-  updateContainerDataset(container, rawContent, messageData) {
-    container.dataset.rawContent = rawContent;
-    if (messageData) {
-      container.dataset.messageData = JSON.stringify(messageData);
-    }
-  }
-  /**
-   * Checks if response content indicates a reasoning step (heuristic based on thought tool JSON).
-   * @param responseContent The response content string
-   * @returns True if it seems like a reasoning step, false otherwise
-   */
-  isReasoningStep(responseContent) {
-    return responseContent.includes('"action"') && responseContent.includes('"thought"');
-  }
-  /**
-   * Handles task completion, continuation, and tool limit management.
-   * Determines if the task is finished, if continuation is needed, or if limits are reached.
-   * @param agentResult The result from AgentResponseHandler
-   * @param finalContent The processed content (without tool JSON)
-   * @param responseContent The raw response content
-   * @param messages The message history
-   * @param container The message DOM element
-   * @param chatHistory Optional chat history
-   * @returns Promise resolving to the final content after handling
-   */
-  async handleTaskCompletion(agentResult, finalContent, responseContent, messages, container, chatHistory) {
-    if (agentResult.shouldShowLimitWarning) {
-      return this.handleToolLimitReached(messages, container, responseContent, finalContent, agentResult.toolResults, chatHistory);
-    }
-    if (agentResult.taskStatus.status === "completed") {
-      this.agentResponseHandler.showTaskCompletionNotification(
-        `Task completed successfully! Used ${agentResult.taskStatus.toolExecutionCount} tools.`,
-        "success"
-      );
-      return finalContent;
-    }
-    return await this.continueTaskIfPossible(
-      agentResult,
-      messages,
-      container,
-      responseContent,
-      finalContent,
-      chatHistory
-    );
-  }
-  /**
-   * Handles tool limit reached scenario.
-   * Displays a warning and sets up event listeners for user-driven continuation.
-   * @param messages The message history
-   * @param container The message DOM element
-   * @param responseContent The raw response content
-   * @param finalContent The processed content
-   * @param toolResults Tool results from the last step
-   * @param chatHistory Optional chat history
-   * @returns The final content with the warning appended
-   */
-  handleToolLimitReached(messages, container, responseContent, finalContent, toolResults, chatHistory) {
-    const warning = this.agentResponseHandler.createToolLimitWarning();
-    const targetContainer = this.agentResponseHandler.getContext().toolContinuationContainer || this.messagesContainer;
-    targetContainer.appendChild(warning);
-    if (this.agentResponseHandler.getContext().toolContinuationContainer) {
-      this.agentResponseHandler.getContext().toolContinuationContainer.style.display = "block";
-    }
-    this.setupContinuationEventListeners(messages, container, responseContent, finalContent, toolResults, chatHistory);
-    this.agentResponseHandler.showTaskCompletionNotification(
-      "Tool execution limit reached. Choose how to continue above.",
-      "warning"
-    );
-    return finalContent;
-  }
-  /**
-   * Sets up event listeners on the messages container for task continuation actions.
-   * @param messages The message history
-   * @param container The message DOM element
-   * @param responseContent The raw response content
-   * @param finalContent The processed content
-   * @param toolResults Tool results from the last step
-   * @param chatHistory Optional chat history
-   */
-  setupContinuationEventListeners(messages, container, responseContent, finalContent, toolResults, chatHistory) {
-    const continuationParams = {
-      messages,
-      container,
-      responseContent,
-      finalContent,
-      toolResults,
-      chatHistory
-    };
-    this.messagesContainer.addEventListener("continueTask", () => {
-      this.executeContinuation(continuationParams);
-    });
-    this.messagesContainer.addEventListener("continueTaskWithAdditionalTools", (event) => {
-      this.executeContinuation({
-        ...continuationParams,
-        additionalTools: event.detail.additionalTools
-      });
-    });
-  }
-  /**
-   * Continues task if no limits are reached and the task is not completed.
-   * Creates a TaskContinuation instance and runs the continuation loop.
-   * @param agentResult The result from AgentResponseHandler
-   * @param messages The message history
-   * @param container The message DOM element
-   * @param responseContent The raw response content
-   * @param finalContent The processed content
-   * @param chatHistory Optional chat history
-   * @returns Promise resolving to the final content after continuation
-   */
-  async continueTaskIfPossible(agentResult, messages, container, responseContent, finalContent, chatHistory) {
-    var _a2;
-    if (agentResult.shouldShowLimitWarning || ((_a2 = this.agentResponseHandler) == null ? void 0 : _a2.isToolLimitReached())) {
-      return finalContent;
-    }
-    const taskContinuation = this.createTaskContinuation();
-    const continuationResult = await taskContinuation.continueTaskUntilFinished(
-      messages,
-      container,
-      responseContent,
-      finalContent,
-      agentResult.toolResults,
-      chatHistory || []
-    );
-    if (continuationResult.limitReachedDuringContinuation) {
-      this.handleToolLimitReached(
-        messages,
-        container,
-        responseContent,
-        continuationResult.content,
-        agentResult.toolResults,
-        chatHistory
-      );
-    }
-    return continuationResult.content;
-  }
-  /**
-   * Creates a TaskContinuation instance.
-   */
-  createTaskContinuation() {
-    return new TaskContinuation(
-      this.plugin,
-      this.agentResponseHandler,
-      this.messagesContainer,
-      this.component
-    );
-  }
-  /**
-   * Handles reasoning continuation when AI response contains reasoning steps.
-   * Adds a system message to prompt the agent to continue with execution.
-   * @param responseContent The raw response content (containing reasoning)
-   * @param messages The message history
-   * @param container The message DOM element
-   * @param chatHistory Optional chat history
-   * @returns Promise resolving to the updated content after continuation
-   */
-  async handleReasoningContinuation(responseContent, messages, container, chatHistory) {
-    var _a2;
-    if ((_a2 = this.agentResponseHandler) == null ? void 0 : _a2.isToolLimitReached()) {
-      return responseContent + "\n\n*[Tool execution limit reached - reasoning continuation stopped]*";
-    }
-    messages.push(
-      { role: "assistant", content: responseContent },
-      { role: "system", content: "Please continue with the actual task execution based on your reasoning." }
-    );
-    const continuationContent = await this.getContinuationResponse(messages, container);
-    if (continuationContent.trim()) {
-      const updatedContent = responseContent + "\n\n" + continuationContent;
-      await this.updateMessageContent(container, updatedContent);
-      return updatedContent;
-    }
-    return responseContent;
-  }
-  /**
-   * Gets continuation response after tool execution with error handling.
-   * Used internally for task continuation loops.
-   * @param messages The message history for the continuation request
-   * @param container The message DOM element
-   * @returns Promise resolving to the continuation response content string
-   */
-  async getContinuationResponse(messages, container) {
-    var _a2;
-    try {
-      if ((_a2 = this.agentResponseHandler) == null ? void 0 : _a2.isToolLimitReached()) {
-        return "*[Tool execution limit reached - no continuation response]*";
-      }
-      const aiDispatcher = new AIDispatcher(this.plugin.app.vault, this.plugin);
-      let continuationContent = "";
-      await aiDispatcher.getCompletion(messages, {
-        temperature: this.plugin.settings.temperature,
-        streamCallback: async (chunk) => {
-          continuationContent += chunk;
-        },
-        abortController: this.activeStream || void 0
-      });
-      return continuationContent;
-    } catch (error) {
-      console.error("ResponseStreamer: Error getting continuation response:", error);
-      return error.name !== "AbortError" ? `*[Error getting continuation: ${error.message}]*` : "";
-    }
-  }
-  /**
-   * Executes task continuation with proper setup and error handling.
-   * Called when the user triggers continuation from the UI after a limit is reached.
-   * @param params ContinuationParams
-   */
-  async executeContinuation(params) {
-    if (!this.agentResponseHandler) return;
-    const { messages, container, responseContent, finalContent, toolResults, additionalTools, chatHistory } = params;
-    if (additionalTools) {
-    } else {
-      this.agentResponseHandler.resetExecutionCount();
-    }
-    const continueMessage = this.createContinuationMessage(additionalTools);
-    await this.addContinuationNotice(continueMessage);
-    messages.push({ role: "assistant", content: finalContent }, continueMessage);
-    const newBotMessage = await this.createNewBotMessage();
-    const continuationResult = await this.executeTaskContinuation(
-      messages,
-      newBotMessage.getElement(),
-      responseContent,
-      toolResults,
-      chatHistory
-    );
-    if (continuationResult.limitReachedDuringContinuation) {
-      this.handleToolLimitReached(
-        messages,
-        newBotMessage.getElement(),
-        responseContent,
-        continuationResult.content,
-        toolResults,
-        chatHistory
-      );
-    }
-    newBotMessage.setContent(continuationResult.content);
-  }
-  /**
-   * Creates continuation message based on type (reset limit vs add tools).
-   * @param additionalTools Optional number of additional tools
-   * @returns Message object for the continuation notice
-   */
-  createContinuationMessage(additionalTools) {
-    const content = additionalTools ? `Added ${additionalTools} additional tool executions. Continuing with the task...` : "Tool execution limit was reset. Continuing with the task...";
-    return { role: "system", content };
-  }
-  /**
-   * Adds continuation notice to chat UI.
-   * @param continueMessage The message object for the notice
-   */
-  async addContinuationNotice(continueMessage) {
-    const { BotMessage: BotMessage2 } = await Promise.resolve().then(() => (init_BotMessage(), BotMessage_exports));
-    const continuationNotice = new BotMessage2(this.plugin.app, this.plugin, continueMessage.content);
-    const element = continuationNotice.getElement();
-    element.style.opacity = "0.8";
-    element.style.fontStyle = "italic";
-    this.messagesContainer.appendChild(element);
-    this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
-  }
-  /**
-   * Creates new bot message for continuation response.
-   * @returns Promise resolving to the new BotMessage instance
-   */
-  async createNewBotMessage() {
-    const { BotMessage: BotMessage2 } = await Promise.resolve().then(() => (init_BotMessage(), BotMessage_exports));
-    const newBotMessage = new BotMessage2(this.plugin.app, this.plugin, "");
-    this.messagesContainer.appendChild(newBotMessage.getElement());
-    this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
-    return newBotMessage;
-  }
-  /**
-   * Executes task continuation logic using TaskContinuation.
-   * @param messages The message history
-   * @param container The message DOM element
-   * @param responseContent The raw response content
-   * @param toolResults Tool results from the last step
-   * @param chatHistory Optional chat history
-   * @returns Promise resolving to the result from TaskContinuation
-   */
-  async executeTaskContinuation(messages, container, responseContent, toolResults, chatHistory) {
-    const taskContinuation = this.createTaskContinuation();
-    return await taskContinuation.continueTaskUntilFinished(
-      messages,
-      container,
-      responseContent,
-      "",
-      toolResults,
-      chatHistory || []
-    );
-  }
-};
-
-// src/components/chat/MessageRegenerator.ts
-var MessageRegenerator = class {
-  /**
-   * @param plugin The plugin instance
-   * @param messagesContainer The chat messages container element
-   * @param inputContainer The chat input container element (for disabling input during regeneration)
-   * @param chatHistoryManager The chat history manager instance
-   * @param agentResponseHandler The agent response handler (for agent mode)
-   * @param activeStream The current AbortController for streaming (shared reference)
-   * @param component Optional parent component for Markdown rendering context
-   */
-  constructor(plugin, messagesContainer, inputContainer, chatHistoryManager, agentResponseHandler, activeStream, component) {
-    this.plugin = plugin;
-    this.messagesContainer = messagesContainer;
-    this.inputContainer = inputContainer;
-    this.chatHistoryManager = chatHistoryManager;
-    this.agentResponseHandler = agentResponseHandler;
-    this.activeStream = activeStream;
-    this.component = component;
-    __publicField(this, "responseStreamer");
-    this.responseStreamer = new ResponseStreamer(
-      plugin,
-      agentResponseHandler,
-      messagesContainer,
-      activeStream,
-      component
-    );
-  }
-  /**
-   * Regenerates an assistant response for a given message element.
-   * Finds the correct user/assistant message pair, builds the context, and streams a new response.
-   * @param messageEl The message element to regenerate (user or assistant)
-   * @param buildContextMessages Function to build the initial context messages (system/context notes/etc.)
-   */
-  async regenerateResponse(messageEl, buildContextMessages2) {
-    const stopButton = this.inputContainer.querySelector(".stop-button");
-    const sendButton = this.inputContainer.querySelector(".send-button");
-    const textarea = this.inputContainer.querySelector("textarea");
-    if (textarea) textarea.disabled = true;
-    if (stopButton) stopButton.classList.remove("hidden");
-    if (sendButton) sendButton.classList.add("hidden");
-    const allMessages = Array.from(this.messagesContainer.querySelectorAll(".ai-chat-message"));
-    const currentIndex = allMessages.indexOf(messageEl);
-    const isUserClicked = messageEl.classList.contains("user");
-    let targetIndex = -1;
-    if (isUserClicked) {
-      for (let i = currentIndex + 1; i < allMessages.length; i++) {
-        if (allMessages[i].classList.contains("assistant")) {
-          targetIndex = i;
-          break;
-        }
-        if (allMessages[i].classList.contains("user")) {
-          break;
-        }
-      }
-    } else {
-      targetIndex = currentIndex;
-    }
-    let userMsgIndex = currentIndex;
-    if (!isUserClicked) {
-      userMsgIndex = currentIndex - 1;
-      while (userMsgIndex >= 0 && !allMessages[userMsgIndex].classList.contains("user")) {
-        userMsgIndex--;
-      }
-    }
-    const messages = await buildContextMessages2();
-    for (let i = 0; i <= userMsgIndex; i++) {
-      const el = allMessages[i];
-      const role = el.classList.contains("user") ? "user" : "assistant";
-      const content = el.dataset.rawContent || "";
-      messages.push({ role, content });
-    }
-    let originalTimestamp = (/* @__PURE__ */ new Date()).toISOString();
-    let originalContent = "";
-    let insertAfterNode = null;
-    if (targetIndex !== -1) {
-      const targetEl = allMessages[targetIndex];
-      originalTimestamp = targetEl.dataset.timestamp || originalTimestamp;
-      originalContent = targetEl.dataset.rawContent || "";
-      insertAfterNode = targetEl.previousElementSibling;
-      targetEl.remove();
-    } else if (isUserClicked) {
-      insertAfterNode = messageEl;
-    } else {
-      insertAfterNode = null;
-    }
-    const assistantContainer = await createMessageElement(
-      this.plugin.app,
-      "assistant",
-      "",
-      this.chatHistoryManager,
-      this.plugin,
-      (el) => this.regenerateResponse(el, buildContextMessages2),
-      this.component || new import_obsidian29.Component()
-    );
-    assistantContainer.dataset.timestamp = originalTimestamp;
-    if (insertAfterNode && insertAfterNode.nextSibling) {
-      this.messagesContainer.insertBefore(assistantContainer, insertAfterNode.nextSibling);
-    } else {
-      this.messagesContainer.appendChild(assistantContainer);
-    }
-    this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
-    try {
-      await this.responseStreamer.streamAssistantResponse(
-        messages,
-        assistantContainer,
-        originalTimestamp,
-        originalContent
-      );
-    } catch (error) {
-      if (error.name !== "AbortError") {
-        new import_obsidian29.Notice(`Error: ${error.message}`);
-        assistantContainer.remove();
-      }
-    } finally {
-      const stopButton2 = this.inputContainer.querySelector(".stop-button");
-      const sendButton2 = this.inputContainer.querySelector(".send-button");
-      if (textarea) {
-        textarea.disabled = false;
-        textarea.focus();
-      }
-      if (stopButton2) stopButton2.classList.add("hidden");
-      if (sendButton2) sendButton2.classList.remove("hidden");
-      this.activeStream = null;
-    }
-  }
-};
-
-// src/services/chat/StreamCoordinator.ts
-var StreamCoordinator = class {
-  constructor(plugin, eventBus, aiService) {
-    this.plugin = plugin;
-    this.eventBus = eventBus;
-    this.aiService = aiService;
-    __publicField(this, "activeStreams", /* @__PURE__ */ new Map());
-    __publicField(this, "streamState", {
-      isStreaming: false,
-      totalChunks: 0,
-      totalCharacters: 0
-    });
-    __publicField(this, "uiUpdateCallbacks", /* @__PURE__ */ new Set());
-    __publicField(this, "activeContainer", null);
-    this.validateDependencies();
-    this.setupEventListeners();
-    this.plugin.debugLog("info", "[StreamCoordinator] Initialized successfully with all dependencies");
-  }
-  /**
-   * Validate that all required dependencies are available
-   */
-  validateDependencies() {
-    if (!this.plugin) {
-      throw new Error("StreamCoordinator: Plugin instance is required");
-    }
-    if (!this.plugin.aiDispatcher) {
-      throw new Error("StreamCoordinator: AIDispatcher is not available on plugin instance");
-    }
-    if (!this.eventBus) {
-      throw new Error("StreamCoordinator: EventBus is required");
-    }
-    if (!this.aiService) {
-      throw new Error("StreamCoordinator: AIService is required");
-    }
-    this.plugin.debugLog("debug", "[StreamCoordinator] All dependencies validated successfully");
-  }
-  /**
-   * Register a UI update callback for stream state changes
-   */
-  onUIStateChange(callback) {
-    this.uiUpdateCallbacks.add(callback);
-  }
-  /**
-   * Unregister a UI update callback
-   */
-  offUIStateChange(callback) {
-    this.uiUpdateCallbacks.delete(callback);
-  }
-  /**
-   * Set the active UI container for stream updates
-   */
-  setActiveContainer(container) {
-    this.activeContainer = container;
-  }
-  /**
-   * Get the current active container
-   */
-  getActiveContainer() {
-    return this.activeContainer;
-  }
-  /**
-   * Notify all UI callbacks of stream state change
-   */
-  notifyUIStateChange() {
-    const isStreaming = this.streamState.isStreaming;
-    this.uiUpdateCallbacks.forEach((callback) => {
-      try {
-        callback(isStreaming);
-      } catch (error) {
-        console.error("Error in UI state change callback:", error);
-      }
-    });
-  }
-  /**
-   * Starts a new streaming response
-   */
-  async startStream(messages, options = {}) {
-    if (this.streamState.isStreaming) {
-      this.eventBus.publish("stream.start_blocked", {
-        reason: "A stream is already active or cleaning up.",
-        timestamp: Date.now()
-      });
-      throw new Error("A stream is already active. Stop the current stream before starting a new one.");
-    }
-    const streamId = this.generateStreamId();
-    const abortController = new AbortController();
-    let aborted = false;
-    if (options.uiContainer) {
-      this.setActiveContainer(options.uiContainer);
-    }
-    this.activeStreams.set(streamId, abortController);
-    this.updateStreamState({
-      isStreaming: true,
-      currentStreamId: streamId,
-      startTime: Date.now(),
-      totalChunks: 0,
-      totalCharacters: 0
-    });
-    this.notifyUIStateChange();
-    abortController.signal.addEventListener("abort", () => {
-      aborted = true;
-    });
-    try {
-      this.eventBus.publish("stream.started", {
-        streamId,
-        provider: this.determineProvider(),
-        messageCount: messages.length,
-        timestamp: Date.now()
-      });
-      const contextMessages = await this.buildContextMessages();
-      const allMessages = [...contextMessages, ...messages];
-      let fullResponse = "";
-      let chunkCount = 0;
-      const streamCallback = async (chunk) => {
-        if (aborted) return;
-        fullResponse += chunk;
-        chunkCount++;
-        this.updateStreamState({
-          ...this.streamState,
-          totalChunks: chunkCount,
-          totalCharacters: fullResponse.length
-        });
-        if (options.onChunk) {
-          try {
-            await options.onChunk(chunk, fullResponse);
-          } catch (error) {
-            console.error("Error in custom chunk callback:", error);
-          }
-        }
-        this.eventBus.publish("stream.chunk", {
-          streamId,
-          chunk,
-          totalLength: fullResponse.length,
-          chunkIndex: chunkCount,
-          timestamp: Date.now()
-        });
-      };
-      const response = await this.aiService.getCompletion({
-        messages: allMessages,
-        options: {
-          temperature: options.temperature,
-          streamCallback,
-          abortController
-        }
-      });
-      const duration = Date.now() - this.streamState.startTime;
-      this.eventBus.publish("stream.completed", {
-        streamId,
-        content: fullResponse,
-        duration,
-        chunkCount,
-        characterCount: fullResponse.length,
-        timestamp: Date.now()
-      });
-      return fullResponse;
-    } catch (error) {
-      const duration = this.streamState.startTime ? Date.now() - this.streamState.startTime : 0;
-      if (error.name === "AbortError") {
-        this.eventBus.publish("stream.aborted", {
-          streamId,
-          reason: "user_requested",
-          duration,
-          timestamp: Date.now()
-        });
-      } else {
-        this.eventBus.publish("stream.error", {
-          streamId,
-          error: error.message,
-          duration,
-          timestamp: Date.now()
-        });
-      }
-      throw error;
-    } finally {
-      this.cleanupStream(streamId);
-    }
-  }
-  /**
-   * Stops the current stream
-   */
-  stopStream() {
-    if (!this.streamState.isStreaming || !this.streamState.currentStreamId) {
-      return;
-    }
-    const streamId = this.streamState.currentStreamId;
-    const abortController = this.activeStreams.get(streamId);
-    if (abortController) {
-      abortController.abort();
-      this.cleanupStream(streamId);
-      this.eventBus.publish("stream.stopped", {
-        streamId,
-        reason: "user_requested",
-        timestamp: Date.now()
-      });
-    }
-  }
-  /**
-   * Checks if currently streaming
-   */
-  isStreaming() {
-    return this.streamState.isStreaming;
-  }
-  /**
-   * Gets all active stream IDs
-   */
-  getActiveStreams() {
-    return Array.from(this.activeStreams.keys());
-  }
-  /**
-   * Aborts a specific stream
-   */
-  abortStream(streamId) {
-    const abortController = this.activeStreams.get(streamId);
-    if (abortController) {
-      abortController.abort();
-      this.cleanupStream(streamId);
-      this.eventBus.publish("stream.aborted", {
-        streamId,
-        reason: "manual_abort",
-        timestamp: Date.now()
-      });
-    }
-  }
-  /**
-   * Gets current stream state
-   */
-  getStreamState() {
-    return { ...this.streamState };
-  }
-  /**
-   * Gets stream statistics
-   */
-  getStreamStats() {
-    return {
-      totalStreams: 0,
-      // Would track across sessions
-      activeStreams: this.activeStreams.size,
-      averageStreamDuration: 0,
-      // Would calculate from historical data
-      totalCharactersStreamed: this.streamState.totalCharacters,
-      totalChunksProcessed: this.streamState.totalChunks
-    };
-  }
-  /**
-   * Sets stream options for future streams
-   */
-  setDefaultStreamOptions(options) {
-    this.eventBus.publish("stream.options_updated", {
-      options,
-      timestamp: Date.now()
-    });
-  }
-  /**
-   * Pauses the current stream (if supported by provider)
-   */
-  pauseStream() {
-    if (!this.streamState.isStreaming) {
-      return;
-    }
-    this.eventBus.publish("stream.pause_requested", {
-      streamId: this.streamState.currentStreamId,
-      timestamp: Date.now()
-    });
-  }
-  /**
-   * Resumes a paused stream (if supported by provider)
-   */
-  resumeStream() {
-    if (!this.streamState.isStreaming) {
-      return;
-    }
-    this.eventBus.publish("stream.resume_requested", {
-      streamId: this.streamState.currentStreamId,
-      timestamp: Date.now()
-    });
-  }
-  /**
-   * Generates a unique stream ID
-   */
-  generateStreamId() {
-    return `stream_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-  }
-  /**
-   * Updates the stream state
-   */
-  updateStreamState(newState) {
-    this.streamState = { ...this.streamState, ...newState };
-  }
-  /**
-   * Cleans up a stream
-   */
-  cleanupStream(streamId) {
-    this.activeStreams.delete(streamId);
-    if (this.streamState.currentStreamId === streamId) {
-      this.updateStreamState({
-        isStreaming: false,
-        currentStreamId: void 0,
-        startTime: void 0
-      });
-      this.notifyUIStateChange();
-    }
-  }
-  /**
-   * Builds context messages for the request
-   */
-  async buildContextMessages() {
-    try {
-      return await buildContextMessages({
-        app: this.plugin.app,
-        plugin: this.plugin
-      });
-    } catch (error) {
-      console.warn("Failed to build context messages:", error);
-      return [];
-    }
-  }
-  /**
-   * Determines the current provider
-   */
-  determineProvider() {
-    if (this.plugin.settings.selectedModel) {
-      return this.plugin.settings.selectedModel.split(":")[0];
-    }
-    return this.plugin.settings.provider;
-  }
-  /**
-   * Sets up event listeners
-   */
-  setupEventListeners() {
-    this.eventBus.subscribe("stream.abort_all", () => {
-      this.abortAllStreams();
-    });
-    this.eventBus.subscribe("settings.changed", (data) => {
-      if (data.key === "selectedModel" || data.key === "provider") {
-        if (this.streamState.isStreaming) {
-          this.eventBus.publish("stream.provider_changed", {
-            streamId: this.streamState.currentStreamId,
-            newProvider: this.determineProvider(),
-            timestamp: Date.now()
-          });
-        }
-      }
-    });
-  }
-  /**
-   * Aborts all active streams
-   */
-  abortAllStreams() {
-    const streamIds = Array.from(this.activeStreams.keys());
-    for (const streamId of streamIds) {
-      this.abortStream(streamId);
-    }
-    this.notifyUIStateChange();
-    this.eventBus.publish("stream.all_aborted", {
-      abortedCount: streamIds.length,
-      timestamp: Date.now()
-    });
-  }
-  /**
-   * Cleanup method for disposing the service
-   */
-  dispose() {
-    this.abortAllStreams();
-    this.updateStreamState({
-      isStreaming: false,
-      currentStreamId: void 0,
-      startTime: void 0,
-      totalChunks: 0,
-      totalCharacters: 0
-    });
-  }
-};
-
-// src/chat.ts
-init_MessageRenderer();
-init_objectPool();
-
-// src/utils/domBatcher.ts
-var DOMBatcher = class {
-  constructor() {
-    __publicField(this, "operations", []);
-    __publicField(this, "scheduledFlush", false);
-  }
-  /**
-   * Add an element to be inserted in the next batch
-   */
-  addElement(element, parent, insertBefore) {
-    this.operations.push({ element, parent, insertBefore });
-    this.scheduleFlush();
-  }
-  /**
-   * Add multiple elements to be inserted in the next batch
-   */
-  addElements(operations) {
-    this.operations.push(...operations);
-    this.scheduleFlush();
-  }
-  /**
-   * Schedule a flush operation using requestAnimationFrame for optimal timing
-   */
-  scheduleFlush() {
-    if (!this.scheduledFlush) {
-      this.scheduledFlush = true;
-      requestAnimationFrame(() => {
-        this.flush();
-        this.scheduledFlush = false;
-      });
-    }
-  }
-  /**
-   * Immediately flush all pending operations
-   */
-  flush() {
-    if (this.operations.length === 0) return;
-    const operationsByParent = /* @__PURE__ */ new Map();
-    for (const operation of this.operations) {
-      if (!operationsByParent.has(operation.parent)) {
-        operationsByParent.set(operation.parent, []);
-      }
-      operationsByParent.get(operation.parent).push(operation);
-    }
-    for (const [parent, parentOperations] of operationsByParent) {
-      this.flushForParent(parent, parentOperations);
-    }
-    this.operations.length = 0;
-  }
-  /**
-   * Flush operations for a specific parent using DocumentFragment
-   */
-  flushForParent(parent, operations) {
-    const appendOperations = [];
-    const insertOperations = [];
-    for (const operation of operations) {
-      if (operation.insertBefore) {
-        insertOperations.push(operation);
-      } else {
-        appendOperations.push(operation);
-      }
-    }
-    if (appendOperations.length > 0) {
-      const fragment = document.createDocumentFragment();
-      for (const operation of appendOperations) {
-        fragment.appendChild(operation.element);
-      }
-      parent.appendChild(fragment);
-    }
-    for (const operation of insertOperations) {
-      parent.insertBefore(operation.element, operation.insertBefore);
-    }
-  }
-  /**
-   * Get the number of pending operations
-   */
-  getPendingCount() {
-    return this.operations.length;
-  }
-  /**
-   * Clear all pending operations without executing them
-   */
-  clear() {
-    this.operations.length = 0;
-  }
-};
-var globalDOMBatcher = new DOMBatcher();
-
-// src/chat.ts
-init_errorHandler();
-init_asyncOptimizer();
-var VIEW_TYPE_CHAT = "chat-view";
-var ChatView = class extends import_obsidian30.ItemView {
-  constructor(leaf, plugin) {
-    super(leaf);
-    __publicField(this, "plugin");
-    __publicField(this, "chatHistoryManager");
-    __publicField(this, "messagesContainer");
-    __publicField(this, "inputContainer");
-    __publicField(this, "activeStream", null);
-    __publicField(this, "referenceNoteIndicator");
-    __publicField(this, "obsidianLinksIndicator");
-    __publicField(this, "contextNotesIndicator");
-    __publicField(this, "modelNameDisplay");
-    __publicField(this, "agentResponseHandler", null);
-    __publicField(this, "messageRegenerator", null);
-    __publicField(this, "responseStreamer", null);
-    // Keep for backward compatibility during transition
-    __publicField(this, "streamCoordinator", null);
-    __publicField(this, "deferredStreamCoordinatorInit", null);
-    __publicField(this, "messageRenderer");
-    __publicField(this, "messagePool");
-    __publicField(this, "domCache");
-    __publicField(this, "arrayManager");
-    __publicField(this, "cachedMessageElements", []);
-    __publicField(this, "lastScrollHeight", 0);
-    __publicField(this, "domElementCache", {});
-    __publicField(this, "eventListeners", []);
-    __publicField(this, "domBatcher");
-    // Priority 2 Optimization: Async optimization
-    __publicField(this, "scrollDebouncer");
-    __publicField(this, "updateDebouncer");
-    // Centralized stream state management
-    __publicField(this, "centralStreamState", {
-      isStreaming: false,
-      streamSource: null,
-      lastUpdate: 0
-    });
-    this.plugin = plugin;
-    this.chatHistoryManager = new ChatHistoryManager(this.app.vault, this.plugin.manifest.id, "chat-history.json");
-    this.messageRenderer = new MessageRenderer(this.app);
-    this.messagePool = MessageContextPool.getInstance();
-    this.domCache = new WeakCache();
-    this.arrayManager = PreAllocatedArrays.getInstance();
-    this.domBatcher = new DOMBatcher();
-    this.scrollDebouncer = AsyncOptimizerFactory.createInputDebouncer();
-    this.updateDebouncer = AsyncOptimizerFactory.createInputDebouncer();
-    this.initializeCentralizedStreamState();
-  }
-  addEventListenerWithCleanup(element, event, handler) {
-    element.addEventListener(event, handler);
-    this.eventListeners.push({ element, event, handler });
-  }
-  cacheUIElements(ui) {
-    this.domElementCache.textarea = ui.textarea;
-    this.domElementCache.sendButton = ui.sendButton;
-    this.domElementCache.stopButton = ui.stopButton;
-    this.domElementCache.copyAllButton = ui.copyAllButton;
-    this.domElementCache.clearButton = ui.clearButton;
-    this.domElementCache.settingsButton = ui.settingsButton;
-    this.domElementCache.helpButton = ui.helpButton;
-    this.domElementCache.saveNoteButton = ui.saveNoteButton;
-    this.domElementCache.referenceNoteButton = ui.referenceNoteButton;
-    this.domElementCache.agentModeButton = ui.agentModeButton;
-    this.domElementCache.toolContinuationContainer = ui.toolContinuationContainer;
-    this.domElementCache.obsidianLinksButton = ui.obsidianLinksButton;
-    this.domElementCache.contextNotesButton = ui.contextNotesButton;
-  }
-  getViewType() {
-    return VIEW_TYPE_CHAT;
-  }
-  getDisplayText() {
-    return "AI Chat";
-  }
-  getIcon() {
-    return "message-square";
-  }
-  async onOpen() {
-    const { contentEl } = this;
-    this.prepareChatView(contentEl);
-    const loadedHistory = await this.loadChatHistory();
-    const ui = createChatUI(this.app, contentEl);
-    this.initializeUIElements(ui);
-    this.setupEventHandlers(ui);
-    this.setupAgentResponseHandler();
-    this.setupResponseStreamerAndRegenerator();
-    this.initializeStreamCoordinatorIfReady();
-    this.setupAgentModeButton();
-    this.setupSendAndStopButtons();
-    this.setupInputHandler(ui);
-    await this.loadAndRenderHistory(loadedHistory);
-    this.updateReferenceNoteIndicator();
-    this.registerWorkspaceAndSettingsEvents();
-  }
-  prepareChatView(contentEl) {
-    contentEl.empty();
-    contentEl.addClass("ai-chat-view");
-  }
-  async loadChatHistory() {
-    return await withErrorHandling(
-      () => this.chatHistoryManager.getHistory(),
-      "ChatView",
-      "loadChatHistory",
-      { fallbackMessage: "Failed to load chat history" }
-    ) || [];
-  }
-  initializeUIElements(ui) {
-    this.messagesContainer = ui.messagesContainer;
-    this.inputContainer = ui.inputContainer;
-    this.referenceNoteIndicator = ui.referenceNoteIndicator;
-    this.obsidianLinksIndicator = ui.obsidianLinksIndicator;
-    this.contextNotesIndicator = ui.contextNotesIndicator;
-    this.modelNameDisplay = ui.modelNameDisplay;
-    this.cacheUIElements(ui);
-    this.updateReferenceNoteIndicator();
-    this.updateObsidianLinksIndicator();
-    this.updateContextNotesIndicator();
-    this.updateModelNameDisplay();
-  }
-  setupEventHandlers(ui) {
-    this.addEventListenerWithCleanup(this.domElementCache.copyAllButton, "click", handleCopyAll(this.messagesContainer, this.plugin));
-    this.addEventListenerWithCleanup(this.domElementCache.clearButton, "click", handleClearChat(this.messagesContainer, this.chatHistoryManager));
-    this.addEventListenerWithCleanup(this.domElementCache.settingsButton, "click", handleSettings(this.app, this.plugin));
-    this.addEventListenerWithCleanup(this.domElementCache.helpButton, "click", handleHelp(this.app));
-    this.addEventListenerWithCleanup(this.domElementCache.referenceNoteButton, "click", () => {
-      this.plugin.settings.referenceCurrentNote = !this.plugin.settings.referenceCurrentNote;
-      this.plugin.saveSettings();
-      this.updateReferenceNoteIndicator();
-    });
-    this.addEventListenerWithCleanup(this.domElementCache.saveNoteButton, "click", handleSaveNote(this.messagesContainer, this.plugin, this.app, this.agentResponseHandler));
-    this.addEventListenerWithCleanup(this.domElementCache.obsidianLinksButton, "click", () => {
-      this.plugin.settings.enableObsidianLinks = !this.plugin.settings.enableObsidianLinks;
-      this.plugin.saveSettings();
-      this.updateObsidianLinksIndicator();
-    });
-    this.addEventListenerWithCleanup(this.domElementCache.contextNotesButton, "click", () => {
-      this.plugin.settings.enableContextNotes = !this.plugin.settings.enableContextNotes;
-      this.plugin.saveSettings();
-      this.updateContextNotesIndicator();
-    });
-  }
-  setupAgentResponseHandler() {
-    this.agentResponseHandler = new AgentResponseHandler({
-      app: this.app,
-      plugin: this.plugin,
-      messagesContainer: this.messagesContainer,
-      toolContinuationContainer: this.domElementCache.toolContinuationContainer,
-      onToolResult: (toolResult, command) => {
-        if (toolResult.success) {
-          this.plugin.debugLog("info", `[chat.ts] Tool ${command.action} completed successfully`, toolResult.data);
-        } else {
-          this.plugin.debugLog("error", `[chat.ts] Tool ${command.action} failed:`, toolResult.error);
-        }
-      },
-      onToolDisplay: (display) => {
-        const toolWrapper = document.createElement("div");
-        toolWrapper.className = "real-time-tool-display";
-        toolWrapper.appendChild(display.getElement());
-        const tempContainer = this.messagesContainer.querySelector(".ai-chat-message.assistant:last-child");
-        if (tempContainer) {
-          const messageContent = tempContainer.querySelector(".message-content");
-          if (messageContent) {
-            messageContent.appendChild(toolWrapper);
-            this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
-          }
-        }
-      }
-    });
-  }
-  setupResponseStreamerAndRegenerator() {
-    const eventBus = {
-      publish: async (event, data) => {
-        console.debug(`[EventBus] ${event}:`, data);
-      },
-      subscribe: (event, handler) => {
-        return () => {
-        };
-      },
-      subscribeOnce: (event, handler) => {
-        return () => {
-        };
-      },
-      unsubscribe: (event, handler) => {
-      },
-      clear: () => {
-      },
-      getSubscriptionCount: (event) => {
-        return 0;
-      }
-    };
-    const self = this;
-    const aiService = {
-      async getCompletion(request) {
-        var _a2, _b, _c, _d;
-        self.plugin.debugLog("debug", "[ChatView] aiService.getCompletion called", {
-          hasPlugin: !!self.plugin,
-          hasAiDispatcher: !!((_a2 = self.plugin) == null ? void 0 : _a2.aiDispatcher),
-          aiDispatcherType: typeof ((_b = self.plugin) == null ? void 0 : _b.aiDispatcher),
-          requestMessages: ((_c = request == null ? void 0 : request.messages) == null ? void 0 : _c.length) || 0,
-          requestOptions: !!(request == null ? void 0 : request.options)
-        });
-        if (!self.plugin) {
-          const error = new Error("Plugin instance is null/undefined in aiService.getCompletion");
-          console.error("[ChatView] Plugin instance missing", error);
-          throw error;
-        }
-        if (!self.plugin.aiDispatcher) {
-          const error = new Error("AIDispatcher not initialized yet - this is the root cause of the stop button issue");
-          self.plugin.debugLog("error", "[ChatView] AIDispatcher missing when getCompletion called", {
-            error,
-            pluginExists: !!self.plugin,
-            aiDispatcherExists: !!self.plugin.aiDispatcher,
-            stackTrace: new Error().stack
-          });
-          throw error;
-        }
-        self.plugin.debugLog("debug", "[ChatView] About to call aiDispatcher.getCompletion", {
-          aiDispatcherMethods: Object.getOwnPropertyNames(self.plugin.aiDispatcher),
-          messagesCount: (_d = request.messages) == null ? void 0 : _d.length
-        });
-        return new Promise((resolve, reject) => {
-          var _a3;
-          let fullResponse = "";
-          let hasResolved = false;
-          const originalStreamCallback = (_a3 = request.options) == null ? void 0 : _a3.streamCallback;
-          const wrappedOptions = {
-            ...request.options,
-            streamCallback: (chunk) => {
-              fullResponse += chunk;
-              if (originalStreamCallback) {
-                originalStreamCallback(chunk);
-              }
-            },
-            // Add completion callback to properly resolve the Promise
-            onComplete: () => {
-              if (!hasResolved) {
-                hasResolved = true;
-                self.plugin.debugLog("debug", "[ChatView] aiService.getCompletion completed", {
-                  responseLength: fullResponse.length,
-                  responsePreview: fullResponse.substring(0, 100)
-                });
-                resolve(fullResponse);
-              }
-            },
-            onError: (error) => {
-              if (!hasResolved) {
-                hasResolved = true;
-                self.plugin.debugLog("error", "[ChatView] aiService.getCompletion failed", error);
-                reject(error);
-              }
-            }
-          };
-          self.plugin.aiDispatcher.getCompletion(request.messages, wrappedOptions).then(() => {
-            if (!hasResolved) {
-              hasResolved = true;
-              self.plugin.debugLog("debug", "[ChatView] aiDispatcher completed without onComplete callback", {
-                responseLength: fullResponse.length
-              });
-              resolve(fullResponse);
-            }
-          }).catch((error) => {
-            if (!hasResolved) {
-              hasResolved = true;
-              self.plugin.debugLog("error", "[ChatView] aiDispatcher.getCompletion rejected", error);
-              reject(error);
-            }
-          });
-        });
-      }
-    };
-    this.initializeStreamCoordinatorWithRetry(eventBus, aiService);
-    this.responseStreamer = new ResponseStreamer(
-      this.plugin,
-      this.agentResponseHandler,
-      this.messagesContainer,
-      this.activeStream,
-      this
-    );
-    this.messageRegenerator = new MessageRegenerator(
-      this.plugin,
-      this.messagesContainer,
-      this.inputContainer,
-      this.chatHistoryManager,
-      this.agentResponseHandler,
-      this.activeStream
-    );
-  }
-  /**
-   * Initialize StreamCoordinator with dependency validation and retry mechanism
-   */
-  async initializeStreamCoordinatorWithRetry(eventBus, aiService, maxRetries = 3) {
-    let retryCount = 0;
-    while (retryCount < maxRetries && !this.streamCoordinator) {
-      try {
-        if (!this.plugin.aiDispatcher) {
-          throw new Error("AIDispatcher not available");
-        }
-        this.plugin.debugLog("info", `[ChatView] Initializing StreamCoordinator (attempt ${retryCount + 1}/${maxRetries}) - aiDispatcher available`);
-        this.streamCoordinator = new StreamCoordinator(
-          this.plugin,
-          eventBus,
-          aiService
-        );
-        this.streamCoordinator.onUIStateChange((isStreaming) => {
-          this.onStreamCoordinatorStateChange(isStreaming);
-        });
-        this.plugin.debugLog("info", "[ChatView] StreamCoordinator initialized successfully");
-        return;
-      } catch (error) {
-        retryCount++;
-        this.plugin.debugLog("warn", `[ChatView] StreamCoordinator initialization failed (attempt ${retryCount}/${maxRetries}):`, error);
-        if (retryCount < maxRetries) {
-          const delay = Math.min(100 * Math.pow(2, retryCount - 1), 1e3);
-          this.plugin.debugLog("info", `[ChatView] Retrying StreamCoordinator initialization in ${delay}ms`);
-          await new Promise((resolve) => setTimeout(resolve, delay));
-        } else {
-          this.plugin.debugLog("error", "[ChatView] StreamCoordinator initialization failed after all retries, setting up deferred initialization");
-          this.deferredStreamCoordinatorInit = () => {
-            this.initializeStreamCoordinatorWithRetry(eventBus, aiService, 1);
-          };
-        }
-      }
-    }
-  }
-  initializeStreamCoordinatorIfReady() {
-    if (!this.streamCoordinator && this.plugin.aiDispatcher && this.deferredStreamCoordinatorInit) {
-      this.plugin.debugLog("info", "[ChatView] Initializing StreamCoordinator - aiDispatcher is now ready");
-      this.deferredStreamCoordinatorInit();
-      this.deferredStreamCoordinatorInit = null;
-    } else if (!this.streamCoordinator) {
-      this.plugin.debugLog("debug", "[ChatView] StreamCoordinator not ready yet", {
-        hasAiDispatcher: !!this.plugin.aiDispatcher,
-        hasDeferredInit: !!this.deferredStreamCoordinatorInit
-      });
-    }
-  }
-  setupAgentModeButton() {
-    this.addEventListenerWithCleanup(this.domElementCache.agentModeButton, "click", async () => {
-      const isCurrentlyEnabled = this.plugin.agentModeManager.isAgentModeEnabled();
-      await this.plugin.agentModeManager.setAgentModeEnabled(!isCurrentlyEnabled);
-      const agentButton2 = this.domElementCache.agentModeButton;
-      if (this.plugin.agentModeManager.isAgentModeEnabled()) {
-        agentButton2.classList.add("active");
-        agentButton2.setAttribute("title", "Agent Mode: ON - AI can use tools");
-        new import_obsidian30.Notice("Agent Mode enabled - AI can now use tools");
-        if (this.agentResponseHandler) {
-          this.agentResponseHandler.resetExecutionCount();
-        }
-      } else {
-        agentButton2.classList.remove("active");
-        agentButton2.setAttribute("title", "Agent Mode: OFF - Regular chat");
-        new import_obsidian30.Notice("Agent Mode disabled");
-      }
-    });
-    const agentButton = this.domElementCache.agentModeButton;
-    if (this.plugin.agentModeManager.isAgentModeEnabled()) {
-      agentButton.classList.add("active");
-      agentButton.setAttribute("title", "Agent Mode: ON - AI can use tools");
-    } else {
-      agentButton.classList.remove("active");
-      agentButton.setAttribute("title", "Agent Mode: OFF - Regular chat");
-    }
-  }
-  setupSendAndStopButtons() {
-    const textarea = this.domElementCache.textarea;
-    const sendButton = this.domElementCache.sendButton;
-    const stopButton = this.domElementCache.stopButton;
-    const sendMessage = async () => {
-      var _a2;
-      const content = textarea.value.trim();
-      if (!content) return;
-      if (this.agentResponseHandler) {
-        this.agentResponseHandler.resetExecutionCount();
-      }
-      textarea.disabled = true;
-      sendButton.classList.add("hidden");
-      stopButton.classList.remove("hidden");
-      const userMessageEl = await createMessageElement(this.app, "user", content, this.chatHistoryManager, this.plugin, (el) => this.regenerateResponse(el), this);
-      this.messagesContainer.appendChild(userMessageEl);
-      this.debouncedScrollToBottom();
-      textarea.value = "";
-      await withErrorHandling(
-        () => this.chatHistoryManager.addMessage({
-          timestamp: userMessageEl.dataset.timestamp || (/* @__PURE__ */ new Date()).toISOString(),
-          sender: "user",
-          role: "user",
-          content
-        }),
-        "ChatView",
-        "saveUserMessage",
-        { fallbackMessage: "Failed to save user message" }
-      );
-      try {
-        await new Promise((resolve) => setTimeout(resolve, 10));
-        this.cachedMessageElements = [];
-        this.lastScrollHeight = 0;
-        const messages = await this.buildContextMessages();
-        this.addVisibleMessagesToContext(messages);
-        const tempContainer = document.createElement("div");
-        tempContainer.addClass("ai-chat-message", "assistant");
-        tempContainer.createDiv("message-content");
-        this.messagesContainer.appendChild(tempContainer);
-        this.debouncedScrollToBottom();
-        const responseContent = await this.streamAssistantResponse(messages, tempContainer);
-        let enhancedMessageData = void 0;
-        this.plugin.debugLog("debug", "[chat.ts] tempContainer.dataset.messageData exists:", !!tempContainer.dataset.messageData);
-        if (tempContainer.dataset.messageData) {
-          try {
-            enhancedMessageData = JSON.parse(tempContainer.dataset.messageData);
-            this.plugin.debugLog("debug", "[chat.ts] enhancedMessageData parsed, toolResults count:", ((_a2 = enhancedMessageData.toolResults) == null ? void 0 : _a2.length) || 0);
-          } catch (e) {
-            this.plugin.debugLog("warn", "[chat.ts] Failed to parse enhanced message data:", e);
-          }
-        }
-        this.plugin.debugLog("debug", "[chat.ts] responseContent length:", responseContent.length, "trimmed length:", responseContent.trim().length);
-        tempContainer.remove();
-        if (responseContent.trim() !== "" || enhancedMessageData && enhancedMessageData.toolResults && enhancedMessageData.toolResults.length > 0) {
-          const messageEl = await createMessageElement(
-            this.app,
-            "assistant",
-            responseContent,
-            this.chatHistoryManager,
-            this.plugin,
-            (el) => this.regenerateResponse(el),
-            this,
-            enhancedMessageData
-          );
-          this.messagesContainer.appendChild(messageEl);
-          this.plugin.debugLog("debug", "[chat.ts] About to save message to history with toolResults:", !!(enhancedMessageData == null ? void 0 : enhancedMessageData.toolResults));
-          await this.chatHistoryManager.addMessage({
-            timestamp: messageEl.dataset.timestamp || (/* @__PURE__ */ new Date()).toISOString(),
-            sender: "assistant",
-            content: responseContent,
-            ...enhancedMessageData && {
-              toolResults: enhancedMessageData.toolResults,
-              reasoning: enhancedMessageData.reasoning,
-              taskStatus: enhancedMessageData.taskStatus
-            }
-          });
-          this.plugin.debugLog("debug", "[chat.ts] Message saved to history successfully");
-        } else {
-          this.plugin.debugLog("debug", "[chat.ts] responseContent is empty and no toolResults, not saving message");
-        }
-      } catch (error) {
-        if (error.name !== "AbortError") {
-          handleChatError(error, "sendMessage", {
-            messageLength: content.length,
-            agentMode: this.plugin.agentModeManager.isAgentModeEnabled()
-          });
-          await createMessageElement(this.app, "assistant", `Error: ${error.message}`, this.chatHistoryManager, this.plugin, (el) => this.regenerateResponse(el), this);
-        }
-      } finally {
-        textarea.disabled = false;
-        textarea.focus();
-        stopButton.classList.add("hidden");
-        sendButton.classList.remove("hidden");
-        this.activeStream = null;
-      }
-    };
-    this.addEventListenerWithCleanup(sendButton, "click", sendMessage);
-    this.addEventListenerWithCleanup(stopButton, "click", () => {
-      this.handleStopButtonClick();
-    });
-  }
-  setupInputHandler(ui) {
-    const textarea = this.domElementCache.textarea;
-    const sendButton = this.domElementCache.sendButton;
-    const stopButton = this.domElementCache.stopButton;
-    Promise.resolve().then(() => (init_inputHandler(), inputHandler_exports)).then(({ setupInputHandler: setupInputHandler2 }) => {
-      setupInputHandler2(
-        textarea,
-        this.messagesContainer,
-        async () => sendButton.click(),
-        async (cmd) => {
-          switch (cmd) {
-            case "/clear":
-              ui.clearButton.click();
-              break;
-            case "/copy":
-              ui.copyAllButton.click();
-              break;
-            case "/save":
-              ui.saveNoteButton.click();
-              break;
-            case "/settings":
-              ui.settingsButton.click();
-              break;
-            case "/help":
-              ui.helpButton.click();
-              break;
-            case "/ref":
-              ui.referenceNoteButton.click();
-              break;
-          }
-        },
-        this.app,
-        this.plugin,
-        sendButton,
-        stopButton
-      );
-    });
-  }
-  async loadAndRenderHistory(loadedHistory) {
-    if (loadedHistory.length > 0) {
-      this.messagesContainer.empty();
-      const file = this.app.workspace.getActiveFile();
-      if (file) {
-        await loadChatYamlAndApplySettings({
-          app: this.app,
-          plugin: this.plugin,
-          settings: this.plugin.settings,
-          file
-        });
-      }
-      await renderChatHistory({
-        messagesContainer: this.messagesContainer,
-        loadedHistory,
-        chatHistoryManager: this.chatHistoryManager,
-        plugin: this.plugin,
-        regenerateResponse: (el) => this.regenerateResponse(el),
-        scrollToBottom: true
-      });
-    }
-  }
-  registerWorkspaceAndSettingsEvents() {
-    this.registerEvent(this.app.workspace.on("active-leaf-change", () => {
-      this.updateReferenceNoteIndicator();
-    }));
-    this.plugin.onSettingsChange(() => {
-      this.updateReferenceNoteIndicator();
-      this.updateObsidianLinksIndicator();
-      this.updateContextNotesIndicator();
-      this.updateModelNameDisplay();
-    });
-  }
-  async addMessage(role, content, isError = false, enhancedData) {
-    const messageEl = await createMessageElement(this.app, role, content, this.chatHistoryManager, this.plugin, (el) => this.regenerateResponse(el), this, enhancedData ? { role, content, ...enhancedData } : void 0);
-    const uiTimestamp = messageEl.dataset.timestamp || (/* @__PURE__ */ new Date()).toISOString();
-    this.messagesContainer.appendChild(messageEl);
-    this.debouncedScrollToBottom();
-    await withErrorHandling(
-      () => this.chatHistoryManager.addMessage({
-        timestamp: uiTimestamp,
-        sender: role,
-        role,
-        content,
-        ...enhancedData || {}
-      }),
-      "ChatView",
-      "addMessage",
-      { fallbackMessage: "Failed to save chat message" }
-    );
-  }
-  async onClose() {
-    if (this.activeStream) {
-      this.activeStream.abort();
-      this.activeStream = null;
-    }
-    this.cleanupEventListeners();
-    this.cleanupMemoryResources();
-  }
-  cleanupEventListeners() {
-    for (const { element, event, handler } of this.eventListeners) {
-      element.removeEventListener(event, handler);
-    }
-    this.eventListeners.length = 0;
-  }
-  cleanupMemoryResources() {
-    this.cachedMessageElements.length = 0;
-    this.lastScrollHeight = 0;
-    this.domElementCache = {};
-    if (this.domBatcher) {
-      this.domBatcher.clear();
-    }
-  }
-  async regenerateResponse(messageEl) {
-    if (this.messageRegenerator) {
-      await this.messageRegenerator.regenerateResponse(messageEl, () => this.buildContextMessages());
-    }
-  }
-  updateReferenceNoteIndicator() {
-    this.updateDebouncer.debounce(async () => {
-      const currentFile = this.app.workspace.getActiveFile();
-      const isReferenceEnabled = this.plugin.settings.referenceCurrentNote;
-      const button = this.referenceNoteIndicator.previousElementSibling;
-      if (isReferenceEnabled && currentFile) {
-        this.referenceNoteIndicator.setText(`\u{1F4DD} Referencing: ${currentFile.basename}`);
-        this.referenceNoteIndicator.style.display = "block";
-        if (button && button.getAttribute("aria-label") === "Toggle referencing current note") {
-          button.setText("\u{1F4DD}");
-          button.classList.add("active");
-        }
-      } else {
-        this.referenceNoteIndicator.style.display = "none";
-        if (button && button.getAttribute("aria-label") === "Toggle referencing current note") {
-          button.setText("\u{1F4DD}");
-          button.classList.remove("active");
-        }
-      }
-    });
-  }
-  updateModelNameDisplay() {
-    if (!this.modelNameDisplay) return;
-    let modelName = "Unknown Model";
-    const settings = this.plugin.settings;
-    if (settings.selectedModel && settings.availableModels) {
-      const found = settings.availableModels.find((m) => m.id === settings.selectedModel);
-      if (found) modelName = found.name;
-      else modelName = settings.selectedModel;
-    } else if (settings.selectedModel) {
-      modelName = settings.selectedModel;
-    }
-    this.modelNameDisplay.textContent = `Model: ${modelName}`;
-  }
-  updateObsidianLinksIndicator() {
-    if (!this.obsidianLinksIndicator) return;
-    const isObsidianLinksEnabled = this.plugin.settings.enableObsidianLinks;
-    const button = this.domElementCache.obsidianLinksButton;
-    if (isObsidianLinksEnabled) {
-      this.obsidianLinksIndicator.setText("\u{1F517} Obsidian Links: ON");
-      this.obsidianLinksIndicator.style.display = "block";
-      this.obsidianLinksIndicator.classList.add("active");
-      if (button) {
-        button.classList.add("active");
-      }
-    } else {
-      this.obsidianLinksIndicator.style.display = "none";
-      this.obsidianLinksIndicator.classList.remove("active");
-      if (button) {
-        button.classList.remove("active");
-      }
-    }
-  }
-  updateContextNotesIndicator() {
-    if (!this.contextNotesIndicator) return;
-    const isContextNotesEnabled = this.plugin.settings.enableContextNotes;
-    const contextNotesText = this.plugin.settings.contextNotes || "";
-    const button = this.domElementCache.contextNotesButton;
-    if (isContextNotesEnabled) {
-      if (button) {
-        button.classList.add("active");
-      }
-      if (contextNotesText.trim()) {
-        const linkRegex = /\[\[([^\]]+)\]\]/g;
-        const noteNames = [];
-        let match;
-        while ((match = linkRegex.exec(contextNotesText)) !== null) {
-          const noteName = match[1];
-          const displayName = noteName.split("/").pop() || noteName;
-          noteNames.push(displayName);
-        }
-        if (noteNames.length > 0) {
-          const notesList = noteNames.join(", ");
-          const displayText = `\u{1F4DA} Context: ${notesList}`;
-          this.contextNotesIndicator.setText(displayText);
-          this.contextNotesIndicator.style.display = "block";
-          this.contextNotesIndicator.classList.add("active");
-        } else {
-          this.contextNotesIndicator.setText("\u{1F4DA} Context Notes: ON");
-          this.contextNotesIndicator.style.display = "block";
-          this.contextNotesIndicator.classList.add("active");
-        }
-      } else {
-        this.contextNotesIndicator.setText("\u{1F4DA} Context Notes: ON");
-        this.contextNotesIndicator.style.display = "block";
-        this.contextNotesIndicator.classList.add("active");
-      }
-    } else {
-      this.contextNotesIndicator.style.display = "none";
-      this.contextNotesIndicator.classList.remove("active");
-      if (button) {
-        button.classList.remove("active");
-      }
-    }
-  }
-  async buildContextMessages() {
-    return await buildContextMessages({ app: this.app, plugin: this.plugin });
-  }
-  addVisibleMessagesToContext(messages) {
-    const currentScrollHeight = this.messagesContainer.scrollHeight;
-    let messageElements;
-    if (this.lastScrollHeight === currentScrollHeight && this.cachedMessageElements.length > 0) {
-      messageElements = this.cachedMessageElements;
-    } else {
-      messageElements = this.messagesContainer.querySelectorAll(".ai-chat-message");
-      this.cachedMessageElements = Array.from(messageElements);
-      this.lastScrollHeight = currentScrollHeight;
-    }
-    for (let i = 0; i < messageElements.length; i++) {
-      const el = messageElements[i];
-      const role = el.classList.contains("user") ? "user" : "assistant";
-      const contentEl = el.querySelector(".message-content");
-      const content = (contentEl == null ? void 0 : contentEl.textContent) || "";
-      const messageObj = this.messagePool.acquireMessage();
-      messageObj.role = role;
-      messageObj.content = content;
-      messages.push(messageObj);
-    }
-  }
-  async streamAssistantResponse(messages, container, originalTimestamp, originalContent) {
-    this.initializeStreamCoordinatorIfReady();
-    if (this.streamCoordinator) {
-      try {
-        return await this.streamCoordinatorResponse(messages, container);
-      } catch (error) {
-        this.plugin.debugLog("warn", "[ChatView] StreamCoordinator failed, falling back to ResponseStreamer:", error);
-      }
-    }
-    if (!this.responseStreamer) {
-      throw new Error("ResponseStreamer not initialized");
-    }
-    const chatHistory = await this.chatHistoryManager.getHistory();
-    const responseContent = await this.responseStreamer.streamAssistantResponse(
-      messages,
-      container,
-      originalTimestamp,
-      originalContent,
-      chatHistory
-    );
-    if (originalTimestamp && responseContent.trim() !== "") {
-      let messageData = void 0;
-      if (container.dataset.messageData) {
-        try {
-          messageData = JSON.parse(container.dataset.messageData);
-        } catch (e) {
-        }
-      }
-      await this.chatHistoryManager.updateMessage(
-        originalTimestamp,
-        "assistant",
-        originalContent || "",
-        responseContent,
-        messageData
-      );
-    }
-    return responseContent;
-  }
-  /**
-   * New streaming method using StreamCoordinator
-   */
-  async streamCoordinatorResponse(messages, container) {
-    if (!this.streamCoordinator) {
-      throw new Error("StreamCoordinator not initialized");
-    }
-    this.streamCoordinator.setActiveContainer(container);
-    const onChunk = async (chunk, fullContent) => {
-      const messageDiv = container.querySelector(".message-content");
-      if (messageDiv) {
-        messageDiv.textContent = fullContent;
-        this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
-      }
-    };
-    const responseContent = await this.streamCoordinator.startStream(messages, {
-      temperature: this.plugin.settings.temperature,
-      uiContainer: container,
-      onChunk
-    });
-    return responseContent;
-  }
-  clearMessages() {
-    this.messagesContainer.empty();
-    if (this.agentResponseHandler) {
-      this.agentResponseHandler.resetExecutionCount();
-    }
-  }
-  scrollMessagesToBottom() {
-    this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
-  }
-  /**
-   * Consolidated stop button click handler
-   */
-  handleStopButtonClick() {
-    this.plugin.debugLog("info", "[ChatView] Stop button clicked - stopping all active streams");
-    this.stopAllActiveStreams();
-    this.restoreUIAfterStop();
-    this.plugin.debugLog("info", "[ChatView] Stop button clicked - UI state restored");
-  }
-  /**
-   * Centralized method to stop all active streams
-   */
-  stopAllActiveStreams() {
-    let streamsStopped = false;
-    if (this.streamCoordinator && this.streamCoordinator.isStreaming()) {
-      this.plugin.debugLog("info", "[ChatView] Stopping StreamCoordinator stream");
-      this.streamCoordinator.stopStream();
-      streamsStopped = true;
-    }
-    if (this.activeStream) {
-      this.plugin.debugLog("info", "[ChatView] Stopping legacy activeStream");
-      this.activeStream.abort();
-      this.activeStream = null;
-      streamsStopped = true;
-    }
-    const myPlugin = this.plugin;
-    if (myPlugin.hasActiveAIStreams && myPlugin.hasActiveAIStreams()) {
-      this.plugin.debugLog("info", "[ChatView] Stopping global plugin streams");
-      myPlugin.stopAllAIStreams();
-      streamsStopped = true;
-    }
-    this.centralStreamState = {
-      isStreaming: false,
-      streamSource: null,
-      lastUpdate: Date.now()
-    };
-    if (!streamsStopped) {
-      this.plugin.debugLog("info", "[ChatView] No active streams found to stop");
-      showNotice("No active AI stream to end");
-    }
-  }
-  /**
-   * Restore UI state after stopping streams
-   */
-  restoreUIAfterStop() {
-    const textarea = this.domElementCache.textarea;
-    const sendButton = this.domElementCache.sendButton;
-    const stopButton = this.domElementCache.stopButton;
-    if (textarea) {
-      textarea.disabled = false;
-      textarea.focus();
-    }
-    if (stopButton && sendButton) {
-      stopButton.classList.add("hidden");
-      sendButton.classList.remove("hidden");
-    }
-    this.syncUIWithCentralState();
-  }
-  stopActiveStream() {
-    this.stopAllActiveStreams();
-  }
-  hasActiveStream() {
-    return this.centralStreamState.isStreaming;
-  }
-  /**
-   * Priority 2 Optimization: Debounced scroll to bottom
-   */
-  debouncedScrollToBottom() {
-    this.scrollDebouncer.debounce(async () => {
-      this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
-    });
-  }
-  /**
-   * Priority 2 Optimization: Batch DOM updates for better performance
-   */
-  batchDOMUpdates(elements, parent) {
-    const operations = elements.map((element) => ({
-      element,
-      parent
-    }));
-    this.domBatcher.addElements(operations);
-  }
-  /**
-   * Initialize centralized stream state management
-   */
-  initializeCentralizedStreamState() {
-    this.plugin.debugLog("info", "[ChatView] Initializing centralized stream state management");
-    setInterval(() => {
-      this.updateCentralStreamState();
-    }, 250);
-  }
-  /**
-   * Update central stream state from all sources
-   */
-  updateCentralStreamState() {
-    const previousState = { ...this.centralStreamState };
-    let isStreaming = false;
-    let streamSource = null;
-    if (this.streamCoordinator && this.streamCoordinator.isStreaming()) {
-      isStreaming = true;
-      streamSource = "coordinator";
-    } else if (this.hasLegacyActiveStreams()) {
-      isStreaming = true;
-      streamSource = "legacy";
-    }
-    if (isStreaming !== previousState.isStreaming || streamSource !== previousState.streamSource) {
-      this.centralStreamState = {
-        isStreaming,
-        streamSource,
-        lastUpdate: Date.now()
-      };
-      this.plugin.debugLog("debug", "[ChatView] Central stream state updated", {
-        isStreaming,
-        streamSource,
-        previousState: previousState.isStreaming
-      });
-      this.syncUIWithCentralState();
-    }
-  }
-  /**
-   * Check for legacy active streams
-   */
-  hasLegacyActiveStreams() {
-    if (this.activeStream) {
-      return true;
-    }
-    const hasGlobalStreams = this.plugin.hasActiveAIStreams && this.plugin.hasActiveAIStreams();
-    return hasGlobalStreams;
-  }
-  /**
-   * Sync UI with central stream state (single source of truth)
-   */
-  syncUIWithCentralState() {
-    const stopButton = this.domElementCache.stopButton;
-    const sendButton = this.domElementCache.sendButton;
-    if (!stopButton || !sendButton) {
-      return;
-    }
-    const { isStreaming, streamSource } = this.centralStreamState;
-    if (isStreaming) {
-      if (stopButton.classList.contains("hidden")) {
-        stopButton.classList.remove("hidden");
-        sendButton.classList.add("hidden");
-        this.plugin.debugLog("debug", `[ChatView] Central state - showing stop button (source: ${streamSource})`);
-      }
-    } else {
-      if (!stopButton.classList.contains("hidden")) {
-        stopButton.classList.add("hidden");
-        sendButton.classList.remove("hidden");
-        this.plugin.debugLog("debug", "[ChatView] Central state - showing send button (no active streams)");
-      }
-    }
-  }
-  /**
-   * Simplified callback for StreamCoordinator state changes
-   */
-  onStreamCoordinatorStateChange(isStreaming) {
-    this.centralStreamState = {
-      isStreaming,
-      streamSource: isStreaming ? "coordinator" : null,
-      lastUpdate: Date.now()
-    };
-    this.plugin.debugLog("debug", "[ChatView] StreamCoordinator state change", { isStreaming });
-    this.syncUIWithCentralState();
-  }
-};
-
 // src/main.ts
+init_chat();
+init_noteUtils();
+init_generalUtils();
 init_logger();
 
 // src/utils/viewManager.ts
@@ -26832,6 +27186,7 @@ init_ToolRichDisplay();
 
 // src/components/commands/viewCommands.ts
 init_pluginUtils();
+init_chat();
 function registerViewCommands(plugin) {
   registerCommand(
     plugin,
@@ -26884,8 +27239,10 @@ function parseSelection(selection, chatSeparator, chatBoundaryString) {
 }
 
 // src/utils/aiCompletionHandler.ts
+init_generalUtils();
 init_logger();
 init_aiDispatcher();
+init_contextBuilder();
 async function handleAICompletion(editor, settings, processMessages2, vault, plugin, activeStream, setActiveStream, app) {
   var _a2, _b, _c;
   let text;
@@ -26976,6 +27333,7 @@ ${settings.chatSeparator}
 }
 
 // src/components/commands/aiStreamCommands.ts
+init_generalUtils();
 function registerAIStreamCommands(plugin, settings, processMessages2, activeStream, setActiveStream) {
   registerCommand(
     plugin,
@@ -27004,18 +27362,34 @@ function registerAIStreamCommands(plugin, settings, processMessages2, activeStre
       name: "End AI Stream",
       callback: () => {
         const myPlugin = plugin;
-        if (myPlugin.hasActiveAIStreams && myPlugin.hasActiveAIStreams()) {
+        const { VIEW_TYPE_CHAT: VIEW_TYPE_CHAT2 } = (init_chat(), __toCommonJS(chat_exports));
+        const chatLeaves = myPlugin.app.workspace.getLeavesOfType(VIEW_TYPE_CHAT2);
+        let streamsStopped = false;
+        for (const leaf of chatLeaves) {
+          const chatView = leaf.view;
+          if (chatView && typeof chatView.stopAllActiveStreams === "function") {
+            chatView.stopAllActiveStreams();
+            chatView.restoreUIAfterStop();
+            streamsStopped = true;
+            myPlugin.debugLog("info", "[aiStreamCommands] Stopped streams via ChatView.stopAllActiveStreams");
+          }
+        }
+        if (!streamsStopped && myPlugin.hasActiveAIStreams && myPlugin.hasActiveAIStreams()) {
           myPlugin.stopAllAIStreams();
+          streamsStopped = true;
+          myPlugin.debugLog("info", "[aiStreamCommands] Stopped streams via plugin.stopAllAIStreams");
+        }
+        if (!streamsStopped && activeStream.current) {
+          activeStream.current.abort();
+          activeStream.current = null;
+          setActiveStream(null);
+          streamsStopped = true;
+          myPlugin.debugLog("info", "[aiStreamCommands] Stopped legacy activeStream");
+        }
+        if (streamsStopped) {
           showNotice("All AI streams stopped");
         } else {
-          if (activeStream.current) {
-            activeStream.current.abort();
-            activeStream.current = null;
-            setActiveStream(null);
-            showNotice("AI stream ended");
-          } else {
-            showNotice("No active AI stream to end");
-          }
+          showNotice("No active AI stream to end");
         }
       }
     }
@@ -27056,6 +27430,7 @@ function registerAIStreamCommands(plugin, settings, processMessages2, activeStre
 
 // src/components/commands/noteCommands.ts
 init_pluginUtils();
+init_generalUtils();
 function registerNoteCommands(plugin, settings, activateChatViewAndLoadMessages) {
   registerCommand(
     plugin,
@@ -27136,6 +27511,7 @@ function registerGenerateNoteTitleCommand(plugin, settings, processMessages2) {
 
 // src/components/commands/contextCommands.ts
 init_pluginUtils();
+init_generalUtils();
 function registerContextCommands(plugin, settings) {
   registerCommand(
     plugin,
@@ -27231,6 +27607,7 @@ ${wikiLink}`;
 
 // src/components/commands/toggleCommands.ts
 init_pluginUtils();
+init_generalUtils();
 function registerToggleCommands(plugin, settings) {
   registerCommand(
     plugin,
@@ -27594,7 +27971,9 @@ var Priority3IntegrationManager = class {
 };
 
 // src/main.ts
+init_messageContentParser();
 init_typeguards();
+init_recently_opened_files();
 
 // src/utils/PerformanceDashboard.ts
 var import_obsidian33 = require("obsidian");

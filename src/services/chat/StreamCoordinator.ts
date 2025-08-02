@@ -122,7 +122,24 @@ export class StreamCoordinator implements IStreamCoordinator {
      * Starts a new streaming response
      */
     async startStream(messages: Message[], options: StreamOptions = {}): Promise<string> {
+        // DIAGNOSTIC: Add comprehensive logging for stream state issues
+        this.plugin.debugLog('debug', '[StreamCoordinator] startStream called', {
+            currentlyStreaming: this.streamState.isStreaming,
+            currentStreamId: this.streamState.currentStreamId,
+            activeStreamsCount: this.activeStreams.size,
+            streamState: this.streamState
+        });
+
         if (this.streamState.isStreaming) {
+            // DIAGNOSTIC: Log the exact state that's preventing new streams
+            this.plugin.debugLog('error', '[StreamCoordinator] BLOCKING NEW STREAM - State not properly reset', {
+                isStreaming: this.streamState.isStreaming,
+                currentStreamId: this.streamState.currentStreamId,
+                activeStreamsCount: this.activeStreams.size,
+                activeStreamIds: Array.from(this.activeStreams.keys()),
+                lastStateUpdate: this.streamState.startTime
+            });
+
             // Defensive: If a stream is still cleaning up, prevent new streams (agent mode safety)
             this.eventBus.publish('stream.start_blocked', {
                 reason: 'A stream is already active or cleaning up.',
@@ -243,7 +260,20 @@ export class StreamCoordinator implements IStreamCoordinator {
             }
             throw error;
         } finally {
+            // DIAGNOSTIC: Log finally block execution
+            this.plugin.debugLog('debug', '[StreamCoordinator] Finally block - cleaning up stream', {
+                streamId,
+                currentState: this.streamState,
+                wasAborted: aborted
+            });
+            
             this.cleanupStream(streamId);
+            
+            // DIAGNOSTIC: Ensure state is properly reset after cleanup
+            this.plugin.debugLog('debug', '[StreamCoordinator] Finally block complete', {
+                finalState: this.streamState,
+                activeStreamsCount: this.activeStreams.size
+            });
         }
     }
 
@@ -251,12 +281,28 @@ export class StreamCoordinator implements IStreamCoordinator {
      * Stops the current stream
      */
     stopStream(): void {
+        // DIAGNOSTIC: Log stop stream attempt
+        this.plugin.debugLog('info', '[StreamCoordinator] stopStream called', {
+            isStreaming: this.streamState.isStreaming,
+            currentStreamId: this.streamState.currentStreamId,
+            activeStreamsCount: this.activeStreams.size
+        });
+
         if (!this.streamState.isStreaming || !this.streamState.currentStreamId) {
+            this.plugin.debugLog('warn', '[StreamCoordinator] stopStream called but no active stream', {
+                isStreaming: this.streamState.isStreaming,
+                currentStreamId: this.streamState.currentStreamId
+            });
             return;
         }
 
         const streamId = this.streamState.currentStreamId;
         const abortController = this.activeStreams.get(streamId);
+        
+        this.plugin.debugLog('info', '[StreamCoordinator] Stopping stream', {
+            streamId,
+            hasAbortController: !!abortController
+        });
         
         if (abortController) {
             abortController.abort();
@@ -266,6 +312,11 @@ export class StreamCoordinator implements IStreamCoordinator {
                 streamId,
                 reason: 'user_requested',
                 timestamp: Date.now()
+            });
+            
+            this.plugin.debugLog('info', '[StreamCoordinator] Stream stopped successfully', {
+                streamId,
+                finalState: this.streamState
             });
         }
     }
@@ -390,16 +441,44 @@ export class StreamCoordinator implements IStreamCoordinator {
      * Cleans up a stream
      */
     private cleanupStream(streamId: string): void {
+        // DIAGNOSTIC: Log cleanup process
+        this.plugin.debugLog('debug', '[StreamCoordinator] cleanupStream called', {
+            streamId,
+            currentStreamId: this.streamState.currentStreamId,
+            activeStreamsBeforeCleanup: this.activeStreams.size,
+            isCurrentStream: this.streamState.currentStreamId === streamId
+        });
+
         this.activeStreams.delete(streamId);
         
         if (this.streamState.currentStreamId === streamId) {
+            const previousState = { ...this.streamState };
             this.updateStreamState({
                 isStreaming: false,
                 currentStreamId: undefined,
                 startTime: undefined
             });
+            
+            // DIAGNOSTIC: Log state change
+            this.plugin.debugLog('info', '[StreamCoordinator] Stream state reset in cleanup', {
+                previousState,
+                newState: this.streamState,
+                activeStreamsAfterCleanup: this.activeStreams.size
+            });
+            
             // Notify UI of stream end
             this.notifyUIStateChange();
+            
+            // DIAGNOSTIC: Confirm UI notification sent
+            this.plugin.debugLog('debug', '[StreamCoordinator] UI state change notification sent', {
+                isStreaming: this.streamState.isStreaming,
+                callbackCount: this.uiUpdateCallbacks.size
+            });
+        } else {
+            this.plugin.debugLog('warn', '[StreamCoordinator] Cleanup called for non-current stream', {
+                cleanupStreamId: streamId,
+                currentStreamId: this.streamState.currentStreamId
+            });
         }
     }
 

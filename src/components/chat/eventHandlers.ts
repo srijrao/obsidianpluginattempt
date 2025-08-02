@@ -159,15 +159,38 @@ export function handleEditMessage(messageEl: HTMLElement, chatHistoryManager: Ch
     return async () => {
         const contentEl = messageEl.querySelector('.message-content') as HTMLElement;
         if (!contentEl) return;
+        
+        // DIAGNOSTIC: Log edit attempt
+        plugin.debugLog('debug', '[EventHandlers] Edit message clicked', {
+            hasContentEl: !!contentEl,
+            isEditing: contentEl.hasClass('editing'),
+            rawContent: messageEl.dataset.rawContent,
+            hasMessageData: !!messageEl.dataset.messageData
+        });
+        
         if (!contentEl.hasClass('editing')) {
+            // BACKUP: Store original content before editing
+            const originalContent = messageEl.dataset.rawContent || '';
+            const originalMessageData = messageEl.dataset.messageData;
+            
             // Enter edit mode: replace content with textarea
             const textarea = document.createElement('textarea');
-            textarea.value = messageEl.dataset.rawContent || '';
+            textarea.value = originalContent;
             textarea.className = 'message-content editing';
+            
+            // BACKUP: Store original HTML content for restoration if needed
+            const originalHTML = contentEl.innerHTML;
+            contentEl.dataset.originalHTML = originalHTML;
+            
             contentEl.empty();
             contentEl.appendChild(textarea);
             textarea.focus();
             contentEl.addClass('editing');
+            
+            plugin.debugLog('debug', '[EventHandlers] Entered edit mode', {
+                originalContentLength: originalContent.length,
+                hasOriginalHTML: !!originalHTML
+            });
             textarea.addEventListener('keydown', async (e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
@@ -177,12 +200,23 @@ export function handleEditMessage(messageEl: HTMLElement, chatHistoryManager: Ch
             textarea.addEventListener('blur', async () => {
                 const oldContent = messageEl.dataset.rawContent;
                 const newContent = textarea.value;
+                const originalHTML = contentEl.dataset.originalHTML;
                 let enhancedData = undefined;
+                
+                plugin.debugLog('debug', '[EventHandlers] Edit blur - saving changes', {
+                    oldContentLength: oldContent?.length || 0,
+                    newContentLength: newContent.length,
+                    hasEnhancedData: !!messageEl.dataset.messageData
+                });
+                
                 if (messageEl.dataset.messageData) {
                     try {
                         enhancedData = JSON.parse(messageEl.dataset.messageData);
-                    } catch {}
+                    } catch (e) {
+                        plugin.debugLog('warn', '[EventHandlers] Failed to parse message data', e);
+                    }
                 }
+                
                 try {
                     await chatHistoryManager.updateMessage(
                         messageEl.dataset.timestamp || new Date().toISOString(),
@@ -191,26 +225,54 @@ export function handleEditMessage(messageEl: HTMLElement, chatHistoryManager: Ch
                         newContent,
                         enhancedData
                     );
+                    
+                    // Update the raw content
                     messageEl.dataset.rawContent = newContent;
+                    
+                    // Clear editing state and restore content
                     contentEl.empty();
-                    if (enhancedData && enhancedData.toolResults) {
+                    contentEl.removeClass('editing');
+                    
+                    // Render the updated content properly
+                    if (enhancedData && enhancedData.toolResults && enhancedData.toolResults.length > 0) {
+                        plugin.debugLog('debug', '[EventHandlers] Rendering with tool results');
                         const renderer = new MessageRenderer(plugin.app);
                         await renderer.renderMessage({
                             role: messageEl.classList.contains('user') ? 'user' : 'assistant',
                             content: newContent,
-                            toolResults: enhancedData.toolResults
+                            toolResults: enhancedData.toolResults,
+                            reasoning: enhancedData.reasoning,
+                            taskStatus: enhancedData.taskStatus
                         } as any, messageEl, new Component());
                     } else {
+                        plugin.debugLog('debug', '[EventHandlers] Rendering as markdown');
                         await MarkdownRenderer.render(plugin.app, newContent, contentEl, '', new Component());
                     }
-                    contentEl.removeClass('editing');
+                    
+                    plugin.debugLog('debug', '[EventHandlers] Edit saved successfully');
+                    
                 } catch (e) {
+                    plugin.debugLog('error', '[EventHandlers] Failed to save edited message', e);
                     new Notice('Failed to save edited message.');
-                    messageEl.dataset.rawContent = oldContent || '';
+                    
+                    // RESTORE: Use original HTML if available, otherwise fallback to old content
                     contentEl.empty();
-                    await MarkdownRenderer.render(plugin.app, oldContent || '', contentEl, '', new Component());
                     contentEl.removeClass('editing');
+                    
+                    if (originalHTML) {
+                        plugin.debugLog('debug', '[EventHandlers] Restoring original HTML content');
+                        contentEl.innerHTML = originalHTML;
+                    } else {
+                        plugin.debugLog('debug', '[EventHandlers] Restoring old content as markdown');
+                        await MarkdownRenderer.render(plugin.app, oldContent || '', contentEl, '', new Component());
+                    }
+                    
+                    // Restore original raw content
+                    messageEl.dataset.rawContent = oldContent || '';
                 }
+                
+                // Clean up backup data
+                delete contentEl.dataset.originalHTML;
             });
         }
     };

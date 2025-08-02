@@ -3,23 +3,32 @@ import { Message } from '../../types';
 import MyPlugin from '../../main';
 import { ChatHistoryManager } from './ChatHistoryManager';
 import { createMessageElement } from './Message';
-import { ResponseStreamer } from './ResponseStreamer';
 import { AgentResponseHandler } from '../agent/AgentResponseHandler';
+
+// Forward declaration to avoid circular dependency
+interface IChatView {
+    streamAssistantResponse(
+        messages: Message[],
+        container: HTMLElement,
+        originalTimestamp?: string,
+        originalContent?: string
+    ): Promise<string>;
+}
 
 /**
  * MessageRegenerator handles the logic for regenerating assistant responses in the chat.
  * It finds the appropriate message(s) to replace, builds the correct context, and streams the new response.
+ * Now integrates with ChatView's StreamCoordinator for consistent stream management and stop button functionality.
  */
 export class MessageRegenerator {
-    private responseStreamer: ResponseStreamer;
-
     /**
      * @param plugin The plugin instance
      * @param messagesContainer The chat messages container element
      * @param inputContainer The chat input container element (for disabling input during regeneration)
      * @param chatHistoryManager The chat history manager instance
      * @param agentResponseHandler The agent response handler (for agent mode)
-     * @param activeStream The current AbortController for streaming (shared reference)
+     * @param activeStream The current AbortController for streaming (shared reference) - kept for backward compatibility
+     * @param chatView The parent ChatView instance for accessing streamAssistantResponse method
      * @param component Optional parent component for Markdown rendering context
      */
     constructor(
@@ -29,15 +38,11 @@ export class MessageRegenerator {
         private chatHistoryManager: ChatHistoryManager,
         private agentResponseHandler: AgentResponseHandler | null,
         private activeStream: AbortController | null,
+        private chatView: IChatView,
         private component?: Component
     ) {
-        this.responseStreamer = new ResponseStreamer(
-            plugin,
-            agentResponseHandler,
-            messagesContainer,
-            activeStream,
-            component
-        );
+        // No longer creating a separate ResponseStreamer - we'll use ChatView's streaming method
+        this.plugin.debugLog('info', '[MessageRegenerator] Initialized with ChatView integration for StreamCoordinator support');
     }
 
     /**
@@ -138,11 +143,13 @@ export class MessageRegenerator {
         this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
 
         try {
-            // Stream the new assistant response
-            await this.responseStreamer.streamAssistantResponse(
-                messages, 
-                assistantContainer, 
-                originalTimestamp, 
+            // Stream the new assistant response using ChatView's streaming method
+            // This ensures regenerate uses the same StreamCoordinator system as regular messages
+            this.plugin.debugLog('info', '[MessageRegenerator] Using ChatView.streamAssistantResponse for regeneration');
+            await this.chatView.streamAssistantResponse(
+                messages,
+                assistantContainer,
+                originalTimestamp,
                 originalContent
             );
         } catch (error) {
@@ -164,6 +171,14 @@ export class MessageRegenerator {
             if (stopButton) stopButton.classList.add('hidden');
             if (sendButton) sendButton.classList.remove('hidden');
             
+            // FIX: Invalidate ChatView's message cache after regeneration to ensure fresh DOM reads
+            // This ensures addVisibleMessagesToContext gets updated content after regeneration
+            if (this.chatView && typeof (this.chatView as any).invalidateMessageCache === 'function') {
+                (this.chatView as any).invalidateMessageCache();
+                this.plugin.debugLog('debug', '[MessageRegenerator] Invalidated ChatView message cache after regeneration');
+            }
+            
+            // Note: activeStream is now managed by ChatView's StreamCoordinator, not here
             this.activeStream = null;
         }
     }

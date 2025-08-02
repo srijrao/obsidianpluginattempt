@@ -380,7 +380,9 @@ export class ChatView extends ItemView {
             this.inputContainer,
             this.chatHistoryManager,
             this.agentResponseHandler,
-            this.activeStream
+            this.activeStream,
+            this, // Pass ChatView reference for StreamCoordinator integration
+            this // Pass ChatView as component for Markdown rendering context
         );
     }
 
@@ -482,12 +484,29 @@ export class ChatView extends ItemView {
         const sendMessage = async () => {
             const content = textarea.value.trim();
             if (!content) return;
+            
+            // DIAGNOSTIC: Log send message attempt
+            this.plugin.debugLog('info', '[ChatView] Send message attempt', {
+                contentLength: content.length,
+                centralStreamState: this.centralStreamState,
+                hasStreamCoordinator: !!this.streamCoordinator,
+                streamCoordinatorIsStreaming: this.streamCoordinator?.isStreaming(),
+                textareaDisabled: textarea.disabled,
+                sendButtonHidden: sendButton.classList.contains('hidden')
+            });
+            
             if (this.agentResponseHandler) {
                 this.agentResponseHandler.resetExecutionCount();
             }
             textarea.disabled = true;
             sendButton.classList.add('hidden');
             stopButton.classList.remove('hidden');
+            
+            this.plugin.debugLog('debug', '[ChatView] UI state set for sending', {
+                textareaDisabled: textarea.disabled,
+                sendButtonHidden: sendButton.classList.contains('hidden'),
+                stopButtonHidden: stopButton.classList.contains('hidden')
+            });
             const userMessageEl = await createMessageElement(this.app, 'user', content, this.chatHistoryManager, this.plugin, (el: HTMLElement) => this.regenerateResponse(el), this);
             this.messagesContainer.appendChild(userMessageEl);
             this.debouncedScrollToBottom();
@@ -567,11 +586,27 @@ export class ChatView extends ItemView {
                     await createMessageElement(this.app, 'assistant', `Error: ${error.message}`, this.chatHistoryManager, this.plugin, (el: HTMLElement) => this.regenerateResponse(el), this);
                 }
             } finally {
+                // DIAGNOSTIC: Log finally block execution
+                this.plugin.debugLog('debug', '[ChatView] Send message finally block', {
+                    textareaDisabledBefore: textarea.disabled,
+                    sendButtonHiddenBefore: sendButton.classList.contains('hidden'),
+                    stopButtonHiddenBefore: stopButton.classList.contains('hidden'),
+                    centralStreamStateBefore: this.centralStreamState
+                });
+                
                 textarea.disabled = false;
                 textarea.focus();
                 stopButton.classList.add('hidden');
                 sendButton.classList.remove('hidden');
                 this.activeStream = null;
+                
+                // DIAGNOSTIC: Log final UI state
+                this.plugin.debugLog('info', '[ChatView] Send message complete - UI restored', {
+                    textareaDisabledAfter: textarea.disabled,
+                    sendButtonHiddenAfter: sendButton.classList.contains('hidden'),
+                    stopButtonHiddenAfter: stopButton.classList.contains('hidden'),
+                    centralStreamStateAfter: this.centralStreamState
+                });
             }
         };
         this.addEventListenerWithCleanup(sendButton, 'click', sendMessage);
@@ -820,15 +855,36 @@ export class ChatView extends ItemView {
         for (let i = 0; i < messageElements.length; i++) {
             const el = messageElements[i] as HTMLElement;
             const role = el.classList.contains('user') ? 'user' : 'assistant';
-            const contentEl = el.querySelector('.message-content');
-            const content = contentEl?.textContent || '';
+            
+            // FIX: Use rawContent from dataset first (persistent data), fallback to DOM textContent
+            // This ensures we get the correct content even during regeneration when DOM might be stale
+            let content = '';
+            if (el.dataset.rawContent) {
+                // Use the persistent raw content stored in the element's dataset
+                content = el.dataset.rawContent;
+                this.plugin.debugLog('debug', '[ChatView] Using rawContent from dataset for context', {
+                    role,
+                    contentLength: content.length,
+                    hasRawContent: true
+                });
+            } else {
+                // Fallback to reading from DOM (for backward compatibility)
+                const contentEl = el.querySelector('.message-content');
+                content = contentEl?.textContent || '';
+                this.plugin.debugLog('debug', '[ChatView] Using textContent from DOM for context (fallback)', {
+                    role,
+                    contentLength: content.length,
+                    hasRawContent: false
+                });
+            }
+            
             const messageObj = this.messagePool.acquireMessage();
             messageObj.role = role;
             messageObj.content = content;
             messages.push(messageObj as Message);
         }
     }
-    private async streamAssistantResponse(
+    public async streamAssistantResponse(
         messages: Message[],
         container: HTMLElement,
         originalTimestamp?: string,
@@ -896,6 +952,7 @@ export class ChatView extends ItemView {
             const messageDiv = container.querySelector('.message-content');
             if (messageDiv) {
                 messageDiv.textContent = fullContent;
+                container.dataset.rawContent = fullContent;  // ✅ FIX: Preserve partial responses for chat history
                 // Scroll to bottom
                 this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
             }
@@ -924,7 +981,12 @@ export class ChatView extends ItemView {
      * Consolidated stop button click handler
      */
     private handleStopButtonClick(): void {
-        this.plugin.debugLog('info', '[ChatView] Stop button clicked - stopping all active streams');
+        this.plugin.debugLog('info', '[ChatView] Stop button clicked - stopping all active streams', {
+            centralStreamState: this.centralStreamState,
+            hasStreamCoordinator: !!this.streamCoordinator,
+            streamCoordinatorIsStreaming: this.streamCoordinator?.isStreaming(),
+            hasActiveStream: !!this.activeStream
+        });
         
         // Use centralized stop logic
         this.stopAllActiveStreams();
@@ -932,7 +994,12 @@ export class ChatView extends ItemView {
         // Always restore UI state when stop is pressed
         this.restoreUIAfterStop();
         
-        this.plugin.debugLog('info', '[ChatView] Stop button clicked - UI state restored');
+        this.plugin.debugLog('info', '[ChatView] Stop button clicked - UI state restored', {
+            finalCentralState: this.centralStreamState,
+            textareaDisabled: this.domElementCache.textarea?.disabled,
+            sendButtonHidden: this.domElementCache.sendButton?.classList.contains('hidden'),
+            stopButtonHidden: this.domElementCache.stopButton?.classList.contains('hidden')
+        });
     }
 
     /**
@@ -985,18 +1052,38 @@ export class ChatView extends ItemView {
         const sendButton = this.domElementCache.sendButton;
         const stopButton = this.domElementCache.stopButton;
         
+        // DIAGNOSTIC: Log UI restoration process
+        this.plugin.debugLog('debug', '[ChatView] Restoring UI after stop', {
+            hasTextarea: !!textarea,
+            hasSendButton: !!sendButton,
+            hasStopButton: !!stopButton,
+            textareaDisabledBefore: textarea?.disabled,
+            sendButtonHiddenBefore: sendButton?.classList.contains('hidden'),
+            stopButtonHiddenBefore: stopButton?.classList.contains('hidden')
+        });
+        
         if (textarea) {
             textarea.disabled = false;
             textarea.focus();
+            this.plugin.debugLog('debug', '[ChatView] Textarea re-enabled and focused');
         }
         
         if (stopButton && sendButton) {
             stopButton.classList.add('hidden');
             sendButton.classList.remove('hidden');
+            this.plugin.debugLog('debug', '[ChatView] Button visibility restored - stop hidden, send visible');
         }
         
         // Force UI sync with central state
         this.syncUIWithCentralState();
+        
+        // DIAGNOSTIC: Log final UI state
+        this.plugin.debugLog('debug', '[ChatView] UI restoration complete', {
+            textareaDisabledAfter: textarea?.disabled,
+            sendButtonHiddenAfter: sendButton?.classList.contains('hidden'),
+            stopButtonHiddenAfter: stopButton?.classList.contains('hidden'),
+            centralStreamState: this.centralStreamState
+        });
     }
 
     stopActiveStream(): void {
@@ -1136,5 +1223,15 @@ export class ChatView extends ItemView {
         
         this.plugin.debugLog('debug', '[ChatView] StreamCoordinator state change', { isStreaming });
         this.syncUIWithCentralState();
+    }
+
+    /**
+     * Invalidate the message cache to force fresh DOM reads
+     * Called after message regeneration to ensure updated content is read
+     */
+    public invalidateMessageCache(): void {
+        this.cachedMessageElements = [];
+        this.lastScrollHeight = 0;
+        this.plugin.debugLog('debug', '[ChatView] Message cache invalidated - will force fresh DOM reads');
     }
 }

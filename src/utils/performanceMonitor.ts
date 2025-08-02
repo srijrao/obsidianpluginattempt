@@ -277,6 +277,8 @@ Object Pool Efficiency: ${metrics.objectPoolEfficiency.toFixed(2)}%
      */
     private cleanupOldMetrics(): void {
         const cutoffTime = Date.now() - (10 * 60 * 1000); // Keep 10 minutes of data
+        const initialCount = this.metrics.length;
+        const initialAggregatedCount = this.aggregatedMetrics.size;
         
         // Clean main metrics array
         this.metrics = this.metrics.filter(metric => metric.timestamp >= cutoffTime);
@@ -291,8 +293,15 @@ Object Pool Efficiency: ${metrics.objectPoolEfficiency.toFixed(2)}%
             }
         }
 
+        // Only log when debug mode is enabled AND metrics were actually cleaned up
         if (this.debugMode) {
-            console.log(`[PerformanceMonitor] Cleaned up old metrics. Current count: ${this.metrics.length}`);
+            const metricsRemoved = initialCount - this.metrics.length;
+            const aggregatedGroupsRemoved = initialAggregatedCount - this.aggregatedMetrics.size;
+            
+            if (metricsRemoved > 0 || aggregatedGroupsRemoved > 0) {
+                console.log(`[PerformanceMonitor] Cleaned up ${metricsRemoved} old metrics and ${aggregatedGroupsRemoved} metric groups. Current count: ${this.metrics.length}`);
+            }
+            // Silent when no cleanup was needed - this eliminates the spam
         }
     }
 

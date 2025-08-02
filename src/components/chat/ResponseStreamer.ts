@@ -334,7 +334,10 @@ export class ResponseStreamer {
         rawContent: string,
         messageData?: Message
     ): void {
-        container.dataset.rawContent = rawContent;
+        // Only update if we have more content than before (preserve partial responses)
+        if (!container.dataset.rawContent || rawContent.length >= container.dataset.rawContent.length) {
+            container.dataset.rawContent = rawContent;
+        }
         if (messageData) {
             container.dataset.messageData = JSON.stringify(messageData);
         }

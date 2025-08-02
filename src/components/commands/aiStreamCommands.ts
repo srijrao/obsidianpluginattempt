@@ -54,21 +54,45 @@ export function registerAIStreamCommands(
             id: 'end-ai-stream',
             name: 'End AI Stream',
             callback: () => {
-                // Use the plugin's centralized stream stopping method
+                // Use the same comprehensive stop logic as the stop button
                 const myPlugin = plugin as any;
-                if (myPlugin.hasActiveAIStreams && myPlugin.hasActiveAIStreams()) {
+                
+                // Get reference to active ChatView instance for comprehensive stopping
+                const { VIEW_TYPE_CHAT } = require('../../chat');
+                const chatLeaves = myPlugin.app.workspace.getLeavesOfType(VIEW_TYPE_CHAT);
+                let streamsStopped = false;
+                
+                // Stop streams through ChatView's comprehensive method (preferred)
+                for (const leaf of chatLeaves) {
+                    const chatView = leaf.view;
+                    if (chatView && typeof chatView.stopAllActiveStreams === 'function') {
+                        chatView.stopAllActiveStreams();
+                        chatView.restoreUIAfterStop();
+                        streamsStopped = true;
+                        myPlugin.debugLog('info', '[aiStreamCommands] Stopped streams via ChatView.stopAllActiveStreams');
+                    }
+                }
+                
+                // Fallback to plugin-level stopping if ChatView method not available
+                if (!streamsStopped && myPlugin.hasActiveAIStreams && myPlugin.hasActiveAIStreams()) {
                     myPlugin.stopAllAIStreams();
+                    streamsStopped = true;
+                    myPlugin.debugLog('info', '[aiStreamCommands] Stopped streams via plugin.stopAllAIStreams');
+                }
+                
+                // Final fallback to legacy behavior
+                if (!streamsStopped && activeStream.current) {
+                    activeStream.current.abort();
+                    activeStream.current = null;
+                    setActiveStream(null);
+                    streamsStopped = true;
+                    myPlugin.debugLog('info', '[aiStreamCommands] Stopped legacy activeStream');
+                }
+                
+                if (streamsStopped) {
                     showNotice('All AI streams stopped');
                 } else {
-                    // Fallback to legacy behavior if methods don't exist
-                    if (activeStream.current) {
-                        activeStream.current.abort();
-                        activeStream.current = null;
-                        setActiveStream(null);
-                        showNotice('AI stream ended');
-                    } else {
-                        showNotice('No active AI stream to end');
-                    }
+                    showNotice('No active AI stream to end');
                 }
             }
         }
