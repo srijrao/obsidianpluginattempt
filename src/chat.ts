@@ -74,6 +74,8 @@ export class ChatView extends ItemView {
         toolContinuationContainer?: HTMLElement;
         obsidianLinksButton?: HTMLButtonElement;
         contextNotesButton?: HTMLButtonElement;
+        clearContextButton?: HTMLButtonElement;
+        addCurrentNoteButton?: HTMLButtonElement;
     } = {};
     private eventListeners: Array<{
         element: HTMLElement;
@@ -131,6 +133,8 @@ export class ChatView extends ItemView {
         // Cache new buttons
         this.domElementCache.obsidianLinksButton = ui.obsidianLinksButton;
         this.domElementCache.contextNotesButton = ui.contextNotesButton;
+        this.domElementCache.clearContextButton = ui.clearContextButton;
+        this.domElementCache.addCurrentNoteButton = ui.addCurrentNoteButton;
     }
     getViewType(): string {
         return VIEW_TYPE_CHAT;
@@ -211,6 +215,37 @@ export class ChatView extends ItemView {
             this.plugin.settings.enableContextNotes = !this.plugin.settings.enableContextNotes;
             this.plugin.saveSettings();
             this.updateContextNotesIndicator();
+        });
+
+        // Clear Context button
+        this.addEventListenerWithCleanup(this.domElementCache.clearContextButton!, 'click', () => {
+            this.plugin.settings.contextNotes = '';
+            this.plugin.saveSettings();
+            this.updateContextNotesIndicator();
+            showNotice('Context notes cleared');
+        });
+
+        // Add Current Note button
+        this.addEventListenerWithCleanup(this.domElementCache.addCurrentNoteButton!, 'click', () => {
+            const activeFile = this.app.workspace.getActiveFile();
+            if (!activeFile) {
+                showNotice('No active note to add to context');
+                return;
+            }
+            
+            const noteName = activeFile.basename;
+            const noteLink = `[[${noteName}]]`;
+            
+            // Add to existing context notes or create new
+            const currentContext = this.plugin.settings.contextNotes || '';
+            const newContext = currentContext.trim() 
+                ? `${currentContext}\n${noteLink}`
+                : noteLink;
+            
+            this.plugin.settings.contextNotes = newContext;
+            this.plugin.saveSettings();
+            this.updateContextNotesIndicator();
+            showNotice(`Added "${noteName}" to context notes`);
         });
     }
 

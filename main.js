@@ -17900,23 +17900,41 @@ function createChatUI(app, contentEl) {
   helpButton.style.height = "1.8em";
   helpButton.style.marginBottom = "0.2em";
   helpButton.style.opacity = "0.7";
-  helpButton.style.position = "absolute";
-  helpButton.style.right = "0.5em";
-  helpButton.style.top = "-2.2em";
-  helpButton.style.zIndex = "2";
-  const agentModeButton = inputContainer.createEl("button", {
-    text: "\u{1F916}"
-  });
-  agentModeButton.setAttr("aria-label", "Toggle Agent Mode");
+  const topInputButtonRow = document.createElement("div");
+  topInputButtonRow.style.display = "flex";
+  topInputButtonRow.style.flexDirection = "row";
+  topInputButtonRow.style.alignItems = "center";
+  topInputButtonRow.style.gap = "0.5em";
+  topInputButtonRow.style.position = "absolute";
+  topInputButtonRow.style.top = "-2.2em";
+  topInputButtonRow.style.right = "0.5em";
+  topInputButtonRow.style.zIndex = "2";
+  const clearContextButton = document.createElement("button");
+  clearContextButton.textContent = "\u{1F9F9}";
+  clearContextButton.setAttribute("aria-label", "Clear context field");
+  clearContextButton.title = "Clear context field";
+  clearContextButton.style.fontSize = "0.9em";
+  clearContextButton.style.width = "1.8em";
+  clearContextButton.style.height = "1.8em";
+  clearContextButton.style.marginBottom = "0.2em";
+  clearContextButton.style.opacity = "0.7";
+  const addCurrentNoteButton = document.createElement("button");
+  addCurrentNoteButton.textContent = "\u{1F4C4}";
+  addCurrentNoteButton.setAttribute("aria-label", "Add current note to context");
+  addCurrentNoteButton.title = "Add current note to context";
+  addCurrentNoteButton.style.fontSize = "0.9em";
+  addCurrentNoteButton.style.width = "1.8em";
+  addCurrentNoteButton.style.height = "1.8em";
+  addCurrentNoteButton.style.marginBottom = "0.2em";
+  addCurrentNoteButton.style.opacity = "0.7";
+  const agentModeButton = document.createElement("button");
+  agentModeButton.textContent = "\u{1F916}";
+  agentModeButton.setAttribute("aria-label", "Toggle Agent Mode");
   agentModeButton.style.fontSize = "0.9em";
   agentModeButton.style.width = "1.8em";
   agentModeButton.style.height = "1.8em";
   agentModeButton.style.marginBottom = "0.2em";
   agentModeButton.style.opacity = "0.7";
-  agentModeButton.style.position = "absolute";
-  agentModeButton.style.right = "2.8em";
-  agentModeButton.style.top = "-2.2em";
-  agentModeButton.style.zIndex = "2";
   agentModeButton.classList.add("ai-agent-mode-btn");
   function setAgentModeActive(isActive) {
     if (isActive) {
@@ -17926,7 +17944,11 @@ function createChatUI(app, contentEl) {
     }
   }
   agentModeButton.setActive = setAgentModeActive;
-  inputContainer.appendChild(agentModeButton);
+  topInputButtonRow.appendChild(clearContextButton);
+  topInputButtonRow.appendChild(addCurrentNoteButton);
+  topInputButtonRow.appendChild(agentModeButton);
+  topInputButtonRow.appendChild(helpButton);
+  inputContainer.appendChild(topInputButtonRow);
   inputContainer.style.position = "relative";
   return {
     contentEl,
@@ -17944,6 +17966,8 @@ function createChatUI(app, contentEl) {
     stopButton,
     helpButton,
     agentModeButton,
+    clearContextButton,
+    addCurrentNoteButton,
     referenceNoteButton: buttonRefs.referenceNoteButton,
     obsidianLinksButton: buttonRefs.obsidianLinksButton,
     contextNotesButton: buttonRefs.contextNotesButton,
@@ -21891,6 +21915,8 @@ var init_chat = __esm({
         this.domElementCache.toolContinuationContainer = ui.toolContinuationContainer;
         this.domElementCache.obsidianLinksButton = ui.obsidianLinksButton;
         this.domElementCache.contextNotesButton = ui.contextNotesButton;
+        this.domElementCache.clearContextButton = ui.clearContextButton;
+        this.domElementCache.addCurrentNoteButton = ui.addCurrentNoteButton;
       }
       getViewType() {
         return VIEW_TYPE_CHAT;
@@ -21963,6 +21989,28 @@ var init_chat = __esm({
           this.plugin.settings.enableContextNotes = !this.plugin.settings.enableContextNotes;
           this.plugin.saveSettings();
           this.updateContextNotesIndicator();
+        });
+        this.addEventListenerWithCleanup(this.domElementCache.clearContextButton, "click", () => {
+          this.plugin.settings.contextNotes = "";
+          this.plugin.saveSettings();
+          this.updateContextNotesIndicator();
+          showNotice("Context notes cleared");
+        });
+        this.addEventListenerWithCleanup(this.domElementCache.addCurrentNoteButton, "click", () => {
+          const activeFile = this.app.workspace.getActiveFile();
+          if (!activeFile) {
+            showNotice("No active note to add to context");
+            return;
+          }
+          const noteName = activeFile.basename;
+          const noteLink = `[[${noteName}]]`;
+          const currentContext = this.plugin.settings.contextNotes || "";
+          const newContext = currentContext.trim() ? `${currentContext}
+${noteLink}` : noteLink;
+          this.plugin.settings.contextNotes = newContext;
+          this.plugin.saveSettings();
+          this.updateContextNotesIndicator();
+          showNotice(`Added "${noteName}" to context notes`);
         });
       }
       setupAgentResponseHandler() {

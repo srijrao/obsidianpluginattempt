@@ -26,6 +26,8 @@ export interface ChatUIElements {
     obsidianLinksIndicator: HTMLElement; // Indicator showing Obsidian Links status
     contextNotesIndicator: HTMLElement;  // Indicator showing context notes
     modelNameDisplay: HTMLElement;      // Display for the current model name
+    clearContextButton: HTMLButtonElement; // Button to clear the context field
+    addCurrentNoteButton: HTMLButtonElement; // Button to add current note to context
 }
 
 /**
@@ -223,25 +225,46 @@ export function createChatUI(app: App, contentEl: HTMLElement): ChatUIElements {
     helpButton.style.height = '1.8em';
     helpButton.style.marginBottom = '0.2em';
     helpButton.style.opacity = '0.7';
-    helpButton.style.position = 'absolute';
-    helpButton.style.right = '0.5em';
-    helpButton.style.top = '-2.2em';
-    helpButton.style.zIndex = '2';
 
-    // Agent Mode button (🤖)
-    const agentModeButton = inputContainer.createEl('button', {
-        text: '🤖',
-    });
-    agentModeButton.setAttr('aria-label', 'Toggle Agent Mode');
+    // --- Top right button row above input box ---
+    const topInputButtonRow = document.createElement('div');
+    topInputButtonRow.style.display = 'flex';
+    topInputButtonRow.style.flexDirection = 'row';
+    topInputButtonRow.style.justifyContent = 'flex-end';
+    topInputButtonRow.style.alignItems = 'center';
+    topInputButtonRow.style.width = '100%';
+    topInputButtonRow.style.gap = '0.5em';
+    topInputButtonRow.style.marginBottom = '0.2em';
+
+    // Create context/agent buttons for this row
+    const clearContextButton = document.createElement('button');
+    clearContextButton.textContent = '🧹';
+    clearContextButton.setAttribute('aria-label', 'Clear context field');
+    clearContextButton.title = 'Clear context field';
+    clearContextButton.style.fontSize = '0.9em';
+    clearContextButton.style.width = '1.8em';
+    clearContextButton.style.height = '1.8em';
+    clearContextButton.style.marginBottom = '0.2em';
+    clearContextButton.style.opacity = '0.7';
+
+    const addCurrentNoteButton = document.createElement('button');
+    addCurrentNoteButton.textContent = '📄';
+    addCurrentNoteButton.setAttribute('aria-label', 'Add current note to context');
+    addCurrentNoteButton.title = 'Add current note to context';
+    addCurrentNoteButton.style.fontSize = '0.9em';
+    addCurrentNoteButton.style.width = '1.8em';
+    addCurrentNoteButton.style.height = '1.8em';
+    addCurrentNoteButton.style.marginBottom = '0.2em';
+    addCurrentNoteButton.style.opacity = '0.7';
+
+    const agentModeButton = document.createElement('button');
+    agentModeButton.textContent = '🤖';
+    agentModeButton.setAttribute('aria-label', 'Toggle Agent Mode');
     agentModeButton.style.fontSize = '0.9em';
     agentModeButton.style.width = '1.8em';
     agentModeButton.style.height = '1.8em';
     agentModeButton.style.marginBottom = '0.2em';
     agentModeButton.style.opacity = '0.7';
-    agentModeButton.style.position = 'absolute';
-    agentModeButton.style.right = '2.8em'; // Position next to help button
-    agentModeButton.style.top = '-2.2em';
-    agentModeButton.style.zIndex = '2';
     agentModeButton.classList.add('ai-agent-mode-btn');
     function setAgentModeActive(isActive: boolean) {
         if (isActive) {
@@ -251,8 +274,19 @@ export function createChatUI(app: App, contentEl: HTMLElement): ChatUIElements {
         }
     }
     (agentModeButton as any).setActive = setAgentModeActive;
-    inputContainer.appendChild(agentModeButton);
-    inputContainer.style.position = 'relative';
+
+    // Add buttons to the row: context, add note, agent, help
+    topInputButtonRow.appendChild(clearContextButton);
+    topInputButtonRow.appendChild(addCurrentNoteButton);
+    topInputButtonRow.appendChild(agentModeButton);
+    topInputButtonRow.appendChild(helpButton);
+
+    // Insert the button row above the textarea/input
+    inputContainer.appendChild(topInputButtonRow);
+
+
+
+
 
     // Return all created UI elements
     return {
@@ -271,6 +305,8 @@ export function createChatUI(app: App, contentEl: HTMLElement): ChatUIElements {
         stopButton,
         helpButton,
         agentModeButton,
+        clearContextButton,
+        addCurrentNoteButton,
         referenceNoteButton: buttonRefs.referenceNoteButton,
         obsidianLinksButton: buttonRefs.obsidianLinksButton,
         contextNotesButton: buttonRefs.contextNotesButton,
