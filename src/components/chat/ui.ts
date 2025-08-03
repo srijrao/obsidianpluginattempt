@@ -226,17 +226,16 @@ export function createChatUI(app: App, contentEl: HTMLElement): ChatUIElements {
     helpButton.style.marginBottom = '0.2em';
     helpButton.style.opacity = '0.7';
 
-    // --- Top right button row above input box ---
     const topInputButtonRow = document.createElement('div');
     topInputButtonRow.style.display = 'flex';
     topInputButtonRow.style.flexDirection = 'row';
-    topInputButtonRow.style.justifyContent = 'flex-end';
     topInputButtonRow.style.alignItems = 'center';
-    topInputButtonRow.style.width = '100%';
     topInputButtonRow.style.gap = '0.5em';
-    topInputButtonRow.style.marginBottom = '0.2em';
+    topInputButtonRow.style.position = 'absolute';
+    topInputButtonRow.style.top = '-2.2em';
+    topInputButtonRow.style.right = '0.5em';
+    topInputButtonRow.style.zIndex = '2';
 
-    // Create context/agent buttons for this row
     const clearContextButton = document.createElement('button');
     clearContextButton.textContent = '🧹';
     clearContextButton.setAttribute('aria-label', 'Clear context field');
@@ -275,14 +274,13 @@ export function createChatUI(app: App, contentEl: HTMLElement): ChatUIElements {
     }
     (agentModeButton as any).setActive = setAgentModeActive;
 
-    // Add buttons to the row: context, add note, agent, help
     topInputButtonRow.appendChild(clearContextButton);
     topInputButtonRow.appendChild(addCurrentNoteButton);
     topInputButtonRow.appendChild(agentModeButton);
     topInputButtonRow.appendChild(helpButton);
 
-    // Insert the button row above the textarea/input
     inputContainer.appendChild(topInputButtonRow);
+    inputContainer.style.position = 'relative';
 
 
 
