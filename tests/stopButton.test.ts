@@ -1,6 +1,7 @@
-import { ChatView } from '../../src/chat';
-import MyPlugin from '../../src/main';
-import { StreamCoordinator } from '../../src/services/chat/StreamCoordinator';
+import '@anthropic-ai/sdk/shims/node';
+import { ChatView } from '../src/chat';
+import MyPlugin from '../src/main';
+import { StreamCoordinator } from '../src/services/chat/StreamCoordinator';
 
 // Mock Obsidian dependencies
 jest.mock('obsidian', () => ({
@@ -13,7 +14,38 @@ jest.mock('obsidian', () => ({
   Plugin: class MockPlugin {},
   TFile: class MockTFile {},
   Vault: class MockVault {},
+  Component: class MockComponent {
+    load() {}
+    unload() {}
+    onload() {}
+    onunload() {}
+    addChild(component: any) { return component; }
+    removeChild(component: any) { return component; }
+    register(cb: () => any) {}
+    registerEvent(eventRef: any) {}
+  },
+  ButtonComponent: class MockButtonComponent {
+    buttonEl = document.createElement('button');
+    constructor(containerEl: HTMLElement) {
+      if (containerEl) {
+        containerEl.appendChild(this.buttonEl);
+      }
+    }
+    setButtonText(text: string) {
+      this.buttonEl.textContent = text;
+      return this;
+    }
+    setClass(className: string) {
+      this.buttonEl.addClass(className);
+      return this;
+    }
+    setDisabled(disabled: boolean) {
+      this.buttonEl.disabled = disabled;
+      return this;
+    }
+  },
   debounce: (fn: any) => fn,
+  normalizePath: (path: string) => path.replace(/\\/g, '/').replace(/\/+/g, '/'),
 }));
 
 // Mock other dependencies
@@ -62,6 +94,11 @@ describe('Stop Button Integration Tests', () => {
           getLeavesOfType: jest.fn(() => [])
         },
         vault: {},
+      },
+      manifest: {
+        id: 'test-plugin',
+        name: 'Test Plugin',
+        version: '1.0.0'
       },
       settings: {
         temperature: 0.7,
@@ -120,7 +157,7 @@ describe('Stop Button Integration Tests', () => {
       // Verify UI state
       expect(stopButton.classList.contains('hidden')).toBe(false);
       expect(sendButton.classList.contains('hidden')).toBe(true);
-      expect(mockPlugin.debugLog).toHaveBeenCalledWith('debug', '[ChatView] StreamCoordinator - showing stop button');
+      expect(mockPlugin.debugLog).toHaveBeenCalledWith('debug', '[ChatView] Button state synced', { isStreaming: true });
     });
 
     test('should show send button when StreamCoordinator stops streaming', () => {
@@ -137,7 +174,7 @@ describe('Stop Button Integration Tests', () => {
       // Verify UI state
       expect(stopButton.classList.contains('hidden')).toBe(true);
       expect(sendButton.classList.contains('hidden')).toBe(false);
-      expect(mockPlugin.debugLog).toHaveBeenCalledWith('debug', '[ChatView] StreamCoordinator - showing send button');
+      expect(mockPlugin.debugLog).toHaveBeenCalledWith('debug', '[ChatView] Button state synced', { isStreaming: false });
     });
 
     test('should handle missing DOM elements gracefully', () => {
@@ -166,8 +203,10 @@ describe('Stop Button Integration Tests', () => {
       expect(mockStreamCoordinator.isStreaming).toHaveBeenCalled();
     });
 
-    test('should fallback to legacy checks when StreamCoordinator not streaming', () => {
-      mockStreamCoordinator.isStreaming.mockReturnValue(false);
+    test('should fallback to legacy checks when StreamCoordinator not available', () => {
+      // Remove StreamCoordinator to test legacy fallback
+      (chatView as any).streamCoordinator = null;
+      // Set up legacy activeStream
       (chatView as any).activeStream = { abort: jest.fn() };
       
       const result = chatView.hasActiveStream();
@@ -176,8 +215,11 @@ describe('Stop Button Integration Tests', () => {
     });
 
     test('should check AIDispatcher as final fallback', () => {
-      mockStreamCoordinator.isStreaming.mockReturnValue(false);
+      // Remove StreamCoordinator to test AIDispatcher fallback
+      (chatView as any).streamCoordinator = null;
+      // No legacy activeStream
       (chatView as any).activeStream = null;
+      // AIDispatcher has active streams
       mockPlugin.aiDispatcher.hasActiveStreams.mockReturnValue(true);
       
       const result = chatView.hasActiveStream();

@@ -1166,12 +1166,64 @@ export class ChatView extends ItemView {
     }
 
     stopActiveStream(): void {
-        // Use the consolidated stop logic
-        this.stopAllActiveStreams();
+        // Prioritize StreamCoordinator for stopping
+        if (this.streamCoordinator) {
+            this.streamCoordinator.stopStream();
+        }
+        
+        // Also stop legacy streams defensively
+        if (this.activeStream) {
+            this.activeStream.abort();
+            this.activeStream = null;
+        }
+        
+        // Stop global plugin streams
+        if (this.plugin.aiDispatcher) {
+            this.plugin.aiDispatcher.abortAllStreams();
+        }
     }
+    
+    /**
+     * Sync stop/send button state based on streaming status
+     * Used by tests and UI state management
+     */
+    syncStopSendButtonState(isStreaming: boolean): void {
+        const stopButton = this.domElementCache.stopButton;
+        const sendButton = this.domElementCache.sendButton;
+        
+        if (!stopButton || !sendButton) {
+            this.plugin.debugLog('warn', '[ChatView] Stop/send buttons not found in DOM cache');
+            return;
+        }
+        
+        if (isStreaming) {
+            stopButton.classList.remove('hidden');
+            sendButton.classList.add('hidden');
+        } else {
+            stopButton.classList.add('hidden');
+            sendButton.classList.remove('hidden');
+        }
+        
+        this.plugin.debugLog('debug', '[ChatView] Button state synced', { isStreaming });
+    }
+
     hasActiveStream(): boolean {
-        // Use centralized stream state as single source of truth
-        return this.centralStreamState.isStreaming;
+        // Prioritize StreamCoordinator status
+        if (this.streamCoordinator) {
+            return this.streamCoordinator.isStreaming();
+        }
+        
+        // Fallback to legacy checks when StreamCoordinator not available
+        if (this.activeStream) {
+            return true;
+        }
+        
+        // Check AIDispatcher as final fallback
+        if (this.plugin.aiDispatcher && this.plugin.aiDispatcher.hasActiveStreams()) {
+            return true;
+        }
+        
+        return false;
     }
 
     /**

@@ -9,6 +9,7 @@ import { IStreamCoordinator, IEventBus } from '../interfaces';
 import { Message } from '../../types';
 import { AIService } from '../core/AIService';
 import { buildContextMessages } from '../../utils/contextBuilder';
+import { buildAgentSystemPrompt } from '../../promptConstants';
 import type MyPlugin from '../../main';
 
 export interface StreamOptions {
@@ -195,7 +196,27 @@ export class StreamCoordinator implements IStreamCoordinator {
 
             // Build context messages
             const contextMessages = await this.buildContextMessages();
-            const allMessages = [...contextMessages, ...messages];
+            
+            // Check if agent mode is enabled and inject agent system prompt
+            let allMessages = [...contextMessages, ...messages];
+            if (this.plugin.agentModeManager?.isAgentModeEnabled()) {
+                this.plugin.debugLog('info', '[StreamCoordinator] Agent mode enabled - injecting agent system prompt');
+                
+                // Build agent system prompt with enabled tools from plugin settings
+                const enabledTools = this.plugin.settings.enabledTools || {};
+                const agentSystemPrompt = buildAgentSystemPrompt(enabledTools);
+                
+                // Insert agent system prompt at the beginning
+                allMessages = [
+                    { role: 'system', content: agentSystemPrompt },
+                    ...allMessages
+                ];
+                
+                this.plugin.debugLog('debug', '[StreamCoordinator] Agent system prompt injected', {
+                    enabledToolsCount: Object.keys(enabledTools).filter(k => enabledTools[k]).length,
+                    totalMessages: allMessages.length
+                });
+            }
 
             // Start the streaming request
             let fullResponse = '';
@@ -240,6 +261,28 @@ export class StreamCoordinator implements IStreamCoordinator {
             });
 
             const duration = Date.now() - this.streamState.startTime!;
+
+            // Process agent response if agent mode is enabled
+            if (this.plugin.agentModeManager?.isAgentModeEnabled() && fullResponse) {
+                this.plugin.debugLog('info', '[StreamCoordinator] Processing agent response for tool execution');
+                
+                try {
+                    const agentData = await this.processAgentResponse(fullResponse, streamId);
+                    
+                    // Store agent data in the UI container for retrieval by the chat UI
+                    if (this.activeContainer && agentData) {
+                        this.activeContainer.dataset.messageData = JSON.stringify(agentData);
+                        this.plugin.debugLog('debug', '[StreamCoordinator] Agent data stored in container', {
+                            toolResultsCount: agentData.toolResults?.length || 0,
+                            hasReasoning: !!agentData.reasoning,
+                            hasTaskStatus: !!agentData.taskStatus
+                        });
+                    }
+                } catch (agentError: any) {
+                    this.plugin.debugLog('error', '[StreamCoordinator] Agent processing failed', agentError);
+                    // Don't throw - continue with normal response handling
+                }
+            }
 
             this.eventBus.publish('stream.completed', {
                 streamId,
@@ -505,6 +548,68 @@ export class StreamCoordinator implements IStreamCoordinator {
         } catch (error) {
             console.warn('Failed to build context messages:', error);
             return [];
+        }
+    }
+
+    /**
+     * Process agent response for tool execution and enhanced data
+     */
+    private async processAgentResponse(response: string, streamId: string): Promise<any> {
+        try {
+            // Check if we have an agent orchestrator available
+            const orchestrator = this.plugin.getIntegratedAgentOrchestrator();
+            if (!orchestrator) {
+                this.plugin.debugLog('warn', '[StreamCoordinator] No agent orchestrator available for processing');
+                return null;
+            }
+            
+            this.plugin.debugLog('debug', '[StreamCoordinator] Processing agent response with orchestrator', {
+                responseLength: response.length,
+                streamId
+            });
+
+            // Get agent mode settings for processing limits
+            const agentSettings = this.plugin.agentModeManager?.getAgentModeSettings();
+            
+            // Process the response through the agent orchestrator
+            const result = await orchestrator.processAgentResponse(response, {
+                maxExecutions: agentSettings?.maxToolCalls || 10,
+                timeoutMs: agentSettings?.timeoutMs || 30000,
+                skipLimitCheck: false,
+                displayResults: false // Don't auto-display, let the chat UI handle it
+            });
+
+            this.plugin.debugLog('info', '[StreamCoordinator] Agent processing completed', {
+                commandsFound: result.commands.length,
+                resultsGenerated: result.results.length,
+                limitReached: result.limitReached
+            });
+
+            // Convert orchestrator result to enhanced message data format
+            return {
+                toolResults: result.results.map((r: any) => ({
+                    tool: r.command.action,
+                    input: r.command.parameters,
+                    output: r.result.content,
+                    success: r.result.success,
+                    timestamp: new Date().toISOString()
+                })),
+                reasoning: {
+                    thoughts: result.commands.filter((cmd: any) => cmd.action === 'thought').map((cmd: any) => cmd.parameters?.content || ''),
+                    plan: `Executed ${result.results.length} tools with ${result.commands.length} total commands`,
+                    analysis: result.statistics
+                },
+                taskStatus: {
+                    status: result.limitReached ? 'limited' : 'completed',
+                    progress: result.results.length,
+                    total: result.commands.length,
+                    timestamp: new Date().toISOString()
+                }
+            };
+
+        } catch (error: any) {
+            this.plugin.debugLog('error', '[StreamCoordinator] Agent processing error', error);
+            throw error;
         }
     }
 

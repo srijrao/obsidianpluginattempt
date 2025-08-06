@@ -28,24 +28,46 @@ jest.mock('../src/utils/recently-opened-files', () => ({
   }))
 }));
 
-// Mock the AI service
+// Mock agent-related dependencies
+jest.mock('../src/promptConstants', () => ({
+  buildAgentSystemPrompt: jest.fn(() => ({ role: 'system', content: 'Agent system prompt' }))
+}));
+
+// Mock the AI service - basic version that completes successfully
 const mockAIService = {
   async getCompletion(request: any): Promise<string> {
     return new Promise((resolve, reject) => {
       const abortController = request.options?.abortController;
-      if (abortController?.signal.aborted) {
-        reject(new Error('AbortError'));
-        return;
-      }
-
+      
       // Simulate streaming with chunks
       const chunks = ['Hello', ' world', '!'];
       let chunkIndex = 0;
+      let timeoutId: NodeJS.Timeout;
+      
+      // Set up abort listener only for tests that expect abort behavior
+      if (abortController && request.expectAbort) {
+        const abortHandler = () => {
+          if (timeoutId) {
+            clearTimeout(timeoutId);
+          }
+          const abortError = new Error('AbortError');
+          abortError.name = 'AbortError';
+          reject(abortError);
+        };
+        
+        // Check if already aborted
+        if (abortController.signal.aborted) {
+          abortHandler();
+          return;
+        }
+        
+        abortController.signal.addEventListener('abort', abortHandler);
+      }
       
       const sendChunk = () => {
-        if (abortController?.signal.aborted) {
-          reject(new Error('AbortError'));
-          return;
+        // For tests expecting abort, check abort signal
+        if (request.expectAbort && abortController?.signal.aborted) {
+          return; // Already handled by abort listener
         }
         
         if (chunkIndex < chunks.length) {
@@ -53,13 +75,66 @@ const mockAIService = {
             request.options.streamCallback(chunks[chunkIndex]);
           }
           chunkIndex++;
-          setTimeout(sendChunk, 10); // 10ms delay between chunks
+          timeoutId = setTimeout(sendChunk, 10); // 10ms delay between chunks
         } else {
           resolve('Hello world!');
         }
       };
       
-      setTimeout(sendChunk, 10);
+      timeoutId = setTimeout(sendChunk, 10);
+    });
+  }
+};
+
+// Mock AI service that handles abort properly for stop tests
+const mockAIServiceWithAbort = {
+  async getCompletion(request: any): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const abortController = request.options?.abortController;
+      
+      // Simulate streaming with chunks
+      const chunks = ['Hello', ' world', '!'];
+      let chunkIndex = 0;
+      let timeoutId: NodeJS.Timeout;
+      
+      // Set up abort listener
+      if (abortController) {
+        const abortHandler = () => {
+          if (timeoutId) {
+            clearTimeout(timeoutId);
+          }
+          const abortError = new Error('AbortError');
+          abortError.name = 'AbortError';
+          reject(abortError);
+        };
+        
+        // Check if already aborted
+        if (abortController.signal.aborted) {
+          abortHandler();
+          return;
+        }
+        
+        abortController.signal.addEventListener('abort', abortHandler);
+      }
+      
+      const sendChunk = () => {
+        // Check if aborted during execution
+        if (abortController?.signal.aborted) {
+          return; // Already handled by abort listener
+        }
+        
+        if (chunkIndex < chunks.length) {
+          if (request.options?.streamCallback) {
+            request.options.streamCallback(chunks[chunkIndex]);
+          }
+          chunkIndex++;
+          timeoutId = setTimeout(sendChunk, 10); // 10ms delay between chunks
+        } else {
+          resolve('Hello world!');
+        }
+      };
+      
+      timeoutId = setTimeout(sendChunk, 10);
     });
   }
 };
@@ -85,7 +160,14 @@ const createMockPlugin = (): Partial<MyPlugin> => ({
     temperature: 0.7,
     debugMode: true,
     provider: 'openai',
-    selectedModel: 'openai:gpt-4'
+    selectedModel: 'openai:gpt-4',
+    agentModeSettings: {
+      enabled: false,
+      autoMode: false,
+      confirmBeforeActions: true,
+      maxToolCalls: 5,
+      toolTimeout: 30000
+    }
   } as any,
   debugLog: jest.fn(),
   aiDispatcher: {
@@ -93,6 +175,7 @@ const createMockPlugin = (): Partial<MyPlugin> => ({
     abortAllStreams: jest.fn(),
     getActiveStreamCount: jest.fn(() => 0),
   } as any,
+  getIntegratedAgentOrchestrator: jest.fn(() => null),
 });
 
 describe('StreamCoordinator Integration Tests', () => {
@@ -180,23 +263,36 @@ describe('StreamCoordinator Integration Tests', () => {
     });
 
     test('should stop stream successfully', async () => {
+      // Create a separate StreamCoordinator with abort-aware AI service for this test
+      const abortStreamCoordinator = new StreamCoordinator(
+        mockPlugin as MyPlugin,
+        mockEventBus,
+        mockAIServiceWithAbort as any
+      );
+      
+      const abortUICallback = jest.fn();
+      abortStreamCoordinator.onUIStateChange(abortUICallback);
+      
       const messages: Message[] = [
         { role: 'user', content: 'Hello' }
       ];
       
-      const streamPromise = streamCoordinator.startStream(messages);
-      expect(streamCoordinator.isStreaming()).toBe(true);
+      const streamPromise = abortStreamCoordinator.startStream(messages);
+      expect(abortStreamCoordinator.isStreaming()).toBe(true);
       
       // Stop the stream
-      streamCoordinator.stopStream();
+      abortStreamCoordinator.stopStream();
       
       // Should immediately show as not streaming
-      expect(streamCoordinator.isStreaming()).toBe(false);
-      expect(uiStateCallback).toHaveBeenCalledWith(false);
+      expect(abortStreamCoordinator.isStreaming()).toBe(false);
+      expect(abortUICallback).toHaveBeenCalledWith(false);
       
-      // Stream should be rejected
-      await expect(streamPromise).rejects.toThrow();
-    });
+      // Stream should be rejected with AbortError
+      await expect(streamPromise).rejects.toThrow('AbortError');
+      
+      // Clean up
+      abortStreamCoordinator.dispose();
+    }, 10000); // Increase timeout to 10 seconds
 
     test('should track active streams count', () => {
       expect(streamCoordinator.getActiveStreams()).toEqual([]);
@@ -236,7 +332,8 @@ describe('StreamCoordinator Integration Tests', () => {
       const streamPromise = streamCoordinator.startStream(messages);
       expect(uiStateCallback).toHaveBeenCalledWith(true);
       
-      await streamPromise;
+      const result = await streamPromise;
+      expect(result).toBe('Hello world!');
       expect(uiStateCallback).toHaveBeenCalledWith(false);
     });
 

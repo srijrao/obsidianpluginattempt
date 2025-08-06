@@ -46,7 +46,7 @@ export function registerAIStreamCommands(
 
     /**
      * Registers the 'End AI Stream' command.
-     * This command allows users to manually stop an ongoing AI streaming operation.
+     * This command stops all active streams using the centralized StreamCoordinator.
      */
     registerCommand(
         plugin,
@@ -54,45 +54,16 @@ export function registerAIStreamCommands(
             id: 'end-ai-stream',
             name: 'End AI Stream',
             callback: () => {
-                // Use the same comprehensive stop logic as the stop button
                 const myPlugin = plugin as any;
                 
-                // Get reference to active ChatView instance for comprehensive stopping
-                const { VIEW_TYPE_CHAT } = require('../../chat');
-                const chatLeaves = myPlugin.app.workspace.getLeavesOfType(VIEW_TYPE_CHAT);
-                let streamsStopped = false;
-                
-                // Stop streams through ChatView's comprehensive method (preferred)
-                for (const leaf of chatLeaves) {
-                    const chatView = leaf.view;
-                    if (chatView && typeof chatView.stopAllActiveStreams === 'function') {
-                        chatView.stopAllActiveStreams();
-                        chatView.restoreUIAfterStop();
-                        streamsStopped = true;
-                        myPlugin.debugLog('info', '[aiStreamCommands] Stopped streams via ChatView.stopAllActiveStreams');
-                    }
-                }
-                
-                // Fallback to plugin-level stopping if ChatView method not available
-                if (!streamsStopped && myPlugin.hasActiveAIStreams && myPlugin.hasActiveAIStreams()) {
-                    myPlugin.stopAllAIStreams();
-                    streamsStopped = true;
-                    myPlugin.debugLog('info', '[aiStreamCommands] Stopped streams via plugin.stopAllAIStreams');
-                }
-                
-                // Final fallback to legacy behavior
-                if (!streamsStopped && activeStream.current) {
-                    activeStream.current.abort();
-                    activeStream.current = null;
-                    setActiveStream(null);
-                    streamsStopped = true;
-                    myPlugin.debugLog('info', '[aiStreamCommands] Stopped legacy activeStream');
-                }
-                
-                if (streamsStopped) {
+                // Stop streams using centralized StreamCoordinator
+                if (myPlugin.streamCoordinator) {
+                    myPlugin.streamCoordinator.stopStream();
                     showNotice('All AI streams stopped');
+                    myPlugin.debugLog('info', '[aiStreamCommands] Stopped streams via StreamCoordinator');
                 } else {
                     showNotice('No active AI stream to end');
+                    myPlugin.debugLog('warn', '[aiStreamCommands] StreamCoordinator not available');
                 }
             }
         }

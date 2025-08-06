@@ -22,6 +22,14 @@ jest.mock('../providers', () => ({
 jest.mock('../src/utils/saveAICalls', () => ({
   saveAICallToFolder: jest.fn(),
 }));
+jest.mock('../src/utils/typeguards', () => ({
+  isValidProviderName: jest.fn().mockReturnValue(true),
+  isValidMessagesArray: jest.fn().mockReturnValue(true),
+  isValidMessage: jest.fn().mockReturnValue(true),
+  isNonEmptyString: jest.fn().mockReturnValue(true),
+  getProviderSettings: jest.fn(),
+  getPluginApp: jest.fn().mockReturnValue({ workspace: {}, vault: {} }),
+}));
 jest.mock('../src/utils/logger', () => ({
   debugLog: jest.fn(),
 }));
@@ -94,10 +102,34 @@ describe('AIDispatcher', () => {
         provider: 'openai',
         selectedModel: 'openai:gpt-3.5-turbo',
         debugMode: false,
-        openaiSettings: { apiKey: 'test-key', model: 'gpt-3.5-turbo', availableModels: [], baseUrl: '' },
-        anthropicSettings: { apiKey: '', model: '', availableModels: [], baseUrl: '' },
-        geminiSettings: { apiKey: '', model: '', availableModels: [], baseUrl: '' },
-        ollamaSettings: { serverUrl: '', model: '', availableModels: [], baseUrl: '' },
+        openaiSettings: {
+          apiKey: 'test-key',
+          model: 'gpt-3.5-turbo',
+          availableModels: [],
+          baseUrl: '',
+          lastTestResult: undefined
+        },
+        anthropicSettings: {
+          apiKey: '',
+          model: '',
+          availableModels: [],
+          baseUrl: '',
+          lastTestResult: undefined
+        },
+        geminiSettings: {
+          apiKey: '',
+          model: '',
+          availableModels: [],
+          baseUrl: '',
+          lastTestResult: undefined
+        },
+        ollamaSettings: {
+          serverUrl: '',
+          model: '',
+          availableModels: [],
+          baseUrl: '',
+          lastTestResult: undefined
+        },
         referenceCurrentNote: false,
         systemMessage: '',
         temperature: 0.7,
@@ -494,7 +526,11 @@ describe('AIDispatcher', () => {
 
     test('refreshProviderModels should update settings with new models', async () => {
       const mockModels = ['modelA', 'modelB'];
-      jest.spyOn(dispatcher, 'getAvailableModels' as any).mockResolvedValue(mockModels);
+      jest.spyOn(dispatcher, 'getAvailableModels').mockResolvedValue(mockModels);
+      
+      // Mock getProviderSettings to return the actual openaiSettings object
+      const { getProviderSettings } = require('../src/utils/typeguards');
+      (getProviderSettings as jest.Mock).mockReturnValue(plugin.settings.openaiSettings);
 
       await dispatcher.refreshProviderModels('openai');
 
@@ -505,7 +541,11 @@ describe('AIDispatcher', () => {
 
     test('refreshProviderModels should update settings with error on failure', async () => {
       const error = new Error('Refresh failed');
-      jest.spyOn(dispatcher, 'getAvailableModels' as any).mockRejectedValue(error);
+      jest.spyOn(dispatcher, 'getAvailableModels').mockRejectedValue(error);
+      
+      // Mock getProviderSettings to return the actual openaiSettings object
+      const { getProviderSettings } = require('../src/utils/typeguards');
+      (getProviderSettings as jest.Mock).mockReturnValue(plugin.settings.openaiSettings);
 
       await expect(dispatcher.refreshProviderModels('openai')).rejects.toThrow(error);
 
@@ -516,17 +556,17 @@ describe('AIDispatcher', () => {
     });
 
     test('refreshAllProviderModels should refresh all configured providers', async () => {
-      jest.spyOn(dispatcher, 'isProviderConfigured' as any).mockReturnValue(true); // All configured
-      jest.spyOn(dispatcher, 'refreshProviderModels' as any)
+      jest.spyOn(dispatcher, 'isProviderConfigured').mockReturnValue(true); // All configured
+      jest.spyOn(dispatcher, 'refreshProviderModels')
         .mockResolvedValueOnce(['o1', 'o2'])
         .mockResolvedValueOnce(['a1', 'a2'])
         .mockResolvedValueOnce(['g1', 'g2'])
         .mockResolvedValueOnce(['l1', 'l2']);
-      jest.spyOn(dispatcher, 'getAllUnifiedModels' as any).mockResolvedValue([]); // Mock unified models
+      jest.spyOn(dispatcher, 'getAllUnifiedModels').mockResolvedValue([]); // Mock unified models
 
       const results = await dispatcher.refreshAllProviderModels();
 
-      expect(dispatcher['refreshProviderModels']).toHaveBeenCalledTimes(4);
+      expect(dispatcher.refreshProviderModels).toHaveBeenCalledTimes(4);
       expect(results.openai).toEqual(['o1', 'o2']);
       expect(results.anthropic).toEqual(['a1', 'a2']);
       expect(results.gemini).toEqual(['g1', 'g2']);
