@@ -37,6 +37,10 @@ export class PathValidator {
             return '';
         }
 
+        // SECURITY FIX: Pre-normalization security check to prevent directory traversal
+        // Check for directory traversal patterns BEFORE normalization to prevent Windows backslash bypass
+        this.performPreNormalizationSecurityCheck(cleanPath);
+
         let normalizedPath: string;
 
         if (isAbsolute(cleanPath)) {
@@ -55,7 +59,7 @@ export class PathValidator {
             // Normalize relative path.
             normalizedPath = normalize(cleanPath);
 
-            // Prevent directory traversal outside the vault.
+            // Post-normalization check as additional safety (kept for defense in depth)
             if (normalizedPath.startsWith('../') || normalizedPath.includes('/../') || normalizedPath === '..') {
                 throw new Error(`Path '${cleanPath}' attempts to access files outside the vault. Only paths within the vault are allowed.`);
             }
@@ -73,6 +77,58 @@ export class PathValidator {
         }
 
         return normalizedPath;
+    }
+
+    /**
+     * Performs pre-normalization security checks to prevent directory traversal attacks.
+     * This method checks for traversal patterns before path normalization to prevent
+     * Windows backslash bypass attacks where ..\\ patterns get normalized to ../ after validation.
+     * @param inputPath The raw input path to check
+     * @throws Error if directory traversal patterns are detected
+     */
+    private performPreNormalizationSecurityCheck(inputPath: string): void {
+        // Check for directory traversal patterns with both forward slashes and backslashes
+        // This prevents Windows-style attacks using backslashes that get normalized later
+        
+        // Patterns to detect:
+        // - ../ or ..\\ at start of path
+        // - /../ or \..\\ anywhere in path
+        // - .. as entire path component
+        // - Mixed separator attacks like ..\/ or ..\/
+        
+        const traversalPatterns = [
+            /^\.\.[\\/]/,           // Starts with ../ or ..\
+            /[\\/]\.\.[\\/]/,       // Contains /../ or \..\
+            /^\.\.$/,               // Exactly ".."
+            /[\\/]\.\.$/, // Ends with /.. or \..
+            /^\.\.[\\/].*[\\/]\.\.[\\/]/, // Multiple traversal attempts
+            /\.\.[\\/]\.\./, // Consecutive traversal attempts like ../../ or ..\..\ or ..\../
+        ];
+
+        for (const pattern of traversalPatterns) {
+            if (pattern.test(inputPath)) {
+                throw new Error(`Path '${inputPath}' contains directory traversal patterns and attempts to access files outside the vault. Only paths within the vault are allowed.`);
+            }
+        }
+
+        // Additional check for mixed separator patterns that could bypass simple regex
+        // Convert all separators to forward slashes for consistent checking
+        const normalizedForCheck = inputPath.replace(/\\/g, '/');
+        if (normalizedForCheck.includes('../') || normalizedForCheck.startsWith('../') || normalizedForCheck === '..') {
+            // Check if this would result in traversal after normalization
+            const segments = normalizedForCheck.split('/');
+            let depth = 0;
+            for (const segment of segments) {
+                if (segment === '..') {
+                    depth--;
+                    if (depth < 0) {
+                        throw new Error(`Path '${inputPath}' attempts to access files outside the vault. Only paths within the vault are allowed.`);
+                    }
+                } else if (segment !== '' && segment !== '.') {
+                    depth++;
+                }
+            }
+        }
     }
 
     /**

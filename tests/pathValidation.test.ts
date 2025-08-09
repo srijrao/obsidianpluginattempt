@@ -57,23 +57,57 @@ describe('PathValidator', () => {
         expect(() => pathValidator.validateAndNormalizePath({} as any)).toThrow('Path must be a string');
       });
 
-      test('should prevent directory traversal attacks', () => {
-        // Note: The current implementation has a bug on Windows - it only checks for '../' but not '..\'
-        // These tests document the current behavior, but this should be fixed in the implementation
+      test('should prevent directory traversal attacks with forward slashes', () => {
+        // Test forward slash traversal patterns - these should all throw
+        expect(() => pathValidator.validateAndNormalizePath('../file.md')).toThrow('contains directory traversal patterns');
+        expect(() => pathValidator.validateAndNormalizePath('../../file.md')).toThrow('contains directory traversal patterns');
+        expect(() => pathValidator.validateAndNormalizePath('folder/../../../etc/passwd')).toThrow('contains directory traversal patterns');
+        expect(() => pathValidator.validateAndNormalizePath('folder/../../file.md')).toThrow('contains directory traversal patterns');
+        expect(() => pathValidator.validateAndNormalizePath('..')).toThrow('contains directory traversal patterns');
+        expect(() => pathValidator.validateAndNormalizePath('folder/..')).toThrow('contains directory traversal patterns');
+        expect(() => pathValidator.validateAndNormalizePath('folder/../..')).toThrow('contains directory traversal patterns');
+      });
+
+      test('should prevent directory traversal attacks with Windows backslashes', () => {
+        // Test Windows backslash traversal patterns - these should all throw
+        expect(() => pathValidator.validateAndNormalizePath('..\\file.md')).toThrow('contains directory traversal patterns');
+        expect(() => pathValidator.validateAndNormalizePath('..\\..\\file.md')).toThrow('contains directory traversal patterns');
+        expect(() => pathValidator.validateAndNormalizePath('folder\\..\\..\\..\\etc\\passwd')).toThrow('contains directory traversal patterns');
+        expect(() => pathValidator.validateAndNormalizePath('folder\\..\\..\\file.md')).toThrow('contains directory traversal patterns');
+        expect(() => pathValidator.validateAndNormalizePath('folder\\..')).toThrow('contains directory traversal patterns');
+        expect(() => pathValidator.validateAndNormalizePath('folder\\..\\..\\another')).toThrow('contains directory traversal patterns');
+      });
+
+      test('should prevent mixed separator traversal attacks', () => {
+        // Test mixed forward slash and backslash patterns - these should all throw
+        expect(() => pathValidator.validateAndNormalizePath('..\\../file.md')).toThrow('contains directory traversal patterns');
+        expect(() => pathValidator.validateAndNormalizePath('../..\\file.md')).toThrow('contains directory traversal patterns');
+        expect(() => pathValidator.validateAndNormalizePath('folder\\../..\\file.md')).toThrow('contains directory traversal patterns');
+        expect(() => pathValidator.validateAndNormalizePath('folder/../..\\file.md')).toThrow('contains directory traversal patterns');
+        expect(() => pathValidator.validateAndNormalizePath('folder\\../..')).toThrow('contains directory traversal patterns');
+        expect(() => pathValidator.validateAndNormalizePath('folder/..\\..\\file.md')).toThrow('contains directory traversal patterns');
+      });
+
+      test('should prevent complex traversal attack patterns', () => {
+        // Test complex and nested traversal patterns
+        expect(() => pathValidator.validateAndNormalizePath('a/../b/../c/../../../file.md')).toThrow('contains directory traversal patterns');
+        expect(() => pathValidator.validateAndNormalizePath('a\\..\\b\\..\\c\\..\\..\\..\\file.md')).toThrow('contains directory traversal patterns');
+        expect(() => pathValidator.validateAndNormalizePath('folder/subfolder/../../../file.md')).toThrow('contains directory traversal patterns');
+        expect(() => pathValidator.validateAndNormalizePath('folder\\subfolder\\..\\..\\..\\file.md')).toThrow('contains directory traversal patterns');
         
-        // These should throw but currently don't on Windows due to backslash vs forward slash issue
-        // TODO: Fix PathValidator to handle Windows path separators properly
-        
-        // Test with paths that would escape after normalization
-        // On Windows, these get normalized to ..\something which doesn't match the '../' check
-        const result1 = pathValidator.validateAndNormalizePath('folder/../../../etc/passwd');
-        const result2 = pathValidator.validateAndNormalizePath('folder/../../file.md');
-        const result3 = pathValidator.validateAndNormalizePath('../file.md');
-        const result4 = pathValidator.validateAndNormalizePath('../../file.md');
-        
-        // These should be empty or throw, but currently return normalized paths
-        // This is a security vulnerability that needs to be fixed
-        console.log('Security issue detected:', { result1, result2, result3, result4 });
+        // Test paths that would escape the vault after normalization
+        expect(() => pathValidator.validateAndNormalizePath('valid/folder/../../../etc/passwd')).toThrow('attempts to access files outside the vault');
+        expect(() => pathValidator.validateAndNormalizePath('valid\\folder\\..\\..\\..\\etc\\passwd')).toThrow('contains directory traversal patterns');
+      });
+
+      test('should prevent edge case traversal patterns', () => {
+        // Test edge cases and potential bypass attempts
+        expect(() => pathValidator.validateAndNormalizePath('..\\/')).toThrow('contains directory traversal patterns');
+        expect(() => pathValidator.validateAndNormalizePath('../\\')).toThrow('contains directory traversal patterns');
+        expect(() => pathValidator.validateAndNormalizePath('.\\..')).toThrow('contains directory traversal patterns');
+        expect(() => pathValidator.validateAndNormalizePath('./\\..')).toThrow('contains directory traversal patterns');
+        expect(() => pathValidator.validateAndNormalizePath('folder\\..\\.')).toThrow('contains directory traversal patterns');
+        expect(() => pathValidator.validateAndNormalizePath('folder/../.')).toThrow('contains directory traversal patterns');
       });
 
       test('should prevent absolute paths outside vault', () => {
@@ -91,15 +125,10 @@ describe('PathValidator', () => {
     });
 
     test('should throw for invalid paths', () => {
-      // Note: Due to Windows path separator issue, '../file.md' doesn't throw as expected
-      // This is a security vulnerability that should be fixed
-      
-      // This should throw but currently doesn't on Windows
-      const result = pathValidator.validatePath('../file.md');
-      console.log('Security issue: ../file.md should throw but returns:', result);
-      
-      // This correctly throws
-      expect(() => pathValidator.validatePath('/etc/passwd')).toThrow();
+      // Now that the security fix is implemented, these should all throw
+      expect(() => pathValidator.validatePath('../file.md')).toThrow('contains directory traversal patterns');
+      expect(() => pathValidator.validatePath('..\\file.md')).toThrow('contains directory traversal patterns');
+      expect(() => pathValidator.validatePath('/etc/passwd')).toThrow('is outside the vault');
     });
   });
 
@@ -125,12 +154,10 @@ describe('PathValidator', () => {
     });
 
     test('should validate input path before conversion', () => {
-      // Note: Due to Windows path separator issue, '../file.md' doesn't throw as expected
-      // This is a security vulnerability that should be fixed
-      
-      // This should throw but currently doesn't on Windows
-      const result = pathValidator.toAbsolutePath('../file.md');
-      console.log('Security issue: toAbsolutePath("../file.md") should throw but returns:', result);
+      // Now that the security fix is implemented, these should all throw
+      expect(() => pathValidator.toAbsolutePath('../file.md')).toThrow('contains directory traversal patterns');
+      expect(() => pathValidator.toAbsolutePath('..\\file.md')).toThrow('contains directory traversal patterns');
+      expect(() => pathValidator.toAbsolutePath('folder/../../../etc/passwd')).toThrow('contains directory traversal patterns');
     });
   });
 
@@ -147,8 +174,164 @@ describe('PathValidator', () => {
     });
 
     test('should return false for invalid paths', () => {
+      // pathsEqual should return false when either path is invalid (catches exceptions)
       expect(pathValidator.pathsEqual('../', 'folder/file.md')).toBe(false);
       expect(pathValidator.pathsEqual('folder/file.md', '../')).toBe(false);
+      expect(pathValidator.pathsEqual('..\\', 'folder/file.md')).toBe(false);
+      expect(pathValidator.pathsEqual('folder/file.md', '..\\')).toBe(false);
+    });
+  
+    describe('comprehensive security tests for Windows path separator vulnerability fix', () => {
+      test('should block all Windows backslash traversal patterns', () => {
+        const windowsTraversalPatterns = [
+          '..\\file.md',
+          '..\\..\\file.md',
+          '..\\..\\..\\file.md',
+          'folder\\..\\file.md',
+          'folder\\..\\..\\file.md',
+          'folder\\..\\..\\..\\file.md',
+          'a\\..\\b\\..\\c\\..\\..\\..\\file.md',
+          'valid\\folder\\..\\..\\..\\etc\\passwd',
+          'folder\\subfolder\\..\\..\\..\\file.md',
+          '..\\..',
+          'folder\\..',
+          'folder\\..\\another\\..\\..\\file.md'
+        ];
+  
+        windowsTraversalPatterns.forEach(pattern => {
+          expect(() => pathValidator.validateAndNormalizePath(pattern))
+            .toThrow('contains directory traversal patterns');
+        });
+      });
+  
+      test('should block all mixed separator traversal patterns', () => {
+        const mixedSeparatorPatterns = [
+          '..\\../file.md',
+          '../..\\file.md',
+          'folder\\../file.md',
+          'folder/../..\\file.md',
+          'folder\\../..',
+          'folder/..\\file.md',
+          'a\\../b/../c\\..\\..\\file.md',
+          'valid/folder\\..\\..\\..\\etc\\passwd',
+          'folder\\subfolder/../..\\file.md',
+          '../folder\\..\\file.md',
+          'folder\\../another/../..\\file.md'
+        ];
+  
+        mixedSeparatorPatterns.forEach(pattern => {
+          expect(() => pathValidator.validateAndNormalizePath(pattern))
+            .toThrow('contains directory traversal patterns');
+        });
+      });
+  
+      test('should block all forward slash traversal patterns (regression test)', () => {
+        const forwardSlashPatterns = [
+          '../file.md',
+          '../../file.md',
+          '../../../file.md',
+          'folder/../file.md',
+          'folder/../../file.md',
+          'folder/../../../file.md',
+          'a/../b/../c/../../../file.md',
+          'valid/folder/../../../etc/passwd',
+          'folder/subfolder/../../../file.md',
+          '../..',
+          'folder/..',
+          'folder/../another/../../file.md'
+        ];
+  
+        forwardSlashPatterns.forEach(pattern => {
+          expect(() => pathValidator.validateAndNormalizePath(pattern))
+            .toThrow('contains directory traversal patterns');
+        });
+      });
+  
+      test('should allow legitimate paths with proper separators', () => {
+        const legitimatePaths = [
+          'file.md',
+          'folder/file.md',
+          'folder\\file.md',
+          'deep/nested/folder/file.md',
+          'deep\\nested\\folder\\file.md',
+          'folder with spaces/file.md',
+          'folder-with-dashes/file_with_underscores.md',
+          'папка/файл.md',
+          'folder/文件.md',
+          'very/deep/nested/folder/structure/file.md',
+          'folder/subfolder/file.md',
+          'a/b/c/d/e/file.md'
+        ];
+  
+        legitimatePaths.forEach(path => {
+          expect(() => pathValidator.validateAndNormalizePath(path)).not.toThrow();
+          const result = pathValidator.validateAndNormalizePath(path);
+          expect(result).toBeDefined();
+          expect(typeof result).toBe('string');
+          // Should not contain any traversal patterns after normalization
+          expect(result).not.toMatch(/\.\./);
+        });
+      });
+  
+      test('should handle edge cases that could bypass security checks', () => {
+        const edgeCasePatterns = [
+          '..\\/',
+          '../\\',
+          '.\\..',
+          './\\..',
+          'folder\\..\\.',
+          'folder/../.',
+          '..\\..\\/',
+          '../..\\/',
+          'folder\\..\\..\\/',
+          'folder/../..\\/',
+          '.\\..\\file.md',
+          './..\\file.md'
+        ];
+  
+        edgeCasePatterns.forEach(pattern => {
+          expect(() => pathValidator.validateAndNormalizePath(pattern))
+            .toThrow('contains directory traversal patterns');
+        });
+      });
+  
+      test('should prevent depth-based traversal attacks', () => {
+        // Test paths that would escape the vault based on directory depth
+        const depthBasedAttacks = [
+          'a/../../../file.md',
+          'a\\..\\..\\..\\file.md',
+          'a/b/../../../file.md',
+          'a\\b\\..\\..\\..\\file.md',
+          'valid/path/../../../etc/passwd',
+          'valid\\path\\..\\..\\..\\etc\\passwd'
+        ];
+  
+        depthBasedAttacks.forEach(pattern => {
+          expect(() => pathValidator.validateAndNormalizePath(pattern))
+            .toThrow(/contains directory traversal patterns|attempts to access files outside the vault/);
+        });
+      });
+  
+      test('should maintain security across all PathValidator methods', () => {
+        const maliciousPaths = [
+          '../file.md',
+          '..\\file.md',
+          'folder/../../../etc/passwd',
+          'folder\\..\\..\\..\\etc\\passwd'
+        ];
+  
+        maliciousPaths.forEach(path => {
+          // validatePath should throw
+          expect(() => pathValidator.validatePath(path)).toThrow();
+          
+          // toAbsolutePath should throw
+          expect(() => pathValidator.toAbsolutePath(path)).toThrow();
+          
+          // pathsEqual should return false (catches exceptions internally)
+          expect(pathValidator.pathsEqual(path, 'legitimate/file.md')).toBe(false);
+          expect(pathValidator.pathsEqual('legitimate/file.md', path)).toBe(false);
+        });
+      });
     });
   });
 
