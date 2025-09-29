@@ -10,7 +10,6 @@ import { RequestManager } from './core/RequestManager';
 import { CacheManager } from './core/CacheManager';
 import { RateLimiter } from './core/RateLimiter';
 import { CircuitBreaker } from './core/CircuitBreaker';
-import { MetricsCollector } from './core/MetricsCollector';
 import { AIService } from './core/AIService';
 import type { MyPluginSettings } from '../types';
 
@@ -57,7 +56,6 @@ export class ServiceFactory {
         
         const rateLimiter = new RateLimiter(eventBus);
         const circuitBreaker = new CircuitBreaker(eventBus);
-        const metricsCollector = new MetricsCollector(eventBus);
 
         // Create the main AI service
         const aiService = new AIService(
@@ -66,7 +64,6 @@ export class ServiceFactory {
             cacheManager,
             rateLimiter,
             circuitBreaker,
-            metricsCollector,
             settings,
             saveSettings
         );
@@ -85,7 +82,6 @@ export class ServiceFactory {
         cacheManager: CacheManager;
         rateLimiter: RateLimiter;
         circuitBreaker: CircuitBreaker;
-        metricsCollector: MetricsCollector;
     } {
         return {
             requestManager: new RequestManager(eventBus),
@@ -96,7 +92,6 @@ export class ServiceFactory {
             ),
             rateLimiter: new RateLimiter(eventBus),
             circuitBreaker: new CircuitBreaker(eventBus),
-            metricsCollector: new MetricsCollector(eventBus)
         };
     }
 
@@ -112,7 +107,6 @@ export class ServiceFactory {
             cacheManager?: CacheManager;
             rateLimiter?: RateLimiter;
             circuitBreaker?: CircuitBreaker;
-            metricsCollector?: MetricsCollector;
         }
     ): AIService {
         const defaultServices = this.createServices(eventBus);
@@ -123,7 +117,6 @@ export class ServiceFactory {
             services.cacheManager || defaultServices.cacheManager,
             services.rateLimiter || defaultServices.rateLimiter,
             services.circuitBreaker || defaultServices.circuitBreaker,
-            services.metricsCollector || defaultServices.metricsCollector,
             settings,
             saveSettings
         );

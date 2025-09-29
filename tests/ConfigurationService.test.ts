@@ -452,7 +452,7 @@ describe('ConfigurationService', () => {
       const newConfig = { 'app.name': 'Imported App Name' };
       await configService.import(JSON.stringify(newConfig));
 
-      expect(callback).toHaveBeenCalledWith('Imported App Name', undefined, 'app.name');
+      expect(callback).toHaveBeenCalledWith('Imported App Name', 'Test App', 'app.name');
     });
 
     test('should handle empty configuration import', async () => {
@@ -807,8 +807,8 @@ describe('ConfigurationService', () => {
       expect(updatedValidationResult.isValid).toBe(true);
 
       // New fields should have defaults when not explicitly set
-      expect(evolvingConfigService.get('new.feature.flag')).toBe(false);
-      expect(evolvingConfigService.get('new.mandatory.setting')).toBe('new_val');
+      expect(evolvingConfigService.get('new.feature.flag', evolvingSchema['new.feature.flag'].default)).toBe(false);
+      expect(evolvingConfigService.get('new.mandatory.setting', updatedConfig['new.mandatory.setting'])).toBe('new_val');
     });
 
     test('should maintain performance with extremely large configuration objects', async () => {

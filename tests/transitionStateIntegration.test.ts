@@ -16,13 +16,12 @@ import { RequestManager } from '../src/services/core/RequestManager';
 import { CacheManager } from '../src/services/core/CacheManager';
 import { RateLimiter } from '../src/services/core/RateLimiter';
 import { CircuitBreaker } from '../src/services/core/CircuitBreaker';
-import { MetricsCollector } from '../src/services/core/MetricsCollector';
 import { Priority3IntegrationManager } from '../src/integration/priority3Integration';
 import { EventBus, globalEventBus } from '../src/utils/eventBus';
 import { Vault } from 'obsidian';
 import { Message, CompletionOptions, MyPluginSettings, DEFAULT_SETTINGS } from '../src/types';
 import { CompletionRequest } from '../src/services/interfaces';
-import { createProvider } from '../providers';
+import { createProvider, createProviderFromUnifiedModel } from '../providers';
 import { BaseProvider } from '../providers/base';
 
 // Mock external dependencies
@@ -61,7 +60,6 @@ describe('Transition State Integration Tests', () => {
   let cacheManager: CacheManager;
   let rateLimiter: RateLimiter;
   let circuitBreaker: CircuitBreaker;
-  let metricsCollector: MetricsCollector;
   let eventBus: EventBus;
   let mockVault: Vault;
   let mockPlugin: any;
@@ -107,6 +105,7 @@ describe('Transition State Integration Tests', () => {
     } as any;
 
     (createProvider as jest.Mock).mockReturnValue(mockProvider);
+    (createProviderFromUnifiedModel as jest.Mock).mockReturnValue(mockProvider);
 
     // Initialize systems
     oldAIDispatcher = new AIDispatcher(mockVault, mockPlugin);
@@ -117,7 +116,6 @@ describe('Transition State Integration Tests', () => {
     cacheManager = new CacheManager(eventBus);
     rateLimiter = new RateLimiter(eventBus);
     circuitBreaker = new CircuitBreaker(eventBus);
-    metricsCollector = new MetricsCollector(eventBus);
 
     newAIService = new AIService(
       eventBus,
@@ -125,7 +123,6 @@ describe('Transition State Integration Tests', () => {
       cacheManager,
       rateLimiter,
       circuitBreaker,
-      metricsCollector,
       mockSettings,
       mockPlugin.saveSettings
     );
@@ -139,7 +136,10 @@ describe('Transition State Integration Tests', () => {
     eventBus.clear();
     globalEventBus.clear();
     if (priority3Manager) {
-      priority3Manager.dispose();
+        priority3Manager.dispose();
+    }
+    if (circuitBreaker) {
+        circuitBreaker.dispose();
     }
   });
 

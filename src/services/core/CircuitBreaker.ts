@@ -28,6 +28,7 @@ export interface CircuitBreakerEntry extends CircuitBreakerState {
  */
 export class CircuitBreaker implements ICircuitBreaker {
     private breakers = new Map<string, CircuitBreakerEntry>();
+    private monitoringIntervalId: NodeJS.Timeout | null = null;
     private readonly defaultConfig: CircuitBreakerConfig = {
         failureThreshold: 5,
         timeoutMs: 30 * 1000, // 30 seconds
@@ -38,6 +39,7 @@ export class CircuitBreaker implements ICircuitBreaker {
     constructor(private eventBus: IEventBus) {
         this.initializeProviderBreakers();
         this.startMonitoringTimer();
+console.log(`[CircuitBreaker] Initialized for providers: ${Array.from(this.breakers.keys()).join(', ')}`);
     }
 
     /**
@@ -121,6 +123,7 @@ export class CircuitBreaker implements ICircuitBreaker {
             recentFailures: breaker.recentFailures.length,
             timestamp: now
         });
+        console.log(`[CircuitBreaker] Failure recorded for provider: ${provider}, Failure count: ${breaker.failureCount}`);
     }
 
     /**
@@ -322,7 +325,7 @@ export class CircuitBreaker implements ICircuitBreaker {
      * Starts monitoring timer for automatic state management
      */
     private startMonitoringTimer(): void {
-        setInterval(() => {
+        this.monitoringIntervalId = setInterval(() => {
             this.performPeriodicMaintenance();
         }, 30000); // Check every 30 seconds
     }
@@ -352,6 +355,11 @@ export class CircuitBreaker implements ICircuitBreaker {
      * Cleanup method for disposing the service
      */
     dispose(): void {
+console.log(`[CircuitBreaker] Disposing circuit breaker.`);
+        if (this.monitoringIntervalId) {
+            clearInterval(this.monitoringIntervalId);
+            this.monitoringIntervalId = null;
+        }
         this.breakers.clear();
     }
 }

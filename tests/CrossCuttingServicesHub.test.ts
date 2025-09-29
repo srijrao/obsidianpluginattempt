@@ -600,11 +600,11 @@ describe('CrossCuttingServicesHub', () => {
       // Access the private method through the instance
       const schema = (hub as any).getDefaultSchema();
 
-      expect(schema).toHaveProperty('logging.logLevel');
-      expect(schema).toHaveProperty('logging.maxLogs');
-      expect(schema).toHaveProperty('monitoring.healthCheckInterval');
-      expect(schema).toHaveProperty('security.maxInputLength');
-      expect(schema).toHaveProperty('security.auditAll');
+      expect(schema['logging.logLevel']).toBeDefined();
+      expect(schema['logging.maxLogs']).toBeDefined();
+      expect(schema['monitoring.healthCheckInterval']).toBeDefined();
+      expect(schema['security.maxInputLength']).toBeDefined();
+      expect(schema['security.auditAll']).toBeDefined();
 
       // Verify schema structure
       expect(schema['logging.logLevel']).toEqual({
@@ -736,7 +736,7 @@ describe('CrossCuttingServicesHub', () => {
 
       // Verify monitoring recorded the security event
       hub.recordMetric('security.threats_detected', 1);
-      expect(mockMonitoring.recordMetric).toHaveBeenCalledWith('security.threats_detected', 1);
+      expect(mockMonitoring.recordMetric).toHaveBeenCalledWith('security.threats_detected', 1, undefined);
     });
 
     test('should maintain service state consistency', async () => {

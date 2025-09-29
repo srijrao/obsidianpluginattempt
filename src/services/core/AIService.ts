@@ -11,7 +11,6 @@ import { RequestManager } from './RequestManager';
 import { CacheManager } from './CacheManager';
 import { RateLimiter } from './RateLimiter';
 import { CircuitBreaker } from './CircuitBreaker';
-import { MetricsCollector } from './MetricsCollector';
 import { BaseProvider } from '../../../providers/base';
 import { createProvider, createProviderFromUnifiedModel, getAllAvailableModels } from '../../../providers';
 import { saveAICallToFolder } from '../../utils/saveAICalls';
@@ -31,7 +30,6 @@ export class AIService implements IAIService {
         private cacheManager: CacheManager,
         private rateLimiter: RateLimiter,
         private circuitBreaker: CircuitBreaker,
-        private metricsCollector: MetricsCollector,
         private settings: MyPluginSettings,
         private saveSettings: () => Promise<void>
     ) {
@@ -50,8 +48,6 @@ export class AIService implements IAIService {
             // Check cache first
             const cachedResponse = await this.cacheManager.get(cacheKey);
             if (cachedResponse) {
-                this.metricsCollector.recordCacheHit(cacheKey);
-                
                 // Stream cached response if callback provided
                 if (request.options.streamCallback) {
                     request.options.streamCallback(cachedResponse);
@@ -65,7 +61,6 @@ export class AIService implements IAIService {
                 };
             }
 
-            this.metricsCollector.recordCacheMiss(cacheKey);
 
             // Check circuit breaker
             if (this.circuitBreaker.isOpen(provider)) {
@@ -100,7 +95,6 @@ export class AIService implements IAIService {
 
         } catch (error: any) {
             this.circuitBreaker.recordFailure(provider);
-            this.metricsCollector.recordRequest(provider, Date.now() - startTime, false);
             
             this.eventBus.publish('ai.request.failed', {
                 provider,
@@ -289,7 +283,6 @@ export class AIService implements IAIService {
             cache: this.cacheManager.getStats(),
             rateLimits: this.rateLimiter.getProviderLimits(),
             circuitBreakers: this.circuitBreaker.getAllStats(),
-            metrics: this.metricsCollector.getDetailedMetrics()
         };
     }
 
@@ -360,7 +353,6 @@ export class AIService implements IAIService {
             // Record success
             this.circuitBreaker.recordSuccess(provider);
             const duration = Date.now() - startTime;
-            this.metricsCollector.recordRequest(provider, duration, true);
 
             // Cache the response
             await this.cacheManager.set(cacheKey, fullResponse);
@@ -496,6 +488,5 @@ export class AIService implements IAIService {
         this.cacheManager.dispose();
         this.rateLimiter.dispose();
         this.circuitBreaker.dispose();
-        this.metricsCollector.dispose();
     }
 }

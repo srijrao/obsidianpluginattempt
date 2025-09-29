@@ -21,7 +21,7 @@ import {
 export class CentralizedLogger implements ILogger {
     private logs: LogEntry[] = [];
     private maxLogs: number = 1000;
-    private logLevel: LogLevel = 'info';
+    private logLevel: LogLevel = 'debug';
     private enableConsoleOutput: boolean = true;
     private enableEventPublishing: boolean = true;
     private logCategories: Set<string> = new Set();
@@ -61,7 +61,7 @@ export class CentralizedLogger implements ILogger {
      * Logs a message with info level.
      */
     info(message: string, context?: Record<string, any>, category: string = 'general'): void {
-        this.log('info', message, context, category);
+        this.log('info', message, context, category, category === 'system.cleanup');
     }
 
     /**
@@ -81,7 +81,7 @@ export class CentralizedLogger implements ILogger {
     /**
      * Main logging method.
      */
-    log(level: LogLevel, message: string, context?: Record<string, any>, category: string = 'general'): void {
+    log(level: LogLevel, message: string, context?: Record<string, any>, category: string = 'general', fromCleanup = false): void {
         // Check if logging is enabled for this level
         if (!this.shouldLog(level)) {
             return;
@@ -106,7 +106,7 @@ export class CentralizedLogger implements ILogger {
         this.logCategories.add(category);
 
         // Trigger cleanup if needed
-        if (this.logs.length > this.maxLogs) {
+        if (!fromCleanup && this.logs.length > this.maxLogs) {
             this.cleanup();
         }
 
@@ -375,13 +375,17 @@ export class CentralizedLogger implements ILogger {
             return;
         }
 
-        const logsToRemove = this.logs.length - this.maxLogs;
-        const removedLogs = this.logs.splice(0, logsToRemove);
+        const logsToRemove = this.logs.length - (this.maxLogs - 1);
+        if (logsToRemove <= 0) {
+            return;
+        }
         
-        this.info(`Cleaned up ${removedLogs.length} old logs`, {
-            removedCount: removedLogs.length,
+        const removed = this.logs.splice(0, logsToRemove);
+        
+        this.info(`Cleaned up ${removed.length} old logs`, {
+            removedCount: removed.length,
             remainingCount: this.logs.length
-        }, 'system');
+        }, 'system.cleanup');
     }
 
     /**

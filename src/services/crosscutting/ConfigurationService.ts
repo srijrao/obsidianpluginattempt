@@ -51,7 +51,7 @@ export class ConfigurationService implements IConfigurationService {
             if (def.required && (value === undefined || value === null)) {
                 errors.push(`Missing required config: ${key}`);
             }
-            if (def.validation && !def.validation(value)) {
+            if (def.validation && value !== undefined && !def.validation(value)) {
                 errors.push(`Invalid value for ${key}`);
             }
         }
@@ -72,11 +72,15 @@ export class ConfigurationService implements IConfigurationService {
 
     import(config: string): Promise<void> {
         try {
+            if (!config) {
+                return Promise.reject(new Error("Cannot import empty configuration."));
+            }
             const parsed = JSON.parse(config);
-            this.config = { ...parsed };
+            const oldConfig = { ...this.config };
+            this.config = { ...this.config, ...parsed };
             // Notify all subscribers
             Object.keys(parsed).forEach(key => {
-                this.notifySubscribers(key, parsed[key], undefined);
+                this.notifySubscribers(key, parsed[key], oldConfig[key]);
             });
             return Promise.resolve();
         } catch (e) {
