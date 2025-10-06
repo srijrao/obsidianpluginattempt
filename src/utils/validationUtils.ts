@@ -21,18 +21,6 @@ export function isValidOpenAIApiKey(key: string): boolean {
 }
 
 /**
- * Validates if a string is a plausible Anthropic API key.
- * Starts with 'sk-ant-' and has a reasonable length.
- * @param key The API key string.
- * @returns True if the key is valid, false otherwise.
- */
-export function isValidAnthropicApiKey(key: string): boolean {
-    if (typeof key !== 'string') return false;
-    if (key.length < MIN_API_KEY_LENGTH || key.length > MAX_API_KEY_LENGTH) return false;
-    return key.startsWith('sk-ant-') && key.length >= 40; // Anthropic keys are typically 40+ chars
-}
-
-/**
  * Validates if a string is a plausible Google Gemini API key.
  * Google API keys are typically alphanumeric and long.
  * @param key The API key string.
@@ -89,7 +77,7 @@ export function sanitizeInput(input: string): string {
  * @returns Validated and sanitized API key
  * @throws Error if key is invalid
  */
-export function validateApiKey(key: string, provider: 'openai' | 'anthropic' | 'gemini'): string {
+export function validateApiKey(key: string, provider: 'openai' | 'gemini'): string {
     if (typeof key !== 'string') {
         throw new Error('API key must be a string');
     }
@@ -106,9 +94,6 @@ export function validateApiKey(key: string, provider: 'openai' | 'anthropic' | '
     switch (provider) {
         case 'openai':
             isValid = isValidOpenAIApiKey(cleanKey);
-            break;
-        case 'anthropic':
-            isValid = isValidAnthropicApiKey(cleanKey);
             break;
         case 'gemini':
             isValid = isValidGoogleApiKey(cleanKey);

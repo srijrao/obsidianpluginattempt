@@ -8,7 +8,6 @@ import { RequestManager } from '../src/services/core/RequestManager';
 import { CacheManager } from '../src/services/core/CacheManager';
 import { RateLimiter } from '../src/services/core/RateLimiter';
 import { CircuitBreaker } from '../src/services/core/CircuitBreaker';
-import { MetricsCollector } from '../src/services/core/MetricsCollector';
 import { EventBus } from '../src/utils/eventBus';
 import { CompletionRequest, CompletionResponse, ConnectionResult, IEventBus } from '../src/services/interfaces';
 import { Message, CompletionOptions, MyPluginSettings, UnifiedModel, DEFAULT_SETTINGS } from '../src/types';
@@ -44,7 +43,6 @@ describe('AIService', () => {
   let mockCacheManager: jest.Mocked<CacheManager>;
   let mockRateLimiter: jest.Mocked<RateLimiter>;
   let mockCircuitBreaker: jest.Mocked<CircuitBreaker>;
-  let mockMetricsCollector: jest.Mocked<MetricsCollector>;
   let mockSettings: MyPluginSettings;
   let mockSaveSettings: jest.Mock;
   let mockProvider: jest.Mocked<BaseProvider>;
@@ -124,44 +122,6 @@ describe('AIService', () => {
       dispose: jest.fn(),
     } as any;
 
-    mockMetricsCollector = {
-      recordRequest: jest.fn(),
-      recordCacheHit: jest.fn(),
-      recordCacheMiss: jest.fn(),
-      getMetrics: jest.fn().mockReturnValue({
-        totalRequests: 0,
-        successfulRequests: 0,
-        failedRequests: 0,
-        averageResponseTime: 0,
-        requestsByProvider: {},
-        errorsByProvider: {},
-      }),
-      resetMetrics: jest.fn(),
-      exportMetrics: jest.fn().mockReturnValue('{}'),
-      getDetailedMetrics: jest.fn().mockReturnValue({
-        totalRequests: 0,
-        successfulRequests: 0,
-        failedRequests: 0,
-        averageResponseTime: 0,
-        requestsByProvider: {},
-        errorsByProvider: {},
-        providerMetrics: {},
-        cacheMetrics: { hits: 0, misses: 0, hitRate: 0 },
-        performanceMetrics: {
-          averageResponseTime: 0,
-          p95ResponseTime: 0,
-          p99ResponseTime: 0,
-          throughput: 0,
-        },
-        timeSeriesData: {
-          requests: [],
-          responseTime: [],
-          errors: [],
-        },
-      }),
-      dispose: jest.fn(),
-    } as any;
-
     // Create mock settings based on DEFAULT_SETTINGS
     mockSettings = {
       ...DEFAULT_SETTINGS,
@@ -198,7 +158,6 @@ describe('AIService', () => {
       mockCacheManager,
       mockRateLimiter,
       mockCircuitBreaker,
-      mockMetricsCollector,
       mockSettings,
       mockSaveSettings
     );
@@ -243,7 +202,6 @@ describe('AIService', () => {
       const response = await aiService.getCompletion(requestWithCallback);
 
       expect(mockCacheManager.get).toHaveBeenCalled();
-      expect(mockMetricsCollector.recordCacheHit).toHaveBeenCalled();
       expect(streamCallback).toHaveBeenCalledWith(cachedResponse);
       expect(response.content).toBe(cachedResponse);
       expect(response.provider).toBe('openai');
@@ -262,7 +220,6 @@ describe('AIService', () => {
       await aiService.getCompletion(mockRequest);
 
       expect(mockCacheManager.get).toHaveBeenCalled();
-      expect(mockMetricsCollector.recordCacheMiss).toHaveBeenCalled();
       expect(mockProvider.getCompletion).toHaveBeenCalled();
     });
 
@@ -311,7 +268,6 @@ describe('AIService', () => {
       );
       expect(mockRateLimiter.recordRequest).toHaveBeenCalledWith('openai');
       expect(mockCircuitBreaker.recordSuccess).toHaveBeenCalledWith('openai');
-      expect(mockMetricsCollector.recordRequest).toHaveBeenCalledWith('openai', expect.any(Number), true);
       expect(mockCacheManager.set).toHaveBeenCalledWith(expect.any(String), 'Hello World');
       expect(mockEventBus.publish).toHaveBeenCalledWith('ai.request.completed', expect.any(Object));
       expect(response.content).toBe('Hello World');
@@ -325,12 +281,11 @@ describe('AIService', () => {
       await expect(aiService.getCompletion(mockRequest)).rejects.toThrow('API Error');
 
       expect(mockCircuitBreaker.recordFailure).toHaveBeenCalledWith('openai');
-      expect(mockMetricsCollector.recordRequest).toHaveBeenCalledWith('openai', expect.any(Number), false);
       expect(mockEventBus.publish).toHaveBeenCalledWith('ai.request.failed', expect.any(Object));
     });
 
     test('should use selected model when available', async () => {
-      mockSettings.selectedModel = 'anthropic:claude-2';
+      mockSettings.selectedModel = 'gemini:gemini-pro';
       mockCacheManager.get.mockResolvedValue(null);
       mockProvider.getCompletion.mockImplementation(async (messages, options) => {
         if (options.streamCallback) {
@@ -340,11 +295,11 @@ describe('AIService', () => {
 
       await aiService.getCompletion(mockRequest);
 
-      expect(createProviderFromUnifiedModel).toHaveBeenCalledWith(mockSettings, 'anthropic:claude-2');
+      expect(createProviderFromUnifiedModel).toHaveBeenCalledWith(mockSettings, 'gemini:gemini-pro');
     });
 
     test('should handle provider override', async () => {
-      const requestWithProvider = { ...mockRequest, provider: 'anthropic' };
+      const requestWithProvider = { ...mockRequest, provider: 'gemini' };
       mockCacheManager.get.mockResolvedValue(null);
       mockProvider.getCompletion.mockImplementation(async (messages, options) => {
         if (options.streamCallback) {
@@ -354,8 +309,8 @@ describe('AIService', () => {
 
       await aiService.getCompletion(requestWithProvider);
 
-      expect(mockRateLimiter.checkLimit).toHaveBeenCalledWith('anthropic');
-      expect(mockRateLimiter.recordRequest).toHaveBeenCalledWith('anthropic');
+      expect(mockRateLimiter.checkLimit).toHaveBeenCalledWith('gemini');
+      expect(mockRateLimiter.recordRequest).toHaveBeenCalledWith('gemini');
     });
   });
 
@@ -531,7 +486,6 @@ describe('AIService', () => {
     });
 
     test('should return false for unconfigured Anthropic', () => {
-      mockSettings.anthropicSettings.apiKey = '';
       
       const configured = aiService.isProviderConfigured('anthropic');
       
@@ -566,7 +520,6 @@ describe('AIService', () => {
 
     test('should return empty array when no providers configured', () => {
       mockSettings.openaiSettings.apiKey = '';
-      mockSettings.anthropicSettings.apiKey = '';
       mockSettings.geminiSettings.apiKey = '';
       mockSettings.ollamaSettings.serverUrl = '';
       
@@ -585,7 +538,6 @@ describe('AIService', () => {
         cache: mockCacheManager.getStats(),
         rateLimits: mockRateLimiter.getProviderLimits(),
         circuitBreakers: mockCircuitBreaker.getAllStats(),
-        metrics: mockMetricsCollector.getDetailedMetrics(),
       });
     });
   });
@@ -726,7 +678,6 @@ describe('AIService', () => {
 
     test('should fall back to settings provider', async () => {
       mockSettings.selectedModel = undefined;
-      mockSettings.provider = 'anthropic';
       
       const request: CompletionRequest = {
         messages: [{ role: 'user', content: 'Hello' }],
@@ -754,7 +705,6 @@ describe('AIService', () => {
       expect(mockCacheManager.dispose).toHaveBeenCalled();
       expect(mockRateLimiter.dispose).toHaveBeenCalled();
       expect(mockCircuitBreaker.dispose).toHaveBeenCalled();
-      expect(mockMetricsCollector.dispose).toHaveBeenCalled();
     });
   });
 
@@ -894,7 +844,6 @@ describe('AIService', () => {
       expect(mockRateLimiter.recordRequest).toHaveBeenCalled();
       expect(mockProvider.getCompletion).toHaveBeenCalled();
       expect(mockCircuitBreaker.recordSuccess).toHaveBeenCalled();
-      expect(mockMetricsCollector.recordRequest).toHaveBeenCalledWith('openai', expect.any(Number), true);
       expect(mockCacheManager.set).toHaveBeenCalled();
       expect(mockEventBus.publish).toHaveBeenCalledWith('ai.request.completed', expect.any(Object));
     });
@@ -927,7 +876,6 @@ describe('AIService', () => {
       expect(mockCacheManager.dispose).toHaveBeenCalled();
       expect(mockRateLimiter.dispose).toHaveBeenCalled();
       expect(mockCircuitBreaker.dispose).toHaveBeenCalled();
-      expect(mockMetricsCollector.dispose).toHaveBeenCalled();
     });
 
     test('should handle memory pressure scenarios', async () => {

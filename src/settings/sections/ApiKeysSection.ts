@@ -5,7 +5,6 @@ import { CollapsibleSectionRenderer } from '../../utils/CollapsibleSection';
 
 /**
  * ApiKeysSection is responsible for rendering the settings related to API keys for various AI providers.
- * This section is collapsible and includes input fields for OpenAI, Anthropic, Google Gemini, and Ollama API keys/URLs.
  */
 export class ApiKeysSection {
     private plugin: MyPlugin;
@@ -40,11 +39,6 @@ export class ApiKeysSection {
                     () => this.plugin.settings.openaiSettings.baseUrl || '',
                     async (value) => { this.plugin.settings.openaiSettings.baseUrl = value; await this.plugin.saveSettings(); },
                     { trim: true, undefinedIfEmpty: true });
-                
-                // Anthropic API Key Setting
-                this.settingCreators.createTextSetting(sectionEl, 'Anthropic API Key', 'Enter your Anthropic API key', 'Enter your API key',
-                    () => this.plugin.settings.anthropicSettings.apiKey,
-                    async (value) => { this.plugin.settings.anthropicSettings.apiKey = value ?? ''; await this.plugin.saveSettings(); });
                 
                 // Google API Key Setting
                 this.settingCreators.createTextSetting(sectionEl, 'Google API Key', 'Enter your Google API key', 'Enter your API key',

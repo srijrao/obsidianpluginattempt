@@ -115,17 +115,7 @@ export interface ICircuitBreaker {
     reset(provider: string): void;
 }
 
-/**
- * Metrics Collector interface for gathering performance data
- */
-export interface IMetricsCollector {
-    recordRequest(provider: string, duration: number, success: boolean): void;
-    recordCacheHit(key: string): void;
-    recordCacheMiss(key: string): void;
-    getMetrics(): RequestMetrics;
-    resetMetrics(): void;
-    exportMetrics(): string;
-}
+
 
 // ============================================================================
 // UI Management Interfaces

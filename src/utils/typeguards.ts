@@ -9,7 +9,7 @@ import { TFile, TFolder } from 'obsidian';
 /**
  * Valid provider names for type safety
  */
-export const VALID_PROVIDER_NAMES = ['openai', 'anthropic', 'gemini', 'ollama'] as const;
+export const VALID_PROVIDER_NAMES = ['openai', 'gemini', 'ollama'] as const;
 export type ValidProviderName = typeof VALID_PROVIDER_NAMES[number];
 
 /**

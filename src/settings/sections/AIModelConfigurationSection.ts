@@ -3,7 +3,7 @@ import MyPlugin from '../../main';
 import { SettingCreators } from '../components/SettingCreators';
 import { CollapsibleSectionRenderer } from '../../utils/CollapsibleSection';
 import { AIDispatcher } from '../../utils/aiDispatcher';
-import { isValidOpenAIApiKey, isValidAnthropicApiKey, isValidGoogleApiKey, isValidUrl } from '../../utils/validationUtils';
+import { isValidOpenAIApiKey, isValidGoogleApiKey, isValidUrl } from '../../utils/validationUtils';
 
 /**
  * AIModelConfigurationSection is responsible for rendering the settings related to AI model configuration.
@@ -67,33 +67,6 @@ export class AIModelConfigurationSection {
                 );
                 
                 this.renderProviderTestSection(sectionEl, 'openai', 'OpenAI');
-            },
-            this.plugin,
-            'providerConfigExpanded'
-        );
-
-        // Anthropic Configuration Section
-        CollapsibleSectionRenderer.createCollapsibleSection(
-            containerEl,
-            'Anthropic Configuration',
-            async (sectionEl: HTMLElement) => {
-                this.settingCreators.createTextSetting(
-                    sectionEl, 
-                    'Anthropic API Key', 
-                    'Enter your Anthropic API key', 
-                    'Enter your API key',
-                    () => this.plugin.settings.anthropicSettings.apiKey,
-                    async (value) => {
-                        if (value && !isValidAnthropicApiKey(value)) {
-                            new Notice('Invalid Anthropic API Key format. Please check your key.');
-                            return;
-                        }
-                        this.plugin.settings.anthropicSettings.apiKey = value ?? '';
-                        await this.plugin.saveSettings();
-                    }
-                );
-                
-                this.renderProviderTestSection(sectionEl, 'anthropic', 'Anthropic');
             },
             this.plugin,
             'providerConfigExpanded'
@@ -200,10 +173,10 @@ export class AIModelConfigurationSection {
      * Renders the provider connection test section.
      * Allows users to test their API key and fetch available models for a given provider.
      * @param containerEl The HTML element to append the section to.
-     * @param provider The ID of the provider (e.g., 'openai', 'anthropic').
-     * @param displayName The display name of the provider (e.g., 'OpenAI', 'Anthropic').
+     * @param provider The ID of the provider (e.g., 'openai', 'gemini').
+     * @param displayName The display name of the provider (e.g., 'OpenAI', 'Gemini').
      */
-    private renderProviderTestSection(containerEl: HTMLElement, provider: 'openai' | 'anthropic' | 'gemini' | 'ollama', displayName: string): void {
+    private renderProviderTestSection(containerEl: HTMLElement, provider: 'openai' | 'gemini' | 'ollama', displayName: string): void {
         const settings = this.plugin.settings[`${provider}Settings` as keyof typeof this.plugin.settings] as any;
         
         new Setting(containerEl)

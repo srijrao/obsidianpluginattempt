@@ -47,8 +47,8 @@ export interface ModelSettingPreset {
  * They are saved between sessions and can be configured in the settings tab.
  */
 export interface MyPluginSettings {
-    /** Which AI provider to use (e.g., 'openai', 'anthropic', 'gemini', 'ollama'). */
-    provider: 'openai' | 'anthropic' | 'gemini' | 'ollama';
+    /** Which AI provider to use (e.g., 'openai', 'gemini', 'ollama'). */
+    provider: 'openai' | 'gemini' | 'ollama';
     /** If true, the current active note's content will be referenced in AI queries. */
     referenceCurrentNote: boolean;
 
@@ -67,25 +67,6 @@ export interface MyPluginSettings {
         /** The default OpenAI model to use. */
         model: string;
         /** List of available OpenAI models. */
-        availableModels: string[];
-        /** Last test result for API key validation. */
-        lastTestResult?: {
-            /** Timestamp of the last test. */
-            timestamp: number;
-            /** Whether the test was successful. */
-            success: boolean;
-            /** Message detailing the test result. */
-            message: string;
-        };
-    };
-
-    /** Anthropic-specific settings. */
-    anthropicSettings: {
-        /** Anthropic API key. */
-        apiKey: string;
-        /** The default Anthropic model to use. */
-        model: string;
-        /** List of available Anthropic models. */
         availableModels: string[];
         /** Last test result for API key validation. */
         lastTestResult?: {
@@ -287,12 +268,6 @@ export const DEFAULT_SETTINGS: MyPluginSettings = {
     openaiSettings: {
         apiKey: '',
         model: 'gpt-4.1',
-        availableModels: []
-    },
-    /** @inheritdoc */
-    anthropicSettings: {
-        apiKey: '',
-        model: 'claude-3-5-sonnet-latest',
         availableModels: []
     },
     /** @inheritdoc */

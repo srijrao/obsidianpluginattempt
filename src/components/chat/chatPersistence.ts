@@ -55,8 +55,6 @@ function getCurrentModelForProvider(settings: MyPluginSettings): string {
     switch (settings.provider) {
         case 'openai':
             return settings.openaiSettings.model;
-        case 'anthropic':
-            return settings.anthropicSettings.model;
         case 'gemini':
             return settings.geminiSettings.model;
         case 'ollama':
@@ -256,9 +254,6 @@ export async function loadChatYamlAndApplySettings({
         switch (yamlObj.provider) {
             case 'openai':
                 settings.openaiSettings.model = yamlObj.model;
-                break;
-            case 'anthropic':
-                settings.anthropicSettings.model = yamlObj.model;
                 break;
             case 'gemini':
                 settings.geminiSettings.model = yamlObj.model;

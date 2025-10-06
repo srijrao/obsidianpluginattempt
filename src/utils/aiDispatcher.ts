@@ -155,16 +155,6 @@ export class AIDispatcher {
             jitterFactor: 0.15
         });
 
-        apiCircuitBreaker.configure('anthropic', {
-            failureThreshold: 3,
-            timeout: 45000,
-            halfOpenMaxCalls: 2,
-            exponentialBackoff: true,
-            baseDelayMs: 3000,
-            maxDelayMs: 180000,
-            jitterFactor: 0.2
-        });
-
         apiCircuitBreaker.configure('gemini', {
             failureThreshold: 4,
             timeout: 25000,
@@ -186,7 +176,7 @@ export class AIDispatcher {
         });
 
         // Initialize legacy circuit breakers for backward compatibility
-        ['openai', 'anthropic', 'gemini', 'ollama'].forEach(provider => {
+        ['openai', 'gemini', 'ollama'].forEach(provider => {
             this.circuitBreakers.set(provider, {
                 isOpen: false,
                 failureCount: 0,
@@ -562,7 +552,6 @@ export class AIDispatcher {
     private getProviderRateLimit(providerName: string): number {
         switch (providerName) {
             case 'openai': return 60; // 60 requests per minute
-            case 'anthropic': return 50;
             case 'gemini': return 60;
             case 'ollama': return 100; // Local, more generous
             default: return 60;
@@ -956,7 +945,7 @@ export class AIDispatcher {
      * @param providerType - The type of provider to test
      * @returns Promise resolving to connection test result
      */
-    async testConnection(providerType: 'openai' | 'anthropic' | 'gemini' | 'ollama') {
+    async testConnection(providerType: 'openai' | 'gemini' | 'ollama') {
         debugLog(this.plugin.settings.debugMode ?? false, 'info', '[AIDispatcher] Testing connection', { provider: providerType });
         
         const tempSettings = { ...this.plugin.settings, provider: providerType };
@@ -971,7 +960,7 @@ export class AIDispatcher {
      * @param providerType - The type of provider to query
      * @returns Promise resolving to list of available models
      */
-    async getAvailableModels(providerType: 'openai' | 'anthropic' | 'gemini' | 'ollama'): Promise<string[]> {
+    async getAvailableModels(providerType: 'openai' | 'gemini' | 'ollama'): Promise<string[]> {
         debugLog(this.plugin.settings.debugMode ?? false, 'info', '[AIDispatcher] Fetching available models', { provider: providerType });
         
         // Check cache first
@@ -1029,7 +1018,7 @@ export class AIDispatcher {
      * @param providerType - The provider to refresh models for
      * @returns Promise resolving to the updated models list
      */
-    async refreshProviderModels(providerType: 'openai' | 'anthropic' | 'gemini' | 'ollama'): Promise<string[]> {
+    async refreshProviderModels(providerType: 'openai' | 'gemini' | 'ollama'): Promise<string[]> {
         debugLog(this.plugin.settings.debugMode ?? false, 'info', '[AIDispatcher] Refreshing models for provider', { provider: providerType });
         
         try {
@@ -1085,7 +1074,7 @@ export class AIDispatcher {
     async refreshAllProviderModels(): Promise<Record<string, string[]>> {
         debugLog(this.plugin.settings.debugMode ?? false, 'info', '[AIDispatcher] Refreshing models for all providers');
         
-        const providers = ['openai', 'anthropic', 'gemini', 'ollama'] as const;
+        const providers = ['openai', 'gemini', 'ollama'] as const;
         const results: Record<string, string[]> = {};
         
         for (const provider of providers) {
@@ -1158,12 +1147,10 @@ export class AIDispatcher {
      * @param providerType - The provider to check
      * @returns True if the provider is configured
      */
-    isProviderConfigured(providerType: 'openai' | 'anthropic' | 'gemini' | 'ollama'): boolean {
+    isProviderConfigured(providerType: 'openai' | 'gemini' | 'ollama'): boolean {
         switch (providerType) {
             case 'openai':
                 return !!this.plugin.settings.openaiSettings.apiKey;
-            case 'anthropic':
-                return !!this.plugin.settings.anthropicSettings.apiKey;
             case 'gemini':
                 return !!this.plugin.settings.geminiSettings.apiKey;
             case 'ollama':
@@ -1178,11 +1165,10 @@ export class AIDispatcher {
      * 
      * @returns Array of configured provider names
      */
-    getConfiguredProviders(): Array<'openai' | 'anthropic' | 'gemini' | 'ollama'> {
-        const providers: Array<'openai' | 'anthropic' | 'gemini' | 'ollama'> = [];
+    getConfiguredProviders(): Array<'openai' | 'gemini' | 'ollama'> {
+        const providers: Array<'openai' | 'gemini' | 'ollama'> = [];
         
         if (this.isProviderConfigured('openai')) providers.push('openai');
-        if (this.isProviderConfigured('anthropic')) providers.push('anthropic');
         if (this.isProviderConfigured('gemini')) providers.push('gemini');
         if (this.isProviderConfigured('ollama')) providers.push('ollama');
         

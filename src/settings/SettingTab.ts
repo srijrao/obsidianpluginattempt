@@ -172,14 +172,12 @@ export class MyPluginSettingTab extends PluginSettingTab {
                     // Preserve API keys so users don't lose them on reset
                     const preservedApiKeys = {
                         openai: this.plugin.settings.openaiSettings.apiKey,
-                        anthropic: this.plugin.settings.anthropicSettings.apiKey,
                         gemini: this.plugin.settings.geminiSettings.apiKey,
                     };
 
                     // Reset all settings to defaults, except API keys and title prompt
                     this.plugin.settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
                     this.plugin.settings.openaiSettings.apiKey = preservedApiKeys.openai;
-                    this.plugin.settings.anthropicSettings.apiKey = preservedApiKeys.anthropic;
                     this.plugin.settings.geminiSettings.apiKey = preservedApiKeys.gemini;
                     this.plugin.settings.titlePrompt = DEFAULT_TITLE_PROMPT; // Use imported constant
 

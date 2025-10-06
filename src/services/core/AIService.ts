@@ -243,8 +243,6 @@ export class AIService implements IAIService {
         switch (provider) {
             case 'openai':
                 return !!this.settings.openaiSettings.apiKey;
-            case 'anthropic':
-                return !!this.settings.anthropicSettings.apiKey;
             case 'gemini':
                 return !!this.settings.geminiSettings.apiKey;
             case 'ollama':
@@ -276,7 +274,6 @@ export class AIService implements IAIService {
         cache: any;
         rateLimits: any;
         circuitBreakers: any;
-        metrics: any;
     } {
         return {
             requests: this.requestManager.getQueueStats(),

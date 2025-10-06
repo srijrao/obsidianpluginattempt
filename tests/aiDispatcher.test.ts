@@ -109,13 +109,6 @@ describe('AIDispatcher', () => {
           baseUrl: '',
           lastTestResult: undefined
         },
-        anthropicSettings: {
-          apiKey: '',
-          model: '',
-          availableModels: [],
-          baseUrl: '',
-          lastTestResult: undefined
-        },
         geminiSettings: {
           apiKey: '',
           model: '',
@@ -559,25 +552,24 @@ describe('AIDispatcher', () => {
       jest.spyOn(dispatcher, 'isProviderConfigured').mockReturnValue(true); // All configured
       jest.spyOn(dispatcher, 'refreshProviderModels')
         .mockResolvedValueOnce(['o1', 'o2'])
-        .mockResolvedValueOnce(['a1', 'a2'])
+        .mockResolvedValueOnce(['o1', 'o2'])
         .mockResolvedValueOnce(['g1', 'g2'])
         .mockResolvedValueOnce(['l1', 'l2']);
       jest.spyOn(dispatcher, 'getAllUnifiedModels').mockResolvedValue([]); // Mock unified models
 
       const results = await dispatcher.refreshAllProviderModels();
 
-      expect(dispatcher.refreshProviderModels).toHaveBeenCalledTimes(4);
+      expect(dispatcher.refreshProviderModels).toHaveBeenCalledTimes(3);
       expect(results.openai).toEqual(['o1', 'o2']);
-      expect(results.anthropic).toEqual(['a1', 'a2']);
       expect(results.gemini).toEqual(['g1', 'g2']);
       expect(results.ollama).toEqual(['l1', 'l2']);
       expect(plugin.saveSettings).toHaveBeenCalledTimes(1); // For unified models
     });
 
     test('setSelectedModel should update settings and save', async () => {
-      await dispatcher.setSelectedModel('anthropic:claude-2');
-      expect(plugin.settings.selectedModel).toBe('anthropic:claude-2');
-      expect(plugin.settings.provider).toBe('anthropic');
+      await dispatcher.setSelectedModel('gemini:gemini-pro');
+      expect(plugin.settings.selectedModel).toBe('gemini:gemini-pro');
+      expect(plugin.settings.provider).toBe('gemini');
       expect(plugin.saveSettings).toHaveBeenCalledTimes(1);
     });
 
@@ -594,7 +586,7 @@ describe('AIDispatcher', () => {
     test('isProviderConfigured should check API key/serverUrl', () => {
       plugin.settings.openaiSettings.apiKey = 'test';
       expect(dispatcher.isProviderConfigured('openai')).toBe(true);
-      expect(dispatcher.isProviderConfigured('anthropic')).toBe(false); // No API key
+      expect(dispatcher.isProviderConfigured('gemini')).toBe(false); // No API key
     });
 
     test('getConfiguredProviders should return list of configured providers', () => {
