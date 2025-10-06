@@ -7,14 +7,10 @@
 
 import { MyPluginSettings, UnifiedModel } from '../src/types';
 import { BaseProvider, ProviderError, ProviderErrorType } from './base';
-import { AnthropicProvider } from './anthropic';
 import { OpenAIProvider } from './openai';
-import { GeminiProvider } from './gemini';
 
 export { BaseProvider, ProviderError, ProviderErrorType };
-export { AnthropicProvider };
 export { OpenAIProvider };
-export { GeminiProvider };
 
 /**
  * Creates an AI provider instance based on the plugin settings
@@ -30,19 +26,6 @@ export function createProvider(settings: MyPluginSettings): BaseProvider {
                 settings.openaiSettings.apiKey,
                 settings.openaiSettings.model,
                 settings.openaiSettings.baseUrl,
-                settings.debugMode ?? false // Pass debugMode
-            );
-        case 'anthropic':
-            return new AnthropicProvider(
-                settings.anthropicSettings.apiKey,
-                settings.anthropicSettings.model,
-                settings.debugMode ?? false // Pass debugMode
-            );
-        case 'gemini':
-            return new GeminiProvider(
-                settings.geminiSettings.apiKey,
-                settings.geminiSettings.model,
-                undefined, // apiVersion is optional, so pass undefined if not explicitly set
                 settings.debugMode ?? false // Pass debugMode
             );
         default:
@@ -63,10 +46,6 @@ export function createProviderFromUnifiedModel(settings: MyPluginSettings, unifi
     switch (providerType) {
         case 'openai':
             return new OpenAIProvider(settings.openaiSettings.apiKey, modelId, settings.openaiSettings.baseUrl, settings.debugMode ?? false); // Pass debugMode
-        case 'anthropic':
-            return new AnthropicProvider(settings.anthropicSettings.apiKey, modelId, settings.debugMode ?? false); // Pass debugMode
-        case 'gemini':
-            return new GeminiProvider(settings.geminiSettings.apiKey, modelId, undefined, settings.debugMode ?? false); // Pass debugMode
         default:
             throw new Error(`Invalid provider type: ${providerType}`);
     }
@@ -103,30 +82,6 @@ export async function getAllAvailableModels(settings: MyPluginSettings): Promise
         });
     }
     
-    // Anthropic models
-    if (settings.anthropicSettings.apiKey && settings.anthropicSettings.availableModels.length > 0) {
-        settings.anthropicSettings.availableModels.forEach(model => {
-            allModels.push({
-                id: `anthropic:${model}`,
-                name: `${model} (${getProviderDisplayName('anthropic')})`,
-                provider: 'anthropic',
-                modelId: model
-            });
-        });
-    }
-    
-    // Gemini models
-    if (settings.geminiSettings.apiKey && settings.geminiSettings.availableModels.length > 0) {
-        settings.geminiSettings.availableModels.forEach(model => {
-            allModels.push({
-                id: `gemini:${model}`,
-                name: `${model} (${getProviderDisplayName('gemini')})`,
-                provider: 'gemini',
-                modelId: model
-            });
-        });
-    }
-    
     return allModels;
 }
 
@@ -136,9 +91,9 @@ export async function getAllAvailableModels(settings: MyPluginSettings): Promise
  * @param unifiedModelId The unified model ID (e.g., "openai:gpt-4")
  * @returns The provider type
  */
-export function getProviderFromUnifiedModel(unifiedModelId: string): 'openai' | 'anthropic' | 'gemini' {
+export function getProviderFromUnifiedModel(unifiedModelId: string): 'openai' {
     const [providerType] = unifiedModelId.split(':', 2);
-    return providerType as 'openai' | 'anthropic' | 'gemini';
+    return providerType as 'openai';
 }
 
 /**

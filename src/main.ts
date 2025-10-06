@@ -18,7 +18,6 @@ import { parseToolDataFromContent, cleanContentFromToolData } from './utils/mess
 import { isVaultAdapterWithBasePath, validatePluginSettings } from './utils/typeguards';
 import { RecentlyOpenedFilesManager } from './utils/recently-opened-files';
 import { PerformanceDashboardModal } from './utils/PerformanceDashboard';
-import { createIntegratedAgentOrchestrator, IntegratedAgentOrchestrator } from './services/agent/IntegratedAgentOrchestrator';
 
 /**
  * AI Assistant Plugin
@@ -65,10 +64,7 @@ export default class MyPlugin extends Plugin {
      * Agent mode manager instance for handling agent-related settings and logic.
      */
     public agentModeManager: AgentModeManager;
-    /**
-     * Integrated agent orchestrator for handling agent mode operations.
-     */
-    public integratedAgentOrchestrator: IntegratedAgentOrchestrator | null = null;
+
     /**
      * Priority 3 optimizations integration manager.
      */
@@ -342,23 +338,7 @@ export default class MyPlugin extends Plugin {
         return processMessages(messages, this.app, this.settings);
     }
 
-    /**
-     * Get the integrated agent orchestrator, initializing it lazily if needed
-     */
-    public getIntegratedAgentOrchestrator(): IntegratedAgentOrchestrator | null {
-        if (!this.integratedAgentOrchestrator) {
-            try {
-                // For now, return null since we need full initialization
-                // This will be implemented when we have proper agent service initialization
-                debugLog(this.settings.debugMode ?? false, 'warn', '[main.ts] Agent orchestrator not yet implemented - lazy initialization coming soon');
-                return null;
-            } catch (error) {
-                debugLog(this.settings.debugMode ?? false, 'error', '[main.ts] Failed to lazily initialize agent orchestrator:', error);
-                return null;
-            }
-        }
-        return this.integratedAgentOrchestrator;
-    }
+
 
     /**
      * Called when the plugin is unloaded.

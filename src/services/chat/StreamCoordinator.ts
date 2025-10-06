@@ -556,57 +556,9 @@ export class StreamCoordinator implements IStreamCoordinator {
      */
     private async processAgentResponse(response: string, streamId: string): Promise<any> {
         try {
-            // Check if we have an agent orchestrator available
-            const orchestrator = this.plugin.getIntegratedAgentOrchestrator();
-            if (!orchestrator) {
-                this.plugin.debugLog('warn', '[StreamCoordinator] No agent orchestrator available for processing');
-                return null;
-            }
-            
-            this.plugin.debugLog('debug', '[StreamCoordinator] Processing agent response with orchestrator', {
-                responseLength: response.length,
-                streamId
-            });
-
-            // Get agent mode settings for processing limits
-            const agentSettings = this.plugin.agentModeManager?.getAgentModeSettings();
-            
-            // Process the response through the agent orchestrator
-            const result = await orchestrator.processAgentResponse(response, {
-                maxExecutions: agentSettings?.maxToolCalls || 10,
-                timeoutMs: agentSettings?.timeoutMs || 30000,
-                skipLimitCheck: false,
-                displayResults: false // Don't auto-display, let the chat UI handle it
-            });
-
-            this.plugin.debugLog('info', '[StreamCoordinator] Agent processing completed', {
-                commandsFound: result.commands.length,
-                resultsGenerated: result.results.length,
-                limitReached: result.limitReached
-            });
-
-            // Convert orchestrator result to enhanced message data format
-            return {
-                toolResults: result.results.map((r: any) => ({
-                    tool: r.command.action,
-                    input: r.command.parameters,
-                    output: r.result.content,
-                    success: r.result.success,
-                    timestamp: new Date().toISOString()
-                })),
-                reasoning: {
-                    thoughts: result.commands.filter((cmd: any) => cmd.action === 'thought').map((cmd: any) => cmd.parameters?.content || ''),
-                    plan: `Executed ${result.results.length} tools with ${result.commands.length} total commands`,
-                    analysis: result.statistics
-                },
-                taskStatus: {
-                    status: result.limitReached ? 'limited' : 'completed',
-                    progress: result.results.length,
-                    total: result.commands.length,
-                    timestamp: new Date().toISOString()
-                }
-            };
-
+            // Agent orchestrator not implemented yet
+            this.plugin.debugLog('warn', '[StreamCoordinator] Agent orchestrator not yet implemented');
+            return null;
         } catch (error: any) {
             this.plugin.debugLog('error', '[StreamCoordinator] Agent processing error', error);
             throw error;

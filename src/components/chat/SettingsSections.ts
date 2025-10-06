@@ -214,7 +214,6 @@ export class SettingsSections {
 
         // Render collapsible sections for each provider
         this.renderOpenAIConfig(containerEl);
-        this.renderAnthropicConfig(containerEl);
         this.renderGeminiConfig(containerEl);
         this.renderOllamaConfig(containerEl);
     }
@@ -308,13 +307,13 @@ export class SettingsSections {
      * Renders a collapsible section for provider configuration.
      * This is a helper method used by specific provider rendering methods.
      * @param containerEl The HTML element to render the section into.
-     * @param providerType The type of the provider (e.g., 'openai', 'anthropic').
-     * @param displayName The display name of the provider (e.g., 'OpenAI', 'Anthropic').
+     * @param providerType The type of the provider (e.g., 'openai', 'gemini').
+     * @param displayName The display name of the provider (e.g., 'OpenAI', 'Gemini').
      * @param renderSpecificSettings A callback function to render provider-specific settings within the collapsible section.
      */
     private _renderCollapsibleProviderConfig(
         containerEl: HTMLElement,
-        providerType: 'openai' | 'anthropic' | 'gemini' | 'ollama',
+        providerType: 'openai' | 'gemini' | 'ollama',
         displayName: string,
         renderSpecificSettings?: (contentEl: HTMLElement) => void
     ): void {
@@ -390,14 +389,6 @@ export class SettingsSections {
     }
 
     /**
-     * Renders the Anthropic configuration section.
-     * @param containerEl The HTML element to render the section into.
-     */
-    private renderAnthropicConfig(containerEl: HTMLElement): void {
-        this._renderCollapsibleProviderConfig(containerEl, 'anthropic', 'Anthropic');
-    }
-
-    /**
      * Renders the Gemini configuration section.
      * @param containerEl The HTML element to render the section into.
      */
@@ -430,7 +421,7 @@ export class SettingsSections {
      * @param provider The internal identifier for the provider (e.g., 'openai').
      * @param displayName The user-friendly name of the provider (e.g., 'OpenAI').
      */
-    private renderProviderTestSection(containerEl: HTMLElement, provider: 'openai' | 'anthropic' | 'gemini' | 'ollama', displayName: string): void {
+    private renderProviderTestSection(containerEl: HTMLElement, provider: 'openai' | 'gemini' | 'ollama', displayName: string): void {
         const settings = this.plugin.settings[`${provider}Settings` as keyof typeof this.plugin.settings] as any;
 
         new Setting(containerEl)

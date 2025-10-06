@@ -175,7 +175,6 @@ const createMockPlugin = (): Partial<MyPlugin> => ({
     abortAllStreams: jest.fn(),
     getActiveStreamCount: jest.fn(() => 0),
   } as any,
-  getIntegratedAgentOrchestrator: jest.fn(() => null),
 });
 
 describe('StreamCoordinator Integration Tests', () => {

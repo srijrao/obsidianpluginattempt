@@ -21,7 +21,7 @@ import { RequestManager } from '../src/services/core/RequestManager';
 import { CacheManager } from '../src/services/core/CacheManager';
 import { RateLimiter } from '../src/services/core/RateLimiter';
 import { CircuitBreaker } from '../src/services/core/CircuitBreaker';
-import { MetricsCollector } from '../src/services/core/MetricsCollector';
+
 import { EventBus, globalEventBus, chatEventBus } from '../src/utils/eventBus';
 import { Priority3IntegrationManager } from '../src/integration/priority3Integration';
 import { Vault } from 'obsidian';
@@ -68,7 +68,6 @@ describe('Architectural Transition Integration Tests', () => {
   let cacheManager: CacheManager;
   let rateLimiter: RateLimiter;
   let circuitBreaker: CircuitBreaker;
-  let metricsCollector: MetricsCollector;
   let oldEventBus: EventBus;
   let newEventBus: EventBus;
   let priority3Manager: Priority3IntegrationManager;
@@ -130,7 +129,6 @@ describe('Architectural Transition Integration Tests', () => {
     cacheManager = new CacheManager(newEventBus);
     rateLimiter = new RateLimiter(newEventBus);
     circuitBreaker = new CircuitBreaker(newEventBus);
-    metricsCollector = new MetricsCollector(newEventBus);
 
     newAIService = new AIService(
       newEventBus,
@@ -138,7 +136,6 @@ describe('Architectural Transition Integration Tests', () => {
       cacheManager,
       rateLimiter,
       circuitBreaker,
-      metricsCollector,
       mockSettings,
       mockPlugin.saveSettings
     );
@@ -246,12 +243,11 @@ describe('Architectural Transition Integration Tests', () => {
       const oldMetrics = oldAIDispatcher.getMetrics();
       expect(oldMetrics.totalRequests).toBeGreaterThan(0);
 
-      // Check new system metrics
+      // Check new system stats are available
       const newStats = newAIService.getStats();
-      expect(newStats.metrics).toBeDefined();
-
-      // Metrics should be independent
-      expect(oldMetrics).not.toEqual(newStats.metrics);
+      expect(newStats).toBeDefined();
+      expect(newStats.requests).toBeDefined();
+      expect(newStats.cache).toBeDefined();
     });
   });
 
@@ -717,7 +713,7 @@ describe('Architectural Transition Integration Tests', () => {
 
       expect(oldMetrics.totalRequests).toBeGreaterThan(0);
       expect(oldMetrics.averageResponseTime).toBeGreaterThan(0);
-      expect(newStats.metrics).toBeDefined();
+      expect(newStats.requests).toBeDefined();
     });
   });
 

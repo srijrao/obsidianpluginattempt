@@ -16,7 +16,7 @@ import { RequestManager } from '../src/services/core/RequestManager';
 import { CacheManager } from '../src/services/core/CacheManager';
 import { RateLimiter } from '../src/services/core/RateLimiter';
 import { CircuitBreaker } from '../src/services/core/CircuitBreaker';
-import { MetricsCollector } from '../src/services/core/MetricsCollector';
+
 import { EventBus } from '../src/utils/eventBus';
 import { Vault } from 'obsidian';
 import { Message, CompletionOptions, MyPluginSettings, DEFAULT_SETTINGS } from '../src/types';
@@ -58,7 +58,6 @@ describe('Data Flow Integration Tests', () => {
   let cacheManager: CacheManager;
   let rateLimiter: RateLimiter;
   let circuitBreaker: CircuitBreaker;
-  let metricsCollector: MetricsCollector;
   let eventBus: EventBus;
   let mockVault: Vault;
   let mockPlugin: any;
@@ -104,7 +103,6 @@ describe('Data Flow Integration Tests', () => {
     cacheManager = new CacheManager(eventBus);
     rateLimiter = new RateLimiter(eventBus);
     circuitBreaker = new CircuitBreaker(eventBus);
-    metricsCollector = new MetricsCollector(eventBus);
 
     newAIService = new AIService(
       eventBus,
@@ -112,7 +110,6 @@ describe('Data Flow Integration Tests', () => {
       cacheManager,
       rateLimiter,
       circuitBreaker,
-      metricsCollector,
       mockSettings,
       mockPlugin.saveSettings
     );
@@ -440,7 +437,7 @@ describe('Data Flow Integration Tests', () => {
 
       expect(oldMetrics.totalRequests).toBeGreaterThan(0);
       expect(oldMetrics.successfulRequests).toBeGreaterThan(0);
-      expect(newStats.metrics).toBeDefined();
+      expect(newStats.requests).toBeDefined();
     });
 
     test('should handle metrics data format evolution', async () => {
@@ -495,11 +492,10 @@ describe('Data Flow Integration Tests', () => {
       await newAIService.getCompletion(request);
       await newAIService.getCompletion(request);
 
-      // Verify metrics aggregation
-      const detailedMetrics = metricsCollector.getDetailedMetrics();
-      expect(detailedMetrics.totalRequests).toBe(2);
-      expect(detailedMetrics.successfulRequests).toBe(2);
-      expect(detailedMetrics.averageResponseTime).toBeGreaterThan(0);
+      // Verify service stats are available
+      const stats = newAIService.getStats();
+      expect(stats.requests).toBeDefined();
+      expect(stats.cache).toBeDefined();
     });
   });
 

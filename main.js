@@ -94,8 +94,8 @@ var init_FileSearchTool = __esm({
         const { query = "", filterType = "markdown", maxResults = 10, searchContent = false, useRegex = false } = params;
         try {
           const allFiles = filterType === "markdown" ? this.app.vault.getMarkdownFiles() : filterType === "image" ? this.app.vault.getFiles().filter((f) => {
-            var _a2;
-            return ["png", "jpg", "jpeg", "gif", "svg", "webp"].includes((_a2 = f.extension) == null ? void 0 : _a2.toLowerCase());
+            var _a;
+            return ["png", "jpg", "jpeg", "gif", "svg", "webp"].includes((_a = f.extension) == null ? void 0 : _a.toLowerCase());
           }) : this.app.vault.getFiles();
           let matchingFiles = [];
           if (query.trim()) {
@@ -145,11 +145,11 @@ var init_FileSearchTool = __esm({
             };
           }
           const limitedFiles = matchingFiles.sort((a, b) => {
-            var _a2, _b;
-            return (((_a2 = b.stat) == null ? void 0 : _a2.mtime) || 0) - (((_b = a.stat) == null ? void 0 : _b.mtime) || 0);
+            var _a, _b;
+            return (((_a = b.stat) == null ? void 0 : _a.mtime) || 0) - (((_b = a.stat) == null ? void 0 : _b.mtime) || 0);
           }).slice(0, maxResults);
           const files = limitedFiles.map((file) => {
-            var _a2, _b, _c;
+            var _a, _b, _c;
             return {
               path: file.path,
               // Full path in the vault
@@ -159,7 +159,7 @@ var init_FileSearchTool = __esm({
               // File name without extension
               extension: file.extension,
               // File extension (e.g. 'md')
-              size: ((_a2 = file.stat) == null ? void 0 : _a2.size) || 0,
+              size: ((_a = file.stat) == null ? void 0 : _a.size) || 0,
               // File size in bytes
               created: ((_b = file.stat) == null ? void 0 : _b.ctime) || 0,
               // Creation time (timestamp)
@@ -194,8 +194,8 @@ var init_FileSearchTool = __esm({
             return (file) => file.extension === "md";
           case "image":
             return (file) => {
-              var _a2;
-              return ["png", "jpg", "jpeg", "gif", "svg", "webp"].includes((_a2 = file.extension) == null ? void 0 : _a2.toLowerCase());
+              var _a;
+              return ["png", "jpg", "jpeg", "gif", "svg", "webp"].includes((_a = file.extension) == null ? void 0 : _a.toLowerCase());
             };
           case "all":
           default:
@@ -221,9 +221,9 @@ function isVaultAdapterWithBasePath(value) {
   return value !== null && typeof value === "object" && "basePath" in value && typeof value.basePath === "string";
 }
 function getVaultBasePath(app) {
-  var _a2;
+  var _a;
   try {
-    const adapter = (_a2 = app == null ? void 0 : app.vault) == null ? void 0 : _a2.adapter;
+    const adapter = (_a = app == null ? void 0 : app.vault) == null ? void 0 : _a.adapter;
     if (isVaultAdapterWithBasePath(adapter)) {
       return adapter.basePath;
     }
@@ -287,7 +287,7 @@ function getPluginApp(plugin) {
 var VALID_PROVIDER_NAMES;
 var init_typeguards = __esm({
   "src/utils/typeguards.ts"() {
-    VALID_PROVIDER_NAMES = ["openai", "anthropic", "gemini", "ollama"];
+    VALID_PROVIDER_NAMES = ["openai", "gemini", "ollama"];
   }
 });
 
@@ -321,6 +321,7 @@ var init_pathValidation = __esm({
         if (cleanPath === "" || cleanPath === "." || cleanPath === "./" || cleanPath === "/") {
           return "";
         }
+        this.performPreNormalizationSecurityCheck(cleanPath);
         let normalizedPath;
         if ((0, import_path.isAbsolute)(cleanPath)) {
           const absoluteVaultPath = (0, import_path.normalize)(this.vaultPath);
@@ -343,6 +344,49 @@ var init_pathValidation = __esm({
           normalizedPath = "";
         }
         return normalizedPath;
+      }
+      /**
+       * Performs pre-normalization security checks to prevent directory traversal attacks.
+       * This method checks for traversal patterns before path normalization to prevent
+       * Windows backslash bypass attacks where ..\\ patterns get normalized to ../ after validation.
+       * @param inputPath The raw input path to check
+       * @throws Error if directory traversal patterns are detected
+       */
+      performPreNormalizationSecurityCheck(inputPath) {
+        const traversalPatterns = [
+          /^\.\.[\\/]/,
+          // Starts with ../ or ..\
+          /[\\/]\.\.[\\/]/,
+          // Contains /../ or \..\
+          /^\.\.$/,
+          // Exactly ".."
+          /[\\/]\.\.$/,
+          // Ends with /.. or \..
+          /^\.\.[\\/].*[\\/]\.\.[\\/]/,
+          // Multiple traversal attempts
+          /\.\.[\\/]\.\./
+          // Consecutive traversal attempts like ../../ or ..\..\ or ..\../
+        ];
+        for (const pattern of traversalPatterns) {
+          if (pattern.test(inputPath)) {
+            throw new Error(`Path '${inputPath}' contains directory traversal patterns and attempts to access files outside the vault. Only paths within the vault are allowed.`);
+          }
+        }
+        const normalizedForCheck = inputPath.replace(/\\/g, "/");
+        if (normalizedForCheck.includes("../") || normalizedForCheck.startsWith("../") || normalizedForCheck === "..") {
+          const segments = normalizedForCheck.split("/");
+          let depth = 0;
+          for (const segment of segments) {
+            if (segment === "..") {
+              depth--;
+              if (depth < 0) {
+                throw new Error(`Path '${inputPath}' attempts to access files outside the vault. Only paths within the vault are allowed.`);
+              }
+            } else if (segment !== "" && segment !== ".") {
+              depth++;
+            }
+          }
+        }
       }
       /**
        * Validates that a path is safe for use within the vault.
@@ -524,8 +568,8 @@ var init_FileReadTool = __esm({
        * @returns ToolResult with file content or error
        */
       async execute(params, context) {
-        var _a2, _b, _c, _d, _e, _f;
-        const debugMode = (_c = (_b = (_a2 = context == null ? void 0 : context.plugin) == null ? void 0 : _a2.settings) == null ? void 0 : _b.debugMode) != null ? _c : true;
+        var _a, _b, _c, _d, _e, _f;
+        const debugMode = (_c = (_b = (_a = context == null ? void 0 : context.plugin) == null ? void 0 : _a.settings) == null ? void 0 : _b.debugMode) != null ? _c : true;
         const inputPath = params.path || params.filePath;
         const { maxSize = 1024 * 1024 } = params;
         if (inputPath === void 0 || inputPath === null) {
@@ -1011,7 +1055,7 @@ var init_BackupManager = __esm({
        * @param backupData The BackupData object to save.
        */
       async saveBackupData(backupData) {
-        var _a2;
+        var _a;
         try {
           const adapter = this.app.vault.adapter;
           const backupDir = this.backupFilePath.substring(0, this.backupFilePath.lastIndexOf("/"));
@@ -1021,8 +1065,8 @@ var init_BackupManager = __esm({
             }
           } catch (mkdirError) {
           }
-          const debug2 = (_a2 = window == null ? void 0 : window.aiAssistantPlugin) == null ? void 0 : _a2.debugMode;
-          const json2 = debug2 ? JSON.stringify(backupData, null, 2) : JSON.stringify(backupData);
+          const debug = (_a = window == null ? void 0 : window.aiAssistantPlugin) == null ? void 0 : _a.debugMode;
+          const json2 = debug ? JSON.stringify(backupData, null, 2) : JSON.stringify(backupData);
           await adapter.write(this.backupFilePath, json2);
         } catch (error) {
           console.error("Failed to save backup data:", error);
@@ -1190,8 +1234,8 @@ var init_FileWriteTool = __esm({
        * @returns ToolResult indicating success or failure
        */
       async execute(params, context) {
-        var _a2, _b, _c;
-        const debugMode = (_c = (_b = (_a2 = context == null ? void 0 : context.plugin) == null ? void 0 : _a2.settings) == null ? void 0 : _b.debugMode) != null ? _c : true;
+        var _a, _b, _c;
+        const debugMode = (_c = (_b = (_a = context == null ? void 0 : context.plugin) == null ? void 0 : _a.settings) == null ? void 0 : _b.debugMode) != null ? _c : true;
         const inputPath = params.path || params.filePath || params.filename;
         const { content, createIfNotExists = true, backup = true, createParentFolders = true } = params;
         if (inputPath === void 0 || inputPath === null) {
@@ -1344,7 +1388,7 @@ var init_base = __esm({
         return this.diffWithOptionsObj(oldTokens, newTokens, options, callback);
       }
       diffWithOptionsObj(oldTokens, newTokens, options, callback) {
-        var _a2;
+        var _a;
         const done = (value) => {
           value = this.postProcess(value, options);
           if (callback) {
@@ -1362,7 +1406,7 @@ var init_base = __esm({
         if (options.maxEditLength != null) {
           maxEditLength = Math.min(maxEditLength, options.maxEditLength);
         }
-        const maxExecutionTime = (_a2 = options.timeout) !== null && _a2 !== void 0 ? _a2 : Infinity;
+        const maxExecutionTime = (_a = options.timeout) !== null && _a !== void 0 ? _a : Infinity;
         const abortAfterTimestamp = Date.now() + maxExecutionTime;
         const bestPath = [{ oldPos: -1, lastComponent: void 0 }];
         let newPos = this.extractCommon(bestPath[0], newTokens, oldTokens, 0, options);
@@ -1704,9 +1748,9 @@ var init_FileDiffTool = __esm({
           return;
         }
         this.suggestions.forEach((s, idx) => {
-          var _a2;
+          var _a;
           const contentEl = this.containerEl.createDiv("suggestion-content");
-          contentEl.createEl("h4", { text: ((_a2 = s.file) == null ? void 0 : _a2.path) || "(No file path)" });
+          contentEl.createEl("h4", { text: ((_a = s.file) == null ? void 0 : _a.path) || "(No file path)" });
           const diffEl = contentEl.createEl("pre", { cls: "suggestion-diff" });
           if (s.suggestionText) {
             const lines = s.suggestionText.split("\n");
@@ -1800,8 +1844,8 @@ var init_FileDiffTool = __esm({
        * @returns ToolResult indicating success or failure
        */
       async execute(params, context) {
-        var _a2, _b, _c;
-        const debugMode = (_c = (_b = (_a2 = context == null ? void 0 : context.plugin) == null ? void 0 : _a2.settings) == null ? void 0 : _b.debugMode) != null ? _c : true;
+        var _a, _b, _c;
+        const debugMode = (_c = (_b = (_a = context == null ? void 0 : context.plugin) == null ? void 0 : _a.settings) == null ? void 0 : _b.debugMode) != null ? _c : true;
         debugLog(debugMode, "debug", "[FileDiffTool] execute called with params:", params);
         const inputPath = params.path || params.filePath;
         const suggestedContent = params.suggestedContent || params.text;
@@ -2065,8 +2109,8 @@ var init_FileMoveTool = __esm({
        * @returns ToolResult indicating success or failure
        */
       async execute(params, context) {
-        var _a2, _b, _c;
-        const debugMode = (_c = (_b = (_a2 = context == null ? void 0 : context.plugin) == null ? void 0 : _a2.settings) == null ? void 0 : _b.debugMode) != null ? _c : true;
+        var _a, _b, _c;
+        const debugMode = (_c = (_b = (_a = context == null ? void 0 : context.plugin) == null ? void 0 : _a.settings) == null ? void 0 : _b.debugMode) != null ? _c : true;
         let inputSourcePath = params.sourcePath || params.path;
         let inputDestinationPath = params.destinationPath;
         const newName = params.newName;
@@ -2201,7 +2245,7 @@ var init_ThoughtTool = __esm({
        * @returns ToolResult with formatted thought and metadata.
        */
       async execute(params, context) {
-        var _a2;
+        var _a;
         if (context && context.plugin && typeof context.plugin.debugLog === "function") {
           context.plugin.debugLog("info", "[ThoughtTool] execute called", { params, context });
         }
@@ -2226,7 +2270,7 @@ var init_ThoughtTool = __esm({
         }
         const thought = actualParams.thought.trim();
         const nextTool = actualParams.nextTool.trim();
-        const nextActionDescription = ((_a2 = actualParams.nextActionDescription) == null ? void 0 : _a2.trim()) || void 0;
+        const nextActionDescription = ((_a = actualParams.nextActionDescription) == null ? void 0 : _a.trim()) || void 0;
         const finished = nextTool.toLowerCase() === "finished";
         const step = typeof actualParams.step === "number" && actualParams.step > 0 ? actualParams.step : void 0;
         const totalSteps = typeof actualParams.totalSteps === "number" && actualParams.totalSteps > 0 ? actualParams.totalSteps : void 0;
@@ -2302,8 +2346,8 @@ var init_FileListTool = __esm({
        * @returns ToolResult with the list of files/folders or error
        */
       async execute(params, context) {
-        var _a2, _b, _c;
-        const debugMode = (_c = (_b = (_a2 = context == null ? void 0 : context.plugin) == null ? void 0 : _a2.settings) == null ? void 0 : _b.debugMode) != null ? _c : true;
+        var _a, _b, _c;
+        const debugMode = (_c = (_b = (_a = context == null ? void 0 : context.plugin) == null ? void 0 : _a.settings) == null ? void 0 : _b.debugMode) != null ? _c : true;
         const inputPath = params.path || params.folderPath || params.folder || "";
         const { recursive = false, maxResults = 100 } = params;
         let folderPath;
@@ -2448,8 +2492,8 @@ var init_FileDeleteTool = __esm({
        * @returns ToolResult indicating success or failure
        */
       async execute(params, context) {
-        var _a2, _b, _c;
-        const debugMode = (_c = (_b = (_a2 = context == null ? void 0 : context.plugin) == null ? void 0 : _a2.settings) == null ? void 0 : _b.debugMode) != null ? _c : true;
+        var _a, _b, _c;
+        const debugMode = (_c = (_b = (_a = context == null ? void 0 : context.plugin) == null ? void 0 : _a.settings) == null ? void 0 : _b.debugMode) != null ? _c : true;
         const inputPath = params.path || params.filePath;
         const { backup = true, confirmDeletion = true, useTrash = true } = params;
         if (inputPath === void 0 || inputPath === null) {
@@ -2975,12 +3019,6 @@ var init_settings = __esm({
         availableModels: []
       },
       /** @inheritdoc */
-      anthropicSettings: {
-        apiKey: "",
-        model: "claude-3-5-sonnet-latest",
-        availableModels: []
-      },
-      /** @inheritdoc */
       geminiSettings: {
         apiKey: "",
         model: "gemini-2.5-flash-preview-05-20",
@@ -3250,3587 +3288,6 @@ var init_base2 = __esm({
   }
 });
 
-// node_modules/@anthropic-ai/sdk/version.mjs
-var VERSION;
-var init_version = __esm({
-  "node_modules/@anthropic-ai/sdk/version.mjs"() {
-    VERSION = "0.36.3";
-  }
-});
-
-// node_modules/@anthropic-ai/sdk/_shims/registry.mjs
-function setShims(shims, options = { auto: false }) {
-  if (auto) {
-    throw new Error(`you must \`import '@anthropic-ai/sdk/shims/${shims.kind}'\` before importing anything else from @anthropic-ai/sdk`);
-  }
-  if (kind) {
-    throw new Error(`can't \`import '@anthropic-ai/sdk/shims/${shims.kind}'\` after \`import '@anthropic-ai/sdk/shims/${kind}'\``);
-  }
-  auto = options.auto;
-  kind = shims.kind;
-  fetch2 = shims.fetch;
-  Request2 = shims.Request;
-  Response2 = shims.Response;
-  Headers2 = shims.Headers;
-  FormData2 = shims.FormData;
-  Blob2 = shims.Blob;
-  File2 = shims.File;
-  ReadableStream2 = shims.ReadableStream;
-  getMultipartRequestOptions = shims.getMultipartRequestOptions;
-  getDefaultAgent = shims.getDefaultAgent;
-  fileFromPath = shims.fileFromPath;
-  isFsReadStream = shims.isFsReadStream;
-}
-var auto, kind, fetch2, Request2, Response2, Headers2, FormData2, Blob2, File2, ReadableStream2, getMultipartRequestOptions, getDefaultAgent, fileFromPath, isFsReadStream;
-var init_registry = __esm({
-  "node_modules/@anthropic-ai/sdk/_shims/registry.mjs"() {
-    auto = false;
-    kind = void 0;
-    fetch2 = void 0;
-    Request2 = void 0;
-    Response2 = void 0;
-    Headers2 = void 0;
-    FormData2 = void 0;
-    Blob2 = void 0;
-    File2 = void 0;
-    ReadableStream2 = void 0;
-    getMultipartRequestOptions = void 0;
-    getDefaultAgent = void 0;
-    fileFromPath = void 0;
-    isFsReadStream = void 0;
-  }
-});
-
-// node_modules/@anthropic-ai/sdk/_shims/MultipartBody.mjs
-var MultipartBody;
-var init_MultipartBody = __esm({
-  "node_modules/@anthropic-ai/sdk/_shims/MultipartBody.mjs"() {
-    MultipartBody = class {
-      constructor(body) {
-        this.body = body;
-      }
-      get [Symbol.toStringTag]() {
-        return "MultipartBody";
-      }
-    };
-  }
-});
-
-// node_modules/@anthropic-ai/sdk/_shims/web-runtime.mjs
-function getRuntime({ manuallyImported } = {}) {
-  const recommendation = manuallyImported ? `You may need to use polyfills` : `Add one of these imports before your first \`import \u2026 from '@anthropic-ai/sdk'\`:
-- \`import '@anthropic-ai/sdk/shims/node'\` (if you're running on Node)
-- \`import '@anthropic-ai/sdk/shims/web'\` (otherwise)
-`;
-  let _fetch, _Request, _Response, _Headers;
-  try {
-    _fetch = fetch;
-    _Request = Request;
-    _Response = Response;
-    _Headers = Headers;
-  } catch (error) {
-    throw new Error(`this environment is missing the following Web Fetch API type: ${error.message}. ${recommendation}`);
-  }
-  return {
-    kind: "web",
-    fetch: _fetch,
-    Request: _Request,
-    Response: _Response,
-    Headers: _Headers,
-    FormData: (
-      // @ts-ignore
-      typeof FormData !== "undefined" ? FormData : class FormData {
-        // @ts-ignore
-        constructor() {
-          throw new Error(`file uploads aren't supported in this environment yet as 'FormData' is undefined. ${recommendation}`);
-        }
-      }
-    ),
-    Blob: typeof Blob !== "undefined" ? Blob : class Blob {
-      constructor() {
-        throw new Error(`file uploads aren't supported in this environment yet as 'Blob' is undefined. ${recommendation}`);
-      }
-    },
-    File: (
-      // @ts-ignore
-      typeof File !== "undefined" ? File : class File {
-        // @ts-ignore
-        constructor() {
-          throw new Error(`file uploads aren't supported in this environment yet as 'File' is undefined. ${recommendation}`);
-        }
-      }
-    ),
-    ReadableStream: (
-      // @ts-ignore
-      typeof ReadableStream !== "undefined" ? ReadableStream : class ReadableStream {
-        // @ts-ignore
-        constructor() {
-          throw new Error(`streaming isn't supported in this environment yet as 'ReadableStream' is undefined. ${recommendation}`);
-        }
-      }
-    ),
-    getMultipartRequestOptions: async (form, opts) => ({
-      ...opts,
-      body: new MultipartBody(form)
-    }),
-    getDefaultAgent: (url) => void 0,
-    fileFromPath: () => {
-      throw new Error("The `fileFromPath` function is only supported in Node. See the README for more details: https://www.github.com/anthropics/anthropic-sdk-typescript#file-uploads");
-    },
-    isFsReadStream: (value) => false
-  };
-}
-var init_web_runtime = __esm({
-  "node_modules/@anthropic-ai/sdk/_shims/web-runtime.mjs"() {
-    init_MultipartBody();
-  }
-});
-
-// node_modules/@anthropic-ai/sdk/_shims/auto/runtime.mjs
-var init_runtime = __esm({
-  "node_modules/@anthropic-ai/sdk/_shims/auto/runtime.mjs"() {
-    init_web_runtime();
-  }
-});
-
-// node_modules/@anthropic-ai/sdk/_shims/index.mjs
-var init_shims = __esm({
-  "node_modules/@anthropic-ai/sdk/_shims/index.mjs"() {
-    init_registry();
-    init_runtime();
-    init_registry();
-    if (!kind) setShims(getRuntime(), { auto: true });
-  }
-});
-
-// node_modules/@anthropic-ai/sdk/error.mjs
-var AnthropicError, APIError, APIUserAbortError, APIConnectionError, APIConnectionTimeoutError, BadRequestError, AuthenticationError, PermissionDeniedError, NotFoundError, ConflictError, UnprocessableEntityError, RateLimitError, InternalServerError;
-var init_error = __esm({
-  "node_modules/@anthropic-ai/sdk/error.mjs"() {
-    init_core();
-    AnthropicError = class extends Error {
-    };
-    APIError = class _APIError extends AnthropicError {
-      constructor(status, error, message, headers) {
-        super(`${_APIError.makeMessage(status, error, message)}`);
-        this.status = status;
-        this.headers = headers;
-        this.request_id = headers == null ? void 0 : headers["request-id"];
-        this.error = error;
-      }
-      static makeMessage(status, error, message) {
-        const msg = (error == null ? void 0 : error.message) ? typeof error.message === "string" ? error.message : JSON.stringify(error.message) : error ? JSON.stringify(error) : message;
-        if (status && msg) {
-          return `${status} ${msg}`;
-        }
-        if (status) {
-          return `${status} status code (no body)`;
-        }
-        if (msg) {
-          return msg;
-        }
-        return "(no status code or body)";
-      }
-      static generate(status, errorResponse, message, headers) {
-        if (!status || !headers) {
-          return new APIConnectionError({ message, cause: castToError(errorResponse) });
-        }
-        const error = errorResponse;
-        if (status === 400) {
-          return new BadRequestError(status, error, message, headers);
-        }
-        if (status === 401) {
-          return new AuthenticationError(status, error, message, headers);
-        }
-        if (status === 403) {
-          return new PermissionDeniedError(status, error, message, headers);
-        }
-        if (status === 404) {
-          return new NotFoundError(status, error, message, headers);
-        }
-        if (status === 409) {
-          return new ConflictError(status, error, message, headers);
-        }
-        if (status === 422) {
-          return new UnprocessableEntityError(status, error, message, headers);
-        }
-        if (status === 429) {
-          return new RateLimitError(status, error, message, headers);
-        }
-        if (status >= 500) {
-          return new InternalServerError(status, error, message, headers);
-        }
-        return new _APIError(status, error, message, headers);
-      }
-    };
-    APIUserAbortError = class extends APIError {
-      constructor({ message } = {}) {
-        super(void 0, void 0, message || "Request was aborted.", void 0);
-      }
-    };
-    APIConnectionError = class extends APIError {
-      constructor({ message, cause }) {
-        super(void 0, void 0, message || "Connection error.", void 0);
-        if (cause)
-          this.cause = cause;
-      }
-    };
-    APIConnectionTimeoutError = class extends APIConnectionError {
-      constructor({ message } = {}) {
-        super({ message: message != null ? message : "Request timed out." });
-      }
-    };
-    BadRequestError = class extends APIError {
-    };
-    AuthenticationError = class extends APIError {
-    };
-    PermissionDeniedError = class extends APIError {
-    };
-    NotFoundError = class extends APIError {
-    };
-    ConflictError = class extends APIError {
-    };
-    UnprocessableEntityError = class extends APIError {
-    };
-    RateLimitError = class extends APIError {
-    };
-    InternalServerError = class extends APIError {
-    };
-  }
-});
-
-// node_modules/@anthropic-ai/sdk/internal/decoders/line.mjs
-var LineDecoder;
-var init_line2 = __esm({
-  "node_modules/@anthropic-ai/sdk/internal/decoders/line.mjs"() {
-    init_error();
-    LineDecoder = class _LineDecoder {
-      constructor() {
-        this.buffer = [];
-        this.trailingCR = false;
-      }
-      decode(chunk) {
-        let text = this.decodeText(chunk);
-        if (this.trailingCR) {
-          text = "\r" + text;
-          this.trailingCR = false;
-        }
-        if (text.endsWith("\r")) {
-          this.trailingCR = true;
-          text = text.slice(0, -1);
-        }
-        if (!text) {
-          return [];
-        }
-        const trailingNewline = _LineDecoder.NEWLINE_CHARS.has(text[text.length - 1] || "");
-        let lines = text.split(_LineDecoder.NEWLINE_REGEXP);
-        if (trailingNewline) {
-          lines.pop();
-        }
-        if (lines.length === 1 && !trailingNewline) {
-          this.buffer.push(lines[0]);
-          return [];
-        }
-        if (this.buffer.length > 0) {
-          lines = [this.buffer.join("") + lines[0], ...lines.slice(1)];
-          this.buffer = [];
-        }
-        if (!trailingNewline) {
-          this.buffer = [lines.pop() || ""];
-        }
-        return lines;
-      }
-      decodeText(bytes) {
-        var _a2;
-        if (bytes == null)
-          return "";
-        if (typeof bytes === "string")
-          return bytes;
-        if (typeof Buffer !== "undefined") {
-          if (bytes instanceof Buffer) {
-            return bytes.toString();
-          }
-          if (bytes instanceof Uint8Array) {
-            return Buffer.from(bytes).toString();
-          }
-          throw new AnthropicError(`Unexpected: received non-Uint8Array (${bytes.constructor.name}) stream chunk in an environment with a global "Buffer" defined, which this library assumes to be Node. Please report this error.`);
-        }
-        if (typeof TextDecoder !== "undefined") {
-          if (bytes instanceof Uint8Array || bytes instanceof ArrayBuffer) {
-            (_a2 = this.textDecoder) != null ? _a2 : this.textDecoder = new TextDecoder("utf8");
-            return this.textDecoder.decode(bytes);
-          }
-          throw new AnthropicError(`Unexpected: received non-Uint8Array/ArrayBuffer (${bytes.constructor.name}) in a web platform. Please report this error.`);
-        }
-        throw new AnthropicError(`Unexpected: neither Buffer nor TextDecoder are available as globals. Please report this error.`);
-      }
-      flush() {
-        if (!this.buffer.length && !this.trailingCR) {
-          return [];
-        }
-        const lines = [this.buffer.join("")];
-        this.buffer = [];
-        this.trailingCR = false;
-        return lines;
-      }
-    };
-    LineDecoder.NEWLINE_CHARS = /* @__PURE__ */ new Set(["\n", "\r"]);
-    LineDecoder.NEWLINE_REGEXP = /\r\n|[\n\r]/g;
-  }
-});
-
-// node_modules/@anthropic-ai/sdk/internal/stream-utils.mjs
-function ReadableStreamToAsyncIterable(stream) {
-  if (stream[Symbol.asyncIterator])
-    return stream;
-  const reader = stream.getReader();
-  return {
-    async next() {
-      try {
-        const result = await reader.read();
-        if (result == null ? void 0 : result.done)
-          reader.releaseLock();
-        return result;
-      } catch (e) {
-        reader.releaseLock();
-        throw e;
-      }
-    },
-    async return() {
-      const cancelPromise = reader.cancel();
-      reader.releaseLock();
-      await cancelPromise;
-      return { done: true, value: void 0 };
-    },
-    [Symbol.asyncIterator]() {
-      return this;
-    }
-  };
-}
-var init_stream_utils = __esm({
-  "node_modules/@anthropic-ai/sdk/internal/stream-utils.mjs"() {
-  }
-});
-
-// node_modules/@anthropic-ai/sdk/streaming.mjs
-async function* _iterSSEMessages(response, controller) {
-  if (!response.body) {
-    controller.abort();
-    throw new AnthropicError(`Attempted to iterate over a response with no body`);
-  }
-  const sseDecoder = new SSEDecoder();
-  const lineDecoder = new LineDecoder();
-  const iter = ReadableStreamToAsyncIterable(response.body);
-  for await (const sseChunk of iterSSEChunks(iter)) {
-    for (const line of lineDecoder.decode(sseChunk)) {
-      const sse = sseDecoder.decode(line);
-      if (sse)
-        yield sse;
-    }
-  }
-  for (const line of lineDecoder.flush()) {
-    const sse = sseDecoder.decode(line);
-    if (sse)
-      yield sse;
-  }
-}
-async function* iterSSEChunks(iterator) {
-  let data = new Uint8Array();
-  for await (const chunk of iterator) {
-    if (chunk == null) {
-      continue;
-    }
-    const binaryChunk = chunk instanceof ArrayBuffer ? new Uint8Array(chunk) : typeof chunk === "string" ? new TextEncoder().encode(chunk) : chunk;
-    let newData = new Uint8Array(data.length + binaryChunk.length);
-    newData.set(data);
-    newData.set(binaryChunk, data.length);
-    data = newData;
-    let patternIndex;
-    while ((patternIndex = findDoubleNewlineIndex(data)) !== -1) {
-      yield data.slice(0, patternIndex);
-      data = data.slice(patternIndex);
-    }
-  }
-  if (data.length > 0) {
-    yield data;
-  }
-}
-function findDoubleNewlineIndex(buffer) {
-  const newline = 10;
-  const carriage = 13;
-  for (let i = 0; i < buffer.length - 2; i++) {
-    if (buffer[i] === newline && buffer[i + 1] === newline) {
-      return i + 2;
-    }
-    if (buffer[i] === carriage && buffer[i + 1] === carriage) {
-      return i + 2;
-    }
-    if (buffer[i] === carriage && buffer[i + 1] === newline && i + 3 < buffer.length && buffer[i + 2] === carriage && buffer[i + 3] === newline) {
-      return i + 4;
-    }
-  }
-  return -1;
-}
-function partition(str2, delimiter) {
-  const index = str2.indexOf(delimiter);
-  if (index !== -1) {
-    return [str2.substring(0, index), delimiter, str2.substring(index + delimiter.length)];
-  }
-  return [str2, "", ""];
-}
-var Stream, SSEDecoder;
-var init_streaming = __esm({
-  "node_modules/@anthropic-ai/sdk/streaming.mjs"() {
-    init_shims();
-    init_error();
-    init_line2();
-    init_stream_utils();
-    init_core();
-    init_error();
-    Stream = class _Stream {
-      constructor(iterator, controller) {
-        this.iterator = iterator;
-        this.controller = controller;
-      }
-      static fromSSEResponse(response, controller) {
-        let consumed = false;
-        async function* iterator() {
-          if (consumed) {
-            throw new Error("Cannot iterate over a consumed stream, use `.tee()` to split the stream.");
-          }
-          consumed = true;
-          let done = false;
-          try {
-            for await (const sse of _iterSSEMessages(response, controller)) {
-              if (sse.event === "completion") {
-                try {
-                  yield JSON.parse(sse.data);
-                } catch (e) {
-                  console.error(`Could not parse message into JSON:`, sse.data);
-                  console.error(`From chunk:`, sse.raw);
-                  throw e;
-                }
-              }
-              if (sse.event === "message_start" || sse.event === "message_delta" || sse.event === "message_stop" || sse.event === "content_block_start" || sse.event === "content_block_delta" || sse.event === "content_block_stop") {
-                try {
-                  yield JSON.parse(sse.data);
-                } catch (e) {
-                  console.error(`Could not parse message into JSON:`, sse.data);
-                  console.error(`From chunk:`, sse.raw);
-                  throw e;
-                }
-              }
-              if (sse.event === "ping") {
-                continue;
-              }
-              if (sse.event === "error") {
-                throw APIError.generate(void 0, `SSE Error: ${sse.data}`, sse.data, createResponseHeaders(response.headers));
-              }
-            }
-            done = true;
-          } catch (e) {
-            if (e instanceof Error && e.name === "AbortError")
-              return;
-            throw e;
-          } finally {
-            if (!done)
-              controller.abort();
-          }
-        }
-        return new _Stream(iterator, controller);
-      }
-      /**
-       * Generates a Stream from a newline-separated ReadableStream
-       * where each item is a JSON value.
-       */
-      static fromReadableStream(readableStream, controller) {
-        let consumed = false;
-        async function* iterLines() {
-          const lineDecoder = new LineDecoder();
-          const iter = ReadableStreamToAsyncIterable(readableStream);
-          for await (const chunk of iter) {
-            for (const line of lineDecoder.decode(chunk)) {
-              yield line;
-            }
-          }
-          for (const line of lineDecoder.flush()) {
-            yield line;
-          }
-        }
-        async function* iterator() {
-          if (consumed) {
-            throw new Error("Cannot iterate over a consumed stream, use `.tee()` to split the stream.");
-          }
-          consumed = true;
-          let done = false;
-          try {
-            for await (const line of iterLines()) {
-              if (done)
-                continue;
-              if (line)
-                yield JSON.parse(line);
-            }
-            done = true;
-          } catch (e) {
-            if (e instanceof Error && e.name === "AbortError")
-              return;
-            throw e;
-          } finally {
-            if (!done)
-              controller.abort();
-          }
-        }
-        return new _Stream(iterator, controller);
-      }
-      [Symbol.asyncIterator]() {
-        return this.iterator();
-      }
-      /**
-       * Splits the stream into two streams which can be
-       * independently read from at different speeds.
-       */
-      tee() {
-        const left = [];
-        const right = [];
-        const iterator = this.iterator();
-        const teeIterator = (queue) => {
-          return {
-            next: () => {
-              if (queue.length === 0) {
-                const result = iterator.next();
-                left.push(result);
-                right.push(result);
-              }
-              return queue.shift();
-            }
-          };
-        };
-        return [
-          new _Stream(() => teeIterator(left), this.controller),
-          new _Stream(() => teeIterator(right), this.controller)
-        ];
-      }
-      /**
-       * Converts this stream to a newline-separated ReadableStream of
-       * JSON stringified values in the stream
-       * which can be turned back into a Stream with `Stream.fromReadableStream()`.
-       */
-      toReadableStream() {
-        const self = this;
-        let iter;
-        const encoder = new TextEncoder();
-        return new ReadableStream2({
-          async start() {
-            iter = self[Symbol.asyncIterator]();
-          },
-          async pull(ctrl) {
-            try {
-              const { value, done } = await iter.next();
-              if (done)
-                return ctrl.close();
-              const bytes = encoder.encode(JSON.stringify(value) + "\n");
-              ctrl.enqueue(bytes);
-            } catch (err) {
-              ctrl.error(err);
-            }
-          },
-          async cancel() {
-            var _a2;
-            await ((_a2 = iter.return) == null ? void 0 : _a2.call(iter));
-          }
-        });
-      }
-    };
-    SSEDecoder = class {
-      constructor() {
-        this.event = null;
-        this.data = [];
-        this.chunks = [];
-      }
-      decode(line) {
-        if (line.endsWith("\r")) {
-          line = line.substring(0, line.length - 1);
-        }
-        if (!line) {
-          if (!this.event && !this.data.length)
-            return null;
-          const sse = {
-            event: this.event,
-            data: this.data.join("\n"),
-            raw: this.chunks
-          };
-          this.event = null;
-          this.data = [];
-          this.chunks = [];
-          return sse;
-        }
-        this.chunks.push(line);
-        if (line.startsWith(":")) {
-          return null;
-        }
-        let [fieldname, _, value] = partition(line, ":");
-        if (value.startsWith(" ")) {
-          value = value.substring(1);
-        }
-        if (fieldname === "event") {
-          this.event = value;
-        } else if (fieldname === "data") {
-          this.data.push(value);
-        }
-        return null;
-      }
-    };
-  }
-});
-
-// node_modules/@anthropic-ai/sdk/uploads.mjs
-async function toFile(value, name, options) {
-  var _a2, _b, _c;
-  value = await value;
-  if (isFileLike(value)) {
-    return value;
-  }
-  if (isResponseLike(value)) {
-    const blob = await value.blob();
-    name || (name = (_a2 = new URL(value.url).pathname.split(/[\\/]/).pop()) != null ? _a2 : "unknown_file");
-    const data = isBlobLike(blob) ? [await blob.arrayBuffer()] : [blob];
-    return new File2(data, name, options);
-  }
-  const bits = await getBytes(value);
-  name || (name = (_b = getName(value)) != null ? _b : "unknown_file");
-  if (!(options == null ? void 0 : options.type)) {
-    const type2 = (_c = bits[0]) == null ? void 0 : _c.type;
-    if (typeof type2 === "string") {
-      options = { ...options, type: type2 };
-    }
-  }
-  return new File2(bits, name, options);
-}
-async function getBytes(value) {
-  var _a2;
-  let parts = [];
-  if (typeof value === "string" || ArrayBuffer.isView(value) || // includes Uint8Array, Buffer, etc.
-  value instanceof ArrayBuffer) {
-    parts.push(value);
-  } else if (isBlobLike(value)) {
-    parts.push(await value.arrayBuffer());
-  } else if (isAsyncIterableIterator(value)) {
-    for await (const chunk of value) {
-      parts.push(chunk);
-    }
-  } else {
-    throw new Error(`Unexpected data type: ${typeof value}; constructor: ${(_a2 = value == null ? void 0 : value.constructor) == null ? void 0 : _a2.name}; props: ${propsForError(value)}`);
-  }
-  return parts;
-}
-function propsForError(value) {
-  const props = Object.getOwnPropertyNames(value);
-  return `[${props.map((p) => `"${p}"`).join(", ")}]`;
-}
-function getName(value) {
-  var _a2;
-  return getStringFromMaybeBuffer(value.name) || getStringFromMaybeBuffer(value.filename) || // For fs.ReadStream
-  ((_a2 = getStringFromMaybeBuffer(value.path)) == null ? void 0 : _a2.split(/[\\/]/).pop());
-}
-var isResponseLike, isFileLike, isBlobLike, getStringFromMaybeBuffer, isAsyncIterableIterator, isMultipartBody;
-var init_uploads = __esm({
-  "node_modules/@anthropic-ai/sdk/uploads.mjs"() {
-    init_shims();
-    init_shims();
-    isResponseLike = (value) => value != null && typeof value === "object" && typeof value.url === "string" && typeof value.blob === "function";
-    isFileLike = (value) => value != null && typeof value === "object" && typeof value.name === "string" && typeof value.lastModified === "number" && isBlobLike(value);
-    isBlobLike = (value) => value != null && typeof value === "object" && typeof value.size === "number" && typeof value.type === "string" && typeof value.text === "function" && typeof value.slice === "function" && typeof value.arrayBuffer === "function";
-    getStringFromMaybeBuffer = (x) => {
-      if (typeof x === "string")
-        return x;
-      if (typeof Buffer !== "undefined" && x instanceof Buffer)
-        return String(x);
-      return void 0;
-    };
-    isAsyncIterableIterator = (value) => value != null && typeof value === "object" && typeof value[Symbol.asyncIterator] === "function";
-    isMultipartBody = (body) => body && typeof body === "object" && body.body && body[Symbol.toStringTag] === "MultipartBody";
-  }
-});
-
-// node_modules/@anthropic-ai/sdk/core.mjs
-async function defaultParseResponse(props) {
-  const { response } = props;
-  if (props.options.stream) {
-    debug("response", response.status, response.url, response.headers, response.body);
-    if (props.options.__streamClass) {
-      return props.options.__streamClass.fromSSEResponse(response, props.controller);
-    }
-    return Stream.fromSSEResponse(response, props.controller);
-  }
-  if (response.status === 204) {
-    return null;
-  }
-  if (props.options.__binaryResponse) {
-    return response;
-  }
-  const contentType = response.headers.get("content-type");
-  const isJSON = (contentType == null ? void 0 : contentType.includes("application/json")) || (contentType == null ? void 0 : contentType.includes("application/vnd.api+json"));
-  if (isJSON) {
-    const json2 = await response.json();
-    debug("response", response.status, response.url, response.headers, json2);
-    return _addRequestID(json2, response);
-  }
-  const text = await response.text();
-  debug("response", response.status, response.url, response.headers, text);
-  return text;
-}
-function _addRequestID(value, response) {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return value;
-  }
-  return Object.defineProperty(value, "_request_id", {
-    value: response.headers.get("request-id"),
-    enumerable: false
-  });
-}
-function getBrowserInfo() {
-  if (typeof navigator === "undefined" || !navigator) {
-    return null;
-  }
-  const browserPatterns = [
-    { key: "edge", pattern: /Edge(?:\W+(\d+)\.(\d+)(?:\.(\d+))?)?/ },
-    { key: "ie", pattern: /MSIE(?:\W+(\d+)\.(\d+)(?:\.(\d+))?)?/ },
-    { key: "ie", pattern: /Trident(?:.*rv\:(\d+)\.(\d+)(?:\.(\d+))?)?/ },
-    { key: "chrome", pattern: /Chrome(?:\W+(\d+)\.(\d+)(?:\.(\d+))?)?/ },
-    { key: "firefox", pattern: /Firefox(?:\W+(\d+)\.(\d+)(?:\.(\d+))?)?/ },
-    { key: "safari", pattern: /(?:Version\W+(\d+)\.(\d+)(?:\.(\d+))?)?(?:\W+Mobile\S*)?\W+Safari/ }
-  ];
-  for (const { key, pattern } of browserPatterns) {
-    const match = pattern.exec(navigator.userAgent);
-    if (match) {
-      const major = match[1] || 0;
-      const minor = match[2] || 0;
-      const patch = match[3] || 0;
-      return { browser: key, version: `${major}.${minor}.${patch}` };
-    }
-  }
-  return null;
-}
-function isEmptyObj(obj) {
-  if (!obj)
-    return true;
-  for (const _k in obj)
-    return false;
-  return true;
-}
-function hasOwn(obj, key) {
-  return Object.prototype.hasOwnProperty.call(obj, key);
-}
-function applyHeadersMut(targetHeaders, newHeaders) {
-  for (const k in newHeaders) {
-    if (!hasOwn(newHeaders, k))
-      continue;
-    const lowerKey = k.toLowerCase();
-    if (!lowerKey)
-      continue;
-    const val = newHeaders[k];
-    if (val === null) {
-      delete targetHeaders[lowerKey];
-    } else if (val !== void 0) {
-      targetHeaders[lowerKey] = val;
-    }
-  }
-}
-function debug(action, ...args) {
-  var _a2;
-  if (typeof process !== "undefined" && ((_a2 = process == null ? void 0 : process.env) == null ? void 0 : _a2["DEBUG"]) === "true") {
-    console.log(`Anthropic:DEBUG:${action}`, ...args);
-  }
-}
-var __classPrivateFieldSet, __classPrivateFieldGet, _AbstractPage_client, APIPromise, APIClient, AbstractPage, PagePromise, createResponseHeaders, requestOptionsKeys, isRequestOptions, getPlatformProperties, normalizeArch, normalizePlatform, _platformHeaders, getPlatformHeaders, safeJSON, startsWithSchemeRegexp, isAbsoluteURL, sleep, validatePositiveInteger, castToError, readEnv, uuid4, isRunningInBrowser, isHeadersProtocol, getHeader;
-var init_core = __esm({
-  "node_modules/@anthropic-ai/sdk/core.mjs"() {
-    init_version();
-    init_streaming();
-    init_error();
-    init_shims();
-    init_uploads();
-    __classPrivateFieldSet = function(receiver, state, value, kind2, f) {
-      if (kind2 === "m") throw new TypeError("Private method is not writable");
-      if (kind2 === "a" && !f) throw new TypeError("Private accessor was defined without a setter");
-      if (typeof state === "function" ? receiver !== state || !f : !state.has(receiver)) throw new TypeError("Cannot write private member to an object whose class did not declare it");
-      return kind2 === "a" ? f.call(receiver, value) : f ? f.value = value : state.set(receiver, value), value;
-    };
-    __classPrivateFieldGet = function(receiver, state, kind2, f) {
-      if (kind2 === "a" && !f) throw new TypeError("Private accessor was defined without a getter");
-      if (typeof state === "function" ? receiver !== state || !f : !state.has(receiver)) throw new TypeError("Cannot read private member from an object whose class did not declare it");
-      return kind2 === "m" ? f : kind2 === "a" ? f.call(receiver) : f ? f.value : state.get(receiver);
-    };
-    APIPromise = class _APIPromise extends Promise {
-      constructor(responsePromise, parseResponse = defaultParseResponse) {
-        super((resolve) => {
-          resolve(null);
-        });
-        this.responsePromise = responsePromise;
-        this.parseResponse = parseResponse;
-      }
-      _thenUnwrap(transform) {
-        return new _APIPromise(this.responsePromise, async (props) => _addRequestID(transform(await this.parseResponse(props), props), props.response));
-      }
-      /**
-       * Gets the raw `Response` instance instead of parsing the response
-       * data.
-       *
-       * If you want to parse the response body but still get the `Response`
-       * instance, you can use {@link withResponse()}.
-       *
-       * 👋 Getting the wrong TypeScript type for `Response`?
-       * Try setting `"moduleResolution": "NodeNext"` if you can,
-       * or add one of these imports before your first `import … from '@anthropic-ai/sdk'`:
-       * - `import '@anthropic-ai/sdk/shims/node'` (if you're running on Node)
-       * - `import '@anthropic-ai/sdk/shims/web'` (otherwise)
-       */
-      asResponse() {
-        return this.responsePromise.then((p) => p.response);
-      }
-      /**
-       * Gets the parsed response data, the raw `Response` instance and the ID of the request,
-       * returned vie the `request-id` header which is useful for debugging requests and resporting
-       * issues to Anthropic.
-       *
-       * If you just want to get the raw `Response` instance without parsing it,
-       * you can use {@link asResponse()}.
-       *
-       * 👋 Getting the wrong TypeScript type for `Response`?
-       * Try setting `"moduleResolution": "NodeNext"` if you can,
-       * or add one of these imports before your first `import … from '@anthropic-ai/sdk'`:
-       * - `import '@anthropic-ai/sdk/shims/node'` (if you're running on Node)
-       * - `import '@anthropic-ai/sdk/shims/web'` (otherwise)
-       */
-      async withResponse() {
-        const [data, response] = await Promise.all([this.parse(), this.asResponse()]);
-        return { data, response, request_id: response.headers.get("request-id") };
-      }
-      parse() {
-        if (!this.parsedPromise) {
-          this.parsedPromise = this.responsePromise.then(this.parseResponse);
-        }
-        return this.parsedPromise;
-      }
-      then(onfulfilled, onrejected) {
-        return this.parse().then(onfulfilled, onrejected);
-      }
-      catch(onrejected) {
-        return this.parse().catch(onrejected);
-      }
-      finally(onfinally) {
-        return this.parse().finally(onfinally);
-      }
-    };
-    APIClient = class {
-      constructor({
-        baseURL,
-        maxRetries = 2,
-        timeout = 6e5,
-        // 10 minutes
-        httpAgent,
-        fetch: overriddenFetch
-      }) {
-        this.baseURL = baseURL;
-        this.maxRetries = validatePositiveInteger("maxRetries", maxRetries);
-        this.timeout = validatePositiveInteger("timeout", timeout);
-        this.httpAgent = httpAgent;
-        this.fetch = overriddenFetch != null ? overriddenFetch : fetch2;
-      }
-      authHeaders(opts) {
-        return {};
-      }
-      /**
-       * Override this to add your own default headers, for example:
-       *
-       *  {
-       *    ...super.defaultHeaders(),
-       *    Authorization: 'Bearer 123',
-       *  }
-       */
-      defaultHeaders(opts) {
-        return {
-          Accept: "application/json",
-          "Content-Type": "application/json",
-          "User-Agent": this.getUserAgent(),
-          ...getPlatformHeaders(),
-          ...this.authHeaders(opts)
-        };
-      }
-      /**
-       * Override this to add your own headers validation:
-       */
-      validateHeaders(headers, customHeaders) {
-      }
-      defaultIdempotencyKey() {
-        return `stainless-node-retry-${uuid4()}`;
-      }
-      get(path3, opts) {
-        return this.methodRequest("get", path3, opts);
-      }
-      post(path3, opts) {
-        return this.methodRequest("post", path3, opts);
-      }
-      patch(path3, opts) {
-        return this.methodRequest("patch", path3, opts);
-      }
-      put(path3, opts) {
-        return this.methodRequest("put", path3, opts);
-      }
-      delete(path3, opts) {
-        return this.methodRequest("delete", path3, opts);
-      }
-      methodRequest(method, path3, opts) {
-        return this.request(Promise.resolve(opts).then(async (opts2) => {
-          const body = opts2 && isBlobLike(opts2 == null ? void 0 : opts2.body) ? new DataView(await opts2.body.arrayBuffer()) : (opts2 == null ? void 0 : opts2.body) instanceof DataView ? opts2.body : (opts2 == null ? void 0 : opts2.body) instanceof ArrayBuffer ? new DataView(opts2.body) : opts2 && ArrayBuffer.isView(opts2 == null ? void 0 : opts2.body) ? new DataView(opts2.body.buffer) : opts2 == null ? void 0 : opts2.body;
-          return { method, path: path3, ...opts2, body };
-        }));
-      }
-      getAPIList(path3, Page2, opts) {
-        return this.requestAPIList(Page2, { method: "get", path: path3, ...opts });
-      }
-      calculateContentLength(body) {
-        if (typeof body === "string") {
-          if (typeof Buffer !== "undefined") {
-            return Buffer.byteLength(body, "utf8").toString();
-          }
-          if (typeof TextEncoder !== "undefined") {
-            const encoder = new TextEncoder();
-            const encoded = encoder.encode(body);
-            return encoded.length.toString();
-          }
-        } else if (ArrayBuffer.isView(body)) {
-          return body.byteLength.toString();
-        }
-        return null;
-      }
-      buildRequest(options, { retryCount = 0 } = {}) {
-        var _a2, _b, _c, _d, _e, _f;
-        const { method, path: path3, query, headers = {} } = options;
-        const body = ArrayBuffer.isView(options.body) || options.__binaryRequest && typeof options.body === "string" ? options.body : isMultipartBody(options.body) ? options.body.body : options.body ? JSON.stringify(options.body, null, 2) : null;
-        const contentLength = this.calculateContentLength(body);
-        const url = this.buildURL(path3, query);
-        if ("timeout" in options)
-          validatePositiveInteger("timeout", options.timeout);
-        const timeout = (_a2 = options.timeout) != null ? _a2 : this.timeout;
-        const httpAgent = (_c = (_b = options.httpAgent) != null ? _b : this.httpAgent) != null ? _c : getDefaultAgent(url);
-        const minAgentTimeout = timeout + 1e3;
-        if (typeof ((_d = httpAgent == null ? void 0 : httpAgent.options) == null ? void 0 : _d.timeout) === "number" && minAgentTimeout > ((_e = httpAgent.options.timeout) != null ? _e : 0)) {
-          httpAgent.options.timeout = minAgentTimeout;
-        }
-        if (this.idempotencyHeader && method !== "get") {
-          if (!options.idempotencyKey)
-            options.idempotencyKey = this.defaultIdempotencyKey();
-          headers[this.idempotencyHeader] = options.idempotencyKey;
-        }
-        const reqHeaders = this.buildHeaders({ options, headers, contentLength, retryCount });
-        const req = {
-          method,
-          ...body && { body },
-          headers: reqHeaders,
-          ...httpAgent && { agent: httpAgent },
-          // @ts-ignore node-fetch uses a custom AbortSignal type that is
-          // not compatible with standard web types
-          signal: (_f = options.signal) != null ? _f : null
-        };
-        return { req, url, timeout };
-      }
-      buildHeaders({ options, headers, contentLength, retryCount }) {
-        const reqHeaders = {};
-        if (contentLength) {
-          reqHeaders["content-length"] = contentLength;
-        }
-        const defaultHeaders = this.defaultHeaders(options);
-        applyHeadersMut(reqHeaders, defaultHeaders);
-        applyHeadersMut(reqHeaders, headers);
-        if (isMultipartBody(options.body) && kind !== "node") {
-          delete reqHeaders["content-type"];
-        }
-        if (getHeader(defaultHeaders, "x-stainless-retry-count") === void 0 && getHeader(headers, "x-stainless-retry-count") === void 0) {
-          reqHeaders["x-stainless-retry-count"] = String(retryCount);
-        }
-        this.validateHeaders(reqHeaders, headers);
-        return reqHeaders;
-      }
-      /**
-       * Used as a callback for mutating the given `FinalRequestOptions` object.
-       */
-      async prepareOptions(options) {
-      }
-      /**
-       * Used as a callback for mutating the given `RequestInit` object.
-       *
-       * This is useful for cases where you want to add certain headers based off of
-       * the request properties, e.g. `method` or `url`.
-       */
-      async prepareRequest(request, { url, options }) {
-      }
-      parseHeaders(headers) {
-        return !headers ? {} : Symbol.iterator in headers ? Object.fromEntries(Array.from(headers).map((header) => [...header])) : { ...headers };
-      }
-      makeStatusError(status, error, message, headers) {
-        return APIError.generate(status, error, message, headers);
-      }
-      request(options, remainingRetries = null) {
-        return new APIPromise(this.makeRequest(options, remainingRetries));
-      }
-      async makeRequest(optionsInput, retriesRemaining) {
-        var _a2, _b, _c;
-        const options = await optionsInput;
-        const maxRetries = (_a2 = options.maxRetries) != null ? _a2 : this.maxRetries;
-        if (retriesRemaining == null) {
-          retriesRemaining = maxRetries;
-        }
-        await this.prepareOptions(options);
-        const { req, url, timeout } = this.buildRequest(options, { retryCount: maxRetries - retriesRemaining });
-        await this.prepareRequest(req, { url, options });
-        debug("request", url, options, req.headers);
-        if ((_b = options.signal) == null ? void 0 : _b.aborted) {
-          throw new APIUserAbortError();
-        }
-        const controller = new AbortController();
-        const response = await this.fetchWithTimeout(url, req, timeout, controller).catch(castToError);
-        if (response instanceof Error) {
-          if ((_c = options.signal) == null ? void 0 : _c.aborted) {
-            throw new APIUserAbortError();
-          }
-          if (retriesRemaining) {
-            return this.retryRequest(options, retriesRemaining);
-          }
-          if (response.name === "AbortError") {
-            throw new APIConnectionTimeoutError();
-          }
-          throw new APIConnectionError({ cause: response });
-        }
-        const responseHeaders = createResponseHeaders(response.headers);
-        if (!response.ok) {
-          if (retriesRemaining && this.shouldRetry(response)) {
-            const retryMessage2 = `retrying, ${retriesRemaining} attempts remaining`;
-            debug(`response (error; ${retryMessage2})`, response.status, url, responseHeaders);
-            return this.retryRequest(options, retriesRemaining, responseHeaders);
-          }
-          const errText = await response.text().catch((e) => castToError(e).message);
-          const errJSON = safeJSON(errText);
-          const errMessage = errJSON ? void 0 : errText;
-          const retryMessage = retriesRemaining ? `(error; no more retries left)` : `(error; not retryable)`;
-          debug(`response (error; ${retryMessage})`, response.status, url, responseHeaders, errMessage);
-          const err = this.makeStatusError(response.status, errJSON, errMessage, responseHeaders);
-          throw err;
-        }
-        return { response, options, controller };
-      }
-      requestAPIList(Page2, options) {
-        const request = this.makeRequest(options, null);
-        return new PagePromise(this, request, Page2);
-      }
-      buildURL(path3, query) {
-        const url = isAbsoluteURL(path3) ? new URL(path3) : new URL(this.baseURL + (this.baseURL.endsWith("/") && path3.startsWith("/") ? path3.slice(1) : path3));
-        const defaultQuery = this.defaultQuery();
-        if (!isEmptyObj(defaultQuery)) {
-          query = { ...defaultQuery, ...query };
-        }
-        if (typeof query === "object" && query && !Array.isArray(query)) {
-          url.search = this.stringifyQuery(query);
-        }
-        return url.toString();
-      }
-      stringifyQuery(query) {
-        return Object.entries(query).filter(([_, value]) => typeof value !== "undefined").map(([key, value]) => {
-          if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
-            return `${encodeURIComponent(key)}=${encodeURIComponent(value)}`;
-          }
-          if (value === null) {
-            return `${encodeURIComponent(key)}=`;
-          }
-          throw new AnthropicError(`Cannot stringify type ${typeof value}; Expected string, number, boolean, or null. If you need to pass nested query parameters, you can manually encode them, e.g. { query: { 'foo[key1]': value1, 'foo[key2]': value2 } }, and please open a GitHub issue requesting better support for your use case.`);
-        }).join("&");
-      }
-      async fetchWithTimeout(url, init, ms, controller) {
-        const { signal, ...options } = init || {};
-        if (signal)
-          signal.addEventListener("abort", () => controller.abort());
-        const timeout = setTimeout(() => controller.abort(), ms);
-        const fetchOptions = {
-          signal: controller.signal,
-          ...options
-        };
-        if (fetchOptions.method) {
-          fetchOptions.method = fetchOptions.method.toUpperCase();
-        }
-        return (
-          // use undefined this binding; fetch errors if bound to something else in browser/cloudflare
-          this.fetch.call(void 0, url, fetchOptions).finally(() => {
-            clearTimeout(timeout);
-          })
-        );
-      }
-      shouldRetry(response) {
-        const shouldRetryHeader = response.headers.get("x-should-retry");
-        if (shouldRetryHeader === "true")
-          return true;
-        if (shouldRetryHeader === "false")
-          return false;
-        if (response.status === 408)
-          return true;
-        if (response.status === 409)
-          return true;
-        if (response.status === 429)
-          return true;
-        if (response.status >= 500)
-          return true;
-        return false;
-      }
-      async retryRequest(options, retriesRemaining, responseHeaders) {
-        var _a2;
-        let timeoutMillis;
-        const retryAfterMillisHeader = responseHeaders == null ? void 0 : responseHeaders["retry-after-ms"];
-        if (retryAfterMillisHeader) {
-          const timeoutMs = parseFloat(retryAfterMillisHeader);
-          if (!Number.isNaN(timeoutMs)) {
-            timeoutMillis = timeoutMs;
-          }
-        }
-        const retryAfterHeader = responseHeaders == null ? void 0 : responseHeaders["retry-after"];
-        if (retryAfterHeader && !timeoutMillis) {
-          const timeoutSeconds = parseFloat(retryAfterHeader);
-          if (!Number.isNaN(timeoutSeconds)) {
-            timeoutMillis = timeoutSeconds * 1e3;
-          } else {
-            timeoutMillis = Date.parse(retryAfterHeader) - Date.now();
-          }
-        }
-        if (!(timeoutMillis && 0 <= timeoutMillis && timeoutMillis < 60 * 1e3)) {
-          const maxRetries = (_a2 = options.maxRetries) != null ? _a2 : this.maxRetries;
-          timeoutMillis = this.calculateDefaultRetryTimeoutMillis(retriesRemaining, maxRetries);
-        }
-        await sleep(timeoutMillis);
-        return this.makeRequest(options, retriesRemaining - 1);
-      }
-      calculateDefaultRetryTimeoutMillis(retriesRemaining, maxRetries) {
-        const initialRetryDelay = 0.5;
-        const maxRetryDelay = 8;
-        const numRetries = maxRetries - retriesRemaining;
-        const sleepSeconds = Math.min(initialRetryDelay * Math.pow(2, numRetries), maxRetryDelay);
-        const jitter = 1 - Math.random() * 0.25;
-        return sleepSeconds * jitter * 1e3;
-      }
-      getUserAgent() {
-        return `${this.constructor.name}/JS ${VERSION}`;
-      }
-    };
-    AbstractPage = class {
-      constructor(client, response, body, options) {
-        _AbstractPage_client.set(this, void 0);
-        __classPrivateFieldSet(this, _AbstractPage_client, client, "f");
-        this.options = options;
-        this.response = response;
-        this.body = body;
-      }
-      hasNextPage() {
-        const items = this.getPaginatedItems();
-        if (!items.length)
-          return false;
-        return this.nextPageInfo() != null;
-      }
-      async getNextPage() {
-        const nextInfo = this.nextPageInfo();
-        if (!nextInfo) {
-          throw new AnthropicError("No next page expected; please check `.hasNextPage()` before calling `.getNextPage()`.");
-        }
-        const nextOptions = { ...this.options };
-        if ("params" in nextInfo && typeof nextOptions.query === "object") {
-          nextOptions.query = { ...nextOptions.query, ...nextInfo.params };
-        } else if ("url" in nextInfo) {
-          const params = [...Object.entries(nextOptions.query || {}), ...nextInfo.url.searchParams.entries()];
-          for (const [key, value] of params) {
-            nextInfo.url.searchParams.set(key, value);
-          }
-          nextOptions.query = void 0;
-          nextOptions.path = nextInfo.url.toString();
-        }
-        return await __classPrivateFieldGet(this, _AbstractPage_client, "f").requestAPIList(this.constructor, nextOptions);
-      }
-      async *iterPages() {
-        let page = this;
-        yield page;
-        while (page.hasNextPage()) {
-          page = await page.getNextPage();
-          yield page;
-        }
-      }
-      async *[(_AbstractPage_client = /* @__PURE__ */ new WeakMap(), Symbol.asyncIterator)]() {
-        for await (const page of this.iterPages()) {
-          for (const item of page.getPaginatedItems()) {
-            yield item;
-          }
-        }
-      }
-    };
-    PagePromise = class extends APIPromise {
-      constructor(client, request, Page2) {
-        super(request, async (props) => new Page2(client, props.response, await defaultParseResponse(props), props.options));
-      }
-      /**
-       * Allow auto-paginating iteration on an unawaited list call, eg:
-       *
-       *    for await (const item of client.items.list()) {
-       *      console.log(item)
-       *    }
-       */
-      async *[Symbol.asyncIterator]() {
-        const page = await this;
-        for await (const item of page) {
-          yield item;
-        }
-      }
-    };
-    createResponseHeaders = (headers) => {
-      return new Proxy(Object.fromEntries(
-        // @ts-ignore
-        headers.entries()
-      ), {
-        get(target, name) {
-          const key = name.toString();
-          return target[key.toLowerCase()] || target[key];
-        }
-      });
-    };
-    requestOptionsKeys = {
-      method: true,
-      path: true,
-      query: true,
-      body: true,
-      headers: true,
-      maxRetries: true,
-      stream: true,
-      timeout: true,
-      httpAgent: true,
-      signal: true,
-      idempotencyKey: true,
-      __binaryRequest: true,
-      __binaryResponse: true,
-      __streamClass: true
-    };
-    isRequestOptions = (obj) => {
-      return typeof obj === "object" && obj !== null && !isEmptyObj(obj) && Object.keys(obj).every((k) => hasOwn(requestOptionsKeys, k));
-    };
-    getPlatformProperties = () => {
-      var _a2, _b;
-      if (typeof Deno !== "undefined" && Deno.build != null) {
-        return {
-          "X-Stainless-Lang": "js",
-          "X-Stainless-Package-Version": VERSION,
-          "X-Stainless-OS": normalizePlatform(Deno.build.os),
-          "X-Stainless-Arch": normalizeArch(Deno.build.arch),
-          "X-Stainless-Runtime": "deno",
-          "X-Stainless-Runtime-Version": typeof Deno.version === "string" ? Deno.version : (_b = (_a2 = Deno.version) == null ? void 0 : _a2.deno) != null ? _b : "unknown"
-        };
-      }
-      if (typeof EdgeRuntime !== "undefined") {
-        return {
-          "X-Stainless-Lang": "js",
-          "X-Stainless-Package-Version": VERSION,
-          "X-Stainless-OS": "Unknown",
-          "X-Stainless-Arch": `other:${EdgeRuntime}`,
-          "X-Stainless-Runtime": "edge",
-          "X-Stainless-Runtime-Version": process.version
-        };
-      }
-      if (Object.prototype.toString.call(typeof process !== "undefined" ? process : 0) === "[object process]") {
-        return {
-          "X-Stainless-Lang": "js",
-          "X-Stainless-Package-Version": VERSION,
-          "X-Stainless-OS": normalizePlatform(process.platform),
-          "X-Stainless-Arch": normalizeArch(process.arch),
-          "X-Stainless-Runtime": "node",
-          "X-Stainless-Runtime-Version": process.version
-        };
-      }
-      const browserInfo = getBrowserInfo();
-      if (browserInfo) {
-        return {
-          "X-Stainless-Lang": "js",
-          "X-Stainless-Package-Version": VERSION,
-          "X-Stainless-OS": "Unknown",
-          "X-Stainless-Arch": "unknown",
-          "X-Stainless-Runtime": `browser:${browserInfo.browser}`,
-          "X-Stainless-Runtime-Version": browserInfo.version
-        };
-      }
-      return {
-        "X-Stainless-Lang": "js",
-        "X-Stainless-Package-Version": VERSION,
-        "X-Stainless-OS": "Unknown",
-        "X-Stainless-Arch": "unknown",
-        "X-Stainless-Runtime": "unknown",
-        "X-Stainless-Runtime-Version": "unknown"
-      };
-    };
-    normalizeArch = (arch) => {
-      if (arch === "x32")
-        return "x32";
-      if (arch === "x86_64" || arch === "x64")
-        return "x64";
-      if (arch === "arm")
-        return "arm";
-      if (arch === "aarch64" || arch === "arm64")
-        return "arm64";
-      if (arch)
-        return `other:${arch}`;
-      return "unknown";
-    };
-    normalizePlatform = (platform) => {
-      platform = platform.toLowerCase();
-      if (platform.includes("ios"))
-        return "iOS";
-      if (platform === "android")
-        return "Android";
-      if (platform === "darwin")
-        return "MacOS";
-      if (platform === "win32")
-        return "Windows";
-      if (platform === "freebsd")
-        return "FreeBSD";
-      if (platform === "openbsd")
-        return "OpenBSD";
-      if (platform === "linux")
-        return "Linux";
-      if (platform)
-        return `Other:${platform}`;
-      return "Unknown";
-    };
-    getPlatformHeaders = () => {
-      return _platformHeaders != null ? _platformHeaders : _platformHeaders = getPlatformProperties();
-    };
-    safeJSON = (text) => {
-      try {
-        return JSON.parse(text);
-      } catch (err) {
-        return void 0;
-      }
-    };
-    startsWithSchemeRegexp = /^[a-z][a-z0-9+.-]*:/i;
-    isAbsoluteURL = (url) => {
-      return startsWithSchemeRegexp.test(url);
-    };
-    sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-    validatePositiveInteger = (name, n) => {
-      if (typeof n !== "number" || !Number.isInteger(n)) {
-        throw new AnthropicError(`${name} must be an integer`);
-      }
-      if (n < 0) {
-        throw new AnthropicError(`${name} must be a positive integer`);
-      }
-      return n;
-    };
-    castToError = (err) => {
-      if (err instanceof Error)
-        return err;
-      if (typeof err === "object" && err !== null) {
-        try {
-          return new Error(JSON.stringify(err));
-        } catch (e) {
-        }
-      }
-      return new Error(String(err));
-    };
-    readEnv = (env) => {
-      var _a2, _b, _c, _d, _e, _f;
-      if (typeof process !== "undefined") {
-        return (_c = (_b = (_a2 = process.env) == null ? void 0 : _a2[env]) == null ? void 0 : _b.trim()) != null ? _c : void 0;
-      }
-      if (typeof Deno !== "undefined") {
-        return (_f = (_e = (_d = Deno.env) == null ? void 0 : _d.get) == null ? void 0 : _e.call(_d, env)) == null ? void 0 : _f.trim();
-      }
-      return void 0;
-    };
-    uuid4 = () => {
-      return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
-        const r = Math.random() * 16 | 0;
-        const v = c === "x" ? r : r & 3 | 8;
-        return v.toString(16);
-      });
-    };
-    isRunningInBrowser = () => {
-      return (
-        // @ts-ignore
-        typeof window !== "undefined" && // @ts-ignore
-        typeof window.document !== "undefined" && // @ts-ignore
-        typeof navigator !== "undefined"
-      );
-    };
-    isHeadersProtocol = (headers) => {
-      return typeof (headers == null ? void 0 : headers.get) === "function";
-    };
-    getHeader = (headers, header) => {
-      var _a2;
-      const lowerCasedHeader = header.toLowerCase();
-      if (isHeadersProtocol(headers)) {
-        const intercapsHeader = ((_a2 = header[0]) == null ? void 0 : _a2.toUpperCase()) + header.substring(1).replace(/([^\w])(\w)/g, (_m, g1, g2) => g1 + g2.toUpperCase());
-        for (const key of [header, lowerCasedHeader, header.toUpperCase(), intercapsHeader]) {
-          const value = headers.get(key);
-          if (value) {
-            return value;
-          }
-        }
-      }
-      for (const [key, value] of Object.entries(headers)) {
-        if (key.toLowerCase() === lowerCasedHeader) {
-          if (Array.isArray(value)) {
-            if (value.length <= 1)
-              return value[0];
-            console.warn(`Received ${value.length} entries for the ${header} header, using the first entry.`);
-            return value[0];
-          }
-          return value;
-        }
-      }
-      return void 0;
-    };
-  }
-});
-
-// node_modules/@anthropic-ai/sdk/pagination.mjs
-var Page;
-var init_pagination = __esm({
-  "node_modules/@anthropic-ai/sdk/pagination.mjs"() {
-    init_core();
-    Page = class extends AbstractPage {
-      constructor(client, response, body, options) {
-        super(client, response, body, options);
-        this.data = body.data || [];
-        this.has_more = body.has_more || false;
-        this.first_id = body.first_id || null;
-        this.last_id = body.last_id || null;
-      }
-      getPaginatedItems() {
-        var _a2;
-        return (_a2 = this.data) != null ? _a2 : [];
-      }
-      // @deprecated Please use `nextPageInfo()` instead
-      nextPageParams() {
-        const info = this.nextPageInfo();
-        if (!info)
-          return null;
-        if ("params" in info)
-          return info.params;
-        const params = Object.fromEntries(info.url.searchParams);
-        if (!Object.keys(params).length)
-          return null;
-        return params;
-      }
-      nextPageInfo() {
-        var _a2;
-        if ((_a2 = this.options.query) == null ? void 0 : _a2["before_id"]) {
-          const firstId = this.first_id;
-          if (!firstId) {
-            return null;
-          }
-          return {
-            params: {
-              before_id: firstId
-            }
-          };
-        }
-        const cursor = this.last_id;
-        if (!cursor) {
-          return null;
-        }
-        return {
-          params: {
-            after_id: cursor
-          }
-        };
-      }
-    };
-  }
-});
-
-// node_modules/@anthropic-ai/sdk/resources/shared.mjs
-var init_shared = __esm({
-  "node_modules/@anthropic-ai/sdk/resources/shared.mjs"() {
-  }
-});
-
-// node_modules/@anthropic-ai/sdk/resource.mjs
-var APIResource;
-var init_resource = __esm({
-  "node_modules/@anthropic-ai/sdk/resource.mjs"() {
-    APIResource = class {
-      constructor(client) {
-        this._client = client;
-      }
-    };
-  }
-});
-
-// node_modules/@anthropic-ai/sdk/resources/beta/models.mjs
-var Models, BetaModelInfosPage;
-var init_models = __esm({
-  "node_modules/@anthropic-ai/sdk/resources/beta/models.mjs"() {
-    init_resource();
-    init_core();
-    init_pagination();
-    Models = class extends APIResource {
-      /**
-       * Get a specific model.
-       *
-       * The Models API response can be used to determine information about a specific
-       * model or resolve a model alias to a model ID.
-       */
-      retrieve(modelId, options) {
-        return this._client.get(`/v1/models/${modelId}?beta=true`, options);
-      }
-      list(query = {}, options) {
-        if (isRequestOptions(query)) {
-          return this.list({}, query);
-        }
-        return this._client.getAPIList("/v1/models?beta=true", BetaModelInfosPage, { query, ...options });
-      }
-    };
-    BetaModelInfosPage = class extends Page {
-    };
-    Models.BetaModelInfosPage = BetaModelInfosPage;
-  }
-});
-
-// node_modules/@anthropic-ai/sdk/internal/decoders/jsonl.mjs
-var JSONLDecoder;
-var init_jsonl = __esm({
-  "node_modules/@anthropic-ai/sdk/internal/decoders/jsonl.mjs"() {
-    init_error();
-    init_stream_utils();
-    init_line2();
-    JSONLDecoder = class _JSONLDecoder {
-      constructor(iterator, controller) {
-        this.iterator = iterator;
-        this.controller = controller;
-      }
-      async *decoder() {
-        const lineDecoder = new LineDecoder();
-        for await (const chunk of this.iterator) {
-          for (const line of lineDecoder.decode(chunk)) {
-            yield JSON.parse(line);
-          }
-        }
-        for (const line of lineDecoder.flush()) {
-          yield JSON.parse(line);
-        }
-      }
-      [Symbol.asyncIterator]() {
-        return this.decoder();
-      }
-      static fromResponse(response, controller) {
-        if (!response.body) {
-          controller.abort();
-          throw new AnthropicError(`Attempted to iterate over a response with no body`);
-        }
-        return new _JSONLDecoder(ReadableStreamToAsyncIterable(response.body), controller);
-      }
-    };
-  }
-});
-
-// node_modules/@anthropic-ai/sdk/resources/beta/messages/batches.mjs
-var Batches, BetaMessageBatchesPage;
-var init_batches = __esm({
-  "node_modules/@anthropic-ai/sdk/resources/beta/messages/batches.mjs"() {
-    init_resource();
-    init_core();
-    init_pagination();
-    init_jsonl();
-    init_error();
-    Batches = class extends APIResource {
-      /**
-       * Send a batch of Message creation requests.
-       *
-       * The Message Batches API can be used to process multiple Messages API requests at
-       * once. Once a Message Batch is created, it begins processing immediately. Batches
-       * can take up to 24 hours to complete.
-       */
-      create(params, options) {
-        const { betas, ...body } = params;
-        return this._client.post("/v1/messages/batches?beta=true", {
-          body,
-          ...options,
-          headers: {
-            "anthropic-beta": [...betas != null ? betas : [], "message-batches-2024-09-24"].toString(),
-            ...options == null ? void 0 : options.headers
-          }
-        });
-      }
-      retrieve(messageBatchId, params = {}, options) {
-        if (isRequestOptions(params)) {
-          return this.retrieve(messageBatchId, {}, params);
-        }
-        const { betas } = params;
-        return this._client.get(`/v1/messages/batches/${messageBatchId}?beta=true`, {
-          ...options,
-          headers: {
-            "anthropic-beta": [...betas != null ? betas : [], "message-batches-2024-09-24"].toString(),
-            ...options == null ? void 0 : options.headers
-          }
-        });
-      }
-      list(params = {}, options) {
-        if (isRequestOptions(params)) {
-          return this.list({}, params);
-        }
-        const { betas, ...query } = params;
-        return this._client.getAPIList("/v1/messages/batches?beta=true", BetaMessageBatchesPage, {
-          query,
-          ...options,
-          headers: {
-            "anthropic-beta": [...betas != null ? betas : [], "message-batches-2024-09-24"].toString(),
-            ...options == null ? void 0 : options.headers
-          }
-        });
-      }
-      delete(messageBatchId, params = {}, options) {
-        if (isRequestOptions(params)) {
-          return this.delete(messageBatchId, {}, params);
-        }
-        const { betas } = params;
-        return this._client.delete(`/v1/messages/batches/${messageBatchId}?beta=true`, {
-          ...options,
-          headers: {
-            "anthropic-beta": [...betas != null ? betas : [], "message-batches-2024-09-24"].toString(),
-            ...options == null ? void 0 : options.headers
-          }
-        });
-      }
-      cancel(messageBatchId, params = {}, options) {
-        if (isRequestOptions(params)) {
-          return this.cancel(messageBatchId, {}, params);
-        }
-        const { betas } = params;
-        return this._client.post(`/v1/messages/batches/${messageBatchId}/cancel?beta=true`, {
-          ...options,
-          headers: {
-            "anthropic-beta": [...betas != null ? betas : [], "message-batches-2024-09-24"].toString(),
-            ...options == null ? void 0 : options.headers
-          }
-        });
-      }
-      async results(messageBatchId, params = {}, options) {
-        if (isRequestOptions(params)) {
-          return this.results(messageBatchId, {}, params);
-        }
-        const batch = await this.retrieve(messageBatchId);
-        if (!batch.results_url) {
-          throw new AnthropicError(`No batch \`results_url\`; Has it finished processing? ${batch.processing_status} - ${batch.id}`);
-        }
-        const { betas } = params;
-        return this._client.get(batch.results_url, {
-          ...options,
-          headers: {
-            "anthropic-beta": [...betas != null ? betas : [], "message-batches-2024-09-24"].toString(),
-            Accept: "application/binary",
-            ...options == null ? void 0 : options.headers
-          },
-          __binaryResponse: true
-        })._thenUnwrap((_, props) => JSONLDecoder.fromResponse(props.response, props.controller));
-      }
-    };
-    BetaMessageBatchesPage = class extends Page {
-    };
-    Batches.BetaMessageBatchesPage = BetaMessageBatchesPage;
-  }
-});
-
-// node_modules/@anthropic-ai/sdk/_vendor/partial-json-parser/parser.mjs
-var tokenize2, strip, unstrip, generate, partialParse;
-var init_parser = __esm({
-  "node_modules/@anthropic-ai/sdk/_vendor/partial-json-parser/parser.mjs"() {
-    tokenize2 = (input) => {
-      let current = 0;
-      let tokens = [];
-      while (current < input.length) {
-        let char = input[current];
-        if (char === "\\") {
-          current++;
-          continue;
-        }
-        if (char === "{") {
-          tokens.push({
-            type: "brace",
-            value: "{"
-          });
-          current++;
-          continue;
-        }
-        if (char === "}") {
-          tokens.push({
-            type: "brace",
-            value: "}"
-          });
-          current++;
-          continue;
-        }
-        if (char === "[") {
-          tokens.push({
-            type: "paren",
-            value: "["
-          });
-          current++;
-          continue;
-        }
-        if (char === "]") {
-          tokens.push({
-            type: "paren",
-            value: "]"
-          });
-          current++;
-          continue;
-        }
-        if (char === ":") {
-          tokens.push({
-            type: "separator",
-            value: ":"
-          });
-          current++;
-          continue;
-        }
-        if (char === ",") {
-          tokens.push({
-            type: "delimiter",
-            value: ","
-          });
-          current++;
-          continue;
-        }
-        if (char === '"') {
-          let value = "";
-          let danglingQuote = false;
-          char = input[++current];
-          while (char !== '"') {
-            if (current === input.length) {
-              danglingQuote = true;
-              break;
-            }
-            if (char === "\\") {
-              current++;
-              if (current === input.length) {
-                danglingQuote = true;
-                break;
-              }
-              value += char + input[current];
-              char = input[++current];
-            } else {
-              value += char;
-              char = input[++current];
-            }
-          }
-          char = input[++current];
-          if (!danglingQuote) {
-            tokens.push({
-              type: "string",
-              value
-            });
-          }
-          continue;
-        }
-        let WHITESPACE = /\s/;
-        if (char && WHITESPACE.test(char)) {
-          current++;
-          continue;
-        }
-        let NUMBERS = /[0-9]/;
-        if (char && NUMBERS.test(char) || char === "-" || char === ".") {
-          let value = "";
-          if (char === "-") {
-            value += char;
-            char = input[++current];
-          }
-          while (char && NUMBERS.test(char) || char === ".") {
-            value += char;
-            char = input[++current];
-          }
-          tokens.push({
-            type: "number",
-            value
-          });
-          continue;
-        }
-        let LETTERS = /[a-z]/i;
-        if (char && LETTERS.test(char)) {
-          let value = "";
-          while (char && LETTERS.test(char)) {
-            if (current === input.length) {
-              break;
-            }
-            value += char;
-            char = input[++current];
-          }
-          if (value == "true" || value == "false" || value === "null") {
-            tokens.push({
-              type: "name",
-              value
-            });
-          } else {
-            current++;
-            continue;
-          }
-          continue;
-        }
-        current++;
-      }
-      return tokens;
-    };
-    strip = (tokens) => {
-      if (tokens.length === 0) {
-        return tokens;
-      }
-      let lastToken = tokens[tokens.length - 1];
-      switch (lastToken.type) {
-        case "separator":
-          tokens = tokens.slice(0, tokens.length - 1);
-          return strip(tokens);
-          break;
-        case "number":
-          let lastCharacterOfLastToken = lastToken.value[lastToken.value.length - 1];
-          if (lastCharacterOfLastToken === "." || lastCharacterOfLastToken === "-") {
-            tokens = tokens.slice(0, tokens.length - 1);
-            return strip(tokens);
-          }
-        case "string":
-          let tokenBeforeTheLastToken = tokens[tokens.length - 2];
-          if ((tokenBeforeTheLastToken == null ? void 0 : tokenBeforeTheLastToken.type) === "delimiter") {
-            tokens = tokens.slice(0, tokens.length - 1);
-            return strip(tokens);
-          } else if ((tokenBeforeTheLastToken == null ? void 0 : tokenBeforeTheLastToken.type) === "brace" && tokenBeforeTheLastToken.value === "{") {
-            tokens = tokens.slice(0, tokens.length - 1);
-            return strip(tokens);
-          }
-          break;
-        case "delimiter":
-          tokens = tokens.slice(0, tokens.length - 1);
-          return strip(tokens);
-          break;
-      }
-      return tokens;
-    };
-    unstrip = (tokens) => {
-      let tail = [];
-      tokens.map((token) => {
-        if (token.type === "brace") {
-          if (token.value === "{") {
-            tail.push("}");
-          } else {
-            tail.splice(tail.lastIndexOf("}"), 1);
-          }
-        }
-        if (token.type === "paren") {
-          if (token.value === "[") {
-            tail.push("]");
-          } else {
-            tail.splice(tail.lastIndexOf("]"), 1);
-          }
-        }
-      });
-      if (tail.length > 0) {
-        tail.reverse().map((item) => {
-          if (item === "}") {
-            tokens.push({
-              type: "brace",
-              value: "}"
-            });
-          } else if (item === "]") {
-            tokens.push({
-              type: "paren",
-              value: "]"
-            });
-          }
-        });
-      }
-      return tokens;
-    };
-    generate = (tokens) => {
-      let output = "";
-      tokens.map((token) => {
-        switch (token.type) {
-          case "string":
-            output += '"' + token.value + '"';
-            break;
-          default:
-            output += token.value;
-            break;
-        }
-      });
-      return output;
-    };
-    partialParse = (input) => JSON.parse(generate(unstrip(strip(tokenize2(input)))));
-  }
-});
-
-// node_modules/@anthropic-ai/sdk/lib/BetaMessageStream.mjs
-function checkNever(x) {
-}
-var __classPrivateFieldSet2, __classPrivateFieldGet2, _BetaMessageStream_instances, _BetaMessageStream_currentMessageSnapshot, _BetaMessageStream_connectedPromise, _BetaMessageStream_resolveConnectedPromise, _BetaMessageStream_rejectConnectedPromise, _BetaMessageStream_endPromise, _BetaMessageStream_resolveEndPromise, _BetaMessageStream_rejectEndPromise, _BetaMessageStream_listeners, _BetaMessageStream_ended, _BetaMessageStream_errored, _BetaMessageStream_aborted, _BetaMessageStream_catchingPromiseCreated, _BetaMessageStream_response, _BetaMessageStream_request_id, _BetaMessageStream_getFinalMessage, _BetaMessageStream_getFinalText, _BetaMessageStream_handleError, _BetaMessageStream_beginRequest, _BetaMessageStream_addStreamEvent, _BetaMessageStream_endRequest, _BetaMessageStream_accumulateMessage, JSON_BUF_PROPERTY, BetaMessageStream;
-var init_BetaMessageStream = __esm({
-  "node_modules/@anthropic-ai/sdk/lib/BetaMessageStream.mjs"() {
-    init_error();
-    init_streaming();
-    init_parser();
-    __classPrivateFieldSet2 = function(receiver, state, value, kind2, f) {
-      if (kind2 === "m") throw new TypeError("Private method is not writable");
-      if (kind2 === "a" && !f) throw new TypeError("Private accessor was defined without a setter");
-      if (typeof state === "function" ? receiver !== state || !f : !state.has(receiver)) throw new TypeError("Cannot write private member to an object whose class did not declare it");
-      return kind2 === "a" ? f.call(receiver, value) : f ? f.value = value : state.set(receiver, value), value;
-    };
-    __classPrivateFieldGet2 = function(receiver, state, kind2, f) {
-      if (kind2 === "a" && !f) throw new TypeError("Private accessor was defined without a getter");
-      if (typeof state === "function" ? receiver !== state || !f : !state.has(receiver)) throw new TypeError("Cannot read private member from an object whose class did not declare it");
-      return kind2 === "m" ? f : kind2 === "a" ? f.call(receiver) : f ? f.value : state.get(receiver);
-    };
-    JSON_BUF_PROPERTY = "__json_buf";
-    BetaMessageStream = class _BetaMessageStream {
-      constructor() {
-        _BetaMessageStream_instances.add(this);
-        this.messages = [];
-        this.receivedMessages = [];
-        _BetaMessageStream_currentMessageSnapshot.set(this, void 0);
-        this.controller = new AbortController();
-        _BetaMessageStream_connectedPromise.set(this, void 0);
-        _BetaMessageStream_resolveConnectedPromise.set(this, () => {
-        });
-        _BetaMessageStream_rejectConnectedPromise.set(this, () => {
-        });
-        _BetaMessageStream_endPromise.set(this, void 0);
-        _BetaMessageStream_resolveEndPromise.set(this, () => {
-        });
-        _BetaMessageStream_rejectEndPromise.set(this, () => {
-        });
-        _BetaMessageStream_listeners.set(this, {});
-        _BetaMessageStream_ended.set(this, false);
-        _BetaMessageStream_errored.set(this, false);
-        _BetaMessageStream_aborted.set(this, false);
-        _BetaMessageStream_catchingPromiseCreated.set(this, false);
-        _BetaMessageStream_response.set(this, void 0);
-        _BetaMessageStream_request_id.set(this, void 0);
-        _BetaMessageStream_handleError.set(this, (error) => {
-          __classPrivateFieldSet2(this, _BetaMessageStream_errored, true, "f");
-          if (error instanceof Error && error.name === "AbortError") {
-            error = new APIUserAbortError();
-          }
-          if (error instanceof APIUserAbortError) {
-            __classPrivateFieldSet2(this, _BetaMessageStream_aborted, true, "f");
-            return this._emit("abort", error);
-          }
-          if (error instanceof AnthropicError) {
-            return this._emit("error", error);
-          }
-          if (error instanceof Error) {
-            const anthropicError = new AnthropicError(error.message);
-            anthropicError.cause = error;
-            return this._emit("error", anthropicError);
-          }
-          return this._emit("error", new AnthropicError(String(error)));
-        });
-        __classPrivateFieldSet2(this, _BetaMessageStream_connectedPromise, new Promise((resolve, reject) => {
-          __classPrivateFieldSet2(this, _BetaMessageStream_resolveConnectedPromise, resolve, "f");
-          __classPrivateFieldSet2(this, _BetaMessageStream_rejectConnectedPromise, reject, "f");
-        }), "f");
-        __classPrivateFieldSet2(this, _BetaMessageStream_endPromise, new Promise((resolve, reject) => {
-          __classPrivateFieldSet2(this, _BetaMessageStream_resolveEndPromise, resolve, "f");
-          __classPrivateFieldSet2(this, _BetaMessageStream_rejectEndPromise, reject, "f");
-        }), "f");
-        __classPrivateFieldGet2(this, _BetaMessageStream_connectedPromise, "f").catch(() => {
-        });
-        __classPrivateFieldGet2(this, _BetaMessageStream_endPromise, "f").catch(() => {
-        });
-      }
-      get response() {
-        return __classPrivateFieldGet2(this, _BetaMessageStream_response, "f");
-      }
-      get request_id() {
-        return __classPrivateFieldGet2(this, _BetaMessageStream_request_id, "f");
-      }
-      /**
-       * Returns the `MessageStream` data, the raw `Response` instance and the ID of the request,
-       * returned vie the `request-id` header which is useful for debugging requests and resporting
-       * issues to Anthropic.
-       *
-       * This is the same as the `APIPromise.withResponse()` method.
-       *
-       * This method will raise an error if you created the stream using `MessageStream.fromReadableStream`
-       * as no `Response` is available.
-       */
-      async withResponse() {
-        const response = await __classPrivateFieldGet2(this, _BetaMessageStream_connectedPromise, "f");
-        if (!response) {
-          throw new Error("Could not resolve a `Response` object");
-        }
-        return {
-          data: this,
-          response,
-          request_id: response.headers.get("request-id")
-        };
-      }
-      /**
-       * Intended for use on the frontend, consuming a stream produced with
-       * `.toReadableStream()` on the backend.
-       *
-       * Note that messages sent to the model do not appear in `.on('message')`
-       * in this context.
-       */
-      static fromReadableStream(stream) {
-        const runner = new _BetaMessageStream();
-        runner._run(() => runner._fromReadableStream(stream));
-        return runner;
-      }
-      static createMessage(messages, params, options) {
-        const runner = new _BetaMessageStream();
-        for (const message of params.messages) {
-          runner._addMessageParam(message);
-        }
-        runner._run(() => runner._createMessage(messages, { ...params, stream: true }, { ...options, headers: { ...options == null ? void 0 : options.headers, "X-Stainless-Helper-Method": "stream" } }));
-        return runner;
-      }
-      _run(executor) {
-        executor().then(() => {
-          this._emitFinal();
-          this._emit("end");
-        }, __classPrivateFieldGet2(this, _BetaMessageStream_handleError, "f"));
-      }
-      _addMessageParam(message) {
-        this.messages.push(message);
-      }
-      _addMessage(message, emit = true) {
-        this.receivedMessages.push(message);
-        if (emit) {
-          this._emit("message", message);
-        }
-      }
-      async _createMessage(messages, params, options) {
-        var _a2;
-        const signal = options == null ? void 0 : options.signal;
-        if (signal) {
-          if (signal.aborted)
-            this.controller.abort();
-          signal.addEventListener("abort", () => this.controller.abort());
-        }
-        __classPrivateFieldGet2(this, _BetaMessageStream_instances, "m", _BetaMessageStream_beginRequest).call(this);
-        const { response, data: stream } = await messages.create({ ...params, stream: true }, { ...options, signal: this.controller.signal }).withResponse();
-        this._connected(response);
-        for await (const event of stream) {
-          __classPrivateFieldGet2(this, _BetaMessageStream_instances, "m", _BetaMessageStream_addStreamEvent).call(this, event);
-        }
-        if ((_a2 = stream.controller.signal) == null ? void 0 : _a2.aborted) {
-          throw new APIUserAbortError();
-        }
-        __classPrivateFieldGet2(this, _BetaMessageStream_instances, "m", _BetaMessageStream_endRequest).call(this);
-      }
-      _connected(response) {
-        if (this.ended)
-          return;
-        __classPrivateFieldSet2(this, _BetaMessageStream_response, response, "f");
-        __classPrivateFieldSet2(this, _BetaMessageStream_request_id, response == null ? void 0 : response.headers.get("request-id"), "f");
-        __classPrivateFieldGet2(this, _BetaMessageStream_resolveConnectedPromise, "f").call(this, response);
-        this._emit("connect");
-      }
-      get ended() {
-        return __classPrivateFieldGet2(this, _BetaMessageStream_ended, "f");
-      }
-      get errored() {
-        return __classPrivateFieldGet2(this, _BetaMessageStream_errored, "f");
-      }
-      get aborted() {
-        return __classPrivateFieldGet2(this, _BetaMessageStream_aborted, "f");
-      }
-      abort() {
-        this.controller.abort();
-      }
-      /**
-       * Adds the listener function to the end of the listeners array for the event.
-       * No checks are made to see if the listener has already been added. Multiple calls passing
-       * the same combination of event and listener will result in the listener being added, and
-       * called, multiple times.
-       * @returns this MessageStream, so that calls can be chained
-       */
-      on(event, listener) {
-        const listeners = __classPrivateFieldGet2(this, _BetaMessageStream_listeners, "f")[event] || (__classPrivateFieldGet2(this, _BetaMessageStream_listeners, "f")[event] = []);
-        listeners.push({ listener });
-        return this;
-      }
-      /**
-       * Removes the specified listener from the listener array for the event.
-       * off() will remove, at most, one instance of a listener from the listener array. If any single
-       * listener has been added multiple times to the listener array for the specified event, then
-       * off() must be called multiple times to remove each instance.
-       * @returns this MessageStream, so that calls can be chained
-       */
-      off(event, listener) {
-        const listeners = __classPrivateFieldGet2(this, _BetaMessageStream_listeners, "f")[event];
-        if (!listeners)
-          return this;
-        const index = listeners.findIndex((l) => l.listener === listener);
-        if (index >= 0)
-          listeners.splice(index, 1);
-        return this;
-      }
-      /**
-       * Adds a one-time listener function for the event. The next time the event is triggered,
-       * this listener is removed and then invoked.
-       * @returns this MessageStream, so that calls can be chained
-       */
-      once(event, listener) {
-        const listeners = __classPrivateFieldGet2(this, _BetaMessageStream_listeners, "f")[event] || (__classPrivateFieldGet2(this, _BetaMessageStream_listeners, "f")[event] = []);
-        listeners.push({ listener, once: true });
-        return this;
-      }
-      /**
-       * This is similar to `.once()`, but returns a Promise that resolves the next time
-       * the event is triggered, instead of calling a listener callback.
-       * @returns a Promise that resolves the next time given event is triggered,
-       * or rejects if an error is emitted.  (If you request the 'error' event,
-       * returns a promise that resolves with the error).
-       *
-       * Example:
-       *
-       *   const message = await stream.emitted('message') // rejects if the stream errors
-       */
-      emitted(event) {
-        return new Promise((resolve, reject) => {
-          __classPrivateFieldSet2(this, _BetaMessageStream_catchingPromiseCreated, true, "f");
-          if (event !== "error")
-            this.once("error", reject);
-          this.once(event, resolve);
-        });
-      }
-      async done() {
-        __classPrivateFieldSet2(this, _BetaMessageStream_catchingPromiseCreated, true, "f");
-        await __classPrivateFieldGet2(this, _BetaMessageStream_endPromise, "f");
-      }
-      get currentMessage() {
-        return __classPrivateFieldGet2(this, _BetaMessageStream_currentMessageSnapshot, "f");
-      }
-      /**
-       * @returns a promise that resolves with the the final assistant Message response,
-       * or rejects if an error occurred or the stream ended prematurely without producing a Message.
-       */
-      async finalMessage() {
-        await this.done();
-        return __classPrivateFieldGet2(this, _BetaMessageStream_instances, "m", _BetaMessageStream_getFinalMessage).call(this);
-      }
-      /**
-       * @returns a promise that resolves with the the final assistant Message's text response, concatenated
-       * together if there are more than one text blocks.
-       * Rejects if an error occurred or the stream ended prematurely without producing a Message.
-       */
-      async finalText() {
-        await this.done();
-        return __classPrivateFieldGet2(this, _BetaMessageStream_instances, "m", _BetaMessageStream_getFinalText).call(this);
-      }
-      _emit(event, ...args) {
-        if (__classPrivateFieldGet2(this, _BetaMessageStream_ended, "f"))
-          return;
-        if (event === "end") {
-          __classPrivateFieldSet2(this, _BetaMessageStream_ended, true, "f");
-          __classPrivateFieldGet2(this, _BetaMessageStream_resolveEndPromise, "f").call(this);
-        }
-        const listeners = __classPrivateFieldGet2(this, _BetaMessageStream_listeners, "f")[event];
-        if (listeners) {
-          __classPrivateFieldGet2(this, _BetaMessageStream_listeners, "f")[event] = listeners.filter((l) => !l.once);
-          listeners.forEach(({ listener }) => listener(...args));
-        }
-        if (event === "abort") {
-          const error = args[0];
-          if (!__classPrivateFieldGet2(this, _BetaMessageStream_catchingPromiseCreated, "f") && !(listeners == null ? void 0 : listeners.length)) {
-            Promise.reject(error);
-          }
-          __classPrivateFieldGet2(this, _BetaMessageStream_rejectConnectedPromise, "f").call(this, error);
-          __classPrivateFieldGet2(this, _BetaMessageStream_rejectEndPromise, "f").call(this, error);
-          this._emit("end");
-          return;
-        }
-        if (event === "error") {
-          const error = args[0];
-          if (!__classPrivateFieldGet2(this, _BetaMessageStream_catchingPromiseCreated, "f") && !(listeners == null ? void 0 : listeners.length)) {
-            Promise.reject(error);
-          }
-          __classPrivateFieldGet2(this, _BetaMessageStream_rejectConnectedPromise, "f").call(this, error);
-          __classPrivateFieldGet2(this, _BetaMessageStream_rejectEndPromise, "f").call(this, error);
-          this._emit("end");
-        }
-      }
-      _emitFinal() {
-        const finalMessage = this.receivedMessages.at(-1);
-        if (finalMessage) {
-          this._emit("finalMessage", __classPrivateFieldGet2(this, _BetaMessageStream_instances, "m", _BetaMessageStream_getFinalMessage).call(this));
-        }
-      }
-      async _fromReadableStream(readableStream, options) {
-        var _a2;
-        const signal = options == null ? void 0 : options.signal;
-        if (signal) {
-          if (signal.aborted)
-            this.controller.abort();
-          signal.addEventListener("abort", () => this.controller.abort());
-        }
-        __classPrivateFieldGet2(this, _BetaMessageStream_instances, "m", _BetaMessageStream_beginRequest).call(this);
-        this._connected(null);
-        const stream = Stream.fromReadableStream(readableStream, this.controller);
-        for await (const event of stream) {
-          __classPrivateFieldGet2(this, _BetaMessageStream_instances, "m", _BetaMessageStream_addStreamEvent).call(this, event);
-        }
-        if ((_a2 = stream.controller.signal) == null ? void 0 : _a2.aborted) {
-          throw new APIUserAbortError();
-        }
-        __classPrivateFieldGet2(this, _BetaMessageStream_instances, "m", _BetaMessageStream_endRequest).call(this);
-      }
-      [(_BetaMessageStream_currentMessageSnapshot = /* @__PURE__ */ new WeakMap(), _BetaMessageStream_connectedPromise = /* @__PURE__ */ new WeakMap(), _BetaMessageStream_resolveConnectedPromise = /* @__PURE__ */ new WeakMap(), _BetaMessageStream_rejectConnectedPromise = /* @__PURE__ */ new WeakMap(), _BetaMessageStream_endPromise = /* @__PURE__ */ new WeakMap(), _BetaMessageStream_resolveEndPromise = /* @__PURE__ */ new WeakMap(), _BetaMessageStream_rejectEndPromise = /* @__PURE__ */ new WeakMap(), _BetaMessageStream_listeners = /* @__PURE__ */ new WeakMap(), _BetaMessageStream_ended = /* @__PURE__ */ new WeakMap(), _BetaMessageStream_errored = /* @__PURE__ */ new WeakMap(), _BetaMessageStream_aborted = /* @__PURE__ */ new WeakMap(), _BetaMessageStream_catchingPromiseCreated = /* @__PURE__ */ new WeakMap(), _BetaMessageStream_response = /* @__PURE__ */ new WeakMap(), _BetaMessageStream_request_id = /* @__PURE__ */ new WeakMap(), _BetaMessageStream_handleError = /* @__PURE__ */ new WeakMap(), _BetaMessageStream_instances = /* @__PURE__ */ new WeakSet(), _BetaMessageStream_getFinalMessage = function _BetaMessageStream_getFinalMessage2() {
-        if (this.receivedMessages.length === 0) {
-          throw new AnthropicError("stream ended without producing a Message with role=assistant");
-        }
-        return this.receivedMessages.at(-1);
-      }, _BetaMessageStream_getFinalText = function _BetaMessageStream_getFinalText2() {
-        if (this.receivedMessages.length === 0) {
-          throw new AnthropicError("stream ended without producing a Message with role=assistant");
-        }
-        const textBlocks = this.receivedMessages.at(-1).content.filter((block) => block.type === "text").map((block) => block.text);
-        if (textBlocks.length === 0) {
-          throw new AnthropicError("stream ended without producing a content block with type=text");
-        }
-        return textBlocks.join(" ");
-      }, _BetaMessageStream_beginRequest = function _BetaMessageStream_beginRequest2() {
-        if (this.ended)
-          return;
-        __classPrivateFieldSet2(this, _BetaMessageStream_currentMessageSnapshot, void 0, "f");
-      }, _BetaMessageStream_addStreamEvent = function _BetaMessageStream_addStreamEvent2(event) {
-        var _a2;
-        if (this.ended)
-          return;
-        const messageSnapshot = __classPrivateFieldGet2(this, _BetaMessageStream_instances, "m", _BetaMessageStream_accumulateMessage).call(this, event);
-        this._emit("streamEvent", event, messageSnapshot);
-        switch (event.type) {
-          case "content_block_delta": {
-            const content = messageSnapshot.content.at(-1);
-            switch (event.delta.type) {
-              case "text_delta": {
-                if (content.type === "text") {
-                  this._emit("text", event.delta.text, content.text || "");
-                }
-                break;
-              }
-              case "citations_delta": {
-                if (content.type === "text") {
-                  this._emit("citation", event.delta.citation, (_a2 = content.citations) != null ? _a2 : []);
-                }
-                break;
-              }
-              case "input_json_delta": {
-                if (content.type === "tool_use" && content.input) {
-                  this._emit("inputJson", event.delta.partial_json, content.input);
-                }
-                break;
-              }
-              default:
-                checkNever(event.delta);
-            }
-            break;
-          }
-          case "message_stop": {
-            this._addMessageParam(messageSnapshot);
-            this._addMessage(messageSnapshot, true);
-            break;
-          }
-          case "content_block_stop": {
-            this._emit("contentBlock", messageSnapshot.content.at(-1));
-            break;
-          }
-          case "message_start": {
-            __classPrivateFieldSet2(this, _BetaMessageStream_currentMessageSnapshot, messageSnapshot, "f");
-            break;
-          }
-          case "content_block_start":
-          case "message_delta":
-            break;
-        }
-      }, _BetaMessageStream_endRequest = function _BetaMessageStream_endRequest2() {
-        if (this.ended) {
-          throw new AnthropicError(`stream has ended, this shouldn't happen`);
-        }
-        const snapshot = __classPrivateFieldGet2(this, _BetaMessageStream_currentMessageSnapshot, "f");
-        if (!snapshot) {
-          throw new AnthropicError(`request ended without sending any chunks`);
-        }
-        __classPrivateFieldSet2(this, _BetaMessageStream_currentMessageSnapshot, void 0, "f");
-        return snapshot;
-      }, _BetaMessageStream_accumulateMessage = function _BetaMessageStream_accumulateMessage2(event) {
-        var _a2;
-        let snapshot = __classPrivateFieldGet2(this, _BetaMessageStream_currentMessageSnapshot, "f");
-        if (event.type === "message_start") {
-          if (snapshot) {
-            throw new AnthropicError(`Unexpected event order, got ${event.type} before receiving "message_stop"`);
-          }
-          return event.message;
-        }
-        if (!snapshot) {
-          throw new AnthropicError(`Unexpected event order, got ${event.type} before "message_start"`);
-        }
-        switch (event.type) {
-          case "message_stop":
-            return snapshot;
-          case "message_delta":
-            snapshot.stop_reason = event.delta.stop_reason;
-            snapshot.stop_sequence = event.delta.stop_sequence;
-            snapshot.usage.output_tokens = event.usage.output_tokens;
-            return snapshot;
-          case "content_block_start":
-            snapshot.content.push(event.content_block);
-            return snapshot;
-          case "content_block_delta": {
-            const snapshotContent = snapshot.content.at(event.index);
-            switch (event.delta.type) {
-              case "text_delta": {
-                if ((snapshotContent == null ? void 0 : snapshotContent.type) === "text") {
-                  snapshotContent.text += event.delta.text;
-                }
-                break;
-              }
-              case "citations_delta": {
-                if ((snapshotContent == null ? void 0 : snapshotContent.type) === "text") {
-                  (_a2 = snapshotContent.citations) != null ? _a2 : snapshotContent.citations = [];
-                  snapshotContent.citations.push(event.delta.citation);
-                }
-                break;
-              }
-              case "input_json_delta": {
-                if ((snapshotContent == null ? void 0 : snapshotContent.type) === "tool_use") {
-                  let jsonBuf = snapshotContent[JSON_BUF_PROPERTY] || "";
-                  jsonBuf += event.delta.partial_json;
-                  Object.defineProperty(snapshotContent, JSON_BUF_PROPERTY, {
-                    value: jsonBuf,
-                    enumerable: false,
-                    writable: true
-                  });
-                  if (jsonBuf) {
-                    snapshotContent.input = partialParse(jsonBuf);
-                  }
-                }
-                break;
-              }
-              default:
-                checkNever(event.delta);
-            }
-            return snapshot;
-          }
-          case "content_block_stop":
-            return snapshot;
-        }
-      }, Symbol.asyncIterator)]() {
-        const pushQueue = [];
-        const readQueue = [];
-        let done = false;
-        this.on("streamEvent", (event) => {
-          const reader = readQueue.shift();
-          if (reader) {
-            reader.resolve(event);
-          } else {
-            pushQueue.push(event);
-          }
-        });
-        this.on("end", () => {
-          done = true;
-          for (const reader of readQueue) {
-            reader.resolve(void 0);
-          }
-          readQueue.length = 0;
-        });
-        this.on("abort", (err) => {
-          done = true;
-          for (const reader of readQueue) {
-            reader.reject(err);
-          }
-          readQueue.length = 0;
-        });
-        this.on("error", (err) => {
-          done = true;
-          for (const reader of readQueue) {
-            reader.reject(err);
-          }
-          readQueue.length = 0;
-        });
-        return {
-          next: async () => {
-            if (!pushQueue.length) {
-              if (done) {
-                return { value: void 0, done: true };
-              }
-              return new Promise((resolve, reject) => readQueue.push({ resolve, reject })).then((chunk2) => chunk2 ? { value: chunk2, done: false } : { value: void 0, done: true });
-            }
-            const chunk = pushQueue.shift();
-            return { value: chunk, done: false };
-          },
-          return: async () => {
-            this.abort();
-            return { value: void 0, done: true };
-          }
-        };
-      }
-      toReadableStream() {
-        const stream = new Stream(this[Symbol.asyncIterator].bind(this), this.controller);
-        return stream.toReadableStream();
-      }
-    };
-  }
-});
-
-// node_modules/@anthropic-ai/sdk/resources/beta/messages/messages.mjs
-var DEPRECATED_MODELS, Messages;
-var init_messages = __esm({
-  "node_modules/@anthropic-ai/sdk/resources/beta/messages/messages.mjs"() {
-    init_resource();
-    init_batches();
-    init_batches();
-    init_BetaMessageStream();
-    DEPRECATED_MODELS = {
-      "claude-1.3": "November 6th, 2024",
-      "claude-1.3-100k": "November 6th, 2024",
-      "claude-instant-1.1": "November 6th, 2024",
-      "claude-instant-1.1-100k": "November 6th, 2024",
-      "claude-instant-1.2": "November 6th, 2024",
-      "claude-3-sonnet-20240229": "July 21st, 2025",
-      "claude-2.1": "July 21st, 2025",
-      "claude-2.0": "July 21st, 2025"
-    };
-    Messages = class extends APIResource {
-      constructor() {
-        super(...arguments);
-        this.batches = new Batches(this._client);
-      }
-      create(params, options) {
-        var _a2, _b;
-        const { betas, ...body } = params;
-        if (body.model in DEPRECATED_MODELS) {
-          console.warn(`The model '${body.model}' is deprecated and will reach end-of-life on ${DEPRECATED_MODELS[body.model]}
-Please migrate to a newer model. Visit https://docs.anthropic.com/en/docs/resources/model-deprecations for more information.`);
-        }
-        return this._client.post("/v1/messages?beta=true", {
-          body,
-          timeout: (_a2 = this._client._options.timeout) != null ? _a2 : 6e5,
-          ...options,
-          headers: {
-            ...(betas == null ? void 0 : betas.toString()) != null ? { "anthropic-beta": betas == null ? void 0 : betas.toString() } : void 0,
-            ...options == null ? void 0 : options.headers
-          },
-          stream: (_b = params.stream) != null ? _b : false
-        });
-      }
-      /**
-       * Create a Message stream
-       */
-      stream(body, options) {
-        return BetaMessageStream.createMessage(this, body, options);
-      }
-      /**
-       * Count the number of tokens in a Message.
-       *
-       * The Token Count API can be used to count the number of tokens in a Message,
-       * including tools, images, and documents, without creating it.
-       */
-      countTokens(params, options) {
-        const { betas, ...body } = params;
-        return this._client.post("/v1/messages/count_tokens?beta=true", {
-          body,
-          ...options,
-          headers: {
-            "anthropic-beta": [...betas != null ? betas : [], "token-counting-2024-11-01"].toString(),
-            ...options == null ? void 0 : options.headers
-          }
-        });
-      }
-    };
-    Messages.Batches = Batches;
-    Messages.BetaMessageBatchesPage = BetaMessageBatchesPage;
-  }
-});
-
-// node_modules/@anthropic-ai/sdk/resources/beta/beta.mjs
-var Beta;
-var init_beta = __esm({
-  "node_modules/@anthropic-ai/sdk/resources/beta/beta.mjs"() {
-    init_resource();
-    init_models();
-    init_models();
-    init_messages();
-    init_messages();
-    Beta = class extends APIResource {
-      constructor() {
-        super(...arguments);
-        this.models = new Models(this._client);
-        this.messages = new Messages(this._client);
-      }
-    };
-    Beta.Models = Models;
-    Beta.BetaModelInfosPage = BetaModelInfosPage;
-    Beta.Messages = Messages;
-  }
-});
-
-// node_modules/@anthropic-ai/sdk/resources/completions.mjs
-var Completions;
-var init_completions = __esm({
-  "node_modules/@anthropic-ai/sdk/resources/completions.mjs"() {
-    init_resource();
-    Completions = class extends APIResource {
-      create(body, options) {
-        var _a2, _b;
-        return this._client.post("/v1/complete", {
-          body,
-          timeout: (_a2 = this._client._options.timeout) != null ? _a2 : 6e5,
-          ...options,
-          stream: (_b = body.stream) != null ? _b : false
-        });
-      }
-    };
-  }
-});
-
-// node_modules/@anthropic-ai/sdk/resources/messages/batches.mjs
-var Batches2, MessageBatchesPage;
-var init_batches2 = __esm({
-  "node_modules/@anthropic-ai/sdk/resources/messages/batches.mjs"() {
-    init_resource();
-    init_core();
-    init_pagination();
-    init_jsonl();
-    init_error();
-    Batches2 = class extends APIResource {
-      /**
-       * Send a batch of Message creation requests.
-       *
-       * The Message Batches API can be used to process multiple Messages API requests at
-       * once. Once a Message Batch is created, it begins processing immediately. Batches
-       * can take up to 24 hours to complete.
-       */
-      create(body, options) {
-        return this._client.post("/v1/messages/batches", { body, ...options });
-      }
-      /**
-       * This endpoint is idempotent and can be used to poll for Message Batch
-       * completion. To access the results of a Message Batch, make a request to the
-       * `results_url` field in the response.
-       */
-      retrieve(messageBatchId, options) {
-        return this._client.get(`/v1/messages/batches/${messageBatchId}`, options);
-      }
-      list(query = {}, options) {
-        if (isRequestOptions(query)) {
-          return this.list({}, query);
-        }
-        return this._client.getAPIList("/v1/messages/batches", MessageBatchesPage, { query, ...options });
-      }
-      /**
-       * Delete a Message Batch.
-       *
-       * Message Batches can only be deleted once they've finished processing. If you'd
-       * like to delete an in-progress batch, you must first cancel it.
-       */
-      delete(messageBatchId, options) {
-        return this._client.delete(`/v1/messages/batches/${messageBatchId}`, options);
-      }
-      /**
-       * Batches may be canceled any time before processing ends. Once cancellation is
-       * initiated, the batch enters a `canceling` state, at which time the system may
-       * complete any in-progress, non-interruptible requests before finalizing
-       * cancellation.
-       *
-       * The number of canceled requests is specified in `request_counts`. To determine
-       * which requests were canceled, check the individual results within the batch.
-       * Note that cancellation may not result in any canceled requests if they were
-       * non-interruptible.
-       */
-      cancel(messageBatchId, options) {
-        return this._client.post(`/v1/messages/batches/${messageBatchId}/cancel`, options);
-      }
-      /**
-       * Streams the results of a Message Batch as a `.jsonl` file.
-       *
-       * Each line in the file is a JSON object containing the result of a single request
-       * in the Message Batch. Results are not guaranteed to be in the same order as
-       * requests. Use the `custom_id` field to match results to requests.
-       */
-      async results(messageBatchId, options) {
-        const batch = await this.retrieve(messageBatchId);
-        if (!batch.results_url) {
-          throw new AnthropicError(`No batch \`results_url\`; Has it finished processing? ${batch.processing_status} - ${batch.id}`);
-        }
-        return this._client.get(batch.results_url, {
-          ...options,
-          headers: {
-            Accept: "application/binary",
-            ...options == null ? void 0 : options.headers
-          },
-          __binaryResponse: true
-        })._thenUnwrap((_, props) => JSONLDecoder.fromResponse(props.response, props.controller));
-      }
-    };
-    MessageBatchesPage = class extends Page {
-    };
-    Batches2.MessageBatchesPage = MessageBatchesPage;
-  }
-});
-
-// node_modules/@anthropic-ai/sdk/lib/MessageStream.mjs
-function checkNever2(x) {
-}
-var __classPrivateFieldSet3, __classPrivateFieldGet3, _MessageStream_instances, _MessageStream_currentMessageSnapshot, _MessageStream_connectedPromise, _MessageStream_resolveConnectedPromise, _MessageStream_rejectConnectedPromise, _MessageStream_endPromise, _MessageStream_resolveEndPromise, _MessageStream_rejectEndPromise, _MessageStream_listeners, _MessageStream_ended, _MessageStream_errored, _MessageStream_aborted, _MessageStream_catchingPromiseCreated, _MessageStream_response, _MessageStream_request_id, _MessageStream_getFinalMessage, _MessageStream_getFinalText, _MessageStream_handleError, _MessageStream_beginRequest, _MessageStream_addStreamEvent, _MessageStream_endRequest, _MessageStream_accumulateMessage, JSON_BUF_PROPERTY2, MessageStream;
-var init_MessageStream = __esm({
-  "node_modules/@anthropic-ai/sdk/lib/MessageStream.mjs"() {
-    init_error();
-    init_streaming();
-    init_parser();
-    __classPrivateFieldSet3 = function(receiver, state, value, kind2, f) {
-      if (kind2 === "m") throw new TypeError("Private method is not writable");
-      if (kind2 === "a" && !f) throw new TypeError("Private accessor was defined without a setter");
-      if (typeof state === "function" ? receiver !== state || !f : !state.has(receiver)) throw new TypeError("Cannot write private member to an object whose class did not declare it");
-      return kind2 === "a" ? f.call(receiver, value) : f ? f.value = value : state.set(receiver, value), value;
-    };
-    __classPrivateFieldGet3 = function(receiver, state, kind2, f) {
-      if (kind2 === "a" && !f) throw new TypeError("Private accessor was defined without a getter");
-      if (typeof state === "function" ? receiver !== state || !f : !state.has(receiver)) throw new TypeError("Cannot read private member from an object whose class did not declare it");
-      return kind2 === "m" ? f : kind2 === "a" ? f.call(receiver) : f ? f.value : state.get(receiver);
-    };
-    JSON_BUF_PROPERTY2 = "__json_buf";
-    MessageStream = class _MessageStream {
-      constructor() {
-        _MessageStream_instances.add(this);
-        this.messages = [];
-        this.receivedMessages = [];
-        _MessageStream_currentMessageSnapshot.set(this, void 0);
-        this.controller = new AbortController();
-        _MessageStream_connectedPromise.set(this, void 0);
-        _MessageStream_resolveConnectedPromise.set(this, () => {
-        });
-        _MessageStream_rejectConnectedPromise.set(this, () => {
-        });
-        _MessageStream_endPromise.set(this, void 0);
-        _MessageStream_resolveEndPromise.set(this, () => {
-        });
-        _MessageStream_rejectEndPromise.set(this, () => {
-        });
-        _MessageStream_listeners.set(this, {});
-        _MessageStream_ended.set(this, false);
-        _MessageStream_errored.set(this, false);
-        _MessageStream_aborted.set(this, false);
-        _MessageStream_catchingPromiseCreated.set(this, false);
-        _MessageStream_response.set(this, void 0);
-        _MessageStream_request_id.set(this, void 0);
-        _MessageStream_handleError.set(this, (error) => {
-          __classPrivateFieldSet3(this, _MessageStream_errored, true, "f");
-          if (error instanceof Error && error.name === "AbortError") {
-            error = new APIUserAbortError();
-          }
-          if (error instanceof APIUserAbortError) {
-            __classPrivateFieldSet3(this, _MessageStream_aborted, true, "f");
-            return this._emit("abort", error);
-          }
-          if (error instanceof AnthropicError) {
-            return this._emit("error", error);
-          }
-          if (error instanceof Error) {
-            const anthropicError = new AnthropicError(error.message);
-            anthropicError.cause = error;
-            return this._emit("error", anthropicError);
-          }
-          return this._emit("error", new AnthropicError(String(error)));
-        });
-        __classPrivateFieldSet3(this, _MessageStream_connectedPromise, new Promise((resolve, reject) => {
-          __classPrivateFieldSet3(this, _MessageStream_resolveConnectedPromise, resolve, "f");
-          __classPrivateFieldSet3(this, _MessageStream_rejectConnectedPromise, reject, "f");
-        }), "f");
-        __classPrivateFieldSet3(this, _MessageStream_endPromise, new Promise((resolve, reject) => {
-          __classPrivateFieldSet3(this, _MessageStream_resolveEndPromise, resolve, "f");
-          __classPrivateFieldSet3(this, _MessageStream_rejectEndPromise, reject, "f");
-        }), "f");
-        __classPrivateFieldGet3(this, _MessageStream_connectedPromise, "f").catch(() => {
-        });
-        __classPrivateFieldGet3(this, _MessageStream_endPromise, "f").catch(() => {
-        });
-      }
-      get response() {
-        return __classPrivateFieldGet3(this, _MessageStream_response, "f");
-      }
-      get request_id() {
-        return __classPrivateFieldGet3(this, _MessageStream_request_id, "f");
-      }
-      /**
-       * Returns the `MessageStream` data, the raw `Response` instance and the ID of the request,
-       * returned vie the `request-id` header which is useful for debugging requests and resporting
-       * issues to Anthropic.
-       *
-       * This is the same as the `APIPromise.withResponse()` method.
-       *
-       * This method will raise an error if you created the stream using `MessageStream.fromReadableStream`
-       * as no `Response` is available.
-       */
-      async withResponse() {
-        const response = await __classPrivateFieldGet3(this, _MessageStream_connectedPromise, "f");
-        if (!response) {
-          throw new Error("Could not resolve a `Response` object");
-        }
-        return {
-          data: this,
-          response,
-          request_id: response.headers.get("request-id")
-        };
-      }
-      /**
-       * Intended for use on the frontend, consuming a stream produced with
-       * `.toReadableStream()` on the backend.
-       *
-       * Note that messages sent to the model do not appear in `.on('message')`
-       * in this context.
-       */
-      static fromReadableStream(stream) {
-        const runner = new _MessageStream();
-        runner._run(() => runner._fromReadableStream(stream));
-        return runner;
-      }
-      static createMessage(messages, params, options) {
-        const runner = new _MessageStream();
-        for (const message of params.messages) {
-          runner._addMessageParam(message);
-        }
-        runner._run(() => runner._createMessage(messages, { ...params, stream: true }, { ...options, headers: { ...options == null ? void 0 : options.headers, "X-Stainless-Helper-Method": "stream" } }));
-        return runner;
-      }
-      _run(executor) {
-        executor().then(() => {
-          this._emitFinal();
-          this._emit("end");
-        }, __classPrivateFieldGet3(this, _MessageStream_handleError, "f"));
-      }
-      _addMessageParam(message) {
-        this.messages.push(message);
-      }
-      _addMessage(message, emit = true) {
-        this.receivedMessages.push(message);
-        if (emit) {
-          this._emit("message", message);
-        }
-      }
-      async _createMessage(messages, params, options) {
-        var _a2;
-        const signal = options == null ? void 0 : options.signal;
-        if (signal) {
-          if (signal.aborted)
-            this.controller.abort();
-          signal.addEventListener("abort", () => this.controller.abort());
-        }
-        __classPrivateFieldGet3(this, _MessageStream_instances, "m", _MessageStream_beginRequest).call(this);
-        const { response, data: stream } = await messages.create({ ...params, stream: true }, { ...options, signal: this.controller.signal }).withResponse();
-        this._connected(response);
-        for await (const event of stream) {
-          __classPrivateFieldGet3(this, _MessageStream_instances, "m", _MessageStream_addStreamEvent).call(this, event);
-        }
-        if ((_a2 = stream.controller.signal) == null ? void 0 : _a2.aborted) {
-          throw new APIUserAbortError();
-        }
-        __classPrivateFieldGet3(this, _MessageStream_instances, "m", _MessageStream_endRequest).call(this);
-      }
-      _connected(response) {
-        if (this.ended)
-          return;
-        __classPrivateFieldSet3(this, _MessageStream_response, response, "f");
-        __classPrivateFieldSet3(this, _MessageStream_request_id, response == null ? void 0 : response.headers.get("request-id"), "f");
-        __classPrivateFieldGet3(this, _MessageStream_resolveConnectedPromise, "f").call(this, response);
-        this._emit("connect");
-      }
-      get ended() {
-        return __classPrivateFieldGet3(this, _MessageStream_ended, "f");
-      }
-      get errored() {
-        return __classPrivateFieldGet3(this, _MessageStream_errored, "f");
-      }
-      get aborted() {
-        return __classPrivateFieldGet3(this, _MessageStream_aborted, "f");
-      }
-      abort() {
-        this.controller.abort();
-      }
-      /**
-       * Adds the listener function to the end of the listeners array for the event.
-       * No checks are made to see if the listener has already been added. Multiple calls passing
-       * the same combination of event and listener will result in the listener being added, and
-       * called, multiple times.
-       * @returns this MessageStream, so that calls can be chained
-       */
-      on(event, listener) {
-        const listeners = __classPrivateFieldGet3(this, _MessageStream_listeners, "f")[event] || (__classPrivateFieldGet3(this, _MessageStream_listeners, "f")[event] = []);
-        listeners.push({ listener });
-        return this;
-      }
-      /**
-       * Removes the specified listener from the listener array for the event.
-       * off() will remove, at most, one instance of a listener from the listener array. If any single
-       * listener has been added multiple times to the listener array for the specified event, then
-       * off() must be called multiple times to remove each instance.
-       * @returns this MessageStream, so that calls can be chained
-       */
-      off(event, listener) {
-        const listeners = __classPrivateFieldGet3(this, _MessageStream_listeners, "f")[event];
-        if (!listeners)
-          return this;
-        const index = listeners.findIndex((l) => l.listener === listener);
-        if (index >= 0)
-          listeners.splice(index, 1);
-        return this;
-      }
-      /**
-       * Adds a one-time listener function for the event. The next time the event is triggered,
-       * this listener is removed and then invoked.
-       * @returns this MessageStream, so that calls can be chained
-       */
-      once(event, listener) {
-        const listeners = __classPrivateFieldGet3(this, _MessageStream_listeners, "f")[event] || (__classPrivateFieldGet3(this, _MessageStream_listeners, "f")[event] = []);
-        listeners.push({ listener, once: true });
-        return this;
-      }
-      /**
-       * This is similar to `.once()`, but returns a Promise that resolves the next time
-       * the event is triggered, instead of calling a listener callback.
-       * @returns a Promise that resolves the next time given event is triggered,
-       * or rejects if an error is emitted.  (If you request the 'error' event,
-       * returns a promise that resolves with the error).
-       *
-       * Example:
-       *
-       *   const message = await stream.emitted('message') // rejects if the stream errors
-       */
-      emitted(event) {
-        return new Promise((resolve, reject) => {
-          __classPrivateFieldSet3(this, _MessageStream_catchingPromiseCreated, true, "f");
-          if (event !== "error")
-            this.once("error", reject);
-          this.once(event, resolve);
-        });
-      }
-      async done() {
-        __classPrivateFieldSet3(this, _MessageStream_catchingPromiseCreated, true, "f");
-        await __classPrivateFieldGet3(this, _MessageStream_endPromise, "f");
-      }
-      get currentMessage() {
-        return __classPrivateFieldGet3(this, _MessageStream_currentMessageSnapshot, "f");
-      }
-      /**
-       * @returns a promise that resolves with the the final assistant Message response,
-       * or rejects if an error occurred or the stream ended prematurely without producing a Message.
-       */
-      async finalMessage() {
-        await this.done();
-        return __classPrivateFieldGet3(this, _MessageStream_instances, "m", _MessageStream_getFinalMessage).call(this);
-      }
-      /**
-       * @returns a promise that resolves with the the final assistant Message's text response, concatenated
-       * together if there are more than one text blocks.
-       * Rejects if an error occurred or the stream ended prematurely without producing a Message.
-       */
-      async finalText() {
-        await this.done();
-        return __classPrivateFieldGet3(this, _MessageStream_instances, "m", _MessageStream_getFinalText).call(this);
-      }
-      _emit(event, ...args) {
-        if (__classPrivateFieldGet3(this, _MessageStream_ended, "f"))
-          return;
-        if (event === "end") {
-          __classPrivateFieldSet3(this, _MessageStream_ended, true, "f");
-          __classPrivateFieldGet3(this, _MessageStream_resolveEndPromise, "f").call(this);
-        }
-        const listeners = __classPrivateFieldGet3(this, _MessageStream_listeners, "f")[event];
-        if (listeners) {
-          __classPrivateFieldGet3(this, _MessageStream_listeners, "f")[event] = listeners.filter((l) => !l.once);
-          listeners.forEach(({ listener }) => listener(...args));
-        }
-        if (event === "abort") {
-          const error = args[0];
-          if (!__classPrivateFieldGet3(this, _MessageStream_catchingPromiseCreated, "f") && !(listeners == null ? void 0 : listeners.length)) {
-            Promise.reject(error);
-          }
-          __classPrivateFieldGet3(this, _MessageStream_rejectConnectedPromise, "f").call(this, error);
-          __classPrivateFieldGet3(this, _MessageStream_rejectEndPromise, "f").call(this, error);
-          this._emit("end");
-          return;
-        }
-        if (event === "error") {
-          const error = args[0];
-          if (!__classPrivateFieldGet3(this, _MessageStream_catchingPromiseCreated, "f") && !(listeners == null ? void 0 : listeners.length)) {
-            Promise.reject(error);
-          }
-          __classPrivateFieldGet3(this, _MessageStream_rejectConnectedPromise, "f").call(this, error);
-          __classPrivateFieldGet3(this, _MessageStream_rejectEndPromise, "f").call(this, error);
-          this._emit("end");
-        }
-      }
-      _emitFinal() {
-        const finalMessage = this.receivedMessages.at(-1);
-        if (finalMessage) {
-          this._emit("finalMessage", __classPrivateFieldGet3(this, _MessageStream_instances, "m", _MessageStream_getFinalMessage).call(this));
-        }
-      }
-      async _fromReadableStream(readableStream, options) {
-        var _a2;
-        const signal = options == null ? void 0 : options.signal;
-        if (signal) {
-          if (signal.aborted)
-            this.controller.abort();
-          signal.addEventListener("abort", () => this.controller.abort());
-        }
-        __classPrivateFieldGet3(this, _MessageStream_instances, "m", _MessageStream_beginRequest).call(this);
-        this._connected(null);
-        const stream = Stream.fromReadableStream(readableStream, this.controller);
-        for await (const event of stream) {
-          __classPrivateFieldGet3(this, _MessageStream_instances, "m", _MessageStream_addStreamEvent).call(this, event);
-        }
-        if ((_a2 = stream.controller.signal) == null ? void 0 : _a2.aborted) {
-          throw new APIUserAbortError();
-        }
-        __classPrivateFieldGet3(this, _MessageStream_instances, "m", _MessageStream_endRequest).call(this);
-      }
-      [(_MessageStream_currentMessageSnapshot = /* @__PURE__ */ new WeakMap(), _MessageStream_connectedPromise = /* @__PURE__ */ new WeakMap(), _MessageStream_resolveConnectedPromise = /* @__PURE__ */ new WeakMap(), _MessageStream_rejectConnectedPromise = /* @__PURE__ */ new WeakMap(), _MessageStream_endPromise = /* @__PURE__ */ new WeakMap(), _MessageStream_resolveEndPromise = /* @__PURE__ */ new WeakMap(), _MessageStream_rejectEndPromise = /* @__PURE__ */ new WeakMap(), _MessageStream_listeners = /* @__PURE__ */ new WeakMap(), _MessageStream_ended = /* @__PURE__ */ new WeakMap(), _MessageStream_errored = /* @__PURE__ */ new WeakMap(), _MessageStream_aborted = /* @__PURE__ */ new WeakMap(), _MessageStream_catchingPromiseCreated = /* @__PURE__ */ new WeakMap(), _MessageStream_response = /* @__PURE__ */ new WeakMap(), _MessageStream_request_id = /* @__PURE__ */ new WeakMap(), _MessageStream_handleError = /* @__PURE__ */ new WeakMap(), _MessageStream_instances = /* @__PURE__ */ new WeakSet(), _MessageStream_getFinalMessage = function _MessageStream_getFinalMessage2() {
-        if (this.receivedMessages.length === 0) {
-          throw new AnthropicError("stream ended without producing a Message with role=assistant");
-        }
-        return this.receivedMessages.at(-1);
-      }, _MessageStream_getFinalText = function _MessageStream_getFinalText2() {
-        if (this.receivedMessages.length === 0) {
-          throw new AnthropicError("stream ended without producing a Message with role=assistant");
-        }
-        const textBlocks = this.receivedMessages.at(-1).content.filter((block) => block.type === "text").map((block) => block.text);
-        if (textBlocks.length === 0) {
-          throw new AnthropicError("stream ended without producing a content block with type=text");
-        }
-        return textBlocks.join(" ");
-      }, _MessageStream_beginRequest = function _MessageStream_beginRequest2() {
-        if (this.ended)
-          return;
-        __classPrivateFieldSet3(this, _MessageStream_currentMessageSnapshot, void 0, "f");
-      }, _MessageStream_addStreamEvent = function _MessageStream_addStreamEvent2(event) {
-        var _a2;
-        if (this.ended)
-          return;
-        const messageSnapshot = __classPrivateFieldGet3(this, _MessageStream_instances, "m", _MessageStream_accumulateMessage).call(this, event);
-        this._emit("streamEvent", event, messageSnapshot);
-        switch (event.type) {
-          case "content_block_delta": {
-            const content = messageSnapshot.content.at(-1);
-            switch (event.delta.type) {
-              case "text_delta": {
-                if (content.type === "text") {
-                  this._emit("text", event.delta.text, content.text || "");
-                }
-                break;
-              }
-              case "citations_delta": {
-                if (content.type === "text") {
-                  this._emit("citation", event.delta.citation, (_a2 = content.citations) != null ? _a2 : []);
-                }
-                break;
-              }
-              case "input_json_delta": {
-                if (content.type === "tool_use" && content.input) {
-                  this._emit("inputJson", event.delta.partial_json, content.input);
-                }
-                break;
-              }
-              default:
-                checkNever2(event.delta);
-            }
-            break;
-          }
-          case "message_stop": {
-            this._addMessageParam(messageSnapshot);
-            this._addMessage(messageSnapshot, true);
-            break;
-          }
-          case "content_block_stop": {
-            this._emit("contentBlock", messageSnapshot.content.at(-1));
-            break;
-          }
-          case "message_start": {
-            __classPrivateFieldSet3(this, _MessageStream_currentMessageSnapshot, messageSnapshot, "f");
-            break;
-          }
-          case "content_block_start":
-          case "message_delta":
-            break;
-        }
-      }, _MessageStream_endRequest = function _MessageStream_endRequest2() {
-        if (this.ended) {
-          throw new AnthropicError(`stream has ended, this shouldn't happen`);
-        }
-        const snapshot = __classPrivateFieldGet3(this, _MessageStream_currentMessageSnapshot, "f");
-        if (!snapshot) {
-          throw new AnthropicError(`request ended without sending any chunks`);
-        }
-        __classPrivateFieldSet3(this, _MessageStream_currentMessageSnapshot, void 0, "f");
-        return snapshot;
-      }, _MessageStream_accumulateMessage = function _MessageStream_accumulateMessage2(event) {
-        var _a2;
-        let snapshot = __classPrivateFieldGet3(this, _MessageStream_currentMessageSnapshot, "f");
-        if (event.type === "message_start") {
-          if (snapshot) {
-            throw new AnthropicError(`Unexpected event order, got ${event.type} before receiving "message_stop"`);
-          }
-          return event.message;
-        }
-        if (!snapshot) {
-          throw new AnthropicError(`Unexpected event order, got ${event.type} before "message_start"`);
-        }
-        switch (event.type) {
-          case "message_stop":
-            return snapshot;
-          case "message_delta":
-            snapshot.stop_reason = event.delta.stop_reason;
-            snapshot.stop_sequence = event.delta.stop_sequence;
-            snapshot.usage.output_tokens = event.usage.output_tokens;
-            return snapshot;
-          case "content_block_start":
-            snapshot.content.push(event.content_block);
-            return snapshot;
-          case "content_block_delta": {
-            const snapshotContent = snapshot.content.at(event.index);
-            switch (event.delta.type) {
-              case "text_delta": {
-                if ((snapshotContent == null ? void 0 : snapshotContent.type) === "text") {
-                  snapshotContent.text += event.delta.text;
-                }
-                break;
-              }
-              case "citations_delta": {
-                if ((snapshotContent == null ? void 0 : snapshotContent.type) === "text") {
-                  (_a2 = snapshotContent.citations) != null ? _a2 : snapshotContent.citations = [];
-                  snapshotContent.citations.push(event.delta.citation);
-                }
-                break;
-              }
-              case "input_json_delta": {
-                if ((snapshotContent == null ? void 0 : snapshotContent.type) === "tool_use") {
-                  let jsonBuf = snapshotContent[JSON_BUF_PROPERTY2] || "";
-                  jsonBuf += event.delta.partial_json;
-                  Object.defineProperty(snapshotContent, JSON_BUF_PROPERTY2, {
-                    value: jsonBuf,
-                    enumerable: false,
-                    writable: true
-                  });
-                  if (jsonBuf) {
-                    snapshotContent.input = partialParse(jsonBuf);
-                  }
-                }
-                break;
-              }
-              default:
-                checkNever2(event.delta);
-            }
-            return snapshot;
-          }
-          case "content_block_stop":
-            return snapshot;
-        }
-      }, Symbol.asyncIterator)]() {
-        const pushQueue = [];
-        const readQueue = [];
-        let done = false;
-        this.on("streamEvent", (event) => {
-          const reader = readQueue.shift();
-          if (reader) {
-            reader.resolve(event);
-          } else {
-            pushQueue.push(event);
-          }
-        });
-        this.on("end", () => {
-          done = true;
-          for (const reader of readQueue) {
-            reader.resolve(void 0);
-          }
-          readQueue.length = 0;
-        });
-        this.on("abort", (err) => {
-          done = true;
-          for (const reader of readQueue) {
-            reader.reject(err);
-          }
-          readQueue.length = 0;
-        });
-        this.on("error", (err) => {
-          done = true;
-          for (const reader of readQueue) {
-            reader.reject(err);
-          }
-          readQueue.length = 0;
-        });
-        return {
-          next: async () => {
-            if (!pushQueue.length) {
-              if (done) {
-                return { value: void 0, done: true };
-              }
-              return new Promise((resolve, reject) => readQueue.push({ resolve, reject })).then((chunk2) => chunk2 ? { value: chunk2, done: false } : { value: void 0, done: true });
-            }
-            const chunk = pushQueue.shift();
-            return { value: chunk, done: false };
-          },
-          return: async () => {
-            this.abort();
-            return { value: void 0, done: true };
-          }
-        };
-      }
-      toReadableStream() {
-        const stream = new Stream(this[Symbol.asyncIterator].bind(this), this.controller);
-        return stream.toReadableStream();
-      }
-    };
-  }
-});
-
-// node_modules/@anthropic-ai/sdk/resources/messages/messages.mjs
-var Messages2, DEPRECATED_MODELS2;
-var init_messages2 = __esm({
-  "node_modules/@anthropic-ai/sdk/resources/messages/messages.mjs"() {
-    init_resource();
-    init_batches2();
-    init_batches2();
-    init_MessageStream();
-    Messages2 = class extends APIResource {
-      constructor() {
-        super(...arguments);
-        this.batches = new Batches2(this._client);
-      }
-      create(body, options) {
-        var _a2, _b;
-        if (body.model in DEPRECATED_MODELS2) {
-          console.warn(`The model '${body.model}' is deprecated and will reach end-of-life on ${DEPRECATED_MODELS2[body.model]}
-Please migrate to a newer model. Visit https://docs.anthropic.com/en/docs/resources/model-deprecations for more information.`);
-        }
-        return this._client.post("/v1/messages", {
-          body,
-          timeout: (_a2 = this._client._options.timeout) != null ? _a2 : 6e5,
-          ...options,
-          stream: (_b = body.stream) != null ? _b : false
-        });
-      }
-      /**
-       * Create a Message stream
-       */
-      stream(body, options) {
-        return MessageStream.createMessage(this, body, options);
-      }
-      /**
-       * Count the number of tokens in a Message.
-       *
-       * The Token Count API can be used to count the number of tokens in a Message,
-       * including tools, images, and documents, without creating it.
-       */
-      countTokens(body, options) {
-        return this._client.post("/v1/messages/count_tokens", { body, ...options });
-      }
-    };
-    DEPRECATED_MODELS2 = {
-      "claude-1.3": "November 6th, 2024",
-      "claude-1.3-100k": "November 6th, 2024",
-      "claude-instant-1.1": "November 6th, 2024",
-      "claude-instant-1.1-100k": "November 6th, 2024",
-      "claude-instant-1.2": "November 6th, 2024",
-      "claude-3-sonnet-20240229": "July 21st, 2025",
-      "claude-2.1": "July 21st, 2025",
-      "claude-2.0": "July 21st, 2025"
-    };
-    Messages2.Batches = Batches2;
-    Messages2.MessageBatchesPage = MessageBatchesPage;
-  }
-});
-
-// node_modules/@anthropic-ai/sdk/resources/models.mjs
-var Models2, ModelInfosPage;
-var init_models2 = __esm({
-  "node_modules/@anthropic-ai/sdk/resources/models.mjs"() {
-    init_resource();
-    init_core();
-    init_pagination();
-    Models2 = class extends APIResource {
-      /**
-       * Get a specific model.
-       *
-       * The Models API response can be used to determine information about a specific
-       * model or resolve a model alias to a model ID.
-       */
-      retrieve(modelId, options) {
-        return this._client.get(`/v1/models/${modelId}`, options);
-      }
-      list(query = {}, options) {
-        if (isRequestOptions(query)) {
-          return this.list({}, query);
-        }
-        return this._client.getAPIList("/v1/models", ModelInfosPage, { query, ...options });
-      }
-    };
-    ModelInfosPage = class extends Page {
-    };
-    Models2.ModelInfosPage = ModelInfosPage;
-  }
-});
-
-// node_modules/@anthropic-ai/sdk/resources/index.mjs
-var init_resources = __esm({
-  "node_modules/@anthropic-ai/sdk/resources/index.mjs"() {
-    init_shared();
-    init_beta();
-    init_completions();
-    init_messages2();
-    init_models2();
-  }
-});
-
-// node_modules/@anthropic-ai/sdk/index.mjs
-var _a, Anthropic, HUMAN_PROMPT, AI_PROMPT, sdk_default;
-var init_sdk = __esm({
-  "node_modules/@anthropic-ai/sdk/index.mjs"() {
-    init_core();
-    init_error();
-    init_uploads();
-    init_resources();
-    init_completions();
-    init_models2();
-    init_beta();
-    init_messages2();
-    Anthropic = class extends APIClient {
-      /**
-       * API Client for interfacing with the Anthropic API.
-       *
-       * @param {string | null | undefined} [opts.apiKey=process.env['ANTHROPIC_API_KEY'] ?? null]
-       * @param {string | null | undefined} [opts.authToken=process.env['ANTHROPIC_AUTH_TOKEN'] ?? null]
-       * @param {string} [opts.baseURL=process.env['ANTHROPIC_BASE_URL'] ?? https://api.anthropic.com] - Override the default base URL for the API.
-       * @param {number} [opts.timeout=10 minutes] - The maximum amount of time (in milliseconds) the client will wait for a response before timing out.
-       * @param {number} [opts.httpAgent] - An HTTP agent used to manage HTTP(s) connections.
-       * @param {Core.Fetch} [opts.fetch] - Specify a custom `fetch` function implementation.
-       * @param {number} [opts.maxRetries=2] - The maximum number of times the client will retry a request.
-       * @param {Core.Headers} opts.defaultHeaders - Default headers to include with every request to the API.
-       * @param {Core.DefaultQuery} opts.defaultQuery - Default query parameters to include with every request to the API.
-       * @param {boolean} [opts.dangerouslyAllowBrowser=false] - By default, client-side use of this library is not allowed, as it risks exposing your secret API credentials to attackers.
-       */
-      constructor({ baseURL = readEnv("ANTHROPIC_BASE_URL"), apiKey = ((_a2) => (_a2 = readEnv("ANTHROPIC_API_KEY")) != null ? _a2 : null)(), authToken = ((_b) => (_b = readEnv("ANTHROPIC_AUTH_TOKEN")) != null ? _b : null)(), ...opts } = {}) {
-        var _a3;
-        const options = {
-          apiKey,
-          authToken,
-          ...opts,
-          baseURL: baseURL || `https://api.anthropic.com`
-        };
-        if (!options.dangerouslyAllowBrowser && isRunningInBrowser()) {
-          throw new AnthropicError("It looks like you're running in a browser-like environment.\n\nThis is disabled by default, as it risks exposing your secret API credentials to attackers.\nIf you understand the risks and have appropriate mitigations in place,\nyou can set the `dangerouslyAllowBrowser` option to `true`, e.g.,\n\nnew Anthropic({ apiKey, dangerouslyAllowBrowser: true });\n");
-        }
-        super({
-          baseURL: options.baseURL,
-          timeout: (_a3 = options.timeout) != null ? _a3 : 6e5,
-          httpAgent: options.httpAgent,
-          maxRetries: options.maxRetries,
-          fetch: options.fetch
-        });
-        this.completions = new Completions(this);
-        this.messages = new Messages2(this);
-        this.models = new Models2(this);
-        this.beta = new Beta(this);
-        this._options = options;
-        this.apiKey = apiKey;
-        this.authToken = authToken;
-      }
-      defaultQuery() {
-        return this._options.defaultQuery;
-      }
-      defaultHeaders(opts) {
-        return {
-          ...super.defaultHeaders(opts),
-          ...this._options.dangerouslyAllowBrowser ? { "anthropic-dangerous-direct-browser-access": "true" } : void 0,
-          "anthropic-version": "2023-06-01",
-          ...this._options.defaultHeaders
-        };
-      }
-      validateHeaders(headers, customHeaders) {
-        if (this.apiKey && headers["x-api-key"]) {
-          return;
-        }
-        if (customHeaders["x-api-key"] === null) {
-          return;
-        }
-        if (this.authToken && headers["authorization"]) {
-          return;
-        }
-        if (customHeaders["authorization"] === null) {
-          return;
-        }
-        throw new Error('Could not resolve authentication method. Expected either apiKey or authToken to be set. Or for one of the "X-Api-Key" or "Authorization" headers to be explicitly omitted');
-      }
-      authHeaders(opts) {
-        const apiKeyAuth = this.apiKeyAuth(opts);
-        const bearerAuth = this.bearerAuth(opts);
-        if (apiKeyAuth != null && !isEmptyObj(apiKeyAuth)) {
-          return apiKeyAuth;
-        }
-        if (bearerAuth != null && !isEmptyObj(bearerAuth)) {
-          return bearerAuth;
-        }
-        return {};
-      }
-      apiKeyAuth(opts) {
-        if (this.apiKey == null) {
-          return {};
-        }
-        return { "X-Api-Key": this.apiKey };
-      }
-      bearerAuth(opts) {
-        if (this.authToken == null) {
-          return {};
-        }
-        return { Authorization: `Bearer ${this.authToken}` };
-      }
-    };
-    _a = Anthropic;
-    Anthropic.Anthropic = _a;
-    Anthropic.HUMAN_PROMPT = "\n\nHuman:";
-    Anthropic.AI_PROMPT = "\n\nAssistant:";
-    Anthropic.DEFAULT_TIMEOUT = 6e5;
-    Anthropic.AnthropicError = AnthropicError;
-    Anthropic.APIError = APIError;
-    Anthropic.APIConnectionError = APIConnectionError;
-    Anthropic.APIConnectionTimeoutError = APIConnectionTimeoutError;
-    Anthropic.APIUserAbortError = APIUserAbortError;
-    Anthropic.NotFoundError = NotFoundError;
-    Anthropic.ConflictError = ConflictError;
-    Anthropic.RateLimitError = RateLimitError;
-    Anthropic.BadRequestError = BadRequestError;
-    Anthropic.AuthenticationError = AuthenticationError;
-    Anthropic.InternalServerError = InternalServerError;
-    Anthropic.PermissionDeniedError = PermissionDeniedError;
-    Anthropic.UnprocessableEntityError = UnprocessableEntityError;
-    Anthropic.toFile = toFile;
-    Anthropic.fileFromPath = fileFromPath;
-    Anthropic.Completions = Completions;
-    Anthropic.Messages = Messages2;
-    Anthropic.Models = Models2;
-    Anthropic.ModelInfosPage = ModelInfosPage;
-    Anthropic.Beta = Beta;
-    ({ HUMAN_PROMPT, AI_PROMPT } = Anthropic);
-    sdk_default = Anthropic;
-  }
-});
-
-// providers/anthropic.ts
-function estimateTokenCount(messages) {
-  const CHARS_PER_TOKEN = 4;
-  const totalChars = messages.reduce((total, msg) => {
-    return total + msg.content.length;
-  }, 0);
-  return Math.ceil(totalChars / CHARS_PER_TOKEN);
-}
-var MODEL_CONTEXT_WINDOWS, maxTokens, MODEL_OUTPUT_TOKEN_LIMITS, AnthropicProvider;
-var init_anthropic = __esm({
-  "providers/anthropic.ts"() {
-    init_base2();
-    init_sdk();
-    init_logger();
-    MODEL_CONTEXT_WINDOWS = {
-      "claude-3-opus-20240229": 2e5,
-      "claude-3-sonnet-20240229": 2e5,
-      "claude-3-haiku-20240307": 2e5,
-      "claude-3-7-sonnet-20250219": 2e5,
-      "claude-3-5-sonnet-20241022": 2e5,
-      "claude-3-5-sonnet-20240620": 2e5,
-      "claude-3-5-haiku-20241022": 2e5
-    };
-    maxTokens = 4096;
-    MODEL_OUTPUT_TOKEN_LIMITS = {
-      "claude-3-7-sonnet-20250219": 64e3,
-      "claude-3-5-sonnet-20241022": 8192,
-      "claude-3-5-sonnet-20240620": 8192,
-      "claude-3-5-haiku-20241022": 8192,
-      "claude-3-opus-20240229": 4096,
-      "claude-3-sonnet-20240229": 8192,
-      // fallback for older sonnet
-      "claude-3-haiku-20240307": 4096
-      // fallback for older haiku
-    };
-    AnthropicProvider = class extends BaseProvider {
-      // Add debugMode property
-      constructor(apiKey, model = "claude-3-sonnet-20240229", debugMode = false) {
-        super();
-        __publicField(this, "apiKey");
-        __publicField(this, "baseUrl", "https://api.anthropic.com/v1");
-        __publicField(this, "model");
-        __publicField(this, "client");
-        __publicField(this, "debugMode");
-        this.apiKey = apiKey;
-        this.model = model;
-        this.client = new sdk_default({
-          apiKey: this.apiKey,
-          dangerouslyAllowBrowser: true
-          // Required for browser environments
-        });
-        this.debugMode = debugMode;
-        debugLog(true, "debug", "[Anthropic Provider] Initializing Anthropic API", { config: { apiKey, model, debugMode } });
-      }
-      /**
-       * Get a completion from Anthropic
-       * 
-       * Sends the conversation to Anthropic and streams back the response
-       * using the official SDK's streaming support.
-       * 
-       * Automatically adjusts max_tokens if the request would exceed the model's context window.
-       * 
-       * @param messages - The conversation history
-       * @param options - Settings for this completion
-       */
-      async getCompletion(messages, options) {
-        var _a2, _b, _c;
-        try {
-          const contextWindow = (_a2 = MODEL_CONTEXT_WINDOWS[this.model]) != null ? _a2 : 2e5;
-          const outputTokenLimit = MODEL_OUTPUT_TOKEN_LIMITS[this.model];
-          const inputTokens = estimateTokenCount(messages);
-          if (inputTokens > contextWindow) {
-            const adjustedMaxTokens = contextWindow - inputTokens;
-            if (adjustedMaxTokens <= 0) {
-              throw new ProviderError(
-                "invalid_request" /* InvalidRequest */,
-                `Input is too long for ${this.model}'s context window. Estimated input tokens: ${inputTokens}, context window: ${contextWindow}`
-              );
-            }
-            debugLog(
-              this.debugMode,
-              "info",
-              `max_tokens ${adjustedMaxTokens} to fit within ${this.model}'s context window`
-            );
-            maxTokens = adjustedMaxTokens;
-          }
-          if (outputTokenLimit && maxTokens > outputTokenLimit) {
-            debugLog(
-              this.debugMode,
-              "info",
-              `Capping max_tokens from ${maxTokens} to model output limit ${outputTokenLimit} for ${this.model}`
-            );
-            maxTokens = outputTokenLimit;
-          }
-          const { systemPrompt, anthropicMessages } = this.formatMessages(messages);
-          const requestParams = {
-            model: this.model,
-            messages: anthropicMessages,
-            temperature: (_b = options.temperature) != null ? _b : 0,
-            // Default temperature if not provided
-            max_tokens: maxTokens,
-            stream: true
-          };
-          if (systemPrompt) {
-            requestParams.system = systemPrompt;
-          }
-          const stream = await this.client.messages.create(requestParams);
-          try {
-            if (stream && typeof stream === "object") {
-              if (stream.on && typeof stream.on === "function") {
-                await new Promise((resolve, reject) => {
-                  stream.on("content_block_delta", (chunk) => {
-                    var _a3;
-                    if (((_a3 = chunk.delta) == null ? void 0 : _a3.type) === "text_delta" && options.streamCallback) {
-                      options.streamCallback(chunk.delta.text);
-                    }
-                  });
-                  stream.on("end", resolve);
-                  stream.on("error", reject);
-                });
-              } else if (Symbol.asyncIterator in stream) {
-                for await (const chunk of stream) {
-                  if (chunk.type === "content_block_delta" && ((_c = chunk.delta) == null ? void 0 : _c.type) === "text_delta" && options.streamCallback) {
-                    options.streamCallback(chunk.delta.text);
-                  }
-                }
-              } else if (options.streamCallback) {
-                console.warn("Anthropic response is not a stream, handling as regular response");
-                if ("content" in stream && typeof stream.content === "string") {
-                  options.streamCallback(stream.content);
-                }
-              }
-            }
-          } catch (streamError) {
-            debugLog(this.debugMode, "error", "Error processing Anthropic stream:", streamError);
-            throw streamError;
-          }
-        } catch (error) {
-          if (error instanceof ProviderError) {
-            throw error;
-          }
-          if (error.name === "AbortError") {
-            debugLog(this.debugMode, "info", "Anthropic stream was aborted");
-          } else {
-            debugLog(this.debugMode, "error", "Error calling Anthropic:", error);
-            throw error;
-          }
-        }
-      }
-      /**
-       * Get available Anthropic models
-       * 
-       * Returns the list of supported Claude models.
-       * Note: Anthropic doesn't have a models endpoint, so we return known models.
-       * This list is based on the models defined in MODEL_CONTEXT_WINDOWS.
-       * 
-       * @returns List of available model names
-       */
-      async getAvailableModels() {
-        try {
-          return Object.keys(MODEL_CONTEXT_WINDOWS);
-        } catch (error) {
-          debugLog(this.debugMode, "error", "Error getting Anthropic models:", error);
-          throw error;
-        }
-      }
-      /**
-       * Format messages for Anthropic API
-       * 
-       * Converts from the plugin's Message format to Anthropic's expected format.
-       * Handles system messages specially as Anthropic has a different format.
-       * 
-       * @param messages - Array of messages to format
-       * @returns Formatted messages and system prompt for Anthropic API
-       */
-      formatMessages(messages) {
-        const systemMessages = messages.filter((msg) => msg.role === "system");
-        const nonSystemMessages = messages.filter((msg) => msg.role !== "system");
-        const systemPrompt = systemMessages.length > 0 ? systemMessages.map((msg) => msg.content).join("\n\n") : void 0;
-        const anthropicMessages = nonSystemMessages.map((msg) => {
-          const role = msg.role === "user" || msg.role === "assistant" ? msg.role : "user";
-          return { role, content: msg.content };
-        });
-        return { systemPrompt, anthropicMessages };
-      }
-      /**
-       * Test connection to Anthropic
-       * 
-       * Verifies the API key works by attempting a simple completion.
-       * 
-       * @returns Test results including success/failure
-       */
-      async testConnection() {
-        try {
-          await this.client.messages.create({
-            model: this.model,
-            messages: [{ role: "user", content: "Hi" }],
-            max_tokens: 1
-          });
-          const models = await this.getAvailableModels();
-          return {
-            success: true,
-            message: "Successfully connected to Anthropic!",
-            models
-          };
-        } catch (error) {
-          return this.createErrorResponse(error);
-        }
-      }
-    };
-  }
-});
-
 // providers/openai.ts
 var OpenAIProvider;
 var init_openai = __esm({
@@ -6855,50 +3312,91 @@ var init_openai = __esm({
        * Get a completion from OpenAI
        * 
        * Sends the conversation to OpenAI and streams back the response.
+       * Enhanced with better error handling and stream robustness.
        * 
        * @param messages - The conversation history
        * @param options - Settings for this completion
        */
       async getCompletion(messages, options) {
-        var _a2, _b, _c, _d, _e;
+        var _a, _b, _c, _d, _e, _f;
+        let reader;
         try {
+          debugLog(this.debugMode, "debug", "[OpenAI] Starting completion request", {
+            model: this.model,
+            messageCount: messages.length,
+            temperature: options.temperature
+          });
+          const requestBody = {
+            model: this.model,
+            messages: messages.map((msg) => ({
+              role: msg.role,
+              content: msg.content
+            })),
+            temperature: (_a = options.temperature) != null ? _a : 0.7,
+            stream: true,
+            max_tokens: 4096
+          };
           const response = await fetch(`${this.baseUrl}/chat/completions`, {
             method: "POST",
             headers: {
               "Authorization": `Bearer ${this.apiKey}`,
-              "Content-Type": "application/json"
+              "Content-Type": "application/json",
+              "User-Agent": "obsidian-ai-assistant/1.0"
             },
-            body: JSON.stringify({
-              model: this.model,
-              messages,
-              temperature: (_a2 = options.temperature) != null ? _a2 : 0,
-              stream: true
-            }),
+            body: JSON.stringify(requestBody),
             signal: (_b = options.abortController) == null ? void 0 : _b.signal
           });
           if (!response.ok) {
-            throw this.handleHttpError(response);
+            await this.handleHttpError(response);
+            return;
           }
-          const reader = (_c = response.body) == null ? void 0 : _c.getReader();
+          if (!response.body) {
+            throw new Error("Response body is null");
+          }
+          reader = response.body.getReader();
           const decoder = new TextDecoder("utf-8");
           let buffer = "";
+          let totalContent = "";
           while (true) {
-            const { done, value } = await (reader == null ? void 0 : reader.read()) || { done: true, value: void 0 };
+            const { done, value } = await reader.read();
             if (done) break;
             buffer += decoder.decode(value, { stream: true });
             const lines = buffer.split("\n");
             buffer = lines.pop() || "";
             for (const line of lines) {
-              if (line.startsWith("data: ") && line !== "data: [DONE]") {
-                try {
-                  const data = JSON.parse(line.slice(6));
-                  const content = (_e = (_d = data.choices[0]) == null ? void 0 : _d.delta) == null ? void 0 : _e.content;
-                  if (content && options.streamCallback) {
-                    options.streamCallback(content);
-                  }
-                } catch (e) {
-                  debugLog(this.debugMode, "warn", "Error parsing OpenAI response chunk:", e);
+              const trimmedLine = line.trim();
+              if (!trimmedLine || !trimmedLine.startsWith("data: ")) continue;
+              if (trimmedLine === "data: [DONE]") {
+                debugLog(this.debugMode, "debug", "[OpenAI] Stream completed", { totalLength: totalContent.length });
+                break;
+              }
+              try {
+                const jsonData = trimmedLine.slice(6);
+                const data = JSON.parse(jsonData);
+                if (data.error) {
+                  throw new Error(data.error.message || "OpenAI API error");
                 }
+                const delta = (_d = (_c = data.choices) == null ? void 0 : _c[0]) == null ? void 0 : _d.delta;
+                const content = delta == null ? void 0 : delta.content;
+                if (content && options.streamCallback) {
+                  totalContent += content;
+                  options.streamCallback(content);
+                }
+                if ((delta == null ? void 0 : delta.function_call) || (delta == null ? void 0 : delta.tool_calls)) {
+                  debugLog(this.debugMode, "debug", "[OpenAI] Function call detected", { delta });
+                }
+                const finishReason = (_f = (_e = data.choices) == null ? void 0 : _e[0]) == null ? void 0 : _f.finish_reason;
+                if (finishReason) {
+                  debugLog(this.debugMode, "debug", "[OpenAI] Completion finished", {
+                    reason: finishReason,
+                    totalLength: totalContent.length
+                  });
+                }
+              } catch (parseError) {
+                debugLog(this.debugMode, "warn", "[OpenAI] Error parsing response chunk", {
+                  line: trimmedLine,
+                  error: parseError
+                });
               }
             }
           }
@@ -6907,10 +3405,30 @@ var init_openai = __esm({
             throw error;
           }
           if (error.name === "AbortError") {
-            debugLog(this.debugMode, "info", "OpenAI stream was aborted");
-          } else {
-            debugLog(this.debugMode, "error", "Error calling OpenAI:", error);
-            throw error;
+            debugLog(this.debugMode, "info", "[OpenAI] Stream was aborted by user");
+            return;
+          }
+          if (error.code === "ENOTFOUND" || error.code === "ECONNREFUSED") {
+            throw new ProviderError(
+              "network_error" /* NetworkError */,
+              "Unable to connect to OpenAI. Please check your internet connection."
+            );
+          }
+          debugLog(this.debugMode, "error", "[OpenAI] Completion error", {
+            error: error.message,
+            stack: error.stack
+          });
+          throw new ProviderError(
+            "server_error" /* ServerError */,
+            error.message || "Unknown error occurred while calling OpenAI"
+          );
+        } finally {
+          if (reader) {
+            try {
+              await reader.cancel();
+            } catch (e) {
+              debugLog(this.debugMode, "warn", "[OpenAI] Error closing reader", e);
+            }
           }
         }
       }
@@ -6918,207 +3436,125 @@ var init_openai = __esm({
        * Get available OpenAI models
        * 
        * Fetches the list of models from OpenAI's API.
-       * Filters to only include chat models (GPT-3.5, GPT-4, etc.)
+       * Filters to include chat models and newer model series.
        * 
        * @returns List of available model names
        */
       async getAvailableModels() {
         try {
+          debugLog(this.debugMode, "debug", "[OpenAI] Fetching available models");
           const response = await fetch(`${this.baseUrl}/models`, {
             method: "GET",
             headers: {
               "Authorization": `Bearer ${this.apiKey}`,
-              "Content-Type": "application/json"
+              "Content-Type": "application/json",
+              "User-Agent": "obsidian-ai-assistant/1.0"
             }
           });
           if (!response.ok) {
-            throw this.handleHttpError(response);
+            await this.handleHttpError(response);
+            return [];
           }
           const data = await response.json();
-          return data.data.map((model) => model.id).filter((id) => id.startsWith("gpt-"));
+          if (!data.data || !Array.isArray(data.data)) {
+            debugLog(this.debugMode, "warn", "[OpenAI] Invalid models response format", data);
+            return [];
+          }
+          const models = data.data.map((model) => model.id).filter((id) => {
+            return id.startsWith("gpt-") || id.startsWith("o1-") || id.startsWith("o3-") || id.includes("instruct") || id.includes("chat");
+          }).sort((a, b) => {
+            if (a.includes("gpt-4") && !b.includes("gpt-4")) return -1;
+            if (!a.includes("gpt-4") && b.includes("gpt-4")) return 1;
+            if (a.includes("turbo") && !b.includes("turbo")) return -1;
+            if (!a.includes("turbo") && b.includes("turbo")) return 1;
+            return a.localeCompare(b);
+          });
+          debugLog(this.debugMode, "debug", "[OpenAI] Found models", {
+            count: models.length,
+            models: models.slice(0, 5)
+            // Log first 5 for debugging
+          });
+          return models;
         } catch (error) {
-          debugLog(this.debugMode, "error", "Error fetching OpenAI models:", error);
-          throw error;
+          debugLog(this.debugMode, "error", "[OpenAI] Error fetching models", {
+            error: error.message,
+            stack: error.stack
+          });
+          const fallbackModels = [
+            "gpt-4o",
+            "gpt-4o-mini",
+            "gpt-4-turbo",
+            "gpt-4",
+            "gpt-3.5-turbo"
+          ];
+          debugLog(this.debugMode, "info", "[OpenAI] Using fallback models", { models: fallbackModels });
+          return fallbackModels;
         }
       }
       /**
        * Test connection to OpenAI
        * 
        * Verifies the API key works by attempting to list models.
+       * Enhanced with better error reporting and fallback testing.
        * 
        * @returns Test results including success/failure and available models
        */
       async testConnection() {
+        const startTime = Date.now();
         try {
+          debugLog(this.debugMode, "debug", "[OpenAI] Testing connection", {
+            baseUrl: this.baseUrl,
+            model: this.model
+          });
           const models = await this.getAvailableModels();
+          if (models.length === 0) {
+            return {
+              success: false,
+              message: "Connected to OpenAI but no models are available. Please check your API key permissions."
+            };
+          }
+          try {
+            const testResponse = await fetch(`${this.baseUrl}/chat/completions`, {
+              method: "POST",
+              headers: {
+                "Authorization": `Bearer ${this.apiKey}`,
+                "Content-Type": "application/json",
+                "User-Agent": "obsidian-ai-assistant/1.0"
+              },
+              body: JSON.stringify({
+                model: this.model,
+                messages: [{ role: "user", content: "Hi" }],
+                max_tokens: 1,
+                stream: false
+              })
+            });
+            if (!testResponse.ok) {
+              debugLog(this.debugMode, "warn", "[OpenAI] Model test failed but connection succeeded", {
+                status: testResponse.status,
+                model: this.model
+              });
+            }
+          } catch (testError) {
+            debugLog(this.debugMode, "warn", "[OpenAI] Model test error (connection still valid)", testError);
+          }
+          const duration = Date.now() - startTime;
+          debugLog(this.debugMode, "debug", "[OpenAI] Connection test successful", {
+            duration,
+            modelCount: models.length
+          });
           return {
             success: true,
-            message: `Successfully connected to OpenAI! Found ${models.length} available models.`,
+            message: `Successfully connected to OpenAI! Found ${models.length} available models. (${duration}ms)`,
             models
           };
         } catch (error) {
+          const duration = Date.now() - startTime;
+          debugLog(this.debugMode, "error", "[OpenAI] Connection test failed", {
+            duration,
+            error: error.message
+          });
           return this.createErrorResponse(error);
         }
-      }
-    };
-  }
-});
-
-// providers/gemini.ts
-var GeminiProvider;
-var init_gemini = __esm({
-  "providers/gemini.ts"() {
-    init_base2();
-    init_logger();
-    GeminiProvider = class extends BaseProvider {
-      // Add debugMode property
-      constructor(apiKey, model = "gemini-2.0-flash", apiVersion = "v1", debugMode = false) {
-        super();
-        __publicField(this, "apiKey");
-        __publicField(this, "apiVersion");
-        __publicField(this, "baseUrl");
-        __publicField(this, "model");
-        __publicField(this, "debugMode");
-        this.apiKey = apiKey;
-        this.model = model;
-        this.apiVersion = apiVersion;
-        this.baseUrl = `https://generativelanguage.googleapis.com/${this.apiVersion}`;
-        this.debugMode = debugMode;
-        debugLog(true, "debug", "[Gemini Provider] Initializing Gemini API", { config: { apiKey, model, apiVersion, debugMode } });
-      }
-      /**
-       * Determines the correct API version for a given model name.
-       * Uses v1beta for preview/experimental/beta models, otherwise v1.
-       */
-      getBaseUrlForModel(model) {
-        if (/preview|exp|experimental|beta/i.test(model)) {
-          return "https://generativelanguage.googleapis.com/v1beta";
-        }
-        return "https://generativelanguage.googleapis.com/v1";
-      }
-      /**
-       * Get a completion from Google Gemini
-       * 
-       * Sends the conversation to Gemini and streams back the response.
-       * 
-       * @param messages - The conversation history
-       * @param options - Settings for this completion
-       */
-      async getCompletion(messages, options) {
-        var _a2, _b, _c, _d, _e, _f, _g;
-        try {
-          const formattedMessages = this.formatMessages(messages);
-          const baseUrl = this.getBaseUrlForModel(this.model);
-          const url = `${baseUrl}/models/${this.model}:generateContent?key=${this.apiKey}`;
-          const response = await fetch(url, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-              contents: formattedMessages,
-              generationConfig: {
-                temperature: (_a2 = options.temperature) != null ? _a2 : 0
-              }
-            }),
-            signal: (_b = options.abortController) == null ? void 0 : _b.signal
-          });
-          if (!response.ok) {
-            throw this.handleHttpError(response);
-          }
-          const data = await response.json();
-          debugLog(this.debugMode, "debug", "Gemini response:", JSON.stringify(data));
-          const text = (_g = (_f = (_e = (_d = (_c = data.candidates) == null ? void 0 : _c[0]) == null ? void 0 : _d.content) == null ? void 0 : _e.parts) == null ? void 0 : _f[0]) == null ? void 0 : _g.text;
-          if (text && options.streamCallback) {
-            options.streamCallback(text);
-          } else {
-            debugLog(this.debugMode, "warn", "No text found in Gemini response:", JSON.stringify(data));
-          }
-        } catch (error) {
-          if (error instanceof ProviderError) {
-            throw error;
-          }
-          if (error.name === "AbortError") {
-            debugLog(this.debugMode, "info", "Gemini request was aborted");
-          } else {
-            debugLog(this.debugMode, "error", "Error calling Gemini:", error);
-            throw error;
-          }
-        }
-      }
-      /**
-       * Get available Gemini models from both v1 and v1beta endpoints by default
-       *
-       * @returns List of available model names (deduplicated)
-       */
-      async getAvailableModels() {
-        const fetchModels = async (version) => {
-          var _a2;
-          const url = `https://generativelanguage.googleapis.com/${version}/models?key=${this.apiKey}`;
-          const response = await fetch(url, {
-            method: "GET",
-            headers: { "Content-Type": "application/json" }
-          });
-          if (!response.ok) throw this.handleHttpError(response);
-          const data = await response.json();
-          return ((_a2 = data.models) == null ? void 0 : _a2.map((model) => model.name.split("/").pop())) || [];
-        };
-        try {
-          const [v1Models, v1betaModels] = await Promise.all([
-            fetchModels("v1"),
-            fetchModels("v1beta")
-          ]);
-          return Array.from(/* @__PURE__ */ new Set([...v1Models, ...v1betaModels]));
-        } catch (error) {
-          debugLog(this.debugMode, "error", "Error fetching Gemini models:", error);
-          throw error;
-        }
-      }
-      /**
-       * Test connection to Gemini
-       * 
-       * Verifies the API key works by attempting to list models.
-       * 
-       * @returns Test results including success/failure and available models
-       */
-      async testConnection() {
-        try {
-          const models = await this.getAvailableModels();
-          return {
-            success: true,
-            message: `Successfully connected to Google Gemini! Found ${models.length} available models.`,
-            models
-          };
-        } catch (error) {
-          return this.createErrorResponse(error);
-        }
-      }
-      /**
-       * Format messages for Gemini API
-       * 
-       * Converts from the plugin's Message format to Gemini's expected format.
-       * 
-       * @param messages - Array of messages to format
-       * @returns Formatted messages for Gemini API
-       */
-      formatMessages(messages) {
-        const geminiMessages = [];
-        const systemMessages = messages.filter((msg) => msg.role === "system");
-        const nonSystemMessages = messages.filter((msg) => msg.role !== "system");
-        for (const message of systemMessages) {
-          geminiMessages.push({
-            role: "user",
-            parts: [{ text: message.content }]
-          });
-        }
-        for (const message of nonSystemMessages) {
-          const role = message.role === "assistant" ? "model" : "user";
-          geminiMessages.push({
-            role,
-            parts: [{ text: message.content }]
-          });
-        }
-        return geminiMessages;
       }
     };
   }
@@ -7126,30 +3562,14 @@ var init_gemini = __esm({
 
 // providers/index.ts
 function createProvider(settings) {
-  var _a2, _b, _c;
+  var _a;
   switch (settings.provider) {
     case "openai":
       return new OpenAIProvider(
         settings.openaiSettings.apiKey,
         settings.openaiSettings.model,
         settings.openaiSettings.baseUrl,
-        (_a2 = settings.debugMode) != null ? _a2 : false
-        // Pass debugMode
-      );
-    case "anthropic":
-      return new AnthropicProvider(
-        settings.anthropicSettings.apiKey,
-        settings.anthropicSettings.model,
-        (_b = settings.debugMode) != null ? _b : false
-        // Pass debugMode
-      );
-    case "gemini":
-      return new GeminiProvider(
-        settings.geminiSettings.apiKey,
-        settings.geminiSettings.model,
-        void 0,
-        // apiVersion is optional, so pass undefined if not explicitly set
-        (_c = settings.debugMode) != null ? _c : false
+        (_a = settings.debugMode) != null ? _a : false
         // Pass debugMode
       );
     default:
@@ -7157,17 +3577,11 @@ function createProvider(settings) {
   }
 }
 function createProviderFromUnifiedModel(settings, unifiedModelId) {
-  var _a2, _b, _c;
+  var _a;
   const [providerType, modelId] = unifiedModelId.split(":", 2);
   switch (providerType) {
     case "openai":
-      return new OpenAIProvider(settings.openaiSettings.apiKey, modelId, settings.openaiSettings.baseUrl, (_a2 = settings.debugMode) != null ? _a2 : false);
-    // Pass debugMode
-    case "anthropic":
-      return new AnthropicProvider(settings.anthropicSettings.apiKey, modelId, (_b = settings.debugMode) != null ? _b : false);
-    // Pass debugMode
-    case "gemini":
-      return new GeminiProvider(settings.geminiSettings.apiKey, modelId, void 0, (_c = settings.debugMode) != null ? _c : false);
+      return new OpenAIProvider(settings.openaiSettings.apiKey, modelId, settings.openaiSettings.baseUrl, (_a = settings.debugMode) != null ? _a : false);
     // Pass debugMode
     default:
       throw new Error(`Invalid provider type: ${providerType}`);
@@ -7197,26 +3611,6 @@ async function getAllAvailableModels(settings) {
       });
     });
   }
-  if (settings.anthropicSettings.apiKey && settings.anthropicSettings.availableModels.length > 0) {
-    settings.anthropicSettings.availableModels.forEach((model) => {
-      allModels.push({
-        id: `anthropic:${model}`,
-        name: `${model} (${getProviderDisplayName("anthropic")})`,
-        provider: "anthropic",
-        modelId: model
-      });
-    });
-  }
-  if (settings.geminiSettings.apiKey && settings.geminiSettings.availableModels.length > 0) {
-    settings.geminiSettings.availableModels.forEach((model) => {
-      allModels.push({
-        id: `gemini:${model}`,
-        name: `${model} (${getProviderDisplayName("gemini")})`,
-        provider: "gemini",
-        modelId: model
-      });
-    });
-  }
   return allModels;
 }
 function getProviderFromUnifiedModel(unifiedModelId) {
@@ -7230,9 +3624,7 @@ function getModelIdFromUnifiedModel(unifiedModelId) {
 var init_providers = __esm({
   "providers/index.ts"() {
     init_base2();
-    init_anthropic();
     init_openai();
-    init_gemini();
   }
 });
 
@@ -8429,11 +4821,11 @@ var require_methods = __commonJS({
 var require_zipEntry = __commonJS({
   "node_modules/adm-zip/zipEntry.js"(exports, module2) {
     var Utils = require_util();
-    var Headers3 = require_headers();
+    var Headers = require_headers();
     var Constants = Utils.Constants;
     var Methods = require_methods();
     module2.exports = function(options, input) {
-      var _centralHeader = new Headers3.EntryHeader(), _entryName = Buffer.alloc(0), _comment = Buffer.alloc(0), _isDirectory = false, uncompressedData = null, _extra = Buffer.alloc(0), _extralocal = Buffer.alloc(0), _efs = true;
+      var _centralHeader = new Headers.EntryHeader(), _entryName = Buffer.alloc(0), _comment = Buffer.alloc(0), _isDirectory = false, uncompressedData = null, _extra = Buffer.alloc(0), _extralocal = Buffer.alloc(0), _efs = true;
       const opts = options;
       const decoder = typeof opts.decoder === "object" ? opts.decoder : Utils.decoder;
       _efs = decoder.hasOwnProperty("efs") ? decoder.efs : false;
@@ -8760,10 +5152,10 @@ var require_zipEntry = __commonJS({
 var require_zipFile = __commonJS({
   "node_modules/adm-zip/zipFile.js"(exports, module2) {
     var ZipEntry = require_zipEntry();
-    var Headers3 = require_headers();
+    var Headers = require_headers();
     var Utils = require_util();
     module2.exports = function(inBuffer, options) {
-      var entryList = [], entryTable = {}, _comment = Buffer.alloc(0), mainHeader = new Headers3.MainHeader(), loadedEntries = false;
+      var entryList = [], entryTable = {}, _comment = Buffer.alloc(0), mainHeader = new Headers.MainHeader(), loadedEntries = false;
       var password = null;
       const temporary = /* @__PURE__ */ new Set();
       const opts = options;
@@ -9900,8 +6292,8 @@ __export(saveAICalls_exports, {
   saveAICallToFolder: () => saveAICallToFolder
 });
 async function saveAICallToFolder(request, response, plugin, folder = "ai-calls") {
-  var _a2, _b;
-  const debugMode = (_a2 = plugin.settings.debugMode) != null ? _a2 : false;
+  var _a, _b;
+  const debugMode = (_a = plugin.settings.debugMode) != null ? _a : false;
   const vaultBase = plugin.app.vault.adapter.basePath;
   const pluginId = ((_b = plugin.manifest) == null ? void 0 : _b.id) || "ai-assistant-for-obsidian";
   const pluginFolder = path2.join(vaultBase, ".obsidian", "plugins", pluginId);
@@ -9954,8 +6346,8 @@ ${JSON.stringify(response, null, 2)}
   }
 }
 async function archiveAICallsByDate(plugin, folder = "ai-calls") {
-  var _a2, _b;
-  const debugMode = (_a2 = plugin.settings.debugMode) != null ? _a2 : false;
+  var _a, _b;
+  const debugMode = (_a = plugin.settings.debugMode) != null ? _a : false;
   const vaultBase = plugin.app.vault.adapter.basePath;
   const pluginId = ((_b = plugin.manifest) == null ? void 0 : _b.id) || "ai-assistant-for-obsidian";
   const pluginFolder = path2.join(vaultBase, ".obsidian", "plugins", pluginId);
@@ -10051,9 +6443,9 @@ async function archiveDateFiles(targetFolder, date, files, debugMode) {
   }
 }
 async function manualArchiveAICalls(plugin, folder = "ai-calls") {
-  var _a2, _b;
+  var _a, _b;
   try {
-    const debugMode = (_a2 = plugin.settings.debugMode) != null ? _a2 : false;
+    const debugMode = (_a = plugin.settings.debugMode) != null ? _a : false;
     const vaultBase = plugin.app.vault.adapter.basePath;
     const pluginId = ((_b = plugin.manifest) == null ? void 0 : _b.id) || "ai-assistant-for-obsidian";
     const targetFolder = require("path").join(vaultBase, ".obsidian", "plugins", pluginId, folder);
@@ -11786,11 +8178,6 @@ function isValidOpenAIApiKey(key) {
   if (key.length < MIN_API_KEY_LENGTH || key.length > MAX_API_KEY_LENGTH) return false;
   return key.startsWith("sk-") && key.length >= 40;
 }
-function isValidAnthropicApiKey(key) {
-  if (typeof key !== "string") return false;
-  if (key.length < MIN_API_KEY_LENGTH || key.length > MAX_API_KEY_LENGTH) return false;
-  return key.startsWith("sk-ant-") && key.length >= 40;
-}
 function isValidGoogleApiKey(key) {
   if (typeof key !== "string") return false;
   if (key.length < MIN_API_KEY_LENGTH || key.length > MAX_API_KEY_LENGTH) return false;
@@ -11884,8 +8271,8 @@ var init_aiDispatcher = __esm({
         // 1 minute
         __publicField(this, "MAX_QUEUE_SIZE", 100);
         __publicField(this, "CACHE_MAX_SIZE", 200);
-        var _a2, _b;
-        performanceMonitor.setDebugMode((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false);
+        var _a, _b;
+        performanceMonitor.setDebugMode((_a = this.plugin.settings.debugMode) != null ? _a : false);
         apiCircuitBreaker.setDebugMode((_b = this.plugin.settings.debugMode) != null ? _b : false);
         apiCircuitBreaker.configure("openai", {
           failureThreshold: 5,
@@ -11895,15 +8282,6 @@ var init_aiDispatcher = __esm({
           baseDelayMs: 2e3,
           maxDelayMs: 12e4,
           jitterFactor: 0.15
-        });
-        apiCircuitBreaker.configure("anthropic", {
-          failureThreshold: 3,
-          timeout: 45e3,
-          halfOpenMaxCalls: 2,
-          exponentialBackoff: true,
-          baseDelayMs: 3e3,
-          maxDelayMs: 18e4,
-          jitterFactor: 0.2
         });
         apiCircuitBreaker.configure("gemini", {
           failureThreshold: 4,
@@ -11924,7 +8302,7 @@ var init_aiDispatcher = __esm({
           maxDelayMs: 3e4,
           jitterFactor: 0.05
         });
-        ["openai", "anthropic", "gemini", "ollama"].forEach((provider) => {
+        ["openai", "gemini", "ollama"].forEach((provider) => {
           this.circuitBreakers.set(provider, {
             isOpen: false,
             failureCount: 0,
@@ -11994,14 +8372,14 @@ var init_aiDispatcher = __esm({
        */
       getCompletion(messages, options, providerOverride, priority = 0) {
         return (async () => {
-          var _a2, _b, _c;
+          var _a, _b, _c;
           this.validateRequest(messages, options);
           const cacheKey = this.generateCacheKey(messages, options, providerOverride);
           const existingRequest = this.pendingRequests.get(cacheKey);
           if (existingRequest) {
             this.metrics.deduplicatedRequests++;
             performanceMonitor.recordMetric("deduplicated_requests", 1, "count");
-            debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", "[AIDispatcher] Deduplicating request", { key: cacheKey });
+            debugLog((_a = this.plugin.settings.debugMode) != null ? _a : false, "info", "[AIDispatcher] Deduplicating request", { key: cacheKey });
             return existingRequest;
           }
           const cachedResponse = this.cache.get(cacheKey);
@@ -12035,7 +8413,7 @@ var init_aiDispatcher = __esm({
        * Validates request format and content with enhanced security using comprehensive type guards.
        */
       validateRequest(messages, options) {
-        var _a2;
+        var _a;
         if (!Array.isArray(messages) || messages.length === 0) {
           throw new Error("Messages array is required and cannot be empty");
         }
@@ -12066,7 +8444,7 @@ var init_aiDispatcher = __esm({
           throw new Error("Stream callback must be a function");
         }
         this.sanitizeMessages(messages);
-        debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "debug", "[AIDispatcher] Request validation completed successfully", {
+        debugLog((_a = this.plugin.settings.debugMode) != null ? _a : false, "debug", "[AIDispatcher] Request validation completed successfully", {
           messageCount: messages.length
         });
       }
@@ -12074,11 +8452,11 @@ var init_aiDispatcher = __esm({
        * Sanitizes message content for safety using enhanced validation.
        */
       sanitizeMessages(messages) {
-        var _a2, _b;
+        var _a, _b;
         for (const message of messages) {
           try {
             message.content = sanitizeInput(message.content);
-            debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "debug", "[AIDispatcher] Message content sanitized successfully");
+            debugLog((_a = this.plugin.settings.debugMode) != null ? _a : false, "debug", "[AIDispatcher] Message content sanitized successfully");
           } catch (error) {
             debugLog((_b = this.plugin.settings.debugMode) != null ? _b : false, "warn", "[AIDispatcher] Message content sanitization failed:", error);
             message.content = message.content.trim();
@@ -12130,10 +8508,10 @@ var init_aiDispatcher = __esm({
        * Gets response from cache if available and not expired.
        */
       getFromCache(cacheKey) {
-        var _a2;
+        var _a;
         const response = this.cache.get(cacheKey);
         if (response) {
-          debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", "[AIDispatcher] Cache hit", { key: cacheKey });
+          debugLog((_a = this.plugin.settings.debugMode) != null ? _a : false, "info", "[AIDispatcher] Cache hit", { key: cacheKey });
         }
         return response || null;
       }
@@ -12141,9 +8519,9 @@ var init_aiDispatcher = __esm({
        * Stores response in cache.
        */
       setCache(cacheKey, response, ttl = this.CACHE_TTL) {
-        var _a2;
+        var _a;
         this.cache.set(cacheKey, response, ttl);
-        debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", "[AIDispatcher] Response cached", { key: cacheKey });
+        debugLog((_a = this.plugin.settings.debugMode) != null ? _a : false, "info", "[AIDispatcher] Response cached", { key: cacheKey });
       }
       /**
        * Determines which provider to use.
@@ -12159,14 +8537,14 @@ var init_aiDispatcher = __esm({
        * Checks if circuit breaker is open for provider.
        */
       isCircuitBreakerOpen(providerName) {
-        var _a2;
+        var _a;
         const breaker = this.circuitBreakers.get(providerName);
         if (!breaker) return false;
         if (breaker.isOpen) {
           if (Date.now() > breaker.nextRetryTime) {
             breaker.isOpen = false;
             breaker.failureCount = 0;
-            debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", "[AIDispatcher] Circuit breaker reset", { provider: providerName });
+            debugLog((_a = this.plugin.settings.debugMode) != null ? _a : false, "info", "[AIDispatcher] Circuit breaker reset", { provider: providerName });
           }
         }
         return breaker.isOpen;
@@ -12175,7 +8553,7 @@ var init_aiDispatcher = __esm({
        * Records failure for circuit breaker.
        */
       recordFailure(providerName) {
-        var _a2;
+        var _a;
         const breaker = this.circuitBreakers.get(providerName);
         if (!breaker) return;
         breaker.failureCount++;
@@ -12183,7 +8561,7 @@ var init_aiDispatcher = __esm({
         if (breaker.failureCount >= this.CIRCUIT_BREAKER_THRESHOLD) {
           breaker.isOpen = true;
           breaker.nextRetryTime = Date.now() + this.CIRCUIT_BREAKER_TIMEOUT;
-          debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "warn", "[AIDispatcher] Circuit breaker opened", {
+          debugLog((_a = this.plugin.settings.debugMode) != null ? _a : false, "warn", "[AIDispatcher] Circuit breaker opened", {
             provider: providerName,
             failures: breaker.failureCount
           });
@@ -12223,8 +8601,6 @@ var init_aiDispatcher = __esm({
           case "openai":
             return 60;
           // 60 requests per minute
-          case "anthropic":
-            return 50;
           case "gemini":
             return 60;
           case "ollama":
@@ -12250,7 +8626,7 @@ var init_aiDispatcher = __esm({
           throw new Error("Request queue is full. Please try again later.");
         }
         return new Promise((resolve, reject) => {
-          var _a2;
+          var _a;
           const request = {
             id: Math.random().toString(36).substr(2, 9),
             messages,
@@ -12263,7 +8639,7 @@ var init_aiDispatcher = __esm({
           };
           this.requestQueue.push(request);
           this.requestQueue.sort((a, b) => b.priority - a.priority);
-          debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", "[AIDispatcher] Request queued", {
+          debugLog((_a = this.plugin.settings.debugMode) != null ? _a : false, "info", "[AIDispatcher] Request queued", {
             id: request.id,
             queueSize: this.requestQueue.length
           });
@@ -12318,14 +8694,14 @@ var init_aiDispatcher = __esm({
         }
       }
       async executeWithRetry(messages, options, providerName, cacheKey, retryCount = 0) {
-        var _a2, _b, _c;
+        var _a, _b, _c;
         const startTime = Date.now();
         let provider;
         let fullResponse = "";
         let abortController;
         try {
           await apiCircuitBreaker.execute(providerName, async () => {
-            var _a3, _b2, _c2;
+            var _a2, _b2, _c2;
             if (this.plugin.settings.selectedModel) {
               provider = createProviderFromUnifiedModel(this.plugin.settings, this.plugin.settings.selectedModel);
             } else {
@@ -12375,7 +8751,7 @@ var init_aiDispatcher = __esm({
               timestamp: (/* @__PURE__ */ new Date()).toISOString(),
               duration: Date.now() - startTime
             };
-            debugLog((_a3 = this.plugin.settings.debugMode) != null ? _a3 : false, "info", "[AIDispatcher] AI request completed", {
+            debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", "[AIDispatcher] AI request completed", {
               provider: providerName,
               responseLength: fullResponse.length,
               duration: responseData.duration
@@ -12399,7 +8775,7 @@ var init_aiDispatcher = __esm({
           });
           this.recordFailure(providerName);
           this.updateMetrics(providerName, false, Date.now() - startTime, 0);
-          debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "error", "[AIDispatcher] AI request failed:", error);
+          debugLog((_a = this.plugin.settings.debugMode) != null ? _a : false, "error", "[AIDispatcher] AI request failed:", error);
           const maxRetries = 3;
           if (retryCount < maxRetries && this.shouldRetry(error)) {
             const backoffDelay = Math.pow(2, retryCount) * 1e3;
@@ -12441,8 +8817,8 @@ var init_aiDispatcher = __esm({
         const retryableErrors = ["ECONNRESET", "ETIMEDOUT", "ENOTFOUND", "rate_limit_exceeded"];
         return retryableErrors.some(
           (code) => {
-            var _a2;
-            return ((_a2 = error.message) == null ? void 0 : _a2.includes(code)) || error.code === code;
+            var _a;
+            return ((_a = error.message) == null ? void 0 : _a.includes(code)) || error.code === code;
           }
         );
       }
@@ -12489,21 +8865,21 @@ var init_aiDispatcher = __esm({
        * Clears cache.
        */
       clearCache() {
-        var _a2;
+        var _a;
         this.cache.clear();
         this.modelCache.clear();
         this.providerCache.clear();
         performanceMonitor.clearMetrics();
-        debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", "[AIDispatcher] All caches cleared");
+        debugLog((_a = this.plugin.settings.debugMode) != null ? _a : false, "info", "[AIDispatcher] All caches cleared");
       }
       /**
        * Invalidate cache entries that might be affected by new messages
        * This helps ensure fresh responses when new messages are added after stream interruption
        */
       invalidateMessageCache() {
-        var _a2;
+        var _a;
         this.cache.clear();
-        debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", "[AIDispatcher] Message cache invalidated due to context change");
+        debugLog((_a = this.plugin.settings.debugMode) != null ? _a : false, "info", "[AIDispatcher] Message cache invalidated due to context change");
       }
       /**
        * Logs current performance metrics.
@@ -12515,10 +8891,10 @@ var init_aiDispatcher = __esm({
        * Aborts all active streams.
        */
       abortAllStreams() {
-        var _a2;
+        var _a;
         for (const [id, controller] of this.activeStreams) {
           controller.abort();
-          debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", "[AIDispatcher] Stream aborted", { id });
+          debugLog((_a = this.plugin.settings.debugMode) != null ? _a : false, "info", "[AIDispatcher] Stream aborted", { id });
         }
         this.activeStreams.clear();
       }
@@ -12526,12 +8902,12 @@ var init_aiDispatcher = __esm({
        * Aborts specific stream by ID.
        */
       abortStream(streamId) {
-        var _a2;
+        var _a;
         const controller = this.activeStreams.get(streamId);
         if (controller) {
           controller.abort();
           this.activeStreams.delete(streamId);
-          debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", "[AIDispatcher] Stream aborted", { id: streamId });
+          debugLog((_a = this.plugin.settings.debugMode) != null ? _a : false, "info", "[AIDispatcher] Stream aborted", { id: streamId });
         }
       }
       /**
@@ -12553,8 +8929,8 @@ var init_aiDispatcher = __esm({
        * @returns Promise resolving to connection test result
        */
       async testConnection(providerType) {
-        var _a2;
-        debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", "[AIDispatcher] Testing connection", { provider: providerType });
+        var _a;
+        debugLog((_a = this.plugin.settings.debugMode) != null ? _a : false, "info", "[AIDispatcher] Testing connection", { provider: providerType });
         const tempSettings = { ...this.plugin.settings, provider: providerType };
         const provider = createProvider(tempSettings);
         return await provider.testConnection();
@@ -12566,8 +8942,8 @@ var init_aiDispatcher = __esm({
        * @returns Promise resolving to list of available models
        */
       async getAvailableModels(providerType) {
-        var _a2, _b;
-        debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", "[AIDispatcher] Fetching available models", { provider: providerType });
+        var _a, _b;
+        debugLog((_a = this.plugin.settings.debugMode) != null ? _a : false, "info", "[AIDispatcher] Fetching available models", { provider: providerType });
         const cachedModels = this.providerCache.get(providerType);
         if (cachedModels) {
           debugLog((_b = this.plugin.settings.debugMode) != null ? _b : false, "info", "[AIDispatcher] Using cached models", { provider: providerType });
@@ -12592,8 +8968,8 @@ var init_aiDispatcher = __esm({
        * @returns Promise resolving to unified model list
        */
       async getAllUnifiedModels() {
-        var _a2, _b;
-        debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", "[AIDispatcher] Fetching all unified models");
+        var _a, _b;
+        debugLog((_a = this.plugin.settings.debugMode) != null ? _a : false, "info", "[AIDispatcher] Fetching all unified models");
         const cacheKey = "all-unified-models";
         const cachedModels = this.modelCache.get(cacheKey);
         if (cachedModels) {
@@ -12618,8 +8994,8 @@ var init_aiDispatcher = __esm({
        * @returns Promise resolving to the updated models list
        */
       async refreshProviderModels(providerType) {
-        var _a2, _b, _c;
-        debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", "[AIDispatcher] Refreshing models for provider", { provider: providerType });
+        var _a, _b, _c;
+        debugLog((_a = this.plugin.settings.debugMode) != null ? _a : false, "info", "[AIDispatcher] Refreshing models for provider", { provider: providerType });
         try {
           const models = await this.getAvailableModels(providerType);
           const providerSettings = getProviderSettings(this.plugin.settings, providerType);
@@ -12667,9 +9043,9 @@ var init_aiDispatcher = __esm({
        * @returns Promise resolving to a map of provider -> models
        */
       async refreshAllProviderModels() {
-        var _a2, _b;
-        debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", "[AIDispatcher] Refreshing models for all providers");
-        const providers = ["openai", "anthropic", "gemini", "ollama"];
+        var _a, _b;
+        debugLog((_a = this.plugin.settings.debugMode) != null ? _a : false, "info", "[AIDispatcher] Refreshing models for all providers");
+        const providers = ["openai", "gemini", "ollama"];
         const results = {};
         for (const provider of providers) {
           try {
@@ -12694,8 +9070,8 @@ var init_aiDispatcher = __esm({
        * @param unifiedModelId - The unified model ID (e.g., "openai:gpt-4")
        */
       async setSelectedModel(unifiedModelId) {
-        var _a2, _b;
-        debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", "[AIDispatcher] Setting selected model", { model: unifiedModelId });
+        var _a, _b;
+        debugLog((_a = this.plugin.settings.debugMode) != null ? _a : false, "info", "[AIDispatcher] Setting selected model", { model: unifiedModelId });
         this.plugin.settings.selectedModel = unifiedModelId;
         const [providerType] = unifiedModelId.split(":", 2);
         if (isValidProviderName(providerType)) {
@@ -12720,8 +9096,8 @@ var init_aiDispatcher = __esm({
        * @returns The model information or undefined if not found
        */
       getModelInfo(unifiedModelId) {
-        var _a2;
-        const model = (_a2 = this.plugin.settings.availableModels) == null ? void 0 : _a2.find((model2) => model2.id === unifiedModelId);
+        var _a;
+        const model = (_a = this.plugin.settings.availableModels) == null ? void 0 : _a.find((model2) => model2.id === unifiedModelId);
         if (!model) return void 0;
         return {
           id: model.id,
@@ -12739,8 +9115,6 @@ var init_aiDispatcher = __esm({
         switch (providerType) {
           case "openai":
             return !!this.plugin.settings.openaiSettings.apiKey;
-          case "anthropic":
-            return !!this.plugin.settings.anthropicSettings.apiKey;
           case "gemini":
             return !!this.plugin.settings.geminiSettings.apiKey;
           case "ollama":
@@ -12757,7 +9131,6 @@ var init_aiDispatcher = __esm({
       getConfiguredProviders() {
         const providers = [];
         if (this.isProviderConfigured("openai")) providers.push("openai");
-        if (this.isProviderConfigured("anthropic")) providers.push("anthropic");
         if (this.isProviderConfigured("gemini")) providers.push("gemini");
         if (this.isProviderConfigured("ollama")) providers.push("ollama");
         return providers;
@@ -13509,7 +9882,7 @@ var init_MessageRenderer = __esm({
        * @returns HTMLElement for the reasoning section
        */
       createReasoningSection(reasoning) {
-        var _a2;
+        var _a;
         debugLog(true, "debug", "[MessageRenderer] createReasoningSection called", { reasoning });
         const reasoningContainer = document.createElement("div");
         reasoningContainer.className = "reasoning-container";
@@ -13520,7 +9893,7 @@ var init_MessageRenderer = __esm({
         toggle.textContent = reasoning.isCollapsed ? "\u25B6" : "\u25BC";
         const headerText = document.createElement("span");
         const typeLabel = reasoning.type === "structured" ? "STRUCTURED REASONING" : "REASONING";
-        const stepCount = ((_a2 = reasoning.steps) == null ? void 0 : _a2.length) || 0;
+        const stepCount = ((_a = reasoning.steps) == null ? void 0 : _a.length) || 0;
         headerText.innerHTML = `<strong>\u{1F9E0} ${typeLabel}</strong>`;
         if (stepCount > 0) {
           headerText.innerHTML += ` (${stepCount} steps)`;
@@ -16439,8 +12812,8 @@ var init_js_yaml = __esm({
 
 // src/components/chat/chatPersistence.ts
 function buildChatYaml(settings, provider, model) {
-  var _a2, _b, _c, _d, _e;
-  debugLog((_a2 = settings.debugMode) != null ? _a2 : false, "info", "[buildChatYaml] Entered function", { settings, provider, model });
+  var _a, _b, _c, _d, _e;
+  debugLog((_a = settings.debugMode) != null ? _a : false, "info", "[buildChatYaml] Entered function", { settings, provider, model });
   if (settings.selectedModel) {
     const providerType = getProviderFromUnifiedModel(settings.selectedModel);
     const modelId = getModelIdFromUnifiedModel(settings.selectedModel);
@@ -16475,13 +12848,11 @@ ${dump(yamlObj)}---
   }
 }
 function getCurrentModelForProvider(settings) {
-  var _a2;
-  debugLog((_a2 = settings.debugMode) != null ? _a2 : false, "debug", "[getCurrentModelForProvider] Called", { provider: settings.provider });
+  var _a;
+  debugLog((_a = settings.debugMode) != null ? _a : false, "debug", "[getCurrentModelForProvider] Called", { provider: settings.provider });
   switch (settings.provider) {
     case "openai":
       return settings.openaiSettings.model;
-    case "anthropic":
-      return settings.anthropicSettings.model;
     case "gemini":
       return settings.geminiSettings.model;
     case "ollama":
@@ -16501,8 +12872,8 @@ async function saveChatAsNote({
   chatNoteFolder,
   agentResponseHandler
 }) {
-  var _a2, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o;
-  debugLog((_a2 = settings.debugMode) != null ? _a2 : false, "info", "[saveChatAsNote] Entered function", { hasMessages: !!messages, hasChatContent: typeof chatContent === "string" });
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o;
+  debugLog((_a = settings.debugMode) != null ? _a : false, "info", "[saveChatAsNote] Entered function", { hasMessages: !!messages, hasChatContent: typeof chatContent === "string" });
   let content = "";
   if (typeof chatContent === "string") {
     debugLog((_b = settings.debugMode) != null ? _b : false, "info", "[saveChatAsNote] Using provided chatContent string directly.");
@@ -16511,10 +12882,10 @@ async function saveChatAsNote({
     debugLog((_c = settings.debugMode) != null ? _c : false, "info", "[saveChatAsNote] Building chat content from message DOM nodes.");
     const messageRenderer = new MessageRenderer(app);
     messages.forEach((el, index) => {
-      var _a3, _b2, _c2, _d2, _e2, _f2;
+      var _a2, _b2, _c2, _d2, _e2, _f2;
       const htmlElement = el;
       if (htmlElement.classList.contains("tool-display-message")) {
-        debugLog((_a3 = settings.debugMode) != null ? _a3 : false, "debug", `[saveChatAsNote] Skipping tool-display-message at index ${index}`);
+        debugLog((_a2 = settings.debugMode) != null ? _a2 : false, "debug", `[saveChatAsNote] Skipping tool-display-message at index ${index}`);
         return;
       }
       const messageDataStr = htmlElement.dataset.messageData;
@@ -16605,8 +12976,8 @@ async function loadChatYamlAndApplySettings({
   settings,
   file
 }) {
-  var _a2, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o;
-  debugLog((_a2 = settings.debugMode) != null ? _a2 : false, "info", "[loadChatYamlAndApplySettings] Entered function", { file: (file == null ? void 0 : file.path) || (file == null ? void 0 : file.name) || file });
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o;
+  debugLog((_a = settings.debugMode) != null ? _a : false, "info", "[loadChatYamlAndApplySettings] Entered function", { file: (file == null ? void 0 : file.path) || (file == null ? void 0 : file.name) || file });
   debugLog((_b = settings.debugMode) != null ? _b : false, "debug", "[loadChatYamlAndApplySettings] File content loaded. Extracting YAML frontmatter.");
   let content = await app.vault.read(file);
   const yamlMatch = content.match(/^---\n([\s\S]*?)\n---/);
@@ -16635,9 +13006,6 @@ async function loadChatYamlAndApplySettings({
     switch (yamlObj.provider) {
       case "openai":
         settings.openaiSettings.model = yamlObj.model;
-        break;
-      case "anthropic":
-        settings.anthropicSettings.model = yamlObj.model;
         break;
       case "gemini":
         settings.geminiSettings.model = yamlObj.model;
@@ -16972,8 +13340,8 @@ var init_SettingsSections = __esm({
           return text;
         });
         new import_obsidian20.Setting(containerEl).setName("Expand Linked Notes Recursively").setDesc("If enabled, when fetching a note, also fetch and expand links within that note recursively (prevents infinite loops).").addToggle((toggle) => {
-          var _a2;
-          return toggle.setValue((_a2 = this.plugin.settings.expandLinkedNotesRecursively) != null ? _a2 : false).onChange(async (value) => {
+          var _a;
+          return toggle.setValue((_a = this.plugin.settings.expandLinkedNotesRecursively) != null ? _a : false).onChange(async (value) => {
             this.plugin.settings.expandLinkedNotesRecursively = value;
             await this.plugin.saveSettings();
           });
@@ -16990,7 +13358,6 @@ var init_SettingsSections = __esm({
           cls: "setting-item-description"
         });
         this.renderOpenAIConfig(containerEl);
-        this.renderAnthropicConfig(containerEl);
         this.renderGeminiConfig(containerEl);
         this.renderOllamaConfig(containerEl);
       }
@@ -17062,8 +13429,8 @@ var init_SettingsSections = __esm({
        * Renders a collapsible section for provider configuration.
        * This is a helper method used by specific provider rendering methods.
        * @param containerEl The HTML element to render the section into.
-       * @param providerType The type of the provider (e.g., 'openai', 'anthropic').
-       * @param displayName The display name of the provider (e.g., 'OpenAI', 'Anthropic').
+       * @param providerType The type of the provider (e.g., 'openai', 'gemini').
+       * @param displayName The display name of the provider (e.g., 'OpenAI', 'Gemini').
        * @param renderSpecificSettings A callback function to render provider-specific settings within the collapsible section.
        */
       _renderCollapsibleProviderConfig(containerEl, providerType, displayName, renderSpecificSettings) {
@@ -17115,13 +13482,6 @@ var init_SettingsSections = __esm({
             return text;
           });
         });
-      }
-      /**
-       * Renders the Anthropic configuration section.
-       * @param containerEl The HTML element to render the section into.
-       */
-      renderAnthropicConfig(containerEl) {
-        this._renderCollapsibleProviderConfig(containerEl, "anthropic", "Anthropic");
       }
       /**
        * Renders the Gemini configuration section.
@@ -17214,8 +13574,8 @@ var init_SettingsSections = __esm({
        */
       renderDebugModeSettings(containerEl) {
         new import_obsidian20.Setting(containerEl).setName("Debug Mode").setDesc("Enable verbose logging and debug UI features").addToggle((toggle) => {
-          var _a2;
-          return toggle.setValue((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false).onChange(async (value) => {
+          var _a;
+          return toggle.setValue((_a = this.plugin.settings.debugMode) != null ? _a : false).onChange(async (value) => {
             this.plugin.settings.debugMode = value;
             await this.plugin.saveSettings();
           });
@@ -17297,7 +13657,7 @@ function getFormattedChatContent(messagesContainer, plugin, chatSeparator) {
   let chatContent = "";
   const renderer = new MessageRenderer(plugin.app);
   messages.forEach((el, index) => {
-    var _a2;
+    var _a;
     const htmlElement = el;
     if (htmlElement.classList.contains("tool-display-message")) {
       return;
@@ -17314,7 +13674,7 @@ function getFormattedChatContent(messagesContainer, plugin, chatSeparator) {
       chatContent += renderer.getMessageContentForCopy(messageData);
     } else {
       const rawContent = htmlElement.dataset.rawContent;
-      const content = rawContent !== void 0 ? rawContent : ((_a2 = el.querySelector(".message-content")) == null ? void 0 : _a2.textContent) || "";
+      const content = rawContent !== void 0 ? rawContent : ((_a = el.querySelector(".message-content")) == null ? void 0 : _a.textContent) || "";
       chatContent += content;
     }
     if (index < messages.length - 1) {
@@ -17750,7 +14110,7 @@ function generateTableOfContents(noteContent) {
   }).join("\n");
 }
 async function generateNoteTitle(app, settings, processMessages2, dispatcher) {
-  var _a2, _b;
+  var _a, _b;
   debugLog(DEBUG, "debug", "Starting generateNoteTitle");
   const activeFile = app.workspace.getActiveFile();
   if (!activeFile) {
@@ -17800,7 +14160,7 @@ async function generateNoteTitle(app, settings, processMessages2, dispatcher) {
     title = title.replace(/[\\/:]/g, "").trim();
     debugLog(DEBUG, "debug", "Sanitized title:", title);
     if (title && typeof title === "string" && title.length > 0) {
-      const outputMode = (_a2 = settings.titleOutputMode) != null ? _a2 : "clipboard";
+      const outputMode = (_a = settings.titleOutputMode) != null ? _a : "clipboard";
       debugLog(DEBUG, "debug", "Output mode:", outputMode);
       if (outputMode === "replace-filename") {
         const file = app.workspace.getActiveFile();
@@ -18097,9 +14457,9 @@ var init_eventBus = __esm({
        * Gets the number of subscriptions for an event or total
        */
       getSubscriptionCount(event) {
-        var _a2;
+        var _a;
         if (event) {
-          return ((_a2 = this.subscriptions.get(event)) == null ? void 0 : _a2.length) || 0;
+          return ((_a = this.subscriptions.get(event)) == null ? void 0 : _a.length) || 0;
         }
         let total = 0;
         for (const subs of this.subscriptions.values()) {
@@ -19149,7 +15509,7 @@ var init_stateManager = __esm({
        * Batch multiple state updates
        */
       batch(updates) {
-        var _a2;
+        var _a;
         if (this.isDisposed) {
           throw new Error("Cannot batch updates on disposed StateManager");
         }
@@ -19160,7 +15520,7 @@ var init_stateManager = __esm({
           }
           for (const update of updates) {
             this.setNestedValue(this.state, update.path, update.value);
-            if ((_a2 = update.options) == null ? void 0 : _a2.persistent) {
+            if ((_a = update.options) == null ? void 0 : _a.persistent) {
               this.persistentKeys.add(update.path);
             }
           }
@@ -20016,9 +16376,9 @@ var CollapsibleSectionRenderer = class {
    * @param settingsType The key in MyPluginSettings where expand/collapse state is stored.
    */
   static createCollapsibleSection(containerEl, title, contentCallback, plugin, settingsType) {
-    var _a2;
+    var _a;
     plugin.settings[settingsType] = plugin.settings[settingsType] || {};
-    let isExpanded = (_a2 = (plugin.settings[settingsType] || {})[title]) != null ? _a2 : false;
+    let isExpanded = (_a = (plugin.settings[settingsType] || {})[title]) != null ? _a : false;
     const collapsibleContainer = containerEl.createEl("div");
     collapsibleContainer.addClass("ai-collapsible-section");
     const headerEl = collapsibleContainer.createEl("div");
@@ -20094,8 +16454,8 @@ var SettingCreators = class {
    * @param options Additional options for processing the input value (e.g., trim, undefinedIfEmpty).
    */
   configureTextInput(textComponent, placeholder, getValue, setValue, options) {
-    var _a2;
-    textComponent.setPlaceholder(placeholder).setValue((_a2 = getValue()) != null ? _a2 : "").onChange((value) => {
+    var _a;
+    textComponent.setPlaceholder(placeholder).setValue((_a = getValue()) != null ? _a : "").onChange((value) => {
       let processedValue = value;
       if ((options == null ? void 0 : options.trim) && processedValue) {
         processedValue = processedValue.trim();
@@ -20241,8 +16601,8 @@ var GeneralSettingsSection = class {
           "Debug Mode",
           "Enable verbose logging and debug UI features",
           () => {
-            var _a2;
-            return (_a2 = this.plugin.settings.debugMode) != null ? _a2 : false;
+            var _a;
+            return (_a = this.plugin.settings.debugMode) != null ? _a : false;
           },
           async (value) => {
             this.plugin.settings.debugMode = value;
@@ -20334,30 +16694,6 @@ var AIModelConfigurationSection = class {
         );
         CollapsibleSectionRenderer.createCollapsibleSection(
           containerEl,
-          "Anthropic Configuration",
-          async (sectionEl2) => {
-            this.settingCreators.createTextSetting(
-              sectionEl2,
-              "Anthropic API Key",
-              "Enter your Anthropic API key",
-              "Enter your API key",
-              () => this.plugin.settings.anthropicSettings.apiKey,
-              async (value) => {
-                if (value && !isValidAnthropicApiKey(value)) {
-                  new import_obsidian9.Notice("Invalid Anthropic API Key format. Please check your key.");
-                  return;
-                }
-                this.plugin.settings.anthropicSettings.apiKey = value != null ? value : "";
-                await this.plugin.saveSettings();
-              }
-            );
-            this.renderProviderTestSection(sectionEl2, "anthropic", "Anthropic");
-          },
-          this.plugin,
-          "providerConfigExpanded"
-        );
-        CollapsibleSectionRenderer.createCollapsibleSection(
-          containerEl,
           "Google Gemini Configuration",
           async (sectionEl2) => {
             this.settingCreators.createTextSetting(
@@ -20443,8 +16779,8 @@ var AIModelConfigurationSection = class {
    * Renders the provider connection test section.
    * Allows users to test their API key and fetch available models for a given provider.
    * @param containerEl The HTML element to append the section to.
-   * @param provider The ID of the provider (e.g., 'openai', 'anthropic').
-   * @param displayName The display name of the provider (e.g., 'OpenAI', 'Anthropic').
+   * @param provider The ID of the provider (e.g., 'openai', 'gemini').
+   * @param displayName The display name of the provider (e.g., 'OpenAI', 'Gemini').
    */
   renderProviderTestSection(containerEl, provider, displayName) {
     const settings = this.plugin.settings[`${provider}Settings`];
@@ -20638,8 +16974,8 @@ var AIModelConfigurationSection = class {
       row.createEl("td", { text: model.name });
       row.createEl("td", { text: model.provider });
       const enabledToggle = new import_obsidian9.Setting(row.createEl("td")).setName("").setDesc("Enable or disable this model").addToggle((toggle) => {
-        var _a2;
-        return toggle.setValue(((_a2 = this.plugin.settings.enabledModels) == null ? void 0 : _a2[model.id]) !== false).onChange(async (value) => {
+        var _a;
+        return toggle.setValue(((_a = this.plugin.settings.enabledModels) == null ? void 0 : _a[model.id]) !== false).onChange(async (value) => {
           const enabledModels = this.plugin.settings.enabledModels || {};
           enabledModels[model.id] = value ? true : false;
           this.plugin.settings.enabledModels = enabledModels;
@@ -20712,23 +17048,23 @@ var AIModelConfigurationSection = class {
         });
       });
       this.settingCreators.createSliderSetting(containerEl, "Temperature", "", { min: 0, max: 1, step: 0.1 }, () => {
-        var _a2;
-        return (_a2 = preset.temperature) != null ? _a2 : 0.7;
+        var _a;
+        return (_a = preset.temperature) != null ? _a : 0.7;
       }, async (value) => {
         preset.temperature = value;
         await this.plugin.saveSettings();
       });
       this.settingCreators.createToggleSetting(containerEl, "Enable Streaming", "", () => {
-        var _a2;
-        return (_a2 = preset.enableStreaming) != null ? _a2 : true;
+        var _a;
+        return (_a = preset.enableStreaming) != null ? _a : true;
       }, async (value) => {
         preset.enableStreaming = value;
         await this.plugin.saveSettings();
       });
       new import_obsidian9.Setting(containerEl).addExtraButton(
         (btn) => btn.setIcon("cross").setTooltip("Delete").onClick(async () => {
-          var _a2;
-          (_a2 = this.plugin.settings.modelSettingPresets) == null ? void 0 : _a2.splice(idx, 1);
+          var _a;
+          (_a = this.plugin.settings.modelSettingPresets) == null ? void 0 : _a.splice(idx, 1);
           await this.plugin.saveSettings();
         })
       );
@@ -20791,8 +17127,8 @@ var AgentSettingsSection = class {
           "Enable Agent Mode by Default",
           "Start new conversations with Agent Mode enabled.",
           () => {
-            var _a2, _b;
-            return (_b = (_a2 = this.plugin.settings.agentMode) == null ? void 0 : _a2.enabled) != null ? _b : false;
+            var _a, _b;
+            return (_b = (_a = this.plugin.settings.agentMode) == null ? void 0 : _a.enabled) != null ? _b : false;
           },
           async (value) => {
             if (!this.plugin.settings.agentMode) {
@@ -20808,8 +17144,8 @@ var AgentSettingsSection = class {
           "Maximum number of tools the AI can use in a single conversation to prevent runaway execution.",
           { min: 1, max: 50, step: 1 },
           () => {
-            var _a2, _b;
-            return (_b = (_a2 = this.plugin.settings.agentMode) == null ? void 0 : _a2.maxToolCalls) != null ? _b : 10;
+            var _a, _b;
+            return (_b = (_a = this.plugin.settings.agentMode) == null ? void 0 : _a.maxToolCalls) != null ? _b : 10;
           },
           async (value) => {
             if (!this.plugin.settings.agentMode) {
@@ -20825,8 +17161,8 @@ var AgentSettingsSection = class {
           "Maximum time to wait for each tool to complete before timing out.",
           { min: 5, max: 300, step: 5 },
           () => {
-            var _a2, _b;
-            return ((_b = (_a2 = this.plugin.settings.agentMode) == null ? void 0 : _a2.timeoutMs) != null ? _b : 3e4) / 1e3;
+            var _a, _b;
+            return ((_b = (_a = this.plugin.settings.agentMode) == null ? void 0 : _a.timeoutMs) != null ? _b : 3e4) / 1e3;
           },
           async (value) => {
             if (!this.plugin.settings.agentMode) {
@@ -20842,8 +17178,8 @@ var AgentSettingsSection = class {
           "Maximum number of times the agent can iterate in a single task continuation to prevent infinite loops.",
           { min: 1, max: 20, step: 1 },
           () => {
-            var _a2, _b;
-            return (_b = (_a2 = this.plugin.settings.agentMode) == null ? void 0 : _a2.maxIterations) != null ? _b : 10;
+            var _a, _b;
+            return (_b = (_a = this.plugin.settings.agentMode) == null ? void 0 : _a.maxIterations) != null ? _b : 10;
           },
           async (value) => {
             if (!this.plugin.settings.agentMode) {
@@ -21006,8 +17342,8 @@ var ContentNoteHandlingSection = class {
           "The string used to separate chat messages.",
           "----",
           () => {
-            var _a2;
-            return (_a2 = this.plugin.settings.chatSeparator) != null ? _a2 : "";
+            var _a;
+            return (_a = this.plugin.settings.chatSeparator) != null ? _a : "";
           },
           async (value) => {
             this.plugin.settings.chatSeparator = value != null ? value : "";
@@ -21020,8 +17356,8 @@ var ContentNoteHandlingSection = class {
           "The string that indicates where to start taking the note for context.",
           "===START===",
           () => {
-            var _a2;
-            return (_a2 = this.plugin.settings.chatStartString) != null ? _a2 : "";
+            var _a;
+            return (_a = this.plugin.settings.chatStartString) != null ? _a : "";
           },
           async (value) => {
             this.plugin.settings.chatStartString = value != null ? value : "";
@@ -21034,8 +17370,8 @@ var ContentNoteHandlingSection = class {
           "The string that indicates where to end taking the note for context.",
           "===END===",
           () => {
-            var _a2;
-            return (_a2 = this.plugin.settings.chatEndString) != null ? _a2 : "";
+            var _a;
+            return (_a = this.plugin.settings.chatEndString) != null ? _a : "";
           },
           async (value) => {
             this.plugin.settings.chatEndString = value != null ? value : "";
@@ -21060,8 +17396,8 @@ var ContentNoteHandlingSection = class {
           "Choose what to do with the generated note title.",
           { "clipboard": "Copy to clipboard", "replace-filename": "Replace note filename", "metadata": "Insert into metadata" },
           () => {
-            var _a2;
-            return (_a2 = this.plugin.settings.titleOutputMode) != null ? _a2 : "clipboard";
+            var _a;
+            return (_a = this.plugin.settings.titleOutputMode) != null ? _a : "clipboard";
           },
           async (value) => {
             this.plugin.settings.titleOutputMode = value;
@@ -21074,8 +17410,8 @@ var ContentNoteHandlingSection = class {
           "Choose what to do with the generated note summary.",
           { "clipboard": "Copy to clipboard", "metadata": "Insert into metadata" },
           () => {
-            var _a2;
-            return (_a2 = this.plugin.settings.summaryOutputMode) != null ? _a2 : "clipboard";
+            var _a;
+            return (_a = this.plugin.settings.summaryOutputMode) != null ? _a : "clipboard";
           },
           async (value) => {
             this.plugin.settings.summaryOutputMode = value;
@@ -21135,8 +17471,8 @@ var ContentNoteHandlingSection = class {
           "Expand Linked Notes Recursively",
           "If enabled, when fetching a note, also fetch and expand links within that note recursively (prevents infinite loops).",
           () => {
-            var _a2;
-            return (_a2 = this.plugin.settings.expandLinkedNotesRecursively) != null ? _a2 : false;
+            var _a;
+            return (_a = this.plugin.settings.expandLinkedNotesRecursively) != null ? _a : false;
           },
           async (value) => {
             this.plugin.settings.expandLinkedNotesRecursively = value;
@@ -21150,8 +17486,8 @@ var ContentNoteHandlingSection = class {
             "Maximum depth for recursively expanding linked notes (1-3).",
             { min: 1, max: 3, step: 1 },
             () => {
-              var _a2;
-              return (_a2 = this.plugin.settings.maxLinkExpansionDepth) != null ? _a2 : 2;
+              var _a;
+              return (_a = this.plugin.settings.maxLinkExpansionDepth) != null ? _a : 2;
             },
             async (value) => {
               this.plugin.settings.maxLinkExpansionDepth = value;
@@ -21165,8 +17501,8 @@ var ContentNoteHandlingSection = class {
           "Folder to save exported chat notes (relative to vault root, leave blank for root)",
           "e.g. AI Chats",
           () => {
-            var _a2;
-            return (_a2 = this.plugin.settings.chatNoteFolder) != null ? _a2 : "";
+            var _a;
+            return (_a = this.plugin.settings.chatNoteFolder) != null ? _a : "";
           },
           async (value) => {
             this.plugin.settings.chatNoteFolder = value != null ? value : "";
@@ -21195,13 +17531,13 @@ var ContentNoteHandlingSection = class {
    * @param containerEl The HTML element to append the section to.
    */
   renderYamlAttributeGenerators(containerEl) {
-    var _a2;
+    var _a;
     containerEl.createEl("div", {
       text: "Configure custom YAML attribute generators. Each entry will create a command to generate and insert/update a YAML field in your notes.",
       cls: "setting-item-description",
       attr: { style: "margin-bottom: 1em;" }
     });
-    const yamlGens = (_a2 = this.plugin.settings.yamlAttributeGenerators) != null ? _a2 : [];
+    const yamlGens = (_a = this.plugin.settings.yamlAttributeGenerators) != null ? _a : [];
     yamlGens.forEach((gen, idx) => {
       const autoCommandName = gen.attributeName ? `Generate YAML: ${gen.attributeName}` : `YAML Generator #${idx + 1}`;
       const genContainer = containerEl.createDiv({ cls: "yaml-generator-container" });
@@ -21805,8 +18141,8 @@ var ChatHistorySettingsSection = class {
           "Collapse Old Reasoning",
           "Automatically collapse reasoning sections in older messages to keep the UI clean",
           () => {
-            var _a2, _b;
-            return (_b = (_a2 = this.plugin.settings.uiBehavior) == null ? void 0 : _a2.collapseOldReasoning) != null ? _b : true;
+            var _a, _b;
+            return (_b = (_a = this.plugin.settings.uiBehavior) == null ? void 0 : _a.collapseOldReasoning) != null ? _b : true;
           },
           async (value) => {
             if (!this.plugin.settings.uiBehavior) {
@@ -21821,8 +18157,8 @@ var ChatHistorySettingsSection = class {
           "Show Completion Notifications",
           "Show notifications when AI responses are completed",
           () => {
-            var _a2, _b;
-            return (_b = (_a2 = this.plugin.settings.uiBehavior) == null ? void 0 : _a2.showCompletionNotifications) != null ? _b : true;
+            var _a, _b;
+            return (_b = (_a = this.plugin.settings.uiBehavior) == null ? void 0 : _a.showCompletionNotifications) != null ? _b : true;
           },
           async (value) => {
             if (!this.plugin.settings.uiBehavior) {
@@ -21837,8 +18173,8 @@ var ChatHistorySettingsSection = class {
           "Include Reasoning in Exports",
           "Include reasoning sections when copying or exporting chat content",
           () => {
-            var _a2, _b;
-            return (_b = (_a2 = this.plugin.settings.uiBehavior) == null ? void 0 : _a2.includeReasoningInExports) != null ? _b : true;
+            var _a, _b;
+            return (_b = (_a = this.plugin.settings.uiBehavior) == null ? void 0 : _a.includeReasoningInExports) != null ? _b : true;
           },
           async (value) => {
             if (!this.plugin.settings.uiBehavior) {
@@ -21865,7 +18201,7 @@ var MyPluginSettingTab = class extends import_obsidian12.PluginSettingTab {
    * @param plugin - The plugin instance.
    */
   constructor(app, plugin) {
-    var _a2;
+    var _a;
     super(app, plugin);
     /** Reference to the plugin instance. */
     __publicField(this, "plugin");
@@ -21889,7 +18225,7 @@ var MyPluginSettingTab = class extends import_obsidian12.PluginSettingTab {
     /** Flag to track if settings changes are coming from the UI to prevent unnecessary re-renders. */
     __publicField(this, "isUpdatingFromUI", false);
     this.plugin = plugin;
-    debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "debug", "[MyPluginSettingTab] constructor called");
+    debugLog((_a = this.plugin.settings.debugMode) != null ? _a : false, "debug", "[MyPluginSettingTab] constructor called");
     this.settingCreators = new SettingCreators(this.plugin, () => this.display());
     this.generalSettingsSection = new GeneralSettingsSection(this.plugin, this.settingCreators);
     this.aiModelConfigurationSection = new AIModelConfigurationSection(this.plugin, this.settingCreators);
@@ -21922,10 +18258,10 @@ var MyPluginSettingTab = class extends import_obsidian12.PluginSettingTab {
    * It is called automatically when the tab is shown, and can be called to refresh the UI after changes.
    */
   display() {
-    var _a2;
+    var _a;
     const { containerEl } = this;
     containerEl.empty();
-    debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "info", "[MyPluginSettingTab] display called");
+    debugLog((_a = this.plugin.settings.debugMode) != null ? _a : false, "info", "[MyPluginSettingTab] display called");
     containerEl.createEl("h2", { text: "AI Assistant Settings" });
     CollapsibleSectionRenderer.createCollapsibleSection(
       containerEl,
@@ -21973,12 +18309,10 @@ var MyPluginSettingTab = class extends import_obsidian12.PluginSettingTab {
       const { DEFAULT_SETTINGS: DEFAULT_SETTINGS2 } = await Promise.resolve().then(() => (init_types(), types_exports));
       const preservedApiKeys = {
         openai: this.plugin.settings.openaiSettings.apiKey,
-        anthropic: this.plugin.settings.anthropicSettings.apiKey,
         gemini: this.plugin.settings.geminiSettings.apiKey
       };
       this.plugin.settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS2));
       this.plugin.settings.openaiSettings.apiKey = preservedApiKeys.openai;
-      this.plugin.settings.anthropicSettings.apiKey = preservedApiKeys.anthropic;
       this.plugin.settings.geminiSettings.apiKey = preservedApiKeys.gemini;
       this.plugin.settings.titlePrompt = DEFAULT_TITLE_PROMPT;
       await this.plugin.saveSettings();
@@ -22624,7 +18958,7 @@ var CommandParser = class {
    * @returns Array of extracted commands with their original text.
    */
   extractCommands(text) {
-    var _a2, _b, _c, _d;
+    var _a, _b, _c, _d;
     const commands = [];
     try {
       const parsed = JSON.parse(text.trim());
@@ -22658,7 +18992,7 @@ var CommandParser = class {
                   totalSteps: item.totalSteps
                 },
                 requestId: this.generateRequestId(),
-                finished: ((_a2 = item.nextTool) == null ? void 0 : _a2.toLowerCase()) === "finished"
+                finished: ((_a = item.nextTool) == null ? void 0 : _a.toLowerCase()) === "finished"
               },
               originalText: JSON.stringify(item)
             });
@@ -22878,10 +19212,10 @@ var ToolRegistry = class {
    * @param tool The tool instance to register
    */
   register(tool) {
-    var _a2;
+    var _a;
     this.tools.set(tool.name, tool);
     if (this.plugin && this.plugin.settings) {
-      debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "debug", "[ToolRegistry] Registering tool:", tool.name);
+      debugLog((_a = this.plugin.settings.debugMode) != null ? _a : false, "debug", "[ToolRegistry] Registering tool:", tool.name);
     }
   }
   /**
@@ -22891,11 +19225,11 @@ var ToolRegistry = class {
    * @returns ToolResult with the result or error
    */
   async execute(command) {
-    var _a2, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r;
     const tool = this.tools.get(command.action);
     if (!tool) {
       if (this.plugin && this.plugin.settings) {
-        debugLog((_a2 = this.plugin.settings.debugMode) != null ? _a2 : false, "debug", "[ToolRegistry] Tool not found", { action: command.action });
+        debugLog((_a = this.plugin.settings.debugMode) != null ? _a : false, "debug", "[ToolRegistry] Tool not found", { action: command.action });
       }
       return {
         success: false,
@@ -23044,8 +19378,8 @@ var TaskNotificationManager = class {
    * @param type The notification type.
    */
   showTaskCompletionNotification(message, type2 = "success") {
-    var _a2;
-    if (!((_a2 = this.context.plugin.settings.uiBehavior) == null ? void 0 : _a2.showCompletionNotifications)) {
+    var _a;
+    if (!((_a = this.context.plugin.settings.uiBehavior) == null ? void 0 : _a.showCompletionNotifications)) {
       return;
     }
     const notification = this.createTaskCompletionNotification(message, type2);
@@ -23133,7 +19467,7 @@ var ToolResultFormatter = class {
    * @param result The tool result.
    */
   getResultContext(command, result) {
-    var _a2;
+    var _a;
     if (!result.success || !result.data) return "";
     switch (command.action) {
       case "file_write":
@@ -23149,7 +19483,7 @@ var ToolResultFormatter = class {
         }
         break;
       case "thought":
-        if ((_a2 = result.data) == null ? void 0 : _a2.formattedThought) {
+        if ((_a = result.data) == null ? void 0 : _a.formattedThought) {
           return result.data.formattedThought;
         }
         break;
@@ -23394,12 +19728,12 @@ var ReasoningProcessor = class {
    * @returns A ReasoningData object.
    */
   convertThoughtToolResultToReasoning(thoughtData) {
-    var _a2;
+    var _a;
     const reasoningId = this.generateReasoningId();
     const baseData = {
       id: reasoningId,
       timestamp: thoughtData.timestamp || (/* @__PURE__ */ new Date()).toISOString(),
-      isCollapsed: ((_a2 = this.context.plugin.settings.uiBehavior) == null ? void 0 : _a2.collapseOldReasoning) || false
+      isCollapsed: ((_a = this.context.plugin.settings.uiBehavior) == null ? void 0 : _a.collapseOldReasoning) || false
     };
     if (thoughtData.reasoning === "structured" && thoughtData.steps) {
       return {
@@ -23629,8 +19963,8 @@ var AgentResponseHandler = class {
    * @param contextLabel Optional label for the log context.
    */
   debugLog(message, data, contextLabel = "AgentResponseHandler") {
-    var _a2, _b;
-    if (((_b = (_a2 = this.context.plugin) == null ? void 0 : _a2.settings) == null ? void 0 : _b.debugMode) && typeof this.context.plugin.debugLog === "function") {
+    var _a, _b;
+    if (((_b = (_a = this.context.plugin) == null ? void 0 : _a.settings) == null ? void 0 : _b.debugMode) && typeof this.context.plugin.debugLog === "function") {
       this.context.plugin.debugLog("debug", `[${contextLabel}] ${message}`, data);
     }
   }
@@ -24010,8 +20344,8 @@ ${resultData}
       if (result.hasTools) {
         const hasPendingFeedback = result.toolResults.some(
           (tr) => {
-            var _a2;
-            return tr.command.action === "get_user_feedback" && tr.result.success && ((_a2 = tr.result.data) == null ? void 0 : _a2.status) === "pending";
+            var _a;
+            return tr.command.action === "get_user_feedback" && tr.result.success && ((_a = tr.result.data) == null ? void 0 : _a.status) === "pending";
           }
         );
         if (hasPendingFeedback) {
@@ -24132,8 +20466,8 @@ function moveCursorAfterInsert(editor, startPos, insertText) {
   }
 }
 function insertSeparator(editor, position, separator) {
-  var _a2;
-  const lineContent = (_a2 = editor.getLine(position.line)) != null ? _a2 : "";
+  var _a;
+  const lineContent = (_a = editor.getLine(position.line)) != null ? _a : "";
   const prefix = lineContent.trim() !== "" ? "\n" : "";
   editor.replaceRange(`${prefix}
 ${separator}
@@ -24182,7 +20516,7 @@ function extractContentUnderHeader(content, headerText) {
 // src/utils/noteUtils.ts
 init_typeguards();
 async function processObsidianLinks(content, app, settings, visitedNotes = /* @__PURE__ */ new Set(), currentDepth = 0) {
-  var _a2;
+  var _a;
   if (!settings.enableObsidianLinks) return content;
   const linkRegex = /\[\[(.*?)\]\]/g;
   let match;
@@ -24206,7 +20540,7 @@ async function processObsidianLinks(content, app, settings, visitedNotes = /* @_
             } else {
               extractedContent = noteContent;
             }
-            if (settings.expandLinkedNotesRecursively && currentDepth < ((_a2 = settings.maxLinkExpansionDepth) != null ? _a2 : 2)) {
+            if (settings.expandLinkedNotesRecursively && currentDepth < ((_a = settings.maxLinkExpansionDepth) != null ? _a : 2)) {
               extractedContent = await processObsidianLinks(extractedContent, app, settings, visitedNotes, currentDepth + 1);
             }
           }
@@ -24474,10 +20808,10 @@ async function buildContextMessages({
   plugin,
   includeCurrentNote = true,
   includeContextNotes = true,
-  debug: debug2 = false,
+  debug = false,
   forceNoCurrentNote = false
 }) {
-  var _a2;
+  var _a;
   const messages = [
     { role: "system", content: getSystemMessage(plugin.settings) }
   ];
@@ -24507,8 +20841,8 @@ ${currentNoteContent}`
       });
     }
   }
-  if (debug2 || plugin.settings.debugMode) {
-    (_a2 = plugin.debugLog) == null ? void 0 : _a2.call(plugin, "debug", "[contextBuilder] Building context messages", {
+  if (debug || plugin.settings.debugMode) {
+    (_a = plugin.debugLog) == null ? void 0 : _a.call(plugin, "debug", "[contextBuilder] Building context messages", {
       enableContextNotes: plugin.settings.enableContextNotes,
       contextNotes: plugin.settings.contextNotes,
       referenceCurrentNote: plugin.settings.referenceCurrentNote
@@ -24678,9 +21012,9 @@ var TaskContinuation = class {
    * @returns An object with the final content and a flag if the tool limit was reached
    */
   async continueTaskUntilFinished(messages, container, initialResponseContent, currentContent, initialToolResults, chatHistory) {
-    var _a2, _b, _c, _d, _e;
+    var _a, _b, _c, _d, _e;
     let responseContent = currentContent;
-    let maxIterations = (_b = (_a2 = this.plugin.settings.agentMode) == null ? void 0 : _a2.maxIterations) != null ? _b : 10;
+    let maxIterations = (_b = (_a = this.plugin.settings.agentMode) == null ? void 0 : _a.maxIterations) != null ? _b : 10;
     let iteration = 0;
     let limitReachedDuringContinuation = false;
     let allToolResults = [...initialToolResults];
@@ -24851,12 +21185,12 @@ var TaskContinuation = class {
    * @returns The agent's response content as a string
    */
   async getContinuationResponse(messages, container) {
-    var _a2;
+    var _a;
     try {
       if (this.plugin.settings.debugMode) {
         this.plugin.debugLog("debug", "[TaskContinuation] getContinuationResponse", { messages });
       }
-      if ((_a2 = this.agentResponseHandler) == null ? void 0 : _a2.isToolLimitReached()) {
+      if ((_a = this.agentResponseHandler) == null ? void 0 : _a.isToolLimitReached()) {
         return "*[Tool execution limit reached - no continuation response]*";
       }
       const { AIDispatcher: AIDispatcher2 } = await Promise.resolve().then(() => (init_aiDispatcher(), aiDispatcher_exports));
@@ -24952,7 +21286,7 @@ var ResponseStreamer = class {
    * @returns Promise resolving to the final response content string
    */
   async streamAssistantResponse(messages, container, originalTimestamp, originalContent, chatHistory) {
-    var _a2;
+    var _a;
     this.plugin.debugLog("info", "[ResponseStreamer] streamAssistantResponse called", { messages, originalTimestamp });
     let responseContent = "";
     const bridgeController = new AbortController();
@@ -24981,7 +21315,7 @@ var ResponseStreamer = class {
       }
       return "";
     } finally {
-      (_a2 = this.agentResponseHandler) == null ? void 0 : _a2.hideTaskProgress();
+      (_a = this.agentResponseHandler) == null ? void 0 : _a.hideTaskProgress();
       this.streamId = null;
       this.activeStream = null;
     }
@@ -25249,8 +21583,8 @@ var ResponseStreamer = class {
    * @returns Promise resolving to the final content after continuation
    */
   async continueTaskIfPossible(agentResult, messages, container, responseContent, finalContent, chatHistory) {
-    var _a2;
-    if (agentResult.shouldShowLimitWarning || ((_a2 = this.agentResponseHandler) == null ? void 0 : _a2.isToolLimitReached())) {
+    var _a;
+    if (agentResult.shouldShowLimitWarning || ((_a = this.agentResponseHandler) == null ? void 0 : _a.isToolLimitReached())) {
       return finalContent;
     }
     const taskContinuation = this.createTaskContinuation();
@@ -25295,8 +21629,8 @@ var ResponseStreamer = class {
    * @returns Promise resolving to the updated content after continuation
    */
   async handleReasoningContinuation(responseContent, messages, container, chatHistory) {
-    var _a2;
-    if ((_a2 = this.agentResponseHandler) == null ? void 0 : _a2.isToolLimitReached()) {
+    var _a;
+    if ((_a = this.agentResponseHandler) == null ? void 0 : _a.isToolLimitReached()) {
       return responseContent + "\n\n*[Tool execution limit reached - reasoning continuation stopped]*";
     }
     messages.push(
@@ -25319,9 +21653,9 @@ var ResponseStreamer = class {
    * @returns Promise resolving to the continuation response content string
    */
   async getContinuationResponse(messages, container) {
-    var _a2;
+    var _a;
     try {
-      if ((_a2 = this.agentResponseHandler) == null ? void 0 : _a2.isToolLimitReached()) {
+      if ((_a = this.agentResponseHandler) == null ? void 0 : _a.isToolLimitReached()) {
         return "*[Tool execution limit reached - no continuation response]*";
       }
       const aiDispatcher = new AIDispatcher(this.plugin.app.vault, this.plugin);
@@ -25507,7 +21841,7 @@ var StreamCoordinator = class {
    * Starts a new streaming response
    */
   async startStream(messages, options = {}) {
-    var _a2, _b, _c;
+    var _a, _b, _c;
     this.plugin.debugLog("debug", "[StreamCoordinator] startStream called", {
       currentlyStreaming: this.streamState.isStreaming,
       currentStreamId: this.streamState.currentStreamId,
@@ -25564,7 +21898,7 @@ var StreamCoordinator = class {
       });
       const contextMessages = await this.buildContextMessages();
       let allMessages = [...contextMessages, ...messages];
-      if ((_a2 = this.plugin.agentModeManager) == null ? void 0 : _a2.isAgentModeEnabled()) {
+      if ((_a = this.plugin.agentModeManager) == null ? void 0 : _a.isAgentModeEnabled()) {
         this.plugin.debugLog("info", "[StreamCoordinator] Agent mode enabled - injecting agent system prompt");
         const enabledTools = this.plugin.settings.enabledTools || {};
         const agentSystemPrompt = buildAgentSystemPrompt(enabledTools);
@@ -25849,53 +22183,9 @@ var StreamCoordinator = class {
    * Process agent response for tool execution and enhanced data
    */
   async processAgentResponse(response, streamId) {
-    var _a2;
     try {
-      const orchestrator = this.plugin.getIntegratedAgentOrchestrator();
-      if (!orchestrator) {
-        this.plugin.debugLog("warn", "[StreamCoordinator] No agent orchestrator available for processing");
-        return null;
-      }
-      this.plugin.debugLog("debug", "[StreamCoordinator] Processing agent response with orchestrator", {
-        responseLength: response.length,
-        streamId
-      });
-      const agentSettings = (_a2 = this.plugin.agentModeManager) == null ? void 0 : _a2.getAgentModeSettings();
-      const result = await orchestrator.processAgentResponse(response, {
-        maxExecutions: (agentSettings == null ? void 0 : agentSettings.maxToolCalls) || 10,
-        timeoutMs: (agentSettings == null ? void 0 : agentSettings.timeoutMs) || 3e4,
-        skipLimitCheck: false,
-        displayResults: false
-        // Don't auto-display, let the chat UI handle it
-      });
-      this.plugin.debugLog("info", "[StreamCoordinator] Agent processing completed", {
-        commandsFound: result.commands.length,
-        resultsGenerated: result.results.length,
-        limitReached: result.limitReached
-      });
-      return {
-        toolResults: result.results.map((r) => ({
-          tool: r.command.action,
-          input: r.command.parameters,
-          output: r.result.content,
-          success: r.result.success,
-          timestamp: (/* @__PURE__ */ new Date()).toISOString()
-        })),
-        reasoning: {
-          thoughts: result.commands.filter((cmd) => cmd.action === "thought").map((cmd) => {
-            var _a3;
-            return ((_a3 = cmd.parameters) == null ? void 0 : _a3.content) || "";
-          }),
-          plan: `Executed ${result.results.length} tools with ${result.commands.length} total commands`,
-          analysis: result.statistics
-        },
-        taskStatus: {
-          status: result.limitReached ? "limited" : "completed",
-          progress: result.results.length,
-          total: result.commands.length,
-          timestamp: (/* @__PURE__ */ new Date()).toISOString()
-        }
-      };
+      this.plugin.debugLog("warn", "[StreamCoordinator] Agent orchestrator not yet implemented");
+      return null;
     } catch (error) {
       this.plugin.debugLog("error", "[StreamCoordinator] Agent processing error", error);
       throw error;
@@ -26269,10 +22559,10 @@ ${noteLink}` : noteLink;
     const self = this;
     const aiService = {
       async getCompletion(request) {
-        var _a2, _b, _c, _d;
+        var _a, _b, _c, _d;
         self.plugin.debugLog("debug", "[ChatView] aiService.getCompletion called", {
           hasPlugin: !!self.plugin,
-          hasAiDispatcher: !!((_a2 = self.plugin) == null ? void 0 : _a2.aiDispatcher),
+          hasAiDispatcher: !!((_a = self.plugin) == null ? void 0 : _a.aiDispatcher),
           aiDispatcherType: typeof ((_b = self.plugin) == null ? void 0 : _b.aiDispatcher),
           requestMessages: ((_c = request == null ? void 0 : request.messages) == null ? void 0 : _c.length) || 0,
           requestOptions: !!(request == null ? void 0 : request.options)
@@ -26297,10 +22587,10 @@ ${noteLink}` : noteLink;
           messagesCount: (_d = request.messages) == null ? void 0 : _d.length
         });
         return new Promise((resolve, reject) => {
-          var _a3;
+          var _a2;
           let fullResponse = "";
           let hasResolved = false;
-          const originalStreamCallback = (_a3 = request.options) == null ? void 0 : _a3.streamCallback;
+          const originalStreamCallback = (_a2 = request.options) == null ? void 0 : _a2.streamCallback;
           const wrappedOptions = {
             ...request.options,
             streamCallback: (chunk) => {
@@ -26448,14 +22738,14 @@ ${noteLink}` : noteLink;
     const sendButton = this.domElementCache.sendButton;
     const stopButton = this.domElementCache.stopButton;
     const sendMessage = async () => {
-      var _a2, _b, _c, _d;
+      var _a, _b, _c, _d;
       const content = textarea.value.trim();
       if (!content) return;
       this.plugin.debugLog("info", "[ChatView] Send message attempt", {
         contentLength: content.length,
         centralStreamState: this.centralStreamState,
         hasStreamCoordinator: !!this.streamCoordinator,
-        streamCoordinatorIsStreaming: (_a2 = this.streamCoordinator) == null ? void 0 : _a2.isStreaming(),
+        streamCoordinatorIsStreaming: (_a = this.streamCoordinator) == null ? void 0 : _a.isStreaming(),
         textareaDisabled: textarea.disabled,
         sendButtonHidden: sendButton.classList.contains("hidden")
       });
@@ -26918,11 +23208,11 @@ ${noteLink}` : noteLink;
    * Consolidated stop button click handler
    */
   handleStopButtonClick() {
-    var _a2, _b, _c, _d;
+    var _a, _b, _c, _d;
     this.plugin.debugLog("info", "[ChatView] Stop button clicked - stopping all active streams", {
       centralStreamState: this.centralStreamState,
       hasStreamCoordinator: !!this.streamCoordinator,
-      streamCoordinatorIsStreaming: (_a2 = this.streamCoordinator) == null ? void 0 : _a2.isStreaming(),
+      streamCoordinatorIsStreaming: (_a = this.streamCoordinator) == null ? void 0 : _a.isStreaming(),
       hasActiveStream: !!this.activeStream
     });
     this.stopAllActiveStreams();
@@ -27292,7 +23582,7 @@ function parseSelection(selection, chatSeparator, chatBoundaryString) {
 init_logger();
 init_aiDispatcher();
 async function handleAICompletion(editor, settings, processMessages2, vault, plugin, activeStream, setActiveStream, app) {
-  var _a2, _b, _c;
+  var _a, _b, _c;
   let text;
   let insertPosition;
   if (editor.somethingSelected()) {
@@ -27357,7 +23647,7 @@ async function handleAICompletion(editor, settings, processMessages2, vault, plu
       }
     );
     flushBuffer();
-    const endLineContent = (_a2 = editor.getLine(currentPosition.line)) != null ? _a2 : "";
+    const endLineContent = (_a = editor.getLine(currentPosition.line)) != null ? _a : "";
     const endPrefix = endLineContent.trim() !== "" ? "\n" : "";
     editor.replaceRange(`${endPrefix}
 ${settings.chatSeparator}
@@ -27388,13 +23678,13 @@ function registerAIStreamCommands(plugin, settings, processMessages2, activeStre
       id: "ai-completion",
       name: "Get AI Completion",
       editorCallback: (editor) => {
-        var _a2;
+        var _a;
         return handleAICompletion(
           editor,
           settings,
           processMessages2,
           plugin.app.vault,
-          { settings, saveSettings: (_a2 = plugin.saveSettings) == null ? void 0 : _a2.bind(plugin) },
+          { settings, saveSettings: (_a = plugin.saveSettings) == null ? void 0 : _a.bind(plugin) },
           activeStream,
           setActiveStream,
           plugin.app
@@ -27479,8 +23769,8 @@ function registerNoteCommands(plugin, settings, activateChatViewAndLoadMessages)
       id: "insert-chat-start-string",
       name: "Insert Chat Start String",
       editorCallback: (editor) => {
-        var _a2;
-        const chatStartString = (_a2 = settings.chatStartString) != null ? _a2 : "";
+        var _a;
+        const chatStartString = (_a = settings.chatStartString) != null ? _a : "";
         if (!chatStartString) {
           showNotice("chatStartString is not set in settings.");
           return;
@@ -27676,8 +23966,8 @@ function registerAllCommands(plugin, settings, processMessages2, activateChatVie
     processMessages2,
     yamlAttributeCommandIds,
     (level, ...args) => {
-      var _a2;
-      return debugLog((_a2 = settings.debugMode) != null ? _a2 : false, level, ...args);
+      var _a;
+      return debugLog((_a = settings.debugMode) != null ? _a : false, level, ...args);
     }
   );
 }
@@ -28063,7 +24353,7 @@ var _PerformanceDashboard = class _PerformanceDashboard {
    * Get current performance snapshot
    */
   getCurrentSnapshot() {
-    var _a2;
+    var _a;
     const metrics = performanceMonitor.getMetrics();
     const circuitBreakerMetrics = apiCircuitBreaker.getAllMetrics();
     return {
@@ -28076,7 +24366,7 @@ var _PerformanceDashboard = class _PerformanceDashboard {
         unacknowledged: Array.from(this.activeAlerts.values()).filter((a) => !a.acknowledged).length
       },
       system: {
-        uptime: Date.now() - (((_a2 = this.historicalData[0]) == null ? void 0 : _a2.timestamp) || Date.now()),
+        uptime: Date.now() - (((_a = this.historicalData[0]) == null ? void 0 : _a.timestamp) || Date.now()),
         dataPoints: this.historicalData.length
       }
     };
@@ -28496,10 +24786,6 @@ var _MyPlugin = class _MyPlugin extends import_obsidian35.Plugin {
      */
     __publicField(this, "agentModeManager");
     /**
-     * Integrated agent orchestrator for handling agent mode operations.
-     */
-    __publicField(this, "integratedAgentOrchestrator", null);
-    /**
      * Priority 3 optimizations integration manager.
      */
     __publicField(this, "priority3Manager");
@@ -28586,7 +24872,7 @@ var _MyPlugin = class _MyPlugin extends import_obsidian35.Plugin {
    * Handles initialization, settings, view registration, and command registration.
    */
   async onload() {
-    var _a2, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k;
     await this.loadSettings();
     let vaultPath = "";
     try {
@@ -28594,7 +24880,7 @@ var _MyPlugin = class _MyPlugin extends import_obsidian35.Plugin {
       if (isVaultAdapterWithBasePath(adapter)) {
         vaultPath = adapter.basePath;
       } else {
-        debugLog((_a2 = this.settings.debugMode) != null ? _a2 : false, "warn", "[main.ts] Vault adapter does not have basePath property");
+        debugLog((_a = this.settings.debugMode) != null ? _a : false, "warn", "[main.ts] Vault adapter does not have basePath property");
       }
     } catch (error) {
       debugLog((_b = this.settings.debugMode) != null ? _b : false, "error", "[main.ts] Failed to get vault path:", error);
@@ -28610,8 +24896,8 @@ var _MyPlugin = class _MyPlugin extends import_obsidian35.Plugin {
       () => this.saveSettings(),
       () => this.emitSettingsChange(),
       (level, ...args) => {
-        var _a3;
-        return debugLog((_a3 = this.settings.debugMode) != null ? _a3 : false, level, ...args);
+        var _a2;
+        return debugLog((_a2 = this.settings.debugMode) != null ? _a2 : false, level, ...args);
       }
       // Changed from log to debugLog
     );
@@ -28675,15 +24961,15 @@ var _MyPlugin = class _MyPlugin extends import_obsidian35.Plugin {
    * @param args Arguments to log.
    */
   debugLog(level = "debug", ...args) {
-    var _a2;
-    debugLog((_a2 = this.settings.debugMode) != null ? _a2 : false, level, ...args);
+    var _a;
+    debugLog((_a = this.settings.debugMode) != null ? _a : false, level, ...args);
   }
   /**
    * Loads plugin settings from data.
    * Merges loaded data with default settings with runtime validation.
    */
   async loadSettings() {
-    var _a2;
+    var _a;
     try {
       const loadedData = await this.loadData();
       if (loadedData !== null && loadedData !== void 0) {
@@ -28692,7 +24978,7 @@ var _MyPlugin = class _MyPlugin extends import_obsidian35.Plugin {
       } else {
         this.settings = Object.assign({}, DEFAULT_SETTINGS);
       }
-      debugLog((_a2 = this.settings.debugMode) != null ? _a2 : false, "info", "[main.ts] Settings loaded and validated successfully");
+      debugLog((_a = this.settings.debugMode) != null ? _a : false, "info", "[main.ts] Settings loaded and validated successfully");
     } catch (error) {
       debugLog(true, "error", "[main.ts] Failed to load settings, using defaults:", error);
       this.settings = Object.assign({}, DEFAULT_SETTINGS);
@@ -28710,8 +24996,8 @@ var _MyPlugin = class _MyPlugin extends import_obsidian35.Plugin {
       (messages) => this.processMessages(messages),
       this._yamlAttributeCommandIds,
       (level, ...args) => {
-        var _a2;
-        return debugLog((_a2 = this.settings.debugMode) != null ? _a2 : false, level, ...args);
+        var _a;
+        return debugLog((_a = this.settings.debugMode) != null ? _a : false, level, ...args);
       }
       // Changed from log to debugLog
     );
@@ -28724,22 +25010,6 @@ var _MyPlugin = class _MyPlugin extends import_obsidian35.Plugin {
    */
   async processMessages(messages) {
     return processMessages(messages, this.app, this.settings);
-  }
-  /**
-   * Get the integrated agent orchestrator, initializing it lazily if needed
-   */
-  getIntegratedAgentOrchestrator() {
-    var _a2, _b;
-    if (!this.integratedAgentOrchestrator) {
-      try {
-        debugLog((_a2 = this.settings.debugMode) != null ? _a2 : false, "warn", "[main.ts] Agent orchestrator not yet implemented - lazy initialization coming soon");
-        return null;
-      } catch (error) {
-        debugLog((_b = this.settings.debugMode) != null ? _b : false, "error", "[main.ts] Failed to lazily initialize agent orchestrator:", error);
-        return null;
-      }
-    }
-    return this.integratedAgentOrchestrator;
   }
   /**
    * Called when the plugin is unloaded.
@@ -28791,12 +25061,12 @@ var _MyPlugin = class _MyPlugin extends import_obsidian35.Plugin {
    * @param context The Obsidian context object
    */
   processToolExecutionBlocks(element, context) {
-    var _a2;
+    var _a;
     const codeBlocks = element.querySelectorAll("pre > code");
     for (const codeBlock of Array.from(codeBlocks)) {
       const codeElement = codeBlock;
       const preElement = codeElement.parentElement;
-      const text = ((_a2 = codeElement.textContent) == null ? void 0 : _a2.trim()) || "";
+      const text = ((_a = codeElement.textContent) == null ? void 0 : _a.trim()) || "";
       const isAIToolExecution = codeElement.className.includes("language-ai-tool-execution") || text.startsWith('{"toolResults"');
       if (isAIToolExecution) {
         try {
@@ -28870,7 +25140,7 @@ var _MyPlugin = class _MyPlugin extends import_obsidian35.Plugin {
    * This includes streams from chat, editor completions, and agent mode.
    */
   stopAllAIStreams() {
-    var _a2;
+    var _a;
     if (this.activeStream) {
       this.activeStream.abort();
       this.activeStream = null;
@@ -28894,7 +25164,7 @@ var _MyPlugin = class _MyPlugin extends import_obsidian35.Plugin {
         chatView.stopActiveStream();
       }
     });
-    debugLog((_a2 = this.settings.debugMode) != null ? _a2 : false, "info", "[MyPlugin] All AI streams stopped");
+    debugLog((_a = this.settings.debugMode) != null ? _a : false, "info", "[MyPlugin] All AI streams stopped");
   }
   /**
    * Debug method to get information about active streams.

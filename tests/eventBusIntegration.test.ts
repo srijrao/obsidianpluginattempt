@@ -16,7 +16,7 @@ import { RequestManager } from '../src/services/core/RequestManager';
 import { CacheManager } from '../src/services/core/CacheManager';
 import { RateLimiter } from '../src/services/core/RateLimiter';
 import { CircuitBreaker } from '../src/services/core/CircuitBreaker';
-import { MetricsCollector } from '../src/services/core/MetricsCollector';
+
 import { Vault } from 'obsidian';
 import { Message, CompletionOptions, MyPluginSettings, DEFAULT_SETTINGS } from '../src/types';
 import { CompletionRequest } from '../src/services/interfaces';
@@ -100,7 +100,6 @@ describe('Event Bus Integration Tests', () => {
     const cacheManager = new CacheManager(newEventBus);
     const rateLimiter = new RateLimiter(newEventBus);
     const circuitBreaker = new CircuitBreaker(newEventBus);
-    const metricsCollector = new MetricsCollector(newEventBus);
 
     newAIService = new AIService(
       newEventBus,
@@ -108,7 +107,6 @@ describe('Event Bus Integration Tests', () => {
       cacheManager,
       rateLimiter,
       circuitBreaker,
-      metricsCollector,
       mockSettings,
       mockPlugin.saveSettings
     );
