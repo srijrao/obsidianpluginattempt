@@ -9,7 +9,7 @@ import { IEventBus } from '../interfaces';
 import { Message } from '../../types';
 import { AIService } from '../core/AIService';
 import { StreamCoordinator } from './StreamCoordinator';
-import { AgentResponseHandler } from '../../components/agent/AgentResponseHandler/AgentResponseHandler';
+// import { AgentResponseHandler } from '../../components/agent/AgentResponseHandler/AgentResponseHandler';
 import { ChatMessage } from '../../components/chat/ChatHistoryManager';
 import type MyPlugin from '../../main';
 
@@ -53,7 +53,7 @@ export class ResponseStreamerPipeline {
         private eventBus: IEventBus,
         private aiService: AIService,
         private streamCoordinator: StreamCoordinator,
-        private agentResponseHandler?: AgentResponseHandler,
+        private agentResponseHandler?: any, // AgentResponseHandler removed
         config: PipelineConfig = {}
     ) {
         this.config = {
@@ -292,7 +292,7 @@ class AgentProcessingStage implements PipelineStage {
     name = 'agent-processing';
 
     constructor(
-        private agentResponseHandler: AgentResponseHandler,
+        private agentResponseHandler: any, // AgentResponseHandler removed
         private eventBus: IEventBus
     ) {}
 
@@ -334,7 +334,7 @@ class ToolExecutionStage implements PipelineStage {
     name = 'tool-execution';
 
     constructor(
-        private agentResponseHandler: AgentResponseHandler,
+        private agentResponseHandler: any, // AgentResponseHandler removed
         private eventBus: IEventBus
     ) {}
 

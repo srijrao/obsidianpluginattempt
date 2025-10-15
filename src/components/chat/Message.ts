@@ -2,7 +2,6 @@ import { App, MarkdownRenderer, Notice, Component } from 'obsidian';
 import { Message as MessageType } from '../../types';
 import { createActionButton, copyToClipboard } from './Buttons';
 import { ConfirmationModal } from './ConfirmationModal';
-import { MessageRenderer } from '../agent/MessageRenderer';
 import { 
     handleCopyMessage, 
     handleEditMessage, 
@@ -201,43 +200,13 @@ export async function createMessageElement(
     if (messageData) {
         messageEl.dataset.messageData = JSON.stringify(messageData);
     }
-    const messageRenderer = new MessageRenderer(app);
-    let contentEl: HTMLElement | null = null;
-
-    // Render assistant messages with enhanced data if present
-    if (role === 'assistant') {
-        if (messageData && (messageData.reasoning || messageData.taskStatus)) {
-            messageRenderer.updateMessageWithEnhancedData(messageEl, {
-                ...messageData,
-                role: 'assistant',
-                content
-            }, parentComponent);
-        }
-        if (messageData && messageData.toolResults && messageData.toolResults.length > 0) {
-            contentEl = messageEl.querySelector('.message-content') as HTMLElement;
-            if (!contentEl) {
-                contentEl = messageContainer.createDiv('message-content');
-            }
-            await messageRenderer.renderMessage({
-                ...messageData,
-                role: 'assistant',
-                content
-            }, messageEl, parentComponent);
-        } else if (!messageData?.reasoning && !messageData?.taskStatus) {
-            contentEl = messageEl.querySelector('.message-content') as HTMLElement;
-            if (!contentEl) {
-                contentEl = messageContainer.createDiv('message-content');
-            }
-            await MarkdownRenderer.render(app, content, contentEl, '', parentComponent);
-        }
-    } else {
-        // Render user messages
-        contentEl = messageEl.querySelector('.message-content') as HTMLElement;
-        if (!contentEl) {
-            contentEl = messageContainer.createDiv('message-content');
-        }
-        await MarkdownRenderer.render(app, content, contentEl, '', parentComponent);
+    
+    // Render message content using MarkdownRenderer
+    let contentEl = messageEl.querySelector('.message-content') as HTMLElement;
+    if (!contentEl) {
+        contentEl = messageContainer.createDiv('message-content');
     }
+    await MarkdownRenderer.render(app, content, contentEl, '', parentComponent);
 
     // Ensure contentEl is set
     if (!contentEl) {

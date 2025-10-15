@@ -9,7 +9,7 @@ import { IStreamCoordinator, IEventBus } from '../interfaces';
 import { Message } from '../../types';
 import { AIService } from '../core/AIService';
 import { buildContextMessages } from '../../utils/contextBuilder';
-import { buildAgentSystemPrompt } from '../../promptConstants';
+// import { buildAgentSystemPrompt } from '../../promptConstants'; // Agent functionality removed
 import type MyPlugin from '../../main';
 
 export interface StreamOptions {
@@ -197,26 +197,8 @@ export class StreamCoordinator implements IStreamCoordinator {
             // Build context messages
             const contextMessages = await this.buildContextMessages();
             
-            // Check if agent mode is enabled and inject agent system prompt
+            // Agent mode functionality removed - using regular messages
             let allMessages = [...contextMessages, ...messages];
-            if (this.plugin.agentModeManager?.isAgentModeEnabled()) {
-                this.plugin.debugLog('info', '[StreamCoordinator] Agent mode enabled - injecting agent system prompt');
-                
-                // Build agent system prompt with enabled tools from plugin settings
-                const enabledTools = this.plugin.settings.enabledTools || {};
-                const agentSystemPrompt = buildAgentSystemPrompt(enabledTools);
-                
-                // Insert agent system prompt at the beginning
-                allMessages = [
-                    { role: 'system', content: agentSystemPrompt },
-                    ...allMessages
-                ];
-                
-                this.plugin.debugLog('debug', '[StreamCoordinator] Agent system prompt injected', {
-                    enabledToolsCount: Object.keys(enabledTools).filter(k => enabledTools[k]).length,
-                    totalMessages: allMessages.length
-                });
-            }
 
             // Start the streaming request
             let fullResponse = '';
@@ -262,27 +244,7 @@ export class StreamCoordinator implements IStreamCoordinator {
 
             const duration = Date.now() - this.streamState.startTime!;
 
-            // Process agent response if agent mode is enabled
-            if (this.plugin.agentModeManager?.isAgentModeEnabled() && fullResponse) {
-                this.plugin.debugLog('info', '[StreamCoordinator] Processing agent response for tool execution');
-                
-                try {
-                    const agentData = await this.processAgentResponse(fullResponse, streamId);
-                    
-                    // Store agent data in the UI container for retrieval by the chat UI
-                    if (this.activeContainer && agentData) {
-                        this.activeContainer.dataset.messageData = JSON.stringify(agentData);
-                        this.plugin.debugLog('debug', '[StreamCoordinator] Agent data stored in container', {
-                            toolResultsCount: agentData.toolResults?.length || 0,
-                            hasReasoning: !!agentData.reasoning,
-                            hasTaskStatus: !!agentData.taskStatus
-                        });
-                    }
-                } catch (agentError: any) {
-                    this.plugin.debugLog('error', '[StreamCoordinator] Agent processing failed', agentError);
-                    // Don't throw - continue with normal response handling
-                }
-            }
+            // Agent mode functionality removed
 
             this.eventBus.publish('stream.completed', {
                 streamId,

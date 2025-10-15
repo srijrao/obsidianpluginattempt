@@ -9,9 +9,9 @@ export interface ChatMessage {
   sender: string;                   // Sender identifier (e.g., "user" or "assistant")
   role: 'system' | 'user' | 'assistant'; // Message role for AI processing
   content: string;                  // Message content (markdown or plain text)
-  reasoning?: ReasoningData;        // Optional reasoning data (for agent mode)
-  taskStatus?: TaskStatus;          // Optional task status (for agent mode)
-  toolResults?: ToolExecutionResult[]; // Optional tool execution results (for agent mode)
+  reasoning?: ReasoningData;        // Optional reasoning data
+  taskStatus?: TaskStatus;          // Optional task status
+  toolResults?: ToolExecutionResult[]; // Optional tool results
 }
 
 /**

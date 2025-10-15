@@ -4,7 +4,6 @@ import { Message } from '../../types'; // Import Message
 import { MyPluginSettings } from '../../types/settings'; // Corrected import path
 import { debugLog } from '../../utils/logger';
 import { getProviderFromUnifiedModel, getModelIdFromUnifiedModel } from '../../../providers';
-import { MessageRenderer } from '../agent/MessageRenderer';
 import { Notice } from 'obsidian'; // Import Notice
 
 /**
@@ -107,7 +106,6 @@ export async function saveChatAsNote({
     } else if (messages) {
         // Build chat content from message DOM nodes
         debugLog(settings.debugMode ?? false, 'info', '[saveChatAsNote] Building chat content from message DOM nodes.');
-        const messageRenderer = new MessageRenderer(app);
         messages.forEach((el: Element, index: number) => {
             const htmlElement = el as HTMLElement;
             if (htmlElement.classList.contains('tool-display-message')) {
@@ -124,15 +122,10 @@ export async function saveChatAsNote({
                     debugLog(settings.debugMode ?? false, 'warn', `[saveChatAsNote] Failed to parse messageData at index ${index}`, e);
                 }
             }
-            if (messageData && messageData.toolResults && messageData.toolResults.length > 0) {
-                debugLog(settings.debugMode ?? false, 'info', `[saveChatAsNote] Formatting message with toolResults at index ${index}`);
-                content += messageRenderer.getMessageContentForCopy(messageData);
-            } else {
-                const rawContent = htmlElement.dataset.rawContent;
-                const msg = rawContent !== undefined ? rawContent : el.querySelector('.message-content')?.textContent || '';
-                debugLog(settings.debugMode ?? false, 'debug', `[saveChatAsNote] Appending regular message at index ${index}`, { msg });
-                content += msg;
-            }
+            const rawContent = htmlElement.dataset.rawContent;
+            const msg = rawContent !== undefined ? rawContent : el.querySelector('.message-content')?.textContent || '';
+            debugLog(settings.debugMode ?? false, 'debug', `[saveChatAsNote] Appending message at index ${index}`, { msg });
+            content += msg;
             if (index < messages.length - 1) {
                 content += '\n\n' + chatSeparator + '\n\n';
             }

@@ -276,22 +276,11 @@ export class InitializationManager implements IInitializationManager {
     }
 
     /**
-     * Initializes the agent mode manager
+     * Agent mode manager (disabled - agent functionality removed)
      */
     private async initializeAgentModeManager(): Promise<void> {
-        const { AgentModeManager } = await import('../../components/agent/agentModeManager');
-        
-        const agentModeManager = new AgentModeManager(
-            this.plugin.settings,
-            () => this.plugin.saveSettings(),
-            () => (this.plugin as any).emitSettingsChange(),
-            (level: string, ...args: any[]) => this.plugin.debugLog(level as any, ...args)
-        );
-        
-        (this.plugin as any).agentModeManager = agentModeManager;
-        this.container.registerSingleton('agentModeManager', () => agentModeManager);
-        
-        this.initializationOrder.push('agentModeManager');
+        // Agent mode functionality has been removed
+        return;
     }
 
     /**
@@ -409,12 +398,8 @@ export class InitializationManager implements IInitializationManager {
      * Registers test commands for debugging
      */
     private async registerTestCommands(): Promise<void> {
-        try {
-            const { registerTestCommands } = await import('../../../tests/testRunner');
-            registerTestCommands(this.plugin);
-        } catch (error) {
-            console.warn('Failed to register test commands:', error);
-        }
+        // Test runner functionality removed
+        return;
     }
 
     /**

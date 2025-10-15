@@ -8,6 +8,7 @@
 import { Message, CompletionOptions, ConnectionTestResult } from '../src/types';
 import { BaseProvider, ProviderError, ProviderErrorType } from './base';
 import { debugLog } from '../src/utils/logger'; // Import debugLog
+import { requestUrl } from 'obsidian'; // Import requestUrl for proper HTTP requests
 
 interface OpenAIResponse {
     id: string;
@@ -27,6 +28,11 @@ interface OpenAIResponse {
         prompt_tokens: number;
         completion_tokens: number;
         total_tokens: number;
+    };
+    error?: {
+        message: string;
+        type?: string;
+        code?: string;
     };
 }
 
@@ -85,86 +91,63 @@ export class OpenAIProvider extends BaseProvider {
                 max_tokens: 4096
             };
 
-            const response = await fetch(`${this.baseUrl}/chat/completions`, {
+            // Use non-streaming for now to avoid CORS issues with requestUrl
+            const nonStreamingRequestBody = { ...requestBody, stream: false };
+            
+            // Use Obsidian's requestUrl to avoid CORS issues
+            const response = await requestUrl({
+                url: `${this.baseUrl}/chat/completions`,
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${this.apiKey}`,
                     'Content-Type': 'application/json',
                     'User-Agent': 'obsidian-ai-assistant/1.0'
                 },
-                body: JSON.stringify(requestBody),
-                signal: options.abortController?.signal
+                body: JSON.stringify(nonStreamingRequestBody),
+                throw: false // Don't throw on HTTP errors, we'll handle them
             });
 
-            if (!response.ok) {
-                await this.handleHttpError(response);
+            if (response.status < 200 || response.status >= 300) {
+                await this.handleHttpErrorFromRequestUrl(response);
                 return;
             }
 
-            if (!response.body) {
-                throw new Error('Response body is null');
+            // Parse the non-streaming response
+            const data = response.json as OpenAIResponse;
+            
+            if (!data || !data.choices || data.choices.length === 0) {
+                throw new Error('Invalid response from OpenAI API');
             }
 
-            reader = response.body.getReader();
-            const decoder = new TextDecoder('utf-8');
-            let buffer = '';
-            let totalContent = '';
+            if (data.error) {
+                throw new Error(data.error.message || 'OpenAI API error');
+            }
 
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-
-                buffer += decoder.decode(value, { stream: true });
-                const lines = buffer.split('\n');
-                buffer = lines.pop() || '';
-
-                for (const line of lines) {
-                    const trimmedLine = line.trim();
-                    if (!trimmedLine || !trimmedLine.startsWith('data: ')) continue;
+            // Get the full content from the response
+            const content = data.choices[0]?.message?.content;
+            
+            if (content && options.streamCallback) {
+                // Simulate streaming by sending the content in chunks
+                const words = content.split(' ');
+                let currentContent = '';
+                
+                for (let i = 0; i < words.length; i++) {
+                    const word = words[i];
+                    currentContent += (i > 0 ? ' ' : '') + word;
                     
-                    if (trimmedLine === 'data: [DONE]') {
-                        debugLog(this.debugMode, 'debug', '[OpenAI] Stream completed', { totalLength: totalContent.length });
-                        break;
-                    }
-
-                    try {
-                        const jsonData = trimmedLine.slice(6);
-                        const data = JSON.parse(jsonData);
-                        
-                        if (data.error) {
-                            throw new Error(data.error.message || 'OpenAI API error');
-                        }
-
-                        const delta = data.choices?.[0]?.delta;
-                        const content = delta?.content;
-                        
-                        if (content && options.streamCallback) {
-                            totalContent += content;
-                            options.streamCallback(content);
-                        }
-                        
-                        // Handle function calls if present
-                        if (delta?.function_call || delta?.tool_calls) {
-                            debugLog(this.debugMode, 'debug', '[OpenAI] Function call detected', { delta });
-                        }
-                        
-                        // Check for finish reason
-                        const finishReason = data.choices?.[0]?.finish_reason;
-                        if (finishReason) {
-                            debugLog(this.debugMode, 'debug', '[OpenAI] Completion finished', { 
-                                reason: finishReason,
-                                totalLength: totalContent.length 
-                            });
-                        }
-                        
-                    } catch (parseError) {
-                        debugLog(this.debugMode, 'warn', '[OpenAI] Error parsing response chunk', { 
-                            line: trimmedLine,
-                            error: parseError 
-                        });
-                        // Continue processing other chunks
+                    // Send word by word to simulate streaming
+                    options.streamCallback(i === 0 ? word : ' ' + word);
+                    
+                    // Small delay to simulate streaming
+                    if (i < words.length - 1) {
+                        await new Promise(resolve => setTimeout(resolve, 20));
                     }
                 }
+                
+                debugLog(this.debugMode, 'debug', '[OpenAI] Completion finished', { 
+                    totalLength: content.length,
+                    mode: 'non-streaming-simulated'
+                });
             }
             
         } catch (error: any) {
@@ -364,6 +347,60 @@ export class OpenAIProvider extends BaseProvider {
             });
 
             return this.createErrorResponse(error);
+        }
+    }
+
+    /**
+     * Handle HTTP errors from requestUrl response
+     */
+    private async handleHttpErrorFromRequestUrl(response: any): Promise<never> {
+        const status = response.status;
+        let errorMessage = 'Unknown error';
+        
+        try {
+            if (response.json && response.json.error) {
+                errorMessage = response.json.error.message || 'API error';
+            } else if (response.text) {
+                errorMessage = response.text;
+            }
+        } catch {
+            errorMessage = `HTTP ${status} error`;
+        }
+
+        switch (status) {
+            case 401:
+                throw new ProviderError(
+                    ProviderErrorType.InvalidApiKey,
+                    `Invalid API key: ${errorMessage}`,
+                    status
+                );
+            case 429:
+                throw new ProviderError(
+                    ProviderErrorType.RateLimit,
+                    `Rate limit exceeded: ${errorMessage}`,
+                    status
+                );
+            case 400:
+                throw new ProviderError(
+                    ProviderErrorType.InvalidRequest,
+                    `Invalid request: ${errorMessage}`,
+                    status
+                );
+            case 500:
+            case 502:
+            case 503:
+            case 504:
+                throw new ProviderError(
+                    ProviderErrorType.ServerError,
+                    `Server error occurred: ${errorMessage}`,
+                    status
+                );
+            default:
+                throw new ProviderError(
+                    ProviderErrorType.ServerError,
+                    `Unknown error occurred (Status: ${status}): ${errorMessage}`,
+                    status
+                );
         }
     }
 }

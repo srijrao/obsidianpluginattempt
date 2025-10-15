@@ -36,7 +36,10 @@ export class CircuitBreaker implements ICircuitBreaker {
         halfOpenMaxCalls: 3
     };
 
-    constructor(private eventBus: IEventBus) {
+    constructor(private eventBus: IEventBus, customConfig?: Partial<CircuitBreakerConfig>) {
+        if (customConfig) {
+            this.defaultConfig = { ...this.defaultConfig, ...customConfig };
+        }
         this.initializeProviderBreakers();
         this.startMonitoringTimer();
 console.log(`[CircuitBreaker] Initialized for providers: ${Array.from(this.breakers.keys()).join(', ')}`);
@@ -129,12 +132,13 @@ console.log(`[CircuitBreaker] Initialized for providers: ${Array.from(this.break
     /**
      * Gets the current state of a circuit breaker
      */
-    getState(provider: string): CircuitBreakerState {
+    getState(provider: string): CircuitBreakerState & { failures: number } {
         const breaker = this.getOrCreateBreaker(provider);
         
         return {
             isOpen: breaker.isOpen,
             failureCount: breaker.failureCount,
+            failures: breaker.failureCount, // Add backward compatibility for tests
             lastFailureTime: breaker.lastFailureTime,
             nextRetryTime: breaker.nextRetryTime
         };

@@ -3,14 +3,12 @@
  * @file chat.ts
  *
  * This file implements the main chat interface for the AI Assistant plugin in Obsidian.
- * It defines the ChatView class, which manages the chat UI, message flow, streaming responses,
- * tool/agent integration, and persistent chat history. The view supports advanced features such as
- * agent mode (tool use), reference note context, message regeneration, and real-time tool result display.
+ * It defines the ChatView class, which manages the chat UI, message flow, streaming responses, and persistent chat history. The view supports advanced features such as
+ *  reference note context, and message regeneration.
  *
  * Key responsibilities:
  * - Rendering and updating the chat UI
  * - Handling user input and assistant responses (including streaming)
- * - Integrating with tools/agents for advanced AI actions
  * - Persisting and restoring chat history
  * - Managing context (system prompt, reference note, etc.)
  * - Supporting message regeneration and error handling
@@ -25,15 +23,12 @@ import { createChatUI, ChatUIElements } from './components/chat/ui';
 import { handleCopyAll, handleSaveNote, handleClearChat, handleSettings, handleHelp } from './components/chat/eventHandlers';
 import { loadChatYamlAndApplySettings } from './components/chat/chatPersistence';
 import { renderChatHistory } from './components/chat/chatHistoryUtils';
-import { AgentResponseHandler } from './components/agent/AgentResponseHandler';
 import { buildContextMessages } from './utils/contextBuilder';
 import { MessageRegenerator } from './components/chat/MessageRegenerator';
 import { showNotice } from './utils/generalUtils';
 import { ResponseStreamer } from './components/chat/ResponseStreamer';
 import { StreamCoordinator } from './services/chat/StreamCoordinator';
 import { IEventBus } from './services/interfaces';
-import { MessageRenderer } from './components/agent/MessageRenderer';
-import { ToolRichDisplay } from './components/agent/ToolRichDisplay';
 import { MessageContextPool, WeakCache, PreAllocatedArrays } from './utils/objectPool';
 import { DOMBatcher } from './utils/domBatcher';
 import { handleChatError, withErrorHandling } from './utils/errorHandler';
@@ -49,12 +44,10 @@ export class ChatView extends ItemView {
     private obsidianLinksIndicator: HTMLElement;
     private contextNotesIndicator: HTMLElement;
     private modelNameDisplay: HTMLElement;
-    private agentResponseHandler: AgentResponseHandler | null = null;
     private messageRegenerator: MessageRegenerator | null = null;
     private responseStreamer: ResponseStreamer | null = null; // Keep for backward compatibility during transition
     private streamCoordinator: StreamCoordinator | null = null;
     private deferredStreamCoordinatorInit: (() => void) | null = null;
-    private messageRenderer: MessageRenderer;
     private messagePool: MessageContextPool;
     private domCache: WeakCache<HTMLElement, any>;
     private arrayManager: PreAllocatedArrays;
@@ -70,7 +63,6 @@ export class ChatView extends ItemView {
         helpButton?: HTMLButtonElement;
         saveNoteButton?: HTMLButtonElement;
         referenceNoteButton?: HTMLButtonElement;
-        agentModeButton?: HTMLButtonElement;
         toolContinuationContainer?: HTMLElement;
         obsidianLinksButton?: HTMLButtonElement;
         contextNotesButton?: HTMLButtonElement;
@@ -101,7 +93,6 @@ export class ChatView extends ItemView {
         super(leaf);
         this.plugin = plugin;
         this.chatHistoryManager = new ChatHistoryManager(this.app.vault, this.plugin.manifest.id, "chat-history.json");
-        this.messageRenderer = new MessageRenderer(this.app);
         this.messagePool = MessageContextPool.getInstance();
         this.domCache = new WeakCache();
         this.arrayManager = PreAllocatedArrays.getInstance();
@@ -128,7 +119,6 @@ export class ChatView extends ItemView {
         this.domElementCache.helpButton = ui.helpButton;
         this.domElementCache.saveNoteButton = ui.saveNoteButton;
         this.domElementCache.referenceNoteButton = ui.referenceNoteButton;
-        this.domElementCache.agentModeButton = ui.agentModeButton;
         this.domElementCache.toolContinuationContainer = ui.toolContinuationContainer;
         // Cache new buttons
         this.domElementCache.obsidianLinksButton = ui.obsidianLinksButton;
@@ -152,10 +142,8 @@ export class ChatView extends ItemView {
         const ui: ChatUIElements = createChatUI(this.app, contentEl);
         this.initializeUIElements(ui);
         this.setupEventHandlers(ui);
-        this.setupAgentResponseHandler();
         this.setupResponseStreamerAndRegenerator();
         this.initializeStreamCoordinatorIfReady(); // Initialize StreamCoordinator if aiDispatcher is ready
-        this.setupAgentModeButton();
         this.setupSendAndStopButtons();
         this.setupInputHandler(ui);
         await this.loadAndRenderHistory(loadedHistory);
@@ -201,7 +189,7 @@ export class ChatView extends ItemView {
             this.plugin.saveSettings();
             this.updateReferenceNoteIndicator();
         });
-        this.addEventListenerWithCleanup(this.domElementCache.saveNoteButton!, 'click', handleSaveNote(this.messagesContainer, this.plugin, this.app, this.agentResponseHandler));
+        this.addEventListenerWithCleanup(this.domElementCache.saveNoteButton!, 'click', handleSaveNote(this.messagesContainer, this.plugin, this.app));
         
         // Obsidian Links button
         this.addEventListenerWithCleanup(this.domElementCache.obsidianLinksButton!, 'click', () => {
@@ -246,35 +234,6 @@ export class ChatView extends ItemView {
             this.plugin.saveSettings();
             this.updateContextNotesIndicator();
             showNotice(`Added "${noteName}" to context notes`);
-        });
-    }
-
-    private setupAgentResponseHandler() {
-        this.agentResponseHandler = new AgentResponseHandler({
-            app: this.app,
-            plugin: this.plugin,
-            messagesContainer: this.messagesContainer,
-            toolContinuationContainer: this.domElementCache.toolContinuationContainer!,
-            onToolResult: (toolResult: ToolResult, command: ToolCommand) => {
-                if (toolResult.success) {
-                    this.plugin.debugLog('info', `[chat.ts] Tool ${command.action} completed successfully`, toolResult.data);
-                } else {
-                    this.plugin.debugLog('error', `[chat.ts] Tool ${command.action} failed:`, toolResult.error);
-                }
-            },
-            onToolDisplay: (display: ToolRichDisplay) => {
-                const toolWrapper = document.createElement('div');
-                toolWrapper.className = 'real-time-tool-display';
-                toolWrapper.appendChild(display.getElement());
-                const tempContainer = this.messagesContainer.querySelector('.ai-chat-message.assistant:last-child');
-                if (tempContainer) {
-                    const messageContent = tempContainer.querySelector('.message-content');
-                    if (messageContent) {
-                        messageContent.appendChild(toolWrapper);
-                        this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
-                    }
-                }
-            }
         });
     }
 
@@ -401,23 +360,22 @@ export class ChatView extends ItemView {
         // Initialize StreamCoordinator with dependency validation and retry mechanism
         this.initializeStreamCoordinatorWithRetry(eventBus, aiService);
 
-        // Keep ResponseStreamer for backward compatibility during transition
+        // Initialize ResponseStreamer for fallback
         this.responseStreamer = new ResponseStreamer(
             this.plugin,
-            this.agentResponseHandler,
             this.messagesContainer,
             this.activeStream,
             this
         );
+
         this.messageRegenerator = new MessageRegenerator(
             this.plugin,
             this.messagesContainer,
             this.inputContainer,
             this.chatHistoryManager,
-            this.agentResponseHandler,
             this.activeStream,
-            this, // Pass ChatView reference for StreamCoordinator integration
-            this // Pass ChatView as component for Markdown rendering context
+            this, // Pass ChatView as component for Markdown rendering context
+            this
         );
     }
 
@@ -484,33 +442,7 @@ export class ChatView extends ItemView {
         }
     }
 
-    private setupAgentModeButton() {
-        this.addEventListenerWithCleanup(this.domElementCache.agentModeButton!, 'click', async () => {
-            const isCurrentlyEnabled = this.plugin.agentModeManager.isAgentModeEnabled();
-            await this.plugin.agentModeManager.setAgentModeEnabled(!isCurrentlyEnabled);
-            const agentButton = this.domElementCache.agentModeButton!;
-            if (this.plugin.agentModeManager.isAgentModeEnabled()) {
-                agentButton.classList.add('active');
-                agentButton.setAttribute('title', 'Agent Mode: ON - AI can use tools');
-                new Notice('Agent Mode enabled - AI can now use tools');
-                if (this.agentResponseHandler) {
-                    this.agentResponseHandler.resetExecutionCount();
-                }
-            } else {
-                agentButton.classList.remove('active');
-                agentButton.setAttribute('title', 'Agent Mode: OFF - Regular chat');
-                new Notice('Agent Mode disabled');
-            }
-        });
-        const agentButton = this.domElementCache.agentModeButton!;
-        if (this.plugin.agentModeManager.isAgentModeEnabled()) {
-            agentButton.classList.add('active');
-            agentButton.setAttribute('title', 'Agent Mode: ON - AI can use tools');
-        } else {
-            agentButton.classList.remove('active');
-            agentButton.setAttribute('title', 'Agent Mode: OFF - Regular chat');
-        }
-    }
+
 
     private setupSendAndStopButtons() {
         const textarea = this.domElementCache.textarea!;
@@ -530,9 +462,6 @@ export class ChatView extends ItemView {
                 sendButtonHidden: sendButton.classList.contains('hidden')
             });
             
-            if (this.agentResponseHandler) {
-                this.agentResponseHandler.resetExecutionCount();
-            }
             textarea.disabled = true;
             sendButton.classList.add('hidden');
             stopButton.classList.remove('hidden');
@@ -639,7 +568,6 @@ export class ChatView extends ItemView {
                 if (error.name !== 'AbortError') {
                     handleChatError(error, 'sendMessage', {
                         messageLength: content.length,
-                        agentMode: this.plugin.agentModeManager.isAgentModeEnabled()
                     });
                     await createMessageElement(this.app, 'assistant', `Error: ${error.message}`, this.chatHistoryManager, this.plugin, (el: HTMLElement) => this.regenerateResponse(el), this);
                 }
@@ -1049,9 +977,6 @@ export class ChatView extends ItemView {
 
     public clearMessages() {
         this.messagesContainer.empty();
-        if (this.agentResponseHandler) {
-            this.agentResponseHandler.resetExecutionCount();
-        }
     }
     public scrollMessagesToBottom() {
         this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;

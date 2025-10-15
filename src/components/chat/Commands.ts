@@ -4,7 +4,6 @@ import { AIDispatcher } from '../../utils/aiDispatcher';
 import MyPlugin from '../../main';
 import { BotMessage } from './BotMessage';
 import { UserMessage } from './UserMessage';
-import { MessageRenderer } from '../agent/MessageRenderer';
 import { buildContextMessages } from '../../utils/contextBuilder';
 
 /**
@@ -157,16 +156,10 @@ export class Commands extends Component implements IChatCommands {
                     // Ignore parse errors
                 }
             }
-            // If toolResults are present, use formatted content
-            if (messageData && messageData.toolResults && messageData.toolResults.length > 0) {
-                const renderer = new MessageRenderer(this.plugin.app);
-                chatContent += renderer.getMessageContentForCopy(messageData);
-            } else {
-                // Otherwise, use raw content or fallback to text content
-                const rawContent = htmlElement.dataset.rawContent;
-                const content = rawContent !== undefined ? rawContent : el.querySelector('.message-content')?.textContent || '';
-                chatContent += content;
-            }
+            // Use raw content or fallback to text content
+            const rawContent = htmlElement.dataset.rawContent;
+            const content = rawContent !== undefined ? rawContent : el.querySelector('.message-content')?.textContent || '';
+            chatContent += content;
             // Add separator between messages
             if (index < messages.length - 1) {
                 chatContent += '\n\n' + this.plugin.settings.chatSeparator + '\n\n';

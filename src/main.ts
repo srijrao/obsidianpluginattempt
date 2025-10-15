@@ -1,14 +1,12 @@
 import { Plugin } from 'obsidian';
-import { MyPluginSettings, Message, DEFAULT_SETTINGS, AgentModeSettings } from './types';
+import { MyPluginSettings, Message, DEFAULT_SETTINGS } from './types';
 import { MyPluginSettingTab } from './settings';
 import { ChatView, VIEW_TYPE_CHAT } from './chat';
 import { processMessages } from './utils/noteUtils'; // Removed getContextNotesContent
 import { showNotice } from './utils/generalUtils';
 import { debugLog } from './utils/logger'; // Changed from log to debugLog
 import { activateView } from './utils/viewManager';
-import { AgentModeManager } from './components/agent/agentModeManager';
 import { BackupManager } from './components/BackupManager';
-import { ToolRichDisplay } from './components/agent/ToolRichDisplay';
 import { registerAllCommands } from './components/commands/commandRegistry';
 import { registerYamlAttributeCommands } from './YAMLHandler';
 import { AIDispatcher } from './utils/aiDispatcher';
@@ -61,9 +59,6 @@ export default class MyPlugin extends Plugin {
      */
     public backupManager: BackupManager;
     /**
-     * Agent mode manager instance for handling agent-related settings and logic.
-     */
-    public agentModeManager: AgentModeManager;
 
     /**
      * Priority 3 optimizations integration manager.
@@ -191,16 +186,6 @@ export default class MyPlugin extends Plugin {
         // Initialize backup manager (loads or creates backup files)
         await this.backupManager.initialize();
         
-        // Initialize agent mode manager for handling agent mode logic
-        this.agentModeManager = new AgentModeManager(
-            this.settings,
-            () => this.saveSettings(),
-            () => this.emitSettingsChange(),
-            (level, ...args) => debugLog(this.settings.debugMode ?? false, level, ...args) // Changed from log to debugLog
-        );
-        
-        // Note: Integrated agent orchestrator will be initialized lazily when first needed
-        // to avoid complex dependency initialization during plugin startup
         
         // Initialize Priority 3 optimizations (dependency injection, state management, stream management)
         this.priority3Manager = new Priority3IntegrationManager(this);
@@ -254,16 +239,7 @@ export default class MyPlugin extends Plugin {
             new PerformanceDashboardModal(this).open();
         });
 
-        // Register test commands (only in debug mode)
-        if (this.settings.debugMode) {
-            try {
-                const { registerTestCommands } = await import('../tests/testRunner');
-                registerTestCommands(this);
-                debugLog(this.settings.debugMode ?? false, 'info', 'Test commands registered');
-            } catch (error) {
-                debugLog(this.settings.debugMode ?? false, 'warn', 'Failed to register test commands:', error);
-            }
-        }
+        // Test commands functionality removed
 
         // Archive AI call logs by date (compress old files) - non-blocking
         if (this.settings.debugMode) {
@@ -372,16 +348,12 @@ export default class MyPlugin extends Plugin {
         try {
             // Parse the code block as JSON
             const toolData = JSON.parse(source);
-            // Render the tool execution block using the rich display component
-            ToolRichDisplay.renderToolExecutionBlock(toolData, element, async (resultText: string) => {
-                try {
-                    await navigator.clipboard.writeText(resultText);
-                    showNotice('Copied to clipboard!');
-                } catch (error) {
-                    console.error('Failed to copy to clipboard:', error);
-                    showNotice('Failed to copy to clipboard');
-                }
-            });
+            // ToolRichDisplay functionality removed - showing raw content
+            const pre = document.createElement('pre');
+            const code = document.createElement('code');
+            code.textContent = JSON.stringify(toolData, null, 2);
+            pre.appendChild(code);
+            element.appendChild(pre);
         } catch (error) {
             // If parsing fails, show the raw code block
             console.error('Failed to parse ai-tool-execution code block:', error);
@@ -416,16 +388,8 @@ export default class MyPlugin extends Plugin {
                     // Create a container for the rich display
                     const toolContainer = document.createElement('div');
                     toolContainer.className = 'ai-tool-execution-container';
-                    // Render the tool execution block
-                    ToolRichDisplay.renderToolExecutionBlock(toolData, toolContainer, async (resultText: string) => {
-                        try {
-                            await navigator.clipboard.writeText(resultText);
-                            showNotice('Copied to clipboard!');
-                        } catch (error) {
-                            console.error('Failed to copy to clipboard:', error);
-                            showNotice('Failed to copy to clipboard');
-                        }
-                    });
+                    // ToolRichDisplay functionality removed - showing raw content
+                    toolContainer.innerHTML = `<pre><code>${JSON.stringify(toolData, null, 2)}</code></pre>`;
                     // Replace the original code block with the rich display
                     preElement.replaceWith(toolContainer);
                 } catch (error) {
@@ -497,7 +461,7 @@ export default class MyPlugin extends Plugin {
 
     /**
      * Stop all active AI streams across the plugin.
-     * This includes streams from chat, editor completions, and agent mode.
+     * This includes streams from chat, editor completions.
      */
     stopAllAIStreams(): void {
         // Stop legacy active stream

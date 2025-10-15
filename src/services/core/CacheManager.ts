@@ -103,6 +103,7 @@ export class CacheManager implements ICacheManager {
             timestamp: now,
             ttl: effectiveTTL,
             accessCount: 0,
+            // Use timestamp as initial lastAccessed, which maintains insertion order
             lastAccessed: now
         };
 
@@ -207,10 +208,15 @@ export class CacheManager implements ICacheManager {
      * Evicts the least recently used entry
      */
     private evictLeastRecentlyUsed(): void {
-        let oldestKey: string | null = null;
-        let oldestTime = Date.now();
+        if (this.cache.size === 0) return;
 
-        for (const [key, entry] of this.cache.entries()) {
+        // Use Map's insertion order - the first entry is the oldest
+        const entries = Array.from(this.cache.entries());
+        let oldestKey = entries[0][0];
+        let oldestTime = entries[0][1].lastAccessed;
+
+        // Find the entry with the oldest lastAccessed time
+        for (const [key, entry] of entries) {
             if (entry.lastAccessed < oldestTime) {
                 oldestTime = entry.lastAccessed;
                 oldestKey = key;

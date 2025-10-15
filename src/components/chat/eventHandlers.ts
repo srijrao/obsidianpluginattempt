@@ -4,7 +4,6 @@ import { ChatHelpModal } from './ChatHelpModal';
 import { Notice, App, MarkdownRenderer, Component } from 'obsidian';
 import MyPlugin from '../../main';
 import { ChatHistoryManager } from './ChatHistoryManager';
-import { MessageRenderer } from '../agent/MessageRenderer';
 import { ConfirmationModal } from './ConfirmationModal';
 
 /**
@@ -18,30 +17,17 @@ import { ConfirmationModal } from './ConfirmationModal';
 function getFormattedChatContent(messagesContainer: HTMLElement, plugin: MyPlugin, chatSeparator: string): string {
     const messages = messagesContainer.querySelectorAll('.ai-chat-message');
     let chatContent = '';
-    const renderer = new MessageRenderer(plugin.app);
     messages.forEach((el, index) => {
         const htmlElement = el as HTMLElement;
         // Skip tool display messages
         if (htmlElement.classList.contains('tool-display-message')) {
             return;
         }
-        // Try to parse enhanced message data if present
-        let messageData = null;
-        const messageDataStr = htmlElement.dataset.messageData;
-        if (messageDataStr) {
-            try {
-                messageData = JSON.parse(messageDataStr);
-            } catch (e) {}
-        }
-        // If toolResults are present, use formatted content
-        if (messageData && messageData.toolResults && messageData.toolResults.length > 0) {
-            chatContent += renderer.getMessageContentForCopy(messageData);
-        } else {
-            // Otherwise, use raw content or fallback to text content
-            const rawContent = htmlElement.dataset.rawContent;
-            const content = rawContent !== undefined ? rawContent : el.querySelector('.message-content')?.textContent || '';
-            chatContent += content;
-        }
+        // Use raw content or fallback to text content
+        const rawContent = htmlElement.dataset.rawContent;
+        const content = rawContent !== undefined ? rawContent : el.querySelector('.message-content')?.textContent || '';
+        chatContent += content;
+        
         // Add separator between messages
         if (index < messages.length - 1) {
             chatContent += '\n\n' + chatSeparator + '\n\n';
@@ -131,18 +117,8 @@ export function handleReferenceNote(app: App, plugin: MyPlugin) {
 export function handleCopyMessage(messageEl: HTMLElement, plugin: MyPlugin) {
     return async () => {
         let contentToCopy = '';
-        const messageData = messageEl.dataset.messageData;
-        if (messageData) {
-            try {
-                const parsedData = JSON.parse(messageData);
-                const renderer = new MessageRenderer(plugin.app);
-                contentToCopy = renderer.getMessageContentForCopy(parsedData);
-            } catch (e) {
-                contentToCopy = messageEl.dataset.rawContent || '';
-            }
-        } else {
-            contentToCopy = messageEl.dataset.rawContent || '';
-        }
+        // Use raw content
+        contentToCopy = messageEl.dataset.rawContent || '';
         if (contentToCopy.trim() === '') {
             new Notice('No content to copy');
             return;
@@ -233,21 +209,9 @@ export function handleEditMessage(messageEl: HTMLElement, chatHistoryManager: Ch
                     contentEl.empty();
                     contentEl.removeClass('editing');
                     
-                    // Render the updated content properly
-                    if (enhancedData && enhancedData.toolResults && enhancedData.toolResults.length > 0) {
-                        plugin.debugLog('debug', '[EventHandlers] Rendering with tool results');
-                        const renderer = new MessageRenderer(plugin.app);
-                        await renderer.renderMessage({
-                            role: messageEl.classList.contains('user') ? 'user' : 'assistant',
-                            content: newContent,
-                            toolResults: enhancedData.toolResults,
-                            reasoning: enhancedData.reasoning,
-                            taskStatus: enhancedData.taskStatus
-                        } as any, messageEl, new Component());
-                    } else {
-                        plugin.debugLog('debug', '[EventHandlers] Rendering as markdown');
-                        await MarkdownRenderer.render(plugin.app, newContent, contentEl, '', new Component());
-                    }
+                    // Render the updated content as markdown
+                    plugin.debugLog('debug', '[EventHandlers] Rendering as markdown');
+                    await MarkdownRenderer.render(plugin.app, newContent, contentEl, '', new Component());
                     
                     plugin.debugLog('debug', '[EventHandlers] Edit saved successfully');
                     

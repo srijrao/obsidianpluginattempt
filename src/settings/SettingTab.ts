@@ -6,7 +6,6 @@ import { debugLog } from '../utils/logger'; // Import debugLog
 import { SettingCreators } from './components/SettingCreators';
 import { GeneralSettingsSection } from './sections/GeneralSettingsSection';
 import { AIModelConfigurationSection } from './sections/AIModelConfigurationSection';
-import { AgentSettingsSection } from './sections/AgentSettingsSection';
 import { ContentNoteHandlingSection } from './sections/ContentNoteHandlingSection';
 import { BackupManagementSection } from './sections/BackupManagementSection';
 import { ChatHistorySettingsSection } from './sections/ChatHistorySettingsSection';
@@ -32,8 +31,6 @@ export class MyPluginSettingTab extends PluginSettingTab {
     private generalSettingsSection: GeneralSettingsSection;
     /** AI model configuration section. */
     private aiModelConfigurationSection: AIModelConfigurationSection;
-    /** Agent settings section. */
-    private agentSettingsSection: AgentSettingsSection;
     /** Content and note handling section. */
     private contentNoteHandlingSection: ContentNoteHandlingSection;
     /** Backup and trash management section. */
@@ -65,7 +62,6 @@ export class MyPluginSettingTab extends PluginSettingTab {
         // Initialize each settings section
         this.generalSettingsSection = new GeneralSettingsSection(this.plugin, this.settingCreators);
         this.aiModelConfigurationSection = new AIModelConfigurationSection(this.plugin, this.settingCreators);
-        this.agentSettingsSection = new AgentSettingsSection(this.app, this.plugin, this.settingCreators);
         this.contentNoteHandlingSection = new ContentNoteHandlingSection(this.plugin, this.settingCreators);
         this.backupManagementSection = new BackupManagementSection(this.plugin, this.settingCreators);
         this.chatHistorySettingsSection = new ChatHistorySettingsSection(this.plugin, this.settingCreators);
@@ -124,14 +120,6 @@ export class MyPluginSettingTab extends PluginSettingTab {
             (sectionEl: HTMLElement) => this.aiModelConfigurationSection.render(sectionEl),
             this.plugin,
             'generalSectionsExpanded'
-        );
-
-        CollapsibleSectionRenderer.createCollapsibleSection(
-            containerEl,
-            'Agent Settings',
-            (sectionEl: HTMLElement) => this.agentSettingsSection.render(sectionEl),
-            this.plugin,
-            'agentConfigExpanded'
         );
 
         CollapsibleSectionRenderer.createCollapsibleSection(

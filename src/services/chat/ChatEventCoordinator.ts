@@ -315,21 +315,7 @@ export class ChatEventCoordinator implements IChatEventCoordinator {
             );
         }
 
-        // Agent mode button
-        if (uiElements.agentModeButton) {
-            this.addEventListenerWithCleanup(
-                uiElements.agentModeButton,
-                'click',
-                async () => {
-                    const agentManager = (this.plugin as any).agentModeManager;
-                    if (agentManager) {
-                        const currentState = agentManager.isAgentModeEnabled();
-                        await agentManager.setAgentModeEnabled(!currentState);
-                        this.uiManager.updateAgentModeDisplay(!currentState);
-                    }
-                }
-            );
-        }
+
 
         // Obsidian Links button
         if (uiElements.obsidianLinksButton) {
@@ -560,9 +546,6 @@ export class ChatEventCoordinator implements IChatEventCoordinator {
                 break;
             case '/ref':
                 uiElements.referenceNoteButton?.click();
-                break;
-            case '/agent':
-                uiElements.agentModeButton?.click();
                 break;
             case '/links':
                 uiElements.obsidianLinksButton?.click();

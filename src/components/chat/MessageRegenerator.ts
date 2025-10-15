@@ -3,7 +3,6 @@ import { Message } from '../../types';
 import MyPlugin from '../../main';
 import { ChatHistoryManager } from './ChatHistoryManager';
 import { createMessageElement } from './Message';
-import { AgentResponseHandler } from '../agent/AgentResponseHandler';
 
 // Forward declaration to avoid circular dependency
 interface IChatView {
@@ -26,7 +25,6 @@ export class MessageRegenerator {
      * @param messagesContainer The chat messages container element
      * @param inputContainer The chat input container element (for disabling input during regeneration)
      * @param chatHistoryManager The chat history manager instance
-     * @param agentResponseHandler The agent response handler (for agent mode)
      * @param activeStream The current AbortController for streaming (shared reference) - kept for backward compatibility
      * @param chatView The parent ChatView instance for accessing streamAssistantResponse method
      * @param component Optional parent component for Markdown rendering context
@@ -36,7 +34,6 @@ export class MessageRegenerator {
         private messagesContainer: HTMLElement,
         private inputContainer: HTMLElement,
         private chatHistoryManager: ChatHistoryManager,
-        private agentResponseHandler: AgentResponseHandler | null,
         private activeStream: AbortController | null,
         private chatView: IChatView,
         private component?: Component
