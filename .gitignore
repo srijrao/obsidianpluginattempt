@@ -20,4 +20,4 @@ _gsdata_/*
 *.wasm
 *.html
 coverage/*
-main.js
+*main.js*
