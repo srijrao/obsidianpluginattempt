@@ -1003,11 +1003,59 @@ export class ChatView extends ItemView {
         };
 
         // Start streaming with UI integration
-        const responseContent = await this.streamCoordinator.startStream(messages, {
+        let responseContent = await this.streamCoordinator.startStream(messages, {
             temperature: this.plugin.settings.temperature,
             uiContainer: container,
             onChunk
         });
+
+        // FIX: Process agent response if agent mode is enabled (execute tools)
+        if (this.plugin.agentModeManager.isAgentModeEnabled() && this.agentResponseHandler) {
+            this.plugin.debugLog('info', '[ChatView] Agent mode enabled - processing response for tools', {
+                responseLength: responseContent.length,
+                responsePreview: responseContent.substring(0, 200)
+            });
+            
+            try {
+                const chatHistory = await this.chatHistoryManager.getHistory();
+                const agentResult = await this.agentResponseHandler.processResponseWithUI(
+                    responseContent, 
+                    'streamCoordinator', 
+                    chatHistory
+                );
+                
+                // Store enhanced message data in container for later use
+                if (agentResult.toolResults && agentResult.toolResults.length > 0) {
+                    const messageData = {
+                        toolResults: agentResult.toolResults,
+                        reasoning: agentResult.reasoning,
+                        taskStatus: agentResult.taskStatus
+                    };
+                    container.dataset.messageData = JSON.stringify(messageData);
+                    this.plugin.debugLog('debug', '[ChatView] Stored agent message data', {
+                        toolResultsCount: agentResult.toolResults.length
+                    });
+                }
+                
+                // Update response content with processed text
+                responseContent = agentResult.processedText;
+                
+                // Update UI with final processed content
+                const messageDiv = container.querySelector('.message-content');
+                if (messageDiv) {
+                    messageDiv.textContent = responseContent;
+                    container.dataset.rawContent = responseContent;
+                }
+                
+                this.plugin.debugLog('info', '[ChatView] Agent response processed successfully', {
+                    hasToolResults: agentResult.toolResults && agentResult.toolResults.length > 0,
+                    processedTextLength: responseContent.length
+                });
+            } catch (error) {
+                this.plugin.debugLog('error', '[ChatView] Failed to process agent response:', error);
+                // Continue with unprocessed response on error
+            }
+        }
 
         return responseContent;
     }

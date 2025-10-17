@@ -193,9 +193,12 @@ export class StreamCoordinator implements IStreamCoordinator {
                 timestamp: Date.now()
             });
 
-            // Build context messages
-            const contextMessages = await this.buildContextMessages();
-            const allMessages = [...contextMessages, ...messages];
+            // FIX: Don't build context messages here - they're already built by ChatView
+            // and passed in via the messages parameter to avoid duplication
+            // Add agent system prompt if agent mode is enabled
+            await this.addAgentSystemPrompt(messages);
+            
+            const allMessages = messages;
 
             // Start the streaming request
             let fullResponse = '';
@@ -505,6 +508,52 @@ export class StreamCoordinator implements IStreamCoordinator {
         } catch (error) {
             console.warn('Failed to build context messages:', error);
             return [];
+        }
+    }
+
+    /**
+     * Adds agent system prompt to messages if agent mode is enabled.
+     * Prepends the agent prompt to the existing system message or adds a new one.
+     * @param messages The message array to modify (modified in place)
+     */
+    private async addAgentSystemPrompt(messages: Message[]): Promise<void> {
+        this.plugin.debugLog('debug', '[StreamCoordinator] addAgentSystemPrompt called', { 
+            messageCount: messages.length,
+            agentModeEnabled: this.plugin.agentModeManager.isAgentModeEnabled()
+        });
+        
+        if (!this.plugin.agentModeManager.isAgentModeEnabled()) {
+            return;
+        }
+
+        // Dynamically import the agent prompt builder
+        const { buildAgentSystemPrompt } = await import('../../promptConstants');
+
+        // Build the agent-specific system prompt
+        const agentPrompt = buildAgentSystemPrompt(
+            this.plugin.settings.enabledTools, 
+            this.plugin.settings.customAgentSystemMessage
+        );
+
+        this.plugin.debugLog('info', '[StreamCoordinator] Agent mode enabled - adding system prompt', {
+            agentPromptLength: agentPrompt.length,
+            enabledTools: Object.keys(this.plugin.settings.enabledTools || {}).filter(k => this.plugin.settings.enabledTools![k] !== false)
+        });
+
+        // Find the existing system message
+        const systemMessageIndex = messages.findIndex(msg => msg.role === 'system');
+        if (systemMessageIndex !== -1) {
+            // Prepend agent prompt to the existing system message
+            const originalContent = messages[systemMessageIndex].content;
+            messages[systemMessageIndex].content = agentPrompt + '\n\n' + originalContent;
+            this.plugin.debugLog('debug', '[StreamCoordinator] Agent prompt prepended to existing system message');
+        } else {
+            // Add agent prompt as the first system message
+            messages.unshift({
+                role: 'system',
+                content: agentPrompt
+            });
+            this.plugin.debugLog('debug', '[StreamCoordinator] Agent prompt added as new system message');
         }
     }
 
