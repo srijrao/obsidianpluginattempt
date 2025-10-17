@@ -22,4 +22,7 @@ _gsdata_*
 # Ignore any UI test folders
 # Matches a directory named 'ui-test' anywhere in the repo
 ui-test/
-**/ui-test/
+**/ui-test/**
+ui-example/
+**/ui-example/**
+.github/copilot-instructions.md
