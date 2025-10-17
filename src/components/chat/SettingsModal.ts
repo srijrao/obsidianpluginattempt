@@ -2,13 +2,18 @@ import { App, Modal, Setting, Notice } from 'obsidian';
 import MyPlugin from '../../main';
 // All provider logic is now handled by AIDispatcher; direct provider imports removed.
 import { SettingsSections } from './SettingsSections';
+import { AIModelConfigurationSection } from '../../settings/sections/AIModelConfigurationSection';
+import { SettingCreators } from '../../settings/components/SettingCreators';
+
 /**
  * SettingsModal is a modal dialog for configuring the plugin's settings.
- * It uses SettingsSections to render different categories of settings.
+ * It uses AIModelConfigurationSection for AI model settings and SettingsSections for other settings.
  */
 export class SettingsModal extends Modal {
     plugin: MyPlugin;
     private settingsSections: SettingsSections;
+    private aiModelConfigSection: AIModelConfigurationSection;
+    private settingCreators: SettingCreators;
 
     /**
      * Constructs a SettingsModal instance.
@@ -19,7 +24,9 @@ export class SettingsModal extends Modal {
         super(app);
         this.plugin = plugin;
         this.settingsSections = new SettingsSections(plugin);
-        this.titleEl.setText('AI Model Settings');
+        this.settingCreators = new SettingCreators(plugin, () => this.onOpen());
+        this.aiModelConfigSection = new AIModelConfigurationSection(plugin, this.settingCreators);
+        // No title needed - "Current Model Settings" header is shown in content
 
         // Subscribe to settings changes to refresh the modal if needed
         this.plugin.onSettingsChange(this._onSettingsChange);
@@ -34,14 +41,41 @@ export class SettingsModal extends Modal {
 
     /**
      * Called when the modal is opened.
-     * Clears existing content and renders all settings sections.
+     * Renders only the current model settings (streamlined for quick access).
      */
     async onOpen() {
         const { contentEl } = this;
         contentEl.empty();
         contentEl.addClass('ai-settings-modal');
-        // Render all settings sections, providing a callback to refresh the modal
-        await this.settingsSections.renderAllSettings(contentEl, { onRefresh: () => this.onOpen() });
+        
+        // Add a header
+        contentEl.createEl('h2', { text: 'Current Model Settings' });
+        contentEl.createEl('p', { 
+            text: 'Quick access to frequently used settings. For advanced configuration (API keys, model management, etc.), use the button below.',
+            cls: 'setting-item-description'
+        });
+        
+        // Render only current model settings (without the full AI configuration)
+        await this.aiModelConfigSection.renderCurrentModelSettingsOnly(contentEl);
+        
+        // Add button to open full plugin settings
+        const buttonContainer = contentEl.createDiv({ cls: 'modal-button-container' });
+        buttonContainer.style.marginTop = '2em';
+        buttonContainer.style.textAlign = 'center';
+        
+        new Setting(buttonContainer)
+            .addButton(button => button
+                .setButtonText('Open Full Plugin Settings')
+                .setCta()
+                .onClick(() => {
+                    // Close this modal
+                    this.close();
+                    // Open the plugin settings tab
+                    // @ts-ignore - app.setting is available in Obsidian
+                    this.app.setting.open();
+                    // @ts-ignore - app.setting.openTabById is available in Obsidian
+                    this.app.setting.openTabById(this.plugin.manifest.id);
+                }));
     }
 
     /**

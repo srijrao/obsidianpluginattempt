@@ -17,114 +17,6 @@ export class SettingsSections {
     }
 
     /**
-     * Renders the AI Model Settings section.
-     * Includes system message, streaming, temperature, model selection, and model refresh.
-     * @param containerEl The HTML element to render the section into.
-     * @param onRefresh Optional callback to refresh the entire settings view after certain actions.
-     */
-    async renderAIModelSettings(containerEl: HTMLElement, onRefresh?: () => void): Promise<void> {
-        // Clear the container before rendering
-        while (containerEl.firstChild) containerEl.removeChild(containerEl.firstChild);
-
-        // Render model preset buttons if available
-        if (this.plugin.settings.modelSettingPresets && this.plugin.settings.modelSettingPresets.length > 0) {
-            const presetContainer = containerEl.createDiv();
-            presetContainer.addClass('model-preset-buttons');
-            presetContainer.createEl('div', { text: 'Presets:', cls: 'setting-item-name' });
-            this.plugin.settings.modelSettingPresets.forEach((preset, idx) => {
-                const btn = presetContainer.createEl('button', { text: preset.name });
-                btn.style.marginRight = '0.5em';
-                btn.onclick = async () => {
-                    // Apply preset settings
-                    if (preset.selectedModel !== undefined) this.plugin.settings.selectedModel = preset.selectedModel;
-                    if (preset.systemMessage !== undefined) this.plugin.settings.systemMessage = preset.systemMessage;
-                    if (preset.temperature !== undefined) this.plugin.settings.temperature = preset.temperature;
-                    if (preset.enableStreaming !== undefined) this.plugin.settings.enableStreaming = preset.enableStreaming;
-                    await this.plugin.saveSettings();
-                    // Refresh the UI after applying preset (with a small delay to avoid race conditions)
-                    if (onRefresh) {
-                        if ((window as any)._aiModelSettingsRefreshTimeout) {
-                            clearTimeout((window as any)._aiModelSettingsRefreshTimeout);
-                        }
-                        (window as any)._aiModelSettingsRefreshTimeout = setTimeout(() => {
-                            onRefresh();
-                            (window as any)._aiModelSettingsRefreshTimeout = null;
-                        }, 50);
-                    }
-                    new Notice(`Applied preset: ${preset.name}`);
-                };
-            });
-        }
-
-        // System Message setting
-        new Setting(containerEl)
-            .setName('System Message')
-            .setDesc('Set the system message for the AI')
-            .addTextArea(text => {
-                text.setPlaceholder('You are a helpful assistant.')
-                    .setValue(this.plugin.settings.systemMessage)
-                    .onChange((value) => {
-                        // Update setting value immediately on change
-                        this.plugin.settings.systemMessage = value;
-                    });
-                // Save settings on blur (when textarea loses focus)
-                text.inputEl.addEventListener('blur', async () => {
-                    await this.plugin.saveSettings();
-                });
-                return text;
-            });
-
-        // Enable Streaming setting
-        new Setting(containerEl)
-            .setName('Enable Streaming')
-            .setDesc('Enable or disable streaming for completions')
-            .addToggle(toggle => toggle
-                .setValue(this.plugin.settings.enableStreaming)
-                .onChange(async (value) => {
-                    this.plugin.settings.enableStreaming = value;
-                    await this.plugin.saveSettings();
-                }));
-
-        // Temperature setting
-        new Setting(containerEl)
-            .setName('Temperature')
-            .setDesc('Set the randomness of the model\'s output (0-1)')
-            .addSlider(slider => slider
-                .setLimits(0, 1, 0.1)
-                .setValue(this.plugin.settings.temperature)
-                .setDynamicTooltip()
-                .onChange(async (value) => {
-                    this.plugin.settings.temperature = value;
-                    await this.plugin.saveSettings();
-                }));
-
-        // Refresh Available Models button
-        new Setting(containerEl)
-            .setName('Refresh Available Models')
-            .setDesc('Test connections to all configured providers and refresh available models')
-            .addButton(button => button
-                .setButtonText('Refresh Models')
-                .onClick(async () => {
-                    button.setButtonText('Refreshing...');
-                    button.setDisabled(true);
-                    try {
-                        await this.refreshAllAvailableModels();
-                        new Notice('Successfully refreshed available models');
-                        // Refresh the UI after successful refresh
-                        if (onRefresh) onRefresh();
-                    } catch (error) {
-                        new Notice(`Error refreshing models: ${error.message}`);
-                    } finally {
-                        button.setButtonText('Refresh Models');
-                        button.setDisabled(false);
-                    }
-                }));
-
-        // Render the unified model selection dropdown
-        await this.renderUnifiedModelDropdown(containerEl);
-    }
-
-    /**
      * Date Settings Section.
      * Includes options for including date and time in the system message.
      * @param containerEl The HTML element to render the section into.
@@ -217,91 +109,6 @@ export class SettingsSections {
         this.renderAnthropicConfig(containerEl);
         this.renderGeminiConfig(containerEl);
         this.renderOllamaConfig(containerEl);
-    }
-
-    /**
-     * Renders the unified model selection dropdown.
-     * Populates the dropdown with available models fetched from providers.
-     * @param containerEl The HTML element to render the dropdown into.
-     */
-    private async renderUnifiedModelDropdown(containerEl: HTMLElement): Promise<void> {
-        // Fetch available models if not already loaded
-        if (!this.plugin.settings.availableModels || this.plugin.settings.availableModels.length === 0) {
-            const aiDispatcher = new AIDispatcher(this.plugin.app.vault, this.plugin);
-            this.plugin.settings.availableModels = await aiDispatcher.getAllUnifiedModels();
-            await this.plugin.saveSettings();
-        }
-
-        new Setting(containerEl)
-            .setName('Selected Model')
-            .setDesc('Choose from all available models across all configured providers')
-            .addDropdown(dropdown => {
-                // Add options to the dropdown
-                if (!this.plugin.settings.availableModels || this.plugin.settings.availableModels.length === 0) {
-                    dropdown.addOption('', 'No models available - configure providers below');
-                } else {
-                    dropdown.addOption('', 'Select a model...');
-
-                    // Group models by provider for better organization in the dropdown
-                    const modelsByProvider: Record<string, any[]> = {};
-                    const enabledModels = this.plugin.settings.enabledModels || {};
-                    // Filter out disabled models
-                    const filteredModels = this.plugin.settings.availableModels.filter(model => enabledModels[model.id] !== false);
-                    filteredModels.forEach(model => {
-                        if (!modelsByProvider[model.provider]) {
-                            modelsByProvider[model.provider] = [];
-                        }
-                        modelsByProvider[model.provider].push(model);
-                    });
-
-                    // Add models to the dropdown, grouped by provider
-                    Object.entries(modelsByProvider).forEach(([provider, models]) => {
-                        models.forEach(model => {
-                            dropdown.addOption(model.id, model.name);
-                        });
-                    });
-                }
-                dropdown
-                    .setValue(this.plugin.settings.selectedModel || '')
-                    .onChange(async (value) => {
-                        this.plugin.settings.selectedModel = value;
-                        // Update the main provider setting based on the selected unified model
-                        if (value) {
-                            // Extract provider from unified model ID
-                            const [provider] = value.split(':', 2);
-                            this.plugin.settings.provider = provider as any;
-                        }
-                        await this.plugin.saveSettings();
-                    });
-            });
-
-        // Display info about the currently selected model
-        if (this.plugin.settings.selectedModel && this.plugin.settings.availableModels) {
-            const selectedModel = this.plugin.settings.availableModels.find(
-                model => model.id === this.plugin.settings.selectedModel
-            );
-            if (selectedModel) {
-                const infoEl = containerEl.createEl('div', { cls: 'setting-item-description' });
-                infoEl.setText(`Currently using: ${selectedModel.name}`);
-            }
-        }
-    }
-
-    /**
-     * Refreshes available models from all configured providers using the dispatcher.
-     * Uses the AIDispatcher to test connections and update available models.
-     */
-    private async refreshAllAvailableModels(): Promise<void> {
-        const aiDispatcher = new AIDispatcher(this.plugin.app.vault, this.plugin);
-        
-        try {
-            // Use dispatcher to refresh all provider models
-            await aiDispatcher.refreshAllProviderModels();
-            this.plugin.settings.availableModels = await aiDispatcher.getAllUnifiedModels();
-            await this.plugin.saveSettings();
-        } catch (error) {
-            console.error('Error refreshing all available models:', error);
-        }
     }
 
     /**
@@ -521,11 +328,13 @@ export class SettingsSections {
     /**
      * Renders all settings sections in order for a modal or view.
      * This method orchestrates the rendering of all distinct setting categories.
+     * Note: AI Model Settings should be rendered separately using AIModelConfigurationSection.
      * @param containerEl The HTML element to render the sections into.
      * @param options Optional settings, e.g., onRefresh callback.
      */
     async renderAllSettings(containerEl: HTMLElement, options?: { onRefresh?: () => void }) {
-        await this.renderAIModelSettings(containerEl, options?.onRefresh);
+        // Note: renderAIModelSettings has been removed to avoid duplication with AIModelConfigurationSection
+        // The caller should use AIModelConfigurationSection.render() directly for AI model settings
         this.renderDateSettings(containerEl);
         this.renderNoteReferenceSettings(containerEl);
         this.renderProviderConfiguration(containerEl);
