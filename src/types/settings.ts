@@ -47,8 +47,8 @@ export interface ModelSettingPreset {
  * They are saved between sessions and can be configured in the settings tab.
  */
 export interface MyPluginSettings {
-    /** Which AI provider to use (e.g., 'openai', 'anthropic', 'gemini', 'ollama'). */
-    provider: 'openai' | 'anthropic' | 'gemini' | 'ollama';
+    /** Which AI provider to use (e.g., 'openai', 'anthropic', 'gemini', 'ollama', 'openrouter'). */
+    provider: 'openai' | 'anthropic' | 'gemini' | 'ollama' | 'openrouter';
     /** If true, the current active note's content will be referenced in AI queries. */
     referenceCurrentNote: boolean;
 
@@ -126,6 +126,25 @@ export interface MyPluginSettings {
         /** List of available Ollama models. */
         availableModels: string[];
         /** Last test result for server connectivity and model availability. */
+        lastTestResult?: {
+            /** Timestamp of the last test. */
+            timestamp: number;
+            /** Whether the test was successful. */
+            success: boolean;
+            /** Message detailing the test result. */
+            message: string;
+        };
+    };
+
+    /** OpenRouter-specific settings. */
+    openrouterSettings?: {
+        /** OpenRouter API key. */
+        apiKey: string;
+        /** The default OpenRouter model to use. */
+        model: string;
+        /** List of available OpenRouter models. */
+        availableModels: string[];
+        /** Last test result for API key validation. */
         lastTestResult?: {
             /** Timestamp of the last test. */
             timestamp: number;
@@ -305,6 +324,12 @@ export const DEFAULT_SETTINGS: MyPluginSettings = {
     ollamaSettings: {
         serverUrl: 'http://localhost:11434',
         model: 'llama2',
+        availableModels: []
+    },
+    /** @inheritdoc */
+    openrouterSettings: {
+        apiKey: '',
+        model: 'openai/gpt-4-turbo',
         availableModels: []
     },
     /** @inheritdoc */

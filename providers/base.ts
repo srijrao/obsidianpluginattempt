@@ -8,6 +8,22 @@
 import { AIProvider, Message, CompletionOptions, ConnectionTestResult } from '../src/types';
 
 /**
+ * Rich model information with metadata
+ */
+export interface ModelInfo {
+    /** Unique model identifier */
+    id: string;
+    /** Human-readable model name */
+    name: string;
+    /** Optional description of model capabilities */
+    description?: string;
+    /** Context window size in tokens */
+    context_length?: number;
+    /** Provider that offers this model */
+    provider?: string;
+}
+
+/**
  * Common error types across providers
  */
 export enum ProviderErrorType {
@@ -50,6 +66,17 @@ export abstract class BaseProvider implements AIProvider {
      * Get available models
      */
     abstract getAvailableModels(): Promise<string[]>;
+
+    /**
+     * List available models with rich metadata
+     * 
+     * This method returns detailed model information including names,
+     * descriptions, and context lengths. Providers should implement this
+     * to fetch from their APIs or return hardcoded lists.
+     * 
+     * @returns Promise resolving to array of ModelInfo objects
+     */
+    abstract listModels(): Promise<ModelInfo[]>;
 
     /**
      * Test connection to the provider

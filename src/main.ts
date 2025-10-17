@@ -1,5 +1,6 @@
 import { Plugin } from 'obsidian';
 import { MyPluginSettings, Message, DEFAULT_SETTINGS, AgentModeSettings } from './types';
+import { addFuzzyModelDropdownStyles } from './components/FuzzyModelDropdown';
 import { MyPluginSettingTab } from './settings';
 import { ChatView, VIEW_TYPE_CHAT } from './chat';
 import { processMessages } from './utils/noteUtils'; // Removed getContextNotesContent
@@ -13,7 +14,7 @@ import { registerAllCommands } from './components/commands/commandRegistry';
 import { registerYamlAttributeCommands } from './YAMLHandler';
 import { AIDispatcher } from './utils/aiDispatcher';
 import { MessageContextPool, PreAllocatedArrays } from './utils/objectPool';
-import { Priority3IntegrationManager } from './integration/priority3Integration';
+import { Priority3IntegrationManager } from './utils/priority3Integration';
 import { parseToolDataFromContent, cleanContentFromToolData } from './utils/messageContentParser';
 import { isVaultAdapterWithBasePath, validatePluginSettings } from './utils/typeguards';
 import { RecentlyOpenedFilesManager } from './utils/recently-opened-files';
@@ -165,6 +166,9 @@ export default class MyPlugin extends Plugin {
     async onload() {
         await this.loadSettings();
 
+        // Add fuzzy model dropdown styles
+        addFuzzyModelDropdownStyles();
+
         // Safely get vault path with proper type checking
         let vaultPath = '';
         try {
@@ -286,6 +290,24 @@ export default class MyPlugin extends Plugin {
     }
 
     /**
+     * Migrate settings from old format to new format
+     * Handles adding OpenRouter settings if missing
+     */
+    private migrateSettings(settings: any): void {
+        // Add OpenRouter settings if missing
+        if (!settings.openrouterSettings) {
+            settings.openrouterSettings = {
+                apiKey: '',
+                model: 'openai/gpt-4-turbo',
+                availableModels: []
+            };
+            debugLog(this.settings?.debugMode ?? false, 'info', '[main.ts] Added OpenRouter settings during migration');
+        }
+        
+        // Future migrations can be added here
+    }
+
+    /**
      * Loads plugin settings from data.
      * Merges loaded data with default settings with runtime validation.
      */
@@ -295,6 +317,9 @@ export default class MyPlugin extends Plugin {
             
             // Validate loaded data before merging
             if (loadedData !== null && loadedData !== undefined) {
+                // Apply migrations first
+                this.migrateSettings(loadedData);
+                
                 const validatedData = validatePluginSettings(loadedData);
                 this.settings = Object.assign({}, DEFAULT_SETTINGS, validatedData);
             } else {

@@ -3,6 +3,9 @@
  * @description Jest test setup file for the AI Assistant Obsidian plugin
  */
 
+// Add Anthropic SDK shim for Node.js environment - MUST be first
+import '@anthropic-ai/sdk/shims/node';
+
 import 'jest-environment-jsdom';
 
 // Add structuredClone polyfill for Node.js environment

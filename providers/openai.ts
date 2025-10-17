@@ -6,8 +6,10 @@
  */
 
 import { Message, CompletionOptions, ConnectionTestResult } from '../src/types';
-import { BaseProvider, ProviderError, ProviderErrorType } from './base';
+import { BaseProvider, ProviderError, ProviderErrorType, ModelInfo } from './base';
 import { debugLog } from '../src/utils/logger'; // Import debugLog
+import { providerRegistry } from './registry';
+import type { MyPluginSettings } from '../src/types';
 
 interface OpenAIResponse {
     id: string;
@@ -156,6 +158,76 @@ export class OpenAIProvider extends BaseProvider {
     }
 
     /**
+     * List available OpenAI models with rich metadata
+     * 
+     * Fetches models from OpenAI's API and returns detailed information.
+     * Filters to only include chat models (GPT-3.5, GPT-4, etc.)
+     * 
+     * @returns Promise resolving to array of ModelInfo objects
+     */
+    async listModels(): Promise<ModelInfo[]> {
+        try {
+            const response = await fetch(`${this.baseUrl}/models`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${this.apiKey}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (!response.ok) {
+                throw this.handleHttpError(response);
+            }
+
+            const data = await response.json();
+            const gptModels = data.data.filter((model: any) => model.id.startsWith('gpt-'));
+            
+            return gptModels.map((model: any) => ({
+                id: model.id,
+                name: model.id,
+                description: this.getModelDescription(model.id),
+                context_length: this.getModelContextLength(model.id),
+                provider: 'openai'
+            }));
+        } catch (error) {
+            debugLog(this.debugMode, 'error', 'Error listing OpenAI models:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Get a description for a known OpenAI model
+     */
+    private getModelDescription(modelId: string): string | undefined {
+        const descriptions: Record<string, string> = {
+            'gpt-4-turbo': 'Most capable GPT-4 model with improved performance',
+            'gpt-4-turbo-preview': 'Preview of latest GPT-4 Turbo improvements',
+            'gpt-4': 'More capable than GPT-3.5, better at complex tasks',
+            'gpt-4-0613': 'GPT-4 snapshot from June 2023',
+            'gpt-4-32k': 'Extended context window version of GPT-4',
+            'gpt-3.5-turbo': 'Fast and efficient model for most tasks',
+            'gpt-3.5-turbo-16k': 'Extended context window version of GPT-3.5'
+        };
+        return descriptions[modelId];
+    }
+
+    /**
+     * Get context length for a known OpenAI model
+     */
+    private getModelContextLength(modelId: string): number | undefined {
+        const contextLengths: Record<string, number> = {
+            'gpt-4-turbo': 128000,
+            'gpt-4-turbo-preview': 128000,
+            'gpt-4': 8192,
+            'gpt-4-0613': 8192,
+            'gpt-4-32k': 32768,
+            'gpt-3.5-turbo': 16385,
+            'gpt-3.5-turbo-16k': 16385
+        };
+        return contextLengths[modelId];
+    }
+
+    /**
      * Test connection to OpenAI
      * 
      * Verifies the API key works by attempting to list models.
@@ -175,3 +247,34 @@ export class OpenAIProvider extends BaseProvider {
         }
     }
 }
+
+// Register OpenAI provider with the registry
+providerRegistry.register(
+    {
+        id: 'openai',
+        name: 'OpenAI',
+        description: 'GPT-4, GPT-3.5, and other OpenAI models',
+        configFields: {
+            apiKey: {
+                label: 'OpenAI API Key',
+                placeholder: 'sk-...',
+                validator: (key: string) => key.startsWith('sk-') && key.length >= 20,
+                required: true,
+                type: 'password'
+            },
+            baseUrl: {
+                label: 'Base URL (optional)',
+                placeholder: 'https://api.openai.com/v1',
+                type: 'url'
+            }
+        },
+        supportsStreaming: true,
+        isImplemented: true
+    },
+    (settings: MyPluginSettings) => new OpenAIProvider(
+        settings.openaiSettings.apiKey,
+        settings.openaiSettings.model,
+        settings.openaiSettings.baseUrl,
+        settings.debugMode ?? false
+    )
+);

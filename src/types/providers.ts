@@ -53,6 +53,6 @@ export interface AIProvider {
 export interface UnifiedModel {
     id: string;           
     name: string;         
-    provider: 'openai' | 'anthropic' | 'gemini' | 'ollama';
+    provider: 'openai' | 'anthropic' | 'gemini' | 'ollama' | 'openrouter';
     modelId: string;      
 }

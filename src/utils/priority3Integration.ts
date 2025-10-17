@@ -7,12 +7,12 @@
  */
 
 import { Plugin } from 'obsidian';
-import { DIContainer, ServiceLocator, DIContainerFactory } from '../utils/dependencyInjection';
-import { globalStateManager, StateUtils } from '../utils/stateManager';
-import { globalStreamManager, StreamUtils } from '../utils/streamManager';
-import { errorHandler } from '../utils/errorHandler';
-import { LRUCache } from '../utils/lruCache';
-import { AsyncOptimizerFactory } from '../utils/asyncOptimizer';
+import { DIContainer, ServiceLocator, DIContainerFactory } from './dependencyInjection';
+import { globalStateManager, StateUtils } from './stateManager';
+import { globalStreamManager, StreamUtils } from './streamManager';
+import { errorHandler } from './errorHandler';
+import { LRUCache } from './lruCache';
+import { AsyncOptimizerFactory } from './asyncOptimizer';
 
 /**
  * Priority 3 Integration Manager

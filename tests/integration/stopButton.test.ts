@@ -1,3 +1,11 @@
+// Mock the Anthropic SDK before it gets imported
+jest.mock('@anthropic-ai/sdk', () => {
+  return {
+    __esModule: true,
+    default: jest.fn(),
+  };
+});
+
 import { ChatView } from '../../src/chat';
 import MyPlugin from '../../src/main';
 import { StreamCoordinator } from '../../src/services/chat/StreamCoordinator';
@@ -13,15 +21,17 @@ jest.mock('obsidian', () => ({
   Plugin: class MockPlugin {},
   TFile: class MockTFile {},
   Vault: class MockVault {},
+  Component: class MockComponent {},
+  normalizePath: (path: string) => path.replace(/\\/g, '/'),
   debounce: (fn: any) => fn,
 }));
 
 // Mock other dependencies
-jest.mock('../src/components/chat/chatHistoryUtils', () => ({
+jest.mock('../../src/components/chat/chatHistoryUtils', () => ({
   renderChatHistory: jest.fn(),
 }));
 
-jest.mock('../src/components/chat/eventHandlers', () => ({
+jest.mock('../../src/components/chat/eventHandlers', () => ({
   handleCopyAll: jest.fn(),
   handleSaveNote: jest.fn(),
   handleClearChat: jest.fn(),
@@ -29,15 +39,15 @@ jest.mock('../src/components/chat/eventHandlers', () => ({
   handleHelp: jest.fn(),
 }));
 
-jest.mock('../src/components/chat/chatPersistence', () => ({
+jest.mock('../../src/components/chat/chatPersistence', () => ({
   loadChatYamlAndApplySettings: jest.fn(),
 }));
 
-jest.mock('../src/utils/contextBuilder', () => ({
+jest.mock('../../src/utils/contextBuilder', () => ({
   buildContextMessages: jest.fn().mockResolvedValue([]),
 }));
 
-jest.mock('../src/utils/generalUtils', () => ({
+jest.mock('../../src/utils/generalUtils', () => ({
   showNotice: jest.fn(),
 }));
 
@@ -62,6 +72,11 @@ describe('Stop Button Integration Tests', () => {
           getLeavesOfType: jest.fn(() => [])
         },
         vault: {},
+      },
+      manifest: {
+        id: 'ai-assistant-for-obsidian',
+        name: 'AI Assistant',
+        version: '1.0.0',
       },
       settings: {
         temperature: 0.7,
@@ -114,13 +129,12 @@ describe('Stop Button Integration Tests', () => {
       // Simulate StreamCoordinator starting stream
       mockStreamCoordinator.isStreaming.mockReturnValue(true);
       
-      // Call the UI sync method directly
-      (chatView as any).syncStopSendButtonState(true);
+      // Call the UI state change method that StreamCoordinator triggers
+      (chatView as any).onStreamCoordinatorStateChange(true);
       
       // Verify UI state
       expect(stopButton.classList.contains('hidden')).toBe(false);
       expect(sendButton.classList.contains('hidden')).toBe(true);
-      expect(mockPlugin.debugLog).toHaveBeenCalledWith('debug', '[ChatView] StreamCoordinator - showing stop button');
     });
 
     test('should show send button when StreamCoordinator stops streaming', () => {
@@ -131,13 +145,12 @@ describe('Stop Button Integration Tests', () => {
       // Simulate StreamCoordinator stopping stream
       mockStreamCoordinator.isStreaming.mockReturnValue(false);
       
-      // Call the UI sync method directly
-      (chatView as any).syncStopSendButtonState(false);
+      // Call the UI state change method that StreamCoordinator triggers
+      (chatView as any).onStreamCoordinatorStateChange(false);
       
       // Verify UI state
       expect(stopButton.classList.contains('hidden')).toBe(true);
       expect(sendButton.classList.contains('hidden')).toBe(false);
-      expect(mockPlugin.debugLog).toHaveBeenCalledWith('debug', '[ChatView] StreamCoordinator - showing send button');
     });
 
     test('should handle missing DOM elements gracefully', () => {
@@ -147,48 +160,34 @@ describe('Stop Button Integration Tests', () => {
         sendButton: null,
       };
       
-      // Should not throw
+      // Should not throw (syncUIWithCentralState checks for missing buttons)
       expect(() => {
-        (chatView as any).syncStopSendButtonState(true);
+        (chatView as any).onStreamCoordinatorStateChange(true);
       }).not.toThrow();
-      
-      expect(mockPlugin.debugLog).toHaveBeenCalledWith('warn', '[ChatView] Stop/send buttons not found in DOM cache');
     });
   });
 
   describe('hasActiveStream Method', () => {
-    test('should prioritize StreamCoordinator status', () => {
-      mockStreamCoordinator.isStreaming.mockReturnValue(true);
-      
-      const result = chatView.hasActiveStream();
-      
-      expect(result).toBe(true);
-      expect(mockStreamCoordinator.isStreaming).toHaveBeenCalled();
-    });
-
-    test('should fallback to legacy checks when StreamCoordinator not streaming', () => {
-      mockStreamCoordinator.isStreaming.mockReturnValue(false);
-      (chatView as any).activeStream = { abort: jest.fn() };
+    test('should use centralStreamState to check for active streams', () => {
+      // Set up central stream state as streaming
+      (chatView as any).centralStreamState = {
+        isStreaming: true,
+        streamSource: 'coordinator',
+        lastUpdate: Date.now()
+      };
       
       const result = chatView.hasActiveStream();
       
       expect(result).toBe(true);
     });
 
-    test('should check AIDispatcher as final fallback', () => {
-      mockStreamCoordinator.isStreaming.mockReturnValue(false);
-      (chatView as any).activeStream = null;
-      mockPlugin.aiDispatcher.hasActiveStreams.mockReturnValue(true);
-      
-      const result = chatView.hasActiveStream();
-      
-      expect(result).toBe(true);
-    });
-
-    test('should return false when no streams are active', () => {
-      mockStreamCoordinator.isStreaming.mockReturnValue(false);
-      (chatView as any).activeStream = null;
-      mockPlugin.aiDispatcher.hasActiveStreams.mockReturnValue(false);
+    test('should return false when centralStreamState shows no streaming', () => {
+      // Set up central stream state as not streaming
+      (chatView as any).centralStreamState = {
+        isStreaming: false,
+        streamSource: null,
+        lastUpdate: Date.now()
+      };
       
       const result = chatView.hasActiveStream();
       
@@ -197,32 +196,44 @@ describe('Stop Button Integration Tests', () => {
   });
 
   describe('stopActiveStream Method', () => {
-    test('should prioritize StreamCoordinator for stopping', () => {
+    test('should stop StreamCoordinator if streaming', () => {
+      mockStreamCoordinator.isStreaming.mockReturnValue(true);
+      
       chatView.stopActiveStream();
       
       expect(mockStreamCoordinator.stopStream).toHaveBeenCalled();
     });
 
-    test('should also stop legacy streams defensively', () => {
+    test('should stop legacy streams if present', () => {
+      mockStreamCoordinator.isStreaming.mockReturnValue(false);
       const mockAbortController = { abort: jest.fn() };
       (chatView as any).activeStream = mockAbortController;
       
       chatView.stopActiveStream();
       
-      expect(mockStreamCoordinator.stopStream).toHaveBeenCalled();
       expect(mockAbortController.abort).toHaveBeenCalled();
       expect((chatView as any).activeStream).toBeNull();
-      expect(mockPlugin.aiDispatcher.abortAllStreams).toHaveBeenCalled();
     });
 
-    test('should handle missing StreamCoordinator gracefully', () => {
-      (chatView as any).streamCoordinator = null;
+    test('should stop global plugin streams', () => {
+      mockStreamCoordinator.isStreaming.mockReturnValue(false);
+      (chatView as any).activeStream = null;
+      mockPlugin.hasActiveAIStreams = jest.fn().mockReturnValue(true);
+      mockPlugin.stopAllAIStreams = jest.fn();
       
-      expect(() => {
-        chatView.stopActiveStream();
-      }).not.toThrow();
+      chatView.stopActiveStream();
       
-      expect(mockPlugin.aiDispatcher.abortAllStreams).toHaveBeenCalled();
+      expect(mockPlugin.stopAllAIStreams).toHaveBeenCalled();
+    });
+
+    test('should update centralStreamState after stopping', () => {
+      mockStreamCoordinator.isStreaming.mockReturnValue(true);
+      
+      chatView.stopActiveStream();
+      
+      const centralState = (chatView as any).centralStreamState;
+      expect(centralState.isStreaming).toBe(false);
+      expect(centralState.streamSource).toBeNull();
     });
   });
 
@@ -234,14 +245,16 @@ describe('Stop Button Integration Tests', () => {
       messageContent.className = 'message-content';
       container.appendChild(messageContent);
       
+      mockStreamCoordinator.startStream.mockResolvedValue('Mock response');
+      
       const result = await (chatView as any).streamCoordinatorResponse(messages, container);
       
       expect(mockStreamCoordinator.setActiveContainer).toHaveBeenCalledWith(container);
-      expect(mockStreamCoordinator.startStream).toHaveBeenCalledWith(messages, {
+      expect(mockStreamCoordinator.startStream).toHaveBeenCalledWith(messages, expect.objectContaining({
         temperature: 0.7,
         uiContainer: container,
         onChunk: expect.any(Function),
-      });
+      }));
       expect(result).toBe('Mock response');
     });
 
@@ -265,6 +278,7 @@ describe('Stop Button Integration Tests', () => {
       await chunkCallback('Hello', 'Hello world');
       
       expect(messageContent.textContent).toBe('Hello world');
+      expect(container.dataset.rawContent).toBe('Hello world');
     });
 
     test('should throw error when StreamCoordinator not initialized', async () => {

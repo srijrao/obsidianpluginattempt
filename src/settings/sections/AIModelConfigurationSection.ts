@@ -4,6 +4,10 @@ import { SettingCreators } from '../components/SettingCreators';
 import { CollapsibleSectionRenderer } from '../../utils/CollapsibleSection';
 import { AIDispatcher } from '../../utils/aiDispatcher';
 import { isValidOpenAIApiKey, isValidAnthropicApiKey, isValidGoogleApiKey, isValidUrl } from '../../utils/validationUtils';
+import { FuzzyModelDropdown } from '../../components/FuzzyModelDropdown';
+import { ModelService } from '../../services/ModelService';
+import type { ModelInfo } from '../../../providers/base';
+import { providerRegistry } from '../../../providers';
 
 /**
  * AIModelConfigurationSection is responsible for rendering the settings related to AI model configuration.
@@ -157,15 +161,60 @@ export class AIModelConfigurationSection {
                 steps.createEl('li', { text: 'Pull models using "ollama pull model-name"' });
                 steps.createEl('li', { text: 'Test connection to see available models' });
                 
-                        this.renderProviderTestSection(sectionEl, 'ollama', 'Ollama');
-                    },
-                    this.plugin,
-                    'providerConfigExpanded'
-                );
+                this.renderProviderTestSection(sectionEl, 'ollama', 'Ollama');
             },
             this.plugin,
             'providerConfigExpanded'
         );
+
+        // OpenRouter Configuration Section
+        CollapsibleSectionRenderer.createCollapsibleSection(
+            containerEl,
+            'OpenRouter Configuration',
+            async (sectionEl: HTMLElement) => {
+                this.settingCreators.createTextSetting(
+                    sectionEl, 
+                    'OpenRouter API Key', 
+                    'Enter your OpenRouter API key (access 100+ models from multiple providers)', 
+                    'sk-or-v1-...',
+                    () => this.plugin.settings.openrouterSettings?.apiKey || '',
+                    async (value) => {
+                        if (value && !value.startsWith('sk-or-')) {
+                            new Notice('Invalid OpenRouter API Key format. Keys should start with "sk-or-"');
+                            return;
+                        }
+                        if (!this.plugin.settings.openrouterSettings) {
+                            this.plugin.settings.openrouterSettings = {
+                                apiKey: '',
+                                model: 'openai/gpt-4-turbo',
+                                availableModels: []
+                            };
+                        }
+                        this.plugin.settings.openrouterSettings.apiKey = value ?? '';
+                        await this.plugin.saveSettings();
+                    }
+                );
+                
+                sectionEl.createEl('div', {
+                    cls: 'setting-item-description',
+                    text: 'OpenRouter provides access to models from OpenAI, Anthropic, Google, Meta, and more through a single API.'
+                });
+                
+                const infoDiv = sectionEl.createEl('div', { cls: 'setting-item-description' });
+                infoDiv.createEl('a', { 
+                    text: 'Get your API key from openrouter.ai', 
+                    href: 'https://openrouter.ai/keys'
+                });
+                
+                this.renderProviderTestSection(sectionEl, 'openrouter', 'OpenRouter');
+            },
+            this.plugin,
+            'providerConfigExpanded'
+        );
+    },
+    this.plugin,
+    'providerConfigExpanded'
+);
 
         // Default AI Model Settings Section
         CollapsibleSectionRenderer.createCollapsibleSection(
@@ -203,7 +252,7 @@ export class AIModelConfigurationSection {
      * @param provider The ID of the provider (e.g., 'openai', 'anthropic').
      * @param displayName The display name of the provider (e.g., 'OpenAI', 'Anthropic').
      */
-    private renderProviderTestSection(containerEl: HTMLElement, provider: 'openai' | 'anthropic' | 'gemini' | 'ollama', displayName: string): void {
+    private renderProviderTestSection(containerEl: HTMLElement, provider: 'openai' | 'anthropic' | 'gemini' | 'ollama' | 'openrouter', displayName: string): void {
         const settings = this.plugin.settings[`${provider}Settings` as keyof typeof this.plugin.settings] as any;
         
         new Setting(containerEl)
@@ -258,10 +307,43 @@ export class AIModelConfigurationSection {
         }
 
         if (settings.availableModels && settings.availableModels.length > 0) {
+            const modelsText = settings.availableModels.length > 10 
+                ? `${settings.availableModels.length} models available` 
+                : `Available models: ${settings.availableModels.join(', ')}`;
+            
             containerEl.createEl('div', {
-                text: `Available models: ${settings.availableModels.map((m: any) => m.name || m.id).join(', ')}`,
+                text: modelsText,
                 cls: 'setting-item-description'
             });
+            
+            // Add "Browse Models" button if we have model metadata
+            new Setting(containerEl)
+                .setName('Browse Models')
+                .setDesc('Browse and search through available models with fuzzy search')
+                .addButton(button => button
+                    .setButtonText('Browse Models')
+                    .onClick(async () => {
+                        try {
+                            const modelService = ModelService.getInstance();
+                            const models = await modelService.getModelsForProvider(
+                                provider as any,
+                                this.plugin.settings,
+                                false // Don't force refresh, use cache
+                            );
+                            
+                            const modal = new FuzzyModelDropdown(
+                                this.plugin.app,
+                                models,
+                                (selectedModel: ModelInfo) => {
+                                    new Notice(`Selected: ${selectedModel.name}`);
+                                    // You can add logic here to set the selected model
+                                }
+                            );
+                            modal.open();
+                        } catch (error) {
+                            new Notice(`Error loading models: ${error.message}`);
+                        }
+                    }));
         }
     }
 

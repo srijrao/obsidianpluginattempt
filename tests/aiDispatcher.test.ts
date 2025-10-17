@@ -25,6 +25,10 @@ jest.mock('../src/utils/saveAICalls', () => ({
 jest.mock('../src/utils/logger', () => ({
   debugLog: jest.fn(),
 }));
+jest.mock('../src/utils/typeguards', () => ({
+  ...jest.requireActual('../src/utils/typeguards'),
+  getPluginApp: jest.fn((plugin: any) => ({ vault: plugin.vault || new (require('obsidian').Vault)() })),
+}));
 jest.mock('../src/utils/lruCache', () => ({
   LRUCache: jest.fn().mockImplementation(() => ({
     get: jest.fn(),

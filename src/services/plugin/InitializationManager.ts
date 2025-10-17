@@ -318,7 +318,7 @@ export class InitializationManager implements IInitializationManager {
      */
     private async initializePriority3Optimizations(): Promise<void> {
         try {
-            const { Priority3IntegrationManager } = await import('../../integration/priority3Integration');
+            const { Priority3IntegrationManager } = await import('../../utils/priority3Integration');
             
             const priority3Manager = new Priority3IntegrationManager(this.plugin);
             await priority3Manager.initialize();

@@ -6,8 +6,10 @@
  */
 
 import { Message, CompletionOptions, ConnectionTestResult } from '../src/types';
-import { BaseProvider, ProviderError, ProviderErrorType } from './base';
+import { BaseProvider, ProviderError, ProviderErrorType, ModelInfo } from './base';
 import { debugLog } from '../src/utils/logger'; // Import debugLog
+import { providerRegistry } from './registry';
+import type { MyPluginSettings } from '../src/types';
 
 interface GeminiResponse {
     candidates: Array<{
@@ -159,6 +161,53 @@ export class GeminiProvider extends BaseProvider {
     }
 
     /**
+     * List available Gemini models with rich metadata
+     * 
+     * Fetches models from both v1 and v1beta endpoints and returns detailed information.
+     * 
+     * @returns Promise resolving to array of ModelInfo objects
+     */
+    async listModels(): Promise<ModelInfo[]> {
+        // Helper to fetch models with metadata from a given version
+        const fetchModelsWithMetadata = async (version: string): Promise<ModelInfo[]> => {
+            const url = `https://generativelanguage.googleapis.com/${version}/models?key=${this.apiKey}`;
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            if (!response.ok) throw this.handleHttpError(response);
+            const data = await response.json();
+            
+            return (data.models || []).map((model: any) => ({
+                id: model.name.split('/').pop(),
+                name: model.displayName || model.name.split('/').pop(),
+                description: model.description,
+                context_length: model.inputTokenLimit,
+                provider: 'gemini'
+            }));
+        };
+
+        try {
+            // Fetch both v1 and v1beta models in parallel
+            const [v1Models, v1betaModels] = await Promise.all([
+                fetchModelsWithMetadata('v1'),
+                fetchModelsWithMetadata('v1beta')
+            ]);
+            
+            // Merge and deduplicate by ID
+            const allModels = [...v1Models, ...v1betaModels];
+            const uniqueModels = Array.from(
+                new Map(allModels.map(m => [m.id, m])).values()
+            );
+            
+            return uniqueModels;
+        } catch (error) {
+            debugLog(this.debugMode, 'error', 'Error listing Gemini models:', error);
+            throw error;
+        }
+    }
+
+    /**
      * Test connection to Gemini
      * 
      * Verifies the API key works by attempting to list models.
@@ -219,3 +268,29 @@ export class GeminiProvider extends BaseProvider {
         return geminiMessages;
     }
 }
+
+// Register Gemini provider with the registry
+providerRegistry.register(
+    {
+        id: 'gemini',
+        name: 'Google Gemini',
+        description: 'Google\'s Gemini models for various AI tasks',
+        configFields: {
+            apiKey: {
+                label: 'Google Gemini API Key',
+                placeholder: 'AIza...',
+                validator: (key: string) => key.startsWith('AIza') && key.length >= 20,
+                required: true,
+                type: 'password'
+            }
+        },
+        supportsStreaming: false,
+        isImplemented: true
+    },
+    (settings: MyPluginSettings) => new GeminiProvider(
+        settings.geminiSettings.apiKey,
+        settings.geminiSettings.model,
+        undefined,
+        settings.debugMode ?? false
+    )
+);

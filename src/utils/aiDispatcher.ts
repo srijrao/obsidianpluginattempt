@@ -956,7 +956,7 @@ export class AIDispatcher {
      * @param providerType - The type of provider to test
      * @returns Promise resolving to connection test result
      */
-    async testConnection(providerType: 'openai' | 'anthropic' | 'gemini' | 'ollama') {
+    async testConnection(providerType: 'openai' | 'anthropic' | 'gemini' | 'ollama' | 'openrouter') {
         debugLog(this.plugin.settings.debugMode ?? false, 'info', '[AIDispatcher] Testing connection', { provider: providerType });
         
         const tempSettings = { ...this.plugin.settings, provider: providerType };
@@ -971,7 +971,7 @@ export class AIDispatcher {
      * @param providerType - The type of provider to query
      * @returns Promise resolving to list of available models
      */
-    async getAvailableModels(providerType: 'openai' | 'anthropic' | 'gemini' | 'ollama'): Promise<string[]> {
+    async getAvailableModels(providerType: 'openai' | 'anthropic' | 'gemini' | 'ollama' | 'openrouter'): Promise<string[]> {
         debugLog(this.plugin.settings.debugMode ?? false, 'info', '[AIDispatcher] Fetching available models', { provider: providerType });
         
         // Check cache first

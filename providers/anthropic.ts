@@ -10,9 +10,11 @@
  */
 
 import { Message, CompletionOptions, ConnectionTestResult } from '../src/types';
-import { BaseProvider, ProviderError, ProviderErrorType } from './base';
+import { BaseProvider, ProviderError, ProviderErrorType, ModelInfo } from './base';
 import Anthropic from '@anthropic-ai/sdk';
 import { debugLog } from '../src/utils/logger'; // Import debugLog
+import { providerRegistry } from './registry';
+import type { MyPluginSettings } from '../src/types';
 
 /**
  * Anthropic API response types
@@ -246,6 +248,41 @@ export class AnthropicProvider extends BaseProvider {
             throw error;
         }
     }
+
+    /**
+     * List available Anthropic models with rich metadata
+     * 
+     * Returns Claude models with descriptions and context window information.
+     * Uses hardcoded list since Anthropic doesn't have a models API.
+     * 
+     * @returns Promise resolving to array of ModelInfo objects
+     */
+    async listModels(): Promise<ModelInfo[]> {
+        try {
+            const modelDescriptions: Record<string, string> = {
+                'claude-3-opus-20240229': 'Most capable Claude model for complex tasks',
+                'claude-3-sonnet-20240229': 'Balanced performance and speed',
+                'claude-3-haiku-20240307': 'Fastest Claude model for quick responses',
+                'claude-3-7-sonnet-20250219': 'Latest Sonnet with improved capabilities',
+                'claude-3-5-sonnet-20241022': 'Claude 3.5 Sonnet (October 2024)',
+                'claude-3-5-sonnet-20240620': 'Claude 3.5 Sonnet (June 2024)',
+                'claude-3-5-haiku-20241022': 'Claude 3.5 Haiku for fast responses'
+            };
+
+            return Object.keys(MODEL_CONTEXT_WINDOWS).map(modelId => ({
+                id: modelId,
+                name: modelId.replace(/-\d{8}$/, '').split('-').map(word => 
+                    word.charAt(0).toUpperCase() + word.slice(1)
+                ).join(' '),
+                description: modelDescriptions[modelId],
+                context_length: MODEL_CONTEXT_WINDOWS[modelId],
+                provider: 'anthropic'
+            }));
+        } catch (error) {
+            debugLog(this.debugMode, 'error', 'Error listing Anthropic models:', error);
+            throw error;
+        }
+    }
     
     /**
      * Format messages for Anthropic API
@@ -310,3 +347,28 @@ export class AnthropicProvider extends BaseProvider {
         }
     }
 }
+
+// Register Anthropic provider with the registry
+providerRegistry.register(
+    {
+        id: 'anthropic',
+        name: 'Anthropic',
+        description: 'Claude 3 family models with large context windows',
+        configFields: {
+            apiKey: {
+                label: 'Anthropic API Key',
+                placeholder: 'sk-ant-...',
+                validator: (key: string) => key.startsWith('sk-ant-') && key.length >= 20,
+                required: true,
+                type: 'password'
+            }
+        },
+        supportsStreaming: true,
+        isImplemented: true
+    },
+    (settings: MyPluginSettings) => new AnthropicProvider(
+        settings.anthropicSettings.apiKey,
+        settings.anthropicSettings.model,
+        settings.debugMode ?? false
+    )
+);

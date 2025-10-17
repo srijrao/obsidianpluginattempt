@@ -118,10 +118,12 @@ describe('StreamCoordinator Integration Tests', () => {
     jest.clearAllMocks();
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     if (streamCoordinator) {
       streamCoordinator.dispose();
     }
+    // Wait for any pending async operations to complete
+    await new Promise(resolve => setTimeout(resolve, 50));
   });
 
   describe('Stream Lifecycle Management', () => {
@@ -198,18 +200,21 @@ describe('StreamCoordinator Integration Tests', () => {
       await expect(streamPromise).rejects.toThrow();
     });
 
-    test('should track active streams count', () => {
+    test('should track active streams count', async () => {
       expect(streamCoordinator.getActiveStreams()).toEqual([]);
       
       const messages: Message[] = [
         { role: 'user', content: 'Hello' }
       ];
       
-      streamCoordinator.startStream(messages);
+      const streamPromise = streamCoordinator.startStream(messages);
       expect(streamCoordinator.getActiveStreams().length).toBe(1);
       
       streamCoordinator.stopStream();
       expect(streamCoordinator.getActiveStreams()).toEqual([]);
+      
+      // Wait for the stream to be rejected
+      await expect(streamPromise).rejects.toThrow();
     });
   });
 
@@ -240,7 +245,7 @@ describe('StreamCoordinator Integration Tests', () => {
       expect(uiStateCallback).toHaveBeenCalledWith(false);
     });
 
-    test('should handle UI callback removal', () => {
+    test('should handle UI callback removal', async () => {
       const callback1 = jest.fn();
       const callback2 = jest.fn();
       
@@ -251,7 +256,7 @@ describe('StreamCoordinator Integration Tests', () => {
         { role: 'user', content: 'Hello' }
       ];
       
-      streamCoordinator.startStream(messages);
+      const streamPromise = streamCoordinator.startStream(messages);
       expect(callback1).toHaveBeenCalledWith(true);
       expect(callback2).toHaveBeenCalledWith(true);
       
@@ -260,6 +265,9 @@ describe('StreamCoordinator Integration Tests', () => {
       
       expect(callback1).toHaveBeenCalledTimes(1); // Only the start call
       expect(callback2).toHaveBeenCalledWith(false); // Both start and stop calls
+      
+      // Wait for the stream to be rejected
+      await expect(streamPromise).rejects.toThrow();
     });
   });
 

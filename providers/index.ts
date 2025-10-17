@@ -3,51 +3,38 @@
  * 
  * This file exports all AI provider implementations and shared types.
  * Import providers from this file rather than directly from their modules.
+ * 
+ * Providers self-register when imported, so we import all provider files
+ * to ensure they are registered with the provider registry.
  */
 
 import { MyPluginSettings, UnifiedModel } from '../src/types';
-import { BaseProvider, ProviderError, ProviderErrorType } from './base';
-import { AnthropicProvider } from './anthropic';
-import { OpenAIProvider } from './openai';
-import { GeminiProvider } from './gemini';
+import { BaseProvider, ProviderError, ProviderErrorType, ModelInfo } from './base';
+import { providerRegistry } from './registry';
 
-export { BaseProvider, ProviderError, ProviderErrorType };
-export { AnthropicProvider };
-export { OpenAIProvider };
-export { GeminiProvider };
+// Import all providers to trigger their self-registration
+import './openai';
+import './anthropic';
+import './gemini';
+import './openrouter';
+
+// Re-export types and registry
+export { BaseProvider, ProviderError, ProviderErrorType } from './base';
+export type { ModelInfo } from './base';
+export { providerRegistry } from './registry';
+export type { ProviderMetadata, ConfigField } from './registry';
 
 /**
  * Creates an AI provider instance based on the plugin settings
  * 
+ * Uses the provider registry for dynamic provider creation.
+ * 
  * @param settings The plugin settings containing provider configuration
  * @returns The appropriate provider instance
- * @throws Error if the provider type is invalid
+ * @throws Error if the provider type is invalid or not registered
  */
 export function createProvider(settings: MyPluginSettings): BaseProvider {
-    switch (settings.provider) {
-        case 'openai':
-            return new OpenAIProvider(
-                settings.openaiSettings.apiKey,
-                settings.openaiSettings.model,
-                settings.openaiSettings.baseUrl,
-                settings.debugMode ?? false // Pass debugMode
-            );
-        case 'anthropic':
-            return new AnthropicProvider(
-                settings.anthropicSettings.apiKey,
-                settings.anthropicSettings.model,
-                settings.debugMode ?? false // Pass debugMode
-            );
-        case 'gemini':
-            return new GeminiProvider(
-                settings.geminiSettings.apiKey,
-                settings.geminiSettings.model,
-                undefined, // apiVersion is optional, so pass undefined if not explicitly set
-                settings.debugMode ?? false // Pass debugMode
-            );
-        default:
-            throw new Error(`Invalid provider type: ${settings.provider}`);
-    }
+    return providerRegistry.getProvider(settings.provider, settings);
 }
 
 /**
@@ -58,18 +45,8 @@ export function createProvider(settings: MyPluginSettings): BaseProvider {
  * @returns The appropriate provider instance
  */
 export function createProviderFromUnifiedModel(settings: MyPluginSettings, unifiedModelId: string): BaseProvider {
-    const [providerType, modelId] = unifiedModelId.split(':', 2);
-    
-    switch (providerType) {
-        case 'openai':
-            return new OpenAIProvider(settings.openaiSettings.apiKey, modelId, settings.openaiSettings.baseUrl, settings.debugMode ?? false); // Pass debugMode
-        case 'anthropic':
-            return new AnthropicProvider(settings.anthropicSettings.apiKey, modelId, settings.debugMode ?? false); // Pass debugMode
-        case 'gemini':
-            return new GeminiProvider(settings.geminiSettings.apiKey, modelId, undefined, settings.debugMode ?? false); // Pass debugMode
-        default:
-            throw new Error(`Invalid provider type: ${providerType}`);
-    }
+    const [providerType] = unifiedModelId.split(':', 2);
+    return providerRegistry.getProvider(providerType, settings);
 }
 
 /**
@@ -81,50 +58,54 @@ export function createProviderFromUnifiedModel(settings: MyPluginSettings, unifi
 export async function getAllAvailableModels(settings: MyPluginSettings): Promise<UnifiedModel[]> {
     const allModels: UnifiedModel[] = [];
     
-    // Helper function to get provider display name
-    const getProviderDisplayName = (provider: string): string => {
-        switch (provider) {
-            case 'openai': return 'OpenAI';
-            case 'anthropic': return 'Anthropic';
-            case 'gemini': return 'Google';
-            default: return provider;
-        }
+    // Helper function to get provider display name from metadata
+    const getProviderDisplayName = (providerId: string): string => {
+        const metadata = providerRegistry.getMetadata(providerId);
+        return metadata?.name || providerId;
     };
     
-    // OpenAI models
-    if (settings.openaiSettings.apiKey && settings.openaiSettings.availableModels.length > 0) {
-        settings.openaiSettings.availableModels.forEach(model => {
-            allModels.push({
-                id: `openai:${model}`,
-                name: `${model} (${getProviderDisplayName('openai')})`,
-                provider: 'openai',
-                modelId: model
-            });
-        });
-    }
+    // Get models for each registered provider
+    const registeredProviders = providerRegistry.getAllProviderIds();
     
-    // Anthropic models
-    if (settings.anthropicSettings.apiKey && settings.anthropicSettings.availableModels.length > 0) {
-        settings.anthropicSettings.availableModels.forEach(model => {
-            allModels.push({
-                id: `anthropic:${model}`,
-                name: `${model} (${getProviderDisplayName('anthropic')})`,
-                provider: 'anthropic',
-                modelId: model
+    for (const providerId of registeredProviders) {
+        // Get provider-specific settings
+        let providerSettings: any;
+        let apiKey: string | undefined;
+        
+        switch (providerId) {
+            case 'openai':
+                providerSettings = settings.openaiSettings;
+                apiKey = providerSettings?.apiKey;
+                break;
+            case 'anthropic':
+                providerSettings = settings.anthropicSettings;
+                apiKey = providerSettings?.apiKey;
+                break;
+            case 'gemini':
+                providerSettings = settings.geminiSettings;
+                apiKey = providerSettings?.apiKey;
+                break;
+            case 'openrouter':
+                providerSettings = (settings as any).openrouterSettings;
+                apiKey = providerSettings?.apiKey;
+                break;
+            default:
+                // For unknown providers, try to get settings from a generic location
+                providerSettings = (settings as any)[`${providerId}Settings`];
+                apiKey = providerSettings?.apiKey;
+        }
+        
+        // Only include models if provider has API key and available models
+        if (apiKey && providerSettings?.availableModels?.length > 0) {
+            providerSettings.availableModels.forEach((model: string) => {
+                allModels.push({
+                    id: `${providerId}:${model}`,
+                    name: `${model} (${getProviderDisplayName(providerId)})`,
+                    provider: providerId as any, // Cast to satisfy type constraints
+                    modelId: model
+                });
             });
-        });
-    }
-    
-    // Gemini models
-    if (settings.geminiSettings.apiKey && settings.geminiSettings.availableModels.length > 0) {
-        settings.geminiSettings.availableModels.forEach(model => {
-            allModels.push({
-                id: `gemini:${model}`,
-                name: `${model} (${getProviderDisplayName('gemini')})`,
-                provider: 'gemini',
-                modelId: model
-            });
-        });
+        }
     }
     
     return allModels;
@@ -136,9 +117,9 @@ export async function getAllAvailableModels(settings: MyPluginSettings): Promise
  * @param unifiedModelId The unified model ID (e.g., "openai:gpt-4")
  * @returns The provider type
  */
-export function getProviderFromUnifiedModel(unifiedModelId: string): 'openai' | 'anthropic' | 'gemini' {
+export function getProviderFromUnifiedModel(unifiedModelId: string): string {
     const [providerType] = unifiedModelId.split(':', 2);
-    return providerType as 'openai' | 'anthropic' | 'gemini';
+    return providerType;
 }
 
 /**
