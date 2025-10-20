@@ -3,25 +3,30 @@
  * 
  * Provides a fuzzy search modal for selecting AI models with rich metadata.
  * Extends Obsidian's FuzzySuggestModal for model selection.
+ * Features: favorites (starred models), recent models, fuzzy search.
  */
 
-import { FuzzySuggestModal, App } from 'obsidian';
+import { FuzzySuggestModal, App, setIcon } from 'obsidian';
 import type { ModelInfo } from '../../providers/base';
+import type MyPlugin from '../main';
+import { toggleFavoriteModel, isFavoriteModel, sortModelsByRelevance, trackRecentModel } from '../utils/modelTracking';
 
 /**
- * Fuzzy search modal for AI model selection
+ * Fuzzy search modal for AI model selection with favorites and recents
  */
 export class FuzzyModelDropdown extends FuzzySuggestModal<ModelInfo> {
     private models: ModelInfo[];
     private onSelect: (model: ModelInfo) => void;
+    private plugin: MyPlugin;
 
-    constructor(app: App, models: ModelInfo[], onSelect: (model: ModelInfo) => void) {
+    constructor(app: App, models: ModelInfo[], onSelect: (model: ModelInfo) => void, plugin: MyPlugin) {
         super(app);
-        this.models = models;
+        this.models = sortModelsByRelevance(plugin, models); // Sort to show favorites/recents first
         this.onSelect = onSelect;
+        this.plugin = plugin;
         
         // Set modal title
-        this.setPlaceholder('Search for a model...');
+        this.setPlaceholder('Search for a model... (⭐ = favorite, 🕐 = recent)');
     }
 
     /**
@@ -53,9 +58,46 @@ export class FuzzyModelDropdown extends FuzzySuggestModal<ModelInfo> {
      */
     renderSuggestion(item: any, el: HTMLElement): void {
         const model = item.item as ModelInfo;
+        const isFavorite = isFavoriteModel(this.plugin, model.id);
+        const isRecent = this.plugin.settings.recentModels?.includes(model.id) || false;
+        
         el.createDiv({ cls: 'fuzzy-model-item' }, (div) => {
+            // Header row with title and star button
+            const headerDiv = div.createDiv({ cls: 'fuzzy-model-header' });
+            
             // Model name (title)
-            div.createDiv({ cls: 'fuzzy-model-title', text: model.name });
+            const titleDiv = headerDiv.createDiv({ cls: 'fuzzy-model-title' });
+            
+            // Add indicators
+            if (isFavorite) {
+                titleDiv.createSpan({ cls: 'fuzzy-model-indicator favorite', text: '⭐ ' });
+            }
+            if (isRecent && !isFavorite) {
+                titleDiv.createSpan({ cls: 'fuzzy-model-indicator recent', text: '🕐 ' });
+            }
+            titleDiv.appendText(model.name);
+            
+            // Star button for favoriting
+            const starBtn = headerDiv.createDiv({ cls: 'fuzzy-model-star-btn' });
+            setIcon(starBtn, isFavorite ? 'star' : 'star-off');
+            starBtn.setAttribute('aria-label', isFavorite ? 'Unfavorite' : 'Favorite');
+            starBtn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                const nowFavorited = await toggleFavoriteModel(this.plugin, model.id);
+                setIcon(starBtn, nowFavorited ? 'star' : 'star-off');
+                starBtn.setAttribute('aria-label', nowFavorited ? 'Unfavorite' : 'Favorite');
+                
+                // Re-sort the models and update display
+                this.models = sortModelsByRelevance(this.plugin, this.models);
+                
+                // Force re-render by updating the input value (triggers search again)
+                const input = this.inputEl as HTMLInputElement;
+                const currentValue = input.value;
+                input.value = currentValue + ' ';
+                input.value = currentValue;
+                input.dispatchEvent(new Event('input'));
+            });
             
             // Model details container
             const detailsDiv = div.createDiv({ cls: 'fuzzy-model-details' });
@@ -90,6 +132,8 @@ export class FuzzyModelDropdown extends FuzzySuggestModal<ModelInfo> {
      * Called when an item is selected
      */
     onChooseItem(model: ModelInfo): void {
+        // Track this model as recently used
+        trackRecentModel(this.plugin, model.id);
         this.onSelect(model);
     }
 }
@@ -111,10 +155,49 @@ export function addFuzzyModelDropdownStyles(): void {
             padding: 8px 0;
         }
         
+        .fuzzy-model-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 4px;
+        }
+        
         .fuzzy-model-title {
             font-weight: 600;
             font-size: 14px;
-            margin-bottom: 4px;
+            flex: 1;
+        }
+        
+        .fuzzy-model-indicator {
+            font-size: 12px;
+            margin-right: 4px;
+        }
+        
+        .fuzzy-model-indicator.favorite {
+            color: gold;
+        }
+        
+        .fuzzy-model-indicator.recent {
+            color: var(--text-muted);
+        }
+        
+        .fuzzy-model-star-btn {
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 4px;
+            opacity: 0.6;
+            transition: opacity 0.2s, background-color 0.2s;
+        }
+        
+        .fuzzy-model-star-btn:hover {
+            opacity: 1;
+            background-color: var(--background-modifier-hover);
+        }
+        
+        .fuzzy-model-star-btn svg {
+            width: 16px;
+            height: 16px;
+            color: gold;
         }
         
         .fuzzy-model-details {
@@ -159,6 +242,11 @@ export function addFuzzyModelDropdownStyles(): void {
         .fuzzy-model-provider.provider-openrouter {
             background-color: rgba(168, 85, 247, 0.1);
             color: rgb(168, 85, 247);
+        }
+        
+        .fuzzy-model-provider.provider-ollama {
+            background-color: rgba(139, 92, 246, 0.1);
+            color: rgb(139, 92, 246);
         }
         
         .fuzzy-model-context {

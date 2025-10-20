@@ -1,8 +1,7 @@
 import { App, Setting, Notice } from 'obsidian';
 import MyPlugin from '../../main';
 import { SettingCreators } from '../components/SettingCreators';
-import { CollapsibleSectionRenderer } from '../../utils/CollapsibleSection';
-import { getAllAvailableModels } from '../../../providers'; 
+import { CollapsibleSectionRenderer } from '../../utils/CollapsibleSection'; 
 
 /**
  * ModelManagementSection is responsible for rendering settings related to AI model management.
@@ -22,13 +21,10 @@ export class ModelManagementSection {
     }
 
     /**
-     * Renders the Model Management sections (Available Models and Model Setting Presets) into the provided container element.
+     * Renders the Model Management sections (Model Setting Presets) into the provided container element.
      * @param containerEl The HTML element to render the sections into.
      */
     async render(containerEl: HTMLElement): Promise<void> {
-        // Render the Available Models section
-        await this.renderAvailableModelsSection(containerEl); 
-
         // Collapsible section for Model Setting Presets
         CollapsibleSectionRenderer.createCollapsibleSection(
             containerEl,
@@ -159,117 +155,6 @@ export class ModelManagementSection {
                             this.renderModelSettingPresets(containerEl);
                         })
                     );
-            },
-            this.plugin,
-            'generalSectionsExpanded'
-        );
-    }
-
-    /**
-     * Renders the Available Models section with checkboxes for each model.
-     * This section allows users to enable or disable specific models from appearing in selection menus.
-     * @param containerEl The HTML element to append the section to.
-     */
-    private async renderAvailableModelsSection(containerEl: HTMLElement): Promise<void> {
-        CollapsibleSectionRenderer.createCollapsibleSection(
-            containerEl,
-            'Available Models',
-            async (sectionEl: HTMLElement) => {
-                sectionEl.createEl('div', {
-                    text: 'Choose which models are available in model selection menus throughout the plugin.',
-                    cls: 'setting-item-description',
-                    attr: { style: 'margin-bottom: 1em;' }
-                });
-
-                // Buttons for refreshing models and toggling all models on/off
-                const buttonRow = sectionEl.createDiv({ cls: 'ai-models-button-row' });
-                new Setting(buttonRow)
-                    .addButton(btn => {
-                        btn.setButtonText('Refresh Models')
-                            .setCta()
-                            .onClick(async () => {
-                                btn.setButtonText('Refreshing...');
-                                btn.setDisabled(true);
-                                try {
-                                    this.plugin.settings.availableModels = await getAllAvailableModels(this.plugin.settings);
-                                    await this.plugin.saveSettings();
-                                    new Notice('Available models refreshed.');
-                                    // Re-render the section to reflect changes
-                                    this.renderAvailableModelsSection(containerEl.parentElement!);
-                                } catch (e) {
-                                    new Notice('Error refreshing models: ' + (e?.message || e));
-                                } finally {
-                                    btn.setButtonText('Refresh Models');
-                                    btn.setDisabled(false);
-                                }
-                            });
-                    })
-                    .addButton(btn => {
-                        btn.setButtonText('All On')
-                            .onClick(async () => {
-                                let allModels = this.plugin.settings.availableModels || [];
-                                if (allModels.length === 0) {
-                                    allModels = await getAllAvailableModels(this.plugin.settings);
-                                }
-                                if (!this.plugin.settings.enabledModels) this.plugin.settings.enabledModels = {};
-                                allModels.forEach(model => {
-                                    this.plugin.settings.enabledModels![model.id] = true;
-                                });
-                                await this.plugin.saveSettings();
-                                // Re-render the section to reflect changes
-                                this.renderAvailableModelsSection(containerEl.parentElement!);
-                            });
-                    })
-                    .addButton(btn => {
-                        btn.setButtonText('All Off')
-                            .onClick(async () => {
-                                let allModels = this.plugin.settings.availableModels || [];
-                                if (allModels.length === 0) {
-                                    allModels = await getAllAvailableModels(this.plugin.settings);
-                                }
-                                if (!this.plugin.settings.enabledModels) this.plugin.settings.enabledModels = {};
-                                allModels.forEach(model => {
-                                    this.plugin.settings.enabledModels![model.id] = false;
-                                });
-                                await this.plugin.saveSettings();
-                                // Re-render the section to reflect changes
-                                this.renderAvailableModelsSection(containerEl.parentElement!);
-                            });
-                    });
-
-                // Get all available models, refreshing if necessary
-                let allModels = this.plugin.settings.availableModels || [];
-                
-                if (allModels.length === 0) {
-                    allModels = await getAllAvailableModels(this.plugin.settings);
-                }
-
-                if (!this.plugin.settings.enabledModels) this.plugin.settings.enabledModels = {};
-
-                if (allModels.length === 0) {
-                    sectionEl.createEl('div', { text: 'No models found. Please configure your providers and refresh available models.', cls: 'setting-item-description' });
-                } else {
-                    // Sort models by provider and then by name/id
-                    allModels = allModels.slice().sort((a, b) => {
-                        if (a.provider !== b.provider) {
-                            return a.provider.localeCompare(b.provider);
-                        }
-                        return (a.name || a.id).localeCompare(b.name || b.id);
-                    });
-                    // Render a toggle for each model
-                    allModels.forEach(model => {
-                        this.settingCreators.createToggleSetting(
-                            sectionEl,
-                            model.name || model.id,
-                            `Enable or disable "${model.name || model.id}" (${model.id}) in model selection menus.`,
-                            () => this.plugin.settings.enabledModels![model.id] !== false, // Default to true if not explicitly false
-                            async (value) => {
-                                this.plugin.settings.enabledModels![model.id] = value;
-                                await this.plugin.saveSettings();
-                            }
-                        );
-                    });
-                }
             },
             this.plugin,
             'generalSectionsExpanded'

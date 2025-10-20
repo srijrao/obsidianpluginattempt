@@ -267,23 +267,12 @@ export class AIModelConfigurationSection {
       containerEl,
       "Model Management",
       async (sectionEl: HTMLElement) => {
-        // Model Setting Presets Subsection (moved to first position)
+        // Model Setting Presets Subsection
         CollapsibleSectionRenderer.createCollapsibleSection(
           sectionEl,
           "Model Setting Presets",
           async (subSectionEl: HTMLElement) => {
             this.renderModelSettingPresets(subSectionEl);
-          },
-          this.plugin,
-          "modelManagementExpanded"
-        );
-
-        // Available Models Subsection (moved to second position)
-        CollapsibleSectionRenderer.createCollapsibleSection(
-          sectionEl,
-          "Available Models",
-          async (subSectionEl: HTMLElement) => {
-            await this.renderAvailableModelsSection(subSectionEl);
           },
           this.plugin,
           "modelManagementExpanded"
@@ -400,7 +389,8 @@ export class AIModelConfigurationSection {
                 (selectedModel: ModelInfo) => {
                   new Notice(`Selected: ${selectedModel.name}`);
                   // You can add logic here to set the selected model
-                }
+                },
+                this.plugin
               );
               modal.open();
             } catch (error) {
@@ -618,8 +608,8 @@ export class AIModelConfigurationSection {
   }
 
   /**
-   * Renders the unified model selection dropdown.
-   * This dropdown allows users to select from all available models across all configured providers.
+   * Renders the unified model selection using FuzzyModelDropdown.
+   * This allows users to select from all available models across all configured providers with fuzzy search.
    * @param containerEl The HTML element to append the dropdown to.
    */
   private async renderUnifiedModelDropdown(
@@ -641,54 +631,33 @@ export class AIModelConfigurationSection {
       .setDesc(
         "Choose from all available models across all configured providers"
       )
-      .addDropdown((dropdown) => {
-        // Populate dropdown options
-        if (
-          !this.plugin.settings.availableModels ||
-          this.plugin.settings.availableModels.length === 0
-        ) {
-          dropdown.addOption(
-            "",
-            "No models available - configure providers above"
-          );
-        } else {
-          dropdown.addOption("", "Select a model...");
+      .addButton((button) =>
+        button.setButtonText("Select Model").onClick(async () => {
+          const availableModels = this.plugin.settings.availableModels || [];
+          
+          if (availableModels.length === 0) {
+            new Notice("No models available - configure providers and refresh models first");
+            return;
+          }
 
-          const modelsByProvider: Record<string, any[]> = {};
-
-          // Filter and group models by provider
-          const enabledModels = this.plugin.settings.enabledModels || {};
-          const filteredModels = this.plugin.settings.availableModels.filter(
-            (model) => enabledModels[model.id] !== false
-          );
-          filteredModels.forEach((model) => {
-            if (!modelsByProvider[model.provider]) {
-              modelsByProvider[model.provider] = [];
-            }
-            modelsByProvider[model.provider].push(model);
-          });
-
-          // Add options to dropdown, grouped by provider
-          Object.entries(modelsByProvider).forEach(([provider, models]) => {
-            models.forEach((model) => {
-              dropdown.addOption(model.id, model.name);
-            });
-          });
-        }
-        dropdown
-          .setValue(this.plugin.settings.selectedModel || "")
-          .onChange(async (value) => {
-            this.plugin.settings.selectedModel = value;
-
-            // Update the active provider based on the selected model
-            if (value) {
-              // Extract provider from unified model ID
-              const [provider] = value.split(":", 2);
+          const modal = new FuzzyModelDropdown(
+            this.plugin.app,
+            availableModels,
+            async (selectedModel: ModelInfo) => {
+              this.plugin.settings.selectedModel = selectedModel.id;
+              
+              // Update the active provider based on the selected model
+              const [provider] = selectedModel.id.split(":", 2);
               this.plugin.settings.provider = provider as any;
-            }
-            await this.plugin.saveSettings();
-          });
-      });
+              
+              await this.plugin.saveSettings();
+              new Notice(`Selected: ${selectedModel.name}`);
+            },
+            this.plugin
+          );
+          modal.open();
+        })
+      );
 
     // Display currently selected model info
     if (
@@ -702,7 +671,7 @@ export class AIModelConfigurationSection {
         const infoEl = containerEl.createEl("div", {
           cls: "setting-item-description",
         });
-        infoEl.setText(`Currently using: ${selectedModel.name}`);
+        infoEl.setText(`Currently using: ${selectedModel.name} (${selectedModel.provider})`);
       }
     }
   }
@@ -728,7 +697,7 @@ export class AIModelConfigurationSection {
   /**
    * Renders the Available Models section in the Model Management settings.
    * This section displays all models available from configured providers and allows
-   * enabling/disabling models and deleting local copies of models.
+   * deleting local copies of models.
    * @param containerEl The HTML element to append the section to.
    */
   private async renderAvailableModelsSection(
@@ -753,7 +722,6 @@ export class AIModelConfigurationSection {
     const headerRow = thead.createEl("tr");
     headerRow.createEl("th", { text: "Model" });
     headerRow.createEl("th", { text: "Provider" });
-    headerRow.createEl("th", { text: "Enabled" });
     headerRow.createEl("th", { text: "Actions" });
 
     // Data rows
@@ -761,22 +729,6 @@ export class AIModelConfigurationSection {
       const row = tbody.createEl("tr");
       row.createEl("td", { text: model.name });
       row.createEl("td", { text: model.provider });
-
-      // Enabled/Disabled toggle
-      const enabledToggle = new Setting(row.createEl("td"))
-        .setName("")
-        .setDesc("Enable or disable this model")
-        .addToggle((toggle) =>
-          toggle
-            .setValue(this.plugin.settings.enabledModels?.[model.id] !== false)
-            .onChange(async (value) => {
-              // Update enabledModels setting
-              const enabledModels = this.plugin.settings.enabledModels || {};
-              enabledModels[model.id] = value ? true : false;
-              this.plugin.settings.enabledModels = enabledModels;
-              await this.plugin.saveSettings();
-            })
-        );
 
       // Actions column
       const actionsCell = row.createEl("td");

@@ -265,10 +265,16 @@ export interface MyPluginSettings {
     enabledTools?: Record<string, boolean>;
 
     /**
-     * Map of model id (provider:model) to enabled/disabled state.
-     * If false, model is hidden from selection menus.
+     * List of recently used model IDs (provider:model format).
+     * Kept in order with most recent first. Max 5 items.
      */
-    enabledModels?: Record<string, boolean>;
+    recentModels?: string[];
+
+    /**
+     * List of favorite/starred model IDs (provider:model format).
+     * Users can star models for quick access.
+     */
+    favoriteModels?: string[];
 
     /** Debug mode for verbose logging and UI. */
     debugMode?: boolean;
@@ -438,7 +444,9 @@ export const DEFAULT_SETTINGS: MyPluginSettings = {
     /** @inheritdoc */
     enabledTools: {},
     /** @inheritdoc */
-    enabledModels: {},
+    recentModels: [],
+    /** @inheritdoc */
+    favoriteModels: [],
     /** @inheritdoc */
     debugMode: false,
     /** @inheritdoc */
