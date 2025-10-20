@@ -131,6 +131,10 @@ export class ChatView extends ItemView {
         // Cache new buttons
         this.domElementCache.obsidianLinksButton = ui.obsidianLinksButton;
         this.domElementCache.contextNotesButton = ui.contextNotesButton;
+        // New context action buttons
+        (this.domElementCache as any).contextClearButton = ui.contextClearButton;
+        (this.domElementCache as any).contextAddCurrentButton = ui.contextAddCurrentButton;
+        (this.domElementCache as any).contextAddAllOpenButton = ui.contextAddAllOpenButton;
     }
     getViewType(): string {
         return VIEW_TYPE_CHAT;
@@ -212,6 +216,68 @@ export class ChatView extends ItemView {
             this.plugin.saveSettings();
             this.updateContextNotesIndicator();
         });
+
+        // NEW: Context notes quick actions
+        const clearBtn = (this.domElementCache as any).contextClearButton as HTMLButtonElement;
+        const addCurrentBtn = (this.domElementCache as any).contextAddCurrentButton as HTMLButtonElement;
+        const addAllBtn = (this.domElementCache as any).contextAddAllOpenButton as HTMLButtonElement;
+
+        if (clearBtn) {
+            this.addEventListenerWithCleanup(clearBtn, 'click', async () => {
+                this.plugin.settings.contextNotes = '';
+                this.plugin.settings.enableContextNotes = false;
+                await this.plugin.saveSettings();
+                new Notice('Context notes cleared');
+                this.updateContextNotesIndicator();
+            });
+        }
+        if (addCurrentBtn) {
+            this.addEventListenerWithCleanup(addCurrentBtn, 'click', async () => {
+                const file = this.app.workspace.getActiveFile();
+                if (!file) {
+                    new Notice('No active note to add');
+                    return;
+                }
+                const link = `[[${file.path}]]`;
+                const existing = this.plugin.settings.contextNotes || '';
+                // Avoid duplicate links
+                const alreadyHas = new RegExp(`\\[\\[${escapeRegExp(file.path)}\\]\\]`).test(existing);
+                const updated = alreadyHas ? existing : (existing ? `${existing}\n${link}` : link);
+                this.plugin.settings.contextNotes = updated;
+                this.plugin.settings.enableContextNotes = true;
+                await this.plugin.saveSettings();
+                new Notice('Added current note to context');
+                this.updateContextNotesIndicator();
+            });
+        }
+        if (addAllBtn) {
+            this.addEventListenerWithCleanup(addAllBtn, 'click', async () => {
+                const leaves = this.app.workspace.getLeavesOfType('markdown');
+                if (!leaves.length) {
+                    new Notice('No open notes found');
+                    return;
+                }
+                const paths = leaves
+                    .map(l => (l as any).view?.file?.path)
+                    .filter((p: string | undefined): p is string => !!p);
+                if (!paths.length) {
+                    new Notice('No open notes found');
+                    return;
+                }
+                const existing = this.plugin.settings.contextNotes || '';
+                const lines = existing ? existing.split(/\r?\n/).filter(Boolean) : [];
+                const set = new Set(lines);
+                for (const p of paths) {
+                    set.add(`[[${p}]]`);
+                }
+                const updated = Array.from(set).join('\n');
+                this.plugin.settings.contextNotes = updated;
+                this.plugin.settings.enableContextNotes = true;
+                await this.plugin.saveSettings();
+                new Notice('Added all open notes to context');
+                this.updateContextNotesIndicator();
+            });
+        }
     }
 
     private setupAgentResponseHandler() {
@@ -1333,4 +1399,9 @@ export class ChatView extends ItemView {
         
         this.plugin.debugLog('debug', '[ChatView] Message cache invalidated - will force fresh DOM reads');
     }
+}
+
+// Utility: escape regex special chars
+function escapeRegExp(str: string): string {
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }

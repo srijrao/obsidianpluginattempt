@@ -26,3 +26,4 @@ ui-test/
 ui-example/
 **/ui-example/**
 .github/copilot-instructions.md
+.vscode/tasks.json

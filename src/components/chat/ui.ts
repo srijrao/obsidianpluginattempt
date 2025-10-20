@@ -22,6 +22,10 @@ export interface ChatUIElements {
     referenceNoteButton: HTMLButtonElement; // Button to toggle referencing current note
     obsidianLinksButton: HTMLButtonElement; // Button to toggle Obsidian links
     contextNotesButton: HTMLButtonElement;  // Button to toggle context notes
+    // New Context Notes action buttons (next to Agent Mode)
+    contextClearButton: HTMLButtonElement; // Button to clear context notes
+    contextAddCurrentButton: HTMLButtonElement; // Button to add current note to context
+    contextAddAllOpenButton: HTMLButtonElement; // Button to add all open notes to context
     referenceNoteIndicator: HTMLElement; // Indicator showing referenced note name
     obsidianLinksIndicator: HTMLElement; // Indicator showing Obsidian Links status
     contextNotesIndicator: HTMLElement;  // Indicator showing context notes
@@ -39,6 +43,12 @@ export function createChatUI(app: App, contentEl: HTMLElement): ChatUIElements {
 
 
     // --- DRY Helper Functions ---
+    
+    // Configuration constants for consistent spacing
+    const BUTTON_SIZE = '1.8em';
+    const BUTTON_SPACING = 1.4; // Multiplier for positioning (1.8em * 1.4 = ~2.5em gap per button)
+    const ABSOLUTE_BUTTON_TOP = '-2.2em';
+    
     function createIconButton(options: {
         text: string;
         ariaLabel: string;
@@ -50,11 +60,39 @@ export function createChatUI(app: App, contentEl: HTMLElement): ChatUIElements {
         btn.setAttribute('aria-label', options.ariaLabel);
         btn.style.fontSize = '0.85em';
         btn.style.fontFamily = 'inherit';
-        btn.style.width = '1.8em';
-        btn.style.height = '1.8em';
+        btn.style.width = BUTTON_SIZE;
+        btn.style.height = BUTTON_SIZE;
         btn.style.marginBottom = '0.2em';
         btn.style.opacity = '0.7';
         if (options.className) btn.className = options.className;
+        if (options.addClass) btn.classList.add(options.addClass);
+        return btn;
+    }
+    
+    function createAbsoluteButton(options: {
+        text: string;
+        ariaLabel: string;
+        positionIndex: number; // 0 = rightmost, 1 = one left, 2 = two left, etc.
+        addClass?: string;
+    }): HTMLButtonElement {
+        const btn = document.createElement('button');
+        btn.setText(options.text);
+        btn.setAttribute('aria-label', options.ariaLabel);
+        btn.style.fontSize = '0.9em';
+        btn.style.width = BUTTON_SIZE;
+        btn.style.height = BUTTON_SIZE;
+        btn.style.marginBottom = '0.2em';
+        btn.style.opacity = '0.7';
+        btn.style.position = 'absolute';
+        btn.style.top = ABSOLUTE_BUTTON_TOP;
+        btn.style.zIndex = '2';
+        
+        // Calculate right position based on index
+        const baseOffset = 0.5; // em
+        const buttonWidth = parseFloat(BUTTON_SIZE); // 1.8
+        const rightPosition = baseOffset + (options.positionIndex * buttonWidth * BUTTON_SPACING);
+        btn.style.right = `${rightPosition}em`;
+        
         if (options.addClass) btn.classList.add(options.addClass);
         return btn;
     }
@@ -64,10 +102,10 @@ export function createChatUI(app: App, contentEl: HTMLElement): ChatUIElements {
     }): HTMLElement {
         const div = document.createElement('div');
         div.className = options.className;
-        div.style.textAlign = 'center';
+        div.style.textAlign = 'left';
         div.style.opacity = '0.5';
-        div.style.fontSize = '0.85em';
-        div.style.margin = '0.1em 0 0.2em 0';
+        div.style.fontSize = '0.75em';
+        div.style.margin = '0.1em 0 0 0';
         div.style.display = 'none';
         div.style.whiteSpace = 'normal';
         div.style.wordBreak = 'break-word';
@@ -76,24 +114,26 @@ export function createChatUI(app: App, contentEl: HTMLElement): ChatUIElements {
         return div;
     }
 
-    // --- Two-column flex row for help and buttons ---
+    // --- Single unified header row: model info on left, buttons on right ---
     const topRowContainer = contentEl.createDiv('ai-chat-top-row');
     topRowContainer.style.display = 'flex';
     topRowContainer.style.flexDirection = 'row';
-    topRowContainer.style.alignItems = 'flex-start';
+    topRowContainer.style.alignItems = 'center';
     topRowContainer.style.justifyContent = 'space-between';
     topRowContainer.style.gap = '1em';
-    topRowContainer.style.margin = '0.5em 0 0.2em 0';
+    topRowContainer.style.margin = '0.5em 0';
+    topRowContainer.style.borderBottom = '1px solid var(--background-modifier-border)';
+    topRowContainer.style.paddingBottom = '0.5em';
 
-    // Faded help text element (left column)
-    const fadedHelp = document.createElement('div');
-    fadedHelp.setText('Tip: Type /help or press Ctrl+Shift+H for chat commands and shortcuts. Use Ctrl+Shift+X to clear chat and Ctrl+Shift+C to copy.');
-    fadedHelp.style.textAlign = 'left';
-    fadedHelp.style.opacity = '0.6';
-    fadedHelp.style.fontSize = '0.95em';
-    fadedHelp.style.flex = '1 1 0';
-    fadedHelp.style.minWidth = '0';
-    topRowContainer.appendChild(fadedHelp);
+    // Left column: Model name and indicators
+    const modelInfoColumn = document.createElement('div');
+    modelInfoColumn.style.display = 'flex';
+    modelInfoColumn.style.flexDirection = 'column';
+    modelInfoColumn.style.alignItems = 'flex-start';
+    modelInfoColumn.style.gap = '0.2em';
+    modelInfoColumn.style.flex = '1 1 0';
+    modelInfoColumn.style.minWidth = '0';
+    topRowContainer.appendChild(modelInfoColumn);
 
     // Button containers (right column, vertical stack)
     const buttonColumn = document.createElement('div');
@@ -120,6 +160,10 @@ export function createChatUI(app: App, contentEl: HTMLElement): ChatUIElements {
 
     topRowContainer.appendChild(buttonColumn);
     contentEl.appendChild(topRowContainer);
+    
+    // Faded help text element (kept for compatibility, but hidden by default)
+    const fadedHelp = document.createElement('div');
+    fadedHelp.style.display = 'none'; // Hidden since we're showing model info instead
 
     // Button configs for DRY creation
     const mainTopButtons = [
@@ -152,26 +196,20 @@ export function createChatUI(app: App, contentEl: HTMLElement): ChatUIElements {
     const obsidianLinksIndicator = createIndicator({ className: 'ai-obsidian-links-indicator' });
     const contextNotesIndicator = createIndicator({ className: 'ai-context-notes-indicator' });
 
-    // Model Name Display Container (separate line from buttons)
-    const modelDisplayContainer = contentEl.createDiv('ai-model-display-container');
-    modelDisplayContainer.style.textAlign = 'center';
-    modelDisplayContainer.style.margin = '0.5em 0';
-    modelDisplayContainer.style.borderBottom = '1px solid var(--background-modifier-border)';
-    modelDisplayContainer.style.paddingBottom = '0.5em';
-
-    // Model Name Display
+    // Model Name Display (now in left column of top row)
     const modelNameDisplay = document.createElement('div');
     modelNameDisplay.className = 'ai-model-name-display';
-    modelNameDisplay.style.textAlign = 'center';
+    modelNameDisplay.style.textAlign = 'left';
     modelNameDisplay.style.opacity = '0.7';
-    modelNameDisplay.style.fontSize = '0.75em';
+    modelNameDisplay.style.fontSize = '0.85em';
     modelNameDisplay.style.margin = '0';
     modelNameDisplay.style.fontWeight = 'bold';
-    modelDisplayContainer.appendChild(modelNameDisplay);
-    // Add all indicators to the model display container (same line as model)
-    modelDisplayContainer.appendChild(referenceNoteIndicator);
-    modelDisplayContainer.appendChild(obsidianLinksIndicator);
-    modelDisplayContainer.appendChild(contextNotesIndicator);
+    
+    // Add model name and indicators to the left column
+    modelInfoColumn.appendChild(modelNameDisplay);
+    modelInfoColumn.appendChild(referenceNoteIndicator);
+    modelInfoColumn.appendChild(obsidianLinksIndicator);
+    modelInfoColumn.appendChild(contextNotesIndicator);
 
     // Messages container (where chat messages are displayed)
     const messagesContainer = contentEl.createDiv('ai-chat-messages');
@@ -213,36 +251,31 @@ export function createChatUI(app: App, contentEl: HTMLElement): ChatUIElements {
     stopButton.title = 'Stop AI response';
     // -----
 
-    // Help button (?)
-    const helpButton = inputContainer.createEl('button', {
-        text: '?',
-    });
-    helpButton.setAttr('aria-label', 'Show chat help');
-    helpButton.style.fontSize = '0.9em';
-    helpButton.style.width = '1.8em';
-    helpButton.style.height = '1.8em';
-    helpButton.style.marginBottom = '0.2em';
-    helpButton.style.opacity = '0.7';
-    helpButton.style.position = 'absolute';
-    helpButton.style.right = '0.5em';
-    helpButton.style.top = '-2.2em';
-    helpButton.style.zIndex = '2';
-
-    // Agent Mode button (🤖)
-    const agentModeButton = inputContainer.createEl('button', {
-        text: '🤖',
-    });
-    agentModeButton.setAttr('aria-label', 'Toggle Agent Mode');
-    agentModeButton.style.fontSize = '0.9em';
-    agentModeButton.style.width = '1.8em';
-    agentModeButton.style.height = '1.8em';
-    agentModeButton.style.marginBottom = '0.2em';
-    agentModeButton.style.opacity = '0.7';
-    agentModeButton.style.position = 'absolute';
-    agentModeButton.style.right = '2.8em'; // Position next to help button
-    agentModeButton.style.top = '-2.2em';
-    agentModeButton.style.zIndex = '2';
-    agentModeButton.classList.add('ai-agent-mode-btn');
+    // Configure all absolutely-positioned buttons in one place
+    inputContainer.style.position = 'relative';
+    
+    const absoluteButtons = [
+        { key: 'helpButton', text: '?', ariaLabel: 'Show chat help', positionIndex: 0 },
+        { key: 'agentModeButton', text: '🤖', ariaLabel: 'Toggle Agent Mode', positionIndex: 1, addClass: 'ai-agent-mode-btn' },
+        { key: 'contextClearButton', text: '🧹', ariaLabel: 'Clear context notes', positionIndex: 2, addClass: 'ai-context-clear-btn' },
+        { key: 'contextAddCurrentButton', text: '➕', ariaLabel: 'Add current note to context notes', positionIndex: 3, addClass: 'ai-context-add-current-btn' },
+        { key: 'contextAddAllOpenButton', text: '📚', ariaLabel: 'Add all open notes to context notes', positionIndex: 4, addClass: 'ai-context-add-all-open-btn' },
+    ];
+    
+    const absoluteButtonRefs: Record<string, HTMLButtonElement> = {};
+    for (const btnCfg of absoluteButtons) {
+        const btn = createAbsoluteButton(btnCfg);
+        inputContainer.appendChild(btn);
+        absoluteButtonRefs[btnCfg.key] = btn;
+    }
+    
+    const helpButton = absoluteButtonRefs.helpButton;
+    const agentModeButton = absoluteButtonRefs.agentModeButton;
+    const contextClearButton = absoluteButtonRefs.contextClearButton;
+    const contextAddCurrentButton = absoluteButtonRefs.contextAddCurrentButton;
+    const contextAddAllOpenButton = absoluteButtonRefs.contextAddAllOpenButton;
+    
+    // Add agent mode active state toggle method
     function setAgentModeActive(isActive: boolean) {
         if (isActive) {
             agentModeButton.classList.add('active');
@@ -251,8 +284,6 @@ export function createChatUI(app: App, contentEl: HTMLElement): ChatUIElements {
         }
     }
     (agentModeButton as any).setActive = setAgentModeActive;
-    inputContainer.appendChild(agentModeButton);
-    inputContainer.style.position = 'relative';
 
     // Return all created UI elements
     return {
@@ -274,6 +305,9 @@ export function createChatUI(app: App, contentEl: HTMLElement): ChatUIElements {
         referenceNoteButton: buttonRefs.referenceNoteButton,
         obsidianLinksButton: buttonRefs.obsidianLinksButton,
         contextNotesButton: buttonRefs.contextNotesButton,
+        contextClearButton,
+        contextAddCurrentButton,
+        contextAddAllOpenButton,
         referenceNoteIndicator,
         obsidianLinksIndicator,
         contextNotesIndicator,
