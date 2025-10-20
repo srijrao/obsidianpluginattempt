@@ -130,8 +130,72 @@ export class ModelService {
     }
 
     /**
-     * Get all unified models across all configured providers
+     * Get all models with rich metadata across all configured providers
+     * Returns ModelInfo[] with full details including description, context_length, etc.
      * 
+     * @param settings - Plugin settings
+     * @param forceRefresh - If true, bypass cache for all providers
+     * @returns Promise resolving to array of ModelInfo objects with unified IDs
+     */
+    async getAllModelsWithMetadata(
+        settings: MyPluginSettings,
+        forceRefresh: boolean = false
+    ): Promise<ModelInfo[]> {
+        const allModels: ModelInfo[] = [];
+        const registeredProviders = providerRegistry.getAllProviderIds();
+        
+        // Fetch models for each provider in parallel
+        const providerPromises = registeredProviders.map(async (providerId) => {
+            // Check if provider has API key configured
+            let hasApiKey = false;
+            
+            switch (providerId) {
+                case 'openai':
+                    hasApiKey = !!settings.openaiSettings.apiKey;
+                    break;
+                case 'anthropic':
+                    hasApiKey = !!settings.anthropicSettings.apiKey;
+                    break;
+                case 'gemini':
+                    hasApiKey = !!settings.geminiSettings.apiKey;
+                    break;
+                case 'openrouter':
+                    hasApiKey = !!(settings as any).openrouterSettings?.apiKey;
+                    break;
+                default:
+                    hasApiKey = !!(settings as any)[`${providerId}Settings`]?.apiKey;
+            }
+            
+            if (!hasApiKey) {
+                return [];
+            }
+            
+            try {
+                const models = await this.getModelsForProvider(providerId, settings, forceRefresh);
+                
+                // Convert to unified ID format and ensure provider is set
+                return models.map(model => ({
+                    ...model,
+                    id: `${providerId}:${model.id}`, // Use unified ID format
+                    provider: providerId, // Ensure provider is set
+                }));
+            } catch (error) {
+                console.error(`[ModelService] Failed to fetch models for ${providerId}:`, error);
+                return [];
+            }
+        });
+        
+        const results = await Promise.all(providerPromises);
+        results.forEach(models => allModels.push(...models));
+        
+        return allModels;
+    }
+
+    /**
+     * Get all unified models across all configured providers (legacy method)
+     * Returns simplified UnifiedModel[] for backward compatibility
+     * 
+     * @deprecated Use getAllModelsWithMetadata() for rich model information
      * @param settings - Plugin settings
      * @param forceRefresh - If true, bypass cache for all providers
      * @returns Promise resolving to array of UnifiedModel objects

@@ -824,7 +824,7 @@ The plugin now provides a cleaner, more intuitive model selection experience whi
 ## Update: October 20, 2025 - Final UI Refinements
 
 ### Changes Made
-Following user feedback, two additional refinements were implemented:
+Following user feedback, several refinements were implemented to improve consistency and reduce code redundancy:
 
 **1. Replaced Dropdown with Fuzzy Modal Button**
 - Changed "Selected Model" from a regular dropdown to a button
@@ -839,19 +839,69 @@ Following user feedback, two additional refinements were implemented:
 - Users can manage models through their respective provider settings
 - Simplifies the settings UI further
 
+**3. Unified Model Loading with ModelService (Eliminated Redundancy)**
+- **Problem identified**: "Select Model" and "Browse Models" were using different code paths:
+  - "Select Model" used `settings.availableModels` (simple strings) → lacked rich metadata
+  - "Browse Models" used `ModelService.getModelsForProvider()` → had full ModelInfo with descriptions, context length, etc.
+- **Solution**: Both now use the same code via `ModelService`
+- Created new `ModelService.getAllModelsWithMetadata()` method that returns rich `ModelInfo[]` objects
+- "Select Model" button now calls the same ModelService API as "Browse Models"
+- **Result**: Identical rich model information in both places, zero code duplication
+
 ### Files Changed
+
+**File:** `src/services/ModelService.ts`
+- Added `getAllModelsWithMetadata()` method
+  - Returns `ModelInfo[]` with full metadata (description, context_length, pricing, etc.)
+  - Uses unified ID format (`provider:model-id`)
+  - Fetches from all configured providers in parallel
+  - Uses same caching as `getModelsForProvider()`
+- Kept `getAllUnifiedModels()` for backward compatibility (marked as deprecated)
+
 **File:** `src/settings/sections/AIModelConfigurationSection.ts`
 
 **Changes:**
 1. Modified `renderUnifiedModelDropdown()`:
-   - Removed dropdown element
-   - Added button that opens `FuzzyModelDropdown`
-   - Displays current model selection below button
-   - Shows provider name in selection display
+   - Removed dependency on `settings.availableModels`
+   - Now calls `ModelService.getInstance().getAllModelsWithMetadata()`
+   - Gets rich model metadata dynamically (same as "Browse Models")
+   - Displays current model selection with full metadata below button
 
 2. Removed "Available Models" from render:
-   - Commented out call to `renderAvailableModelsSection()`
+   - Deleted call to `renderAvailableModelsSection()`
    - Method still exists but is no longer invoked
+
+### Technical Details
+
+**Model Loading Flow (Now Unified):**
+```
+User clicks "Select Model" or "Browse Models"
+    ↓
+ModelService.getAllModelsWithMetadata(settings)
+    ↓
+For each provider with API key:
+    ModelService.getModelsForProvider(provider, settings)
+        ↓
+    provider.listModels() → Returns ModelInfo[]
+        ↓
+    Convert IDs to unified format: "provider:model-id"
+        ↓
+All models combined → Return ModelInfo[] with full metadata
+    ↓
+FuzzyModelDropdown displays rich information
+```
+
+**What Users See (Same in Both Places):**
+- ⭐/🕐 Visual indicators for favorites/recent
+- Model name and full description
+- Provider badge with color coding
+- Context length (e.g., "128k tokens")
+- Star button to favorite/unfavorite
+- Fuzzy search across all fields
+
+**Code Deduplication:**
+- Before: 2 different paths, different data structures, inconsistent UX
+- After: 1 shared ModelService method, consistent ModelInfo objects, identical UX
 
 ### Current UI Structure
 ```
@@ -859,6 +909,8 @@ Settings → Current Model Settings
 ├── System Message (textarea)
 ├── "Refresh Available Models" button
 ├── "Select Model" button → Opens FuzzyModelDropdown
+│   └── Uses ModelService.getAllModelsWithMetadata()
+│   └── Shows: description, context length, provider badges, favorites
 ├── Currently using: [Model Name] ([Provider])
 ├── Temperature slider
 ├── Enable Obsidian Links toggle
@@ -868,11 +920,20 @@ Settings → Current Model Settings
 ├── Enable Streaming toggle
 └── Include Time with System Message toggle
 
+Settings → API Keys & Providers → [Provider] Configuration
+├── API Key input
+├── Test Connection button
+└── "Browse Models" button → Opens FuzzyModelDropdown
+    └── Uses ModelService.getModelsForProvider(provider)
+    └── Shows: description, context length, provider badges, favorites
+    └── (Same UI as "Select Model")
+
 Settings → Model Management
 └── Model Setting Presets (only)
 ```
 
 ### Why These Changes
+
 **Dropdown → Button + Modal:**
 - Dropdowns don't scale well with 100+ models
 - Fuzzy search modal provides better discoverability
@@ -885,10 +946,31 @@ Settings → Model Management
 - Table-based UI was too technical for most users
 - Simplifies settings page significantly
 
+**Unified ModelService Approach:**
+- **Eliminates code duplication**: One source of truth for model loading
+- **Consistent UX**: Same rich metadata everywhere
+- **Easier maintenance**: Changes to model display affect all locations
+- **Better caching**: Shared cache between Select and Browse
+- **Reduced bugs**: No chance of inconsistent implementations
+
+**4. Fixed Modal Display Limit Issue**
+- **Problem**: Obsidian's `FuzzySuggestModal` has a default ~50 item limit
+- OpenAI models weren't showing until searched for
+- **Solution**: Override `getSuggestions()` method to return ALL models
+- Now shows complete list on open (sorted by favorites/recents)
+- All models visible without needing to search
+
+**File:** `src/components/FuzzyModelDropdown.ts`
+- Added `getSuggestions()` override
+- Returns all items when query is empty (no limit)
+- Filters with substring matching when query present
+- Preserves favorites/recents sorting
+
 ### Build Status
 ✅ TypeScript compilation successful  
 ✅ No lint errors  
-✅ Plugin built and ready to test
+✅ Plugin built and ready to test  
+✅ All models now visible in modal on open
 
-These changes complete the model selection simplification work, resulting in a cleaner, more intuitive settings experience.
+These changes complete the model selection simplification work, resulting in a cleaner, more intuitive settings experience with zero redundancy in model loading code.
 

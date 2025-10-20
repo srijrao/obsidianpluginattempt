@@ -54,6 +54,30 @@ export class FuzzyModelDropdown extends FuzzySuggestModal<ModelInfo> {
     }
 
     /**
+     * Override getSuggestions to show ALL models without limit
+     * By default, FuzzySuggestModal limits results to ~50 items
+     * This ensures users can see all available models when the modal opens
+     */
+    getSuggestions(query: string): Array<{ item: ModelInfo; match: any }> {
+        const items = this.getItems();
+        
+        // If no query, return all items (sorted by relevance)
+        if (!query || query.trim() === '') {
+            return items.map(item => ({ item, match: { score: 0, matches: [] } }));
+        }
+        
+        // If there's a query, use fuzzy matching but return ALL matches
+        const lowerQuery = query.toLowerCase();
+        const matches = items.filter(item => {
+            const searchText = this.getItemText(item).toLowerCase();
+            // Simple substring matching - shows anything that contains the query
+            return searchText.includes(lowerQuery);
+        });
+        
+        return matches.map(item => ({ item, match: { score: 0, matches: [] } }));
+    }
+
+    /**
      * Render each item in the suggestion list
      */
     renderSuggestion(item: any, el: HTMLElement): void {

@@ -610,22 +610,12 @@ export class AIModelConfigurationSection {
   /**
    * Renders the unified model selection using FuzzyModelDropdown.
    * This allows users to select from all available models across all configured providers with fuzzy search.
+   * Uses ModelService to fetch rich model metadata (same as "Browse Models").
    * @param containerEl The HTML element to append the dropdown to.
    */
   private async renderUnifiedModelDropdown(
     containerEl: HTMLElement
   ): Promise<void> {
-    // Ensure available models are loaded
-    if (
-      !this.plugin.settings.availableModels ||
-      this.plugin.settings.availableModels.length === 0
-    ) {
-      const aiDispatcher = new AIDispatcher(this.plugin.app.vault, this.plugin);
-      this.plugin.settings.availableModels =
-        await aiDispatcher.getAllUnifiedModels();
-      await this.plugin.saveSettings();
-    }
-
     new Setting(containerEl)
       .setName("Selected Model")
       .setDesc(
@@ -633,45 +623,63 @@ export class AIModelConfigurationSection {
       )
       .addButton((button) =>
         button.setButtonText("Select Model").onClick(async () => {
-          const availableModels = this.plugin.settings.availableModels || [];
-          
-          if (availableModels.length === 0) {
-            new Notice("No models available - configure providers and refresh models first");
-            return;
-          }
+          try {
+            // Use ModelService to get rich model metadata (same as Browse Models)
+            const modelService = ModelService.getInstance();
+            const models = await modelService.getAllModelsWithMetadata(
+              this.plugin.settings,
+              false // Don't force refresh, use cache
+            );
+            
+            if (models.length === 0) {
+              new Notice("No models available - configure providers and refresh models first");
+              return;
+            }
 
-          const modal = new FuzzyModelDropdown(
-            this.plugin.app,
-            availableModels,
-            async (selectedModel: ModelInfo) => {
-              this.plugin.settings.selectedModel = selectedModel.id;
-              
-              // Update the active provider based on the selected model
-              const [provider] = selectedModel.id.split(":", 2);
-              this.plugin.settings.provider = provider as any;
-              
-              await this.plugin.saveSettings();
-              new Notice(`Selected: ${selectedModel.name}`);
-            },
-            this.plugin
-          );
-          modal.open();
+            const modal = new FuzzyModelDropdown(
+              this.plugin.app,
+              models,
+              async (selectedModel: ModelInfo) => {
+                // Extract the original model ID (remove provider prefix)
+                const [provider, ...modelIdParts] = selectedModel.id.split(":");
+                const originalModelId = modelIdParts.join(":");
+                
+                this.plugin.settings.selectedModel = selectedModel.id;
+                this.plugin.settings.provider = provider as any;
+                
+                await this.plugin.saveSettings();
+                new Notice(`Selected: ${selectedModel.name}`);
+              },
+              this.plugin
+            );
+            modal.open();
+          } catch (error) {
+            new Notice(`Error loading models: ${error.message}`);
+          }
         })
       );
 
     // Display currently selected model info
-    if (
-      this.plugin.settings.selectedModel &&
-      this.plugin.settings.availableModels
-    ) {
-      const selectedModel = this.plugin.settings.availableModels.find(
-        (model) => model.id === this.plugin.settings.selectedModel
-      );
-      if (selectedModel) {
-        const infoEl = containerEl.createEl("div", {
-          cls: "setting-item-description",
-        });
-        infoEl.setText(`Currently using: ${selectedModel.name} (${selectedModel.provider})`);
+    if (this.plugin.settings.selectedModel) {
+      try {
+        const modelService = ModelService.getInstance();
+        const models = await modelService.getAllModelsWithMetadata(
+          this.plugin.settings,
+          false
+        );
+        
+        const selectedModel = models.find(
+          (model) => model.id === this.plugin.settings.selectedModel
+        );
+        
+        if (selectedModel) {
+          const infoEl = containerEl.createEl("div", {
+            cls: "setting-item-description",
+          });
+          infoEl.setText(`Currently using: ${selectedModel.name} (${selectedModel.provider})`);
+        }
+      } catch (error) {
+        console.error("Error displaying selected model:", error);
       }
     }
   }
