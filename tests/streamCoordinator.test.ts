@@ -88,6 +88,10 @@ const createMockPlugin = (): Partial<MyPlugin> => ({
     selectedModel: 'openai:gpt-4'
   } as any,
   debugLog: jest.fn(),
+  agentModeManager: {
+    isAgentModeEnabled: jest.fn().mockReturnValue(false),
+    setAgentModeEnabled: jest.fn()
+  } as any,
   aiDispatcher: {
     hasActiveStreams: jest.fn(() => false),
     abortAllStreams: jest.fn(),

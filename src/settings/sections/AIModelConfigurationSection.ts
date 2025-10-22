@@ -524,6 +524,18 @@ export class AIModelConfigurationSection {
             await this.plugin.saveSettings();
           })
       );
+
+    new Setting(containerEl)
+      .setName("Include Recently Opened Notes")
+      .setDesc("Include the three most recently opened notes in the system message context")
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.includeRecentlyOpenedNotes)
+          .onChange(async (value) => {
+            this.plugin.settings.includeRecentlyOpenedNotes = value;
+            await this.plugin.saveSettings();
+          })
+      );
     // Context Notes textarea
     const contextNotesContainer = containerEl.createDiv(
       "context-notes-container"

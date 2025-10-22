@@ -22,6 +22,7 @@ export interface ChatUIElements {
     referenceNoteButton: HTMLButtonElement; // Button to toggle referencing current note
     obsidianLinksButton: HTMLButtonElement; // Button to toggle Obsidian links
     contextNotesButton: HTMLButtonElement;  // Button to toggle context notes
+    renderModeButton: HTMLButtonElement; // Button to toggle live/source rendering mode
     // New Context Notes action buttons (next to Agent Mode)
     contextClearButton: HTMLButtonElement; // Button to clear context notes
     contextAddCurrentButton: HTMLButtonElement; // Button to add current note to context
@@ -158,6 +159,14 @@ export function createChatUI(app: App, contentEl: HTMLElement): ChatUIElements {
     secondaryButtonContainer.style.gap = '0.5em';
     buttonColumn.appendChild(secondaryButtonContainer);
 
+    // Tertiary button container (rendering mode toggle)
+    const tertiaryButtonContainer = document.createElement('div');
+    tertiaryButtonContainer.className = 'ai-chat-tertiary-buttons';
+    tertiaryButtonContainer.style.display = 'flex';
+    tertiaryButtonContainer.style.justifyContent = 'flex-end';
+    tertiaryButtonContainer.style.gap = '0.5em';
+    buttonColumn.appendChild(tertiaryButtonContainer);
+
     topRowContainer.appendChild(buttonColumn);
     contentEl.appendChild(topRowContainer);
     
@@ -177,6 +186,9 @@ export function createChatUI(app: App, contentEl: HTMLElement): ChatUIElements {
         { key: 'obsidianLinksButton', text: '🔗', ariaLabel: 'Toggle Obsidian links', addClass: 'ai-chat-obsidian-links-button' },
         { key: 'contextNotesButton', text: '📚', ariaLabel: 'Toggle context notes', addClass: 'ai-chat-context-notes-button' },
     ];
+    const tertiaryTopButtons = [
+        { key: 'renderModeButton', text: '👁️', ariaLabel: 'Toggle live/source rendering mode', addClass: 'ai-chat-render-mode-button' },
+    ];
 
     // Store button references
     const buttonRefs: Record<string, HTMLButtonElement> = {};
@@ -188,6 +200,11 @@ export function createChatUI(app: App, contentEl: HTMLElement): ChatUIElements {
     for (const btnCfg of secondaryTopButtons) {
         const btn = createIconButton(btnCfg);
         secondaryButtonContainer.appendChild(btn);
+        buttonRefs[btnCfg.key] = btn;
+    }
+    for (const btnCfg of tertiaryTopButtons) {
+        const btn = createIconButton(btnCfg);
+        tertiaryButtonContainer.appendChild(btn);
         buttonRefs[btnCfg.key] = btn;
     }
 
@@ -305,6 +322,7 @@ export function createChatUI(app: App, contentEl: HTMLElement): ChatUIElements {
         referenceNoteButton: buttonRefs.referenceNoteButton,
         obsidianLinksButton: buttonRefs.obsidianLinksButton,
         contextNotesButton: buttonRefs.contextNotesButton,
+        renderModeButton: buttonRefs.renderModeButton,
         contextClearButton,
         contextAddCurrentButton,
         contextAddAllOpenButton,

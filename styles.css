@@ -108,12 +108,14 @@
 .message-content {
     white-space: normal;
     word-break: break-word;
+    -webkit-user-select: text;
     user-select: text;
     line-height: var(--lineheight);
     padding-left: var(--spacing-lg);
 }
 
-.message-content p .message-content h1,
+.message-content p,
+.message-content h1,
 .message-content h2,
 .message-content h3,
 .message-content h4,
@@ -124,7 +126,7 @@
 }
 
 .ai-chat-message {
-    line-height: var(--lineheight)4;
+    line-height: var(--lineheight);
 }
 
 .message-content.editing textarea {
@@ -481,6 +483,7 @@
     cursor: pointer;
     padding: var(--spacing-md) 0;
     font-weight: bold;
+    -webkit-user-select: none;
     user-select: none;
     border-radius: var(--border-radius);
     transition: var(--transition);
@@ -538,6 +541,7 @@
     background: var(--background-secondary);
     border-radius: 6px;
     border-left: 4px solid var(--text-accent);
+    -webkit-user-select: none;
     user-select: none;
     transition: background-color 0.2s ease;
 }
@@ -884,6 +888,7 @@
     color: var(--text-accent);
     font-size: 0.95em;
     margin-top: 8px;
+    -webkit-user-select: none;
     user-select: none;
     display: inline-block;
 }
@@ -1184,6 +1189,7 @@
     background: var(--background-secondary);
     border-radius: 6px 6px 0 0;
     border-left: 4px solid var(--text-accent);
+    -webkit-user-select: none;
     user-select: none;
     transition: background-color 0.2s ease;
     display: flex;
@@ -1258,6 +1264,7 @@
     border: 1px solid var(--background-modifier-border);
     border-radius: var(--border-radius);
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+    -webkit-backdrop-filter: blur(4px);
     backdrop-filter: blur(4px);
     animation: slideInFromRight 0.3s ease-out;
     overflow-x: hidden; /* Prevent horizontal scrolling */
@@ -2066,4 +2073,40 @@
     border: 1px solid var(--background-modifier-border) !important;
     border-radius: var(--border-radius) !important;
     background: var(--background-secondary) !important;
+}
+
+/* Token Count Display Styles */
+.ai-token-count-display {
+    font-size: 0.75em;
+    opacity: 0.8;
+    margin-left: 0.5em;
+    padding: 0.2em 0.4em;
+    border-radius: 4px;
+    background: var(--background-secondary);
+    border: 1px solid var(--background-modifier-border);
+}
+
+.token-count-low {
+    color: var(--color-green);
+    border-color: var(--color-green);
+    background: rgba(var(--color-green-rgb), 0.1);
+}
+
+.token-count-medium {
+    color: var(--color-yellow);
+    border-color: var(--color-yellow);
+    background: rgba(var(--color-yellow-rgb), 0.1);
+}
+
+.token-count-high {
+    color: var(--color-orange);
+    border-color: var(--color-orange);
+    background: rgba(var(--color-orange-rgb), 0.1);
+}
+
+.token-count-critical {
+    color: var(--color-red);
+    border-color: var(--color-red);
+    background: rgba(var(--color-red-rgb), 0.1);
+    font-weight: bold;
 }

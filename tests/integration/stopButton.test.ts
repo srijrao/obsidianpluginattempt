@@ -83,6 +83,10 @@ describe('Stop Button Integration Tests', () => {
         debugMode: true,
       },
       debugLog: jest.fn(),
+      agentModeManager: {
+        isAgentModeEnabled: jest.fn().mockReturnValue(false),
+        setAgentModeEnabled: jest.fn()
+      },
       aiDispatcher: {
         hasActiveStreams: jest.fn(() => false),
         abortAllStreams: jest.fn(),

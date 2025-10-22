@@ -150,6 +150,7 @@ describe('AIDispatcher', () => {
         contextTemplate: '',
         contextTag: '',
         contextFolder: '',
+        includeRecentlyOpenedNotes: false,
         contextNoteTitle: '',
         contextNoteContent: '',
         contextNoteTemplate: '',

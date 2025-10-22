@@ -4,6 +4,7 @@ import MyPlugin from '../../main';
 import { ChatHistoryManager } from './ChatHistoryManager';
 import { createMessageElement } from './Message';
 import { AgentResponseHandler } from '../agent/AgentResponseHandler';
+import { truncateMessagesForContext } from '../../utils/contextBuilder';
 
 // Forward declaration to avoid circular dependency
 interface IChatView {
@@ -13,6 +14,8 @@ interface IChatView {
         originalTimestamp?: string,
         originalContent?: string
     ): Promise<string>;
+    getCurrentModelContextLimit(): number;
+    applyRenderModeToElement(messageEl: HTMLElement): void;
 }
 
 /**
@@ -106,6 +109,9 @@ export class MessageRegenerator {
             messages.push({ role, content });
         }
 
+        const maxTokens = this.chatView.getCurrentModelContextLimit();
+        const truncatedMessages = truncateMessagesForContext(messages, maxTokens, this.plugin);
+
         // Prepare for replacing the assistant message
         let originalTimestamp = new Date().toISOString();
         let originalContent = '';
@@ -147,11 +153,12 @@ export class MessageRegenerator {
             // This ensures regenerate uses the same StreamCoordinator system as regular messages
             this.plugin.debugLog('info', '[MessageRegenerator] Using ChatView.streamAssistantResponse for regeneration');
             await this.chatView.streamAssistantResponse(
-                messages,
+                truncatedMessages,
                 assistantContainer,
                 originalTimestamp,
                 originalContent
             );
+            this.chatView.applyRenderModeToElement(assistantContainer);
         } catch (error) {
             if (error.name !== 'AbortError') {
                 new Notice(`Error: ${error.message}`);

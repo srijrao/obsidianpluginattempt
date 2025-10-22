@@ -19,6 +19,8 @@ jest.mock('../src/components/chat/Message', () => ({
 // Mock ChatView interface
 interface MockChatView {
     streamAssistantResponse: jest.Mock;
+    getCurrentModelContextLimit: jest.Mock<number, []>;
+    applyRenderModeToElement: jest.Mock<void, [HTMLElement]>;
 }
 
 describe('MessageRegenerator Integration with ChatView', () => {
@@ -68,7 +70,9 @@ describe('MessageRegenerator Integration with ChatView', () => {
 
         // Mock ChatView with streamAssistantResponse method
         mockChatView = {
-            streamAssistantResponse: jest.fn().mockResolvedValue('Regenerated response content')
+            streamAssistantResponse: jest.fn().mockResolvedValue('Regenerated response content'),
+            getCurrentModelContextLimit: jest.fn<number, []>().mockReturnValue(8192),
+            applyRenderModeToElement: jest.fn<void, [HTMLElement]>()
         };
 
         // Create MessageRegenerator with ChatView integration

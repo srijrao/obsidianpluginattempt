@@ -3,6 +3,8 @@ import { Message as MessageType } from '../../types';
 import { createActionButton, copyToClipboard } from './Buttons';
 import { ConfirmationModal } from './ConfirmationModal';
 import { MessageRenderer } from '../agent/MessageRenderer';
+import { enableClickableLinksInMessage } from '../../utils/linkHandler';
+import { createImprovedDeleteButton } from './ImprovedDeleteButton';
 import { 
     handleCopyMessage, 
     handleEditMessage, 
@@ -114,7 +116,10 @@ export abstract class Message extends Component implements IMessage {
             this.contentElement,
             '',
             this
-        ).catch((error) => {
+        ).then(() => {
+            // Make links clickable after rendering
+            enableClickableLinksInMessage(this.element, this.app);
+        }).catch((error) => {
             console.error('Markdown rendering error:', error);
             this.contentElement.textContent = this.rawContent;
         });
@@ -247,6 +252,9 @@ export async function createMessageElement(
         }
     }
 
+    // Make links clickable after all rendering is complete
+    enableClickableLinksInMessage(messageEl, app);
+
     // Create actions container and add action buttons
     const actionsEl = messageContainer.createDiv('message-actions');
     actionsEl.classList.add('hidden');
@@ -265,11 +273,14 @@ export async function createMessageElement(
     actionsEl.appendChild(createActionButton('Copy', 'Copy message (including tool results)', handleCopyMessage(messageEl, plugin)));
     // Edit button
     actionsEl.appendChild(createActionButton('Edit', 'Edit message', handleEditMessage(messageEl, chatHistoryManager, plugin)));
-    // Delete button
-    actionsEl.appendChild(createActionButton('Delete', 'Delete message', handleDeleteMessage(messageEl, chatHistoryManager, app)));
-    // Regenerate button (assistant only)
+    // Improved Delete button (no modal, red "Sure?" confirmation)
+    actionsEl.appendChild(createImprovedDeleteButton(messageEl, chatHistoryManager));
+    // Regenerate button (for both user and assistant messages)
     if (role === 'assistant') {
         actionsEl.appendChild(createActionButton('Regenerate', 'Regenerate this response', handleRegenerateMessage(messageEl, regenerateCallback)));
+    } else {
+        // User message regeneration - re-runs the query from this point
+        actionsEl.appendChild(createActionButton('Regenerate', 'Re-run query from this point', handleRegenerateMessage(messageEl, regenerateCallback)));
     }
 
     messageContainer.appendChild(actionsEl);

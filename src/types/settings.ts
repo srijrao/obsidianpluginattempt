@@ -189,6 +189,8 @@ export interface MyPluginSettings {
     enableContextNotes: boolean;
     /** A string containing paths or names of notes to be used as context. */
     contextNotes: string;
+    /** If true, includes the three most recently opened note paths in the system message. */
+    includeRecentlyOpenedNotes: boolean;
 
     /** Prompts for title and summary generation. */
     /** The prompt used to generate a note title. */
@@ -293,6 +295,8 @@ export interface UIBehaviorSettings {
     showCompletionNotifications?: boolean;
     /** If true, include the AI's reasoning in exported or copied content. */
     includeReasoningInExports?: boolean;
+    /** Chat rendering mode: 'live' shows formatted markdown, 'source' shows raw text. */
+    chatRenderMode?: 'live' | 'source';
 }
 
 /**
@@ -362,6 +366,8 @@ export const DEFAULT_SETTINGS: MyPluginSettings = {
     enableContextNotes: false,
     /** @inheritdoc */
     contextNotes: '',
+    /** @inheritdoc */
+    includeRecentlyOpenedNotes: false,
 
     /** @inheritdoc */
     titlePrompt: DEFAULT_TITLE_PROMPT,
@@ -439,7 +445,8 @@ export const DEFAULT_SETTINGS: MyPluginSettings = {
     uiBehavior: {
         collapseOldReasoning: true,
         showCompletionNotifications: true,
-        includeReasoningInExports: true
+        includeReasoningInExports: true,
+        chatRenderMode: 'live'
     },
     /** @inheritdoc */
     enabledTools: {},

@@ -26,7 +26,7 @@ import { handleCopyAll, handleSaveNote, handleClearChat, handleSettings, handleH
 import { loadChatYamlAndApplySettings } from './components/chat/chatPersistence';
 import { renderChatHistory } from './components/chat/chatHistoryUtils';
 import { AgentResponseHandler } from './components/agent/AgentResponseHandler';
-import { buildContextMessages } from './utils/contextBuilder';
+import { buildContextMessages, truncateMessagesForContext } from './utils/contextBuilder';
 import { MessageRegenerator } from './components/chat/MessageRegenerator';
 import { showNotice } from './utils/generalUtils';
 import { ResponseStreamer } from './components/chat/ResponseStreamer';
@@ -38,6 +38,8 @@ import { MessageContextPool, WeakCache, PreAllocatedArrays } from './utils/objec
 import { DOMBatcher } from './utils/domBatcher';
 import { handleChatError, withErrorHandling } from './utils/errorHandler';
 import { AsyncDebouncer, AsyncOptimizerFactory } from './utils/asyncOptimizer';
+import { calculateTotalTokenCount, formatTokenCount, getTokenCountColorClass } from './utils/tokenCounter';
+import { enableClickableLinksInMessage } from './utils/linkHandler';
 export const VIEW_TYPE_CHAT = 'chat-view';
 export class ChatView extends ItemView {
     private plugin: MyPlugin;
@@ -131,6 +133,7 @@ export class ChatView extends ItemView {
         // Cache new buttons
         this.domElementCache.obsidianLinksButton = ui.obsidianLinksButton;
         this.domElementCache.contextNotesButton = ui.contextNotesButton;
+        (this.domElementCache as any).renderModeButton = ui.renderModeButton;
         // New context action buttons
         (this.domElementCache as any).contextClearButton = ui.contextClearButton;
         (this.domElementCache as any).contextAddCurrentButton = ui.contextAddCurrentButton;
@@ -150,7 +153,7 @@ export class ChatView extends ItemView {
         this.prepareChatView(contentEl);
         const loadedHistory = await this.loadChatHistory();
         const ui: ChatUIElements = createChatUI(this.app, contentEl);
-        this.initializeUIElements(ui);
+        await this.initializeUIElements(ui);
         this.setupEventHandlers(ui);
         this.setupAgentResponseHandler();
         this.setupResponseStreamerAndRegenerator();
@@ -177,7 +180,7 @@ export class ChatView extends ItemView {
         ) || [];
     }
 
-    private initializeUIElements(ui: ChatUIElements) {
+    private async initializeUIElements(ui: ChatUIElements) {
         this.messagesContainer = ui.messagesContainer;
         this.inputContainer = ui.inputContainer;
         this.referenceNoteIndicator = ui.referenceNoteIndicator;
@@ -188,7 +191,8 @@ export class ChatView extends ItemView {
         this.updateReferenceNoteIndicator();
         this.updateObsidianLinksIndicator();
         this.updateContextNotesIndicator();
-        this.updateModelNameDisplay();
+        await this.updateModelNameDisplay();
+        this.updateRenderModeIndicator();
     }
 
     private setupEventHandlers(ui: ChatUIElements) {
@@ -215,6 +219,21 @@ export class ChatView extends ItemView {
             this.plugin.settings.enableContextNotes = !this.plugin.settings.enableContextNotes;
             this.plugin.saveSettings();
             this.updateContextNotesIndicator();
+        });
+
+        // Render Mode button
+        this.addEventListenerWithCleanup((this.domElementCache as any).renderModeButton!, 'click', () => {
+            const currentMode = this.plugin.settings.uiBehavior?.chatRenderMode || 'live';
+            const newMode = currentMode === 'live' ? 'source' : 'live';
+            
+            if (!this.plugin.settings.uiBehavior) {
+                this.plugin.settings.uiBehavior = {};
+            }
+            this.plugin.settings.uiBehavior.chatRenderMode = newMode;
+            this.plugin.saveSettings();
+            
+            this.updateRenderModeIndicator();
+            this.reRenderAllMessages();
         });
 
         // NEW: Context notes quick actions
@@ -577,6 +596,7 @@ export class ChatView extends ItemView {
             // FIX: Ensure rawContent is stored in dataset for proper context building
             userMessageEl.dataset.rawContent = content;
             this.messagesContainer.appendChild(userMessageEl);
+            this.applyRenderModeToElement(userMessageEl);
             this.debouncedScrollToBottom();
             textarea.value = '';
             
@@ -601,13 +621,14 @@ export class ChatView extends ItemView {
                 this.cachedMessageElements = [];
                 this.lastScrollHeight = 0;
                 
-                const contextMessages = await this.buildContextMessages();
+                let contextMessages = await this.buildContextMessages();
                 this.plugin.debugLog('debug', '[ChatView] Context messages built', {
                     contextMessageCount: contextMessages.length
                 });
                 
                 // Add visible chat messages to context
                 this.addVisibleMessagesToContext(contextMessages);
+                contextMessages = this.prepareMessagesForSend(contextMessages);
                 
                 this.plugin.debugLog('debug', '[ChatView] Final message array for AI call', {
                     totalMessages: contextMessages.length,
@@ -648,6 +669,7 @@ export class ChatView extends ItemView {
                     // FIX: Ensure rawContent is stored in dataset for proper context building
                     messageEl.dataset.rawContent = responseContent;
                     this.messagesContainer.appendChild(messageEl);
+                    this.applyRenderModeToElement(messageEl);
                     
                     // FIX: Invalidate message cache to ensure fresh DOM reads include this new message
                     this.invalidateMessageCache();
@@ -763,6 +785,14 @@ export class ChatView extends ItemView {
                 regenerateResponse: (el: HTMLElement) => this.regenerateResponse(el),
                 scrollToBottom: true
             });
+
+            const currentMode = this.plugin.settings.uiBehavior?.chatRenderMode || 'live';
+            if (currentMode === 'source') {
+                this.reRenderAllMessages();
+            } else {
+                const renderedMessages = this.messagesContainer.querySelectorAll('.ai-chat-message');
+                renderedMessages.forEach((messageEl) => this.applyRenderModeToElement(messageEl as HTMLElement));
+            }
         }
     }
 
@@ -770,11 +800,12 @@ export class ChatView extends ItemView {
         this.registerEvent(this.app.workspace.on('active-leaf-change', () => {
             this.updateReferenceNoteIndicator();
         }));
-        this.plugin.onSettingsChange(() => {
+        this.plugin.onSettingsChange(async () => {
             this.updateReferenceNoteIndicator();
             this.updateObsidianLinksIndicator();
             this.updateContextNotesIndicator();
-            this.updateModelNameDisplay();
+            await this.updateModelNameDisplay();
+            this.updateRenderModeIndicator();
         });
     }
     private async addMessage(role: 'user' | 'assistant', content: string, isError: boolean = false, enhancedData?: Partial<Pick<Message, 'reasoning' | 'taskStatus' | 'toolResults'>>): Promise<void> {
@@ -783,6 +814,7 @@ export class ChatView extends ItemView {
         // FIX: Ensure rawContent is stored in dataset for proper context building
         messageEl.dataset.rawContent = content;
         this.messagesContainer.appendChild(messageEl);
+    this.applyRenderModeToElement(messageEl);
         this.debouncedScrollToBottom();
         
         // FIX: Invalidate message cache to ensure fresh DOM reads include this new message
@@ -848,18 +880,50 @@ export class ChatView extends ItemView {
             }
         });
     }
-    private updateModelNameDisplay() {
+    private async updateModelNameDisplay() {
         if (!this.modelNameDisplay) return;
-        let modelName = 'Unknown Model';
+
         const settings = this.plugin.settings;
+        let modelName = 'Unknown Model';
+        let maxTokens = this.getCurrentModelContextLimit();
+
         if (settings.selectedModel && settings.availableModels) {
             const found = settings.availableModels.find((m: any) => m.id === settings.selectedModel);
-            if (found) modelName = found.name;
-            else modelName = settings.selectedModel;
+            if (found) {
+                modelName = found.name;
+                const contextLength = (found as any).context_length;
+                if (contextLength) {
+                    maxTokens = contextLength;
+                }
+            } else {
+                modelName = settings.selectedModel;
+            }
         } else if (settings.selectedModel) {
             modelName = settings.selectedModel;
         }
-        this.modelNameDisplay.textContent = `Model: ${modelName}`;
+
+        try {
+            const baseContext = await this.buildContextMessages();
+            const chatMessages = this.collectChatMessages();
+            const combined = [...baseContext, ...chatMessages];
+            const truncated = truncateMessagesForContext(combined, maxTokens, this.plugin);
+            const tokenCount = calculateTotalTokenCount(truncated);
+
+            this.modelNameDisplay.empty();
+
+            const modelSpan = document.createElement('span');
+            modelSpan.textContent = `Model: ${modelName}`;
+            this.modelNameDisplay.appendChild(modelSpan);
+
+            const tokenSpan = document.createElement('span');
+            tokenSpan.className = `ai-token-count-display ${getTokenCountColorClass(tokenCount, maxTokens)}`;
+            tokenSpan.textContent = `${formatTokenCount(tokenCount)} tokens`;
+            tokenSpan.setAttribute('title', `Total context size: ${tokenCount} tokens${maxTokens ? ` / limit ${maxTokens}` : ''}`);
+            this.modelNameDisplay.appendChild(tokenSpan);
+        } catch (error) {
+            console.error('Failed to calculate token count:', error);
+            this.modelNameDisplay.textContent = `Model: ${modelName}`;
+        }
     }
     private updateObsidianLinksIndicator() {
         if (!this.obsidianLinksIndicator) return;
@@ -933,6 +997,148 @@ export class ChatView extends ItemView {
             }
         }
     }
+
+    private collectChatMessages(): Message[] {
+        const messageElements = this.messagesContainer.querySelectorAll('.ai-chat-message');
+        const collected: Message[] = [];
+
+        for (let i = 0; i < messageElements.length; i++) {
+            const el = messageElements[i] as HTMLElement;
+            const role = el.classList.contains('user') ? 'user' : 'assistant';
+            let content = el.dataset.rawContent;
+
+            if (!content) {
+                const contentEl = el.querySelector('.message-content');
+                content = contentEl?.textContent || '';
+            }
+
+            if (content && content.trim()) {
+                collected.push({ role, content });
+            }
+        }
+
+        return collected;
+    }
+
+    private prepareMessagesForSend(messages: Message[]): Message[] {
+        const maxTokens = this.getCurrentModelContextLimit();
+        const truncated = truncateMessagesForContext(messages, maxTokens, this.plugin);
+
+        if (truncated !== messages) {
+            const retained = new Set(truncated);
+            for (const message of messages) {
+                if (!retained.has(message)) {
+                    this.messagePool.releaseMessage(message as any);
+                }
+            }
+        }
+
+        return truncated;
+    }
+
+    public applyRenderModeToElement(messageEl: HTMLElement): void {
+        const mode = this.plugin.settings.uiBehavior?.chatRenderMode || 'live';
+        if (mode !== 'source') {
+            enableClickableLinksInMessage(messageEl, this.app);
+            return;
+        }
+
+        const contentEl = messageEl.querySelector('.message-content') as HTMLElement;
+        if (!contentEl) {
+            return;
+        }
+
+        const rawContent = messageEl.dataset.rawContent || contentEl.textContent || '';
+        contentEl.empty();
+
+        const pre = document.createElement('pre');
+        pre.style.whiteSpace = 'pre-wrap';
+        pre.style.fontFamily = 'monospace';
+        pre.style.fontSize = '0.9em';
+        pre.style.background = 'var(--background-secondary)';
+        pre.style.padding = '0.5em';
+        pre.style.borderRadius = '4px';
+        pre.textContent = rawContent;
+        contentEl.appendChild(pre);
+    }
+
+    public getCurrentModelContextLimit(): number {
+        const settings = this.plugin.settings;
+
+        if (settings.selectedModel && settings.availableModels) {
+            const found = settings.availableModels.find((m: any) => m.id === settings.selectedModel);
+            if (found && (found as any).context_length) {
+                return (found as any).context_length;
+            }
+        }
+
+        // Fallback to a conservative default if not specified
+        return 8192;
+    }
+
+
+    private updateRenderModeIndicator() {
+        const button = (this.domElementCache as any).renderModeButton as HTMLButtonElement;
+        const currentMode = this.plugin.settings.uiBehavior?.chatRenderMode || 'live';
+        
+        if (button) {
+            if (currentMode === 'live') {
+                button.setText('👁️');
+                button.setAttribute('aria-label', 'Switch to source mode');
+                button.setAttribute('title', 'Live mode: Formatted markdown (click for source)');
+                button.classList.remove('source-mode');
+            } else {
+                button.setText('📝');
+                button.setAttribute('aria-label', 'Switch to live mode');
+                button.setAttribute('title', 'Source mode: Raw markdown (click for live)');
+                button.classList.add('source-mode');
+            }
+        }
+    }
+
+    private reRenderAllMessages() {
+        const messageElements = this.messagesContainer.querySelectorAll('.ai-chat-message');
+        const currentMode = this.plugin.settings.uiBehavior?.chatRenderMode || 'live';
+        
+        messageElements.forEach((messageEl) => {
+            const htmlElement = messageEl as HTMLElement;
+            const contentElement = htmlElement.querySelector('.message-content') as HTMLElement;
+            const rawContent = htmlElement.dataset.rawContent;
+            
+            if (contentElement && rawContent) {
+                if (currentMode === 'source') {
+                    // Show raw markdown/text
+                    contentElement.empty();
+                    const pre = document.createElement('pre');
+                    pre.style.whiteSpace = 'pre-wrap';
+                    pre.style.fontFamily = 'monospace';
+                    pre.style.fontSize = '0.9em';
+                    pre.style.background = 'var(--background-secondary)';
+                    pre.style.padding = '0.5em';
+                    pre.style.borderRadius = '4px';
+                    pre.textContent = rawContent;
+                    contentElement.appendChild(pre);
+                } else {
+                    // Re-render as formatted markdown
+                    contentElement.empty();
+                    import('obsidian').then(({ MarkdownRenderer }) => {
+                        MarkdownRenderer.render(this.app, rawContent, contentElement, '', this)
+                            .then(() => {
+                                // Re-enable clickable links after re-rendering
+                                import('./utils/linkHandler').then(({ enableClickableLinksInMessage }) => {
+                                    enableClickableLinksInMessage(htmlElement, this.app);
+                                });
+                            })
+                            .catch((error) => {
+                                console.error('Re-rendering error:', error);
+                                contentElement.textContent = rawContent;
+                            });
+                    });
+                }
+            }
+        });
+    }
+
     private async buildContextMessages(): Promise<Message[]> {
         return await buildContextMessages({ app: this.app, plugin: this.plugin });
     }

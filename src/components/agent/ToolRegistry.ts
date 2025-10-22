@@ -130,7 +130,11 @@ export class ToolRegistry {
                 }
             }
 
-            const result = await tool.execute(parameters, {});
+            const executionContext = {
+                plugin: this.plugin,
+                app: this.plugin?.app
+            };
+            const result = await tool.execute(parameters, executionContext);
             if (this.plugin && this.plugin.settings) {
                 debugLog(this.plugin.settings.debugMode ?? false, 'debug', '[ToolRegistry] Tool execution result', { command, result }); // Use debugLog
             }

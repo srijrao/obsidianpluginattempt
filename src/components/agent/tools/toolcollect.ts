@@ -6,6 +6,7 @@ import { FileMoveTool } from './FileMoveTool';
 import { ThoughtTool } from './ThoughtTool';
 import { FileListTool } from './FileListTool';
 import { FileDeleteTool } from './FileDeleteTool';
+import { ContextNotesTool } from './ContextNotesTool';
 
 /**
  * Returns an array of all tool classes.
@@ -21,7 +22,8 @@ export function getAllToolClasses(): any[] {
         FileMoveTool,
         ThoughtTool,
         FileListTool,
-        FileDeleteTool
+    FileDeleteTool,
+    ContextNotesTool
     ];
 }
 
