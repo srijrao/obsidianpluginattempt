@@ -800,6 +800,18 @@ export class ChatView extends ItemView {
         this.registerEvent(this.app.workspace.on('active-leaf-change', () => {
             this.updateReferenceNoteIndicator();
         }));
+        // When a message is edited, ensure the current render mode is applied to that element
+        this.registerEvent((this.app.workspace as any).on('ai-assistant:message-edited', (el: HTMLElement) => {
+            if (el && el.classList && el.classList.contains('ai-chat-message')) {
+                try {
+                    this.applyRenderModeToElement(el);
+                    // Invalidate cache so downstream context building uses fresh content
+                    this.invalidateMessageCache();
+                } catch (e) {
+                    this.plugin.debugLog('warn', '[ChatView] Failed to apply render mode after message edit', e as any);
+                }
+            }
+        }));
         this.plugin.onSettingsChange(async () => {
             this.updateReferenceNoteIndicator();
             this.updateObsidianLinksIndicator();
@@ -1103,9 +1115,27 @@ export class ChatView extends ItemView {
         messageElements.forEach((messageEl) => {
             const htmlElement = messageEl as HTMLElement;
             const contentElement = htmlElement.querySelector('.message-content') as HTMLElement;
-            const rawContent = htmlElement.dataset.rawContent;
-            
-            if (contentElement && rawContent) {
+            let rawContent = htmlElement.dataset.rawContent;
+
+            if (!contentElement) {
+                return;
+            }
+
+            // If rawContent is missing, try to recover it from the DOM and persist it
+            if (!rawContent || rawContent.trim() === '') {
+                // If currently in source mode, the content is likely inside a <pre>
+                const pre = contentElement.querySelector('pre');
+                const recovered = (pre?.textContent || contentElement.textContent || '').trim();
+                if (recovered) {
+                    rawContent = recovered;
+                    htmlElement.dataset.rawContent = recovered; // Persist for future toggles/renders
+                    this.plugin.debugLog('debug', '[ChatView] Recovered rawContent from DOM during re-render', {
+                        length: recovered.length
+                    });
+                }
+            }
+
+            if (rawContent && rawContent.length > 0) {
                 if (currentMode === 'source') {
                     // Show raw markdown/text
                     contentElement.empty();
@@ -1121,19 +1151,28 @@ export class ChatView extends ItemView {
                 } else {
                     // Re-render as formatted markdown
                     contentElement.empty();
-                    import('obsidian').then(({ MarkdownRenderer }) => {
-                        MarkdownRenderer.render(this.app, rawContent, contentElement, '', this)
-                            .then(() => {
-                                // Re-enable clickable links after re-rendering
-                                import('./utils/linkHandler').then(({ enableClickableLinksInMessage }) => {
-                                    enableClickableLinksInMessage(htmlElement, this.app);
-                                });
-                            })
-                            .catch((error) => {
-                                console.error('Re-rendering error:', error);
-                                contentElement.textContent = rawContent;
-                            });
-                    });
+                    import('obsidian')
+                        .then(({ MarkdownRenderer }) =>
+                            MarkdownRenderer.render(this.app, rawContent!, contentElement, '', this)
+                        )
+                        .then(() => import('./utils/linkHandler'))
+                        .then(({ enableClickableLinksInMessage }) => {
+                            // Re-enable clickable links after re-rendering
+                            enableClickableLinksInMessage(htmlElement, this.app);
+                        })
+                        .catch((error) => {
+                            console.error('Re-rendering error:', error);
+                            // Fallback to plain text to avoid empty content on failure
+                            contentElement.textContent = rawContent!;
+                        });
+                }
+            } else {
+                // As a last resort, don't leave the message empty; keep whatever text was visible
+                if (contentElement.textContent && contentElement.textContent.trim().length > 0) {
+                    // Keep existing text (no-op)
+                } else {
+                    // Nothing to show; log for diagnostics
+                    this.plugin.debugLog('warn', '[ChatView] reRenderAllMessages found message with no content to render');
                 }
             }
         });

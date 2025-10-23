@@ -248,7 +248,14 @@ export function handleEditMessage(messageEl: HTMLElement, chatHistoryManager: Ch
                         plugin.debugLog('debug', '[EventHandlers] Rendering as markdown');
                         await MarkdownRenderer.render(plugin.app, newContent, contentEl, '', new Component());
                     }
-                    
+                    // Notify chat view to re-apply current render mode (live/source) for this element
+                    // This mirrors the prior fix for post-edit rendering consistency.
+                    try {
+                        plugin.app.workspace.trigger('ai-assistant:message-edited', messageEl);
+                    } catch (evtErr) {
+                        plugin.debugLog('warn', '[EventHandlers] Failed to trigger message-edited event', evtErr);
+                    }
+
                     plugin.debugLog('debug', '[EventHandlers] Edit saved successfully');
                     
                 } catch (e) {
