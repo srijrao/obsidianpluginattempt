@@ -551,7 +551,7 @@ describe('AIDispatcher', () => {
     });
 
     test('getModelInfo should return model info from availableModels', () => {
-      plugin.settings.availableModels = [{ id: 'test:model', name: 'Test Model', provider: 'openai', modelId: 'test-model' }];
+      plugin.settings.availableModels = [{ id: 'test:model', name: 'Test Model', provider: 'openai' }];
       const info = dispatcher.getModelInfo('test:model');
       expect(info).toEqual({ id: 'test:model', name: 'Test Model', provider: 'openai' });
     });

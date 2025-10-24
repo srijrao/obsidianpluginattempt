@@ -1,6 +1,7 @@
 import { Setting, Notice } from 'obsidian';
 import MyPlugin from '../../main';
 import { AIDispatcher } from '../../utils/aiDispatcher';
+import { ModelService } from '../../services/ModelService';
 
 /**
  * SettingsSections provides methods to render different categories of plugin settings.
@@ -263,8 +264,9 @@ export class SettingsSections {
                             };
                             await this.plugin.saveSettings();
 
-                            // Refresh the combined list of available models after a successful test
-                            this.plugin.settings.availableModels = await aiDispatcher.getAllUnifiedModels();
+                            // Refresh the combined list of available models with rich metadata after a successful test
+                            const modelService = ModelService.getInstance();
+                            this.plugin.settings.availableModels = await modelService.getAllModelsWithMetadata(this.plugin.settings, false);
                             await this.plugin.saveSettings();
 
                             new Notice(result.message);

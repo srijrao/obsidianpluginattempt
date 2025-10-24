@@ -1,5 +1,6 @@
 import { DEFAULT_TITLE_PROMPT, DEFAULT_SUMMARY_PROMPT, DEFAULT_YAML_SYSTEM_MESSAGE, DEFAULT_GENERAL_SYSTEM_PROMPT } from "../promptConstants";
 import { AgentModeSettings, UnifiedModel, ChatSession } from "../types";
+import type { ModelInfo } from "../../providers/base";
 
 /**
  * Represents a YAML attribute generator for the settings UI.
@@ -55,8 +56,8 @@ export interface MyPluginSettings {
     /** Selected unified model (new unified approach) across all providers. */
     selectedModel?: string; 
     
-    /** Available unified models from all configured providers. */
-    availableModels?: UnifiedModel[];
+    /** Available models from all configured providers with rich metadata (description, context_length, etc.). */
+    availableModels?: ModelInfo[];
 
     /** OpenAI-specific settings. */
     openaiSettings: {

@@ -11,6 +11,7 @@ import { errorHandler, handleAIDispatcherError, withErrorHandling } from './erro
 import { AsyncBatcher, ParallelExecutor, AsyncOptimizerFactory } from './asyncOptimizer';
 import { performanceMonitor } from './performanceMonitor';
 import { apiCircuitBreaker } from './APICircuitBreaker';
+import { ModelService } from '../services/ModelService';
 import {
     isValidProviderName,
     ValidProviderName,
@@ -1098,8 +1099,9 @@ export class AIDispatcher {
             }
         }
         
-        // Refresh the unified models list
-        this.plugin.settings.availableModels = await this.getAllUnifiedModels();
+        // Refresh the unified models list using ModelService for rich metadata
+        const modelService = ModelService.getInstance();
+        this.plugin.settings.availableModels = await modelService.getAllModelsWithMetadata(this.plugin.settings, false);
         await this.plugin.saveSettings();
         
         return results;
@@ -1143,7 +1145,7 @@ export class AIDispatcher {
      */
     getModelInfo(unifiedModelId: string): { id: string; name: string; provider: string } | undefined {
         const model = this.plugin.settings.availableModels?.find(model => model.id === unifiedModelId);
-        if (!model) return undefined;
+        if (!model || !model.provider) return undefined;
         
         return {
             id: model.id,
