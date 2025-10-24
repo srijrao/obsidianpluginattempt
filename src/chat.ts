@@ -38,7 +38,7 @@ import { MessageContextPool, WeakCache, PreAllocatedArrays } from './utils/objec
 import { DOMBatcher } from './utils/domBatcher';
 import { handleChatError, withErrorHandling } from './utils/errorHandler';
 import { AsyncDebouncer, AsyncOptimizerFactory } from './utils/asyncOptimizer';
-import { calculateTotalTokenCount, formatTokenCount, getTokenCountColorClass } from './utils/tokenCounter';
+import { calculateTotalTokenCount, formatTokenCount, getTokenCountColorClass, calculateTokenBreakdown, formatTokenBreakdown, TokenBreakdown, createColoredBreakdownElements } from './utils/tokenCounter';
 import { enableClickableLinksInMessage } from './utils/linkHandler';
 export const VIEW_TYPE_CHAT = 'chat-view';
 export class ChatView extends ItemView {
@@ -82,11 +82,13 @@ export class ChatView extends ItemView {
         event: string;
         handler: EventListener;
     }> = [];
+    private settingsChangeCallback: (() => void) | null = null;
     private domBatcher: DOMBatcher;
     
     // Priority 2 Optimization: Async optimization
     private scrollDebouncer: AsyncDebouncer<void>;
     private updateDebouncer: AsyncDebouncer<void>;
+    private tokenCountDebouncer: AsyncDebouncer<void>;
     // Centralized stream state management
     private centralStreamState: {
         isStreaming: boolean;
@@ -110,6 +112,7 @@ export class ChatView extends ItemView {
         // Priority 2 Optimization: Initialize async optimizers
         this.scrollDebouncer = AsyncOptimizerFactory.createInputDebouncer();
         this.updateDebouncer = AsyncOptimizerFactory.createInputDebouncer();
+        this.tokenCountDebouncer = new AsyncDebouncer<void>(500); // 500ms debounce for token counter
         
         // Initialize centralized stream state management
         this.initializeCentralizedStreamState();
@@ -161,6 +164,7 @@ export class ChatView extends ItemView {
         this.setupAgentModeButton();
         this.setupSendAndStopButtons();
         this.setupInputHandler(ui);
+        this.setupTokenCounterUpdates(); // Setup real-time token counter
         await this.loadAndRenderHistory(loadedHistory);
         this.updateReferenceNoteIndicator();
         this.registerWorkspaceAndSettingsEvents();
@@ -197,13 +201,21 @@ export class ChatView extends ItemView {
 
     private setupEventHandlers(ui: ChatUIElements) {
         this.addEventListenerWithCleanup(this.domElementCache.copyAllButton!, 'click', handleCopyAll(this.messagesContainer, this.plugin));
-        this.addEventListenerWithCleanup(this.domElementCache.clearButton!, 'click', handleClearChat(this.messagesContainer, this.chatHistoryManager));
+        this.addEventListenerWithCleanup(this.domElementCache.clearButton!, 'click', async () => {
+            handleClearChat(this.messagesContainer, this.chatHistoryManager)();
+            // Update token count after clearing chat
+            if (this.plugin.settings.showTokenCounter !== false) {
+                await this.updateModelNameDisplay();
+            }
+        });
         this.addEventListenerWithCleanup(this.domElementCache.settingsButton!, 'click', handleSettings(this.app, this.plugin));
         this.addEventListenerWithCleanup(this.domElementCache.helpButton!, 'click', handleHelp(this.app));
         this.addEventListenerWithCleanup(this.domElementCache.referenceNoteButton!, 'click', () => {
             this.plugin.settings.referenceCurrentNote = !this.plugin.settings.referenceCurrentNote;
             this.plugin.saveSettings();
             this.updateReferenceNoteIndicator();
+            // Immediately update token count when reference note is toggled
+            this.updateModelNameDisplay();
         });
         this.addEventListenerWithCleanup(this.domElementCache.saveNoteButton!, 'click', handleSaveNote(this.messagesContainer, this.plugin, this.app, this.agentResponseHandler));
         
@@ -219,6 +231,8 @@ export class ChatView extends ItemView {
             this.plugin.settings.enableContextNotes = !this.plugin.settings.enableContextNotes;
             this.plugin.saveSettings();
             this.updateContextNotesIndicator();
+            // Immediately update token count when context notes are toggled
+            this.updateModelNameDisplay();
         });
 
         // Render Mode button
@@ -248,6 +262,8 @@ export class ChatView extends ItemView {
                 await this.plugin.saveSettings();
                 new Notice('Context notes cleared');
                 this.updateContextNotesIndicator();
+                // Update token count immediately when context is cleared
+                this.updateModelNameDisplay();
             });
         }
         if (addCurrentBtn) {
@@ -267,6 +283,8 @@ export class ChatView extends ItemView {
                 await this.plugin.saveSettings();
                 new Notice('Added current note to context');
                 this.updateContextNotesIndicator();
+                // Update token count immediately when context note is added
+                this.updateModelNameDisplay();
             });
         }
         if (addAllBtn) {
@@ -295,6 +313,8 @@ export class ChatView extends ItemView {
                 await this.plugin.saveSettings();
                 new Notice('Added all open notes to context');
                 this.updateContextNotesIndicator();
+                // Update token count immediately when context notes are added
+                this.updateModelNameDisplay();
             });
         }
     }
@@ -551,6 +571,7 @@ export class ChatView extends ItemView {
                 agentButton.setAttribute('title', 'Agent Mode: OFF - Regular chat');
                 new Notice('Agent Mode disabled');
             }
+            // Note: Token count update handled by onSettingsChange listener (triggered by setAgentModeEnabled)
         });
         const agentButton = this.domElementCache.agentModeButton!;
         if (this.plugin.agentModeManager.isAgentModeEnabled()) {
@@ -765,6 +786,33 @@ export class ChatView extends ItemView {
         });
     }
 
+    /**
+     * Setup real-time token counter updates.
+     * Adds debounced listener to textarea for updates as user types.
+     * Only active when showTokenCounter setting is enabled.
+     */
+    private setupTokenCounterUpdates() {
+        // Only setup listeners if token counter is enabled
+        if (this.plugin.settings.showTokenCounter === false) {
+            return;
+        }
+
+        const textarea = this.domElementCache.textarea;
+        if (!textarea) return;
+
+        // Add input listener with debouncing
+        const inputHandler = () => {
+            // Use debouncer to avoid excessive recalculations
+            this.tokenCountDebouncer.debounce(async () => {
+                if (this.plugin.settings.showTokenCounter !== false) {
+                    await this.updateModelNameDisplay();
+                }
+            });
+        };
+
+        this.addEventListenerWithCleanup(textarea, 'input', inputHandler);
+    }
+
     private async loadAndRenderHistory(loadedHistory: ChatMessage[]) {
         if (loadedHistory.length > 0) {
             this.messagesContainer.empty();
@@ -812,13 +860,16 @@ export class ChatView extends ItemView {
                 }
             }
         }));
-        this.plugin.onSettingsChange(async () => {
+        
+        // Store the settings change callback so we can clean it up later
+        this.settingsChangeCallback = async () => {
             this.updateReferenceNoteIndicator();
             this.updateObsidianLinksIndicator();
             this.updateContextNotesIndicator();
             await this.updateModelNameDisplay();
             this.updateRenderModeIndicator();
-        });
+        };
+        this.plugin.onSettingsChange(this.settingsChangeCallback);
     }
     private async addMessage(role: 'user' | 'assistant', content: string, isError: boolean = false, enhancedData?: Partial<Pick<Message, 'reasoning' | 'taskStatus' | 'toolResults'>>): Promise<void> {
         const messageEl = await createMessageElement(this.app, role, content, this.chatHistoryManager, this.plugin, (el: HTMLElement) => this.regenerateResponse(el), this, enhancedData ? { role, content, ...enhancedData } : undefined);
@@ -843,6 +894,11 @@ export class ChatView extends ItemView {
             'addMessage',
             { fallbackMessage: 'Failed to save chat message' }
         );
+        
+        // Update token count after adding message
+        if (this.plugin.settings.showTokenCounter !== false) {
+            await this.updateModelNameDisplay();
+        }
     }
     async onClose() {
         if (this.activeStream) {
@@ -857,6 +913,12 @@ export class ChatView extends ItemView {
             element.removeEventListener(event, handler);
         }
         this.eventListeners.length = 0;
+        
+        // Clean up settings change listener
+        if (this.settingsChangeCallback) {
+            this.plugin.offSettingsChange(this.settingsChangeCallback);
+            this.settingsChangeCallback = null;
+        }
     }
     private cleanupMemoryResources(): void {
         this.cachedMessageElements.length = 0;
@@ -914,27 +976,50 @@ export class ChatView extends ItemView {
             modelName = settings.selectedModel;
         }
 
-        try {
-            const baseContext = await this.buildContextMessages();
-            const chatMessages = this.collectChatMessages();
-            const combined = [...baseContext, ...chatMessages];
-            const truncated = truncateMessagesForContext(combined, maxTokens, this.plugin);
-            const tokenCount = calculateTotalTokenCount(truncated);
+        // Clear display
+        this.modelNameDisplay.empty();
 
-            this.modelNameDisplay.empty();
+        // Always show model name
+        const modelSpan = document.createElement('span');
+        modelSpan.textContent = `Model: ${modelName}`;
+        this.modelNameDisplay.appendChild(modelSpan);
 
-            const modelSpan = document.createElement('span');
-            modelSpan.textContent = `Model: ${modelName}`;
-            this.modelNameDisplay.appendChild(modelSpan);
+        // Only calculate and show token count if setting is enabled
+        if (settings.showTokenCounter !== false) {
+            try {
+                const baseContext = await this.buildContextMessages();
+                const chatMessages = this.collectChatMessages();
+                
+                // Include current textarea content as a temporary user message
+                const textareaContent = this.domElementCache.textarea?.value?.trim() || '';
+                const allMessages = [...baseContext, ...chatMessages];
+                if (textareaContent) {
+                    allMessages.push({ role: 'user', content: textareaContent });
+                }
+                
+                const truncated = truncateMessagesForContext(allMessages, maxTokens, this.plugin);
+                
+                // Calculate breakdown
+                const breakdown = calculateTokenBreakdown(truncated, maxTokens);
 
-            const tokenSpan = document.createElement('span');
-            tokenSpan.className = `ai-token-count-display ${getTokenCountColorClass(tokenCount, maxTokens)}`;
-            tokenSpan.textContent = `${formatTokenCount(tokenCount)} tokens`;
-            tokenSpan.setAttribute('title', `Total context size: ${tokenCount} tokens${maxTokens ? ` / limit ${maxTokens}` : ''}`);
-            this.modelNameDisplay.appendChild(tokenSpan);
-        } catch (error) {
-            console.error('Failed to calculate token count:', error);
-            this.modelNameDisplay.textContent = `Model: ${modelName}`;
+                // Display total tokens
+                const totalColorClass = getTokenCountColorClass(breakdown.total, maxTokens);
+                const tokenSpan = document.createElement('span');
+                tokenSpan.className = `ai-token-count-display ${totalColorClass}`;
+                tokenSpan.textContent = `${formatTokenCount(breakdown.total)} tokens`;
+                this.modelNameDisplay.appendChild(tokenSpan);
+                
+                // Display breakdown with badge styling - using same color as total with different saturations
+                const breakdownContainer = document.createElement('span');
+                breakdownContainer.className = 'ai-token-breakdown-display';
+                
+                const coloredElements = createColoredBreakdownElements(breakdown, totalColorClass);
+                coloredElements.forEach(el => breakdownContainer.appendChild(el));
+                
+                this.modelNameDisplay.appendChild(breakdownContainer);
+            } catch (error) {
+                console.error('Failed to calculate token count:', error);
+            }
         }
     }
     private updateObsidianLinksIndicator() {

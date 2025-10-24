@@ -281,7 +281,8 @@ export interface MyPluginSettings {
     /** Debug mode for verbose logging and UI. */
     debugMode?: boolean;
 
-
+    /** If true, displays real-time token counter with breakdown in chat view. */
+    showTokenCounter?: boolean;
     
 }
 
@@ -456,6 +457,8 @@ export const DEFAULT_SETTINGS: MyPluginSettings = {
     favoriteModels: [],
     /** @inheritdoc */
     debugMode: false,
+    /** @inheritdoc */
+    showTokenCounter: true,
     /** @inheritdoc */
     agentMode: {
         enabled: false,

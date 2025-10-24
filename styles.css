@@ -2110,3 +2110,64 @@
     background: rgba(var(--color-red-rgb), 0.1);
     font-weight: bold;
 }
+
+/* Token Breakdown Display Styles */
+.ai-token-breakdown-display {
+    display: inline-flex;
+    gap: 0.3em;
+    margin-left: 0.5em;
+}
+
+.ai-token-breakdown-badge {
+    font-size: 0.75em;
+    padding: 0.2em 0.4em;
+    border-radius: 4px;
+    border: 1px solid;
+    font-weight: 500;
+}
+
+/* Saturation levels - use opacity to create different saturations of the same color */
+.ai-token-breakdown-badge.saturation-100 {
+    opacity: 1.0;
+}
+
+.ai-token-breakdown-badge.saturation-80 {
+    opacity: 0.8;
+}
+
+.ai-token-breakdown-badge.saturation-60 {
+    opacity: 0.6;
+}
+
+.ai-token-breakdown-badge.saturation-40 {
+    opacity: 0.4;
+}
+
+.ai-token-breakdown-badge.saturation-20 {
+    opacity: 0.3;
+}
+
+/* Inherit color and border-color from token-count classes */
+.ai-token-breakdown-badge.token-count-low {
+    color: var(--color-green);
+    border-color: var(--color-green);
+    background: color-mix(in srgb, var(--color-green) 20%, transparent);
+}
+
+.ai-token-breakdown-badge.token-count-medium {
+    color: var(--color-yellow);
+    border-color: var(--color-yellow);
+    background: color-mix(in srgb, var(--color-yellow) 20%, transparent);
+}
+
+.ai-token-breakdown-badge.token-count-high {
+    color: var(--color-orange);
+    border-color: var(--color-orange);
+    background: color-mix(in srgb, var(--color-orange) 20%, transparent);
+}
+
+.ai-token-breakdown-badge.token-count-critical {
+    color: var(--color-red);
+    border-color: var(--color-red);
+    background: color-mix(in srgb, var(--color-red) 20%, transparent);
+}

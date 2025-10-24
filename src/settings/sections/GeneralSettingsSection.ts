@@ -30,11 +30,17 @@ export class GeneralSettingsSection {
             containerEl,
             'Plugin Behavior',
             (sectionEl: HTMLElement) => {
-                // Plugin behavior settings can be added here in the future
-                sectionEl.createEl('div', { 
-                    text: 'Additional plugin behavior settings will be available here.',
-                    cls: 'setting-item-description'
-                });
+                // Show Token Counter Toggle
+                this.settingCreators.createToggleSetting(
+                    sectionEl,
+                    'Show Token Counter',
+                    'Display real-time token count with breakdown in chat view. Disable to improve performance.',
+                    () => this.plugin.settings.showTokenCounter ?? true,
+                    async (value) => {
+                        this.plugin.settings.showTokenCounter = value;
+                        await this.plugin.saveSettings();
+                    }
+                );
             },
             this.plugin,
             'generalSectionsExpanded'
