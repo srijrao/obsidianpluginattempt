@@ -214,8 +214,12 @@ export class ChatView extends ItemView {
             this.plugin.settings.referenceCurrentNote = !this.plugin.settings.referenceCurrentNote;
             this.plugin.saveSettings();
             this.updateReferenceNoteIndicator();
-            // Immediately update token count when reference note is toggled
-            this.updateModelNameDisplay();
+            // Debounced token count update for reference note changes
+            this.tokenCountDebouncer.debounce(async () => {
+                if (this.plugin.settings.showTokenCounter !== false) {
+                    await this.updateModelNameDisplay();
+                }
+            });
         });
         this.addEventListenerWithCleanup(this.domElementCache.saveNoteButton!, 'click', handleSaveNote(this.messagesContainer, this.plugin, this.app, this.agentResponseHandler));
         
@@ -231,8 +235,12 @@ export class ChatView extends ItemView {
             this.plugin.settings.enableContextNotes = !this.plugin.settings.enableContextNotes;
             this.plugin.saveSettings();
             this.updateContextNotesIndicator();
-            // Immediately update token count when context notes are toggled
-            this.updateModelNameDisplay();
+            // Debounced token count update for context notes changes
+            this.tokenCountDebouncer.debounce(async () => {
+                if (this.plugin.settings.showTokenCounter !== false) {
+                    await this.updateModelNameDisplay();
+                }
+            });
         });
 
         // Render Mode button
@@ -571,7 +579,12 @@ export class ChatView extends ItemView {
                 agentButton.setAttribute('title', 'Agent Mode: OFF - Regular chat');
                 new Notice('Agent Mode disabled');
             }
-            // Note: Token count update handled by onSettingsChange listener (triggered by setAgentModeEnabled)
+            // Debounced token count update for agent mode changes
+            this.tokenCountDebouncer.debounce(async () => {
+                if (this.plugin.settings.showTokenCounter !== false) {
+                    await this.updateModelNameDisplay();
+                }
+            });
         });
         const agentButton = this.domElementCache.agentModeButton!;
         if (this.plugin.agentModeManager.isAgentModeEnabled()) {
