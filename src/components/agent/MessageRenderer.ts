@@ -78,7 +78,26 @@ export class MessageRenderer {
         const headerText = document.createElement('span');
         const typeLabel = reasoning.type === 'structured' ? 'STRUCTURED REASONING' : 'REASONING';
         const stepCount = reasoning.steps?.length || 0;
-        headerText.innerHTML = `<strong>🧠 ${typeLabel}</strong>`;
+        
+        // Add summary when collapsed to give users visibility
+        let summaryText = '';
+        if (reasoning.isCollapsed) {
+            if (reasoning.type === 'simple' && reasoning.summary) {
+                // Truncate summary to ~60 chars for readability
+                summaryText = reasoning.summary.length > 60 
+                    ? reasoning.summary.substring(0, 57) + '...' 
+                    : reasoning.summary;
+            } else if (reasoning.type === 'structured' && reasoning.steps && reasoning.steps.length > 0) {
+                // Show first step title or fallback
+                summaryText = reasoning.steps[0]?.title || 'Multi-step reasoning';
+                if (summaryText.length > 60) {
+                    summaryText = summaryText.substring(0, 57) + '...';
+                }
+            }
+            summaryText = summaryText ? ` - "${summaryText}"` : '';
+        }
+
+        headerText.innerHTML = `<strong>🧠 ${typeLabel}</strong>${summaryText}`;
         if (stepCount > 0) {
             headerText.innerHTML += ` (${stepCount} steps)`;
         }

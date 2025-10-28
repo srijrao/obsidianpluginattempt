@@ -221,7 +221,7 @@ export class ChatView extends ItemView {
                 }
             });
         });
-        this.addEventListenerWithCleanup(this.domElementCache.saveNoteButton!, 'click', handleSaveNote(this.messagesContainer, this.plugin, this.app, this.agentResponseHandler));
+        this.addEventListenerWithCleanup(this.domElementCache.saveNoteButton!, 'click', handleSaveNote(this.messagesContainer, this.plugin, this.app, this.agentResponseHandler, this.chatHistoryManager));
         
         // Obsidian Links button
         this.addEventListenerWithCleanup(this.domElementCache.obsidianLinksButton!, 'click', () => {
@@ -677,6 +677,22 @@ export class ChatView extends ItemView {
                 this.messagesContainer.appendChild(tempContainer);
                 this.debouncedScrollToBottom();
                 const responseContent = await this.streamAssistantResponse(messages, tempContainer);
+                
+                // FIX: Capture actual system message sent to AI (for accurate chat exports)
+                // Check both streaming systems since we have fallback logic
+                let actualSystemMessage: string | undefined = undefined;
+                if (this.streamCoordinator) {
+                    actualSystemMessage = this.streamCoordinator.getActualSystemMessage();
+                } else if (this.responseStreamer) {
+                    actualSystemMessage = this.responseStreamer.getActualSystemMessage();
+                }
+                if (actualSystemMessage) {
+                    this.plugin.debugLog('debug', '[chat.ts] Captured actual system message', {
+                        length: actualSystemMessage.length,
+                        source: this.streamCoordinator ? 'StreamCoordinator' : 'ResponseStreamer'
+                    });
+                }
+                
                 let enhancedMessageData: any = undefined;
                 this.plugin.debugLog('debug', '[chat.ts] tempContainer.dataset.messageData exists:', !!tempContainer.dataset.messageData);
                 if (tempContainer.dataset.messageData) {
@@ -712,6 +728,7 @@ export class ChatView extends ItemView {
                         timestamp: messageEl.dataset.timestamp || new Date().toISOString(),
                         sender: 'assistant',
                         content: responseContent,
+                        ...(actualSystemMessage && { actualSystemMessage }),  // FIX: Store actual system message for debugging
                         ...(enhancedMessageData && {
                             toolResults: enhancedMessageData.toolResults,
                             reasoning: enhancedMessageData.reasoning,
@@ -1460,6 +1477,63 @@ export class ChatView extends ItemView {
                     hasToolResults: agentResult.toolResults && agentResult.toolResults.length > 0,
                     processedTextLength: responseContent.length
                 });
+
+                // FIX: Add task continuation logic that was missing!
+                if (agentResult.hasTools && agentResult.toolResults && agentResult.toolResults.length > 0) {
+                    // Import TaskContinuation dynamically
+                    const { TaskContinuation } = await import('./components/agent/TaskContinuation');
+                    
+                    // Check if we should continue (not at limit and not completed)
+                    const shouldContinue = 
+                        agentResult.taskStatus.status === 'running' && 
+                        !this.agentResponseHandler.isToolLimitReached();
+                    
+                    if (shouldContinue) {
+                        this.plugin.debugLog('info', '[ChatView] Starting task continuation', {
+                            toolExecutionCount: agentResult.taskStatus.toolExecutionCount,
+                            maxExecutions: agentResult.taskStatus.maxToolExecutions
+                        });
+
+                        // Create TaskContinuation instance
+                        const taskContinuation = new TaskContinuation(
+                            this.plugin,
+                            this.agentResponseHandler,
+                            this.messagesContainer,
+                            this // Component for markdown rendering
+                        );
+
+                        // Continue task until finished
+                        const continuationResult = await taskContinuation.continueTaskUntilFinished(
+                            messages,
+                            container,
+                            responseContent, // initial response
+                            responseContent, // current content
+                            agentResult.toolResults,
+                            chatHistory
+                        );
+
+                        // Update with final content from continuation
+                        responseContent = continuationResult.content;
+                        
+                        // Update UI
+                        const updatedMessageDiv = container.querySelector('.message-content');
+                        if (updatedMessageDiv) {
+                            updatedMessageDiv.textContent = responseContent;
+                            container.dataset.rawContent = responseContent;
+                        }
+
+                        this.plugin.debugLog('info', '[ChatView] Task continuation completed', {
+                            finalContentLength: responseContent.length,
+                            limitReached: continuationResult.limitReachedDuringContinuation
+                        });
+                    } else if (agentResult.shouldShowLimitWarning || this.agentResponseHandler.isToolLimitReached()) {
+                        this.plugin.debugLog('info', '[ChatView] Tool limit reached - showing warning');
+                        // Show tool limit warning UI
+                        const warning = this.agentResponseHandler.createToolLimitWarning();
+                        this.messagesContainer.appendChild(warning);
+                    }
+                }
+                
             } catch (error) {
                 this.plugin.debugLog('error', '[ChatView] Failed to process agent response:', error);
                 // Continue with unprocessed response on error

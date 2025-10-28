@@ -79,12 +79,23 @@ export class TaskContinuation {
             // Create a tool result message for the agent
             const toolResultMessage = this.agentResponseHandler?.createToolResultMessage(allToolResults);
             if (toolResultMessage) {
+                // Check if the AI specified a next tool to execute
+                const nextTool = this.getNextToolFromResults(allToolResults);
+                
                 // Build the message sequence for the next agent response
                 const continuationMessages: Message[] = [
                     ...messages,
                     { role: 'assistant', content: initialResponseContent },
                     toolResultMessage
                 ];
+
+                // Add specific guidance if a next tool was specified
+                if (nextTool) {
+                    continuationMessages.push({
+                        role: 'system',
+                        content: `You previously indicated that the next tool to use is "${nextTool}". Please proceed with executing that tool now to continue the task.`
+                    });
+                }
 
                 // Get the agent's continuation response
                 const continuationContent = await this.getContinuationResponse(continuationMessages, container);
@@ -237,12 +248,31 @@ export class TaskContinuation {
             if ((command as any).finished === true) {
                 return true;
             }
-            // Thought tool with nextTool 'finished'
+            // Thought tool with nextTool 'finished' - ONLY finished if explicitly finished
             if (command.action === 'thought' && result.success && result.data) {
                 return result.data.nextTool === 'finished' || result.data.finished === true;
             }
             return false;
         });
+    }
+
+    /**
+     * Extracts the next tool to execute from thought tool results.
+     * Used to drive automatic continuation when AI specifies a next tool.
+     * @param toolResults Array of tool command/result pairs
+     * @returns Next tool name to execute, or null if none specified or task is finished
+     */
+    private getNextToolFromResults(toolResults: Array<{ command: ToolCommand; result: ToolResult }>): string | null {
+        for (const { command, result } of toolResults) {
+            if (command.action === 'thought' && result.success && result.data && result.data.nextTool) {
+                const nextTool = result.data.nextTool.trim().toLowerCase();
+                // Only return if it's not finished - finished means stop
+                if (nextTool !== 'finished') {
+                    return result.data.nextTool.trim();
+                }
+            }
+        }
+        return null;
     }
 
     /**

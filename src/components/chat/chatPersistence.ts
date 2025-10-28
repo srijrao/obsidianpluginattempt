@@ -10,13 +10,55 @@ import { Notice } from 'obsidian'; // Import Notice
 /**
  * Builds YAML frontmatter for a chat note based on plugin settings and model info.
  * Supports both unified and legacy model formats.
+ * NOW INCLUDES AGENT SYSTEM PROMPT if agent mode is enabled for accurate debugging.
  * @param settings The plugin settings object
  * @param provider Optional provider override
  * @param model Optional model override
+ * @param plugin Optional plugin instance to check agent mode and build complete system message
+ * @param actualSystemMessage Optional actual system message sent to AI (takes precedence over reconstruction)
  * @returns YAML frontmatter string
  */
-export function buildChatYaml(settings: MyPluginSettings, provider: string, model: string) {
-    debugLog(settings.debugMode ?? false, 'info', '[buildChatYaml] Entered function', { settings, provider, model });
+export async function buildChatYaml(
+    settings: MyPluginSettings, 
+    provider: string, 
+    model: string,
+    plugin?: any,
+    actualSystemMessage?: string
+) {
+    debugLog(settings.debugMode ?? false, 'info', '[buildChatYaml] Entered function', { settings, provider, model, hasActualSystemMessage: !!actualSystemMessage });
+    
+    // FIX: Use actual system message if provided (Option 2), otherwise reconstruct (Option 1 fallback)
+    let systemMessage: string;
+    
+    if (actualSystemMessage) {
+        // Option 2: Use the ACTUAL system message that was sent to AI
+        systemMessage = actualSystemMessage;
+        debugLog(settings.debugMode ?? false, 'info', '[buildChatYaml] Using actual system message from chat history', {
+            length: actualSystemMessage.length
+        });
+    } else {
+        // Option 1 fallback: Reconstruct from settings (less accurate but works for old chats)
+        systemMessage = settings.systemMessage;
+        
+        // Include agent system prompt if agent mode is enabled
+        if (plugin && plugin.agentModeManager && plugin.agentModeManager.isAgentModeEnabled()) {
+            try {
+                const { buildAgentSystemPrompt } = await import('../../promptConstants');
+                const agentPrompt = buildAgentSystemPrompt(
+                    settings.enabledTools,
+                    settings.customAgentSystemMessage
+                );
+                systemMessage = agentPrompt + '\n\n' + settings.systemMessage;
+                debugLog(settings.debugMode ?? false, 'info', '[buildChatYaml] Agent mode enabled - prepended agent system prompt (reconstructed)', {
+                    agentPromptLength: agentPrompt.length,
+                    totalSystemMessageLength: systemMessage.length
+                });
+            } catch (error) {
+                debugLog(settings.debugMode ?? false, 'warn', '[buildChatYaml] Failed to build agent system prompt', error);
+            }
+        }
+    }
+    
     if (settings.selectedModel) {
         // Unified model format
         const providerType = getProviderFromUnifiedModel(settings.selectedModel);
@@ -25,7 +67,7 @@ export function buildChatYaml(settings: MyPluginSettings, provider: string, mode
             provider: providerType,
             model: modelId,
             unified_model: settings.selectedModel,
-            system_message: settings.systemMessage,
+            system_message: systemMessage,
             temperature: settings.temperature
         };
         debugLog(settings.debugMode ?? false, 'debug', '[buildChatYaml] Using unified model format', yamlObj);
@@ -36,7 +78,7 @@ export function buildChatYaml(settings: MyPluginSettings, provider: string, mode
         const yamlObj = {
             provider: provider || settings.provider,
             model: model || getCurrentModelForProvider(settings),
-            system_message: settings.systemMessage,
+            system_message: systemMessage,
             temperature: settings.temperature
         };
         debugLog(settings.debugMode ?? false, 'debug', '[buildChatYaml] Using legacy model format', yamlObj);
@@ -78,6 +120,8 @@ function getCurrentModelForProvider(settings: MyPluginSettings): string {
  * @param chatSeparator Separator string between messages
  * @param chatNoteFolder Optional folder to save the note in
  * @param agentResponseHandler Optional agent response handler for formatting
+ * @param chatHistory Optional chat history to extract actualSystemMessage from
+ * @param plugin Optional plugin instance for agent mode detection
  */
 export async function saveChatAsNote({
     app,
@@ -88,7 +132,9 @@ export async function saveChatAsNote({
     model,
     chatSeparator,
     chatNoteFolder,
-    agentResponseHandler
+    agentResponseHandler,
+    chatHistory,
+    plugin
 }: {
     app: any,
     messages?: NodeListOf<Element>,
@@ -98,9 +144,11 @@ export async function saveChatAsNote({
     model?: string,
     chatSeparator: string,
     chatNoteFolder?: string,
-    agentResponseHandler?: any
+    agentResponseHandler?: any,
+    chatHistory?: any[],
+    plugin?: any
 }) {
-    debugLog(settings.debugMode ?? false, 'info', '[saveChatAsNote] Entered function', { hasMessages: !!messages, hasChatContent: typeof chatContent === 'string' });
+    debugLog(settings.debugMode ?? false, 'info', '[saveChatAsNote] Entered function', { hasMessages: !!messages, hasChatContent: typeof chatContent === 'string', hasChatHistory: !!chatHistory });
     let content = '';
     if (typeof chatContent === 'string') {
         // Use provided chatContent string directly
@@ -144,8 +192,24 @@ export async function saveChatAsNote({
         debugLog(settings.debugMode ?? false, 'error', '[saveChatAsNote] Neither messages nor chatContent provided. Aborting.');
         throw new Error('Either messages or chatContent must be provided');
     }
+    // FIX: Extract actual system message from chat history if available
+    let actualSystemMessage: string | undefined = undefined;
+    if (chatHistory && chatHistory.length > 0) {
+        // Find the most recent assistant message with actualSystemMessage
+        for (let i = chatHistory.length - 1; i >= 0; i--) {
+            if (chatHistory[i].sender === 'assistant' && chatHistory[i].actualSystemMessage) {
+                actualSystemMessage = chatHistory[i].actualSystemMessage;
+                debugLog(settings.debugMode ?? false, 'info', '[saveChatAsNote] Found actualSystemMessage in chat history', {
+                    messageIndex: i,
+                    length: actualSystemMessage?.length || 0
+                });
+                break;
+            }
+        }
+    }
+    
     // Build YAML frontmatter and strip any existing YAML from chat content
-    const yaml = buildChatYaml(settings, provider || '', model || ''); // Pass only required arguments, ensure strings
+    const yaml = await buildChatYaml(settings, provider || '', model || '', plugin, actualSystemMessage);
     debugLog(settings.debugMode ?? false, 'info', '[saveChatAsNote] YAML frontmatter built. Stripping any existing YAML from chat content.');
     content = content.replace(/^---\s*[\s\S]*?---\n?/, '');
     // Normalize line endings and whitespace

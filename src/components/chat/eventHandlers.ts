@@ -63,9 +63,20 @@ export function handleCopyAll(messagesContainer: HTMLElement, plugin: MyPlugin) 
 /**
  * Handler for saving the chat as a note.
  */
-export function handleSaveNote(messagesContainer: HTMLElement, plugin: MyPlugin, app: App, agentResponseHandler?: any) {
+export function handleSaveNote(messagesContainer: HTMLElement, plugin: MyPlugin, app: App, agentResponseHandler?: any, chatHistoryManager?: any) {
     return async () => {
         const chatContent = getFormattedChatContent(messagesContainer, plugin, plugin.settings.chatSeparator);
+        
+        // FIX: Get chat history to extract actual system message
+        let chatHistory: any[] | undefined = undefined;
+        if (chatHistoryManager) {
+            try {
+                chatHistory = await chatHistoryManager.getHistory();
+            } catch (error) {
+                console.warn('Failed to get chat history for export:', error);
+            }
+        }
+        
         await saveChatAsNote({
             app,
             messages: undefined,
@@ -73,7 +84,9 @@ export function handleSaveNote(messagesContainer: HTMLElement, plugin: MyPlugin,
             chatSeparator: plugin.settings.chatSeparator,
             chatNoteFolder: plugin.settings.chatNoteFolder,
             agentResponseHandler: agentResponseHandler,
-            chatContent
+            chatContent,
+            chatHistory,
+            plugin
         });
     };
 }

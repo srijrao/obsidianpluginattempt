@@ -27,6 +27,7 @@ interface ContinuationParams {
 export class ResponseStreamer {
     private messageRenderer: MessageRenderer;
     private streamId: string | null = null;
+    private actualSystemMessage: string | undefined = undefined;  // FIX: Track actual system message sent to AI
 
     /**
      * @param plugin The main plugin instance (for settings, logging, etc.)
@@ -76,6 +77,16 @@ export class ResponseStreamer {
         
         // Add agent system prompt if agent mode is enabled
         await this.addAgentSystemPrompt(messages);
+        
+        // FIX: Capture actual system message sent to AI (after agent prompt is prepended)
+        const systemMessage = messages.find(msg => msg.role === 'system');
+        if (systemMessage) {
+            this.actualSystemMessage = systemMessage.content;
+            this.plugin.debugLog('debug', '[ResponseStreamer] Captured actual system message', {
+                length: systemMessage.content.length,
+                preview: systemMessage.content.substring(0, 100)
+            });
+        }
 
         try {
             await aiDispatcher.getCompletion(messages, {
@@ -702,5 +713,13 @@ export class ResponseStreamer {
         return await taskContinuation.continueTaskUntilFinished(
             messages, container, responseContent, '', toolResults, chatHistory || []
         );
+    }
+
+    /**
+     * FIX: Get the actual system message sent to AI (includes agent tools if enabled)
+     * This captures what was REALLY sent, not what's in settings
+     */
+    public getActualSystemMessage(): string | undefined {
+        return this.actualSystemMessage;
     }
 }

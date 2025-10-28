@@ -26,6 +26,7 @@ export interface StreamState {
     startTime?: number;
     totalChunks: number;
     totalCharacters: number;
+    actualSystemMessage?: string;  // FIX: Capture actual system message sent to AI
 }
 
 /**
@@ -197,6 +198,16 @@ export class StreamCoordinator implements IStreamCoordinator {
             // and passed in via the messages parameter to avoid duplication
             // Add agent system prompt if agent mode is enabled
             await this.addAgentSystemPrompt(messages);
+            
+            // FIX: Capture actual system message sent to AI (after agent prompt is prepended)
+            const systemMessage = messages.find(msg => msg.role === 'system');
+            if (systemMessage) {
+                this.streamState.actualSystemMessage = systemMessage.content;
+                this.plugin.debugLog('debug', '[StreamCoordinator] Captured actual system message', {
+                    length: systemMessage.content.length,
+                    preview: systemMessage.content.substring(0, 100)
+                });
+            }
             
             const allMessages = messages;
 
@@ -565,6 +576,14 @@ export class StreamCoordinator implements IStreamCoordinator {
             return this.plugin.settings.selectedModel.split(':')[0];
         }
         return this.plugin.settings.provider;
+    }
+
+    /**
+     * FIX: Get the actual system message sent to AI (includes agent tools if enabled)
+     * This captures what was REALLY sent, not what's in settings
+     */
+    public getActualSystemMessage(): string | undefined {
+        return this.streamState.actualSystemMessage;
     }
 
     /**

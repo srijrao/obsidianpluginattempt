@@ -12,6 +12,7 @@ export interface ChatMessage {
   reasoning?: ReasoningData;        // Optional reasoning data (for agent mode)
   taskStatus?: TaskStatus;          // Optional task status (for agent mode)
   toolResults?: ToolExecutionResult[]; // Optional tool execution results (for agent mode)
+  actualSystemMessage?: string;     // FIX: Optional actual system message sent to AI (includes agent tools if enabled)
 }
 
 /**

@@ -17,8 +17,7 @@ export interface RateLimitEntry {
     requests: number;
     resetTime: number;
     firstRequestTime: number;
-    burstCount: number;
-    lastRequestTime: number;
+    requestTimestamps: number[];
 }
 
 /**
@@ -28,6 +27,7 @@ export class RateLimiter implements IRateLimiter {
     private limits = new Map<string, RateLimitEntry>();
     private readonly providerLimits: Map<string, ProviderLimits> = new Map();
     private readonly RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute default
+    private cleanupTimer: NodeJS.Timeout | null = null;
 
     constructor(private eventBus: IEventBus) {
         this.initializeProviderLimits();
@@ -38,48 +38,30 @@ export class RateLimiter implements IRateLimiter {
      * Checks if a provider is within rate limits
      */
     checkLimit(provider: string): boolean {
-        const limit = this.limits.get(provider);
+        const now = Date.now();
         const providerConfig = this.providerLimits.get(provider);
-        
+
         if (!providerConfig) {
-            // If no config, allow the request but log a warning
             this.eventBus.publish('rate.limit.unknown_provider', {
                 provider,
-                timestamp: Date.now()
+                timestamp: now
             });
             return true;
         }
 
-        if (!limit) {
-            // First request for this provider
+        if (providerConfig.maxRequests === 0) {
+            return false;
+        }
+
+        const limit = this.limits.get(provider);
+
+        if (!limit || now > limit.resetTime) {
             return true;
         }
 
-        const now = Date.now();
-        
-        // Check if the rate limit window has expired
-        if (now > limit.resetTime) {
-            return true;
-        }
-
-        // Check burst limit if configured
-        if (providerConfig.burstLimit && limit.burstCount >= providerConfig.burstLimit) {
-            const timeSinceLastRequest = now - limit.lastRequestTime;
-            if (timeSinceLastRequest < 1000) { // 1 second burst window
-                this.eventBus.publish('rate.limit.burst_exceeded', {
-                    provider,
-                    burstCount: limit.burstCount,
-                    burstLimit: providerConfig.burstLimit,
-                    timestamp: now
-                });
-                return false;
-            }
-        }
-
-        // Check main rate limit
-        const isWithinLimit = limit.requests < providerConfig.maxRequests;
-        
-        if (!isWithinLimit) {
+        // The main rate limit should be checked first.
+        // A request should be denied if the number of requests has already reached the maximum.
+        if (limit.requests >= providerConfig.maxRequests) {
             this.eventBus.publish('rate.limit.exceeded', {
                 provider,
                 requests: limit.requests,
@@ -87,9 +69,29 @@ export class RateLimiter implements IRateLimiter {
                 resetTime: limit.resetTime,
                 timestamp: now
             });
+            return false;
         }
 
-        return isWithinLimit;
+        // Then, check the burst limit.
+        // A request should be denied if the number of recent requests has already reached the burst limit.
+        if (providerConfig.burstLimit !== undefined) {
+            const burstWindow = 1000; // 1 second in milliseconds
+            const recentRequests = limit.requestTimestamps.filter(
+                (timestamp) => now - timestamp < burstWindow
+            );
+
+            if (recentRequests.length >= providerConfig.burstLimit) {
+                this.eventBus.publish('rate.limit.burst_exceeded', {
+                    provider,
+                    burstCount: recentRequests.length,
+                    burstLimit: providerConfig.burstLimit,
+                    timestamp: now
+                });
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
@@ -98,7 +100,6 @@ export class RateLimiter implements IRateLimiter {
     recordRequest(provider: string): void {
         const now = Date.now();
         const providerConfig = this.providerLimits.get(provider);
-        
         if (!providerConfig) {
             this.eventBus.publish('rate.limit.unknown_provider', {
                 provider,
@@ -110,26 +111,18 @@ export class RateLimiter implements IRateLimiter {
         let limit = this.limits.get(provider);
         
         if (!limit || now > limit.resetTime) {
-            // Create new or reset expired limit
+            // Create new or reset expired limit.
             limit = {
                 requests: 0,
                 resetTime: now + providerConfig.windowMs,
                 firstRequestTime: now,
-                burstCount: 0,
-                lastRequestTime: now
+                requestTimestamps: []
             };
         }
 
-        // Update request counts
+        // Increment counts and add timestamp
         limit.requests++;
-        limit.lastRequestTime = now;
-
-        // Update burst count if within burst window
-        if (now - limit.lastRequestTime < 1000) {
-            limit.burstCount++;
-        } else {
-            limit.burstCount = 1;
-        }
+        limit.requestTimestamps.push(now);
 
         this.limits.set(provider, limit);
 
@@ -145,20 +138,26 @@ export class RateLimiter implements IRateLimiter {
 
     /**
      * Gets remaining requests for a provider
+     * @returns The number of remaining requests
      */
     getRemainingRequests(provider: string): number {
+        const config = this.providerLimits.get(provider);
+        if (!config) {
+            return Infinity;
+        }
         const limit = this.limits.get(provider);
-        const providerConfig = this.providerLimits.get(provider);
-        
-        if (!providerConfig) {
-            return Infinity; // Unknown provider, assume unlimited
+        const now = Date.now();
+        if (!limit || now > limit.resetTime) {
+            return config.maxRequests;
         }
+        return Math.max(0, config.maxRequests - limit.requests);
+    }
 
-        if (!limit || Date.now() > limit.resetTime) {
-            return providerConfig.maxRequests;
-        }
-
-        return Math.max(0, providerConfig.maxRequests - limit.requests);
+    /**
+     * Gets the rate limit configuration for a provider
+     */
+    getProviderLimitConfig(provider: string): ProviderLimits | undefined {
+        return this.providerLimits.get(provider);
     }
 
     /**
@@ -250,7 +249,11 @@ export class RateLimiter implements IRateLimiter {
                     resetTime: limit.resetTime,
                     remaining: Math.max(0, config.maxRequests - limit.requests)
                 };
-                burstCount = limit.burstCount;
+                
+                const burstWindow = 1000;
+                burstCount = limit.requestTimestamps.filter(
+                    (timestamp) => now - timestamp < burstWindow
+                ).length;
                 
                 const timeElapsed = now - limit.firstRequestTime;
                 if (timeElapsed > 0) {
@@ -328,7 +331,7 @@ export class RateLimiter implements IRateLimiter {
      * Starts cleanup timer for expired rate limit entries
      */
     private startCleanupTimer(): void {
-        setInterval(() => {
+        this.cleanupTimer = setInterval(() => {
             this.cleanupExpiredLimits();
         }, 60000); // Clean up every minute
     }
@@ -341,11 +344,11 @@ export class RateLimiter implements IRateLimiter {
         const expiredProviders: string[] = [];
 
         for (const [provider, limit] of this.limits.entries()) {
-            if (now > limit.resetTime) {
+            if (now >= limit.resetTime) {
                 expiredProviders.push(provider);
             }
         }
-
+        
         for (const provider of expiredProviders) {
             this.limits.delete(provider);
         }
@@ -360,10 +363,15 @@ export class RateLimiter implements IRateLimiter {
     }
 
     /**
-     * Cleanup method for disposing the service
+     * Disposes the rate limiter, clearing timers and limits
      */
     dispose(): void {
+        if (this.cleanupTimer) { // Check for null before clearing interval
+            clearInterval(this.cleanupTimer);
+            this.cleanupTimer = null;
+        }
         this.limits.clear();
         this.providerLimits.clear();
+        this.eventBus.publish('rate.limit.disposed', { timestamp: Date.now() });
     }
 }
