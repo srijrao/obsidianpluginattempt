@@ -149,11 +149,16 @@ Before proceeding with implementation, I need clarification on:
 - 2025-10-28 13:05:00 Identified StreamCoordinator as primary system, missing continuation logic
 - 2025-10-28 13:10:00 Implemented complete task continuation in streamCoordinatorResponse()
 - 2025-10-28 13:15:00 Build verification: All fixes compile successfully
+- 2025-10-28 13:25:00 **CRITICAL BUG FOUND**: Empty message content error in continuation
+- 2025-10-28 13:30:00 Fixed by preserving original raw response for message history
+- 2025-10-28 13:35:00 Build verification: Fix compiles successfully
 
 ### Files Changed
 - `src/components/agent/TaskContinuation.ts` - Fixed automatic tool continuation logic
 - `src/components/agent/MessageRenderer.ts` - Added reasoning summary display when collapsed
-- `src/chat.ts` - **CRITICAL FIX**: Added missing task continuation to StreamCoordinator path
+- `src/chat.ts` - **CRITICAL FIXES**: 
+  - Added missing task continuation to StreamCoordinator path
+  - Preserved original raw response to prevent empty message content errors
 
 ### Notes
 - **Root Cause Identified**: There are TWO streaming systems - ResponseStreamer (legacy) and StreamCoordinator (new)

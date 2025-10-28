@@ -1443,6 +1443,10 @@ export class ChatView extends ItemView {
             });
             
             try {
+                // CRITICAL: Save the original raw response before processing
+                // This is needed for task continuation to build proper message history
+                const originalRawResponse = responseContent;
+                
                 const chatHistory = await this.chatHistoryManager.getHistory();
                 const agentResult = await this.agentResponseHandler.processResponseWithUI(
                     responseContent, 
@@ -1503,11 +1507,13 @@ export class ChatView extends ItemView {
                         );
 
                         // Continue task until finished
+                        // CRITICAL: Pass originalRawResponse (with tool commands) for message history
+                        // Pass responseContent (cleaned) for UI display
                         const continuationResult = await taskContinuation.continueTaskUntilFinished(
                             messages,
                             container,
-                            responseContent, // initial response
-                            responseContent, // current content
+                            originalRawResponse, // initial response (raw with tool commands)
+                            responseContent, // current content (cleaned for display)
                             agentResult.toolResults,
                             chatHistory
                         );
