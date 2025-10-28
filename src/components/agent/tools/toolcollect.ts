@@ -148,14 +148,18 @@ export function createToolInstances(app: any, plugin?: any): any[] {
     }
     const toolClasses = getAllToolClasses();
 
-    // Instantiate each tool, passing backupManager if needed
+    // Instantiate each tool, passing appropriate dependencies
     const tools = toolClasses.map(ToolClass => {
-        // FileWriteTool and FileDeleteTool may require backupManager
-        const instance = plugin && (ToolClass.name === 'FileWriteTool' || ToolClass.name === 'FileDeleteTool')
-            ? new ToolClass(app, plugin.backupManager)
-            : new ToolClass(app);
-
-        return instance;
+        // FileWriteTool and FileDeleteTool require backupManager
+        if (plugin && (ToolClass.name === 'FileWriteTool' || ToolClass.name === 'FileDeleteTool')) {
+            return new ToolClass(app, plugin.backupManager);
+        }
+        // ContextNotesTool requires both app and plugin
+        if (ToolClass.name === 'ContextNotesTool') {
+            return new ToolClass(app, plugin);
+        }
+        // Default: just pass app
+        return new ToolClass(app);
     });
     if (plugin && typeof plugin.debugLog === 'function') {
         plugin.debugLog('debug', '[toolcollect] Tool instances created', { count: tools.length });
