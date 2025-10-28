@@ -19,6 +19,7 @@ import { parseToolDataFromContent, cleanContentFromToolData } from './utils/mess
 import { isVaultAdapterWithBasePath, validatePluginSettings } from './utils/typeguards';
 import { RecentlyOpenedFilesManager } from './utils/recently-opened-files';
 import { PerformanceDashboardModal } from './utils/PerformanceDashboard';
+import { SettingsReloadManager } from './utils/settingsReloadManager';
 
 /**
  * AI Assistant Plugin
@@ -73,6 +74,10 @@ export default class MyPlugin extends Plugin {
      * Recently opened files manager for tracking file access.
      */
     public recentlyOpenedFilesManager: RecentlyOpenedFilesManager;
+    /**
+     * Settings reload manager for detecting external changes to data.json.
+     */
+    private settingsReloadManager: SettingsReloadManager | null = null;
 
     /**
      * Register a callback to be called when settings change.
@@ -249,6 +254,20 @@ export default class MyPlugin extends Plugin {
             }
         });
 
+        // Register manual settings reload command
+        this.addCommand({
+            id: 'reload-plugin-settings',
+            name: 'Reload plugin settings from disk',
+            callback: async () => {
+                if (this.settingsReloadManager) {
+                    await this.settingsReloadManager.reloadNow();
+                    showNotice('Settings reloaded from disk');
+                } else {
+                    showNotice('Settings reload manager not initialized');
+                }
+            }
+        });
+
         // Add ribbon icon for performance dashboard
         this.addRibbonIcon('activity', 'Performance Dashboard', () => {
             new PerformanceDashboardModal(this).open();
@@ -276,6 +295,23 @@ export default class MyPlugin extends Plugin {
                 debugLog(this.settings.debugMode ?? false, 'warn', 'AI call archival failed:', error);
             }
         }
+
+        // Initialize settings reload manager to detect external changes to data.json
+        const dataFilePath = `${this.app.vault.configDir}/plugins/ai-assistant-for-obsidian/data.json`;
+        this.settingsReloadManager = new SettingsReloadManager(this.app, dataFilePath, {
+            pollInterval: 2000, // Check every 2 seconds
+            debounceDelay: 500, // Debounce for 500ms
+            debugMode: this.settings.debugMode ?? false,
+            onReload: async () => {
+                await this.reloadSettingsFromDisk();
+            }
+            // Note: We don't skip reload for now - users can manually reload if needed
+            // Future: could add a flag to track if settings UI has unsaved changes
+        });
+        
+        // Start the reload manager
+        await this.settingsReloadManager.start();
+        debugLog(this.settings.debugMode ?? false, 'info', 'Settings reload manager started');
 
         debugLog(this.settings.debugMode ?? false, 'info', 'AI Assistant Plugin loaded.'); // Changed from log to debugLog
     }
@@ -351,6 +387,49 @@ export default class MyPlugin extends Plugin {
     }
 
     /**
+     * Reloads plugin settings from disk (data.json).
+     * Used by the SettingsReloadManager when external changes are detected.
+     * Only emits settings change event if settings actually changed.
+     */
+    public async reloadSettingsFromDisk() {
+        try {
+            debugLog(this.settings.debugMode ?? false, 'info', '[main.ts] Reloading settings from disk');
+            
+            // Store a reference to old settings for comparison
+            const oldSettings = JSON.stringify(this.settings);
+            
+            // Reload settings using the existing loadSettings method
+            await this.loadSettings();
+            
+            // Compare new settings with old settings
+            const newSettings = JSON.stringify(this.settings);
+            
+            if (oldSettings !== newSettings) {
+                debugLog(this.settings.debugMode ?? false, 'info', '[main.ts] Settings changed, re-registering commands and notifying listeners');
+                
+                // Re-register YAML attribute commands to reflect any changes
+                this._yamlAttributeCommandIds = registerYamlAttributeCommands(
+                    this,
+                    this.settings,
+                    (messages) => this.processMessages(messages),
+                    this._yamlAttributeCommandIds,
+                    (level, ...args) => debugLog(this.settings.debugMode ?? false, level, ...args)
+                );
+                
+                // Notify all listeners that settings have changed
+                this.emitSettingsChange();
+                
+                debugLog(this.settings.debugMode ?? false, 'info', '[main.ts] Settings reloaded successfully');
+            } else {
+                debugLog(this.settings.debugMode ?? false, 'debug', '[main.ts] Settings unchanged after reload');
+            }
+        } catch (error) {
+            debugLog(true, 'error', '[main.ts] Failed to reload settings from disk:', error);
+            throw error; // Re-throw so SettingsReloadManager can handle it
+        }
+    }
+
+    /**
      * Processes an array of messages, potentially adding context notes.
      * @param messages The messages to process.
      * @returns A promise that resolves to the processed messages.
@@ -365,6 +444,12 @@ export default class MyPlugin extends Plugin {
      */
     onunload() {
         MyPlugin.registeredViewTypes.delete(VIEW_TYPE_CHAT);
+        
+        // Stop settings reload manager
+        if (this.settingsReloadManager) {
+            this.settingsReloadManager.stop();
+            debugLog(this.settings.debugMode ?? false, 'info', 'Settings reload manager stopped');
+        }
         
         // Clean up Priority 3 optimizations
         if (this.priority3Manager) {

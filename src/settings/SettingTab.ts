@@ -74,7 +74,9 @@ export class MyPluginSettingTab extends PluginSettingTab {
         this.settingsChangeListener = () => {
             // Only refresh if the settings tab is still attached to the DOM
             // and the change is not coming from the UI itself
-            if (this.containerEl.isConnected && !this.isUpdatingFromUI) {
+            // Also skip refresh if a caller has requested suppression (e.g., in-place UI saves)
+            const suppress = (this.plugin as any)._suppressSettingsReload === true;
+            if (this.containerEl.isConnected && !this.isUpdatingFromUI && !suppress) {
                 this.display();
             }
         };
@@ -174,6 +176,7 @@ export class MyPluginSettingTab extends PluginSettingTab {
                         openai: this.plugin.settings.openaiSettings.apiKey,
                         anthropic: this.plugin.settings.anthropicSettings.apiKey,
                         gemini: this.plugin.settings.geminiSettings.apiKey,
+                        openrouter: this.plugin.settings.openrouterSettings?.apiKey ?? ''
                     };
 
                     // Reset all settings to defaults, except API keys and title prompt
@@ -181,6 +184,8 @@ export class MyPluginSettingTab extends PluginSettingTab {
                     this.plugin.settings.openaiSettings.apiKey = preservedApiKeys.openai;
                     this.plugin.settings.anthropicSettings.apiKey = preservedApiKeys.anthropic;
                     this.plugin.settings.geminiSettings.apiKey = preservedApiKeys.gemini;
+                    if (!this.plugin.settings.openrouterSettings) this.plugin.settings.openrouterSettings = { apiKey: '', model: 'openai/gpt-4-turbo', availableModels: [] };
+                    this.plugin.settings.openrouterSettings.apiKey = preservedApiKeys.openrouter;
                     this.plugin.settings.titlePrompt = DEFAULT_TITLE_PROMPT; // Use imported constant
 
                     await this.plugin.saveSettings();

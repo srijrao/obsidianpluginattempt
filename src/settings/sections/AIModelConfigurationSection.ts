@@ -13,6 +13,7 @@ import { FuzzyModelDropdown } from "../../components/FuzzyModelDropdown";
 import { ModelService } from "../../services/ModelService";
 import type { ModelInfo } from "../../../providers/base";
 import { providerRegistry } from "../../../providers";
+import { ModelManagementSection } from "./ModelManagementSection";
 
 /**
  * AIModelConfigurationSection is responsible for rendering the settings related to AI model configuration.
@@ -21,6 +22,8 @@ import { providerRegistry } from "../../../providers";
 export class AIModelConfigurationSection {
   private plugin: MyPlugin;
   private settingCreators: SettingCreators;
+  private currentModelSettingsContainer: HTMLElement | null = null;
+  private modelManagementSection: ModelManagementSection;
 
   /**
    * @param plugin The main plugin instance.
@@ -29,6 +32,7 @@ export class AIModelConfigurationSection {
   constructor(plugin: MyPlugin, settingCreators: SettingCreators) {
     this.plugin = plugin;
     this.settingCreators = settingCreators;
+    this.modelManagementSection = new ModelManagementSection(plugin, settingCreators);
   }
 
   /**
@@ -41,6 +45,7 @@ export class AIModelConfigurationSection {
       containerEl,
       "Current Model Settings",
       async (sectionEl: HTMLElement) => {
+        this.currentModelSettingsContainer = sectionEl; // Store reference
         await this.renderAIModelSettings(sectionEl);
       },
       this.plugin,
@@ -262,25 +267,8 @@ export class AIModelConfigurationSection {
       "providerConfigExpanded"
     );
 
-    // Model Management Section
-    CollapsibleSectionRenderer.createCollapsibleSection(
-      containerEl,
-      "Model Management",
-      async (sectionEl: HTMLElement) => {
-        // Model Setting Presets Subsection
-        CollapsibleSectionRenderer.createCollapsibleSection(
-          sectionEl,
-          "Model Setting Presets",
-          async (subSectionEl: HTMLElement) => {
-            this.renderModelSettingPresets(subSectionEl);
-          },
-          this.plugin,
-          "modelManagementExpanded"
-        );
-      },
-      this.plugin,
-      "generalSectionsExpanded"
-    );
+    // Model Management Section (Model Setting Presets)
+    await this.modelManagementSection.render(containerEl);
   }
 
   /**
@@ -813,136 +801,13 @@ export class AIModelConfigurationSection {
   }
 
   /**
-   * Renders the Model Setting Presets section.
-   * This section allows users to create, edit, and delete model setting presets.
-   * @param containerEl The HTML element to append the section to.
+   * Refreshes the Current Model Settings section to reflect preset changes.
+   * Call this after adding, deleting, or modifying presets.
    */
-  private renderModelSettingPresets(containerEl: HTMLElement): void {
-    containerEl.createEl("div", {
-      text: "Presets let you save and quickly apply common model settings (model, temperature, system message, etc). You can add, edit, or remove presets here. In the AI Model Settings panel, you will see buttons for each preset above the model selection. Clicking a preset button will instantly apply those settings. This is useful for switching between different model configurations with one click.",
-      cls: "setting-item-description",
-      attr: { style: "margin-bottom: 0.5em;" },
-    });
-
-    const presetList = this.plugin.settings.modelSettingPresets || [];
-    presetList.forEach((preset, idx) => {
-      // Preset Name Setting
-      new Setting(containerEl)
-        .setName("Preset Name")
-        .setDesc("Edit the name of this preset")
-        .addText((text) => {
-          text
-            .setPlaceholder("Preset Name")
-            .setValue(preset.name)
-            .onChange((value) => {
-              // Update preset name immediately on change
-              preset.name = value ?? "";
-            });
-
-          // Save settings on blur
-          text.inputEl.addEventListener("blur", async () => {
-            await this.plugin.saveSettings();
-          });
-        });
-
-      // Model ID Setting
-      new Setting(containerEl)
-        .setName("Model ID (provider:model)")
-        .setDesc("Edit the model for this preset")
-        .addText((text) => {
-          text
-            .setPlaceholder("Model ID (provider:model)")
-            .setValue(preset.selectedModel || "")
-            .onChange((value) => {
-              // Update selected model immediately on change
-              preset.selectedModel = value ?? "";
-            });
-
-          // Save settings on blur
-          text.inputEl.addEventListener("blur", async () => {
-            await this.plugin.saveSettings();
-          });
-        });
-
-      // System Message Setting for Preset
-      new Setting(containerEl)
-        .setName("System Message")
-        .setDesc("Edit the system message for this preset")
-        .addTextArea((text) => {
-          text
-            .setPlaceholder("System message")
-            .setValue(preset.systemMessage || "")
-            .onChange((value) => {
-              // Update system message immediately on change
-              preset.systemMessage = value ?? "";
-            });
-
-          // Save settings on blur
-          text.inputEl.addEventListener("blur", async () => {
-            await this.plugin.saveSettings();
-          });
-        });
-
-      // Temperature Setting for Preset
-      this.settingCreators.createSliderSetting(
-        containerEl,
-        "Temperature",
-        "",
-        { min: 0, max: 1, step: 0.1 },
-        () => preset.temperature ?? 0.7,
-        async (value) => {
-          preset.temperature = value;
-          await this.plugin.saveSettings();
-        }
-      );
-
-      // Enable Streaming Toggle for Preset
-      this.settingCreators.createToggleSetting(
-        containerEl,
-        "Enable Streaming",
-        "",
-        () => preset.enableStreaming ?? true,
-        async (value) => {
-          preset.enableStreaming = value;
-          await this.plugin.saveSettings();
-        }
-      );
-
-      // Delete Preset Button
-      new Setting(containerEl).addExtraButton((btn) =>
-        btn
-          .setIcon("cross")
-          .setTooltip("Delete")
-          .onClick(async () => {
-            this.plugin.settings.modelSettingPresets?.splice(idx, 1);
-            await this.plugin.saveSettings();
-          })
-      );
-    });
-
-    // Add Preset Button
-    new Setting(containerEl).addButton((btn) =>
-      btn
-        .setButtonText("Add Preset")
-        .setCta()
-        .onClick(async () => {
-          if (!this.plugin.settings.modelSettingPresets)
-            this.plugin.settings.modelSettingPresets = [];
-          this.plugin.settings.modelSettingPresets.push(
-            JSON.parse(
-              JSON.stringify({
-                name: `Preset ${
-                  this.plugin.settings.modelSettingPresets.length + 1
-                }`,
-                selectedModel: this.plugin.settings.selectedModel,
-                systemMessage: this.plugin.settings.systemMessage,
-                temperature: this.plugin.settings.temperature,
-                enableStreaming: this.plugin.settings.enableStreaming,
-              })
-            )
-          );
-          await this.plugin.saveSettings();
-        })
-    );
+  private refreshCurrentModelSettings(): void {
+    if (this.currentModelSettingsContainer) {
+      this.currentModelSettingsContainer.empty();
+      this.renderAIModelSettings(this.currentModelSettingsContainer);
+    }
   }
 }
