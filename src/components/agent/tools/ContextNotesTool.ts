@@ -99,6 +99,7 @@ export class ContextNotesTool implements Tool {
         const link = `[[${file.path}]]`;
         const existing = plugin.settings.contextNotes || '';
 
+        // Check for duplicates only if force is not true
         if (!force) {
             const alreadyExists = new RegExp(`\\[\\[${this.escapeRegExp(file.path)}\\]\\]`).test(existing);
             if (alreadyExists) {
@@ -114,7 +115,8 @@ export class ContextNotesTool implements Tool {
             }
         }
 
-    const updated = existing ? `${existing}\n${link}` : link;
+        // Add the note (force allows duplicates)
+        const updated = existing ? `${existing}\n${link}` : link;
         plugin.settings.contextNotes = updated;
         plugin.settings.enableContextNotes = true;
         await plugin.saveSettings();

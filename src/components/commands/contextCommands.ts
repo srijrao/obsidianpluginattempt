@@ -77,7 +77,8 @@ export function registerContextCommands(
                 }
 
                 const noteTitle = activeFile.basename;
-                const wikiLink = `[[${noteTitle}]]`;
+                const notePath = activeFile.path;
+                const wikiLink = `[[${notePath}]]`;
 
                 // Check if the note is already in context notes to avoid duplicates
                 if (settings.contextNotes && settings.contextNotes.includes(wikiLink)) {

@@ -66,10 +66,12 @@ export async function processObsidianLinks(
 /**
  * Process context notes specified in the settings.
  */
-export async function processContextNotes(contextNotesText: string, app: App): Promise<string> {
+export async function processContextNotes(contextNotesText: string, app: App, settings?: MyPluginSettings): Promise<string> {
     const linkRegex = /\[\[(.*?)\]\]/g;
     let match;
     let contextContent = "";
+    const visitedNotes = new Set<string>();
+    
     while ((match = linkRegex.exec(contextNotesText)) !== null) {
         if (match && match[1]) {
             const originalLink = match[0]; 
@@ -85,12 +87,26 @@ export async function processContextNotes(contextNotesText: string, app: App): P
                     const noteContent = await app.vault.cachedRead(file);
                     
                     contextContent += `---\nAttached: ${originalLink}\n\n`;
+                    
+                    let processedContent = '';
                     if (headerName) {
-                        const headerContent = extractContentUnderHeader(noteContent, headerName);
-                        contextContent += headerContent;
+                        processedContent = extractContentUnderHeader(noteContent, headerName);
                     } else {
-                        contextContent += noteContent;
+                        processedContent = noteContent;
                     }
+                    
+                    // Apply recursive link expansion to context notes if settings allow it
+                    if (settings?.expandLinkedNotesRecursively) {
+                        processedContent = await processObsidianLinks(
+                            processedContent, 
+                            app, 
+                            settings, 
+                            visitedNotes, 
+                            0
+                        );
+                    }
+                    
+                    contextContent += processedContent;
                     contextContent += '\n\n';
                 } else {
                     contextContent += `Note not found: ${originalLink}\n\n`;
@@ -109,7 +125,7 @@ export async function processContextNotes(contextNotesText: string, app: App): P
 export async function processMessages(messages: Message[], app: App, settings: MyPluginSettings): Promise<Message[]> {
     const processedMessages: Message[] = [];
     if (settings.enableContextNotes && settings.contextNotes) {
-        const contextContent = await processContextNotes(settings.contextNotes, app);
+        const contextContent = await processContextNotes(settings.contextNotes, app, settings);
         if (contextContent) {
             if (messages.length > 0 && messages[0].role === 'system') {
                 processedMessages.push({

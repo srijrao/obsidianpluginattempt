@@ -1,4 +1,4 @@
-import { App } from 'obsidian';
+import { App, Notice } from 'obsidian';
 import { Message } from '../types';
 import MyPlugin from '../main';
 import { getSystemMessage } from './systemMessage';
@@ -41,7 +41,12 @@ export async function buildContextMessages({
 
     // Optionally append context notes to the system message.
     if (includeContextNotes && plugin.settings.enableContextNotes && plugin.settings.contextNotes) {
-        const contextContent = await processContextNotes(plugin.settings.contextNotes, app);
+        let contextContent = await processContextNotes(plugin.settings.contextNotes, app, plugin.settings);
+        
+        // Truncate context notes if they exceed reasonable limits (leave room for other content)
+        const maxContextTokens = 50000; // Conservative limit for context notes
+        contextContent = truncateContextNotes(contextContent, maxContextTokens, plugin);
+        
         messages[0].content += `\n\nContext Notes:\n${contextContent}`;
     }
 
@@ -64,6 +69,15 @@ export async function buildContextMessages({
             contextNotes: plugin.settings.contextNotes,
             referenceCurrentNote: plugin.settings.referenceCurrentNote
         });
+    }
+
+    // Check token limits and show warnings if needed
+    const tokenCheck = checkTokenLimits(messages, plugin);
+    if (tokenCheck.hasWarning && tokenCheck.warningMessage) {
+        // Show notice to user (only if not in debug mode to avoid spam)
+        if (!debug && !plugin.settings.debugMode) {
+            new Notice(tokenCheck.warningMessage);
+        }
     }
 
     return messages;
@@ -173,4 +187,128 @@ export function truncateMessagesForContext(
     }
     
     return finalMessages;
+}
+
+/**
+ * Checks if context messages exceed recommended token limits and shows warnings.
+ * @param messages Array of messages to check
+ * @param plugin Plugin instance for showing notices and logging
+ * @param modelMaxTokens Maximum tokens for the current model (optional)
+ * @returns Object with warning information
+ */
+export function checkTokenLimits(
+    messages: Message[],
+    plugin: MyPlugin,
+    modelMaxTokens?: number
+): { hasWarning: boolean; warningMessage?: string; tokenCount: number; limit: number } {
+    const tokenCount = calculateTotalTokenCount(messages);
+    const limit = modelMaxTokens || 128000; // Default to GPT-4 limit
+    
+    // Show warning at 80% of limit
+    const warningThreshold = limit * 0.8;
+    
+    if (tokenCount >= limit) {
+        const message = `Context exceeds token limit: ${tokenCount.toLocaleString()} / ${limit.toLocaleString()} tokens. Consider reducing context notes or current note size.`;
+        plugin.debugLog?.('warn', '[contextBuilder] Token limit exceeded', { tokenCount, limit });
+        return { hasWarning: true, warningMessage: message, tokenCount, limit };
+    } else if (tokenCount >= warningThreshold) {
+        const message = `Context approaching token limit: ${tokenCount.toLocaleString()} / ${limit.toLocaleString()} tokens (${Math.round((tokenCount / limit) * 100)}%).`;
+        plugin.debugLog?.('info', '[contextBuilder] Token limit warning', { tokenCount, limit, percentage: Math.round((tokenCount / limit) * 100) });
+        return { hasWarning: true, warningMessage: message, tokenCount, limit };
+    }
+    
+    return { hasWarning: false, tokenCount, limit };
+}
+
+/**
+ * Truncates context notes content to fit within token limits.
+ * Prioritizes keeping the most recent context notes and truncates older ones.
+ * @param contextContent The full context content to potentially truncate
+ * @param maxTokens Maximum tokens allowed for context
+ * @param plugin Plugin instance for logging
+ * @returns Truncated context content
+ */
+export function truncateContextNotes(
+    contextContent: string,
+    maxTokens: number,
+    plugin?: MyPlugin
+): string {
+    if (!contextContent) return contextContent;
+    
+    const tokenCount = calculateTotalTokenCount([{ role: 'system', content: contextContent }]);
+    
+    if (tokenCount <= maxTokens) {
+        return contextContent; // No truncation needed
+    }
+    
+    // Split context into individual note sections (separated by ---)
+    const sections = contextContent.split(/^---$/gm).filter(section => section.trim());
+    
+    if (sections.length <= 1) {
+        // Only one section, truncate it directly
+        const words = contextContent.split(' ');
+        let truncated = '';
+        let currentTokens = 0;
+        
+        for (const word of words) {
+            const wordTokens = calculateTotalTokenCount([{ role: 'system', content: word + ' ' }]);
+            if (currentTokens + wordTokens > maxTokens) break;
+            truncated += word + ' ';
+            currentTokens += wordTokens;
+        }
+        
+        plugin?.debugLog?.('info', '[contextBuilder] Truncated single context section', {
+            originalTokens: tokenCount,
+            truncatedTokens: currentTokens,
+            maxTokens
+        });
+        
+        return truncated.trim() + '\n\n[Content truncated due to token limit]';
+    }
+    
+    // Multiple sections - keep most recent ones and truncate oldest
+    const truncatedSections: string[] = [];
+    let totalTokens = 0;
+    
+    // Process sections in reverse order (most recent first)
+    for (let i = sections.length - 1; i >= 0; i--) {
+        const section = sections[i];
+        const sectionTokens = calculateTotalTokenCount([{ role: 'system', content: section }]);
+        
+        if (totalTokens + sectionTokens > maxTokens) {
+            // This section would exceed limit, truncate it
+            if (totalTokens === 0) {
+                // Even the most recent section is too big, truncate it
+                const words = section.split(' ');
+                let truncatedSection = '';
+                let sectionTokensUsed = 0;
+                
+                for (const word of words) {
+                    const wordTokens = calculateTotalTokenCount([{ role: 'system', content: word + ' ' }]);
+                    if (sectionTokensUsed + wordTokens > maxTokens) break;
+                    truncatedSection += word + ' ';
+                    sectionTokensUsed += wordTokens;
+                }
+                
+                truncatedSections.unshift('---\n' + truncatedSection.trim() + '\n\n[Content truncated due to token limit]');
+                totalTokens = sectionTokensUsed;
+            }
+            break;
+        }
+        
+        truncatedSections.unshift('---\n' + section);
+        totalTokens += sectionTokens;
+    }
+    
+    const result = truncatedSections.join('\n');
+    
+    plugin?.debugLog?.('info', '[contextBuilder] Truncated context notes', {
+        originalSections: sections.length,
+        keptSections: truncatedSections.length,
+        originalTokens: tokenCount,
+        truncatedTokens: totalTokens,
+        maxTokens
+    });
+    
+    return result;
 }
