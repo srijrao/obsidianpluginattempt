@@ -276,7 +276,7 @@ export function createChatUI(app: App, contentEl: HTMLElement): ChatUIElements {
         { key: 'agentModeButton', text: '🤖', ariaLabel: 'Toggle Agent Mode', positionIndex: 1, addClass: 'ai-agent-mode-btn' },
         { key: 'contextClearButton', text: '🧹', ariaLabel: 'Clear context notes', positionIndex: 2, addClass: 'ai-context-clear-btn' },
         { key: 'contextAddCurrentButton', text: '➕', ariaLabel: 'Add current note to context notes', positionIndex: 3, addClass: 'ai-context-add-current-btn' },
-        { key: 'contextAddAllOpenButton', text: '📚', ariaLabel: 'Add all open notes to context notes', positionIndex: 4, addClass: 'ai-context-add-all-open-btn' },
+        { key: 'contextAddAllOpenButton', text: '🗃️', ariaLabel: 'Add all open notes to context notes', positionIndex: 4, addClass: 'ai-context-add-all-open-btn' },
     ];
     
     const absoluteButtonRefs: Record<string, HTMLButtonElement> = {};
