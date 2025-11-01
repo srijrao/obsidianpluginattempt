@@ -877,6 +877,12 @@ export class ChatView extends ItemView {
     private registerWorkspaceAndSettingsEvents() {
         this.registerEvent(this.app.workspace.on('active-leaf-change', () => {
             this.updateReferenceNoteIndicator();
+            // Update token count when active note changes
+            this.tokenCountDebouncer.debounce(async () => {
+                if (this.plugin.settings.showTokenCounter !== false) {
+                    await this.updateModelNameDisplay();
+                }
+            });
         }));
         // When a message is edited, ensure the current render mode is applied to that element
         this.registerEvent((this.app.workspace as any).on('ai-assistant:message-edited', (el: HTMLElement) => {
@@ -1165,28 +1171,42 @@ export class ChatView extends ItemView {
 
     public applyRenderModeToElement(messageEl: HTMLElement): void {
         const mode = this.plugin.settings.uiBehavior?.chatRenderMode || 'live';
-        if (mode !== 'source') {
-            enableClickableLinksInMessage(messageEl, this.app);
-            return;
-        }
-
         const contentEl = messageEl.querySelector('.message-content') as HTMLElement;
         if (!contentEl) {
             return;
         }
 
         const rawContent = messageEl.dataset.rawContent || contentEl.textContent || '';
-        contentEl.empty();
-
-        const pre = document.createElement('pre');
-        pre.style.whiteSpace = 'pre-wrap';
-        pre.style.fontFamily = 'monospace';
-        pre.style.fontSize = '0.9em';
-        pre.style.background = 'var(--background-secondary)';
-        pre.style.padding = '0.5em';
-        pre.style.borderRadius = '4px';
-        pre.textContent = rawContent;
-        contentEl.appendChild(pre);
+        
+        if (mode === 'source') {
+            contentEl.empty();
+            const pre = document.createElement('pre');
+            pre.style.whiteSpace = 'pre-wrap';
+            pre.style.fontFamily = 'monospace';
+            pre.style.fontSize = '0.9em';
+            pre.style.background = 'var(--background-secondary)';
+            pre.style.padding = '0.5em';
+            pre.style.borderRadius = '4px';
+            pre.textContent = rawContent;
+            contentEl.appendChild(pre);
+        } else {
+            // Live mode: Render as formatted markdown
+            contentEl.empty();
+            import('obsidian')
+                .then(({ MarkdownRenderer }) =>
+                    MarkdownRenderer.render(this.app, rawContent, contentEl, '', this)
+                )
+                .then(() => import('./utils/linkHandler'))
+                .then(({ enableClickableLinksInMessage }) => {
+                    // Re-enable clickable links after re-rendering
+                    enableClickableLinksInMessage(messageEl, this.app);
+                })
+                .catch((error) => {
+                    console.error('Markdown rendering error:', error);
+                    // Fallback to plain text to avoid empty content on failure
+                    contentEl.textContent = rawContent;
+                });
+        }
     }
 
     public getCurrentModelContextLimit(): number {
