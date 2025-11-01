@@ -341,17 +341,10 @@ export class ChatView extends ItemView {
                 }
             },
             onToolDisplay: (display: ToolRichDisplay) => {
-                const toolWrapper = document.createElement('div');
-                toolWrapper.className = 'real-time-tool-display';
-                toolWrapper.appendChild(display.getElement());
-                const tempContainer = this.messagesContainer.querySelector('.ai-chat-message.assistant:last-child');
-                if (tempContainer) {
-                    const messageContent = tempContainer.querySelector('.message-content');
-                    if (messageContent) {
-                        messageContent.appendChild(toolWrapper);
-                        this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
-                    }
-                }
+                // FIX: Remove temporary tool display creation during streaming
+                // Tool displays will be rendered properly when the final message is created
+                // with the enhanced message data containing toolResults
+                this.plugin.debugLog('debug', '[chat.ts] Tool display created - will be rendered in final message');
             }
         });
     }
@@ -1178,6 +1171,17 @@ export class ChatView extends ItemView {
 
         const rawContent = messageEl.dataset.rawContent || contentEl.textContent || '';
         
+        // FIX: Check if message has tool results - if so, use MessageRenderer instead of basic MarkdownRenderer
+        const messageDataStr = messageEl.dataset.messageData;
+        let messageData: any = null;
+        if (messageDataStr) {
+            try {
+                messageData = JSON.parse(messageDataStr);
+            } catch (e) {
+                this.plugin.debugLog('warn', '[ChatView] Failed to parse messageData in applyRenderModeToElement', e);
+            }
+        }
+        
         if (mode === 'source') {
             contentEl.empty();
             const pre = document.createElement('pre');
@@ -1190,22 +1194,51 @@ export class ChatView extends ItemView {
             pre.textContent = rawContent;
             contentEl.appendChild(pre);
         } else {
-            // Live mode: Render as formatted markdown
-            contentEl.empty();
-            import('obsidian')
-                .then(({ MarkdownRenderer }) =>
-                    MarkdownRenderer.render(this.app, rawContent, contentEl, '', this)
-                )
-                .then(() => import('./utils/linkHandler'))
-                .then(({ enableClickableLinksInMessage }) => {
-                    // Re-enable clickable links after re-rendering
-                    enableClickableLinksInMessage(messageEl, this.app);
-                })
-                .catch((error) => {
-                    console.error('Markdown rendering error:', error);
-                    // Fallback to plain text to avoid empty content on failure
-                    contentEl.textContent = rawContent;
+            // Live mode: Check if message has tool results
+            if (messageData && messageData.toolResults && messageData.toolResults.length > 0) {
+                // FIX: Use MessageRenderer for messages with tool results to preserve tool displays
+                this.plugin.debugLog('debug', '[ChatView] Re-rendering message with tool results using MessageRenderer');
+                contentEl.empty();
+                const messageRenderer = new MessageRenderer(this.app);
+                messageRenderer.renderMessage({
+                    role: messageEl.classList.contains('user') ? 'user' : 'assistant',
+                    content: rawContent,
+                    toolResults: messageData.toolResults,
+                    reasoning: messageData.reasoning,
+                    taskStatus: messageData.taskStatus
+                } as any, messageEl, this).catch((error) => {
+                    this.plugin.debugLog('error', '[ChatView] MessageRenderer failed, falling back to MarkdownRenderer', error);
+                    // Fallback to basic markdown rendering
+                    contentEl.empty();
+                    import('obsidian')
+                        .then(({ MarkdownRenderer }) =>
+                            MarkdownRenderer.render(this.app, rawContent, contentEl, '', this)
+                        )
+                        .then(() => import('./utils/linkHandler'))
+                        .then(({ enableClickableLinksInMessage }) => {
+                            enableClickableLinksInMessage(messageEl, this.app);
+                        })
+                        .catch((error) => {
+                            console.error('Markdown rendering error:', error);
+                            contentEl.textContent = rawContent;
+                        });
                 });
+            } else {
+                // Regular message without tool results - use standard MarkdownRenderer
+                contentEl.empty();
+                import('obsidian')
+                    .then(({ MarkdownRenderer }) =>
+                        MarkdownRenderer.render(this.app, rawContent, contentEl, '', this)
+                    )
+                    .then(() => import('./utils/linkHandler'))
+                    .then(({ enableClickableLinksInMessage }) => {
+                        enableClickableLinksInMessage(messageEl, this.app);
+                    })
+                    .catch((error) => {
+                        console.error('Markdown rendering error:', error);
+                        contentEl.textContent = rawContent;
+                    });
+            }
         }
     }
 
@@ -1284,22 +1317,63 @@ export class ChatView extends ItemView {
                     pre.textContent = rawContent;
                     contentElement.appendChild(pre);
                 } else {
-                    // Re-render as formatted markdown
-                    contentElement.empty();
-                    import('obsidian')
-                        .then(({ MarkdownRenderer }) =>
-                            MarkdownRenderer.render(this.app, rawContent!, contentElement, '', this)
-                        )
-                        .then(() => import('./utils/linkHandler'))
-                        .then(({ enableClickableLinksInMessage }) => {
-                            // Re-enable clickable links after re-rendering
-                            enableClickableLinksInMessage(htmlElement, this.app);
-                        })
-                        .catch((error) => {
-                            console.error('Re-rendering error:', error);
-                            // Fallback to plain text to avoid empty content on failure
-                            contentElement.textContent = rawContent!;
+                    // Live mode: Check if message has tool results
+                    const messageDataStr = htmlElement.dataset.messageData;
+                    let messageData: any = null;
+                    if (messageDataStr) {
+                        try {
+                            messageData = JSON.parse(messageDataStr);
+                        } catch (e) {
+                            this.plugin.debugLog('warn', '[ChatView] Failed to parse messageData in reRenderAllMessages', e);
+                        }
+                    }
+                    
+                    if (messageData && messageData.toolResults && messageData.toolResults.length > 0) {
+                        // FIX: Use MessageRenderer for messages with tool results to preserve tool displays
+                        this.plugin.debugLog('debug', '[ChatView] Re-rendering message with tool results using MessageRenderer');
+                        contentElement.empty();
+                        const messageRenderer = new MessageRenderer(this.app);
+                        messageRenderer.renderMessage({
+                            role: htmlElement.classList.contains('user') ? 'user' : 'assistant',
+                            content: rawContent,
+                            toolResults: messageData.toolResults,
+                            reasoning: messageData.reasoning,
+                            taskStatus: messageData.taskStatus
+                        } as any, htmlElement, this).catch((error) => {
+                            this.plugin.debugLog('error', '[ChatView] MessageRenderer failed in reRenderAllMessages, falling back to MarkdownRenderer', error);
+                            // Fallback to basic markdown rendering
+                            contentElement.empty();
+                            import('obsidian')
+                                .then(({ MarkdownRenderer }) =>
+                                    MarkdownRenderer.render(this.app, rawContent!, contentElement, '', this)
+                                )
+                                .then(() => import('./utils/linkHandler'))
+                                .then(({ enableClickableLinksInMessage }) => {
+                                    enableClickableLinksInMessage(htmlElement, this.app);
+                                })
+                                .catch((error) => {
+                                    console.error('Re-rendering error:', error);
+                                    contentElement.textContent = rawContent!;
+                                });
                         });
+                    } else {
+                        // Re-render as formatted markdown
+                        contentElement.empty();
+                        import('obsidian')
+                            .then(({ MarkdownRenderer }) =>
+                                MarkdownRenderer.render(this.app, rawContent!, contentElement, '', this)
+                            )
+                            .then(() => import('./utils/linkHandler'))
+                            .then(({ enableClickableLinksInMessage }) => {
+                                // Re-enable clickable links after re-rendering
+                                enableClickableLinksInMessage(htmlElement, this.app);
+                            })
+                            .catch((error) => {
+                                console.error('Re-rendering error:', error);
+                                // Fallback to plain text to avoid empty content on failure
+                                contentElement.textContent = rawContent!;
+                            });
+                    }
                 }
             } else {
                 // As a last resort, don't leave the message empty; keep whatever text was visible
