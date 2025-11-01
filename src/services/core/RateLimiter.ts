@@ -258,6 +258,9 @@ export class RateLimiter implements IRateLimiter {
                 const timeElapsed = now - limit.firstRequestTime;
                 if (timeElapsed > 0) {
                     averageRequestRate = (limit.requests / timeElapsed) * 1000; // requests per second
+                } else if (limit.requests > 0) {
+                    // If requests were made but time elapsed is 0, assume high rate
+                    averageRequestRate = limit.requests * 1000; // requests per second
                 }
                 
                 if (limit.requests > 0) {
@@ -371,7 +374,7 @@ export class RateLimiter implements IRateLimiter {
             this.cleanupTimer = null;
         }
         this.limits.clear();
-        this.providerLimits.clear();
+        // Don't clear providerLimits - these are the default configurations
         this.eventBus.publish('rate.limit.disposed', { timestamp: Date.now() });
     }
 }

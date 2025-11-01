@@ -32,6 +32,10 @@ beforeEach(async () => {
   // Clear all mocks before each test
   jest.clearAllMocks();
   
+  // Mock console methods to prevent test failures on expected warnings/errors
+  jest.spyOn(console, 'warn').mockImplementation(() => {});
+  jest.spyOn(console, 'error').mockImplementation(() => {});
+  
   // Reset global state that might persist between tests
   if (typeof window !== 'undefined' && window.localStorage) {
     window.localStorage.clear();

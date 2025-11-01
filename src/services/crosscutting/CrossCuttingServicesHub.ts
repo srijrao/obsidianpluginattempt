@@ -231,14 +231,56 @@ export class CrossCuttingServicesHub {
     exportAllData() {
         this.ensureInitialized();
         
-        return {
+        const exportData: any = {
             timestamp: new Date().toISOString(),
-            configuration: this.configuration.export(),
-            logs: this.logger.exportLogs('json'),
-            metrics: this.monitoring.exportMetrics('json'),
-            security: this.security.getSecurityMetrics(),
-            systemStatus: this.getSystemStatus()
+            configuration: null,
+            logs: null,
+            metrics: null,
+            security: null,
+            systemStatus: null
         };
+
+        try {
+            exportData.configuration = this.configuration.export();
+        } catch (error) {
+            this.logger.warn('Failed to export configuration data', {
+                error: error instanceof Error ? error.message : String(error)
+            }, 'system');
+        }
+
+        try {
+            exportData.logs = this.logger.exportLogs('json');
+        } catch (error) {
+            this.logger.warn('Failed to export log data', {
+                error: error instanceof Error ? error.message : String(error)
+            }, 'system');
+        }
+
+        try {
+            exportData.metrics = this.monitoring.exportMetrics('json');
+        } catch (error) {
+            this.logger.warn('Failed to export metrics data', {
+                error: error instanceof Error ? error.message : String(error)
+            }, 'system');
+        }
+
+        try {
+            exportData.security = this.security.getSecurityMetrics();
+        } catch (error) {
+            this.logger.warn('Failed to export security metrics', {
+                error: error instanceof Error ? error.message : String(error)
+            }, 'system');
+        }
+
+        try {
+            exportData.systemStatus = this.getSystemStatus();
+        } catch (error) {
+            this.logger.warn('Failed to export system status', {
+                error: error instanceof Error ? error.message : String(error)
+            }, 'system');
+        }
+
+        return exportData;
     }
 
     /**
@@ -338,21 +380,35 @@ export class CrossCuttingServicesHub {
             timestamp: Date.now()
         }, 'system');
 
-        // Stop all health checks
-        const healthMap = this.monitoring.getServiceHealth();
-        Object.keys(healthMap).forEach(serviceName => {
-            this.monitoring.stopHealthCheck(serviceName);
-        });
+        try {
+            // Stop all health checks
+            const healthMap = this.monitoring.getServiceHealth();
+            Object.keys(healthMap).forEach(serviceName => {
+                this.monitoring.stopHealthCheck(serviceName);
+            });
 
-        // Export final data for persistence
-        const finalExport = this.exportAllData();
+            // Export final data for persistence (with error handling)
+            try {
+                const finalExport = this.exportAllData();
+                this.logger.info('Final data export completed', {
+                    dataSize: JSON.stringify(finalExport).length
+                }, 'system');
+            } catch (error) {
+                this.logger.warn('Failed to export final data during shutdown', {
+                    error: error instanceof Error ? error.message : String(error)
+                }, 'system');
+            }
+        } catch (error) {
+            this.logger.error('Error during shutdown', {
+                error: error instanceof Error ? error.message : String(error)
+            }, 'system');
+        }
         
         // Mark as not initialized
         this.isInitialized = false;
 
         this.logger.info('Cross-cutting services hub shutdown complete', {
-            timestamp: Date.now(),
-            finalDataSize: JSON.stringify(finalExport).length
+            timestamp: Date.now()
         }, 'system');
     }
 
