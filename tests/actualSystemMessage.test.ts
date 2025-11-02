@@ -274,7 +274,7 @@ describe('ActualSystemMessage Feature', () => {
   });
 
   describe('buildChatYaml Function', () => {
-    test('should use actualSystemMessage when provided (Option 2)', async () => {
+    test('should always use base system message from settings (not actualSystemMessage)', async () => {
       const actualSystemMessage = 'AGENT TOOLS:\n- read_file\n- write_file\n\nYou are a helpful assistant.';
       
       const yaml = await buildChatYaml(
@@ -286,12 +286,13 @@ describe('ActualSystemMessage Feature', () => {
       );
 
       expect(yaml).toContain('system_message:');
-      // The YAML should contain the actual system message with agent tools
-      expect(yaml).toContain('AGENT TOOLS');
-      expect(yaml).toContain('read_file');
+      // The YAML should contain the base system message from settings, not the actualSystemMessage
+      expect(yaml).toContain('You are a helpful assistant');
+      expect(yaml).not.toContain('AGENT TOOLS');
+      expect(yaml).not.toContain('read_file');
     });
 
-    test('should fallback to reconstruction when actualSystemMessage not provided (Option 1)', async () => {
+    test('should use base system message when actualSystemMessage not provided', async () => {
       const yaml = await buildChatYaml(
         mockPlugin.settings as any,
         'openai',
@@ -305,15 +306,19 @@ describe('ActualSystemMessage Feature', () => {
       expect(yaml).toContain('You are a helpful assistant');
     });
 
-    test('should escape special YAML characters in actualSystemMessage', async () => {
-      const actualSystemMessage = 'System: Use these tools:\n- tool1: "important"\n- tool2: \'single\'\n\nBe helpful!';
+    test('should handle special YAML characters in system message', async () => {
+      // Update settings to have a system message with special characters
+      const settingsWithSpecialChars = {
+        ...mockPlugin.settings,
+        systemMessage: 'System: Use these tools:\n- tool1: "important"\n- tool2: \'single\'\n\nBe helpful!'
+      };
       
       const yaml = await buildChatYaml(
-        mockPlugin.settings as any,
+        settingsWithSpecialChars as any,
         'openai',
         'gpt-4',
         mockPlugin as any,
-        actualSystemMessage
+        undefined
       );
 
       expect(yaml).toContain('system_message:');
@@ -323,7 +328,7 @@ describe('ActualSystemMessage Feature', () => {
   });
 
   describe('saveChatAsNote Integration', () => {
-    test('should extract actualSystemMessage from chat history', async () => {
+    test('should always use base system message from settings in YAML export', async () => {
       const mockVault = mockPlugin.app!.vault as any;
       const chatHistory = [
         {
@@ -362,12 +367,13 @@ describe('ActualSystemMessage Feature', () => {
         plugin: mockPlugin as any
       });
 
-      // Verify the written content contains the actual system message
-      expect(writtenContent).toContain('AGENT TOOLS');
-      expect(writtenContent).toContain('read_file');
+      // Verify the written content contains the base system message from settings, not the actualSystemMessage
+      expect(writtenContent).toContain('You are a helpful assistant');
+      expect(writtenContent).not.toContain('AGENT TOOLS');
+      expect(writtenContent).not.toContain('read_file');
     });
 
-    test('should handle multiple assistant messages and use most recent actualSystemMessage', async () => {
+    test('should handle multiple assistant messages and still use base system message', async () => {
       const mockVault = mockPlugin.app!.vault as any;
       const chatHistory = [
         {
@@ -408,9 +414,10 @@ describe('ActualSystemMessage Feature', () => {
         plugin: mockPlugin as any
       });
 
-      // Should use the most recent actualSystemMessage
-      expect(writtenContent).toContain('UPDATED SYSTEM MESSAGE');
+      // Should always use the base system message from settings, regardless of actualSystemMessage
+      expect(writtenContent).toContain('You are a helpful assistant');
       expect(writtenContent).not.toContain('OLD SYSTEM MESSAGE');
+      expect(writtenContent).not.toContain('UPDATED SYSTEM MESSAGE');
     });
 
     test('should handle old chats without actualSystemMessage (backward compatibility)', async () => {
@@ -447,13 +454,13 @@ describe('ActualSystemMessage Feature', () => {
         plugin: mockPlugin as any
       });
 
-      // Should fallback to settings system message
+      // Should use the base system message from settings
       expect(writtenContent).toContain('You are a helpful assistant');
     });
   });
 
   describe('End-to-End Workflow', () => {
-    test('should capture, store, and export actualSystemMessage correctly', async () => {
+    test('should capture actualSystemMessage but export base system message in YAML', async () => {
       // 1. Create a stream coordinator and simulate capturing system message
       const streamCoordinator = new StreamCoordinator(
         mockPlugin as MyPlugin,
@@ -508,10 +515,11 @@ describe('ActualSystemMessage Feature', () => {
         plugin: mockPlugin as any
       });
 
-      // 4. Verify export contains actual system message
-      expect(writtenContent).toContain('AGENT TOOLS');
-      expect(writtenContent).toContain('read_file');
-      expect(writtenContent).toContain('write_file');
+      // 4. Verify export contains base system message from settings, not the actualSystemMessage
+      expect(writtenContent).toContain('You are a helpful assistant');
+      expect(writtenContent).not.toContain('AGENT TOOLS');
+      expect(writtenContent).not.toContain('read_file');
+      expect(writtenContent).not.toContain('write_file');
     });
   });
 });

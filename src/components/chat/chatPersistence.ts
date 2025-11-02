@@ -27,37 +27,16 @@ export async function buildChatYaml(
 ) {
     debugLog(settings.debugMode ?? false, 'info', '[buildChatYaml] Entered function', { settings, provider, model, hasActualSystemMessage: !!actualSystemMessage });
     
-    // FIX: Use actual system message if provided (Option 2), otherwise reconstruct (Option 1 fallback)
-    let systemMessage: string;
+    // FIX: Always use the base system message from settings for YAML export
+    // The actualSystemMessage (which may include agent prompts) should not be saved in YAML
+    // as it would override the base system message when loading chats
+    const systemMessage = settings.systemMessage;
     
-    if (actualSystemMessage) {
-        // Option 2: Use the ACTUAL system message that was sent to AI
-        systemMessage = actualSystemMessage;
-        debugLog(settings.debugMode ?? false, 'info', '[buildChatYaml] Using actual system message from chat history', {
-            length: actualSystemMessage.length
-        });
-    } else {
-        // Option 1 fallback: Reconstruct from settings (less accurate but works for old chats)
-        systemMessage = settings.systemMessage;
-        
-        // Include agent system prompt if agent mode is enabled
-        if (plugin && plugin.agentModeManager && plugin.agentModeManager.isAgentModeEnabled()) {
-            try {
-                const { buildAgentSystemPrompt } = await import('../../promptConstants');
-                const agentPrompt = buildAgentSystemPrompt(
-                    settings.enabledTools,
-                    settings.customAgentSystemMessage
-                );
-                systemMessage = agentPrompt + '\n\n' + settings.systemMessage;
-                debugLog(settings.debugMode ?? false, 'info', '[buildChatYaml] Agent mode enabled - prepended agent system prompt (reconstructed)', {
-                    agentPromptLength: agentPrompt.length,
-                    totalSystemMessageLength: systemMessage.length
-                });
-            } catch (error) {
-                debugLog(settings.debugMode ?? false, 'warn', '[buildChatYaml] Failed to build agent system prompt', error);
-            }
-        }
-    }
+    debugLog(settings.debugMode ?? false, 'info', '[buildChatYaml] Using base system message from settings', {
+        systemMessageLength: systemMessage.length,
+        hasActualSystemMessage: !!actualSystemMessage,
+        actualSystemMessageLength: actualSystemMessage?.length || 0
+    });
     
     if (settings.selectedModel) {
         // Unified model format
