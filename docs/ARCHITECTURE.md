@@ -1,7 +1,7 @@
 # AI Assistant for Obsidian - Architecture Guide
 
-> **Last Updated:** October 28, 2025  
-> **Version:** 2.0  
+> **Last Updated:** November 2, 2025  
+> **Version:** 2.1  
 > **Purpose:** Comprehensive reference guide for understanding the codebase architecture
 
 ## Table of Contents
@@ -377,6 +377,41 @@ Dynamic frontmatter generation using AI.
 }
 ```
 
+### Chat Persistence & Export
+
+**Location**: `src/components/chat/chatPersistence.ts`
+
+Handles saving chat conversations as Obsidian notes with YAML frontmatter.
+
+**Features:**
+- YAML frontmatter with provider, model, system message, temperature
+- Agent mode state preservation (`agent_mode_enabled`, `agent_prompt`)
+- Automatic agent mode enabling on note load when `agent_mode_enabled: true` is detected
+- Symmetric behavior: agent mode is disabled when loading notes without agent mode keys
+- Backward compatibility with existing YAML structure
+- **Bug Fix**: Tool display rendering during execution (uses `display.getElement()`)
+- **Bug Fix**: Agent mode button state synchronization after YAML loading
+
+**YAML Export Structure:**
+```yaml
+---
+provider: openai
+model: gpt-4
+unified_model: openai:gpt-4
+system_message: "You are a helpful assistant..."
+temperature: 0.7
+agent_mode_enabled: true
+agent_prompt: "You are an AI assistant with access to tools..."
+---
+
+Chat content here...
+```
+
+**Key Functions:**
+- `buildChatYaml()` - Generate YAML frontmatter for export
+- `loadChatYamlAndApplySettings()` - Load YAML and apply settings
+- `saveChatAsNote()` - Export chat as Obsidian note
+
 ---
 
 ## Data Flow
@@ -583,8 +618,9 @@ ai-assistant-for-obsidian/
 │   └── openrouter.ts              # OpenRouter provider
 │
 ├── tests/                         # Test suite
-│   ├── setup.ts                   # Test setup
+│   ├── setup.ts                   # Global test setup
 │   ├── integration/               # Integration tests
+│   ├── yamlAgentMode.test.ts      # YAML agent mode tests
 │   └── *.test.ts                  # Unit tests
 │
 ├── docs/                          # Documentation

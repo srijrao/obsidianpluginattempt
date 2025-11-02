@@ -341,10 +341,25 @@ export class ChatView extends ItemView {
                 }
             },
             onToolDisplay: (display: ToolRichDisplay) => {
-                // FIX: Remove temporary tool display creation during streaming
-                // Tool displays will be rendered properly when the final message is created
-                // with the enhanced message data containing toolResults
-                this.plugin.debugLog('debug', '[chat.ts] Tool display created - will be rendered in final message');
+                // Render tool display immediately during execution
+                const toolDisplayElement = display.getElement();
+                if (toolDisplayElement) {
+                    // Insert the tool display before the current assistant message
+                    const assistantMessages = this.messagesContainer.querySelectorAll('.ai-chat-message.assistant');
+                    const lastAssistantMessage = assistantMessages[assistantMessages.length - 1];
+                    
+                    if (lastAssistantMessage) {
+                        // Insert after the last assistant message
+                        lastAssistantMessage.insertAdjacentElement('afterend', toolDisplayElement);
+                        this.debouncedScrollToBottom();
+                        this.plugin.debugLog('debug', '[chat.ts] Tool display rendered immediately during execution');
+                    } else {
+                        // Fallback: append to messages container
+                        this.messagesContainer.appendChild(toolDisplayElement);
+                        this.debouncedScrollToBottom();
+                        this.plugin.debugLog('debug', '[chat.ts] Tool display appended to messages container (fallback)');
+                    }
+                }
             }
         });
     }
@@ -847,6 +862,9 @@ export class ChatView extends ItemView {
                     settings: this.plugin.settings,
                     file
                 });
+                
+                // Update agent mode button state after loading YAML settings
+                this.updateAgentModeButtonState();
             }
             await renderChatHistory({
                 messagesContainer: this.messagesContainer,
@@ -1200,9 +1218,11 @@ export class ChatView extends ItemView {
                 this.plugin.debugLog('debug', '[ChatView] Re-rendering message with tool results using MessageRenderer');
                 contentEl.empty();
                 const messageRenderer = new MessageRenderer(this.app);
+                // Use clean content (without tool JSON) for rendering, tool results come from messageData
+                const cleanContent = messageEl.dataset.cleanContent || rawContent.split('\n\n```ai-tool-execution')[0] || rawContent;
                 messageRenderer.renderMessage({
                     role: messageEl.classList.contains('user') ? 'user' : 'assistant',
-                    content: rawContent,
+                    content: cleanContent,
                     toolResults: messageData.toolResults,
                     reasoning: messageData.reasoning,
                     taskStatus: messageData.taskStatus
@@ -1212,7 +1232,7 @@ export class ChatView extends ItemView {
                     contentEl.empty();
                     import('obsidian')
                         .then(({ MarkdownRenderer }) =>
-                            MarkdownRenderer.render(this.app, rawContent, contentEl, '', this)
+                            MarkdownRenderer.render(this.app, cleanContent, contentEl, '', this)
                         )
                         .then(() => import('./utils/linkHandler'))
                         .then(({ enableClickableLinksInMessage }) => {
@@ -1220,7 +1240,7 @@ export class ChatView extends ItemView {
                         })
                         .catch((error) => {
                             console.error('Markdown rendering error:', error);
-                            contentEl.textContent = rawContent;
+                            contentEl.textContent = cleanContent;
                         });
                 });
             } else {
@@ -1256,6 +1276,19 @@ export class ChatView extends ItemView {
         return 8192;
     }
 
+
+    private updateAgentModeButtonState() {
+        const agentButton = this.domElementCache.agentModeButton;
+        if (agentButton) {
+            if (this.plugin.agentModeManager.isAgentModeEnabled()) {
+                agentButton.classList.add('active');
+                agentButton.setAttribute('title', 'Agent Mode: ON - AI can use tools');
+            } else {
+                agentButton.classList.remove('active');
+                agentButton.setAttribute('title', 'Agent Mode: OFF - Regular chat');
+            }
+        }
+    }
 
     private updateRenderModeIndicator() {
         const button = (this.domElementCache as any).renderModeButton as HTMLButtonElement;
@@ -1333,9 +1366,11 @@ export class ChatView extends ItemView {
                         this.plugin.debugLog('debug', '[ChatView] Re-rendering message with tool results using MessageRenderer');
                         contentElement.empty();
                         const messageRenderer = new MessageRenderer(this.app);
+                        // Use clean content (without tool JSON) for rendering, tool results come from messageData
+                        const cleanContent = htmlElement.dataset.cleanContent || rawContent.split('\n\n```ai-tool-execution')[0] || rawContent;
                         messageRenderer.renderMessage({
                             role: htmlElement.classList.contains('user') ? 'user' : 'assistant',
-                            content: rawContent,
+                            content: cleanContent,
                             toolResults: messageData.toolResults,
                             reasoning: messageData.reasoning,
                             taskStatus: messageData.taskStatus
@@ -1345,7 +1380,7 @@ export class ChatView extends ItemView {
                             contentElement.empty();
                             import('obsidian')
                                 .then(({ MarkdownRenderer }) =>
-                                    MarkdownRenderer.render(this.app, rawContent!, contentElement, '', this)
+                                    MarkdownRenderer.render(this.app, cleanContent!, contentElement, '', this)
                                 )
                                 .then(() => import('./utils/linkHandler'))
                                 .then(({ enableClickableLinksInMessage }) => {
@@ -1353,7 +1388,7 @@ export class ChatView extends ItemView {
                                 })
                                 .catch((error) => {
                                     console.error('Re-rendering error:', error);
-                                    contentElement.textContent = rawContent!;
+                                    contentElement.textContent = cleanContent!;
                                 });
                         });
                     } else {

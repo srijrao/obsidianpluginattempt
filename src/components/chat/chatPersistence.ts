@@ -6,6 +6,7 @@ import { debugLog } from '../../utils/logger';
 import { getProviderFromUnifiedModel, getModelIdFromUnifiedModel } from '../../../providers';
 import { MessageRenderer } from '../agent/MessageRenderer';
 import { Notice } from 'obsidian'; // Import Notice
+import { AGENT_SYSTEM_PROMPT } from '../../promptConstants';
 
 /**
  * Builds YAML frontmatter for a chat note based on plugin settings and model info.
@@ -42,24 +43,38 @@ export async function buildChatYaml(
         // Unified model format
         const providerType = getProviderFromUnifiedModel(settings.selectedModel);
         const modelId = getModelIdFromUnifiedModel(settings.selectedModel);
-        const yamlObj = {
+        const yamlObj: any = {
             provider: providerType,
             model: modelId,
             unified_model: settings.selectedModel,
             system_message: systemMessage,
             temperature: settings.temperature
         };
+        
+        // Add agent mode settings if agent mode is enabled
+        if (settings.agentMode?.enabled) {
+            yamlObj.agent_mode_enabled = true;
+            yamlObj.agent_prompt = settings.customAgentSystemMessage || AGENT_SYSTEM_PROMPT;
+        }
+        
         debugLog(settings.debugMode ?? false, 'debug', '[buildChatYaml] Using unified model format', yamlObj);
         debugLog(settings.debugMode ?? false, 'info', '[buildChatYaml] Returning YAML for unified model', { yaml: `---\n${yaml.dump(yamlObj)}---\n` });
         return `---\n${yaml.dump(yamlObj)}---\n`;
     } else {
         // Legacy model format
-        const yamlObj = {
+        const yamlObj: any = {
             provider: provider || settings.provider,
             model: model || getCurrentModelForProvider(settings),
             system_message: systemMessage,
             temperature: settings.temperature
         };
+        
+        // Add agent mode settings if agent mode is enabled
+        if (settings.agentMode?.enabled) {
+            yamlObj.agent_mode_enabled = true;
+            yamlObj.agent_prompt = settings.customAgentSystemMessage || AGENT_SYSTEM_PROMPT;
+        }
+        
         debugLog(settings.debugMode ?? false, 'debug', '[buildChatYaml] Using legacy model format', yamlObj);
         debugLog(settings.debugMode ?? false, 'info', '[buildChatYaml] Returning YAML for legacy model', { yaml: `---\n${yaml.dump(yamlObj)}---\n` });
         return `---\n${yaml.dump(yamlObj)}---\n`;
@@ -328,6 +343,42 @@ export async function loadChatYamlAndApplySettings({
     settings.systemMessage = newSystemMessage;
     settings.temperature = newTemperature;
     debugLog(settings.debugMode ?? false, 'info', '[loadChatYamlAndApplySettings] Applied settings from YAML', { selectedModel: settings.selectedModel, systemMessage: newSystemMessage, temperature: newTemperature });
+    
+    // Apply agent mode settings from YAML
+    if (yamlObj.agent_mode_enabled === true) {
+        debugLog(settings.debugMode ?? false, 'info', '[loadChatYamlAndApplySettings] Agent mode enabled in YAML, enabling agent mode');
+        if (!settings.agentMode) {
+            settings.agentMode = {
+                enabled: false,
+                maxToolCalls: 10,
+                timeoutMs: 30000,
+                maxIterations: 10
+            };
+        }
+        settings.agentMode.enabled = true;
+        
+        // Apply agent prompt if provided
+        if (yamlObj.agent_prompt && typeof yamlObj.agent_prompt === 'string') {
+            settings.customAgentSystemMessage = yamlObj.agent_prompt;
+            debugLog(settings.debugMode ?? false, 'info', '[loadChatYamlAndApplySettings] Applied agent prompt from YAML', { promptLength: yamlObj.agent_prompt.length });
+        }
+        
+        // Use plugin's agent mode manager to enable agent mode if available
+        if (plugin?.agentModeManager) {
+            await plugin.agentModeManager.setAgentModeEnabled(true);
+            debugLog(settings.debugMode ?? false, 'info', '[loadChatYamlAndApplySettings] Agent mode enabled via manager');
+        }
+    } else {
+        debugLog(settings.debugMode ?? false, 'info', '[loadChatYamlAndApplySettings] Agent mode not enabled in YAML (or key not present), disabling agent mode');
+        if (settings.agentMode) {
+            settings.agentMode.enabled = false;
+        }
+        if (plugin?.agentModeManager) {
+            await plugin.agentModeManager.setAgentModeEnabled(false);
+            debugLog(settings.debugMode ?? false, 'info', '[loadChatYamlAndApplySettings] Agent mode disabled via manager');
+        }
+    }
+    
     if (plugin.onSettingsLoadedFromNote) {
         debugLog(settings.debugMode ?? false, 'debug', '[loadChatYamlAndApplySettings] Calling plugin.onSettingsLoadedFromNote');
         plugin.onSettingsLoadedFromNote(settings);

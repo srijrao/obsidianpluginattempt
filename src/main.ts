@@ -125,25 +125,75 @@ export default class MyPlugin extends Plugin {
         const chatView = leaves[0].view as ChatView;
         chatView.clearMessages();
         
-        for (const msg of messages) {
+        for (let i = 0; i < messages.length; i++) {
+            const msg = messages[i];
+            let content = msg.content;
+            
+            // Fix: If this is the first message and it starts with the system message, remove it
+            // This can happen if the system message was incorrectly included in the saved content
+            if (i === 0 && this.settings.systemMessage && content.startsWith(this.settings.systemMessage)) {
+                content = content.substring(this.settings.systemMessage.length).trim();
+                // Remove leading newlines
+                content = content.replace(/^\n+/, '');
+                this.debugLog('debug', '[main.ts] Removed system message from first message content', { originalLength: msg.content.length, newLength: content.length });
+            }
+            
             if (msg.role === 'user' || msg.role === 'assistant') {
-                // Parse tool data if present in the message content
-                const toolData = parseToolDataFromContent(msg.content);
+                // Check if message already has tool data (from parseChatNoteContent)
+                const hasToolData = msg.toolResults && msg.toolResults.length > 0;
                 
-                if (toolData) {
-                    // Clean the content to remove tool data markup
-                    const cleanContent = cleanContentFromToolData(msg.content);
-                    // Add the message with tool data to the chat view
-                    await chatView["addMessage"](msg.role, cleanContent, false, {
-                        toolResults: toolData.toolResults,
-                        reasoning: toolData.reasoning,
-                        taskStatus: toolData.taskStatus
+                if (hasToolData) {
+                    // Use the tool data that was already parsed from the note
+                    // For source mode to work correctly, we need to reconstruct the original content with tool JSON
+                    const originalContent = content + '\n\n```ai-tool-execution\n' + JSON.stringify({
+                        toolResults: msg.toolResults,
+                        reasoning: msg.reasoning,
+                        taskStatus: msg.taskStatus
+                    }, null, 2) + '\n```\n';
+                    
+                    await chatView["addMessage"](msg.role, content, false, {
+                        toolResults: msg.toolResults,
+                        reasoning: msg.reasoning,
+                        taskStatus: msg.taskStatus
                     });
-                    this.debugLog('debug', '[main.ts] Added message with tool data', { role: msg.role, toolData });
+                    
+                    // Update the rawContent to include the tool JSON for source mode
+                    const messageElements = (chatView as any).messagesContainer.querySelectorAll('.ai-chat-message');
+                    const lastMessageEl = messageElements[messageElements.length - 1] as HTMLElement;
+                    if (lastMessageEl) {
+                        lastMessageEl.dataset.rawContent = originalContent;
+                        // Store clean content separately for live mode rendering
+                        lastMessageEl.dataset.cleanContent = content;
+                    }
+                    
+                    this.debugLog('debug', '[main.ts] Added message with existing tool data', { role: msg.role, toolResultsCount: msg.toolResults?.length });
                 } else {
-                    // Add a regular message
-                    await chatView["addMessage"](msg.role, msg.content);
-                    this.debugLog('debug', '[main.ts] Added regular message', { role: msg.role });
+                    // Try to parse tool data from content (fallback for backward compatibility)
+                    const toolData = parseToolDataFromContent(content);
+                    
+                    if (toolData) {
+                        // Clean the content to remove tool data markup
+                        const cleanContent = cleanContentFromToolData(content);
+                        // Add the message with tool data to the chat view
+                        await chatView["addMessage"](msg.role, cleanContent, false, {
+                            toolResults: toolData.toolResults,
+                            reasoning: toolData.reasoning,
+                            taskStatus: toolData.taskStatus
+                        });
+                        
+                        // For source mode, store the original content with tool JSON
+                        const messageElements = (chatView as any).messagesContainer.querySelectorAll('.ai-chat-message');
+                        const lastMessageEl = messageElements[messageElements.length - 1] as HTMLElement;
+                        if (lastMessageEl) {
+                            lastMessageEl.dataset.rawContent = content; // Keep original content with tool JSON
+                        }
+                        
+                        this.debugLog('debug', '[main.ts] Added message with parsed tool data', { role: msg.role, toolData });
+                    } else {
+                        // Add a regular message
+                        await chatView["addMessage"](msg.role, content);
+                        this.debugLog('debug', '[main.ts] Added regular message', { role: msg.role });
+                    }
                 }
             }
         }

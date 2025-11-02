@@ -40,6 +40,7 @@ A feature-rich AI assistant plugin for Obsidian that brings powerful AI capabili
 - **Live/Source mode toggle** - view formatted or raw markdown
 - **Token count display** - monitor context window usage
 - **Clickable links** - navigate to notes directly from chat
+- **Agent mode state preservation** - chat notes export/import with agent mode settings
 
 ### 🛠️ Agent Mode & Tool Execution
 Enable Agent Mode to let AI autonomously use tools:
@@ -195,7 +196,8 @@ The chat interface is the primary way to interact with AI models.
 - **Clear Chat** - Erase current conversation
 - **Save Session** - Save conversation with a name
 - **Load Session** - Restore a previously saved conversation
-- **Export Chat** - Export to a note file
+- **Export Chat** - Export to a note file with agent mode state preservation
+- **Load Chat Note** - Import chat from note with automatic agent mode restoration
 
 #### Advanced Features
 
@@ -720,6 +722,28 @@ You: Which one should I use for a real-time dashboard?
 
 AI: [Context-aware response referencing previous answer]
 ```
+
+### Agent Mode State Preservation
+
+**Scenario:** Export and import chats with agent mode settings
+
+1. **Enable Agent Mode** and have an agent conversation
+2. **Export Chat:** Click "Export Chat" to save as note
+3. **YAML Frontmatter** automatically includes:
+```yaml
+---
+agent_mode_enabled: true
+agent_prompt: "You are an AI assistant with access to tools..."
+---
+```
+4. **Load Chat Note:** Use "Load Chat Note into Chat" command
+5. **Agent Mode** automatically enables with preserved settings
+
+**Benefits:**
+- Agent-enabled chats maintain their tool capabilities when exported
+- No need to manually re-enable agent mode after loading
+- Custom agent prompts are preserved
+- Backward compatible with existing chat notes
 
 ### Agent Mode Automation
 
