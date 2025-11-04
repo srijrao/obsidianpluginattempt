@@ -18,7 +18,7 @@
 
 import { ItemView, WorkspaceLeaf, Notice } from 'obsidian';
 import MyPlugin from './main';
-import { Message, ToolCommand, ToolResult } from './types';
+import { Message, ToolCommand, ToolResult, ToolExecutionResult } from './types';
 import { ChatHistoryManager, ChatMessage } from './components/chat/ChatHistoryManager';
 import { createMessageElement } from './components/chat/Message';
 import { createChatUI, ChatUIElements } from './components/chat/ui';
@@ -34,6 +34,7 @@ import { StreamCoordinator } from './services/chat/StreamCoordinator';
 import { IEventBus } from './services/interfaces';
 import { MessageRenderer } from './components/agent/MessageRenderer';
 import { ToolRichDisplay } from './components/agent/ToolRichDisplay';
+import { SourceModeRenderer } from './components/chat/SourceModeRenderer';
 import { MessageContextPool, WeakCache, PreAllocatedArrays } from './utils/objectPool';
 import { DOMBatcher } from './utils/domBatcher';
 import { handleChatError, withErrorHandling } from './utils/errorHandler';
@@ -62,6 +63,7 @@ export class ChatView extends ItemView {
     private arrayManager: PreAllocatedArrays;
     private cachedMessageElements: HTMLElement[] = [];
     private lastScrollHeight: number = 0;
+    private sourceModeRenderer: SourceModeRenderer;
     private domElementCache: {
         textarea?: HTMLTextAreaElement;
         sendButton?: HTMLButtonElement;
@@ -104,6 +106,7 @@ export class ChatView extends ItemView {
         this.plugin = plugin;
         this.chatHistoryManager = new ChatHistoryManager(this.app.vault, this.plugin.manifest.id, "chat-history.json");
         this.messageRenderer = new MessageRenderer(this.app);
+        this.sourceModeRenderer = new SourceModeRenderer(this.app);
         this.messagePool = MessageContextPool.getInstance();
         this.domCache = new WeakCache();
         this.arrayManager = PreAllocatedArrays.getInstance();
@@ -638,7 +641,7 @@ export class ChatView extends ItemView {
             // FIX: Ensure rawContent is stored in dataset for proper context building
             userMessageEl.dataset.rawContent = content;
             this.messagesContainer.appendChild(userMessageEl);
-            this.applyRenderModeToElement(userMessageEl);
+            await this.applyRenderModeToElement(userMessageEl);
             this.debouncedScrollToBottom();
             textarea.value = '';
             
@@ -714,34 +717,49 @@ export class ChatView extends ItemView {
                 this.plugin.debugLog('debug', '[chat.ts] responseContent length:', responseContent.length, 'trimmed length:', responseContent.trim().length);
                 tempContainer.remove();
                 if (responseContent.trim() !== "" || (enhancedMessageData && enhancedMessageData.toolResults && enhancedMessageData.toolResults.length > 0)) {
+                    // FIX: For new architecture, embed tool data in markdown content instead of storing separately
+                    let contentToSave = responseContent;
+                    if (enhancedMessageData && enhancedMessageData.toolResults && enhancedMessageData.toolResults.length > 0) {
+                        // Embed tool data in the markdown content
+                        const { embedToolDataInMarkdown } = await import('./utils/messageContentParser');
+                        contentToSave = embedToolDataInMarkdown(
+                            responseContent,
+                            enhancedMessageData.toolResults,
+                            enhancedMessageData.reasoning,
+                            enhancedMessageData.taskStatus
+                        );
+                        this.plugin.debugLog('debug', '[chat.ts] Embedded tool data in message content for history', {
+                            originalLength: responseContent.length,
+                            embeddedLength: contentToSave.length,
+                            toolResultsCount: enhancedMessageData.toolResults.length
+                        });
+                    }
+
                     const messageEl = await createMessageElement(
                         this.app,
                         'assistant',
-                        responseContent,
+                        responseContent, // Use cleaned content for UI display
                         this.chatHistoryManager,
                         this.plugin,
                         (el) => this.regenerateResponse(el),
                         this,
                         enhancedMessageData
                     );
-                    // FIX: Ensure rawContent is stored in dataset for proper context building
-                    messageEl.dataset.rawContent = responseContent;
+                    // FIX: Store embedded content in dataset for proper context building and history
+                    messageEl.dataset.rawContent = contentToSave;
                     this.messagesContainer.appendChild(messageEl);
-                    this.applyRenderModeToElement(messageEl);
+                    await this.applyRenderModeToElement(messageEl);
                     
                     // FIX: Invalidate message cache to ensure fresh DOM reads include this new message
                     this.invalidateMessageCache();
-                    this.plugin.debugLog('debug', '[chat.ts] About to save message to history with toolResults:', !!enhancedMessageData?.toolResults);
+                    this.plugin.debugLog('debug', '[chat.ts] About to save message to history with embedded tool data');
                     await this.chatHistoryManager.addMessage({
                         timestamp: messageEl.dataset.timestamp || new Date().toISOString(),
                         sender: 'assistant',
-                        content: responseContent,
+                        role: 'assistant',
+                        content: contentToSave, // Save content with embedded tool data
                         ...(actualSystemMessage && { actualSystemMessage }),  // FIX: Store actual system message for debugging
-                        ...(enhancedMessageData && {
-                            toolResults: enhancedMessageData.toolResults,
-                            reasoning: enhancedMessageData.reasoning,
-                            taskStatus: enhancedMessageData.taskStatus
-                        })
+                        // Tool data is now embedded in content, no need for separate fields
                     });
                     this.plugin.debugLog('debug', '[chat.ts] Message saved to history successfully');
                 } else {
@@ -880,7 +898,7 @@ export class ChatView extends ItemView {
                 this.reRenderAllMessages();
             } else {
                 const renderedMessages = this.messagesContainer.querySelectorAll('.ai-chat-message');
-                renderedMessages.forEach((messageEl) => this.applyRenderModeToElement(messageEl as HTMLElement));
+                await Promise.all(Array.from(renderedMessages).map((messageEl) => this.applyRenderModeToElement(messageEl as HTMLElement)));
             }
         }
     }
@@ -896,10 +914,10 @@ export class ChatView extends ItemView {
             });
         }));
         // When a message is edited, ensure the current render mode is applied to that element
-        this.registerEvent((this.app.workspace as any).on('ai-assistant:message-edited', (el: HTMLElement) => {
+        this.registerEvent((this.app.workspace as any).on('ai-assistant:message-edited', async (el: HTMLElement) => {
             if (el && el.classList && el.classList.contains('ai-chat-message')) {
                 try {
-                    this.applyRenderModeToElement(el);
+                    await this.applyRenderModeToElement(el);
                     // Invalidate cache so downstream context building uses fresh content
                     this.invalidateMessageCache();
                 } catch (e) {
@@ -919,14 +937,33 @@ export class ChatView extends ItemView {
         this.plugin.onSettingsChange(this.settingsChangeCallback);
     }
     private async addMessage(role: 'user' | 'assistant', content: string, isError: boolean = false, enhancedData?: Partial<Pick<Message, 'reasoning' | 'taskStatus' | 'toolResults'>>): Promise<void> {
-        const messageEl = await createMessageElement(this.app, role, content, this.chatHistoryManager, this.plugin, (el: HTMLElement) => this.regenerateResponse(el), this, enhancedData ? { role, content, ...enhancedData } : undefined);
+        // For new architecture: embed tool data in content if provided
+        let contentToSave = content;
+        let contentForUI = content;
+
+        if (enhancedData && enhancedData.toolResults && enhancedData.toolResults.length > 0) {
+            const { embedToolDataInMarkdown } = await import('./utils/messageContentParser');
+            contentToSave = embedToolDataInMarkdown(
+                content,
+                enhancedData.toolResults,
+                enhancedData.reasoning,
+                enhancedData.taskStatus
+            );
+            this.plugin.debugLog('debug', '[ChatView] Embedded tool data in addMessage content', {
+                originalLength: content.length,
+                embeddedLength: contentToSave.length,
+                toolResultsCount: enhancedData.toolResults.length
+            });
+        }
+
+        const messageEl = await createMessageElement(this.app, role, contentForUI, this.chatHistoryManager, this.plugin, (el: HTMLElement) => this.regenerateResponse(el), this, enhancedData ? { role, content: contentForUI, ...enhancedData } : undefined);
         const uiTimestamp = messageEl.dataset.timestamp || new Date().toISOString();
-        // FIX: Ensure rawContent is stored in dataset for proper context building
-        messageEl.dataset.rawContent = content;
+        // FIX: Store embedded content in dataset for proper context building and history
+        messageEl.dataset.rawContent = contentToSave;
         this.messagesContainer.appendChild(messageEl);
-    this.applyRenderModeToElement(messageEl);
+        await this.applyRenderModeToElement(messageEl);
         this.debouncedScrollToBottom();
-        
+
         // FIX: Invalidate message cache to ensure fresh DOM reads include this new message
         this.invalidateMessageCache();
         await withErrorHandling(
@@ -934,14 +971,14 @@ export class ChatView extends ItemView {
                 timestamp: uiTimestamp,
                 sender: role,
                 role: role,
-                content,
+                content: contentToSave, // Save content with embedded tool data
                 ...(enhancedData || {})
             }),
             'ChatView',
             'addMessage',
             { fallbackMessage: 'Failed to save chat message' }
         );
-        
+
         // Update token count after adding message
         if (this.plugin.settings.showTokenCounter !== false) {
             await this.updateModelNameDisplay();
@@ -1180,7 +1217,7 @@ export class ChatView extends ItemView {
         return truncated;
     }
 
-    public applyRenderModeToElement(messageEl: HTMLElement): void {
+    public async applyRenderModeToElement(messageEl: HTMLElement): Promise<void> {
         const mode = this.plugin.settings.uiBehavior?.chatRenderMode || 'live';
         const contentEl = messageEl.querySelector('.message-content') as HTMLElement;
         if (!contentEl) {
@@ -1189,43 +1226,27 @@ export class ChatView extends ItemView {
 
         const rawContent = messageEl.dataset.rawContent || contentEl.textContent || '';
         
-        // FIX: Check if message has tool results - if so, use MessageRenderer instead of basic MarkdownRenderer
-        const messageDataStr = messageEl.dataset.messageData;
-        let messageData: any = null;
-        if (messageDataStr) {
-            try {
-                messageData = JSON.parse(messageDataStr);
-            } catch (e) {
-                this.plugin.debugLog('warn', '[ChatView] Failed to parse messageData in applyRenderModeToElement', e);
-            }
-        }
-        
         if (mode === 'source') {
-            contentEl.empty();
-            const pre = document.createElement('pre');
-            pre.style.whiteSpace = 'pre-wrap';
-            pre.style.fontFamily = 'monospace';
-            pre.style.fontSize = '0.9em';
-            pre.style.background = 'var(--background-secondary)';
-            pre.style.padding = '0.5em';
-            pre.style.borderRadius = '4px';
-            pre.textContent = rawContent;
-            contentEl.appendChild(pre);
+            this.sourceModeRenderer.renderSourceMode(rawContent, contentEl);
         } else {
-            // Live mode: Check if message has tool results
-            if (messageData && messageData.toolResults && messageData.toolResults.length > 0) {
-                // FIX: Use MessageRenderer for messages with tool results to preserve tool displays
-                this.plugin.debugLog('debug', '[ChatView] Re-rendering message with tool results using MessageRenderer');
-                contentEl.empty();
+            // Live mode: Parse tool data from markdown content and render appropriately
+            contentEl.empty();
+            
+            // Parse tool data from markdown content
+            const { parseToolDataFromMarkdown, cleanMarkdownFromToolData } = await import('./utils/messageContentParser');
+            const toolData = parseToolDataFromMarkdown(rawContent);
+            const cleanContent = cleanMarkdownFromToolData(rawContent);
+            
+            if (toolData && toolData.toolResults && toolData.toolResults.length > 0) {
+                // FIX: Use MessageRenderer for messages with embedded tool data
+                this.plugin.debugLog('debug', '[ChatView] Re-rendering message with embedded tool data using MessageRenderer');
                 const messageRenderer = new MessageRenderer(this.app);
-                // Use clean content (without tool JSON) for rendering, tool results come from messageData
-                const cleanContent = messageEl.dataset.cleanContent || rawContent.split('\n\n```ai-tool-execution')[0] || rawContent;
                 messageRenderer.renderMessage({
                     role: messageEl.classList.contains('user') ? 'user' : 'assistant',
                     content: cleanContent,
-                    toolResults: messageData.toolResults,
-                    reasoning: messageData.reasoning,
-                    taskStatus: messageData.taskStatus
+                    toolResults: toolData.toolResults,
+                    reasoning: toolData.reasoning,
+                    taskStatus: toolData.taskStatus
                 } as any, messageEl, this).catch((error) => {
                     this.plugin.debugLog('error', '[ChatView] MessageRenderer failed, falling back to MarkdownRenderer', error);
                     // Fallback to basic markdown rendering
@@ -1244,8 +1265,7 @@ export class ChatView extends ItemView {
                         });
                 });
             } else {
-                // Regular message without tool results - use standard MarkdownRenderer
-                contentEl.empty();
+                // Regular message without tool data - use standard MarkdownRenderer
                 import('obsidian')
                     .then(({ MarkdownRenderer }) =>
                         MarkdownRenderer.render(this.app, rawContent, contentEl, '', this)
@@ -1338,61 +1358,13 @@ export class ChatView extends ItemView {
 
             if (rawContent && rawContent.length > 0) {
                 if (currentMode === 'source') {
-                    // Show raw markdown/text
-                    contentElement.empty();
-                    const pre = document.createElement('pre');
-                    pre.style.whiteSpace = 'pre-wrap';
-                    pre.style.fontFamily = 'monospace';
-                    pre.style.fontSize = '0.9em';
-                    pre.style.background = 'var(--background-secondary)';
-                    pre.style.padding = '0.5em';
-                    pre.style.borderRadius = '4px';
-                    pre.textContent = rawContent;
-                    contentElement.appendChild(pre);
+                    // Show raw markdown/text using SourceModeRenderer
+                    this.sourceModeRenderer.renderSourceMode(rawContent, contentElement);
                 } else {
-                    // Live mode: Check if message has tool results
-                    const messageDataStr = htmlElement.dataset.messageData;
-                    let messageData: any = null;
-                    if (messageDataStr) {
-                        try {
-                            messageData = JSON.parse(messageDataStr);
-                        } catch (e) {
-                            this.plugin.debugLog('warn', '[ChatView] Failed to parse messageData in reRenderAllMessages', e);
-                        }
-                    }
-                    
-                    if (messageData && messageData.toolResults && messageData.toolResults.length > 0) {
-                        // FIX: Use MessageRenderer for messages with tool results to preserve tool displays
-                        this.plugin.debugLog('debug', '[ChatView] Re-rendering message with tool results using MessageRenderer');
-                        contentElement.empty();
-                        const messageRenderer = new MessageRenderer(this.app);
-                        // Use clean content (without tool JSON) for rendering, tool results come from messageData
-                        const cleanContent = htmlElement.dataset.cleanContent || rawContent.split('\n\n```ai-tool-execution')[0] || rawContent;
-                        messageRenderer.renderMessage({
-                            role: htmlElement.classList.contains('user') ? 'user' : 'assistant',
-                            content: cleanContent,
-                            toolResults: messageData.toolResults,
-                            reasoning: messageData.reasoning,
-                            taskStatus: messageData.taskStatus
-                        } as any, htmlElement, this).catch((error) => {
-                            this.plugin.debugLog('error', '[ChatView] MessageRenderer failed in reRenderAllMessages, falling back to MarkdownRenderer', error);
-                            // Fallback to basic markdown rendering
-                            contentElement.empty();
-                            import('obsidian')
-                                .then(({ MarkdownRenderer }) =>
-                                    MarkdownRenderer.render(this.app, cleanContent!, contentElement, '', this)
-                                )
-                                .then(() => import('./utils/linkHandler'))
-                                .then(({ enableClickableLinksInMessage }) => {
-                                    enableClickableLinksInMessage(htmlElement, this.app);
-                                })
-                                .catch((error) => {
-                                    console.error('Re-rendering error:', error);
-                                    contentElement.textContent = cleanContent!;
-                                });
-                        });
-                    } else {
-                        // Re-render as formatted markdown
+                    // Live mode: Parse tool data from embedded markdown content
+                    this.applyRenderModeToElement(htmlElement).catch((error) => {
+                        this.plugin.debugLog('error', '[ChatView] Failed to re-render message in live mode, falling back to basic markdown', error);
+                        // Fallback to basic markdown rendering
                         contentElement.empty();
                         import('obsidian')
                             .then(({ MarkdownRenderer }) =>
@@ -1400,15 +1372,13 @@ export class ChatView extends ItemView {
                             )
                             .then(() => import('./utils/linkHandler'))
                             .then(({ enableClickableLinksInMessage }) => {
-                                // Re-enable clickable links after re-rendering
                                 enableClickableLinksInMessage(htmlElement, this.app);
                             })
-                            .catch((error) => {
-                                console.error('Re-rendering error:', error);
-                                // Fallback to plain text to avoid empty content on failure
+                            .catch((fallbackError) => {
+                                console.error('Re-rendering fallback error:', fallbackError);
                                 contentElement.textContent = rawContent!;
                             });
-                    }
+                    });
                 }
             } else {
                 // As a last resort, don't leave the message empty; keep whatever text was visible
@@ -1583,21 +1553,39 @@ export class ChatView extends ItemView {
                     chatHistory
                 );
                 
-                // Store enhanced message data in container for later use
+                // For new architecture: Embed tool data in markdown content instead of dataset
                 if (agentResult.toolResults && agentResult.toolResults.length > 0) {
+                    const { embedToolDataInMarkdown } = await import('./utils/messageContentParser');
+                    
+                    // Convert agent result format to ToolExecutionResult[] by adding timestamps
+                    const toolExecutionResults: ToolExecutionResult[] = agentResult.toolResults.map(toolResult => ({
+                        command: toolResult.command,
+                        result: toolResult.result,
+                        timestamp: new Date().toISOString()
+                    }));
+                    
+                    responseContent = embedToolDataInMarkdown(
+                        responseContent,
+                        toolExecutionResults,
+                        agentResult.reasoning,
+                        agentResult.taskStatus
+                    );
+                    
+                    // Store in dataset for backward compatibility during transition
                     const messageData = {
-                        toolResults: agentResult.toolResults,
+                        content: responseContent, // Include the processed content
+                        toolResults: toolExecutionResults,
                         reasoning: agentResult.reasoning,
                         taskStatus: agentResult.taskStatus
                     };
                     container.dataset.messageData = JSON.stringify(messageData);
-                    this.plugin.debugLog('debug', '[ChatView] Stored agent message data', {
-                        toolResultsCount: agentResult.toolResults.length
+                    
+                    this.plugin.debugLog('debug', '[ChatView] Embedded tool data in streaming response content', {
+                        toolResultsCount: agentResult.toolResults.length,
+                        originalLength: originalRawResponse.length,
+                        embeddedLength: responseContent.length
                     });
                 }
-                
-                // Update response content with processed text
-                responseContent = agentResult.processedText;
                 
                 // Update UI with final processed content
                 const messageDiv = container.querySelector('.message-content');

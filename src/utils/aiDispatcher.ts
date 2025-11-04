@@ -715,7 +715,8 @@ export class AIDispatcher {
                     model: this.plugin.settings.selectedModel || 'default',
                     messages: messages,
                 options: options,
-                timestamp: new Date().toISOString()
+                timestamp: new Date().toISOString(),
+                agentMode: this.plugin.settings.agentMode?.enabled ?? false
             };
 
             // Wrap the stream callback to capture the full response
@@ -815,7 +816,8 @@ export class AIDispatcher {
                     model: this.plugin.settings.selectedModel || 'default',
                     messages: messages,
                     options: options,
-                    timestamp: new Date().toISOString()
+                    timestamp: new Date().toISOString(),
+                    agentMode: this.plugin.settings.agentMode?.enabled ?? false
                 };
                 const pluginApp = getPluginApp(this.plugin);
                 if (pluginApp) {

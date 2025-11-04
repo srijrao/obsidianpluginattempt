@@ -225,6 +225,7 @@ export class ResponseStreamer {
     /**
      * Handles responses that include tool execution.
      * Updates the message with rich tool displays and handles task completion/continuation.
+     * For new architecture: embeds tool data in markdown content instead of dataset.
      * @param agentResult The result from AgentResponseHandler
      * @param container The message DOM element
      * @param responseContent The raw response content
@@ -242,23 +243,39 @@ export class ResponseStreamer {
         // The processed text (without tool JSON)
         const finalContent = agentResult.processedText;
 
-        // Create enhanced message data including tool results
-        const enhancedMessageData = this.createEnhancedMessageData(
+        // For new architecture: embed tool data in markdown content
+        const { embedToolDataInMarkdown } = await import('../../utils/messageContentParser');
+        const toolExecutionResults = agentResult.toolResults.map((toolResult: any) => ({
+            command: toolResult.command,
+            result: toolResult.result,
+            timestamp: new Date().toISOString()
+        }));
+
+        const contentWithEmbeddedTools = embedToolDataInMarkdown(
             finalContent,
+            toolExecutionResults,
+            agentResult.reasoning,
+            agentResult.taskStatus
+        );
+
+        // Create enhanced message data for backward compatibility
+        const enhancedMessageData = this.createEnhancedMessageData(
+            contentWithEmbeddedTools, // Use content with embedded tools
             agentResult,
-            agentResult.toolResults
+            toolExecutionResults
         );
 
         // Update the container with the enhanced data and re-render
-        this.updateContainerWithMessageData(container, enhancedMessageData, finalContent);
+        this.updateContainerWithMessageData(container, enhancedMessageData, contentWithEmbeddedTools);
 
         // Handle task completion or continuation based on tool results
-        return this.handleTaskCompletion(agentResult, finalContent, responseContent, messages, container, chatHistory);
+        return this.handleTaskCompletion(agentResult, contentWithEmbeddedTools, responseContent, messages, container, chatHistory);
     }
 
     /**
      * Handles responses without tool execution but potentially with reasoning.
      * Updates the message with reasoning display and checks for reasoning continuation.
+     * For new architecture: embeds reasoning data in markdown content.
      * @param agentResult The result from AgentResponseHandler
      * @param container The message DOM element
      * @param responseContent The raw response content
@@ -273,24 +290,38 @@ export class ResponseStreamer {
         messages: Message[],
         chatHistory?: any[]
     ): Promise<string> {
-        // If reasoning is present, update the message display
+        let finalContent = responseContent;
+
+        // If reasoning is present, embed it in the content for new architecture
         if (agentResult.reasoning) {
-            const enhancedMessageData = this.createEnhancedMessageData(responseContent, agentResult);
-            this.updateContainerWithMessageData(container, enhancedMessageData, responseContent);
+            const { embedToolDataInMarkdown } = await import('../../utils/messageContentParser');
+            finalContent = embedToolDataInMarkdown(
+                responseContent,
+                undefined, // no tool results
+                agentResult.reasoning,
+                agentResult.taskStatus
+            );
+        }
+
+        // Update the container with the enhanced data and re-render
+        if (agentResult.reasoning) {
+            const enhancedMessageData = this.createEnhancedMessageData(finalContent, agentResult);
+            this.updateContainerWithMessageData(container, enhancedMessageData, finalContent);
         }
 
         // Check if the response indicates a reasoning step that requires continuation
         if (this.isReasoningStep(responseContent)) {
-            return await this.handleReasoningContinuation(responseContent, messages, container, chatHistory);
+            return await this.handleReasoningContinuation(finalContent, messages, container, chatHistory);
         }
 
-        // Otherwise, return the original response content
-        return responseContent;
+        // Otherwise, return the final content
+        return finalContent;
     }
 
     /**
      * Creates enhanced message data structure including reasoning, task status, and tool results.
-     * @param content The main message content
+     * For new architecture: expects content to already have embedded tool data.
+     * @param content The main message content (should already have embedded data)
      * @param agentResult The agent's processing result
      * @param toolResults Optional array of tool execution results
      * @returns Message object with additional metadata
@@ -302,7 +333,7 @@ export class ResponseStreamer {
     ): Message {
         const messageData: Message = {
             role: 'assistant',
-            content,
+            content, // Use content that already has embedded data
             reasoning: agentResult.reasoning,
             taskStatus: agentResult.taskStatus
         };

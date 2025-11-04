@@ -1,18 +1,20 @@
 import { Vault, TFile, TFolder, normalizePath } from "obsidian";
 import { ReasoningData, TaskStatus, ToolExecutionResult } from '../../types';
+import { embedToolDataInMarkdown } from '../../utils/messageContentParser';
 
 /**
  * Represents a single chat message in the chat history.
+ * NEW FORMAT: Content is always raw markdown, tool data embedded as JSON blocks.
  */
 export interface ChatMessage {
   timestamp: string;                // ISO timestamp of the message
   sender: string;                   // Sender identifier (e.g., "user" or "assistant")
   role: 'system' | 'user' | 'assistant'; // Message role for AI processing
-  content: string;                  // Message content (markdown or plain text)
+  content: string;                  // RAW MARKDOWN - complete message content including embedded tool JSON blocks
   reasoning?: ReasoningData;        // Optional reasoning data (for agent mode)
   taskStatus?: TaskStatus;          // Optional task status (for agent mode)
-  toolResults?: ToolExecutionResult[]; // Optional tool execution results (for agent mode)
-  actualSystemMessage?: string;     // FIX: Optional actual system message sent to AI (includes agent tools if enabled)
+  toolResults?: ToolExecutionResult[]; // DEPRECATED - tool data now embedded in content as `ai-tool-execution` JSON blocks
+  actualSystemMessage?: string;     // Optional actual system message sent to AI (includes agent tools if enabled)
 }
 
 /**
@@ -50,35 +52,9 @@ export class ChatHistoryManager {
   }
 
   /**
-   * Ensures the directory for the history file exists, creating it if needed.
-   */
-  private async ensureDirectoryExists(): Promise<void> {
-    const dirPath = this.historyFilePath.substring(0, this.historyFilePath.lastIndexOf('/'));
-    if (!dirPath) return;
-
-    try {
-      const abstractFile = this.vault.getAbstractFileByPath(dirPath);
-      if (abstractFile === null) {
-        // Directory does not exist, create it
-        await this.vault.createFolder(dirPath);
-      } else if (!(abstractFile instanceof TFolder)) {
-        // Path exists but is not a folder
-        console.error(`Path ${dirPath} exists but is not a folder.`);
-        throw new Error(`Path ${dirPath} exists but is not a folder.`);
-      }
-    } catch (e) {
-      // Ignore "folder already exists" errors
-      if (e.message && e.message.toLowerCase().includes("folder already exists")) {
-        return;
-      }
-      console.error(`Failed to ensure directory ${dirPath} exists:`, e);
-      throw e;
-    }
-  }
-
-  /**
    * Loads chat history from the history file.
    * If the file does not exist or is invalid, returns an empty array.
+   * Automatically migrates old format messages to new format.
    * @returns Promise resolving to the chat history array
    */
   async loadHistory(): Promise<ChatMessage[]> {
@@ -87,7 +63,9 @@ export class ChatHistoryManager {
       if (exists) {
         const data = await this.vault.adapter.read(this.historyFilePath);
         try {
-          this.history = JSON.parse(data) as ChatMessage[];
+          const rawHistory = JSON.parse(data) as ChatMessage[];
+          // Migrate old format messages to new format
+          this.history = rawHistory.map(msg => this.migrateMessageToNewFormat(msg));
         } catch (parseError) {
           console.error('Failed to parse chat history:', parseError);
           this.history = [];
@@ -150,7 +128,7 @@ export class ChatHistoryManager {
 
   /**
    * Updates a specific message in the chat history.
-   * Optionally updates reasoning, taskStatus, and toolResults.
+   * For new architecture, embeds tool data in content instead of storing separately.
    * @param timestamp The timestamp of the message to update
    * @param sender The sender of the message to update
    * @param oldContent The old content to match
@@ -171,15 +149,84 @@ export class ChatHistoryManager {
       msg.content === oldContent
     );
     if (message) {
-      message.content = newContent;
-      if (enhancedData) {
-        if ('reasoning' in enhancedData) message.reasoning = enhancedData.reasoning;
-        if ('taskStatus' in enhancedData) message.taskStatus = enhancedData.taskStatus;
-        if ('toolResults' in enhancedData) message.toolResults = enhancedData.toolResults;
+      // For new architecture, embed tool data in content if provided
+      let contentToSave = newContent;
+      if (enhancedData && enhancedData.toolResults && enhancedData.toolResults.length > 0) {
+        contentToSave = embedToolDataInMarkdown(
+          newContent,
+          enhancedData.toolResults,
+          enhancedData.reasoning,
+          enhancedData.taskStatus
+        );
       }
+
+      message.content = contentToSave;
+
+      // Clear old separate fields since they're now embedded (for new messages)
+      if (enhancedData && enhancedData.toolResults) {
+        message.toolResults = undefined;
+        message.reasoning = undefined;
+        message.taskStatus = undefined;
+      }
+
       await this.saveHistory();
     } else {
       // Message not found; do nothing
+    }
+  }
+
+  /**
+   * Migrates old format messages to new embedded format.
+   * Old format: toolResults, reasoning, taskStatus as separate fields
+   * New format: tool data embedded in markdown content as JSON code blocks
+   * @param message The message to migrate
+   * @returns The migrated message
+   */
+  private migrateMessageToNewFormat(message: ChatMessage): ChatMessage {
+    // Check if message already has embedded tool data (new format)
+    if (message.content.includes('```ai-tool-execution')) {
+      // Already migrated, return as-is
+      return message;
+    }
+
+    // Check if message has old separate fields that need embedding
+    if (message.toolResults && message.toolResults.length > 0) {
+      // Migrate: embed tool data in content
+      const migratedContent = embedToolDataInMarkdown(
+        message.content,
+        message.toolResults,
+        message.reasoning,
+        message.taskStatus
+      );
+
+      // Return migrated message with embedded content and cleared separate fields
+      return {
+        ...message,
+        content: migratedContent,
+        toolResults: undefined,
+        reasoning: undefined,
+        taskStatus: undefined
+      };
+    }
+
+    // No tool data to migrate, return as-is
+    return message;
+  }
+
+  /**
+   * Ensures the directory exists before writing.
+   */
+  private async ensureDirectoryExists(): Promise<void> {
+    const dirPath = this.historyFilePath.substring(0, this.historyFilePath.lastIndexOf('/'));
+    if (dirPath) {
+      try {
+        await this.vault.adapter.mkdir(dirPath);
+      } catch (e) {
+        // Directory might already exist, ignore error
+        if (!e.message.includes('already exists')) {
+          throw e;
+        }
+      }
     }
   }
 

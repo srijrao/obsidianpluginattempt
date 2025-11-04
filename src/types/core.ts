@@ -11,18 +11,18 @@ import { ToolExecutionResult, TaskStatus } from "../types";
 
 /**
  * Represents a chat message in a conversation
- * 
+ *
  * @property role - Who sent the message ('system', 'user', or 'assistant')
- * @property content - The actual text content of the message
+ * @property content - The actual text content of the message (RAW MARKDOWN - single source of truth)
  * @property reasoning - Optional structured reasoning/planning data for assistant messages
- * @property toolResults - Optional tool execution results for assistant messages
+ * @property toolResults - Optional tool execution results for assistant messages (DEPRECATED - embedded in content as JSON blocks)
  * @property taskStatus - Optional task status information
  */
 export interface Message {
     role: 'system' | 'user' | 'assistant';
-    content: string;
+    content: string;  // RAW MARKDOWN - always contains the complete message content including embedded tool JSON blocks
     reasoning?: ReasoningData;
-    toolResults?: ToolExecutionResult[];
+    toolResults?: ToolExecutionResult[];  // DEPRECATED - tool data now embedded in content as `ai-tool-execution` JSON code blocks
     taskStatus?: TaskStatus;
 }
 
