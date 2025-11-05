@@ -1,5 +1,5 @@
 # [Feature/Issue Name]
-Date: YYYY-MM-DD HH:MM:SS (UTC offset)
+Date: YYYY-MM-DD HH:MM:SS (UTC offset) (Also add date created to the front of the filename)
 
 ## Objective / Overview
 [Brief description of what this document covers - the goal, feature, or issue being addressed]
