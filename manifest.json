@@ -2,7 +2,7 @@
   "id": "ai-assistant-for-obsidian",
   "name": "AI Assistant for Obsidian",
   "version": "2.1.0",
-  "minAppVersion": "0.15.0",
+  "minAppVersion": "1.0.0",
   "description": "A feature-rich AI assistant plugin for Obsidian, supporting multiple AI providers (OpenAI, Anthropic, Gemini, OpenRouter), agent mode, tool use, chat, context-aware commands, YAML generation, and more.",
   "author": "srijrao on Github",
   "authorUrl": "https://github.com/srijrao",

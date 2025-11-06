@@ -15,7 +15,7 @@ import { withTemporarySetting } from "./utils/typeguards";
  * @param noteContent The content of the note as a string.
  * @returns A string representing the Table of Contents, or an empty string if no headers are found.
  */
-function generateTableOfContents(noteContent: string): string {
+export function generateTableOfContents(noteContent: string): string {
     // Filter lines that start with 1 to 6 '#' characters followed by a space and text
     const headerLines = noteContent.split('\n').filter(line => /^#{1,6}\s+.+/.test(line));
     if (headerLines.length === 0) return "";

@@ -30,21 +30,35 @@ export class Plugin {
     return {};
   }
 
-  async saveData(data: any): Promise<void> {
-    // Mock implementation
-  }
+  saveData = jest.fn().mockResolvedValue(undefined);
 
-  addCommand(command: any): void {
+  addCommand = jest.fn().mockImplementation((command: any) => {
     // Mock implementation
-  }
+  });
 
-  addSettingTab(tab: any): void {
+  addSettingTab = jest.fn().mockImplementation((tab: any) => {
     // Mock implementation
-  }
+  });
 
-  registerEvent(event: any): void {
+  addRibbonIcon = jest.fn().mockImplementation((icon: string, title: string, callback: any) => {
     // Mock implementation
-  }
+  });
+
+  registerEvent = jest.fn().mockImplementation((event: any) => {
+    // Mock implementation
+  });
+
+  registerView = jest.fn().mockImplementation((viewType: string, viewCreator: any) => {
+    // Mock implementation
+  });
+
+  registerMarkdownPostProcessor = jest.fn().mockImplementation((processor: any) => {
+    // Mock implementation
+  });
+
+  registerMarkdownCodeBlockProcessor = jest.fn().mockImplementation((language: string, processor: any) => {
+    // Mock implementation
+  });
 
   async onload(): Promise<void> {
     // Mock implementation
@@ -342,6 +356,29 @@ export class Modal {
   }
 }
 
+// Mock FuzzySuggestModal class
+export class FuzzySuggestModal<T> extends Modal {
+  constructor(app: any) {
+    super(app);
+  }
+
+  getItems(): T[] {
+    return [];
+  }
+
+  getItemText(item: T): string {
+    return String(item);
+  }
+
+  onChooseItem(item: T, evt: MouseEvent | KeyboardEvent): void {
+    // Mock implementation
+  }
+
+  open(): void {
+    super.open();
+  }
+}
+
 // Mock Editor class
 export class Editor {
   getValue(): string {
@@ -377,6 +414,39 @@ export class Editor {
   }
 
   replaceSelection(replacement: string): void {
+    // Mock implementation
+  }
+}
+
+export class ItemView extends Component {
+  app: any;
+  contentEl: HTMLElement;
+  containerEl: HTMLElement;
+
+  constructor(leaf: any) {
+    super();
+    this.app = leaf?.view?.app || {};
+    this.contentEl = document.createElement('div');
+    this.containerEl = document.createElement('div');
+  }
+
+  getViewType(): string {
+    return 'item-view';
+  }
+
+  getDisplayText(): string {
+    return 'Item View';
+  }
+
+  getIcon(): string {
+    return 'file';
+  }
+
+  async onOpen(): Promise<void> {
+    // Mock implementation
+  }
+
+  async onClose(): Promise<void> {
     // Mock implementation
   }
 }
@@ -426,3 +496,61 @@ export function debounce<T extends (...args: any[]) => any>(
 export function normalizePath(path: string): string {
   return path.replace(/\\/g, '/').replace(/\/+/g, '/');
 }
+
+// Mock Obsidian DOM extension methods
+declare global {
+  interface HTMLElement {
+    empty(): void;
+    createDiv(className?: string): HTMLDivElement;
+    createEl<K extends keyof HTMLElementTagNameMap>(tagName: K, className?: string): HTMLElementTagNameMap[K];
+    addClass(...classNames: string[]): void;
+    removeClass(...classNames: string[]): void;
+    toggleClass(className: string, value?: boolean): void;
+    hasClass(className: string): boolean;
+  }
+}
+
+// Implement DOM extension methods
+HTMLElement.prototype.empty = function(): void {
+  while (this.firstChild) {
+    this.removeChild(this.firstChild);
+  }
+};
+
+HTMLElement.prototype.createDiv = function(className?: string): HTMLDivElement {
+  const div = document.createElement('div');
+  if (className) {
+    div.className = className;
+  }
+  this.appendChild(div);
+  return div;
+};
+
+HTMLElement.prototype.createEl = function<K extends keyof HTMLElementTagNameMap>(tagName: K, className?: string): HTMLElementTagNameMap[K] {
+  const el = document.createElement(tagName);
+  if (className) {
+    el.className = className;
+  }
+  this.appendChild(el);
+  return el as HTMLElementTagNameMap[K];
+};
+
+HTMLElement.prototype.addClass = function(...classNames: string[]): void {
+  this.classList.add(...classNames);
+};
+
+HTMLElement.prototype.removeClass = function(...classNames: string[]): void {
+  this.classList.remove(...classNames);
+};
+
+HTMLElement.prototype.toggleClass = function(className: string, value?: boolean): void {
+  if (value !== undefined) {
+    this.classList.toggle(className, value);
+  } else {
+    this.classList.toggle(className);
+  }
+};
+
+HTMLElement.prototype.hasClass = function(className: string): boolean {
+  return this.classList.contains(className);
+};

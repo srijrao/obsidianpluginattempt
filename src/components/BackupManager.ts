@@ -50,7 +50,8 @@ export class BackupManager {
             ''
         ];
 
-        const extension = filePath.toLowerCase().substring(filePath.lastIndexOf('.'));
+        const lastDotIndex = filePath.lastIndexOf('.');
+        const extension = lastDotIndex === -1 ? '' : filePath.toLowerCase().substring(lastDotIndex);
         return !textExtensions.includes(extension);
     }
 

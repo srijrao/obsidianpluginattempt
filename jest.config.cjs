@@ -9,15 +9,25 @@ module.exports = {
   collectCoverageFrom: [
     'src/**/*.{ts,tsx}',
     '!src/**/*.d.ts',
-    '!src/main.ts', // Exclude main plugin file from coverage as it's hard to test
+    '!src/main.ts', // Keep excluded until tested
     '!src/types/**/*' // Exclude type definitions
   ],
   coverageDirectory: 'coverage',
   coverageReporters: ['text', 'lcov', 'html'],
+  coverageThreshold: {
+    global: {
+      statements: 60,
+      branches: 50,
+      functions: 55,
+      lines: 60,
+    },
+  },
   setupFilesAfterEnv: ['<rootDir>/tests/setup.ts'],
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
-    '^obsidian$': '<rootDir>/__mocks__/obsidian.ts'
+    '^obsidian$': '<rootDir>/__mocks__/obsidian.ts',
+    '^providers/(.*)$': '<rootDir>/__mocks__/providers/$1',
+    '^providers$': '<rootDir>/__mocks__/providers/index.js'
   },
   transform: {
     '^.+\\.ts$': ['ts-jest', {

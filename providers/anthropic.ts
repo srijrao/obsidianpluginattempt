@@ -11,6 +11,7 @@
 
 import { Message, CompletionOptions, ConnectionTestResult } from '../src/types';
 import { BaseProvider, ProviderError, ProviderErrorType, ModelInfo } from './base';
+import '@anthropic-ai/sdk/shims/node';
 import Anthropic from '@anthropic-ai/sdk';
 import { debugLog } from '../src/utils/logger'; // Import debugLog
 import { providerRegistry } from './registry';

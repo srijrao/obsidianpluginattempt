@@ -801,15 +801,30 @@ import { App, TFile } from 'obsidian';
 ```typescript
 describe('ComponentName', () => {
   let component: ComponentName;
-  
+  let mockApp: any;
+  let mockAdapter: any;
+
   beforeEach(() => {
-    component = new ComponentName();
+    // Create fresh mocks for each test
+    mockAdapter = { /* vault adapter methods */ };
+    mockApp = createMockApp();
+    mockApp.vault.adapter = mockAdapter;
+    
+    component = new ComponentName(mockApp, /* params */);
   });
   
   it('should do something', () => {
     expect(component.method()).toBe(expected);
   });
 });
+```
+
+**Dynamic Mock Data Pattern** (for stateful operations):
+```typescript
+// Update mock data to simulate real file system changes
+let backupData = { backups: {} };
+mockAdapter.read.mockImplementation(() => Promise.resolve(JSON.stringify(backupData)));
+// After operation: backupData = JSON.parse(mockAdapter.write.mock.calls.slice(-1)[0][1]);
 ```
 
 **Integration Tests**:
@@ -824,10 +839,14 @@ describe('ComponentName', () => {
 
 ### Test Coverage Goals
 
-- Core utilities: >90%
-- Providers: >80%
-- Services: >85%
-- UI components: >70%
+- **Overall Target**: 60%+ statements, 50%+ branches, 55%+ functions, 60%+ lines
+- **Current Status**: 21.32% statements, 16.87% branches, 16.47% functions, 21.56% lines
+- **Completed Components**: 
+  - BackupManager: 77% statements (25 tests)
+  - YAMLHandler: 100% coverage (27 tests)
+  - Plugin Lifecycle: 100% coverage (15 tests)
+  - Settings UI: 100% coverage (11 tests)
+- **Total Tests**: 546 passing tests across 35 test suites
 
 ---
 
