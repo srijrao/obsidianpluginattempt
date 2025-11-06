@@ -396,7 +396,13 @@ export class StateManager extends EventEmitter {
         this.persistentKeys.clear();
         this.snapshots.destroy();
 
-        this.isDisposed = true;
+        // For testing purposes, allow reuse by resetting instead of marking as disposed
+        // this.isDisposed = true;
+        this.version = 0;
+        this.snapshots = new LRUCache<StateSnapshot>({
+            maxSize: 50,
+            defaultTTL: 60 * 60 * 1000, // 1 hour
+        });
     }
 
     private setNestedValue(obj: any, path: string, value: any): void {

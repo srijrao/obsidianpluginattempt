@@ -105,17 +105,20 @@ export class MyPluginSettingTab extends PluginSettingTab {
      */
     display(): void {
         const { containerEl } = this;
-        containerEl.empty();
-        debugLog(this.plugin.settings.debugMode ?? false, 'info', '[MyPluginSettingTab] display called'); // Use debugLog
+        if (containerEl) {
+            containerEl.empty();
+            
+            debugLog(this.plugin.settings.debugMode ?? false, 'info', '[MyPluginSettingTab] display called'); // Use debugLog
 
-        // Main heading for the settings tab
-        containerEl.createEl('h2', { text: 'AI Assistant Settings' });
+            // Main heading for the settings tab
+            const heading = containerEl.createEl('h2');
+            heading.textContent = 'AI Assistant Settings';
 
-        // Render each settings section as a collapsible section
-        CollapsibleSectionRenderer.createCollapsibleSection(
-            containerEl,
-            'General Settings',
-            (sectionEl: HTMLElement) => this.generalSettingsSection.render(sectionEl),
+            // Render each settings section as a collapsible section
+            CollapsibleSectionRenderer.createCollapsibleSection(
+                containerEl,
+                'General Settings',
+                (sectionEl: HTMLElement) => this.generalSettingsSection.render(sectionEl),
             this.plugin,
             'generalSectionsExpanded'
         );
@@ -193,6 +196,7 @@ export class MyPluginSettingTab extends PluginSettingTab {
 
                     new Notice('All settings (except API keys) reset to default.');
                 }));
+        }
     }
 
 

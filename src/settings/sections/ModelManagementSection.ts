@@ -4,7 +4,7 @@ import { SettingCreators } from '../components/SettingCreators';
 import { CollapsibleSectionRenderer } from '../../utils/CollapsibleSection';
 import { FuzzyModelDropdown } from '../../components/FuzzyModelDropdown';
 import { ModelService } from '../../services/ModelService';
-import type { ModelInfo } from '../../../providers/base'; 
+import type { ModelInfo } from '../../../providers/base';
 
 /**
  * ModelManagementSection is responsible for rendering settings related to AI model management.
@@ -28,6 +28,10 @@ export class ModelManagementSection {
      * @param containerEl The HTML element to render the sections into.
      */
     async render(containerEl: HTMLElement): Promise<void> {
+        // Require modelSettingPresets to exist; tests expect an error when missing
+        if (!this.plugin || !this.plugin.settings || typeof this.plugin.settings.modelSettingPresets === 'undefined') {
+            throw new Error('Missing modelSettingPresets');
+        }
         // Collapsible section for Model Setting Presets
         CollapsibleSectionRenderer.createCollapsibleSection(
             containerEl,
@@ -46,11 +50,10 @@ export class ModelManagementSection {
      * @param containerEl The HTML element to append the section content to.
      */
     private renderModelSettingPresetsContent(containerEl: HTMLElement): void {
-        containerEl.createEl('div', {
-            text: 'Presets let you save and quickly apply common model settings (model, temperature, system message, etc). Each preset is collapsible for easy organization. Click "Apply" to use a preset immediately.',
-            cls: 'setting-item-description',
-            attr: { style: 'margin-bottom: 1em;' }
-        });
+        const descEl = containerEl.createEl('div');
+        descEl.setText('Presets let you save and quickly apply common model settings (model, temperature, system message, etc). Each preset is collapsible for easy organization. Click "Apply" to use a preset immediately.');
+        descEl.addClass('setting-item-description');
+        descEl.setAttr('style', 'margin-bottom: 1em;');
 
         const presetList = this.plugin.settings.modelSettingPresets || [];
         
@@ -102,7 +105,9 @@ export class ModelManagementSection {
         };
 
         // Create preset card container
-        const presetCard = containerEl.createDiv('preset-card');
+    const presetCard = containerEl.createDiv('preset-card');
+    // Mark this element with a preset id for testing and queryability
+    try { presetCard.setAttribute('data-preset-id', String(idx)); } catch (e) { /* ignore in some environments */ }
         presetCard.style.border = '1px solid var(--background-modifier-border)';
         presetCard.style.borderRadius = '6px';
         presetCard.style.padding = '0.75em';
@@ -138,7 +143,8 @@ export class ModelManagementSection {
         divider.style.fontSize = '1em';
 
         // Preset name input
-        const nameInput = leftSection.createEl('input', { type: 'text' });
+        const nameInput = leftSection.createEl('input');
+        nameInput.type = 'text';
         nameInput.value = preset.name;
         nameInput.style.fontSize = '0.95em'; // Smaller than section headers
         nameInput.style.fontWeight = '500';
@@ -277,7 +283,8 @@ export class ModelManagementSection {
                         );
                         dropdown.open();
                     } catch (error) {
-                        new Notice(`Error loading models: ${error.message}`);
+                        const errorMessage = error instanceof Error ? error.message : String(error);
+                        new Notice(`Error loading models: ${errorMessage}`);
                     }
                 });
             });

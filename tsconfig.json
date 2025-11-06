@@ -8,6 +8,8 @@
         "importHelpers": true,
         "isolatedModules": true,
         "strictNullChecks": true,
+        "strict": true,
+        "forceConsistentCasingInFileNames": true,
         "skipLibCheck": true,
         "outDir": "./dist",
         "allowSyntheticDefaultImports": true,

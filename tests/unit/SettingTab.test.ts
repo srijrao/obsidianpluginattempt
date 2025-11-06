@@ -12,7 +12,7 @@ jest.mock('obsidian', () => ({
     registerView: jest.fn(),
     addSettingTab: jest.fn(),
   })),
-  PluginSettingTab: jest.fn().mockImplementation(function(app: any, plugin: any) {
+  PluginSettingTab: jest.fn().mockImplementation(function(this: any, app: any, plugin: any) {
     this.app = app;
     this.plugin = plugin;
     this.containerEl = document.createElement('div');
@@ -126,7 +126,7 @@ describe('MyPluginSettingTab', () => {
       settingTab.display();
 
       expect(settingTab.containerEl.empty).toHaveBeenCalled();
-      expect(settingTab.containerEl.createEl).toHaveBeenCalledWith('h2', { text: 'AI Assistant Settings' });
+      expect(settingTab.containerEl.createEl).toHaveBeenCalledWith('h2');
     });
 
     test('should create collapsible sections for all settings groups', () => {

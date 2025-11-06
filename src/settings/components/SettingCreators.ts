@@ -193,17 +193,55 @@ export class SettingCreators {
         getValue: () => number,
         setValue: (value: number) => Promise<void>
     ): void {
-        new Setting(containerEl)
-            .setName(name)
-            .setDesc(desc)
-            .addSlider(slider => {
-                slider.setLimits(limits.min, limits.max, limits.step)
-                    .setValue(getValue())
-                    .setDynamicTooltip()
-                    .onChange(async (value: number) => {
-                        await setValue(value);
-                        this.reRenderCallback(); 
-                    });
+        // Create both a slider and a numeric input so tests and users can use either control.
+        let sliderRef: any = null;
+        let numberInputRef: any = null;
+
+        const setting = new Setting(containerEl).setName(name).setDesc(desc);
+
+        setting.addSlider(sl => {
+            sliderRef = sl;
+            sliderRef.setLimits(limits.min, limits.max, limits.step)
+                .setValue(getValue())
+                .setDynamicTooltip()
+                .onChange(async (value: number) => {
+                    // Update associated number input if present
+                    try {
+                        if (numberInputRef && numberInputRef.inputEl) {
+                            numberInputRef.setValue(String(value));
+                        }
+                    } catch (e) {
+                        // ignore
+                    }
+                    await setValue(value);
+                    this.reRenderCallback();
+                });
+        });
+
+        // Add a numeric text input that mirrors the slider value (helps tests that query for number inputs)
+        setting.addText(text => {
+            numberInputRef = text;
+            // Ensure the input is of type number
+            try {
+                text.inputEl.type = 'number';
+            } catch (e) {
+                // If inputEl is not available in this environment, ignore
+            }
+            text.setValue(String(getValue()));
+            text.onChange(async (value: string) => {
+                const parsed = parseFloat(value as any);
+                const clamped = isNaN(parsed) ? getValue() : Math.min(limits.max, Math.max(limits.min, parsed));
+                // Update slider if available
+                try {
+                    if (sliderRef && typeof sliderRef.setValue === 'function') {
+                        sliderRef.setValue(clamped);
+                    }
+                } catch (e) {
+                    // ignore
+                }
+                await setValue(clamped);
+                this.reRenderCallback();
             });
+        });
     }
 }

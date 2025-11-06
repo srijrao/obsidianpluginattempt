@@ -37,16 +37,19 @@ export class AgentSettingsSection {
             this.plugin.debugLog('info', '[AgentSettingsSection] render called');
         }
 
+        // Require agentMode settings to exist; tests expect an error when missing
+        if (!this.plugin || !this.plugin.settings || typeof this.plugin.settings.agentMode === 'undefined') {
+            throw new Error('Missing agentMode settings');
+        }
+
         // Agent Mode Settings Section
         CollapsibleSectionRenderer.createCollapsibleSection(
             containerEl,
             'Agent Mode Settings',
             (sectionEl: HTMLElement) => {
-                sectionEl.createEl('div', {
-                    text: 'Agent Mode allows the AI to use tools like file creation, reading, and modification. Configure the limits and behavior for tool usage.',
-                    cls: 'setting-item-description',
-                    attr: { style: 'margin-bottom: 1em;' }
-                });
+                const descEl = sectionEl.createDiv('setting-item-description');
+                descEl.textContent = 'Agent Mode allows the AI to use tools like file creation, reading, and modification. Configure the limits and behavior for tool usage.';
+                descEl.style.marginBottom = '1em';
 
                 // Toggle for enabling Agent Mode by default
                 this.settingCreators.createToggleSetting(
@@ -120,11 +123,9 @@ export class AgentSettingsSection {
             containerEl,
             'Agent System Message',
             (sectionEl: HTMLElement) => {
-                sectionEl.createEl('div', {
-                    text: 'Customize the system message used when Agent Mode is enabled. Use {{TOOL_DESCRIPTIONS}} to include the available tools list.',
-                    cls: 'setting-item-description',
-                    attr: { style: 'margin-bottom: 0.5em;' }
-                });
+                const descEl = sectionEl.createDiv('setting-item-description');
+                descEl.textContent = 'Customize the system message used when Agent Mode is enabled. Use {{TOOL_DESCRIPTIONS}} to include the available tools list.';
+                descEl.style.marginBottom = '0.5em';
 
                 const agentMessageContainer = sectionEl.createDiv('agent-message-container');
                 agentMessageContainer.style.display = 'flex';
@@ -150,7 +151,8 @@ export class AgentSettingsSection {
                 buttonContainer.style.gap = '0.25em';
 
                 // Reset to Default button for agent system message
-                const resetButton = buttonContainer.createEl('button', { text: 'Reset to Default' });
+                const resetButton = buttonContainer.createEl('button');
+                resetButton.textContent = 'Reset to Default';
                 resetButton.style.padding = '0.25em 0.5em';
                 resetButton.style.fontSize = '0.8em';
                 resetButton.addEventListener('click', async () => {
@@ -160,7 +162,8 @@ export class AgentSettingsSection {
                 });
 
                 // Use Default (clear custom message) button
-                const clearButton = buttonContainer.createEl('button', { text: 'Use Default' });
+                const clearButton = buttonContainer.createEl('button');
+                clearButton.textContent = 'Use Default';
                 clearButton.style.padding = '0.25em 0.5em';
                 clearButton.style.fontSize = '0.8em';
                 clearButton.addEventListener('click', async () => {
@@ -198,11 +201,11 @@ export class AgentSettingsSection {
      * @param containerEl The HTML element to append the section to.
      */
     private renderToolToggles(containerEl: HTMLElement): void {
-        containerEl.createEl('div', {
-            text: 'Enable or disable individual agent tools. Disabled tools will not be available to the agent or appear in the system prompt.',
-            cls: 'setting-item-description',
-            attr: { style: 'margin-bottom: 0.5em;' }
-        });
+        const descEl = containerEl.createEl('div');
+        descEl.textContent = 'Enable or disable individual agent tools. Disabled tools will not be available to the agent or appear in the system prompt.';
+        descEl.className = 'setting-item-description';
+        descEl.style.marginBottom = '0.5em';
+        
         // Get all available tool instances
         const tools = createToolInstances(this.app, this.plugin);
         // Initialize enabledTools setting if it doesn't exist

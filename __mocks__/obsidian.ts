@@ -7,9 +7,9 @@
 export class Plugin {
   app: any;
   manifest: any;
-  
-  constructor() {
-    this.app = {
+
+  constructor(app?: any, manifest?: any) {
+    this.app = app || {
       vault: {
         adapter: {
           exists: jest.fn().mockResolvedValue(false),
@@ -19,10 +19,10 @@ export class Plugin {
         }
       }
     };
-    this.manifest = {
-      id: 'test-plugin',
-      name: 'Test Plugin',
-      version: '1.0.0'
+    this.manifest = manifest || {
+      id: 'ai-assistant-for-obsidian',
+      name: 'AI Assistant for Obsidian',
+      version: '2.1.0'
     };
   }
 
@@ -48,7 +48,7 @@ export class Plugin {
     // Mock implementation
   });
 
-  registerView = jest.fn().mockImplementation((viewType: string, viewCreator: any) => {
+  registerPluginView = jest.fn().mockImplementation((viewType: string, viewCreator: any) => {
     // Mock implementation
   });
 
@@ -58,6 +58,21 @@ export class Plugin {
 
   registerMarkdownCodeBlockProcessor = jest.fn().mockImplementation((language: string, processor: any) => {
     // Mock implementation
+  });
+
+  register = jest.fn().mockImplementation((callback: () => void) => {
+    // Mock register method for cleanup handlers - store callbacks to call during onunload
+    if (!(this as any)._cleanupCallbacks) {
+      (this as any)._cleanupCallbacks = [];
+    }
+    (this as any)._cleanupCallbacks.push(callback);
+    // Return a function to unregister
+    return () => {
+      const index = (this as any)._cleanupCallbacks.indexOf(callback);
+      if (index > -1) {
+        (this as any)._cleanupCallbacks.splice(index, 1);
+      }
+    };
   });
 
   async onload(): Promise<void> {
@@ -117,6 +132,19 @@ export class PluginSettingTab extends Component {
     this.app = app;
     this.plugin = plugin;
     this.containerEl = document.createElement('div');
+    // Add Obsidian-specific methods
+    (this.containerEl as any).empty = jest.fn().mockImplementation(() => {
+      while (this.containerEl.firstChild) {
+        this.containerEl.removeChild(this.containerEl.firstChild);
+      }
+    });
+    (this.containerEl as any).createEl = jest.fn().mockImplementation((tagName: string, options?: any) => {
+      const el = document.createElement(tagName);
+      if (options?.text) el.textContent = options.text;
+      if (options?.cls) el.className = options.cls;
+      this.containerEl.appendChild(el);
+      return el;
+    });
   }
 
   display(): void {
@@ -138,10 +166,20 @@ export class Setting {
 
   constructor(containerEl: HTMLElement) {
     this.settingEl = document.createElement('div');
+    this.settingEl.className = 'setting-item';
     this.infoEl = document.createElement('div');
+    this.infoEl.className = 'setting-item-info';
     this.nameEl = document.createElement('div');
+    this.nameEl.className = 'setting-item-name';
     this.descEl = document.createElement('div');
+    this.descEl.className = 'setting-item-description';
     this.controlEl = document.createElement('div');
+    this.controlEl.className = 'setting-item-control';
+    
+    this.settingEl.appendChild(this.infoEl);
+    this.infoEl.appendChild(this.nameEl);
+    this.infoEl.appendChild(this.descEl);
+    this.settingEl.appendChild(this.controlEl);
     containerEl.appendChild(this.settingEl);
   }
 
@@ -155,9 +193,41 @@ export class Setting {
     return this;
   }
 
+  then(cb: (setting: Setting) => any): this {
+    cb(this);
+    return this;
+  }
+
   addText(cb: (text: any) => any): this {
     const textEl = document.createElement('input');
     textEl.type = 'text';
+    textEl.className = 'setting-item-input';
+    this.controlEl.appendChild(textEl);
+    
+    const textComponent = {
+      inputEl: textEl,
+      setValue: (value: string) => {
+        textEl.value = value;
+        return textComponent;
+      },
+      getValue: () => textEl.value,
+      setPlaceholder: (placeholder: string) => {
+        textEl.placeholder = placeholder;
+        return textComponent;
+      },
+      onChange: (callback: (value: string) => void) => {
+        textEl.addEventListener('input', () => callback(textEl.value));
+        return textComponent;
+      }
+    };
+    
+    cb(textComponent);
+    return this;
+  }
+
+  addTextArea(cb: (text: any) => any): this {
+    const textEl = document.createElement('textarea');
+    textEl.className = 'setting-item-input';
     this.controlEl.appendChild(textEl);
     
     const textComponent = {
@@ -205,6 +275,7 @@ export class Setting {
 
   addDropdown(cb: (dropdown: any) => any): this {
     const selectEl = document.createElement('select');
+    selectEl.className = 'setting-item-select';
     this.controlEl.appendChild(selectEl);
     
     const dropdownComponent = {
@@ -258,6 +329,37 @@ export class Setting {
     cb(buttonComponent);
     return this;
   }
+
+  addSlider(cb: (slider: any) => any): this {
+    const sliderEl = document.createElement('input');
+    sliderEl.type = 'range';
+    this.controlEl.appendChild(sliderEl);
+    
+    const sliderComponent = {
+      sliderEl,
+      setLimits: (min: number, max: number, step: number) => {
+        sliderEl.min = min.toString();
+        sliderEl.max = max.toString();
+        sliderEl.step = step.toString();
+        return sliderComponent;
+      },
+      setValue: (value: number) => {
+        sliderEl.value = value.toString();
+        return sliderComponent;
+      },
+      getValue: () => parseFloat(sliderEl.value),
+      setDynamicTooltip: () => {
+        return sliderComponent;
+      },
+      onChange: (callback: (value: number) => void) => {
+        sliderEl.addEventListener('input', () => callback(parseFloat(sliderEl.value)));
+        return sliderComponent;
+      }
+    };
+    
+    cb(sliderComponent);
+    return this;
+  }
 }
 
 // Mock Notice class as a Jest mock function
@@ -296,6 +398,7 @@ export class Vault {
 
   constructor() {
     this.adapter = {
+      basePath: '/mock/vault/path',
       exists: jest.fn().mockResolvedValue(false),
       read: jest.fn().mockResolvedValue('{}'),
       write: jest.fn().mockResolvedValue(undefined),
@@ -304,6 +407,10 @@ export class Vault {
       mkdir: jest.fn().mockResolvedValue(undefined),
       rmdir: jest.fn().mockResolvedValue(undefined),
     };
+  }
+
+  getConfig(key: string): any {
+    return undefined;
   }
 
   async read(file: TFile | string): Promise<string> {
@@ -320,6 +427,152 @@ export class Vault {
 
   async delete(file: TFile | string): Promise<void> {
     return this.adapter.remove(typeof file === 'string' ? file : file.path);
+  }
+
+  // Add basePath getter for compatibility
+  get basePath(): string {
+    return this.adapter.basePath;
+  }
+}
+
+// Mock WorkspaceLeaf class
+export class WorkspaceLeaf {
+  view: any;
+  containerEl: HTMLElement;
+
+  constructor() {
+    this.view = null;
+    this.containerEl = document.createElement('div');
+  }
+
+  setViewState(viewState: any): void {
+    // Mock implementation
+  }
+
+  detach(): void {
+    // Mock implementation
+  }
+}
+
+// Mock Workspace class
+export class Workspace {
+  leftRibbon: any;
+  rightRibbon: any;
+  containerEl: HTMLElement;
+  _eventListeners: Map<string, Function[]>;
+
+  constructor() {
+    this.leftRibbon = {
+      addRibbonItem: jest.fn().mockReturnValue({
+        setTitle: jest.fn().mockReturnThis(),
+        setIcon: jest.fn().mockReturnThis(),
+        onClick: jest.fn().mockReturnThis()
+      })
+    };
+    this.rightRibbon = {
+      addRibbonItem: jest.fn().mockReturnValue({
+        setTitle: jest.fn().mockReturnThis(),
+        setIcon: jest.fn().mockReturnThis(),
+        onClick: jest.fn().mockReturnThis()
+      })
+    };
+    this.containerEl = document.createElement('div');
+    this._eventListeners = new Map();
+  }
+
+  getLeavesOfType(type: string): WorkspaceLeaf[] {
+    return [];
+  }
+
+  getActiveViewOfType(type: string): any {
+    return null;
+  }
+
+  getActiveFile(): TFile | null {
+    return null;
+  }
+
+  async openLinkText(linkText: string, sourcePath: string, inNewLeaf?: boolean): Promise<void> {
+    // Mock implementation
+  }
+
+  createLeafBySplit(leaf: WorkspaceLeaf, direction: string): WorkspaceLeaf {
+    return new WorkspaceLeaf();
+  }
+
+  setActiveLeaf(leaf: WorkspaceLeaf): void {
+    // Mock implementation
+  }
+
+  on(eventType: string, callback: Function): any {
+    if (!this._eventListeners.has(eventType)) {
+      this._eventListeners.set(eventType, []);
+    }
+    this._eventListeners.get(eventType)!.push(callback);
+    
+    // Return a reference object that can be used with offref
+    return {
+      eventType,
+      callback,
+      unsubscribe: () => {
+        const listeners = this._eventListeners.get(eventType);
+        if (listeners) {
+          const index = listeners.indexOf(callback);
+          if (index > -1) {
+            listeners.splice(index, 1);
+          }
+        }
+      }
+    };
+  }
+
+  offref(ref: any): void {
+    if (ref && ref.unsubscribe) {
+      ref.unsubscribe();
+    }
+  }
+
+  off(eventType: string, callback: Function): void {
+    const listeners = this._eventListeners.get(eventType);
+    if (listeners) {
+      const index = listeners.indexOf(callback);
+      if (index > -1) {
+        listeners.splice(index, 1);
+      }
+    }
+  }
+
+  trigger(eventType: string, ...args: any[]): void {
+    const listeners = this._eventListeners.get(eventType);
+    if (listeners) {
+      listeners.forEach(callback => callback(...args));
+    }
+  }
+}
+
+// Mock App class
+export class App {
+  vault: Vault;
+  workspace: Workspace;
+  commands: any;
+  metadataCache: any;
+  fileManager: any;
+
+  constructor() {
+    this.vault = new Vault();
+    this.workspace = new Workspace();
+    this.commands = {
+      addCommand: jest.fn(),
+      removeCommand: jest.fn(),
+      executeCommandById: jest.fn().mockResolvedValue(undefined)
+    };
+    this.metadataCache = {
+      getFileCache: jest.fn().mockReturnValue(null),
+      getCache: jest.fn().mockReturnValue(null)
+    };
+    this.fileManager = {
+      processFrontMatter: jest.fn().mockResolvedValue(undefined)
+    };
   }
 }
 
@@ -454,7 +707,7 @@ export class ItemView extends Component {
 // Export commonly used types and interfaces
 export interface App {
   vault: Vault;
-  workspace: any;
+  workspace: Workspace;
   metadataCache: any;
   fileManager: any;
 }
@@ -502,11 +755,13 @@ declare global {
   interface HTMLElement {
     empty(): void;
     createDiv(className?: string): HTMLDivElement;
-    createEl<K extends keyof HTMLElementTagNameMap>(tagName: K, className?: string): HTMLElementTagNameMap[K];
+    createEl<K extends keyof HTMLElementTagNameMap>(tagName: K, options?: string | { text?: string; cls?: string; attr?: Record<string, string> }): HTMLElementTagNameMap[K];
     addClass(...classNames: string[]): void;
     removeClass(...classNames: string[]): void;
     toggleClass(className: string, value?: boolean): void;
     hasClass(className: string): boolean;
+    setAttr(attr: string, value: string): void;
+    setText(text: string): void;
   }
 }
 
@@ -526,13 +781,35 @@ HTMLElement.prototype.createDiv = function(className?: string): HTMLDivElement {
   return div;
 };
 
-HTMLElement.prototype.createEl = function<K extends keyof HTMLElementTagNameMap>(tagName: K, className?: string): HTMLElementTagNameMap[K] {
+HTMLElement.prototype.createEl = function<K extends keyof HTMLElementTagNameMap>(
+  tagName: K, 
+  options?: string | { text?: string; cls?: string; attr?: Record<string, string> }
+): HTMLElementTagNameMap[K] {
   const el = document.createElement(tagName);
-  if (className) {
-    el.className = className;
+  
+  // Handle both string (className) and object (options) parameter
+  if (typeof options === 'string') {
+    el.className = options;
+  } else if (options && typeof options === 'object') {
+    if (options.text) el.textContent = options.text;
+    if (options.cls) el.className = options.cls;
+    if (options.attr) {
+      for (const [key, value] of Object.entries(options.attr)) {
+        el.setAttribute(key, value);
+      }
+    }
   }
+  
   this.appendChild(el);
   return el as HTMLElementTagNameMap[K];
+};
+
+HTMLElement.prototype.setAttr = function(attr: string, value: string): void {
+  this.setAttribute(attr, value);
+};
+
+HTMLElement.prototype.setText = function(text: string): void {
+  this.textContent = text;
 };
 
 HTMLElement.prototype.addClass = function(...classNames: string[]): void {
@@ -554,3 +831,43 @@ HTMLElement.prototype.toggleClass = function(className: string, value?: boolean)
 HTMLElement.prototype.hasClass = function(className: string): boolean {
   return this.classList.contains(className);
 };
+
+// Mock activateView function
+export async function activateView(app: App, viewType: string): Promise<void> {
+  // Mock implementation - simulate activating a view
+  const leaves = app.workspace.getLeavesOfType(viewType);
+  if (leaves.length > 0) {
+    app.workspace.setActiveLeaf(leaves[0]);
+  }
+}
+
+// Mock showNotice function
+export function showNotice(message: string): void {
+  // Mock implementation - could log to console or just do nothing
+}
+
+// Mock registerAllCommands function
+export function registerAllCommands(
+  plugin: any,
+  settings: any,
+  processMessages: any,
+  activateChatViewAndLoadMessages: any,
+  activeStreamRef: any,
+  setActiveStream: any,
+  yamlAttributeCommandIds: string[]
+): string[] {
+  // Mock implementation - return some mock command IDs
+  return ['mock-command-1', 'mock-command-2'];
+}
+
+// Mock registerYamlAttributeCommands function
+export function registerYamlAttributeCommands(
+  plugin: any,
+  settings: any,
+  processMessages: any,
+  yamlAttributeCommandIds: string[],
+  debugLog: any
+): string[] {
+  // Mock implementation - return some mock command IDs
+  return ['yaml-command-1', 'yaml-command-2'];
+}
