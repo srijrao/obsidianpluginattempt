@@ -1,4 +1,3 @@
-
 /**
  * @file chat.ts
  *
@@ -86,6 +85,19 @@ export class ChatView extends ItemView {
     }> = [];
     private settingsChangeCallback: (() => void) | null = null;
     private domBatcher: DOMBatcher;
+    
+    // Context messages cache for token calculation optimization
+    private contextMessagesCache: {
+        messages: Message[] | null;
+        cacheKey: string;
+        timestamp: number;
+        ttl: number; // Time to live in milliseconds
+    } = {
+        messages: null,
+        cacheKey: '',
+        timestamp: 0,
+        ttl: 5000 // 5 second cache
+    };
     
     // Priority 2 Optimization: Async optimization
     private scrollDebouncer: AsyncDebouncer<void>;
@@ -1392,7 +1404,36 @@ export class ChatView extends ItemView {
     }
 
     private async buildContextMessages(): Promise<Message[]> {
-        return await buildContextMessages({ app: this.app, plugin: this.plugin });
+        // Create cache key based on settings that affect context building
+        const settings = this.plugin.settings;
+        const currentFile = this.app.workspace.getActiveFile();
+        const cacheKey = JSON.stringify({
+            systemMessage: settings.systemMessage,
+            includeRecentlyOpenedNotes: settings.includeRecentlyOpenedNotes,
+            enableContextNotes: settings.enableContextNotes,
+            contextNotes: settings.contextNotes,
+            referenceCurrentNote: settings.referenceCurrentNote,
+            currentFilePath: currentFile?.path,
+            currentFileMtime: currentFile?.stat?.mtime
+        });
+
+        // Check if cache is valid
+        const now = Date.now();
+        if (this.contextMessagesCache.messages &&
+            this.contextMessagesCache.cacheKey === cacheKey &&
+            (now - this.contextMessagesCache.timestamp) < this.contextMessagesCache.ttl) {
+            return this.contextMessagesCache.messages;
+        }
+
+        // Cache miss - rebuild context messages
+        const messages = await buildContextMessages({ app: this.app, plugin: this.plugin });
+
+        // Update cache
+        this.contextMessagesCache.messages = messages;
+        this.contextMessagesCache.cacheKey = cacheKey;
+        this.contextMessagesCache.timestamp = now;
+
+        return messages;
     }
     private addVisibleMessagesToContext(messages: Message[]): void {
         // Use cached message elements for context building

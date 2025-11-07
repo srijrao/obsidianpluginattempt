@@ -97,11 +97,26 @@ export class MessageRenderer {
             summaryText = summaryText ? ` - "${summaryText}"` : '';
         }
 
-        headerText.innerHTML = `<strong>🧠 ${typeLabel}</strong>${summaryText}`;
-        if (stepCount > 0) {
-            headerText.innerHTML += ` (${stepCount} steps)`;
+        // Build header text content safely
+        const fragment = document.createDocumentFragment();
+        
+        const brainIcon = document.createElement('strong');
+        brainIcon.textContent = `🧠 ${typeLabel}`;
+        fragment.appendChild(brainIcon);
+        
+        if (summaryText) {
+            fragment.appendChild(document.createTextNode(summaryText));
         }
-        headerText.innerHTML += ` - <em>Click to ${reasoning.isCollapsed ? 'expand' : 'collapse'}</em>`;
+        
+        if (stepCount > 0) {
+            fragment.appendChild(document.createTextNode(` (${stepCount} steps)`));
+        }
+        
+        const expandText = document.createElement('em');
+        expandText.textContent = ` - Click to ${reasoning.isCollapsed ? 'expand' : 'collapse'}`;
+        fragment.appendChild(expandText);
+        
+        headerText.appendChild(fragment);
 
         header.appendChild(toggle);
         header.appendChild(headerText);
@@ -117,24 +132,34 @@ export class MessageRenderer {
             if (reasoning.problem) {
                 const problemDiv = document.createElement('div');
                 problemDiv.className = 'reasoning-problem';
-                problemDiv.innerHTML = `<strong>Problem:</strong> ${reasoning.problem}`;
+                
+                const problemLabel = document.createElement('strong');
+                problemLabel.textContent = 'Problem: ';
+                problemDiv.appendChild(problemLabel);
+                problemDiv.appendChild(document.createTextNode(reasoning.problem));
+                
                 details.appendChild(problemDiv);
             }
 
             reasoning.steps.forEach((step: any) => {
                 const stepDiv = document.createElement('div');
                 stepDiv.className = `reasoning-step ${step.category}`;
-                stepDiv.innerHTML = `
-                    <div class="step-header">
-                        ${this.getStepEmoji(step.category)} Step ${step.step}: ${step.title.toUpperCase()}
-                    </div>
-                    <div class="step-confidence">
-                        Confidence: ${step.confidence}/10
-                    </div>
-                    <div class="step-content">
-                        ${step.content}
-                    </div>
-                `;
+                
+                const stepHeader = document.createElement('div');
+                stepHeader.className = 'step-header';
+                stepHeader.textContent = `${this.getStepEmoji(step.category)} Step ${step.step}: ${step.title.toUpperCase()}`;
+                stepDiv.appendChild(stepHeader);
+                
+                const stepConfidence = document.createElement('div');
+                stepConfidence.className = 'step-confidence';
+                stepConfidence.textContent = `Confidence: ${step.confidence}/10`;
+                stepDiv.appendChild(stepConfidence);
+                
+                const stepContent = document.createElement('div');
+                stepContent.className = 'step-content';
+                stepContent.textContent = step.content;
+                stepDiv.appendChild(stepContent);
+                
                 details.appendChild(stepDiv);
             });
         } else if (reasoning.summary) {
@@ -177,11 +202,15 @@ export class MessageRenderer {
         const statusText = this.getTaskStatusText(taskStatus);
         const statusIcon = this.getTaskStatusIcon(taskStatus.status);
 
-        statusContainer.innerHTML = `
-            <div class="task-status-header">
-                ${statusIcon} <strong>${statusText}</strong>
-            </div>
-        `;
+        const statusHeader = document.createElement('div');
+        statusHeader.className = 'task-status-header';
+        statusHeader.appendChild(document.createTextNode(statusIcon + ' '));
+        
+        const statusStrong = document.createElement('strong');
+        statusStrong.textContent = statusText;
+        statusHeader.appendChild(statusStrong);
+        
+        statusContainer.appendChild(statusHeader);
 
         if (taskStatus.toolExecutionCount > 0) {
             const toolInfo = document.createElement('div');
