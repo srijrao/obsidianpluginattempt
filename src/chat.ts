@@ -45,13 +45,13 @@ export const VIEW_TYPE_CHAT = 'chat-view';
 export class ChatView extends ItemView {
     private plugin: MyPlugin;
     private chatHistoryManager: ChatHistoryManager;
-    private messagesContainer: HTMLElement;
-    private inputContainer: HTMLElement;
+    private messagesContainer!: HTMLElement;
+    private inputContainer!: HTMLElement;
     private activeStream: AbortController | null = null;
-    private referenceNoteIndicator: HTMLElement;
-    private obsidianLinksIndicator: HTMLElement;
-    private contextNotesIndicator: HTMLElement;
-    private modelNameDisplay: HTMLElement;
+    private referenceNoteIndicator!: HTMLElement;
+    private obsidianLinksIndicator!: HTMLElement;
+    private contextNotesIndicator!: HTMLElement;
+    private modelNameDisplay!: HTMLElement;
     private agentResponseHandler: AgentResponseHandler | null = null;
     private messageRegenerator: MessageRegenerator | null = null;
     private responseStreamer: ResponseStreamer | null = null; // Keep for backward compatibility during transition
@@ -766,12 +766,12 @@ export class ChatView extends ItemView {
                     this.plugin.debugLog('debug', '[chat.ts] responseContent is empty and no toolResults, not saving message');
                 }
             } catch (error) {
-                if (error.name !== 'AbortError') {
+                if ((error as Error).name !== 'AbortError') {
                     handleChatError(error, 'sendMessage', {
                         messageLength: content.length,
                         agentMode: this.plugin.agentModeManager.isAgentModeEnabled()
                     });
-                    await createMessageElement(this.app, 'assistant', `Error: ${error.message}`, this.chatHistoryManager, this.plugin, (el: HTMLElement) => this.regenerateResponse(el), this);
+                    await createMessageElement(this.app, 'assistant', `Error: ${(error as Error).message}`, this.chatHistoryManager, this.plugin, (el: HTMLElement) => this.regenerateResponse(el), this);
                 }
             } finally {
                 // DIAGNOSTIC: Log finally block execution
@@ -1329,91 +1329,82 @@ export class ChatView extends ItemView {
         }
     }
 
-    private reRenderAllMessages() {
-        const messageElements = this.messagesContainer.querySelectorAll('.ai-chat-message');
+    private readonly RENDER_BATCH_SIZE = 10;
+    private async reRenderAllMessages(): Promise<void> {
+        const messageElements = this.getCachedMessageElements();
         const currentMode = this.plugin.settings.uiBehavior?.chatRenderMode || 'live';
-        
-        messageElements.forEach((messageEl) => {
-            const htmlElement = messageEl as HTMLElement;
-            const contentElement = htmlElement.querySelector('.message-content') as HTMLElement;
-            let rawContent = htmlElement.dataset.rawContent;
-
-            if (!contentElement) {
-                return;
-            }
-
-            // If rawContent is missing, try to recover it from the DOM and persist it
-            if (!rawContent || rawContent.trim() === '') {
-                // If currently in source mode, the content is likely inside a <pre>
-                const pre = contentElement.querySelector('pre');
-                const recovered = (pre?.textContent || contentElement.textContent || '').trim();
-                if (recovered) {
-                    rawContent = recovered;
-                    htmlElement.dataset.rawContent = recovered; // Persist for future toggles/renders
-                    this.plugin.debugLog('debug', '[ChatView] Recovered rawContent from DOM during re-render', {
-                        length: recovered.length
-                    });
-                }
-            }
-
-            if (rawContent && rawContent.length > 0) {
-                if (currentMode === 'source') {
-                    // Show raw markdown/text using SourceModeRenderer
-                    this.sourceModeRenderer.renderSourceMode(rawContent, contentElement);
-                } else {
-                    // Live mode: Parse tool data from embedded markdown content
-                    this.applyRenderModeToElement(htmlElement).catch((error) => {
-                        this.plugin.debugLog('error', '[ChatView] Failed to re-render message in live mode, falling back to basic markdown', error);
-                        // Fallback to basic markdown rendering
-                        contentElement.empty();
-                        import('obsidian')
-                            .then(({ MarkdownRenderer }) =>
-                                MarkdownRenderer.render(this.app, rawContent!, contentElement, '', this)
-                            )
-                            .then(() => import('./utils/linkHandler'))
-                            .then(({ enableClickableLinksInMessage }) => {
-                                enableClickableLinksInMessage(htmlElement, this.app);
-                            })
-                            .catch((fallbackError) => {
-                                console.error('Re-rendering fallback error:', fallbackError);
-                                contentElement.textContent = rawContent!;
-                            });
-                    });
-                }
-            } else {
-                // As a last resort, don't leave the message empty; keep whatever text was visible
-                if (contentElement.textContent && contentElement.textContent.trim().length > 0) {
-                    // Keep existing text (no-op)
-                } else {
-                    // Nothing to show; log for diagnostics
-                    this.plugin.debugLog('warn', '[ChatView] reRenderAllMessages found message with no content to render');
-                }
-            }
+        this.plugin.debugLog('info', '[ChatView] Starting batched re-render', {
+            totalMessages: messageElements.length,
+            batchSize: this.RENDER_BATCH_SIZE,
+            mode: currentMode
         });
+        for (let i = 0; i < messageElements.length; i += this.RENDER_BATCH_SIZE) {
+            const batch = messageElements.slice(i, i + this.RENDER_BATCH_SIZE);
+            await new Promise<void>(resolve => {
+                requestAnimationFrame(() => {
+                    batch.forEach((messageEl: HTMLElement) => {
+                        const htmlElement = messageEl as HTMLElement;
+                        const contentElement = htmlElement.querySelector('.message-content') as HTMLElement;
+                        let rawContent = htmlElement.dataset.rawContent;
+                        if (!contentElement) {
+                            return;
+                        }
+                        if (!rawContent || rawContent.trim() === '') {
+                            const pre = contentElement.querySelector('pre');
+                            const recovered = (pre?.textContent || contentElement.textContent || '').trim();
+                            if (recovered) {
+                                rawContent = recovered;
+                                htmlElement.dataset.rawContent = recovered;
+                            }
+                        }
+                        if (rawContent && rawContent.length > 0) {
+                            if (currentMode === 'source') {
+                                this.sourceModeRenderer.renderSourceMode(rawContent, contentElement);
+                            } else {
+                                this.applyRenderModeToElement(htmlElement).catch(() => {
+                                    contentElement.empty();
+                                    import('obsidian')
+                                        .then(({ MarkdownRenderer }) =>
+                                            MarkdownRenderer.render(this.app, rawContent!, contentElement, '', this)
+                                        )
+                                        .then(() => import('./utils/linkHandler'))
+                                        .then(({ enableClickableLinksInMessage }) => {
+                                            enableClickableLinksInMessage(htmlElement, this.app);
+                                        })
+                                        .catch((fallbackError) => {
+                                            contentElement.textContent = rawContent!;
+                                        });
+                                });
+                            }
+                        }
+                    });
+                    resolve();
+                });
+            });
+            if (messageElements.length > 50 && i % 50 === 0) {
+                this.plugin.debugLog('debug', '[ChatView] Render progress', {
+                    processed: Math.min(i + this.RENDER_BATCH_SIZE, messageElements.length),
+                    total: messageElements.length,
+                    percentComplete: Math.round((i / messageElements.length) * 100)
+                });
+            }
+        }
     }
 
     private async buildContextMessages(): Promise<Message[]> {
         return await buildContextMessages({ app: this.app, plugin: this.plugin });
     }
     private addVisibleMessagesToContext(messages: Message[]): void {
-        // FORCE fresh DOM read to ensure we capture all messages, including those added after stream interruption
-        this.invalidateMessageCache();
-        
-        const messageElements = this.messagesContainer.querySelectorAll('.ai-chat-message');
-        this.plugin.debugLog('debug', '[ChatView] Fresh DOM read for context building', {
-            messageCount: messageElements.length,
-            reason: 'Ensuring all messages including post-stream-stop messages are captured'
+        // Use cached message elements for context building
+        const messageElements = this.getCachedMessageElements();
+        this.plugin.debugLog('debug', '[ChatView] Using cached message elements for context building', {
+            messageCount: messageElements.length
         });
-        
         for (let i = 0; i < messageElements.length; i++) {
             const el = messageElements[i] as HTMLElement;
             const role = el.classList.contains('user') ? 'user' : 'assistant';
-            
-            // FIX: Use rawContent from dataset first (persistent data), fallback to DOM textContent
-            // This ensures we get the correct content even during regeneration when DOM might be stale
             let content = '';
             if (el.dataset.rawContent) {
-                // Use the persistent raw content stored in the element's dataset
                 content = el.dataset.rawContent;
                 this.plugin.debugLog('debug', '[ChatView] Using rawContent from dataset for context', {
                     role,
@@ -1422,7 +1413,6 @@ export class ChatView extends ItemView {
                     messageIndex: i
                 });
             } else {
-                // Fallback to reading from DOM (for backward compatibility)
                 const contentEl = el.querySelector('.message-content');
                 content = contentEl?.textContent || '';
                 this.plugin.debugLog('debug', '[ChatView] Using textContent from DOM for context (fallback)', {
@@ -1432,8 +1422,6 @@ export class ChatView extends ItemView {
                     messageIndex: i
                 });
             }
-            
-            // Skip empty messages
             if (!content.trim()) {
                 this.plugin.debugLog('warn', '[ChatView] Skipping empty message in context', {
                     role,
@@ -1441,7 +1429,6 @@ export class ChatView extends ItemView {
                 });
                 continue;
             }
-            
             const messageObj = this.messagePool.acquireMessage();
             messageObj.role = role;
             messageObj.content = content;
@@ -1938,6 +1925,19 @@ export class ChatView extends ItemView {
         }
         
         this.plugin.debugLog('debug', '[ChatView] Message cache invalidated - will force fresh DOM reads');
+    }
+
+    /**
+     * Get cached message elements, populating cache if empty
+     */
+    private getCachedMessageElements(): HTMLElement[] {
+        if (this.cachedMessageElements.length === 0) {
+            this.cachedMessageElements = Array.from(this.messagesContainer.querySelectorAll('.ai-chat-message')) as HTMLElement[];
+            this.plugin.debugLog('debug', '[ChatView] Message cache populated', {
+                messageCount: this.cachedMessageElements.length
+            });
+        }
+        return this.cachedMessageElements;
     }
 }
 
