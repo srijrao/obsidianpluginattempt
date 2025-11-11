@@ -131,10 +131,10 @@ export function calculateTokenBreakdown(messages: Message[], modelMax: number = 
             } else {
                 // Additional system messages might be context notes or reference notes
                 // Try to identify based on content patterns
-                const content = message.content.toLowerCase();
-                if (content.includes('reference note') || content.includes('current note')) {
+                const content = message.content;
+                if (content.startsWith('[Reference Note]')) {
                     breakdown.referenceNote += tokenCount;
-                } else if (content.includes('context note') || content.includes('additional context')) {
+                } else if (content.includes('Context Notes:')) {
                     breakdown.contextNotes += tokenCount;
                 } else {
                     breakdown.systemPrompt += tokenCount;

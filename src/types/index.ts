@@ -36,3 +36,8 @@ export type {
   FileBackup, 
   BackupData 
 } from './backup';
+
+export type {
+  LinkResolutionResult,
+  LinkMetadata
+} from './links';

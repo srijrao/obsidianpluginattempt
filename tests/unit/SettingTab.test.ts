@@ -57,6 +57,7 @@ jest.mock('../../src/types', () => ({
   DEFAULT_SETTINGS: {
     debugMode: false,
     enableContextNotes: true,
+    referenceAllOpenNotes: false,
     openaiSettings: { apiKey: '', baseUrl: '', availableModels: [] },
     anthropicSettings: { apiKey: '', baseUrl: '', availableModels: [] },
     geminiSettings: { apiKey: '', baseUrl: '', availableModels: [] },

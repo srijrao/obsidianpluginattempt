@@ -5,12 +5,13 @@
  */
 
 import { Notice, App } from 'obsidian';
-import { Message, MyPluginSettings } from '../types';
+import { Message, MyPluginSettings, LinkResolutionResult } from '../types';
 import { findFile, extractContentUnderHeader } from './generalUtils';
 import { isTFile } from './typeguards';
 
 /**
  * Process a single message content to include Obsidian note contents, recursively if enabled.
+ * Returns metadata about resolved and unresolved links.
  */
 export async function processObsidianLinks(
     content: string,
@@ -18,11 +19,15 @@ export async function processObsidianLinks(
     settings: MyPluginSettings,
     visitedNotes: Set<string> = new Set(),
     currentDepth: number = 0
-): Promise<string> {
-    if (!settings.enableObsidianLinks) return content;
+): Promise<LinkResolutionResult> {
+    if (!settings.enableObsidianLinks) return { content, resolved: [], unresolved: [] };
+    
     const linkRegex = /\[\[(.*?)\]\]/g;
     let match;
     let processedContent = content;
+    const resolved: string[] = [];
+    const unresolved: string[] = [];
+    
     while ((match = linkRegex.exec(content)) !== null) {
         if (match && match[0] && match[1]) {
             const parts = match[1].split('|');
@@ -37,6 +42,7 @@ export async function processObsidianLinks(
                         extractedContent = '[Recursive link omitted: already included]';
                     } else {
                         visitedNotes.add(file.path);
+                        resolved.push(file.path);
                         const noteContent = await app.vault.cachedRead(file);
                         if (headerMatch) {
                             extractedContent = extractContentUnderHeader(noteContent, headerMatch[2].trim());
@@ -45,7 +51,10 @@ export async function processObsidianLinks(
                         }
                         
                         if (settings.expandLinkedNotesRecursively && currentDepth < (settings.maxLinkExpansionDepth ?? 2)) {
-                            extractedContent = await processObsidianLinks(extractedContent, app, settings, visitedNotes, currentDepth + 1);
+                            const recursiveResult = await processObsidianLinks(extractedContent, app, settings, visitedNotes, currentDepth + 1);
+                            extractedContent = recursiveResult.content;
+                            resolved.push(...recursiveResult.resolved);
+                            unresolved.push(...recursiveResult.unresolved);
                         }
                     }
                     processedContent = processedContent.replace(
@@ -53,24 +62,27 @@ export async function processObsidianLinks(
                         `${match[0]}\n\n---\nNote Name: ${filePath}\nContent:\n${extractedContent}\n---\n`
                     );
                 } else {
-                    new Notice(`File not found: ${filePath}. Ensure the file name and path are correct.`);
+                    unresolved.push(filePath);
                 }
             } catch (error) {
-                new Notice(`Error processing link for ${filePath}: ${error.message}`);
+                unresolved.push(filePath);
             }
         }
     }
-    return processedContent;
+    return { content: processedContent, resolved, unresolved };
 }
 
 /**
  * Process context notes specified in the settings.
+ * Returns metadata about resolved and unresolved links.
  */
-export async function processContextNotes(contextNotesText: string, app: App, settings?: MyPluginSettings): Promise<string> {
+export async function processContextNotes(contextNotesText: string, app: App, settings?: MyPluginSettings, visitedNotes?: Set<string>): Promise<LinkResolutionResult> {
     const linkRegex = /\[\[(.*?)\]\]/g;
     let match;
     let contextContent = "";
-    const visitedNotes = new Set<string>();
+    const resolved: string[] = [];
+    const unresolved: string[] = [];
+    const localVisitedNotes = visitedNotes || new Set<string>();
     
     while ((match = linkRegex.exec(contextNotesText)) !== null) {
         if (match && match[1]) {
@@ -84,69 +96,89 @@ export async function processContextNotes(contextNotesText: string, app: App, se
             try {
                 let file = findFile(app, baseFileName);
                 if (file && isTFile(file)) {
-                    const noteContent = await app.vault.cachedRead(file);
-                    
-                    contextContent += `---\nAttached: ${originalLink}\n\n`;
-                    
-                    let processedContent = '';
-                    if (headerName) {
-                        processedContent = extractContentUnderHeader(noteContent, headerName);
-                    } else {
-                        processedContent = noteContent;
+                    if (!localVisitedNotes.has(file.path)) {
+                        localVisitedNotes.add(file.path);
+                        resolved.push(file.path);
+                        
+                        const noteContent = await app.vault.cachedRead(file);
+                        
+                        contextContent += `---\nAttached: ${originalLink}\n\n`;
+                        
+                        let processedContent = '';
+                        if (headerName) {
+                            processedContent = extractContentUnderHeader(noteContent, headerName);
+                        } else {
+                            processedContent = noteContent;
+                        }
+                        
+                        // Apply recursive link expansion to context notes if settings allow it
+                        if (settings?.expandLinkedNotesRecursively) {
+                            const recursiveResult = await processObsidianLinks(
+                                processedContent, 
+                                app, 
+                                settings, 
+                                localVisitedNotes, 
+                                0
+                            );
+                            processedContent = recursiveResult.content;
+                            resolved.push(...recursiveResult.resolved);
+                            unresolved.push(...recursiveResult.unresolved);
+                        }
+                        
+                        contextContent += processedContent;
+                        contextContent += '\n\n';
                     }
-                    
-                    // Apply recursive link expansion to context notes if settings allow it
-                    if (settings?.expandLinkedNotesRecursively) {
-                        processedContent = await processObsidianLinks(
-                            processedContent, 
-                            app, 
-                            settings, 
-                            visitedNotes, 
-                            0
-                        );
-                    }
-                    
-                    contextContent += processedContent;
-                    contextContent += '\n\n';
                 } else {
+                    unresolved.push(baseFileName);
                     contextContent += `Note not found: ${originalLink}\n\n`;
                 }
             } catch (error) {
-                contextContent += `Error processing note ${originalLink}: ${error.message}\n\n`;
+                unresolved.push(baseFileName);
+                contextContent += `Error processing note ${originalLink}: ${(error as Error).message}\n\n`;
             }
         }
     }
-    return contextContent;
+    return { content: contextContent, resolved, unresolved };
 }
 
 /**
  * Process an array of messages to include Obsidian note contents.
+ * Returns metadata about all resolved and unresolved links across all messages.
  */
-export async function processMessages(messages: Message[], app: App, settings: MyPluginSettings): Promise<Message[]> {
+export async function processMessages(messages: Message[], app: App, settings: MyPluginSettings): Promise<{ messages: Message[], resolved: string[], unresolved: string[] }> {
     const processedMessages: Message[] = [];
+    const allResolved: string[] = [];
+    const allUnresolved: string[] = [];
+    
     if (settings.enableContextNotes && settings.contextNotes) {
-        const contextContent = await processContextNotes(settings.contextNotes, app, settings);
-        if (contextContent) {
+        const contextResult = await processContextNotes(settings.contextNotes, app, settings);
+        if (contextResult.content) {
             if (messages.length > 0 && messages[0].role === 'system') {
                 processedMessages.push({
                     role: 'system',
-                    content: `${messages[0].content}\n\nHere is additional context:\n${contextContent}`
+                    content: `${messages[0].content}\n\nHere is additional context:\n${contextResult.content}`
                 });
                 messages = messages.slice(1);
             } else {
                 processedMessages.push({
                     role: 'system',
-                    content: `Here is context for our conversation:\n${contextContent}`
+                    content: `Here is context for our conversation:\n${contextResult.content}`
                 });
             }
+            allResolved.push(...contextResult.resolved);
+            allUnresolved.push(...contextResult.unresolved);
         }
     }
+    
     for (const message of messages) {
-        const processedContent = await processObsidianLinks(message.content, app, settings, new Set());
+        const result = await processObsidianLinks(message.content, app, settings, new Set());
         processedMessages.push({
             role: message.role,
-            content: processedContent
+            content: result.content
         });
+        allResolved.push(...result.resolved);
+        allUnresolved.push(...result.unresolved);
     }
-    return processedMessages;
+    
+    return { messages: processedMessages, resolved: allResolved, unresolved: allUnresolved };
 }

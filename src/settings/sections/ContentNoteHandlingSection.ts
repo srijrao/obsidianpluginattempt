@@ -166,6 +166,30 @@ export class ContentNoteHandlingSection {
                         text.inputEl.rows = 4;
                         text.inputEl.style.width = '100%';
                     });
+
+                // Reference Current Note Toggle
+                this.settingCreators.createToggleSetting(
+                    sectionEl,
+                    'Reference Current Note',
+                    'Automatically include the currently active note as context when chatting',
+                    () => this.plugin.settings.referenceCurrentNote ?? false,
+                    async (value) => {
+                        this.plugin.settings.referenceCurrentNote = value;
+                        await this.plugin.saveSettings();
+                    }
+                );
+
+                // Reference All Open Notes Toggle
+                this.settingCreators.createToggleSetting(
+                    sectionEl,
+                    'Reference All Open Notes',
+                    'Automatically include all currently open notes as context when chatting',
+                    () => this.plugin.settings.referenceAllOpenNotes ?? false,
+                    async (value) => {
+                        this.plugin.settings.referenceAllOpenNotes = value;
+                        await this.plugin.saveSettings();
+                    }
+                );
             },
             this.plugin,
             'generalSectionsExpanded'
@@ -251,7 +275,7 @@ export class ContentNoteHandlingSection {
             const autoCommandName = gen.attributeName ? `Generate YAML: ${gen.attributeName}` : `YAML Generator #${idx + 1}`;
             
             // Container for each YAML generator setting block
-            const genContainer = containerEl.createDiv({ cls: 'yaml-generator-container' });
+            const genContainer = containerEl.createDiv('yaml-generator-container');
             genContainer.style.border = '1px solid var(--background-modifier-border)';
             genContainer.style.borderRadius = '6px';
             genContainer.style.padding = '1em';

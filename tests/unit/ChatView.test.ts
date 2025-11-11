@@ -5,7 +5,7 @@
 
 // Mock all dependencies before imports
 jest.mock('obsidian', () => ({
-  ItemView: jest.fn().mockImplementation(function(leaf: any) {
+  ItemView: jest.fn().mockImplementation(function(this: any, leaf: any) {
     this.leaf = leaf;
     this.containerEl = Object.assign(document.createElement('div'), {
       empty: jest.fn(),
@@ -14,23 +14,23 @@ jest.mock('obsidian', () => ({
     });
     this.contentEl = Object.assign(document.createElement('div'), {
       empty: jest.fn(),
-      addClass: jest.fn(function(...classNames: string[]) {
+      addClass: jest.fn(function(this: any, ...classNames: string[]) {
         this.classList.add(...classNames);
       }),
       createDiv: jest.fn().mockImplementation((className?: string) => {
         const div = Object.assign(document.createElement('div'), {
           empty: jest.fn(),
-          addClass: jest.fn(function(...classNames: string[]) {
+          addClass: jest.fn(function(this: any, ...classNames: string[]) {
             this.classList.add(...classNames);
           }),
-          setText: function(text: string) { this.textContent = text; return this; },
+          setText: function(this: any, text: string) { this.textContent = text; return this; },
         });
         if (className) div.className = className;
         return div;
       }),
     });
     this.app = leaf?.app; // ItemView gets app from the plugin/app context
-    this.addClass = jest.fn(function(...classNames: string[]) {
+    this.addClass = jest.fn(function(this: any, ...classNames: string[]) {
       this.classList.add(...classNames);
     });
     this.empty = jest.fn();
@@ -40,7 +40,7 @@ jest.mock('obsidian', () => ({
   WorkspaceLeaf: jest.fn(),
   Notice: jest.fn(),
   Component: jest.fn(),
-  Modal: jest.fn().mockImplementation(function(app: any) {
+  Modal: jest.fn().mockImplementation(function(this: any, app: any) {
     this.app = app;
     this.containerEl = document.createElement('div');
     this.open = jest.fn();
@@ -72,7 +72,7 @@ jest.mock('../../src/utils/errorHandler', () => ({
 
 // Add Obsidian DOM methods to HTMLElement prototype for tests
 Object.assign(HTMLElement.prototype, {
-  setText: function(text: string) {
+  setText: function(this: any, text: string) {
     this.textContent = text;
     return this;
   },
@@ -288,15 +288,17 @@ describe('ChatView', () => {
     beforeEach(() => {
       const createMockElement = () => Object.assign(document.createElement('div'), {
         empty: jest.fn(),
-        setText: function(text: string) { this.textContent = text; return this; },
+        setText: function(this: any, text: string) { this.textContent = text; return this; },
       });
 
       mockUI = {
         messagesContainer: createMockElement(),
         inputContainer: createMockElement(),
         referenceNoteIndicator: createMockElement(),
+        referenceAllOpenNotesIndicator: createMockElement(),
         obsidianLinksIndicator: createMockElement(),
         contextNotesIndicator: createMockElement(),
+        expandedLinkDisplay: createMockElement(),
         modelNameDisplay: createMockElement(),
         textarea: document.createElement('textarea'),
         sendButton: document.createElement('button'),
@@ -307,6 +309,7 @@ describe('ChatView', () => {
         helpButton: document.createElement('button'),
         saveNoteButton: document.createElement('button'),
         referenceNoteButton: document.createElement('button'),
+        referenceAllOpenNotesButton: document.createElement('button'),
         agentModeButton: document.createElement('button'),
         toolContinuationContainer: createMockElement(),
         obsidianLinksButton: document.createElement('button'),
@@ -618,7 +621,11 @@ describe('ChatView', () => {
         { role: 'user', content: 'Hello' },
       ];
 
-      require('../../src/utils/contextBuilder').buildContextMessages.mockResolvedValue(mockMessages);
+      require('../../src/utils/contextBuilder').buildContextMessages.mockResolvedValue({
+        messages: mockMessages,
+        resolved: [],
+        unresolved: []
+      });
 
       // Access private method through type assertion
       const contextMessages = await (chatView as any).buildContextMessages();

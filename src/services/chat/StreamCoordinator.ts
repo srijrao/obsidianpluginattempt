@@ -512,10 +512,11 @@ export class StreamCoordinator implements IStreamCoordinator {
      */
     private async buildContextMessages(): Promise<Message[]> {
         try {
-            return await buildContextMessages({
+            const { messages } = await buildContextMessages({
                 app: this.plugin.app,
                 plugin: this.plugin
             });
+            return messages;
         } catch (error) {
             console.warn('Failed to build context messages:', error);
             return [];

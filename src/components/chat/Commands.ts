@@ -69,7 +69,7 @@ export class Commands extends Component implements IChatCommands {
             const aiDispatcher = myPlugin.aiDispatcher || new AIDispatcher(this.app.vault, this.plugin);
 
             // Build context messages (system, context notes, current note)
-            const contextMessages = await buildContextMessages({
+            const { messages: contextMessages } = await buildContextMessages({
                 app: this.app,
                 plugin: this.plugin
             });
@@ -100,7 +100,7 @@ export class Commands extends Component implements IChatCommands {
                 this.onMessageSent();
             }
         } catch (error) {
-            if (error.name !== 'AbortError') {
+            if (error instanceof Error && error.name !== 'AbortError') {
                 new Notice(`Error: ${error.message}`);
                 const errorMessage = new BotMessage(this.app, this.plugin, `Error: ${error.message}`);
                 this.messagesContainer.appendChild(errorMessage.getElement());
@@ -189,7 +189,7 @@ export class Commands extends Component implements IChatCommands {
      */
     async regenerateResponse(messageEl: HTMLElement): Promise<void> {
         // Build context messages (system, context notes, current note)
-        const contextMessages = await buildContextMessages({
+        const { messages: contextMessages } = await buildContextMessages({
             app: this.app,
             plugin: this.plugin
         });
@@ -248,7 +248,7 @@ export class Commands extends Component implements IChatCommands {
                 }
             );
         } catch (error) {
-            if (error.name !== 'AbortError') {
+            if (error instanceof Error && error.name !== 'AbortError') {
                 new Notice(`Error: ${error.message}`);
                 botMessage.getElement().remove();
             }

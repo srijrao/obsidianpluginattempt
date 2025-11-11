@@ -48,8 +48,10 @@ export class ChatView extends ItemView {
     private inputContainer!: HTMLElement;
     private activeStream: AbortController | null = null;
     private referenceNoteIndicator!: HTMLElement;
+    private referenceAllOpenNotesIndicator!: HTMLElement;
     private obsidianLinksIndicator!: HTMLElement;
     private contextNotesIndicator!: HTMLElement;
+    private expandedLinkDisplay!: HTMLElement;
     private modelNameDisplay!: HTMLElement;
     private agentResponseHandler: AgentResponseHandler | null = null;
     private messageRegenerator: MessageRegenerator | null = null;
@@ -73,6 +75,7 @@ export class ChatView extends ItemView {
         helpButton?: HTMLButtonElement;
         saveNoteButton?: HTMLButtonElement;
         referenceNoteButton?: HTMLButtonElement;
+        referenceAllOpenNotesButton?: HTMLButtonElement;
         agentModeButton?: HTMLButtonElement;
         toolContinuationContainer?: HTMLElement;
         obsidianLinksButton?: HTMLButtonElement;
@@ -89,11 +92,15 @@ export class ChatView extends ItemView {
     // Context messages cache for token calculation optimization
     private contextMessagesCache: {
         messages: Message[] | null;
+        resolved: string[] | null;
+        unresolved: string[] | null;
         cacheKey: string;
         timestamp: number;
         ttl: number; // Time to live in milliseconds
     } = {
         messages: null,
+        resolved: null,
+        unresolved: null,
         cacheKey: '',
         timestamp: 0,
         ttl: 5000 // 5 second cache
@@ -146,6 +153,7 @@ export class ChatView extends ItemView {
         this.domElementCache.helpButton = ui.helpButton;
         this.domElementCache.saveNoteButton = ui.saveNoteButton;
         this.domElementCache.referenceNoteButton = ui.referenceNoteButton;
+        this.domElementCache.referenceAllOpenNotesButton = ui.referenceAllOpenNotesButton;
         this.domElementCache.agentModeButton = ui.agentModeButton;
         this.domElementCache.toolContinuationContainer = ui.toolContinuationContainer;
         // Cache new buttons
@@ -203,13 +211,17 @@ export class ChatView extends ItemView {
         this.messagesContainer = ui.messagesContainer;
         this.inputContainer = ui.inputContainer;
         this.referenceNoteIndicator = ui.referenceNoteIndicator;
+        this.referenceAllOpenNotesIndicator = ui.referenceAllOpenNotesIndicator;
         this.obsidianLinksIndicator = ui.obsidianLinksIndicator;
         this.contextNotesIndicator = ui.contextNotesIndicator;
+        this.expandedLinkDisplay = ui.expandedLinkDisplay;
         this.modelNameDisplay = ui.modelNameDisplay;
         this.cacheUIElements(ui);
         this.updateReferenceNoteIndicator();
+        this.updateReferenceAllOpenNotesIndicator();
         this.updateObsidianLinksIndicator();
         this.updateContextNotesIndicator();
+        this.updateExpandedLinkDisplay();
         await this.updateModelNameDisplay();
         this.updateRenderModeIndicator();
     }
@@ -236,6 +248,19 @@ export class ChatView extends ItemView {
                 }
             });
         });
+        if (this.domElementCache.referenceAllOpenNotesButton) {
+            this.addEventListenerWithCleanup(this.domElementCache.referenceAllOpenNotesButton, 'click', () => {
+                this.plugin.settings.referenceAllOpenNotes = !this.plugin.settings.referenceAllOpenNotes;
+                this.plugin.saveSettings();
+                this.updateReferenceAllOpenNotesIndicator();
+                // Debounced token count update for reference all open notes changes
+                this.tokenCountDebouncer.debounce(async () => {
+                    if (this.plugin.settings.showTokenCounter !== false) {
+                        await this.updateModelNameDisplay();
+                    }
+                });
+            });
+        }
         this.addEventListenerWithCleanup(this.domElementCache.saveNoteButton!, 'click', handleSaveNote(this.messagesContainer, this.plugin, this.app, this.agentResponseHandler, this.chatHistoryManager));
         
         // Obsidian Links button
@@ -1050,6 +1075,71 @@ export class ChatView extends ItemView {
             }
         });
     }
+    private updateReferenceAllOpenNotesIndicator() {
+        this.updateDebouncer.debounce(async () => {
+            if (!this.referenceAllOpenNotesIndicator) return;
+            
+            const isReferenceEnabled = this.plugin.settings.referenceAllOpenNotes;
+            const button = this.domElementCache.referenceAllOpenNotesButton;
+            
+            if (isReferenceEnabled) {
+                // Get all open markdown files
+                const openLeaves = this.app.workspace.getLeavesOfType('markdown');
+                const openFiles = openLeaves
+                    .map(leaf => (leaf.view as any).file)
+                    .filter(file => file !== null)
+                    .map(file => file!.basename);
+                
+                if (openFiles.length > 0) {
+                    const fileList = openFiles.slice(0, 3).join(', ') + (openFiles.length > 3 ? ` +${openFiles.length - 3} more` : '');
+                    this.referenceAllOpenNotesIndicator.setText(`📖 Referencing: ${fileList}`);
+                    this.referenceAllOpenNotesIndicator.style.display = 'block';
+                } else {
+                    this.referenceAllOpenNotesIndicator.setText(`📖 Referencing: No open notes`);
+                    this.referenceAllOpenNotesIndicator.style.display = 'block';
+                }
+                
+                if (button && button.getAttribute('aria-label') === 'Toggle referencing all open notes') {
+                    button.setText('📖');
+                    button.classList.add('active');
+                }
+            } else {
+                this.referenceAllOpenNotesIndicator.style.display = 'none';
+                if (button && button.getAttribute('aria-label') === 'Toggle referencing all open notes') {
+                    button.setText('📖');
+                    button.classList.remove('active');
+                }
+            }
+        });
+    }
+    private updateExpandedLinkDisplay() {
+        this.updateDebouncer.debounce(async () => {
+            if (!this.expandedLinkDisplay) return;
+            
+            const resolved = this.contextMessagesCache.resolved || [];
+            const unresolved = this.contextMessagesCache.unresolved || [];
+            
+            if (resolved.length > 0 || unresolved.length > 0) {
+                let displayText = '';
+                
+                if (resolved.length > 0) {
+                    const resolvedList = resolved.slice(0, 3).join(', ') + (resolved.length > 3 ? ` +${resolved.length - 3} more` : '');
+                    displayText += `✓ ${resolvedList}`;
+                }
+                
+                if (unresolved.length > 0) {
+                    if (displayText) displayText += ' | ';
+                    const unresolvedList = unresolved.slice(0, 3).join(', ') + (unresolved.length > 3 ? ` +${unresolved.length - 3} more` : '');
+                    displayText += `✗ ${unresolvedList}`;
+                }
+                
+                this.expandedLinkDisplay.setText(displayText);
+                this.expandedLinkDisplay.style.display = 'block';
+            } else {
+                this.expandedLinkDisplay.style.display = 'none';
+            }
+        });
+    }
     private async updateModelNameDisplay() {
         if (!this.modelNameDisplay) return;
 
@@ -1407,12 +1497,22 @@ export class ChatView extends ItemView {
         // Create cache key based on settings that affect context building
         const settings = this.plugin.settings;
         const currentFile = this.app.workspace.getActiveFile();
+        
+        // Get all open note paths for cache key
+        const openLeaves = this.app.workspace.getLeavesOfType('markdown');
+        const openNotePaths = openLeaves
+            .map(leaf => (leaf.view as any).file?.path)
+            .filter(path => path !== null)
+            .sort(); // Sort for consistent cache key
+        
         const cacheKey = JSON.stringify({
             systemMessage: settings.systemMessage,
             includeRecentlyOpenedNotes: settings.includeRecentlyOpenedNotes,
             enableContextNotes: settings.enableContextNotes,
             contextNotes: settings.contextNotes,
             referenceCurrentNote: settings.referenceCurrentNote,
+            referenceAllOpenNotes: settings.referenceAllOpenNotes,
+            openNotePaths: openNotePaths, // Include open notes in cache key
             currentFilePath: currentFile?.path,
             currentFileMtime: currentFile?.stat?.mtime
         });
@@ -1426,10 +1526,12 @@ export class ChatView extends ItemView {
         }
 
         // Cache miss - rebuild context messages
-        const messages = await buildContextMessages({ app: this.app, plugin: this.plugin });
+        const { messages, resolved, unresolved } = await buildContextMessages({ app: this.app, plugin: this.plugin });
 
         // Update cache
         this.contextMessagesCache.messages = messages;
+        this.contextMessagesCache.resolved = resolved;
+        this.contextMessagesCache.unresolved = unresolved;
         this.contextMessagesCache.cacheKey = cacheKey;
         this.contextMessagesCache.timestamp = now;
 

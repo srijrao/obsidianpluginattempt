@@ -414,6 +414,79 @@ Chat content here...
 
 ---
 
+## Chat UI Components
+
+**Location**: `src/components/chat/`, `src/chat.ts`
+
+The chat interface provides a comprehensive AI conversation experience with multiple reference and context options.
+
+### Core Components
+
+| Component | File | Purpose |
+|-----------|------|---------|
+| `ChatView` | `src/chat.ts` | Main chat interface component |
+| `ChatUIElements` | `src/components/chat/ui.ts` | UI element definitions and creation |
+| `Commands` | `src/components/chat/Commands.ts` | Chat command handlers (send, stop, clear, copy) |
+| `MessageRenderer` | `src/components/agent/MessageRenderer.ts` | Message rendering with tool displays |
+| `ChatInput` | `src/components/chat/ChatInput.ts` | Input handling and validation |
+
+### UI Element Structure
+
+**Button Layout** (organized in rows for optimal UX):
+
+```
+Top Row: Primary Actions
+├── 💾 Save Note | 🗑️ Clear Chat | 📋 Copy All
+
+Secondary Row: Reference Controls  
+├── 📝 Reference Current Note | 📖 Reference All Open Notes
+
+Tertiary Row: Context Features
+├── 🔗 Obsidian Links | 📚 Context Notes
+
+Bottom: Input Area
+└── Message Input (textarea) + Send Button
+```
+
+### Reference System
+
+**Current Note Reference** (`referenceCurrentNote`):
+- Toggles inclusion of active note content in AI context
+- Button: 📝 (memo) with visual indicator
+- Automatically updates when switching notes
+
+**All Open Notes Reference** (`referenceAllOpenNotes`):
+- Toggles inclusion of all currently open notes in AI context
+- Button: 📖 (book) with visual indicator showing referenced notes
+- Uses `app.workspace.getLeavesOfType('markdown')` to get open notes
+- Displays list of referenced notes in indicator tooltip
+
+### Link Resolution Display
+
+**Expanded Link Display**:
+- Shows resolved vs unresolved Obsidian links from context building
+- Displays in collapsible section below input area
+- Data sourced from `buildContextMessages()` metadata cache
+- Format: "✅ Resolved: [[Note1]], [[Note2]] | ❌ Unresolved: [[MissingNote]]"
+
+### Context Indicators
+
+**Visual Feedback System**:
+- Button states reflect current settings
+- Tooltips show current status and referenced content
+- Debounced updates prevent UI lag during rapid changes
+- Real-time updates when settings change
+
+### Settings Integration
+
+**Content Note Handling Section**:
+- `Enable Obsidian Links` - Parse [[link]] syntax in messages
+- `Enable Context Notes` - Include custom context notes
+- `Reference All Open Notes` - Include all open notes in context
+- Context notes textarea with [[link]] syntax support
+
+---
+
 ## Data Flow
 
 ### 1. Chat Message Flow

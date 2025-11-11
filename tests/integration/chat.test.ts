@@ -10,7 +10,7 @@ import { createMockApp, createMockPlugin } from '../utils/testHelpers';
 
 // Mock all dependencies before imports
 jest.mock('obsidian', () => ({
-  ItemView: jest.fn().mockImplementation(function(leaf: any) {
+  ItemView: jest.fn().mockImplementation(function(this: any, leaf: any) {
     this.leaf = leaf;
     this.containerEl = Object.assign(document.createElement('div'), {
       empty: jest.fn(),
@@ -19,23 +19,23 @@ jest.mock('obsidian', () => ({
     });
     this.contentEl = Object.assign(document.createElement('div'), {
       empty: jest.fn(),
-      addClass: jest.fn(function(...classNames: string[]) {
+      addClass: jest.fn(function(this: any, ...classNames: string[]) {
         this.classList.add(...classNames);
       }),
       createDiv: jest.fn().mockImplementation((className?: string) => {
         const div = Object.assign(document.createElement('div'), {
           empty: jest.fn(),
-          addClass: jest.fn(function(...classNames: string[]) {
+          addClass: jest.fn(function(this: any, ...classNames: string[]) {
             this.classList.add(...classNames);
           }),
-          setText: function(text: string) { this.textContent = text; return this; },
+          setText: function(this: any, text: string) { this.textContent = text; return this; },
         });
         if (className) div.className = className;
         return div;
       }),
     });
     this.app = leaf?.app;
-    this.addClass = jest.fn(function(...classNames: string[]) {
+    this.addClass = jest.fn(function(this: any, ...classNames: string[]) {
       this.classList.add(...classNames);
     });
     this.empty = jest.fn();
@@ -45,7 +45,7 @@ jest.mock('obsidian', () => ({
   WorkspaceLeaf: jest.fn(),
   Notice: jest.fn(),
   Component: jest.fn(),
-  Modal: jest.fn().mockImplementation(function(app: any) {
+  Modal: jest.fn().mockImplementation(function(this: any, app: any) {
     this.app = app;
     this.containerEl = document.createElement('div');
     this.open = jest.fn();
@@ -60,10 +60,26 @@ jest.mock('../../src/components/chat/ui', () => ({
     contentEl: document.createElement('div'),
     fadedHelp: document.createElement('div'),
     topButtonContainer: document.createElement('div'),
-    settingsButton: Object.assign(document.createElement('button'), { click: jest.fn(), setText: jest.fn() }),
-    copyAllButton: Object.assign(document.createElement('button'), { click: jest.fn(), setText: jest.fn() }),
-    saveNoteButton: Object.assign(document.createElement('button'), { click: jest.fn(), setText: jest.fn() }),
-    clearButton: Object.assign(document.createElement('button'), { click: jest.fn(), setText: jest.fn() }),
+    settingsButton: Object.assign(document.createElement('button'), {
+      click: jest.fn(),
+      setText: jest.fn(),
+      addEventListener: jest.fn()
+    }),
+    copyAllButton: Object.assign(document.createElement('button'), {
+      click: jest.fn(),
+      setText: jest.fn(),
+      addEventListener: jest.fn()
+    }),
+    saveNoteButton: Object.assign(document.createElement('button'), {
+      click: jest.fn(),
+      setText: jest.fn(),
+      addEventListener: jest.fn()
+    }),
+    clearButton: Object.assign(document.createElement('button'), {
+      click: jest.fn(),
+      setText: jest.fn(),
+      addEventListener: jest.fn()
+    }),
     messagesContainer: Object.assign(document.createElement('div'), {
       empty: jest.fn(),
       addClass: jest.fn(),
@@ -79,18 +95,71 @@ jest.mock('../../src/components/chat/ui', () => ({
       focus: jest.fn(),
       addEventListener: jest.fn(),
     }),
-    sendButton: Object.assign(document.createElement('button'), { click: jest.fn(), setText: jest.fn() }),
-    stopButton: Object.assign(document.createElement('button'), { click: jest.fn(), setText: jest.fn() }),
-    helpButton: Object.assign(document.createElement('button'), { click: jest.fn(), setText: jest.fn() }),
-    agentModeButton: Object.assign(document.createElement('button'), { click: jest.fn(), setText: jest.fn() }),
-    referenceNoteButton: Object.assign(document.createElement('button'), { click: jest.fn(), setText: jest.fn() }),
-    obsidianLinksButton: Object.assign(document.createElement('button'), { click: jest.fn(), setText: jest.fn() }),
-    contextNotesButton: Object.assign(document.createElement('button'), { click: jest.fn(), setText: jest.fn() }),
-    renderModeButton: Object.assign(document.createElement('button'), { click: jest.fn(), setText: jest.fn() }),
-    contextClearButton: Object.assign(document.createElement('button'), { click: jest.fn(), setText: jest.fn() }),
-    contextAddCurrentButton: Object.assign(document.createElement('button'), { click: jest.fn(), setText: jest.fn() }),
-    contextAddAllOpenButton: Object.assign(document.createElement('button'), { click: jest.fn(), setText: jest.fn() }),
+    sendButton: Object.assign(document.createElement('button'), {
+      click: jest.fn(),
+      setText: jest.fn(),
+      addEventListener: jest.fn()
+    }),
+    stopButton: Object.assign(document.createElement('button'), {
+      click: jest.fn(),
+      setText: jest.fn(),
+      addEventListener: jest.fn()
+    }),
+    helpButton: Object.assign(document.createElement('button'), {
+      click: jest.fn(),
+      setText: jest.fn(),
+      addEventListener: jest.fn()
+    }),
+    agentModeButton: Object.assign(document.createElement('button'), {
+      click: jest.fn(),
+      setText: jest.fn(),
+      addEventListener: jest.fn()
+    }),
+    referenceNoteButton: Object.assign(document.createElement('button'), {
+      click: jest.fn(),
+      setText: jest.fn(),
+      addEventListener: jest.fn()
+    }),
+    referenceAllOpenNotesButton: Object.assign(document.createElement('button'), {
+      click: jest.fn(),
+      setText: jest.fn(),
+      addEventListener: jest.fn()
+    }),
+    obsidianLinksButton: Object.assign(document.createElement('button'), {
+      click: jest.fn(),
+      setText: jest.fn(),
+      addEventListener: jest.fn()
+    }),
+    contextNotesButton: Object.assign(document.createElement('button'), {
+      click: jest.fn(),
+      setText: jest.fn(),
+      addEventListener: jest.fn()
+    }),
+    renderModeButton: Object.assign(document.createElement('button'), {
+      click: jest.fn(),
+      setText: jest.fn(),
+      addEventListener: jest.fn()
+    }),
+    contextClearButton: Object.assign(document.createElement('button'), {
+      click: jest.fn(),
+      setText: jest.fn(),
+      addEventListener: jest.fn()
+    }),
+    contextAddCurrentButton: Object.assign(document.createElement('button'), {
+      click: jest.fn(),
+      setText: jest.fn(),
+      addEventListener: jest.fn()
+    }),
+    contextAddAllOpenButton: Object.assign(document.createElement('button'), {
+      click: jest.fn(),
+      setText: jest.fn(),
+      addEventListener: jest.fn()
+    }),
     referenceNoteIndicator: Object.assign(document.createElement('div'), {
+      setText: jest.fn(),
+      addClass: jest.fn(),
+    }),
+    referenceAllOpenNotesIndicator: Object.assign(document.createElement('div'), {
       setText: jest.fn(),
       addClass: jest.fn(),
     }),
@@ -102,11 +171,15 @@ jest.mock('../../src/components/chat/ui', () => ({
       setText: jest.fn(),
       addClass: jest.fn(),
     }),
+    expandedLinkDisplay: Object.assign(document.createElement('div'), {
+      setText: jest.fn(),
+      addClass: jest.fn(),
+    }),
     modelNameDisplay: Object.assign(document.createElement('div'), {
-      setText: jest.fn(function(text: string) { this.textContent = text; return this; }),
-      empty: jest.fn(function() { this.innerHTML = ''; return this; }),
-      addClass: jest.fn(function(...classNames: string[]) { this.classList.add(...classNames); return this; }),
-      removeClass: jest.fn(function(...classNames: string[]) { this.classList.remove(...classNames); return this; }),
+      setText: jest.fn(function(this: any, text: string) { this.textContent = text; return this; }),
+      empty: jest.fn(function(this: any) { this.innerHTML = ''; return this; }),
+      addClass: jest.fn(function(this: any, ...classNames: string[]) { this.classList.add(...classNames); return this; }),
+      removeClass: jest.fn(function(this: any, ...classNames: string[]) { this.classList.remove(...classNames); return this; }),
     }),
   }),
 }));
@@ -180,11 +253,25 @@ describe('Chat Interface Integration Tests', () => {
       expect(chatView.getViewType()).toBe(VIEW_TYPE_CHAT);
       expect(chatView.getDisplayText()).toBe('AI Chat');
       expect(chatView.getIcon()).toBe('message-square');
+
+      // Verify UI elements are created and cached
+      expect(chatView['domElementCache'].textarea).toBeDefined();
+      expect(chatView['domElementCache'].sendButton).toBeDefined();
+      expect(chatView['domElementCache'].stopButton).toBeDefined();
+      expect(chatView['domElementCache'].agentModeButton).toBeDefined();
     });
 
     test('should handle chat view activation and deactivation', async () => {
       // Test opening chat
       await chatView.onOpen();
+
+      // Verify the view is properly initialized
+      expect(chatView.getViewType()).toBe(VIEW_TYPE_CHAT);
+      expect(chatView['domElementCache'].textarea).toBeDefined();
+
+      // Test that event handlers are set up (textarea should have event listeners)
+      const textarea = chatView['domElementCache'].textarea!;
+      expect(textarea.addEventListener).toHaveBeenCalled();
 
       // Test closing chat - ChatView extends ItemView which handles cleanup
       // The test verifies that the view can be opened and closed without errors
@@ -197,28 +284,35 @@ describe('Chat Interface Integration Tests', () => {
       // Setup chat view
       await chatView.onOpen();
 
-      // Mock user input
-      const userMessage = 'Hello, can you help me?';
+      // Verify UI is ready for message exchange
+      const textarea = chatView['domElementCache'].textarea!;
+      const sendButton = chatView['domElementCache'].sendButton!;
 
-      // Mock AI response
-      const aiResponse = 'Hello! I\'d be happy to help you.';
+      expect(textarea).toBeDefined();
+      expect(sendButton).toBeDefined();
 
-      // Simulate message sending (this would normally be triggered by UI events)
-      // Note: This is a high-level integration test - detailed message handling
-      // is covered in unit tests
+      // Verify event handlers are attached
+      expect(textarea.addEventListener).toHaveBeenCalledWith('keydown', expect.any(Function));
+      expect(sendButton.addEventListener).toHaveBeenCalledWith('click', expect.any(Function));
 
+      // Test that the chat infrastructure is ready for message exchange
       expect(chatView).toBeDefined();
-      // Verify the chat infrastructure is ready for message exchange
     });
 
     test('should handle streaming response workflow', async () => {
       await chatView.onOpen();
 
+      // Verify streaming components are initialized
+      expect(chatView['streamCoordinator']).toBeDefined();
+
+      // Verify stop button is available for interrupting streams
+      const stopButton = chatView['domElementCache'].stopButton!;
+      expect(stopButton).toBeDefined();
+      expect(stopButton.addEventListener).toHaveBeenCalledWith('click', expect.any(Function));
+
       // Test streaming response setup
       // This would test the complete streaming pipeline from AI request to UI update
-
       expect(chatView).toBeDefined();
-      // Verify streaming components are initialized
     });
   });
 
@@ -229,9 +323,22 @@ describe('Chat Interface Integration Tests', () => {
 
       await chatView.onOpen();
 
+      // Verify context buttons are available
+      const contextAddCurrentButton = (chatView['domElementCache'] as any).contextAddCurrentButton;
+      const contextAddAllOpenButton = (chatView['domElementCache'] as any).contextAddAllOpenButton;
+      const contextClearButton = (chatView['domElementCache'] as any).contextClearButton;
+
+      expect(contextAddCurrentButton).toBeDefined();
+      expect(contextAddAllOpenButton).toBeDefined();
+      expect(contextClearButton).toBeDefined();
+
+      // Verify event handlers are attached
+      expect(contextAddCurrentButton!.addEventListener).toHaveBeenCalledWith('click', expect.any(Function));
+      expect(contextAddAllOpenButton!.addEventListener).toHaveBeenCalledWith('click', expect.any(Function));
+      expect(contextClearButton!.addEventListener).toHaveBeenCalledWith('click', expect.any(Function));
+
       // Test that context building includes reference note
       expect(chatView).toBeDefined();
-      // Verify context integration
     });
 
     test('should handle agent mode activation', async () => {
@@ -245,9 +352,16 @@ describe('Chat Interface Integration Tests', () => {
 
       await chatView.onOpen();
 
+      // Verify agent mode button is available
+      const agentModeButton = chatView['domElementCache'].agentModeButton!;
+      expect(agentModeButton).toBeDefined();
+      expect(agentModeButton.addEventListener).toHaveBeenCalledWith('click', expect.any(Function));
+
+      // Verify agent response handler is initialized
+      expect(chatView['agentResponseHandler']).toBeDefined();
+
       // Test agent mode initialization
       expect(chatView).toBeDefined();
-      // Verify agent components are loaded
     });
   });
 

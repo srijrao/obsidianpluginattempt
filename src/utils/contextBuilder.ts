@@ -1,8 +1,8 @@
 import { App, Notice } from 'obsidian';
-import { Message } from '../types';
+import { Message, LinkResolutionResult } from '../types';
 import MyPlugin from '../main';
 import { getSystemMessage } from './systemMessage';
-import { processContextNotes } from './noteUtils';
+import { processContextNotes, processObsidianLinks } from './noteUtils';
 import { getRecentlyOpenedFiles } from './recently-opened-files';
 import { calculateTotalTokenCount } from './tokenCounter';
 
@@ -10,6 +10,7 @@ import { calculateTotalTokenCount } from './tokenCounter';
  * Centralized utility for building context messages for AI conversations.
  * This function constructs the system message, appends context, and optionally includes the current note content.
  * All context-building logic for the plugin should be routed through here for DRYness and maintainability.
+ * Returns metadata about resolved and unresolved links for UI display.
  */
 export async function buildContextMessages({
     app,
@@ -25,11 +26,16 @@ export async function buildContextMessages({
     includeContextNotes?: boolean,
     debug?: boolean,
     forceNoCurrentNote?: boolean
-}): Promise<Message[]> {
+}): Promise<{ messages: Message[], resolved: string[], unresolved: string[] }> {
     // Start with the system message.
     const messages: Message[] = [
         { role: 'system', content: getSystemMessage(plugin.settings) }
     ];
+
+    // Unified deduplication: track all referenced note paths to prevent duplicate fetching
+    const visitedNotes = new Set<string>();
+    const allResolved: string[] = [];
+    const allUnresolved: string[] = [];
 
     // Add the list of recently opened files to the system message if enabled.
     if (plugin.settings.includeRecentlyOpenedNotes) {
@@ -39,26 +45,79 @@ export async function buildContextMessages({
         }
     }
 
-    // Optionally append context notes to the system message.
-    if (includeContextNotes && plugin.settings.enableContextNotes && plugin.settings.contextNotes) {
-        let contextContent = await processContextNotes(plugin.settings.contextNotes, app, plugin.settings);
-        
-        // Truncate context notes if they exceed reasonable limits (leave room for other content)
-        const maxContextTokens = 50000; // Conservative limit for context notes
-        contextContent = truncateContextNotes(contextContent, maxContextTokens, plugin);
-        
-        messages[0].content += `\n\nContext Notes:\n${contextContent}`;
-    }
-
-    // Optionally add the content of the current note as a separate system message.
+    // Step 1: Pre-populate visitedNotes with current note path ONLY if we're going to reference it
+    // This prevents current note from being re-added if it's also in open notes
     if (!forceNoCurrentNote && includeCurrentNote && plugin.settings.referenceCurrentNote) {
         const currentFile = app.workspace.getActiveFile();
         if (currentFile) {
-            const currentNoteContent = await app.vault.cachedRead(currentFile);
+            visitedNotes.add(currentFile.path);
+        }
+    }
+
+    // Step 2: Process context notes with deduplication
+    if (includeContextNotes && plugin.settings.enableContextNotes && plugin.settings.contextNotes) {
+        const contextResult = await processContextNotes(plugin.settings.contextNotes, app, plugin.settings, visitedNotes);
+        
+        // Truncate context notes if they exceed reasonable limits (leave room for other content)
+        const maxContextTokens = 50000; // Conservative limit for context notes
+        const truncatedContent = truncateContextNotes(contextResult.content, maxContextTokens, plugin);
+        
+        messages[0].content += `\n\nContext Notes:\n${truncatedContent}`;
+        allResolved.push(...contextResult.resolved);
+        allUnresolved.push(...contextResult.unresolved);
+    }
+
+    // Step 3: Add referenced notes as separate system messages
+    // Current note
+    if (!forceNoCurrentNote && includeCurrentNote && plugin.settings.referenceCurrentNote) {
+        const currentFile = app.workspace.getActiveFile();
+        if (currentFile) {
+            let currentNoteContent = await app.vault.cachedRead(currentFile);
+            
+            // Process links in current note if recursive expansion is enabled
+            if (plugin.settings.enableObsidianLinks && plugin.settings.expandLinkedNotesRecursively) {
+                const linkResult = await processObsidianLinks(currentNoteContent, app, plugin.settings, visitedNotes, 0);
+                currentNoteContent = linkResult.content;
+                allResolved.push(...linkResult.resolved);
+                allUnresolved.push(...linkResult.unresolved);
+            }
+            
             messages.push({
                 role: 'system',
-                content: `Here is the content of the current note (${currentFile.path}):\n\n${currentNoteContent}`
+                content: `[Reference Note] Current note: ${currentFile.path}\n\n${currentNoteContent}`
             });
+        }
+    }
+
+    // All open notes
+    if (plugin.settings.referenceAllOpenNotes) {
+        const openLeaves = app.workspace.getLeavesOfType('markdown');
+        for (const leaf of openLeaves) {
+            const file = (leaf as any).view?.file;
+            if (file?.path) {
+                // Skip if already processed (e.g., as current note)
+                if (visitedNotes.has(file.path)) {
+                    continue;
+                }
+                
+                // Mark as visited before processing to prevent circular references
+                visitedNotes.add(file.path);
+                
+                let noteContent = await app.vault.cachedRead(file);
+                
+                // Process links in open note if recursive expansion is enabled
+                if (plugin.settings.enableObsidianLinks && plugin.settings.expandLinkedNotesRecursively) {
+                    const linkResult = await processObsidianLinks(noteContent, app, plugin.settings, visitedNotes, 0);
+                    noteContent = linkResult.content;
+                    allResolved.push(...linkResult.resolved);
+                    allUnresolved.push(...linkResult.unresolved);
+                }
+                
+                messages.push({
+                    role: 'system',
+                    content: `[Reference Note] Open note: ${file.path}\n\n${noteContent}`
+                });
+            }
         }
     }
 
@@ -67,7 +126,10 @@ export async function buildContextMessages({
         plugin.debugLog?.('debug', '[contextBuilder] Building context messages', {
             enableContextNotes: plugin.settings.enableContextNotes,
             contextNotes: plugin.settings.contextNotes,
-            referenceCurrentNote: plugin.settings.referenceCurrentNote
+            referenceCurrentNote: plugin.settings.referenceCurrentNote,
+            referenceAllOpenNotes: plugin.settings.referenceAllOpenNotes,
+            resolvedNotes: allResolved,
+            unresolvedNotes: allUnresolved
         });
     }
 
@@ -80,7 +142,7 @@ export async function buildContextMessages({
         }
     }
 
-    return messages;
+    return { messages, resolved: allResolved, unresolved: allUnresolved };
 }
 
 /**

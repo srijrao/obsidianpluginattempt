@@ -20,6 +20,7 @@ export interface ChatUIElements {
     helpButton: HTMLButtonElement;      // Button to show help modal
     agentModeButton: HTMLButtonElement; // Button to toggle agent mode
     referenceNoteButton: HTMLButtonElement; // Button to toggle referencing current note
+    referenceAllOpenNotesButton: HTMLButtonElement; // Button to toggle referencing all open notes
     obsidianLinksButton: HTMLButtonElement; // Button to toggle Obsidian links
     contextNotesButton: HTMLButtonElement;  // Button to toggle context notes
     renderModeButton: HTMLButtonElement; // Button to toggle live/source rendering mode
@@ -28,8 +29,10 @@ export interface ChatUIElements {
     contextAddCurrentButton: HTMLButtonElement; // Button to add current note to context
     contextAddAllOpenButton: HTMLButtonElement; // Button to add all open notes to context
     referenceNoteIndicator: HTMLElement; // Indicator showing referenced note name
+    referenceAllOpenNotesIndicator: HTMLElement; // Indicator showing referenced open notes
     obsidianLinksIndicator: HTMLElement; // Indicator showing Obsidian Links status
     contextNotesIndicator: HTMLElement;  // Indicator showing context notes
+    expandedLinkDisplay: HTMLElement;    // Display showing resolved/unresolved links
     modelNameDisplay: HTMLElement;      // Display for the current model name
 }
 
@@ -183,6 +186,7 @@ export function createChatUI(app: App, contentEl: HTMLElement): ChatUIElements {
     ];
     const secondaryTopButtons = [
         { key: 'referenceNoteButton', text: '📝', ariaLabel: 'Toggle referencing current note', addClass: 'ai-chat-reference-button' },
+        { key: 'referenceAllOpenNotesButton', text: '📖', ariaLabel: 'Toggle referencing all open notes', addClass: 'ai-chat-reference-all-open-button' },
         { key: 'obsidianLinksButton', text: '🔗', ariaLabel: 'Toggle Obsidian links', addClass: 'ai-chat-obsidian-links-button' },
         { key: 'contextNotesButton', text: '📚', ariaLabel: 'Toggle context notes', addClass: 'ai-chat-context-notes-button' },
     ];
@@ -210,8 +214,10 @@ export function createChatUI(app: App, contentEl: HTMLElement): ChatUIElements {
 
     // Indicator configs for DRY creation
     const referenceNoteIndicator = createIndicator({ className: 'ai-reference-note-indicator' });
+    const referenceAllOpenNotesIndicator = createIndicator({ className: 'ai-reference-all-open-notes-indicator' });
     const obsidianLinksIndicator = createIndicator({ className: 'ai-obsidian-links-indicator' });
     const contextNotesIndicator = createIndicator({ className: 'ai-context-notes-indicator' });
+    const expandedLinkDisplay = createIndicator({ className: 'ai-expanded-link-display' });
 
     // Model Name Display (now in left column of top row)
     const modelNameDisplay = document.createElement('div');
@@ -225,8 +231,10 @@ export function createChatUI(app: App, contentEl: HTMLElement): ChatUIElements {
     // Add model name and indicators to the left column
     modelInfoColumn.appendChild(modelNameDisplay);
     modelInfoColumn.appendChild(referenceNoteIndicator);
+    modelInfoColumn.appendChild(referenceAllOpenNotesIndicator);
     modelInfoColumn.appendChild(obsidianLinksIndicator);
     modelInfoColumn.appendChild(contextNotesIndicator);
+    modelInfoColumn.appendChild(expandedLinkDisplay);
 
     // Messages container (where chat messages are displayed)
     const messagesContainer = contentEl.createDiv('ai-chat-messages');
@@ -320,6 +328,7 @@ export function createChatUI(app: App, contentEl: HTMLElement): ChatUIElements {
         helpButton,
         agentModeButton,
         referenceNoteButton: buttonRefs.referenceNoteButton,
+        referenceAllOpenNotesButton: buttonRefs.referenceAllOpenNotesButton,
         obsidianLinksButton: buttonRefs.obsidianLinksButton,
         contextNotesButton: buttonRefs.contextNotesButton,
         renderModeButton: buttonRefs.renderModeButton,
@@ -327,8 +336,10 @@ export function createChatUI(app: App, contentEl: HTMLElement): ChatUIElements {
         contextAddCurrentButton,
         contextAddAllOpenButton,
         referenceNoteIndicator,
+        referenceAllOpenNotesIndicator,
         obsidianLinksIndicator,
         contextNotesIndicator,
+        expandedLinkDisplay,
         modelNameDisplay,
     };
 }

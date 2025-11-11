@@ -52,6 +52,8 @@ export interface MyPluginSettings {
     provider: 'openai' | 'anthropic' | 'gemini' | 'ollama' | 'openrouter';
     /** If true, the current active note's content will be referenced in AI queries. */
     referenceCurrentNote: boolean;
+    /** If true, all currently open notes will be referenced in AI queries. */
+    referenceAllOpenNotes: boolean;
 
     /** Selected unified model (new unified approach) across all providers. */
     selectedModel?: string; 
@@ -308,6 +310,8 @@ export interface UIBehaviorSettings {
 export const DEFAULT_SETTINGS: MyPluginSettings = {
     /** @inheritdoc */
     referenceCurrentNote: false,
+    /** @inheritdoc */
+    referenceAllOpenNotes: false,
     /** @inheritdoc */
     provider: 'openai',
     /** @inheritdoc */

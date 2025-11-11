@@ -83,7 +83,7 @@ export async function handleAICompletion(
         const dispatcher = myPlugin.aiDispatcher || new AIDispatcher(vault, plugin);
 
         // Build context messages for editor completion: include context notes, but never the full current note.
-        const contextMessages = await buildContextMessages({
+        const { messages: contextMessages } = await buildContextMessages({
             app: app || myPlugin.app,
             plugin: myPlugin,
             includeCurrentNote: false,
