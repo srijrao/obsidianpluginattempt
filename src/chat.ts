@@ -1058,18 +1058,16 @@ export class ChatView extends ItemView {
         this.updateDebouncer.debounce(async () => {
             const currentFile = this.app.workspace.getActiveFile();
             const isReferenceEnabled = this.plugin.settings.referenceCurrentNote;
-            const button = this.referenceNoteIndicator.previousElementSibling as HTMLButtonElement;
+            const button = this.domElementCache.referenceNoteButton;
             if (isReferenceEnabled && currentFile) {
                 this.referenceNoteIndicator.setText(`📝 Referencing: ${currentFile.basename}`);
                 this.referenceNoteIndicator.style.display = 'block';
-                if (button && button.getAttribute('aria-label') === 'Toggle referencing current note') {
-                    button.setText('📝');
+                if (button) {
                     button.classList.add('active');
                 }
             } else {
                 this.referenceNoteIndicator.style.display = 'none';
-                if (button && button.getAttribute('aria-label') === 'Toggle referencing current note') {
-                    button.setText('📝');
+                if (button) {
                     button.classList.remove('active');
                 }
             }
@@ -1097,14 +1095,12 @@ export class ChatView extends ItemView {
                     this.referenceAllOpenNotesIndicator.style.display = 'block';
                 }
                 
-                if (button && button.getAttribute('aria-label') === 'Toggle referencing all open notes') {
-                    button.setText('📖');
+                if (button) {
                     button.classList.add('active');
                 }
             } else {
                 this.referenceAllOpenNotesIndicator.style.display = 'none';
-                if (button && button.getAttribute('aria-label') === 'Toggle referencing all open notes') {
-                    button.setText('📖');
+                if (button) {
                     button.classList.remove('active');
                 }
             }
