@@ -1050,31 +1050,46 @@ export class ChatView extends ItemView {
         }
     }
     private updateReferenceNoteIndicator() {
+        const currentFile = this.app.workspace.getActiveFile();
+        const isReferenceEnabled = this.plugin.settings.referenceCurrentNote;
+        const button = this.domElementCache.referenceNoteButton;
+        
+        // Update button state immediately (synchronous)
+        if (button) {
+            if (isReferenceEnabled && currentFile) {
+                button.classList.add('active');
+            } else {
+                button.classList.remove('active');
+            }
+        }
+        
+        // Debounce the indicator text update
         this.updateDebouncer.debounce(async () => {
-            const currentFile = this.app.workspace.getActiveFile();
-            const isReferenceEnabled = this.plugin.settings.referenceCurrentNote;
-            const button = this.domElementCache.referenceNoteButton;
             if (isReferenceEnabled && currentFile) {
                 this.referenceNoteIndicator.setText(`📝 Referencing: ${currentFile.basename}`);
                 this.referenceNoteIndicator.style.display = 'block';
-                if (button) {
-                    button.classList.add('active');
-                }
             } else {
                 this.referenceNoteIndicator.style.display = 'none';
-                if (button) {
-                    button.classList.remove('active');
-                }
             }
         });
     }
     private updateReferenceAllOpenNotesIndicator() {
+        if (!this.referenceAllOpenNotesIndicator) return;
+        
+        const isReferenceEnabled = this.plugin.settings.referenceAllOpenNotes;
+        const button = this.domElementCache.referenceAllOpenNotesButton;
+        
+        // Update button state immediately (synchronous)
+        if (button) {
+            if (isReferenceEnabled) {
+                button.classList.add('active');
+            } else {
+                button.classList.remove('active');
+            }
+        }
+        
+        // Debounce the indicator text update (which requires file system access)
         this.updateDebouncer.debounce(async () => {
-            if (!this.referenceAllOpenNotesIndicator) return;
-            
-            const isReferenceEnabled = this.plugin.settings.referenceAllOpenNotes;
-            const button = this.domElementCache.referenceAllOpenNotesButton;
-            
             if (isReferenceEnabled) {
                 // Get all open markdown files (including non-focused tabs)
                 const { getAllOpenMarkdownFiles } = require('./utils/workspaceUtils');
@@ -1089,15 +1104,8 @@ export class ChatView extends ItemView {
                     this.referenceAllOpenNotesIndicator.setText(`📖 Referencing: No open notes`);
                     this.referenceAllOpenNotesIndicator.style.display = 'block';
                 }
-                
-                if (button) {
-                    button.classList.add('active');
-                }
             } else {
                 this.referenceAllOpenNotesIndicator.style.display = 'none';
-                if (button) {
-                    button.classList.remove('active');
-                }
             }
         });
     }
