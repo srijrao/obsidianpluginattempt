@@ -938,6 +938,7 @@ export class ChatView extends ItemView {
     private registerWorkspaceAndSettingsEvents() {
         this.registerEvent(this.app.workspace.on('active-leaf-change', () => {
             this.updateReferenceNoteIndicator();
+            this.updateReferenceAllOpenNotesIndicator();
             // Update token count when active note changes
             this.tokenCountDebouncer.debounce(async () => {
                 if (this.plugin.settings.showTokenCounter !== false) {
@@ -961,6 +962,7 @@ export class ChatView extends ItemView {
         // Store the settings change callback so we can clean it up later
         this.settingsChangeCallback = async () => {
             this.updateReferenceNoteIndicator();
+            this.updateReferenceAllOpenNotesIndicator();
             this.updateObsidianLinksIndicator();
             this.updateContextNotesIndicator();
             await this.updateModelNameDisplay();
@@ -1051,12 +1053,13 @@ export class ChatView extends ItemView {
     }
     private updateReferenceNoteIndicator() {
         const currentFile = this.app.workspace.getActiveFile();
-        const isReferenceEnabled = this.plugin.settings.referenceCurrentNote;
+        const isCurrentNoteEnabled = this.plugin.settings.referenceCurrentNote;
+        const isAllOpenNotesEnabled = this.plugin.settings.referenceAllOpenNotes;
         const button = this.domElementCache.referenceNoteButton;
         
         // Update button state immediately (synchronous)
         if (button) {
-            if (isReferenceEnabled && currentFile) {
+            if (isCurrentNoteEnabled && currentFile) {
                 button.classList.add('active');
             } else {
                 button.classList.remove('active');
@@ -1065,17 +1068,30 @@ export class ChatView extends ItemView {
         
         // Debounce the indicator text update
         this.updateDebouncer.debounce(async () => {
-            if (isReferenceEnabled && currentFile) {
+            // Check if either referencing mode is enabled
+            if (isCurrentNoteEnabled && currentFile) {
                 this.referenceNoteIndicator.setText(`📝 Referencing: ${currentFile.basename}`);
                 this.referenceNoteIndicator.style.display = 'block';
+            } else if (isAllOpenNotesEnabled) {
+                // Get all open markdown files (including non-focused tabs)
+                const { getAllOpenMarkdownFiles } = require('./utils/workspaceUtils');
+                const openFiles = getAllOpenMarkdownFiles(this.app);
+                const fileNames = openFiles.map((file: any) => file.basename);
+                
+                if (fileNames.length > 0) {
+                    const fileList = fileNames.slice(0, 3).join(', ') + (fileNames.length > 3 ? ` +${fileNames.length - 3} more` : '');
+                    this.referenceNoteIndicator.setText(`📖 Referencing: ${fileList}`);
+                    this.referenceNoteIndicator.style.display = 'block';
+                } else {
+                    this.referenceNoteIndicator.setText(`📖 Referencing: No open notes`);
+                    this.referenceNoteIndicator.style.display = 'block';
+                }
             } else {
                 this.referenceNoteIndicator.style.display = 'none';
             }
         });
     }
     private updateReferenceAllOpenNotesIndicator() {
-        if (!this.referenceAllOpenNotesIndicator) return;
-        
         const isReferenceEnabled = this.plugin.settings.referenceAllOpenNotes;
         const button = this.domElementCache.referenceAllOpenNotesButton;
         
@@ -1088,26 +1104,9 @@ export class ChatView extends ItemView {
             }
         }
         
-        // Debounce the indicator text update (which requires file system access)
-        this.updateDebouncer.debounce(async () => {
-            if (isReferenceEnabled) {
-                // Get all open markdown files (including non-focused tabs)
-                const { getAllOpenMarkdownFiles } = require('./utils/workspaceUtils');
-                const openFiles = getAllOpenMarkdownFiles(this.app);
-                const fileNames = openFiles.map((file: any) => file.basename);
-                
-                if (fileNames.length > 0) {
-                    const fileList = fileNames.slice(0, 3).join(', ') + (fileNames.length > 3 ? ` +${fileNames.length - 3} more` : '');
-                    this.referenceAllOpenNotesIndicator.setText(`📖 Referencing: ${fileList}`);
-                    this.referenceAllOpenNotesIndicator.style.display = 'block';
-                } else {
-                    this.referenceAllOpenNotesIndicator.setText(`📖 Referencing: No open notes`);
-                    this.referenceAllOpenNotesIndicator.style.display = 'block';
-                }
-            } else {
-                this.referenceAllOpenNotesIndicator.style.display = 'none';
-            }
-        });
+        // Just call the main reference note indicator update
+        // This will use the same UI indicator as "reference current note"
+        this.updateReferenceNoteIndicator();
     }
     private updateExpandedLinkDisplay() {
         this.updateDebouncer.debounce(async () => {
