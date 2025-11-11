@@ -41,7 +41,7 @@ export default class MyPlugin extends Plugin {
     /**
      * Plugin settings object, loaded from disk or defaults.
      */
-    settings: MyPluginSettings;
+    settings!: MyPluginSettings;
     /**
      * Reference to the current active streaming controller (for aborting AI responses).
      */
@@ -61,19 +61,19 @@ export default class MyPlugin extends Plugin {
     /**
      * Backup manager instance for handling plugin data backups.
      */
-    public backupManager: BackupManager;
+    public backupManager: BackupManager | null = null;
     /**
      * Agent mode manager instance for handling agent-related settings and logic.
      */
-    public agentModeManager: AgentModeManager;
+    public agentModeManager: AgentModeManager | null = null;
     /**
      * Priority 3 optimizations integration manager.
      */
-    public priority3Manager: Priority3IntegrationManager;
+    public priority3Manager: Priority3IntegrationManager | null = null;
     /**
      * Recently opened files manager for tracking file access.
      */
-    public recentlyOpenedFilesManager: RecentlyOpenedFilesManager;
+    public recentlyOpenedFilesManager: RecentlyOpenedFilesManager | null = null;
     /**
      * Settings reload manager for detecting external changes to data.json.
      */
@@ -277,7 +277,7 @@ export default class MyPlugin extends Plugin {
         this._yamlAttributeCommandIds = registerAllCommands(
             this,
             this.settings,
-            (messages: Message[]) => this.processMessages(messages),
+            async (messages: Message[]) => (await this.processMessages(messages)).messages,
             (messages: Message[]) => this.activateChatViewAndLoadMessages(messages),
             { current: this.activeStream },
             (stream: AbortController | null) => { this.activeStream = stream; },
@@ -372,7 +372,7 @@ export default class MyPlugin extends Plugin {
      * @param args Arguments to log.
      */
     debugLog(level: 'debug' | 'info' | 'warn' | 'error' = 'debug', ...args: any[]) {
-        debugLog(this.settings.debugMode ?? false, level, ...args); // Changed from log to debugLog
+        debugLog(this.settings?.debugMode ?? false, level, ...args); // Changed from log to debugLog
     }
 
     /**
@@ -429,7 +429,7 @@ export default class MyPlugin extends Plugin {
         this._yamlAttributeCommandIds = registerYamlAttributeCommands(
             this,
             this.settings,
-            (messages) => this.processMessages(messages),
+            async (messages) => (await this.processMessages(messages)).messages,
             this._yamlAttributeCommandIds,
             (level, ...args) => debugLog(this.settings.debugMode ?? false, level, ...args) // Changed from log to debugLog
         );
@@ -461,7 +461,7 @@ export default class MyPlugin extends Plugin {
                 this._yamlAttributeCommandIds = registerYamlAttributeCommands(
                     this,
                     this.settings,
-                    (messages) => this.processMessages(messages),
+                    async (messages) => (await this.processMessages(messages)).messages,
                     this._yamlAttributeCommandIds,
                     (level, ...args) => debugLog(this.settings.debugMode ?? false, level, ...args)
                 );
@@ -482,10 +482,10 @@ export default class MyPlugin extends Plugin {
     /**
      * Processes an array of messages, potentially adding context notes.
      * @param messages The messages to process.
-     * @returns A promise that resolves to the processed messages.
+     * @returns A promise that resolves to the processed messages with resolved/unresolved context info.
      */
-    private async processMessages(messages: Message[]): Promise<Message[]> {
-        return processMessages(messages, this.app, this.settings);
+    private async processMessages(messages: Message[]): Promise<{ messages: Message[], resolved: string[], unresolved: string[] }> {
+        return processMessages(messages, this.app, this.settings!);
     }
 
     /**
@@ -501,9 +501,19 @@ export default class MyPlugin extends Plugin {
             debugLog(this.settings.debugMode ?? false, 'info', 'Settings reload manager stopped');
         }
         
+        // Clean up backup manager
+        if (this.backupManager) {
+            // Add any cleanup logic here if BackupManager has a dispose method
+        }
+        
         // Clean up Priority 3 optimizations
         if (this.priority3Manager) {
             this.priority3Manager.dispose();
+        }
+        
+        // Clean up agent mode manager
+        if (this.agentModeManager) {
+            // Add any cleanup logic here if AgentModeManager has a dispose method
         }
         
         // Clean up recently opened files manager
