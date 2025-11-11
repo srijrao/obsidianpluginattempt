@@ -1,6 +1,7 @@
 import { App } from 'obsidian';
 import { Tool, ToolResult } from '../ToolRegistry';
 import MyPlugin from '../../../main';
+import { getAllOpenMarkdownFiles } from '../../../utils/workspaceUtils';
 
 type ContextAction = 'clear' | 'add_current' | 'add_all_open';
 
@@ -139,18 +140,12 @@ export class ContextNotesTool implements Tool {
     }
 
     private async addAllOpenNotes(app: App, plugin: MyPlugin, maxNotes?: number, force?: boolean): Promise<ToolResult> {
-        const leaves = app.workspace.getLeavesOfType('markdown');
-        if (!leaves.length) {
+        const openFiles = getAllOpenMarkdownFiles(app);
+        if (!openFiles.length) {
             return { success: false, error: 'No open notes found in the workspace' };
         }
 
-        const allPaths = leaves
-            .map(leaf => (leaf as any).view?.file?.path)
-            .filter((path: string | undefined): path is string => Boolean(path));
-
-        if (!allPaths.length) {
-            return { success: false, error: 'No valid note files found in open leaves' };
-        }
+        const allPaths = openFiles.map(file => file.path);
 
         const normalizedMax = this.normalizeMaxNotes(maxNotes);
         const targetPaths = normalizedMax ? allPaths.slice(0, normalizedMax) : allPaths;

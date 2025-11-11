@@ -28,6 +28,7 @@ import { AgentResponseHandler } from './components/agent/AgentResponseHandler';
 import { buildContextMessages, truncateMessagesForContext } from './utils/contextBuilder';
 import { MessageRegenerator } from './components/chat/MessageRegenerator';
 import { showNotice } from './utils/generalUtils';
+import { getAllOpenMarkdownFiles } from './utils/workspaceUtils';
 import { ResponseStreamer } from './components/chat/ResponseStreamer';
 import { StreamCoordinator } from './services/chat/StreamCoordinator';
 import { IEventBus } from './services/interfaces';
@@ -337,18 +338,12 @@ export class ChatView extends ItemView {
         }
         if (addAllBtn) {
             this.addEventListenerWithCleanup(addAllBtn, 'click', async () => {
-                const leaves = this.app.workspace.getLeavesOfType('markdown');
-                if (!leaves.length) {
+                const openFiles = getAllOpenMarkdownFiles(this.app);
+                if (!openFiles.length) {
                     new Notice('No open notes found');
                     return;
                 }
-                const paths = leaves
-                    .map(l => (l as any).view?.file?.path)
-                    .filter((p: string | undefined): p is string => !!p);
-                if (!paths.length) {
-                    new Notice('No open notes found');
-                    return;
-                }
+                const paths = openFiles.map(file => file.path);
                 const existing = this.plugin.settings.contextNotes || '';
                 const lines = existing ? existing.split(/\r?\n/).filter(Boolean) : [];
                 const set = new Set(lines);
