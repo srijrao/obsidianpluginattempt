@@ -1083,15 +1083,13 @@ export class ChatView extends ItemView {
             const button = this.domElementCache.referenceAllOpenNotesButton;
             
             if (isReferenceEnabled) {
-                // Get all open markdown files
-                const openLeaves = this.app.workspace.getLeavesOfType('markdown');
-                const openFiles = openLeaves
-                    .map(leaf => (leaf.view as any).file)
-                    .filter(file => file !== null)
-                    .map(file => file!.basename);
+                // Get all open markdown files (including non-focused tabs)
+                const { getAllOpenMarkdownFiles } = require('./utils/workspaceUtils');
+                const openFiles = getAllOpenMarkdownFiles(this.app);
+                const fileNames = openFiles.map((file: any) => file.basename);
                 
-                if (openFiles.length > 0) {
-                    const fileList = openFiles.slice(0, 3).join(', ') + (openFiles.length > 3 ? ` +${openFiles.length - 3} more` : '');
+                if (fileNames.length > 0) {
+                    const fileList = fileNames.slice(0, 3).join(', ') + (fileNames.length > 3 ? ` +${fileNames.length - 3} more` : '');
                     this.referenceAllOpenNotesIndicator.setText(`📖 Referencing: ${fileList}`);
                     this.referenceAllOpenNotesIndicator.style.display = 'block';
                 } else {
@@ -1498,12 +1496,9 @@ export class ChatView extends ItemView {
         const settings = this.plugin.settings;
         const currentFile = this.app.workspace.getActiveFile();
         
-        // Get all open note paths for cache key
-        const openLeaves = this.app.workspace.getLeavesOfType('markdown');
-        const openNotePaths = openLeaves
-            .map(leaf => (leaf.view as any).file?.path)
-            .filter(path => path !== null)
-            .sort(); // Sort for consistent cache key
+        // Get all open note paths for cache key (including non-focused tabs)
+        const { getOpenMarkdownFilePaths } = require('./utils/workspaceUtils');
+        const openNotePaths = getOpenMarkdownFilePaths(this.app);
         
         const cacheKey = JSON.stringify({
             systemMessage: settings.systemMessage,

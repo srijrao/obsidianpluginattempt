@@ -5,6 +5,7 @@ import { getSystemMessage } from './systemMessage';
 import { processContextNotes, processObsidianLinks } from './noteUtils';
 import { getRecentlyOpenedFiles } from './recently-opened-files';
 import { calculateTotalTokenCount } from './tokenCounter';
+import { getAllOpenMarkdownFiles } from './workspaceUtils';
 
 /**
  * Centralized utility for building context messages for AI conversations.
@@ -91,9 +92,8 @@ export async function buildContextMessages({
 
     // All open notes
     if (plugin.settings.referenceAllOpenNotes) {
-        const openLeaves = app.workspace.getLeavesOfType('markdown');
-        for (const leaf of openLeaves) {
-            const file = (leaf as any).view?.file;
+        const openFiles = getAllOpenMarkdownFiles(app);
+        for (const file of openFiles) {
             if (file?.path) {
                 // Skip if already processed (e.g., as current note)
                 if (visitedNotes.has(file.path)) {
