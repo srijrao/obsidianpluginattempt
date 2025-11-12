@@ -72,7 +72,7 @@ export class MessageContextPool {
             }
         );
 
-        this.arrayPool = new ObjectPool(
+        this.arrayPool = new ObjectPool<any[]>(
             () => [],
             (arr) => {
                 arr.length = 0;

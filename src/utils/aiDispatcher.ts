@@ -641,7 +641,7 @@ export class AIDispatcher {
                     try {
                         await this.executeRequest(request);
                     } catch (error) {
-                        request.reject(error);
+                        request.reject(error as Error);
                     }
                 } else {
                     // Put back at front of queue
@@ -665,7 +665,7 @@ export class AIDispatcher {
             await this.executeWithRetry(request.messages, request.options, providerName, cacheKey);
             request.resolve();
         } catch (error) {
-            request.reject(error);
+            request.reject(error as Error);
         }
     }
 
@@ -806,7 +806,7 @@ export class AIDispatcher {
             // Save failed request for debugging
             try {
                 const errorResponseData = {
-                    error: error.message || 'Unknown error',
+                    error: (error as Error).message || 'Unknown error',
                     provider: providerName,
                     timestamp: new Date().toISOString(),
                     duration: Date.now() - startTime
@@ -1071,7 +1071,7 @@ export class AIDispatcher {
                 providerSettings.lastTestResult = {
                     timestamp: Date.now(),
                     success: false,
-                    message: error.message || 'Failed to refresh models'
+                    message: (error as Error).message || 'Failed to refresh models'
                 };
                 await this.plugin.saveSettings();
             }

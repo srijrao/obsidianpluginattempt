@@ -607,6 +607,7 @@ export class ChatView extends ItemView {
 
     private setupAgentModeButton() {
         this.addEventListenerWithCleanup(this.domElementCache.agentModeButton!, 'click', async () => {
+            if (!this.plugin.agentModeManager) return;
             const isCurrentlyEnabled = this.plugin.agentModeManager.isAgentModeEnabled();
             await this.plugin.agentModeManager.setAgentModeEnabled(!isCurrentlyEnabled);
             const agentButton = this.domElementCache.agentModeButton!;
@@ -630,7 +631,7 @@ export class ChatView extends ItemView {
             });
         });
         const agentButton = this.domElementCache.agentModeButton!;
-        if (this.plugin.agentModeManager.isAgentModeEnabled()) {
+        if (this.plugin.agentModeManager?.isAgentModeEnabled()) {
             agentButton.classList.add('active');
             agentButton.setAttribute('title', 'Agent Mode: ON - AI can use tools');
         } else {
@@ -801,7 +802,7 @@ export class ChatView extends ItemView {
                 if ((error as Error).name !== 'AbortError') {
                     handleChatError(error, 'sendMessage', {
                         messageLength: content.length,
-                        agentMode: this.plugin.agentModeManager.isAgentModeEnabled()
+                        agentMode: this.plugin.agentModeManager?.isAgentModeEnabled() ?? false
                     });
                     await createMessageElement(this.app, 'assistant', `Error: ${(error as Error).message}`, this.chatHistoryManager, this.plugin, (el: HTMLElement) => this.regenerateResponse(el), this);
                 }
@@ -1397,7 +1398,7 @@ export class ChatView extends ItemView {
 
     private updateAgentModeButtonState() {
         const agentButton = this.domElementCache.agentModeButton;
-        if (agentButton) {
+        if (agentButton && this.plugin.agentModeManager) {
             if (this.plugin.agentModeManager.isAgentModeEnabled()) {
                 agentButton.classList.add('active');
                 agentButton.setAttribute('title', 'Agent Mode: ON - AI can use tools');
@@ -1658,7 +1659,7 @@ export class ChatView extends ItemView {
         });
 
         // FIX: Process agent response if agent mode is enabled (execute tools)
-        if (this.plugin.agentModeManager.isAgentModeEnabled() && this.agentResponseHandler) {
+        if (this.plugin.agentModeManager?.isAgentModeEnabled() && this.agentResponseHandler) {
             this.plugin.debugLog('info', '[ChatView] Agent mode enabled - processing response for tools', {
                 responseLength: responseContent.length,
                 responsePreview: responseContent.substring(0, 200)

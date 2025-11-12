@@ -113,7 +113,7 @@ export class AgentResponseHandler {
         this.debugLog("Processing response", { response }, contextLabel);
 
         // If agent mode is disabled, return the raw response.
-        if (!this.context.plugin.agentModeManager.isAgentModeEnabled()) {
+        if (!this.context.plugin.agentModeManager?.isAgentModeEnabled()) {
             return this.createProcessResponseResult(response, [], false);
         }
 
@@ -182,7 +182,10 @@ export class AgentResponseHandler {
         contextLabel: string
     ): Promise<{ processedText: string; toolResults: Array<{ command: ToolCommand; result: ToolResult }>; hasTools: boolean }> {
         const toolResults: Array<{ command: ToolCommand; result: ToolResult }> = [];
-        const agentSettings = this.context.plugin.agentModeManager.getAgentModeSettings();
+        const agentSettings = this.context.plugin.agentModeManager?.getAgentModeSettings();
+        if (!agentSettings) {
+            throw new Error('Agent mode manager not available');
+        }
         const effectiveLimit = this.getEffectiveToolLimit();
 
         for (const command of commands) {
@@ -229,7 +232,8 @@ export class AgentResponseHandler {
      * @param count Number of additional executions allowed.
      */
     addToolExecutions(count: number) {
-        const agentSettings = this.context.plugin.agentModeManager.getAgentModeSettings();
+        const agentSettings = this.context.plugin.agentModeManager?.getAgentModeSettings();
+        if (!agentSettings) return;
         this.temporaryMaxToolCalls = (this.temporaryMaxToolCalls || agentSettings.maxToolCalls) + count;
     }
 
@@ -378,7 +382,8 @@ ${resultData}
      */
     private async rerunTool(originalCommand: ToolCommand): Promise<void> {
         try {
-            const agentSettings = this.context.plugin.agentModeManager.getAgentModeSettings();
+            const agentSettings = this.context.plugin.agentModeManager?.getAgentModeSettings();
+            if (!agentSettings) return;
 
             const result = await this.toolExecutor.executeToolWithLogging(originalCommand, agentSettings.timeoutMs, "rerun", this.debugLog.bind(this));
             this.createToolDisplay(originalCommand, result);
@@ -392,8 +397,8 @@ ${resultData}
      * Returns the effective tool execution limit (temporary or default).
      */
     private getEffectiveToolLimit(): number {
-        const agentSettings = this.context.plugin.agentModeManager.getAgentModeSettings();
-        return this.temporaryMaxToolCalls || agentSettings.maxToolCalls;
+        const agentSettings = this.context.plugin.agentModeManager?.getAgentModeSettings();
+        return this.temporaryMaxToolCalls || agentSettings?.maxToolCalls || 10;
     }
 
     /**
@@ -587,7 +592,7 @@ ${resultData}
      * @returns TaskStatus object
      */
     private createTaskStatus(status: TaskStatus["status"]): TaskStatus {
-        const agentSettings = this.context.plugin.agentModeManager.getAgentModeSettings();
+        const agentSettings = this.context.plugin.agentModeManager?.getAgentModeSettings();
         return {
             status,
             toolExecutionCount: this.executionCount,

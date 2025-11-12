@@ -59,7 +59,7 @@ export class SettingsModal extends Modal {
         await this.aiModelConfigSection.renderCurrentModelSettingsOnly(contentEl);
         
         // Add button to open full plugin settings
-        const buttonContainer = contentEl.createDiv({ cls: 'modal-button-container' });
+        const buttonContainer = contentEl.createDiv('modal-button-container');
         buttonContainer.style.marginTop = '2em';
         buttonContainer.style.textAlign = 'center';
         

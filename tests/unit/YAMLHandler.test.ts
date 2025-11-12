@@ -6,7 +6,7 @@
 // Mock all dependencies before imports
 jest.mock('obsidian', () => ({
   Notice: jest.fn(),
-  Plugin: jest.fn().mockImplementation(function() {
+  Plugin: jest.fn().mockImplementation(function(this: any) {
     this.app = {};
     this.addCommand = jest.fn();
     this.registerEvent = jest.fn();

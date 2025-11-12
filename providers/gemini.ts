@@ -120,7 +120,8 @@ export class GeminiProvider extends BaseProvider {
             if (error instanceof ProviderError) {
                 throw error;
             }
-            if (error.name === 'AbortError') {
+            const err = error as Error;
+            if (err.name === 'AbortError') {
                 debugLog(this.debugMode, 'info', 'Gemini request was aborted'); // Use debugLog
             } else {
                 debugLog(this.debugMode, 'error', 'Error calling Gemini:', error); // Use debugLog

@@ -101,9 +101,10 @@ export class FileSearchTool implements Tool {
                     try {
                         regex = new RegExp(query, 'i');
                     } catch (e) {
+                        const err = e as Error;
                         return {
                             success: false,
-                            error: `Invalid regular expression: ${e.message}`
+                            error: `Invalid regular expression: ${err.message}`
                         };
                     }
                 }

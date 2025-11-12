@@ -21,7 +21,8 @@ export function registerTestCommands(plugin: MyPlugin) {
                 await runBasicIndexedDBTest();
                 new Notice('✅ IndexedDB test completed successfully!');
             } catch (error) {
-                new Notice(`❌ IndexedDB test failed: ${error.message}`);
+                const err = error as Error;
+                new Notice(`❌ IndexedDB test failed: ${err.message}`);
                 console.error('IndexedDB test failed:', error);
             }
         }

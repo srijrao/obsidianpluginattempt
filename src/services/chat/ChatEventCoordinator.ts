@@ -437,22 +437,23 @@ export class ChatEventCoordinator implements IChatEventCoordinator {
         this.addEventListenerWithCleanup(
             document,
             'keydown',
-            (event: KeyboardEvent) => {
+            (event: Event) => {
+                const keyboardEvent = event as KeyboardEvent;
                 // Ctrl/Cmd + Enter to send message
-                if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
-                    event.preventDefault();
+                if ((keyboardEvent.ctrlKey || keyboardEvent.metaKey) && keyboardEvent.key === 'Enter') {
+                    keyboardEvent.preventDefault();
                     uiElements.sendButton?.click();
                 }
 
                 // Escape to stop streaming
-                if (event.key === 'Escape' && this.streamCoordinator.isStreaming()) {
-                    event.preventDefault();
+                if (keyboardEvent.key === 'Escape' && this.streamCoordinator.isStreaming()) {
+                    keyboardEvent.preventDefault();
                     this.handleStopStream();
                 }
 
                 // Ctrl/Cmd + K to clear chat
-                if ((event.ctrlKey || event.metaKey) && event.key === 'k') {
-                    event.preventDefault();
+                if ((keyboardEvent.ctrlKey || keyboardEvent.metaKey) && keyboardEvent.key === 'k') {
+                    keyboardEvent.preventDefault();
                     this.handleClearChat();
                 }
             }
@@ -477,11 +478,12 @@ export class ChatEventCoordinator implements IChatEventCoordinator {
         this.addEventListenerWithCleanup(
             uiElements.messagesContainer,
             'contextmenu',
-            (event: MouseEvent) => {
-                const messageElement = (event.target as HTMLElement).closest('.ai-chat-message');
+            (event: Event) => {
+                const mouseEvent = event as MouseEvent;
+                const messageElement = (mouseEvent.target as HTMLElement).closest('.ai-chat-message');
                 if (messageElement) {
-                    event.preventDefault();
-                    this.showMessageContextMenu(event, messageElement as HTMLElement);
+                    mouseEvent.preventDefault();
+                    this.showMessageContextMenu(mouseEvent, messageElement as HTMLElement);
                 }
             }
         );

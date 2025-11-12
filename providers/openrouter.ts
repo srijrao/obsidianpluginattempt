@@ -124,7 +124,8 @@ export class OpenRouterProvider extends BaseProvider {
             if (error instanceof ProviderError) {
                 throw error;
             }
-            if (error.name === 'AbortError') {
+            const err = error as Error;
+            if (err.name === 'AbortError') {
                 debugLog(this.debugMode, 'info', 'OpenRouter stream was aborted');
             } else {
                 debugLog(this.debugMode, 'error', 'Error calling OpenRouter:', error);

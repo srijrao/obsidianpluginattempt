@@ -323,8 +323,9 @@ export class TaskContinuation {
                 this.plugin.debugLog('debug', '[TaskContinuation] Error getting continuation response', { error });
             }
             console.error('TaskContinuation: Error getting continuation response:', error);
-            if (error.name !== 'AbortError') {
-                return `*[Error getting continuation: ${error.message}]*`;
+            const err = error as Error;
+            if (err.name !== 'AbortError') {
+                return `*[Error getting continuation: ${err.message}]*`;
             }
             return '';
         }

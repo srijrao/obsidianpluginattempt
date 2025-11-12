@@ -126,7 +126,7 @@ export class SettingsSections {
         displayName: string,
         renderSpecificSettings?: (contentEl: HTMLElement) => void
     ): void {
-        const collapsibleContainer = containerEl.createDiv({ cls: 'provider-collapsible' });
+        const collapsibleContainer = containerEl.createDiv('provider-collapsible');
         const headerEl = collapsibleContainer.createEl('div', {
             cls: 'provider-header',
             text: `▶ ${displayName} Configuration`
@@ -138,7 +138,7 @@ export class SettingsSections {
             fontWeight: 'bold'
         });
 
-        const contentEl = collapsibleContainer.createDiv({ cls: 'provider-content' });
+        const contentEl = collapsibleContainer.createDiv('provider-content');
         contentEl.style.display = 'none';
         contentEl.style.paddingLeft = '16px';
 
@@ -279,12 +279,13 @@ export class SettingsSections {
                             new Notice(result.message);
                         }
                     } catch (error) {
-                        new Notice(`Error: ${error.message}`);
+                        const err = error as Error;
+                        new Notice(`Error: ${err.message}`);
                          // Update last test result with error message if test throws
                          settings.lastTestResult = {
                             timestamp: Date.now(),
                             success: false,
-                            message: `Test failed: ${error.message}`
+                            message: `Test failed: ${err.message}`
                         };
                     } finally {
                         button.setButtonText('Test');

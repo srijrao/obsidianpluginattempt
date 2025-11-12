@@ -248,10 +248,10 @@ export class AIModelConfigurationSection {
             const infoDiv = subSectionEl.createEl("div", {
               cls: "setting-item-description",
             });
-            infoDiv.createEl("a", {
+            const linkEl = infoDiv.createEl("a", {
               text: "Get your API key from openrouter.ai",
-              href: "https://openrouter.ai/keys",
             });
+            linkEl.setAttribute("href", "https://openrouter.ai/keys");
 
             this.renderProviderTestSection(
               subSectionEl,
@@ -328,7 +328,8 @@ export class AIModelConfigurationSection {
               new Notice(result.message);
             }
           } catch (error) {
-            new Notice(`Error: ${error.message}`);
+            const err = error as Error;
+            new Notice(`Error: ${err.message}`);
           } finally {
             button.setButtonText("Test");
             button.setDisabled(false);
@@ -382,7 +383,8 @@ export class AIModelConfigurationSection {
               );
               modal.open();
             } catch (error) {
-              new Notice(`Error loading models: ${error.message}`);
+              const err = error as Error;
+              new Notice(`Error loading models: ${err.message}`);
             }
           })
         );
@@ -461,7 +463,8 @@ export class AIModelConfigurationSection {
             await this.refreshAllAvailableModels();
             new Notice("Successfully refreshed available models");
           } catch (error) {
-            new Notice(`Error refreshing models: ${error.message}`);
+            const err = error as Error;
+            new Notice(`Error refreshing models: ${err.message}`);
           } finally {
             button.setButtonText("Refresh Models");
             button.setDisabled(false);
@@ -654,7 +657,8 @@ export class AIModelConfigurationSection {
             );
             modal.open();
           } catch (error) {
-            new Notice(`Error loading models: ${error.message}`);
+            const err = error as Error;
+            new Notice(`Error loading models: ${err.message}`);
           }
         })
       );
@@ -775,7 +779,8 @@ export class AIModelConfigurationSection {
                   containerEl.empty();
                   await this.renderAvailableModelsSection(containerEl);
                 } catch (error) {
-                  new Notice(`Error deleting model: ${error.message}`);
+                  const err = error as Error;
+                  new Notice(`Error deleting model: ${err.message}`);
                 }
               }
             })
@@ -792,7 +797,8 @@ export class AIModelConfigurationSection {
                   `Re-download feature is not yet implemented. Please pull the model again using the provider settings.`
                 );
               } catch (error) {
-                new Notice(`Error re-downloading model: ${error.message}`);
+                const err = error as Error;
+                new Notice(`Error re-downloading model: ${err.message}`);
               }
             }
           })

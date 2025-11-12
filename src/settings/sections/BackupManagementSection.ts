@@ -35,6 +35,10 @@ export class BackupManagementSection {
             'Manage backups created when files are modified by AI tools. Backups are stored in the plugin data folder, not in your vault.',
             async (sectionEl: HTMLElement) => {
                 const backupManager = this.plugin.backupManager;
+                if (!backupManager) {
+                    sectionEl.createEl('div', { text: 'Backup manager not available.' });
+                    return;
+                }
                 const [totalBackups, totalSize, backupFiles] = await Promise.all([
                     backupManager.getTotalBackupCount(),
                     backupManager.getTotalBackupSize(),
@@ -60,7 +64,8 @@ export class BackupManagementSection {
                             new Notice('Deleted all backups successfully');
                             await this.renderBackupManagement(containerEl);
                         } catch (error) {
-                            new Notice(`Error deleting all backups: ${error.message}`);
+                            const err = error as Error;
+                            new Notice(`Error deleting all backups: ${err.message}`);
                         }
                     }
                 });
@@ -122,7 +127,8 @@ export class BackupManagementSection {
         onRefresh: () => void,
         onDeleteAll: () => void
     ): void {
-        const actionsContainer = containerEl.createDiv({ attr: { style: 'margin-bottom: 1em;' } });
+        const actionsContainer = containerEl.createDiv();
+        actionsContainer.style.marginBottom = '1em';
         const refreshButton = actionsContainer.createEl('button', {
             text: 'Refresh Backup List',
             cls: 'mod-cta'
@@ -145,19 +151,19 @@ export class BackupManagementSection {
         for (const filePath of backupFiles) {
             const backups = await backupManager.getBackupsForFile(filePath);
             if (backups.length === 0) continue;
-            const fileSection = containerEl.createDiv({ cls: 'backup-file-section' });
+            const fileSection = containerEl.createDiv('backup-file-section');
             fileSection.createEl('h4', { text: filePath, cls: 'backup-file-path' });
-            const backupList = fileSection.createDiv({ cls: 'backup-list' });
+            const backupList = fileSection.createDiv('backup-list');
             backups.forEach((backup: FileBackup) => {
-                const backupItem = backupList.createDiv({ cls: 'backup-item' });
-                const backupInfo = backupItem.createDiv({ cls: 'backup-info' });
+                const backupItem = backupList.createDiv('backup-item');
+                const backupInfo = backupItem.createDiv('backup-info');
                 const sizeKB = backup.fileSize ? Math.round(backup.fileSize / 1024) : 0;
                 const fileType = backup.isBinary ? 'Binary' : 'Text';
                 backupInfo.createEl('span', {
                     text: `${backup.readableTimestamp} (${sizeKB} KB, ${fileType})`,
                     cls: 'backup-timestamp'
                 });
-                const backupActions = backupItem.createDiv({ cls: 'backup-actions' });
+                const backupActions = backupItem.createDiv('backup-actions');
                 this.renderBackupActionButtons(backupActions, backup, filePath, backupManager, containerEl, backupFiles);
             });
             this.renderDeleteAllBackupsForFileButton(fileSection, filePath, backups.length, backupManager, containerEl, backupFiles);
@@ -194,7 +200,8 @@ export class BackupManagementSection {
                         new Notice(`Failed to restore backup: ${result.error}`);
                     }
                 } catch (error) {
-                    new Notice(`Error restoring backup: ${error.message}`);
+                    const err = error as Error;
+                    new Notice(`Error restoring backup: ${err.message}`);
                 }
             }
         };
@@ -215,7 +222,8 @@ export class BackupManagementSection {
                     containerEl.empty();
                     await this.renderBackupFilesList(containerEl, backupFiles, backupManager);
                 } catch (error) {
-                    new Notice(`Error deleting backup: ${error.message}`);
+                    const err = error as Error;
+                    new Notice(`Error deleting backup: ${err.message}`);
                 }
             }
         };
@@ -269,7 +277,8 @@ export class BackupManagementSection {
                     containerEl.empty();
                     await this.renderBackupFilesList(containerEl, backupFiles, backupManager);
                 } catch (error) {
-                    new Notice(`Error deleting backups: ${error.message}`);
+                    const err = error as Error;
+                    new Notice(`Error deleting backups: ${err.message}`);
                 }
             }
         };
@@ -358,7 +367,8 @@ export class BackupManagementSection {
                             new Notice(`Emptied trash - permanently deleted ${trashItems.length} items`);
                             await this.renderTrashManagement(containerEl);
                         } catch (error) {
-                            new Notice(`Error emptying trash: ${error.message}`);
+                            const err = error as Error;
+                            new Notice(`Error emptying trash: ${err.message}`);
                         }
                     }
                 });
@@ -380,7 +390,8 @@ export class BackupManagementSection {
      * Render action buttons for trash management
      */
     private renderTrashActions(containerEl: HTMLElement, hasTrash: boolean, onRefresh: () => void, onEmpty: () => void) {
-        const actionsContainer = containerEl.createDiv({ attr: { style: 'margin-bottom: 1em;' } });
+        const actionsContainer = containerEl.createDiv();
+        actionsContainer.style.marginBottom = '1em';
         const refreshBtn = actionsContainer.createEl('button', {
             text: 'Refresh Trash',
             cls: 'mod-cta'
@@ -401,18 +412,23 @@ export class BackupManagementSection {
      * Render the list of trash items and their actions
      */
     private renderTrashList(containerEl: HTMLElement, trashItems: { name: string, isFolder: boolean, size?: number }[], fallbackUsed: boolean) {
-        const trashList = containerEl.createDiv({ cls: 'trash-list' });
+        const trashList = containerEl.createDiv('trash-list');
         const maxItems = 20;
         for (const item of trashItems.slice(0, maxItems)) {
-            const trashItem = trashList.createDiv({ cls: 'trash-item', attr: { style: 'margin-bottom: 0.5em; padding: 0.5em; border: 1px solid var(--background-modifier-border); border-radius: 4px;' } });
-            const itemInfo = trashItem.createDiv({ cls: 'trash-item-info' });
+            const trashItem = trashList.createDiv('trash-item');
+            trashItem.style.marginBottom = '0.5em';
+            trashItem.style.padding = '0.5em';
+            trashItem.style.border = '1px solid var(--background-modifier-border)';
+            trashItem.style.borderRadius = '4px';
+            const itemInfo = trashItem.createDiv('trash-item-info');
             const icon = item.isFolder ? '📁' : '📄';
             const size = !item.isFolder && item.size ? ` (${Math.round(item.size / 1024)} KB)` : '';
             itemInfo.createEl('span', {
                 text: `${icon} ${item.name}${size}`,
                 cls: 'trash-item-name'
             });
-            const itemActions = trashItem.createDiv({ cls: 'trash-item-actions', attr: { style: 'margin-top: 0.5em;' } });
+            const itemActions = trashItem.createDiv('trash-item-actions');
+            itemActions.style.marginTop = '0.5em';
             if (!fallbackUsed) {
                 this.renderRestoreTrashButton(itemActions, item.name, item.isFolder, containerEl);
             }
@@ -454,7 +470,8 @@ export class BackupManagementSection {
                         }
                     }
                 } catch (error) {
-                    new Notice(`Error restoring item: ${error.message}`);
+                    const err = error as Error;
+                    new Notice(`Error restoring item: ${err.message}`);
                 }
             }
         };
@@ -485,7 +502,8 @@ export class BackupManagementSection {
                     new Notice(`Permanently deleted "${name}"`);
                     await this.renderTrashManagement(containerEl.parentElement!);
                 } catch (error) {
-                    new Notice(`Error deleting item: ${error.message}`);
+                    const err = error as Error;
+                    new Notice(`Error deleting item: ${err.message}`);
                 }
             }
         };

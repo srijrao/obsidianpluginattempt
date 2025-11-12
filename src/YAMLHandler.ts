@@ -161,7 +161,8 @@ export async function generateNoteTitle(
             new Notice("No title generated.");
         }
     } catch (err) {
-        new Notice("Error generating title: " + (err?.message ?? err));
+        const error = err as Error;
+        new Notice("Error generating title: " + (error?.message ?? error));
     }
 }
 

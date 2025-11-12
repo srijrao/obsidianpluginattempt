@@ -437,7 +437,8 @@ export class DIContainer {
         try {
             return service.factory(this);
         } catch (error) {
-            throw new Error(`Failed to create instance of '${name}': ${error.message}`);
+            const err = error as Error;
+            throw new Error(`Failed to create instance of '${name}': ${err.message}`);
         }
     }
 

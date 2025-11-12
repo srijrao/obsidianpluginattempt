@@ -160,8 +160,9 @@ export class MessageRegenerator {
             );
             this.chatView.applyRenderModeToElement(assistantContainer);
         } catch (error) {
-            if (error.name !== 'AbortError') {
-                new Notice(`Error: ${error.message}`);
+            const err = error as Error;
+            if (err.name !== 'AbortError') {
+                new Notice(`Error: ${err.message}`);
                 assistantContainer.remove();
             }
         } finally {

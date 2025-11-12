@@ -100,14 +100,15 @@ export class ResponseStreamer {
             });
 
             // If agent mode is enabled, process the full response for tools/reasoning
-            if (this.plugin.agentModeManager.isAgentModeEnabled() && this.agentResponseHandler) {
+            if (this.plugin.agentModeManager?.isAgentModeEnabled() && this.agentResponseHandler) {
                 responseContent = await this.processAgentResponse(responseContent, container, messages, "streamer-main", chatHistory);
             }
 
             return responseContent;
         } catch (error) {
+            const err = error as Error;
             // If the error is not an AbortError (user stopped), re-throw
-            if (error.name !== 'AbortError') {
+            if (err.name !== 'AbortError') {
                 throw error;
             }
             // If it's an AbortError, return empty string
@@ -135,7 +136,7 @@ export class ResponseStreamer {
      */
     private async addAgentSystemPrompt(messages: Message[]) {
         this.plugin.debugLog('debug', '[ResponseStreamer] addAgentSystemPrompt called', { messages });
-        if (!this.plugin.agentModeManager.isAgentModeEnabled()) return;
+        if (!this.plugin.agentModeManager?.isAgentModeEnabled()) return;
 
         // Dynamically import the agent prompt builder
         const { buildAgentSystemPrompt } = await import('../../promptConstants');
@@ -504,10 +505,11 @@ export class ResponseStreamer {
         });
 
         // Listen for the 'continueTaskWithAdditionalTools' event (user clicks "Reset Limit")
-        this.messagesContainer.addEventListener('continueTaskWithAdditionalTools', (event: CustomEvent) => {
+        this.messagesContainer.addEventListener('continueTaskWithAdditionalTools', (event: Event) => {
+            const customEvent = event as CustomEvent;
             this.executeContinuation({
                 ...continuationParams,
-                additionalTools: event.detail.additionalTools
+                additionalTools: customEvent.detail.additionalTools
             });
         });
     }
@@ -633,8 +635,9 @@ export class ResponseStreamer {
         } catch (error) {
             console.error('ResponseStreamer: Error getting continuation response:', error);
             // Return error message or empty string on AbortError
-            return error.name !== 'AbortError'
-                ? `*[Error getting continuation: ${error.message}]*`
+            const err = error as Error;
+            return err.name !== 'AbortError'
+                ? `*[Error getting continuation: ${err.message}]*`
                 : '';
         }
     }

@@ -24,6 +24,7 @@ export class BotMessage extends Component {
         this.app = app;
         this.plugin = plugin;
         this.content = content;
+        this.contentEl = document.createElement('div'); // Initialize to prevent TypeScript error
         this.element = this.createMessageElement();
     }
 

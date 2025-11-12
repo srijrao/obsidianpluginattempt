@@ -31,6 +31,7 @@ class FileChangeSuggestionsPanel {
   constructor(app: App, suggestions: FileChangeSuggestion[]) {
     this.app = app;
     this.suggestions = suggestions;
+    this.containerEl = document.createElement('div');
     this.createContainer();
   }
 

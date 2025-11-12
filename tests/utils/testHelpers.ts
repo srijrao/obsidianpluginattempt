@@ -5,7 +5,7 @@
 
 import { Plugin } from 'obsidian';
 import { MyPluginSettings, DEFAULT_SETTINGS } from '../../src/types/settings';
-import { Message } from '../../src/types/chat';
+import { Message } from '../../src/types';
 
 // Mock Obsidian App interface
 export interface MockApp {

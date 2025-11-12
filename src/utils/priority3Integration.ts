@@ -6,7 +6,7 @@
  * into the main plugin architecture.
  */
 
-import { Plugin } from 'obsidian';
+import { Plugin, App, PluginManifest } from 'obsidian';
 import { DIContainer, ServiceLocator, DIContainerFactory } from './dependencyInjection';
 import { globalStateManager, StateUtils } from './stateManager';
 import { globalStreamManager, StreamUtils } from './streamManager';
@@ -442,6 +442,11 @@ export class Priority3IntegrationManager {
  */
 export class ExamplePluginIntegration extends Plugin {
     private priority3Manager: Priority3IntegrationManager;
+
+    constructor(app: App, manifest: PluginManifest) {
+        super(app, manifest);
+        this.priority3Manager = null!; // Will be initialized in onload
+    }
 
     async onload() {
         // Initialize Priority 3 optimizations

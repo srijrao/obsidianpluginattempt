@@ -222,8 +222,9 @@ export class ChatHistoryManager {
       try {
         await this.vault.adapter.mkdir(dirPath);
       } catch (e) {
+        const err = e as Error;
         // Directory might already exist, ignore error
-        if (!e.message.includes('already exists')) {
+        if (!err.message.includes('already exists')) {
           throw e;
         }
       }

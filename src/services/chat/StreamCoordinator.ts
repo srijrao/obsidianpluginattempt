@@ -529,12 +529,12 @@ export class StreamCoordinator implements IStreamCoordinator {
      * @param messages The message array to modify (modified in place)
      */
     private async addAgentSystemPrompt(messages: Message[]): Promise<void> {
-        this.plugin.debugLog('debug', '[StreamCoordinator] addAgentSystemPrompt called', { 
+        this.plugin.debugLog('debug', '[StreamCoordinator] addAgentSystemPrompt called', {
             messageCount: messages.length,
-            agentModeEnabled: this.plugin.agentModeManager.isAgentModeEnabled()
+            agentModeEnabled: this.plugin.agentModeManager?.isAgentModeEnabled() ?? false
         });
-        
-        if (!this.plugin.agentModeManager.isAgentModeEnabled()) {
+
+        if (!this.plugin.agentModeManager?.isAgentModeEnabled()) {
             return;
         }
 

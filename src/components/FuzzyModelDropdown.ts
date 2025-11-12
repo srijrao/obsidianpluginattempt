@@ -85,71 +85,70 @@ export class FuzzyModelDropdown extends FuzzySuggestModal<ModelInfo> {
         const isFavorite = isFavoriteModel(this.plugin, model.id);
         const isRecent = this.plugin.settings.recentModels?.includes(model.id) || false;
         
-        el.createDiv({ cls: 'fuzzy-model-item' }, (div) => {
-            // Header row with title and star button
-            const headerDiv = div.createDiv({ cls: 'fuzzy-model-header' });
+        const div = el.createDiv('fuzzy-model-item');
+        // Header row with title and star button
+        const headerDiv = div.createDiv('fuzzy-model-header');
+        
+        // Model name (title)
+        const titleDiv = headerDiv.createDiv('fuzzy-model-title');
+        
+        // Add indicators
+        if (isFavorite) {
+            const indicator = titleDiv.createSpan('fuzzy-model-indicator favorite');
+            indicator.setText('⭐ ');
+        }
+        if (isRecent && !isFavorite) {
+            const indicator = titleDiv.createSpan('fuzzy-model-indicator recent');
+            indicator.setText('🕐 ');
+        }
+        titleDiv.appendText(model.name);
+        
+        // Star button for favoriting
+        const starBtn = headerDiv.createDiv('fuzzy-model-star-btn');
+        setIcon(starBtn, isFavorite ? 'star' : 'star-off');
+        starBtn.setAttribute('aria-label', isFavorite ? 'Unfavorite' : 'Favorite');
+        starBtn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            const nowFavorited = await toggleFavoriteModel(this.plugin, model.id);
+            setIcon(starBtn, nowFavorited ? 'star' : 'star-off');
+            starBtn.setAttribute('aria-label', nowFavorited ? 'Unfavorite' : 'Favorite');
             
-            // Model name (title)
-            const titleDiv = headerDiv.createDiv({ cls: 'fuzzy-model-title' });
+            // Re-sort the models and update display
+            this.models = sortModelsByRelevance(this.plugin, this.models);
             
-            // Add indicators
-            if (isFavorite) {
-                titleDiv.createSpan({ cls: 'fuzzy-model-indicator favorite', text: '⭐ ' });
-            }
-            if (isRecent && !isFavorite) {
-                titleDiv.createSpan({ cls: 'fuzzy-model-indicator recent', text: '🕐 ' });
-            }
-            titleDiv.appendText(model.name);
-            
-            // Star button for favoriting
-            const starBtn = headerDiv.createDiv({ cls: 'fuzzy-model-star-btn' });
-            setIcon(starBtn, isFavorite ? 'star' : 'star-off');
-            starBtn.setAttribute('aria-label', isFavorite ? 'Unfavorite' : 'Favorite');
-            starBtn.addEventListener('click', async (e) => {
-                e.stopPropagation();
-                e.preventDefault();
-                const nowFavorited = await toggleFavoriteModel(this.plugin, model.id);
-                setIcon(starBtn, nowFavorited ? 'star' : 'star-off');
-                starBtn.setAttribute('aria-label', nowFavorited ? 'Unfavorite' : 'Favorite');
-                
-                // Re-sort the models and update display
-                this.models = sortModelsByRelevance(this.plugin, this.models);
-                
-                // Force re-render by updating the input value (triggers search again)
-                const input = this.inputEl as HTMLInputElement;
-                const currentValue = input.value;
-                input.value = currentValue + ' ';
-                input.value = currentValue;
-                input.dispatchEvent(new Event('input'));
-            });
-            
-            // Model details container
-            const detailsDiv = div.createDiv({ cls: 'fuzzy-model-details' });
-            
-            // Model ID
-            detailsDiv.createSpan({ cls: 'fuzzy-model-id', text: model.id });
-            
-            // Provider badge
-            if (model.provider) {
-                detailsDiv.createSpan({ 
-                    cls: `fuzzy-model-provider provider-${model.provider}`, 
-                    text: model.provider.toUpperCase() 
-                });
-            }
-            
-            // Context length
-            if (model.context_length) {
-                detailsDiv.createSpan({ 
-                    cls: 'fuzzy-model-context', 
-                    text: `${(model.context_length / 1000).toFixed(0)}k tokens` 
-                });
-            }
-            
-            // Description
-            if (model.description) {
-                div.createDiv({ cls: 'fuzzy-model-description', text: model.description });
-            }
+            // Force re-render by updating the input value (triggers search again)
+            const input = this.inputEl as HTMLInputElement;
+            const currentValue = input.value;
+            input.value = currentValue + ' ';
+            input.value = currentValue;
+            input.dispatchEvent(new Event('input'));
         });
+        
+        // Model details container
+        const detailsDiv = div.createDiv('fuzzy-model-details');
+        
+        // Model ID
+        const idSpan = detailsDiv.createSpan('fuzzy-model-id');
+        idSpan.setText(model.id);
+        
+        // Provider badge
+        if (model.provider) {
+            const providerSpan = detailsDiv.createSpan(`fuzzy-model-provider provider-${model.provider}`);
+            providerSpan.setText(model.provider.toUpperCase());
+        }
+        
+        // Context length
+        if (model.context_length) {
+            const contextSpan = detailsDiv.createSpan('fuzzy-model-context');
+            contextSpan.setText(`${(model.context_length / 1000).toFixed(0)}k tokens`);
+        }
+        
+        // Description
+        if (model.description) {
+            const descDiv = div.createDiv('fuzzy-model-description');
+            descDiv.setText(model.description);
+        }
     }
 
     /**

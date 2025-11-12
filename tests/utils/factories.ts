@@ -3,9 +3,11 @@
  * @description Test data factories for consistent test data generation
  */
 
-import { Message, MessageRole } from '../../src/types/chat';
+import { Message } from '../../src/types';
 import { MyPluginSettings, DEFAULT_SETTINGS } from '../../src/types/settings';
 import { AIProvider } from '../../src/types/providers';
+
+type MessageRole = 'system' | 'user' | 'assistant';
 
 /**
  * Creates a test message with default values
@@ -14,8 +16,6 @@ export const createTestMessage = (overrides: Partial<Message> = {}): Message => 
   return {
     role: 'user' as MessageRole,
     content: 'Test message content',
-    timestamp: new Date('2025-01-01T12:00:00.000Z'),
-    id: 'test-message-id',
     ...overrides,
   };
 };
@@ -27,7 +27,6 @@ export const createTestAIResponse = (content: string = 'AI response content'): M
   return createTestMessage({
     role: 'assistant',
     content,
-    timestamp: new Date('2025-01-01T12:00:01.000Z'),
   });
 };
 
@@ -39,8 +38,6 @@ export const createTestConversation = (messageCount: number = 3): Message[] => {
   for (let i = 0; i < messageCount; i++) {
     messages.push(createTestMessage({
       content: `User message ${i + 1}`,
-      id: `user-message-${i + 1}`,
-      timestamp: new Date(`2025-01-01T12:0${i}:00.000Z`),
     }));
 
     if (i < messageCount - 1 || messageCount % 2 === 0) {
@@ -48,7 +45,7 @@ export const createTestConversation = (messageCount: number = 3): Message[] => {
     }
   }
   return messages;
-};
+};;
 
 /**
  * Creates test plugin settings with custom overrides
@@ -91,27 +88,11 @@ export const createTestProviderSettings = (
 /**
  * Creates a mock AI provider for testing
  */
-export const createMockAIProvider = (overrides: Partial<AIProvider> = {}): AIProvider => {
+export const createMockAIProvider = (): AIProvider => {
   return {
-    id: 'test-provider',
-    name: 'Test Provider',
-    description: 'Mock provider for testing',
-    configFields: {
-      apiKey: {
-        type: 'string',
-        label: 'API Key',
-        placeholder: 'Enter your API key',
-        required: true,
-      },
-    },
-    getCompletion: jest.fn().mockResolvedValue({
-      content: 'Mock AI response',
-      usage: { promptTokens: 10, completionTokens: 20, totalTokens: 30 },
-    }),
+    getCompletion: jest.fn().mockResolvedValue(undefined),
     getAvailableModels: jest.fn().mockResolvedValue(['model-1', 'model-2']),
-    listModels: jest.fn().mockResolvedValue(['model-1', 'model-2']),
-    testConnection: jest.fn().mockResolvedValue({ success: true }),
-    ...overrides,
+    testConnection: jest.fn().mockResolvedValue({ success: true, message: 'Connected' }),
   };
 };
 

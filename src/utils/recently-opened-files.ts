@@ -49,7 +49,8 @@ export class RecentlyOpenedFilesManager {
             return; // Already set up
         }
 
-        this.listenerRef = this.app.workspace.on('file-open', (file: TFile) => {
+        this.listenerRef = this.app.workspace.on('active-leaf-change', () => {
+            const file = this.app.workspace.getActiveFile();
             if (file) {
                 this.recordFileOpened(file);
             }

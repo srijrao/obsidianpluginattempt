@@ -116,7 +116,8 @@ export class OpenAIProvider extends BaseProvider {
             if (error instanceof ProviderError) {
                 throw error;
             }
-            if (error.name === 'AbortError') {
+            const err = error as Error;
+            if (err.name === 'AbortError') {
                 debugLog(this.debugMode, 'info', 'OpenAI stream was aborted'); // Use debugLog
             } else {
                 debugLog(this.debugMode, 'error', 'Error calling OpenAI:', error); // Use debugLog
