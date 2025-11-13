@@ -65,6 +65,14 @@ export async function renderChatHistory({
             );
             // Attach timestamp for reference (used for editing/deleting)
             messageEl.dataset.timestamp = msg.timestamp;
+            // CRITICAL: Store the original message content (with newlines intact) in dataset
+            // This prevents the batched re-render from "recovering" stripped text from rendered HTML
+            messageEl.dataset.rawContent = msg.content;
+            plugin.debugLog('debug', '[renderChatHistory] Set rawContent on message element', {
+                hasNewlines: msg.content.includes('\n'),
+                contentLength: msg.content.length,
+                contentPreview: msg.content.substring(0, 100)
+            });
             messagesContainer.appendChild(messageEl);
         }
     }

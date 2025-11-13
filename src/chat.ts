@@ -15,7 +15,7 @@
  * - Supporting message regeneration and error handling
  */
 
-import { ItemView, WorkspaceLeaf, Notice } from 'obsidian';
+import { ItemView, WorkspaceLeaf, Notice, MarkdownRenderer } from 'obsidian';
 import MyPlugin from './main';
 import { Message, ToolCommand, ToolResult, ToolExecutionResult } from './types';
 import { ChatHistoryManager, ChatMessage } from './components/chat/ChatHistoryManager';
@@ -1325,6 +1325,14 @@ export class ChatView extends ItemView {
 
         const rawContent = messageEl.dataset.rawContent || contentEl.textContent || '';
         
+        this.plugin.debugLog('debug', '[applyRenderModeToElement] Starting render', {
+            mode,
+            hasRawContent: !!messageEl.dataset.rawContent,
+            rawContentHasNewlines: rawContent.includes('\n'),
+            rawContentLength: rawContent.length,
+            rawContentPreview: rawContent.substring(0, 100)
+        });
+        
         if (mode === 'source') {
             this.sourceModeRenderer.renderSourceMode(rawContent, contentEl);
         } else {
@@ -1340,43 +1348,32 @@ export class ChatView extends ItemView {
                 // FIX: Use MessageRenderer for messages with embedded tool data
                 this.plugin.debugLog('debug', '[ChatView] Re-rendering message with embedded tool data using MessageRenderer');
                 const messageRenderer = new MessageRenderer(this.app);
-                messageRenderer.renderMessage({
-                    role: messageEl.classList.contains('user') ? 'user' : 'assistant',
-                    content: cleanContent,
-                    toolResults: toolData.toolResults,
-                    reasoning: toolData.reasoning,
-                    taskStatus: toolData.taskStatus
-                } as any, messageEl, this).catch((error) => {
+                try {
+                    await messageRenderer.renderMessage({
+                        role: messageEl.classList.contains('user') ? 'user' : 'assistant',
+                        content: cleanContent,
+                        toolResults: toolData.toolResults,
+                        reasoning: toolData.reasoning,
+                        taskStatus: toolData.taskStatus
+                    } as any, messageEl, this);
+                } catch (error) {
                     this.plugin.debugLog('error', '[ChatView] MessageRenderer failed, falling back to MarkdownRenderer', error);
                     // Fallback to basic markdown rendering
                     contentEl.empty();
-                    import('obsidian')
-                        .then(({ MarkdownRenderer }) =>
-                            MarkdownRenderer.render(this.app, cleanContent, contentEl, '', this)
-                        )
-                        .then(() => import('./utils/linkHandler'))
-                        .then(({ enableClickableLinksInMessage }) => {
-                            enableClickableLinksInMessage(messageEl, this.app);
-                        })
-                        .catch((error) => {
-                            console.error('Markdown rendering error:', error);
-                            contentEl.textContent = cleanContent;
-                        });
-                });
+                    await MarkdownRenderer.render(this.app, cleanContent, contentEl, '', this);
+                    const { enableClickableLinksInMessage } = await import('./utils/linkHandler');
+                    enableClickableLinksInMessage(messageEl, this.app);
+                }
             } else {
                 // Regular message without tool data - use standard MarkdownRenderer
-                import('obsidian')
-                    .then(({ MarkdownRenderer }) =>
-                        MarkdownRenderer.render(this.app, rawContent, contentEl, '', this)
-                    )
-                    .then(() => import('./utils/linkHandler'))
-                    .then(({ enableClickableLinksInMessage }) => {
-                        enableClickableLinksInMessage(messageEl, this.app);
-                    })
-                    .catch((error) => {
-                        console.error('Markdown rendering error:', error);
-                        contentEl.textContent = rawContent;
-                    });
+                try {
+                    await MarkdownRenderer.render(this.app, rawContent, contentEl, '', this);
+                    const { enableClickableLinksInMessage } = await import('./utils/linkHandler');
+                    enableClickableLinksInMessage(messageEl, this.app);
+                } catch (error) {
+                    console.error('Markdown rendering error:', error);
+                    contentEl.textContent = rawContent;
+                }
             }
         }
     }
@@ -1440,7 +1437,10 @@ export class ChatView extends ItemView {
         for (let i = 0; i < messageElements.length; i += this.RENDER_BATCH_SIZE) {
             const batch = messageElements.slice(i, i + this.RENDER_BATCH_SIZE);
             await new Promise<void>(resolve => {
-                requestAnimationFrame(() => {
+                requestAnimationFrame(async () => {
+                    // Collect all render promises in this batch
+                    const renderPromises: Promise<void>[] = [];
+                    
                     batch.forEach((messageEl: HTMLElement) => {
                         const htmlElement = messageEl as HTMLElement;
                         const contentElement = htmlElement.querySelector('.message-content') as HTMLElement;
@@ -1449,34 +1449,40 @@ export class ChatView extends ItemView {
                             return;
                         }
                         if (!rawContent || rawContent.trim() === '') {
-                            const pre = contentElement.querySelector('pre');
-                            const recovered = (pre?.textContent || contentElement.textContent || '').trim();
-                            if (recovered) {
-                                rawContent = recovered;
-                                htmlElement.dataset.rawContent = recovered;
+                            // Only attempt recovery from <pre> in source mode.
+                            // Never recover from live-mode rendered HTML textContent,
+                            // as that strips markdown syntax (tables, lists, etc.).
+                            if (currentMode === 'source') {
+                                const pre = contentElement.querySelector('pre');
+                                const recovered = (pre?.textContent || '').trim();
+                                if (recovered) {
+                                    rawContent = recovered;
+                                    htmlElement.dataset.rawContent = recovered;
+                                }
                             }
                         }
                         if (rawContent && rawContent.length > 0) {
                             if (currentMode === 'source') {
                                 this.sourceModeRenderer.renderSourceMode(rawContent, contentElement);
                             } else {
-                                this.applyRenderModeToElement(htmlElement).catch(() => {
+                                // Collect the render promise to await later
+                                const renderPromise = this.applyRenderModeToElement(htmlElement).catch(async () => {
                                     contentElement.empty();
-                                    import('obsidian')
-                                        .then(({ MarkdownRenderer }) =>
-                                            MarkdownRenderer.render(this.app, rawContent!, contentElement, '', this)
-                                        )
-                                        .then(() => import('./utils/linkHandler'))
-                                        .then(({ enableClickableLinksInMessage }) => {
-                                            enableClickableLinksInMessage(htmlElement, this.app);
-                                        })
-                                        .catch((fallbackError) => {
-                                            contentElement.textContent = rawContent!;
-                                        });
+                                    try {
+                                        await MarkdownRenderer.render(this.app, rawContent!, contentElement, '', this);
+                                        const { enableClickableLinksInMessage } = await import('./utils/linkHandler');
+                                        enableClickableLinksInMessage(htmlElement, this.app);
+                                    } catch (fallbackError) {
+                                        contentElement.textContent = rawContent!;
+                                    }
                                 });
+                                renderPromises.push(renderPromise);
                             }
                         }
                     });
+                    
+                    // Wait for all renders in this batch to complete
+                    await Promise.all(renderPromises);
                     resolve();
                 });
             });
@@ -1639,13 +1645,26 @@ export class ChatView extends ItemView {
         // Set the active container for UI updates
         this.streamCoordinator.setActiveContainer(container);
 
-        // Set up chunk callback for real-time UI updates
+        // Set up chunk callback for real-time UI updates (respects current render mode)
         const onChunk = async (chunk: string, fullContent: string) => {
             // Update the message content in the container
-            const messageDiv = container.querySelector('.message-content');
+            const messageDiv = container.querySelector('.message-content') as HTMLElement;
             if (messageDiv) {
-                messageDiv.textContent = fullContent;
-                container.dataset.rawContent = fullContent;  // ✅ FIX: Preserve partial responses for chat history
+                const currentMode = this.plugin.settings.uiBehavior?.chatRenderMode || 'live';
+                messageDiv.empty();
+                if (currentMode === 'source') {
+                    // In source mode, show raw markdown as text
+                    messageDiv.textContent = fullContent;
+                } else {
+                    // In live mode, render markdown
+                    try {
+                        await MarkdownRenderer.render(this.app, fullContent, messageDiv, '', this);
+                    } catch (error) {
+                        // Fallback to plain text if rendering fails
+                        messageDiv.textContent = fullContent;
+                    }
+                }
+                container.dataset.rawContent = fullContent;  // ✅ Preserve partial responses for chat history
                 // Scroll to bottom
                 this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
             }
